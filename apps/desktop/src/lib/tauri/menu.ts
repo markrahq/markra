@@ -6,7 +6,6 @@ import {
   type SubmenuOptions
 } from "@tauri-apps/api/menu";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import {
   defaultMarkdownShortcuts,
@@ -156,18 +155,8 @@ function menuLabel(language: AppLanguage, key: I18nKey) {
   return t(language, key);
 }
 
-async function isCurrentNativeWindowFocused() {
-  try {
-    return await getCurrentWindow().isFocused();
-  } catch {
-    return true;
-  }
-}
-
 export async function listenNativeApplicationMenuCommands(handlers: NativeMenuHandlers) {
-  return listen<NativeMenuCommandPayload>("markra://menu-command", async (event) => {
-    if (!(await isCurrentNativeWindowFocused())) return;
-
+  return listen<NativeMenuCommandPayload>("markra://menu-command", (event) => {
     runNativeMenuAction(handlers[event.payload.command]);
   });
 }

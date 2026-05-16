@@ -21,15 +21,16 @@ use markdown_files::{
     save_clipboard_image, write_markdown_file,
 };
 use menu::{
-    create_application_menu, install_application_menu, is_frontend_menu_command,
-    is_native_new_window_command, is_native_settings_window_command, NativeMenuCommand,
-    NATIVE_MENU_COMMAND_EVENT,
+    create_application_menu, emit_native_menu_command, install_application_menu,
+    is_frontend_menu_command, is_native_new_window_command, is_native_settings_window_command,
+    remember_native_menu_webview_window, remember_native_menu_window_from_event,
+    NativeMenuTargetState,
 };
 use opened_files::{
     opened_markdown_paths_from_args, opened_markdown_paths_from_urls, queue_opened_markdown_paths,
     take_opened_markdown_paths, OpenedMarkdownPathsState,
 };
-use tauri::Emitter;
+use tauri::Manager;
 use watcher::{unwatch_markdown_file, watch_markdown_file, MarkdownWatcherState};
 use web_http::{download_web_image, request_web_resource};
 use windows::{
@@ -43,6 +44,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(MarkdownWatcherState::default())
         .manage(OpenedMarkdownPathsState::default())
+        .manage(NativeMenuTargetState::default())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
@@ -50,6 +52,9 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             apply_main_window_chrome(app);
+            if let Some(window) = app.get_webview_window("main") {
+                remember_native_menu_webview_window(&window);
+            }
             let paths = opened_markdown_paths_from_args(std::env::args());
             queue_opened_markdown_paths(&app.handle(), paths);
             Ok(())
@@ -58,6 +63,7 @@ pub fn run() {
             apply_webview_window_chrome(webview);
         })
         .on_window_event(|window, event| {
+            remember_native_menu_window_from_event(window, event);
             apply_window_event_chrome(window, event);
         })
         .menu(create_application_menu)
@@ -77,12 +83,7 @@ pub fn run() {
                 return;
             }
 
-            let _ = app.emit(
-                NATIVE_MENU_COMMAND_EVENT,
-                NativeMenuCommand {
-                    command: command.to_string(),
-                },
-            );
+            emit_native_menu_command(app, command.to_string());
         })
         .invoke_handler(tauri::generate_handler![
             list_markdown_files_for_path,

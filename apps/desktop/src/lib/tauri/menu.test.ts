@@ -163,7 +163,7 @@ describe("native menu", () => {
     expect(handlers.openDocument).toHaveBeenCalledTimes(1);
   });
 
-  it("ignores native application menu commands in unfocused windows", async () => {
+  it("routes targeted native application menu commands even when the WebView is temporarily unfocused", async () => {
     isFocused.mockResolvedValue(false);
     const handlers: NativeMenuHandlers = {
       saveDocument: vi.fn()
@@ -174,7 +174,7 @@ describe("native menu", () => {
 
     await listener?.({ payload: { command: "saveDocument" } } as Parameters<NonNullable<typeof listener>>[0]);
 
-    expect(handlers.saveDocument).not.toHaveBeenCalled();
+    expect(handlers.saveDocument).toHaveBeenCalledTimes(1);
   });
 
   it("shows a native context menu only inside the markdown paper", async () => {

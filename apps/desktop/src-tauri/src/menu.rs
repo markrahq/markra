@@ -1,8 +1,9 @@
 use crate::language::{resolve_startup_language, AppLanguage};
 use std::collections::HashMap;
+use std::sync::Mutex;
 use tauri::{
     menu::{AboutMetadata, Menu, MenuBuilder, MenuItemBuilder, SubmenuBuilder},
-    Manager,
+    Emitter, Manager,
 };
 
 pub(crate) const NATIVE_MENU_COMMAND_EVENT: &str = "markra://menu-command";
@@ -15,6 +16,66 @@ const MARKRA_GITHUB_URL: &str = "https://github.com/murongg/markra";
 #[derive(Clone, serde::Serialize)]
 pub(crate) struct NativeMenuCommand {
     pub(crate) command: String,
+}
+
+#[derive(Default)]
+pub(crate) struct NativeMenuTargetState(Mutex<Option<String>>);
+
+impl NativeMenuTargetState {
+    fn remember(&self, label: impl Into<String>) {
+        let mut target = self.0.lock().expect("native menu target lock poisoned");
+        *target = Some(label.into());
+    }
+
+    fn label(&self) -> Option<String> {
+        self.0
+            .lock()
+            .expect("native menu target lock poisoned")
+            .clone()
+    }
+}
+
+pub(crate) fn remember_native_menu_window_label<R: tauri::Runtime, M: Manager<R>>(
+    manager: &M,
+    label: impl Into<String>,
+) {
+    let state = manager.state::<NativeMenuTargetState>();
+    state.remember(label);
+}
+
+pub(crate) fn remember_native_menu_window<R: tauri::Runtime>(window: &tauri::Window<R>) {
+    remember_native_menu_window_label(window, window.label());
+}
+
+pub(crate) fn remember_native_menu_webview_window<R: tauri::Runtime>(
+    window: &tauri::WebviewWindow<R>,
+) {
+    let state = window.state::<NativeMenuTargetState>();
+    state.remember(window.label());
+}
+
+pub(crate) fn remember_native_menu_window_from_event<R: tauri::Runtime>(
+    window: &tauri::Window<R>,
+    event: &tauri::WindowEvent,
+) {
+    if matches!(event, tauri::WindowEvent::Focused(true)) {
+        remember_native_menu_window(window);
+    }
+}
+
+pub(crate) fn emit_native_menu_command<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    command: String,
+) {
+    let payload = NativeMenuCommand { command };
+    let target_label = app.state::<NativeMenuTargetState>().label();
+
+    if let Some(window) = target_label.and_then(|label| app.get_webview_window(&label)) {
+        let _ = window.emit(NATIVE_MENU_COMMAND_EVENT, payload);
+        return;
+    }
+
+    let _ = app.emit(NATIVE_MENU_COMMAND_EVENT, payload);
 }
 
 fn app_menu_item<R: tauri::Runtime, M: Manager<R>>(
@@ -389,5 +450,17 @@ mod tests {
         assert!(is_native_settings_window_command("openSettings"));
         assert!(!is_native_settings_window_command("saveDocument"));
         assert!(!is_frontend_menu_command("openSettings"));
+    }
+
+    #[test]
+    fn native_menu_target_state_remembers_latest_window_label() {
+        let state = NativeMenuTargetState::default();
+
+        assert_eq!(state.label(), None);
+
+        state.remember("main");
+        state.remember("markra-editor-1");
+
+        assert_eq!(state.label().as_deref(), Some("markra-editor-1"));
     }
 }
