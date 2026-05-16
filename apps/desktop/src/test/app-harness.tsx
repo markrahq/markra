@@ -77,8 +77,7 @@ import {
   notifyAppWebSearchSettingsChanged
 } from "../lib/settings/settings-events";
 import { fetchAiProviderModels, testAiProviderConnection } from "@markra/providers";
-import { chatCompletion } from "@markra/ai";
-import { generateAiAgentSessionTitle } from "@markra/ai";
+import { chatCompletion, generateAiAgentSessionTitle } from "@markra/ai";
 import { resolveDesktopPlatform } from "../lib/platform";
 
 const testAiQuickActionPrompts = vi.hoisted(() => ({

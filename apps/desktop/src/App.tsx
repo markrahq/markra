@@ -52,7 +52,7 @@ import {
   useNativeMenuHandlers,
   useNativeMenus
 } from "./hooks/useNativeBindings";
-import { aiTranslationLanguageName, t, type I18nKey } from "@markra/shared";
+import { aiTranslationLanguageName, clampNumber, debug, t, type I18nKey } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
@@ -61,7 +61,7 @@ import type { EditorContentWidth } from "./lib/editor-width";
 import { saveEditorImage } from "./lib/image-upload";
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
 import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
-import type { AiDiffResult, AiEditIntent, AiSelectionContext } from "@markra/ai";
+import { aiAgentWebSearchAvailable, type AiDiffResult, type AiEditIntent, type AiSelectionContext } from "@markra/ai";
 import {
   AI_EDITOR_PREVIEW_APPLIED_EVENT,
   AI_EDITOR_PREVIEW_ACTION_EVENT,
@@ -71,7 +71,6 @@ import {
   type AiEditorPreviewRestoreDetail,
   type RemoteClipboardImage
 } from "@markra/editor";
-import { aiAgentWebSearchAvailable } from "@markra/ai";
 import {
   defaultSplitVisualPanePercent,
   deleteStoredAiAgentSession,
@@ -94,8 +93,6 @@ import {
   saveNativePdfFile,
   type NativeMarkdownFolderFile
 } from "./lib/tauri";
-import { debug } from "@markra/shared";
-import { clampNumber } from "@markra/shared";
 
 const aiAgentPanelDefaultWidth = 384;
 const aiAgentPanelMinWidth = 320;

@@ -3,8 +3,7 @@ import { Plugin, PluginKey, TextSelection, type Transaction } from "@milkdown/ki
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 import type { AiDiffResult } from "@markra/ai";
-import { debug } from "@markra/shared";
-import { clampNumber } from "@markra/shared";
+import { clampNumber, debug } from "@markra/shared";
 
 export const AI_EDITOR_PREVIEW_ACTION_EVENT = "markra-ai-preview-action";
 export const AI_EDITOR_PREVIEW_APPLIED_EVENT = "markra-ai-preview-applied";

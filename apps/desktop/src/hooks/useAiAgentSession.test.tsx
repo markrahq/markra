@@ -1,6 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { runDocumentAiAgent } from "@markra/ai";
-import { generateAiAgentSessionTitle } from "@markra/ai";
+import { generateAiAgentSessionTitle, runDocumentAiAgent } from "@markra/ai";
 import {
   getStoredAiAgentSession,
   getStoredAiAgentPreferences,

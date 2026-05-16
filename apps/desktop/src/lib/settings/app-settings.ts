@@ -8,12 +8,13 @@ import {
   normalizeStoredAiAgentSessionSummaries,
   normalizeStoredAiAgentSessionSummary,
   type StoredAiAgentSessionSummary,
-  type StoredAiAgentSessionState
+  type StoredAiAgentSessionState,
+  type WebSearchProviderId,
+  type WebSearchSettings
 } from "@markra/ai";
 import { defaultMarkdownShortcuts, normalizeMarkdownShortcuts, type MarkdownShortcutBindings } from "@markra/editor";
 import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "@markra/providers";
 import { clampNumber, isAppLanguage, normalizeNullableString, type AppLanguage } from "@markra/shared";
-import { type WebSearchProviderId, type WebSearchSettings } from "@markra/ai";
 import {
   editorContentWidthOptions,
   normalizeEditorContentWidthPx,

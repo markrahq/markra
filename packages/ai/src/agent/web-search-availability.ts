@@ -1,7 +1,10 @@
-import type { AiProviderConfig, AiProviderModel } from "@markra/providers";
+import {
+  getProviderCapabilities,
+  providerSupportsNativeWebSearch,
+  type AiProviderConfig,
+  type AiProviderModel
+} from "@markra/providers";
 import { webSearchSettingsAreUsable, type WebSearchSettings } from "./tools/web-search";
-import { providerSupportsNativeWebSearch } from "@markra/providers";
-import { getProviderCapabilities } from "@markra/providers";
 
 type WebSearchModel = Pick<AiProviderModel, "capabilities" | "id">;
 

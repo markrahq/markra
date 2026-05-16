@@ -14,9 +14,13 @@ import {
   type RemoteClipboardImage,
   applyAiEditorResult,
   clearAiEditorPreview,
+  clearAiSelectionHold,
   confirmAiEditorResultApplied,
+  defaultMarkdownShortcuts,
   scrollAiEditorPreviewIntoView,
-  showAiEditorPreview
+  showAiEditorPreview,
+  showAiSelectionHold,
+  type MarkdownShortcutMap
 } from "@markra/editor";
 import {
   readAiSectionAnchorsFromView,
@@ -24,7 +28,6 @@ import {
   readAiTableAnchorsFromView
 } from "../hooks/useEditorController";
 import type { AiSelectionContext } from "@markra/ai";
-import { clearAiSelectionHold, defaultMarkdownShortcuts, showAiSelectionHold, type MarkdownShortcutMap } from "@markra/editor";
 
 async function renderEditor(
   initialContent = "",

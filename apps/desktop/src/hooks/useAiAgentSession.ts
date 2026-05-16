@@ -1,25 +1,28 @@
 import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
-import { chatCompletionStream, runDocumentAiAgent, type DocumentAiHistoryMessage, type DocumentAiImage } from "@markra/ai";
-import { generateAiAgentSessionTitle } from "@markra/ai";
 import {
   applyAgentEventToProcesses,
   cancelAgentProcesses,
+  chatCompletionStream,
+  createDefaultAiAgentSessionState,
   createInitialAgentProcesses,
   failAgentProcesses,
-  finalizeAgentProcesses
-} from "@markra/ai";
-import {
-  createDefaultAiAgentSessionState,
+  finalizeAgentProcesses,
+  generateAiAgentSessionTitle,
+  runDocumentAiAgent,
+  type AgentWorkspaceFile,
+  type AiDiffResult,
+  type AiDocumentAnchor,
+  type AiHeadingAnchor,
+  type AiSelectionContext,
   type AiAgentSessionPreview,
   type AiAgentSessionMessage,
+  type DocumentAiHistoryMessage,
+  type DocumentAiImage,
+  type WebSearchSettings,
   type StoredAiAgentSessionState
 } from "@markra/ai";
-import type { AgentWorkspaceFile } from "@markra/ai";
-import { getProviderCapabilities } from "@markra/providers";
-import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "@markra/ai";
-import type { AiProviderConfig } from "@markra/providers";
+import { getProviderCapabilities, type AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
-import type { WebSearchSettings } from "@markra/ai";
 import { requestNativeChat, requestNativeChatStream, requestNativeWebResource } from "../lib/tauri";
 import {
   getStoredAiAgentPreferences,

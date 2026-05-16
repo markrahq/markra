@@ -7,16 +7,17 @@ import type { EditorView } from "@milkdown/kit/prose/view";
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "@markra/ai";
 import {
   applyAiEditorResult,
+  clearAiSelectionHold,
   clearAiEditorPreview,
   confirmAiEditorResultApplied,
   listAiEditorPreviewResults,
+  normalizeHeadingSourceDocument,
   scrollAiEditorPreviewIntoView,
+  serializeLinkImageLiveMarkdown,
   showAiEditorPreview,
+  showAiSelectionHold,
   type AiEditorPreviewLabels
 } from "@markra/editor";
-import { serializeLinkImageLiveMarkdown } from "@markra/editor";
-import { normalizeHeadingSourceDocument } from "@markra/editor";
-import { clearAiSelectionHold, showAiSelectionHold } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 
 const outlineScrollTopOffset = 24;

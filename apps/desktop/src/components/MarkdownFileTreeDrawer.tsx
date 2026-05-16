@@ -21,12 +21,11 @@ import {
   Settings,
   TableOfContents
 } from "lucide-react";
-import { t, type AppLanguage } from "@markra/shared";
+import { clampNumber, t, type AppLanguage } from "@markra/shared";
 import { IconButton } from "@markra/ui";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
 import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
-import { clampNumber } from "@markra/shared";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 
 type MarkdownFileTreeDrawerProps = {

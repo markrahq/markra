@@ -1,10 +1,9 @@
 import { Agent } from "@mariozechner/pi-agent-core";
-import type { AiProviderConfig } from "@markra/providers";
+import { getProviderCapabilities, providerSupportsNativeWebSearch, type AiProviderConfig } from "@markra/providers";
 import { createNativeChatStreamFn, createPiAgentModel } from "./runtime";
 import { chatCompletionStream } from "./chat-completion";
 import { runReadOnlyAgentTools } from "./read-only-tools";
 import type { ChatImageAttachment } from "./chat/types";
-import { getProviderCapabilities } from "@markra/providers";
 import { createDocumentAgentTools } from "./document-tools";
 import { readPromptedDocumentImages } from "./document/images";
 import {
@@ -18,7 +17,6 @@ import {
 import { modelSupportsTools, modelSupportsVision } from "./document/models";
 import type { RunDocumentAiAgentInput, RunDocumentAiAgentResult } from "./document/types";
 import { webSearchSettingsAreUsable } from "./tools/web-search";
-import { providerSupportsNativeWebSearch } from "@markra/providers";
 export type * from "./document/types";
 
 export async function runDocumentAiAgent({

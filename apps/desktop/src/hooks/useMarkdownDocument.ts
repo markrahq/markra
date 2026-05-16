@@ -22,8 +22,7 @@ import {
   type NativeMarkdownFolderFile
 } from "../lib/tauri";
 import { setNativeWindowTitle } from "../lib/tauri";
-import { pathNameFromPath } from "@markra/shared";
-import type { DocumentState } from "@markra/shared";
+import { pathNameFromPath, type DocumentState } from "@markra/shared";
 
 function isBlankEditorWindow() {
   return new URLSearchParams(window.location.search).has("blank");

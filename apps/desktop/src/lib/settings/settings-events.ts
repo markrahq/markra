@@ -12,8 +12,7 @@ import {
   type ExportSettings,
   type WebSearchSettings
 } from "./app-settings";
-import { isAppLanguage, type AppLanguage } from "@markra/shared";
-import { hasTauriRuntime } from "@markra/shared";
+import { hasTauriRuntime, isAppLanguage, type AppLanguage } from "@markra/shared";
 
 const themeChangedEvent = "markra://theme-changed";
 const customThemeCssChangedEvent = "markra://custom-theme-css-changed";

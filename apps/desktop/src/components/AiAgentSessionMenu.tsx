@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Archive, ArchiveRestore, Check, History, MessageSquarePlus, PencilLine, Search, Trash2 } from "lucide-react";
 import { Button, IconButton, PopoverSurface, SearchInput } from "@markra/ui";
-import type { AppLanguage, I18nKey } from "@markra/shared";
+import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import type { StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
-import { t } from "@markra/shared";
 import { confirmNativeAiAgentSessionDelete } from "../lib/tauri";
 
 const menuExitDurationMs = 140;
