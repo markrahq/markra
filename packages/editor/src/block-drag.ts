@@ -86,9 +86,20 @@ function pixelValue(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function contentBoxCenterTop(element: Element, rect: DOMRect) {
+function lineHeightValue(lineHeight: string, fontSize: string) {
+  const parsedLineHeight = Number.parseFloat(lineHeight);
+  if (!Number.isFinite(parsedLineHeight)) return 0;
+  if (lineHeight.endsWith("px")) return parsedLineHeight;
+
+  const parsedFontSize = pixelValue(fontSize);
+  if (parsedFontSize <= 0) return 0;
+
+  return parsedLineHeight * parsedFontSize;
+}
+
+function contentBoxFirstLineCenterTop(element: Element, rect: DOMRect) {
   const ownerWindow = element.ownerDocument.defaultView;
-  if (!ownerWindow) return rect.top + rect.height / 2;
+  if (!ownerWindow) return rect.top;
 
   const style = ownerWindow.getComputedStyle(element);
   const borderTop = pixelValue(style.borderTopWidth);
@@ -96,8 +107,10 @@ function contentBoxCenterTop(element: Element, rect: DOMRect) {
   const paddingTop = pixelValue(style.paddingTop);
   const paddingBottom = pixelValue(style.paddingBottom);
   const contentHeight = Math.max(0, rect.height - borderTop - borderBottom - paddingTop - paddingBottom);
+  const lineHeight = lineHeightValue(style.lineHeight, style.fontSize);
+  const firstLineHeight = lineHeight > 0 ? Math.min(contentHeight, lineHeight) : contentHeight;
 
-  return rect.top + borderTop + paddingTop + contentHeight / 2;
+  return rect.top + borderTop + paddingTop + firstLineHeight / 2;
 }
 
 function hasTableAncestor($pos: ResolvedPos) {
@@ -959,7 +972,7 @@ class MarkraBlockDragView {
 
     const rect = dom.getBoundingClientRect();
     const left = Math.max(8, editorRect.left - blockToolbarGutterOffset);
-    const top = contentBoxCenterTop(dom, rect);
+    const top = contentBoxFirstLineCenterTop(dom, rect);
 
     this.toolbar.style.left = `${Math.round(left)}px`;
     this.toolbar.style.top = `${Math.round(top)}px`;

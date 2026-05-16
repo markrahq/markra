@@ -1222,7 +1222,7 @@ describe("MarkdownPaper editing", () => {
     restoreLayout();
   });
 
-  it("centers the block toolbar against tall heading content", async () => {
+  it("anchors the block toolbar near the first line of tall heading content", async () => {
     const { container, view } = await renderEditor("# Parent\n\nBody");
     const heading = container.querySelector<HTMLElement>(".ProseMirror > h1");
     const surface = container.querySelector<HTMLElement>(".ProseMirror");
@@ -1234,6 +1234,7 @@ describe("MarkdownPaper editing", () => {
     heading!.style.paddingBottom = "10px";
     heading!.style.borderBottomWidth = "1px";
     heading!.style.borderBottomStyle = "solid";
+    heading!.style.lineHeight = "52px";
     heading!.getBoundingClientRect = vi.fn(
       () =>
         ({
@@ -1275,7 +1276,7 @@ describe("MarkdownPaper editing", () => {
     });
 
     const handle = await screen.findByRole("button", { name: "Drag block" });
-    expect(handle.closest<HTMLElement>(".markra-block-toolbar")?.style.top).toBe("137px");
+    expect(handle.closest<HTMLElement>(".markra-block-toolbar")?.style.top).toBe("126px");
 
     Object.defineProperty(view, "posAtCoords", {
       configurable: true,
