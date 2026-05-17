@@ -1,5 +1,12 @@
 import { useCallback, useEffect, useState, type CSSProperties } from "react";
-import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/app-settings";
+import {
+  createAiAgentSessionId,
+  getStoredRecentMarkdownFolders,
+  prependRecentMarkdownFolder,
+  saveStoredRecentMarkdownFolder,
+  saveStoredWorkspaceState,
+  type RecentMarkdownFolder
+} from "../lib/settings/app-settings";
 import {
   createNativeMarkdownTreeFile,
   createNativeMarkdownTreeFolder,
@@ -27,11 +34,17 @@ type OpenMarkdownFolderOptions = {
   pickerTitle?: string;
 };
 
+function normalizeTreeParentPath(path: string | null | undefined) {
+  const trimmedPath = path?.trim();
+  return trimmedPath ? trimmedPath : null;
+}
+
 export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFileTreeOptions = {}) {
   const [files, setFiles] = useState<NativeMarkdownFolderFile[]>([]);
   const [rootName, setRootName] = useState("No folder");
   const [sourcePath, setSourcePath] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const [recentFolders, setRecentFolders] = useState<RecentMarkdownFolder[]>([]);
   const [width, setWidth] = useState(markdownFileTreeDefaultWidth);
   const [resizing, setResizing] = useState(false);
   const workspaceLayoutClassName = `workspace-layout grid h-full min-h-0 overflow-hidden ${
@@ -80,12 +93,18 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     setRootName(folderNameFromDocumentPath(path));
   }, []);
 
+  const rememberFolder = useCallback((folder: RecentMarkdownFolder) => {
+    setRecentFolders((current) => prependRecentMarkdownFolder(current, folder));
+    saveStoredRecentMarkdownFolder(folder).catch(() => {});
+  }, []);
+
   const openFolderPath = useCallback((path: string, name = pathNameFromPath(path), preferredSessionId?: string | null) => {
     const folderName = name || pathNameFromPath(path);
     const sessionId = preferredSessionId?.trim() ? preferredSessionId : createAiAgentSessionId();
     setSourcePath(path);
     setRootName(folderName);
     setOpen(true);
+    rememberFolder({ name: folderName, path });
     onWorkspaceSessionChange?.(sessionId);
     // Folder navigation is restored independently from the last active document.
     persistWorkspaceState({
@@ -94,7 +113,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
       folderName,
       folderPath: path
     });
-  }, [onWorkspaceSessionChange]);
+  }, [onWorkspaceSessionChange, rememberFolder]);
 
   const openMarkdownFolder = useCallback(async (options: OpenMarkdownFolderOptions = {}) => {
     const folder = await openNativeMarkdownFolder(
@@ -106,18 +125,29 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     return folder;
   }, [openFolderPath]);
 
-  const createFile = useCallback(async (fileName: string) => {
+  const openRecentFolder = useCallback((folder: RecentMarkdownFolder, preferredSessionId?: string | null) => {
+    openFolderPath(folder.path, folder.name, preferredSessionId);
+    return folder;
+  }, [openFolderPath]);
+
+  const createFile = useCallback(async (fileName: string, parentPath: string | null = null) => {
     if (!sourcePath) return null;
 
-    const file = await createNativeMarkdownTreeFile(sourcePath, fileName);
+    const normalizedParentPath = normalizeTreeParentPath(parentPath);
+    const file = normalizedParentPath
+      ? await createNativeMarkdownTreeFile(sourcePath, fileName, normalizedParentPath)
+      : await createNativeMarkdownTreeFile(sourcePath, fileName);
     await refresh(sourcePath);
     return file;
   }, [refresh, sourcePath]);
 
-  const createFolder = useCallback(async (folderName: string) => {
+  const createFolder = useCallback(async (folderName: string, parentPath: string | null = null) => {
     if (!sourcePath) return null;
 
-    const folder = await createNativeMarkdownTreeFolder(sourcePath, folderName);
+    const normalizedParentPath = normalizeTreeParentPath(parentPath);
+    const folder = normalizedParentPath
+      ? await createNativeMarkdownTreeFolder(sourcePath, folderName, normalizedParentPath)
+      : await createNativeMarkdownTreeFolder(sourcePath, folderName);
     await refresh(sourcePath);
     return folder;
   }, [refresh, sourcePath]);
@@ -158,6 +188,18 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
   useEffect(() => {
     let active = true;
 
+    getStoredRecentMarkdownFolders().then((folders) => {
+      if (active) setRecentFolders(folders);
+    }).catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
     if (!sourcePath) {
       setFiles([]);
       return () => {
@@ -181,12 +223,14 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     createFolder,
     deleteFile,
     files,
+    recentFolders,
     resizing,
     width,
     maxWidth: markdownFileTreeMaxWidth,
     minWidth: markdownFileTreeMinWidth,
     open,
     openFolderPath,
+    openRecentFolder,
     rootNameForDocument,
     refresh,
     setRootFromMarkdownFilePath,

@@ -341,7 +341,7 @@ export function AiAgentPanel({
       style={resolvedWidth === null ? undefined : { maxWidth: resolvedWidth, minWidth: resolvedWidth, width: resolvedWidth }}
     >
       <div
-        className="absolute inset-y-0 left-0 z-30 w-2 cursor-col-resize touch-none outline-none hover:[&>span]:bg-(--accent) focus-visible:[&>span]:bg-(--accent)"
+        className="absolute top-10 bottom-0 left-0 z-30 w-2 cursor-col-resize touch-none outline-none hover:[&>span]:bg-(--accent) focus-visible:[&>span]:bg-(--accent)"
         role="separator"
         tabIndex={0}
         aria-label={label("app.resizeAiAgent")}

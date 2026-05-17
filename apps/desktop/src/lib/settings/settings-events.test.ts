@@ -151,7 +151,6 @@ describe("settings events", () => {
       titlebarActions: [
         { id: "theme", visible: true },
         { id: "save", visible: false },
-        { id: "open", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
         { id: "aiAgent", visible: true }

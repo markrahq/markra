@@ -15,6 +15,7 @@ import {
   mockedConsumeWelcomeDocumentState,
   mockedCreateAiAgentSessionId,
   mockedCreateNativeMarkdownTreeFile,
+  mockedCreateNativeMarkdownTreeFolder,
   mockedCheckNativeAppUpdate,
   mockedDeleteNativeMarkdownTreeFile,
   mockedFetchAiProviderModels,
@@ -22,6 +23,7 @@ import {
   mockedGetStoredExportSettings,
   mockedGetStoredEditorPreferences,
   mockedGetStoredLanguage,
+  mockedGetStoredRecentMarkdownFolders,
   mockedGetStoredTheme,
   mockedGetStoredWorkspaceState,
   mockedInstallNativeApplicationMenu,
@@ -55,6 +57,7 @@ import {
   mockedSaveStoredEditorPreferences,
   mockedSaveStoredExportSettings,
   mockedSaveStoredLanguage,
+  mockedSaveStoredRecentMarkdownFolder,
   mockedSaveStoredTheme,
   mockedSaveStoredWorkspaceState,
   mockedShowNativeMarkdownFileTreeContextMenu,
@@ -183,7 +186,6 @@ describe("Markra workspace", () => {
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
-        { id: "open", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -194,7 +196,7 @@ describe("Markra workspace", () => {
     await screen.findByText("Welcome to Markra");
 
     const aiButton = screen.getByRole("button", { name: "Toggle Markra AI" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "open", "save", "theme"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "splitMode", "save", "theme"]);
 
     fireEvent.mouseDown(aiButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
@@ -222,7 +224,6 @@ describe("Markra workspace", () => {
         titlebarActions: [
           { id: "sourceMode", visible: true },
           { id: "splitMode", visible: true },
-          { id: "open", visible: true },
           { id: "save", visible: true },
           { id: "aiAgent", visible: true },
           { id: "theme", visible: true }
@@ -250,7 +251,6 @@ describe("Markra workspace", () => {
         titlebarActions: [
           { id: "sourceMode", visible: true },
           { id: "splitMode", visible: true },
-          { id: "open", visible: true },
           { id: "save", visible: true },
           { id: "aiAgent", visible: true },
           { id: "theme", visible: true }
@@ -314,12 +314,41 @@ describe("Markra workspace", () => {
     );
     expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "vault" })).toBeInTheDocument();
+    expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     expect(screen.queryByRole("heading", { name: "Untitled.md" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+  });
+
+  it("keeps the saved folder root when restoring a nested file from that workspace", async () => {
+    const nestedFilePath = "/mock-files/vault/docs/deep/a.md";
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
+      filePath: nestedFilePath,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: mockFolderPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "a.md", path: nestedFilePath, relativePath: "docs/deep/a.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Nested A\n\nRestored from a nested workspace file.",
+      name: "a.md",
+      path: nestedFilePath
+    });
+
+    renderApp();
+
+    expect(await screen.findByText("Nested A")).toBeInTheDocument();
+    expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath));
+    expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalledWith("/mock-files/vault/docs/deep");
+    expect(mockedSaveStoredWorkspaceState).not.toHaveBeenCalledWith(expect.objectContaining({
+      folderPath: "/mock-files/vault/docs/deep"
+    }));
   });
 
   it("loads and persists the app color theme", async () => {
@@ -542,7 +571,6 @@ describe("Markra workspace", () => {
         { id: "aiAgent" as const, visible: true },
         { id: "sourceMode" as const, visible: true },
         { id: "splitMode" as const, visible: true },
-        { id: "open" as const, visible: true },
         { id: "save" as const, visible: true },
         { id: "theme" as const, visible: true }
       ],
@@ -560,7 +588,6 @@ describe("Markra workspace", () => {
       "Toggle Markra AI",
       "Switch to source mode",
       "Switch to split mode",
-      "Open Markdown or Folder",
       "Save Markdown",
       "Switch to dark theme",
       "Reset toolbar buttons"
@@ -572,7 +599,6 @@ describe("Markra workspace", () => {
         titlebarActions: [
           { id: "sourceMode", visible: true },
           { id: "splitMode", visible: true },
-          { id: "open", visible: true },
           { id: "save", visible: true },
           { id: "aiAgent", visible: true },
           { id: "theme", visible: true }
@@ -583,7 +609,6 @@ describe("Markra workspace", () => {
     expect(within(toolbarGroup).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
       "Switch to source mode",
       "Switch to split mode",
-      "Open Markdown or Folder",
       "Save Markdown",
       "Toggle Markra AI",
       "Switch to dark theme",
@@ -650,7 +675,6 @@ describe("Markra workspace", () => {
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
-        { id: "open", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -1080,7 +1104,7 @@ describe("Markra workspace", () => {
     renderApp();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: "Open Folder" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Open Folder..." }));
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
     expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
@@ -1088,6 +1112,32 @@ describe("Markra workspace", () => {
     expect(mockedOpenNativeMarkdownFolder).toHaveBeenCalledTimes(1);
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
     expect(mockedOpenNativeMarkdownPath).not.toHaveBeenCalled();
+  });
+
+  it("opens a remembered markdown folder from the sidebar recent folders area", async () => {
+    mockedGetStoredRecentMarkdownFolders.mockResolvedValue([
+      { name: "notes", path: "/mock-files/notes" }
+    ]);
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "index.md", path: "/mock-files/notes/index.md", relativePath: "index.md" }
+    ]);
+
+    renderApp();
+
+    await waitFor(() => expect(mockedGetStoredRecentMarkdownFolders).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    const recentSection = await screen.findByRole("region", { name: "Recently used directories" });
+    fireEvent.click(within(recentSection).getByRole("button", { name: "notes" }));
+
+    expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
+    expect(screen.getAllByText("notes").length).toBeGreaterThan(0);
+    expect(await screen.findByRole("button", { name: "index.md" })).toBeInTheDocument();
+    expect(mockedOpenNativeMarkdownFolder).not.toHaveBeenCalled();
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/mock-files/notes");
+    expect(mockedSaveStoredRecentMarkdownFolder).toHaveBeenCalledWith({
+      name: "notes",
+      path: "/mock-files/notes"
+    });
   });
 
   it("opens a markdown folder from the native application menu", async () => {
@@ -1139,6 +1189,49 @@ describe("Markra workspace", () => {
     expect(screen.queryByRole("heading", { name: "Untitled.md" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
+  });
+
+  it("creates a folder inside the selected sidebar folder from the context menu", async () => {
+    const docsPath = "/mock-files/vault/docs";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { kind: "folder", name: "docs", path: docsPath, relativePath: "docs" },
+      { name: "note.md", path: `${docsPath}/note.md`, relativePath: "docs/note.md" }
+    ]);
+    mockedCreateNativeMarkdownTreeFolder.mockResolvedValue({
+      kind: "folder",
+      name: "Sprint",
+      path: `${docsPath}/Sprint`,
+      relativePath: "docs/Sprint"
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    const folderButton = await screen.findByRole("button", { name: "docs" });
+
+    fireEvent.contextMenu(folderButton);
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+    act(() => {
+      contextHandlers?.createFolder?.();
+    });
+
+    expect(screen.getByRole("button", { name: "docs" })).toHaveAttribute("aria-expanded", "true");
+    const docsChildren = screen.getByRole("group", { name: "docs children" });
+    const folderNameInput = within(docsChildren).getByRole("textbox", { name: "New folder name" });
+    fireEvent.change(folderNameInput, { target: { value: "Sprint" } });
+    fireEvent.keyDown(folderNameInput, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(mockedCreateNativeMarkdownTreeFolder).toHaveBeenCalledWith(mockFolderPath, "Sprint", docsPath)
+    );
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
   });
 
@@ -1535,8 +1628,9 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "New file" }));
+    fireEvent.click(screen.getByRole("button", { name: "New tab" }));
 
     expect(mockedCreateNativeMarkdownTreeFile).not.toHaveBeenCalled();
     expect(mockedSaveNativeMarkdownFile).not.toHaveBeenCalled();
@@ -1580,7 +1674,7 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "New file" }));
+    fireEvent.click(screen.getByRole("button", { name: "New tab" }));
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 
     expect(await screen.findByText("Other file")).toBeInTheDocument();
@@ -1608,7 +1702,6 @@ describe("Markra workspace", () => {
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
-        { id: "open", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -1663,7 +1756,7 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("heading", { name: /native\.md/ })).toBeInTheDocument();
   });
 
-  it("switches the sidebar top-left action to a document outline view", async () => {
+  it("shows a document outline alongside the sidebar file tree", async () => {
     mockOpenMarkdownFile({
       content: "# Native file\n\n## Details",
       name: "native.md",
@@ -1675,8 +1768,8 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Show outline" }));
 
+    expect(screen.getByText("Files")).toBeInTheDocument();
     expect(screen.getByText("Outline")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Document outline" })).toHaveTextContent("Native file");
     expect(screen.getByRole("list", { name: "Document outline" })).toHaveTextContent("Details");
@@ -1695,7 +1788,6 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("Native file")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Show outline" }));
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
 
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Markdown document" })).toHaveFocus());
@@ -1748,7 +1840,6 @@ describe("Markra workspace", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Show outline" }));
     fireEvent.click(screen.getByRole("button", { name: "Details" }));
 
     await waitFor(() =>
@@ -1822,7 +1913,6 @@ describe("Markra workspace", () => {
     }));
 
     fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Show outline" }));
     fireEvent.click(screen.getByRole("button", { name: "B" }));
     fireEvent.click(screen.getByRole("button", { name: "A" }));
     fireEvent.click(screen.getByRole("button", { name: "B" }));
@@ -1931,7 +2021,7 @@ describe("Markra workspace", () => {
       await onOpenedPaths?.([mockDroppedPath]);
     });
 
-    expect(await screen.findByText("Runtime file")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Runtime file" })).toBeInTheDocument();
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockDroppedPath);
   });
 
@@ -1970,7 +2060,7 @@ describe("Markra workspace", () => {
       await handleDrop?.({ kind: "file", name: "dropped.md", path: mockDroppedPath });
     });
 
-    expect(await screen.findByText("Dropped file")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Dropped file" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /dropped\.md/ })).toBeInTheDocument();
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockDroppedPath);
     expect(mockedOpenNativeMarkdownFileInNewWindow).not.toHaveBeenCalled();
@@ -1978,7 +2068,7 @@ describe("Markra workspace", () => {
 
   it("opens a dropped markdown file in a new window when the current editor has content", async () => {
     renderApp();
-    await screen.findByText("Welcome to Markra");
+    await screen.findByRole("heading", { name: "Welcome to Markra" });
     await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
     const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
 
@@ -1988,7 +2078,7 @@ describe("Markra workspace", () => {
 
     expect(mockedOpenNativeMarkdownFileInNewWindow).toHaveBeenCalledWith(mockDroppedPath);
     expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalledWith(mockDroppedPath);
-    expect(screen.getByText("Welcome to Markra")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome to Markra" })).toBeInTheDocument();
   });
 
   it("opens a dropped markdown folder into the current empty editor file tree", async () => {
@@ -2024,7 +2114,7 @@ describe("Markra workspace", () => {
 
   it("opens a dropped markdown folder in a new window when the current editor has content", async () => {
     renderApp();
-    await screen.findByText("Welcome to Markra");
+    await screen.findByRole("heading", { name: "Welcome to Markra" });
     await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
     const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
 
@@ -2035,7 +2125,7 @@ describe("Markra workspace", () => {
     expect(mockedOpenNativeMarkdownFolderInNewWindow).toHaveBeenCalledWith(mockFolderPath);
     expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalledWith(mockFolderPath);
     expect(screen.queryByRole("complementary", { name: "Markdown file tree" })).not.toBeInTheDocument();
-    expect(screen.getByText("Welcome to Markra")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome to Markra" })).toBeInTheDocument();
   });
 
   it("saves an untitled document with the native save dialog shortcut", async () => {
@@ -2466,7 +2556,7 @@ describe("Markra workspace", () => {
       await menuHandlers.openDocument?.();
     });
 
-    expect(await screen.findByText("Native menu file")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Native menu file" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /native-menu\.md/ })).toBeInTheDocument();
 
     await act(async () => {
@@ -2517,7 +2607,7 @@ describe("Markra workspace", () => {
     await act(async () => {
       await menuHandlers.openDocument?.();
     });
-    expect(await screen.findByText("Exportable")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Exportable" })).toBeInTheDocument();
 
     await act(async () => {
       await menuHandlers.exportHtml?.();
@@ -2568,7 +2658,7 @@ describe("Markra workspace", () => {
       await act(async () => {
         await menuHandlers.openDocument?.();
       });
-      expect(await screen.findByText("Printable")).toBeInTheDocument();
+      expect(await screen.findByRole("heading", { name: "Printable" })).toBeInTheDocument();
 
       await act(async () => {
         await menuHandlers.exportPdf?.();

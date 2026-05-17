@@ -646,7 +646,6 @@ describe("EditorSettings", () => {
       titlebarActions: [
         { id: "theme", visible: true },
         { id: "save", visible: false },
-        { id: "open", visible: true },
         { id: "splitMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "aiAgent", visible: true }
@@ -667,7 +666,6 @@ describe("EditorSettings", () => {
     expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
       "Switch to dark theme",
       "Save Markdown",
-      "Open Markdown or Folder",
       "Switch to split mode",
       "Switch to source mode",
       "Toggle Markra AI"
@@ -688,7 +686,6 @@ describe("EditorSettings", () => {
       titlebarActions: [
         { id: "theme", visible: true },
         { id: "save", visible: true },
-        { id: "open", visible: true },
         { id: "splitMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "aiAgent", visible: true }
@@ -696,19 +693,18 @@ describe("EditorSettings", () => {
     });
 
     const themeButton = screen.getByRole("button", { name: "Switch to dark theme" });
-    mockTitlebarActionRects(["theme", "save", "open", "splitMode", "sourceMode", "aiAgent"]);
+    mockTitlebarActionRects(["theme", "save", "splitMode", "sourceMode", "aiAgent"]);
 
     fireEvent.mouseDown(themeButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
-    fireEvent.mouseMove(document, { buttons: 1, clientX: 60, clientY: 10 });
-    fireEvent.mouseUp(document, { clientX: 60, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 42, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 42, clientY: 10 });
     await settleSortableDrag();
 
     expect(onUpdatePreferences).toHaveBeenLastCalledWith({
       ...preferences,
       titlebarActions: [
         { id: "save", visible: false },
-        { id: "open", visible: true },
         { id: "theme", visible: true },
         { id: "splitMode", visible: true },
         { id: "sourceMode", visible: true },
@@ -724,8 +720,8 @@ describe("EditorSettings", () => {
       clientY: 10
     });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 70, clientY: 10 });
-    fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
-    fireEvent.mouseUp(document, { clientX: 20, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 52, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 52, clientY: 10 });
     await settleSortableDrag();
 
     expect(onUpdatePreferences).toHaveBeenLastCalledWith({
@@ -734,7 +730,6 @@ describe("EditorSettings", () => {
         { id: "theme", visible: true },
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
-        { id: "open", visible: true },
         { id: "splitMode", visible: true },
         { id: "aiAgent", visible: true }
       ]
@@ -748,7 +743,6 @@ describe("EditorSettings", () => {
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
-        { id: "open", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ]

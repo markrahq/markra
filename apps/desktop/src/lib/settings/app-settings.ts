@@ -14,7 +14,7 @@ import {
 } from "@markra/ai";
 import { defaultMarkdownShortcuts, normalizeMarkdownShortcuts, type MarkdownShortcutBindings } from "@markra/editor";
 import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "@markra/providers";
-import { clampNumber, isAppLanguage, normalizeNullableString, type AppLanguage } from "@markra/shared";
+import { clampNumber, isAppLanguage, normalizeNullableString, pathNameFromPath, type AppLanguage } from "@markra/shared";
 import {
   editorContentWidthOptions,
   normalizeEditorContentWidthPx,
@@ -41,6 +41,7 @@ const editorPreferencesKey = "editorPreferences";
 const exportSettingsKey = "exportSettings";
 const webSearchKey = "webSearch";
 const workspaceKey = "workspace";
+const recentMarkdownFoldersKey = "recentMarkdownFolders";
 
 export type ResolvedAppTheme = "light" | "dark";
 export type AiSelectionDisplayMode = "command" | "toolbar";
@@ -68,7 +69,7 @@ export const appThemeOptions = ["system", ...editorThemeOptions] as const;
 export type AppTheme = typeof appThemeOptions[number];
 export type PdfMarginPreset = "custom" | "default" | "narrow" | "none" | "normal" | "wide";
 export type PdfPageSize = "a4" | "custom" | "default" | "letter";
-export type TitlebarActionId = "aiAgent" | "sourceMode" | "splitMode" | "open" | "save" | "theme";
+export type TitlebarActionId = "aiAgent" | "sourceMode" | "splitMode" | "save" | "theme";
 export type TitlebarActionPreference = {
   id: TitlebarActionId;
   visible: boolean;
@@ -137,6 +138,10 @@ export type StoredWorkspaceState = {
   folderName: string | null;
   folderPath: string | null;
 };
+export type RecentMarkdownFolder = {
+  name: string;
+  path: string;
+};
 export type { AppLanguage };
 export type { EditorContentWidth };
 export type { WebSearchProviderId, WebSearchSettings };
@@ -176,7 +181,6 @@ export const defaultTitlebarActions: readonly TitlebarActionPreference[] = [
   { id: "aiAgent", visible: true },
   { id: "sourceMode", visible: true },
   { id: "splitMode", visible: true },
-  { id: "open", visible: true },
   { id: "save", visible: true },
   { id: "theme", visible: true }
 ];
@@ -249,6 +253,7 @@ export const defaultWebSearchSettings: WebSearchSettings = {
   providerId: "local-bing",
   searxngApiHost: ""
 };
+export const recentMarkdownFoldersMaxLength = 5;
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
@@ -639,6 +644,24 @@ export async function saveStoredWorkspaceState(patch: Partial<StoredWorkspaceSta
   await store.save();
 }
 
+export async function getStoredRecentMarkdownFolders(): Promise<RecentMarkdownFolder[]> {
+  const store = await loadSettingsStore();
+  const folders = await store.get<RecentMarkdownFolder[]>(recentMarkdownFoldersKey);
+
+  return normalizeRecentMarkdownFolders(folders);
+}
+
+export async function saveStoredRecentMarkdownFolder(folder: RecentMarkdownFolder) {
+  const store = await loadSettingsStore();
+  const current = normalizeRecentMarkdownFolders(await store.get<RecentMarkdownFolder[]>(recentMarkdownFoldersKey));
+  const folders = prependRecentMarkdownFolder(current, folder);
+
+  await store.set(recentMarkdownFoldersKey, folders);
+  await store.save();
+
+  return folders;
+}
+
 export async function resetWelcomeDocumentState() {
   const store = await loadSettingsStore();
 
@@ -732,6 +755,38 @@ export function normalizeSplitVisualPanePercent(value: unknown) {
   if (percent === null) return defaultSplitVisualPanePercent;
 
   return Math.round(percent);
+}
+
+export function normalizeRecentMarkdownFolders(value: unknown): RecentMarkdownFolder[] {
+  if (!Array.isArray(value)) return [];
+
+  const seenPaths = new Set<string>();
+  const folders: RecentMarkdownFolder[] = [];
+
+  value.forEach((item) => {
+    if (folders.length >= recentMarkdownFoldersMaxLength) return;
+    if (typeof item !== "object" || item === null) return;
+
+    const candidate = item as Partial<RecentMarkdownFolder>;
+    const path = typeof candidate.path === "string" ? candidate.path.trim() : "";
+    if (!path || seenPaths.has(path)) return;
+
+    const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
+    seenPaths.add(path);
+    folders.push({
+      name: name || pathNameFromPath(path),
+      path
+    });
+  });
+
+  return folders;
+}
+
+export function prependRecentMarkdownFolder(
+  folders: readonly RecentMarkdownFolder[],
+  folder: RecentMarkdownFolder
+) {
+  return normalizeRecentMarkdownFolders([folder, ...folders]);
 }
 
 export function normalizeTitlebarActions(value: unknown): TitlebarActionPreference[] {

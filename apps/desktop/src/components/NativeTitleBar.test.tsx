@@ -45,11 +45,13 @@ describe("NativeTitleBar", () => {
 
     expect(screen.getByLabelText("Window drag region")).toHaveAttribute("data-tauri-drag-region");
     expect(screen.getByRole("heading", { name: "Draft.md" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Open Markdown or Folder" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Markdown or Folder" }).closest(".titlebar-spacer")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle file list" })).toBeInTheDocument();
+    expect(container.querySelector("[data-titlebar-action='open']")).not.toBeInTheDocument();
+    expect(within(container.querySelector(".document-actions") as HTMLElement).queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
     expect(titlebar).toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
     expect(titlebar).toHaveClass("h-10");
     expect(container.querySelector(".document-actions")).toHaveClass("h-10");
@@ -282,7 +284,6 @@ describe("NativeTitleBar", () => {
           { id: "theme", visible: true },
           { id: "save", visible: false },
           { id: "splitMode", visible: true },
-          { id: "open", visible: true },
           { id: "aiAgent", visible: true },
           { id: "sourceMode", visible: true }
         ]}
@@ -303,10 +304,10 @@ describe("NativeTitleBar", () => {
     expect(actionLabels).toEqual([
       "Switch to dark theme",
       "Switch to split mode",
-      "Open Markdown or Folder",
       "Toggle Markra AI",
       "Switch to source mode"
     ]);
+    expect(screen.getByRole("button", { name: "Open Markdown or Folder" }).closest(".titlebar-spacer")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save Markdown" })).not.toBeInTheDocument();
   });
 
@@ -322,7 +323,6 @@ describe("NativeTitleBar", () => {
         titlebarActions={[
           { id: "aiAgent", visible: true },
           { id: "sourceMode", visible: true },
-          { id: "open", visible: true },
           { id: "save", visible: true },
           { id: "theme", visible: true }
         ]}
@@ -337,17 +337,16 @@ describe("NativeTitleBar", () => {
     );
 
     const aiButton = screen.getByRole("button", { name: "Toggle Markra AI" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "open", "save", "theme"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "splitMode"]);
 
     fireEvent.mouseDown(aiButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
-    fireEvent.mouseMove(document, { buttons: 1, clientX: 100, clientY: 10 });
-    fireEvent.mouseUp(document, { clientX: 100, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 65, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 65, clientY: 10 });
     await settleSortableDrag();
 
     expect(updateTitlebarActions).toHaveBeenCalledWith([
       { id: "sourceMode", visible: true },
-      { id: "open", visible: true },
       { id: "save", visible: true },
       { id: "aiAgent", visible: true },
       { id: "theme", visible: true },
@@ -367,7 +366,6 @@ describe("NativeTitleBar", () => {
         titlebarActions={[
           { id: "aiAgent", visible: true },
           { id: "sourceMode", visible: true },
-          { id: "open", visible: true },
           { id: "save", visible: true },
           { id: "theme", visible: true }
         ]}
@@ -382,19 +380,18 @@ describe("NativeTitleBar", () => {
     );
 
     const saveButton = screen.getByRole("button", { name: "Save Markdown" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "open", "save", "theme"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "splitMode"]);
 
     fireEvent.mouseDown(saveButton, { button: 0, clientX: 80, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 70, clientY: 10 });
-    fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
-    fireEvent.mouseUp(document, { clientX: 20, clientY: 10 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 42, clientY: 10 });
+    fireEvent.mouseUp(document, { clientX: 42, clientY: 10 });
     await settleSortableDrag();
 
     expect(updateTitlebarActions).toHaveBeenCalledWith([
       { id: "aiAgent", visible: true },
       { id: "save", visible: true },
       { id: "sourceMode", visible: true },
-      { id: "open", visible: true },
       { id: "theme", visible: true },
       { id: "splitMode", visible: true }
     ]);
@@ -621,9 +618,9 @@ describe("NativeTitleBar", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
 
-    expect(screen.getByRole("menu", { name: "Open Markdown or Folder" })).toBeInTheDocument();
+    expect(screen.getByRole("menu", { name: "Open Markdown or Folder" })).toHaveClass("right-0");
     expect(screen.getByRole("menuitem", { name: "Open Markdown File" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Open Folder" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open Folder..." }));
 
     expect(openMarkdownFolder).toHaveBeenCalledTimes(1);
     expect(openMarkdown).not.toHaveBeenCalled();
@@ -686,6 +683,33 @@ describe("NativeTitleBar", () => {
     fireEvent.click(button);
 
     expect(createMarkdownFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides the quick new file button when document tabs are visible", () => {
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        quickCreateMarkdownFileVisible
+        theme="light"
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        onCreateMarkdownFile={() => {}}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("tablist", { name: "Open documents" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
   });
 
   it("uses an image icon for image preview titles", () => {

@@ -144,7 +144,6 @@ describe("useEditorPreferences", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "open", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -220,7 +219,6 @@ describe("useEditorPreferences", () => {
         titlebarActions: [
           { id: "theme", visible: true },
           { id: "save", visible: false },
-          { id: "open", visible: true },
           { id: "sourceMode", visible: true },
           { id: "aiAgent", visible: true }
         ],

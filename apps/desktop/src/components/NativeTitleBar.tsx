@@ -125,7 +125,8 @@ export function NativeTitleBar({
   const [openMenuVisible, setOpenMenuVisible] = useState(false);
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
-  const splitOpenChoiceAvailable = platform !== "macos" && Boolean(onOpenMarkdownFolder);
+  const openChoiceMenuAvailable = Boolean(onOpenMarkdownFolder) && platform !== "macos";
+  const openChoiceMenuAlignmentClassName = platform === "windows" ? "right-0" : "left-0";
   const titlebarSideSlotWidth = 164;
   const normalizedTitlebarActions = useMemo(() => normalizeTitlebarActions(titlebarActions), [titlebarActions]);
   const visibleTitlebarActionIds = useMemo(
@@ -212,15 +213,19 @@ export function NativeTitleBar({
     action();
   };
 
-  const renderOpenAction = (sortable: SortableTitlebarActionRenderProps) => {
-    if (!splitOpenChoiceAvailable || !onOpenMarkdownFolder) {
+  const handleOpenActionClick = (event: ReactMouseEvent<HTMLElement>, action: () => unknown) => {
+    event.preventDefault();
+    event.stopPropagation();
+    runOpenAction(action);
+  };
+
+  const renderFixedOpenAction = (className = dimTitlebarIconButtonClassName) => {
+    if (!openChoiceMenuAvailable || !onOpenMarkdownFolder) {
       return (
         <IconButton
           label={label("app.openMarkdownOrFolder")}
-          className={sortable.actionClassName}
-          onClick={(event) => handleTitlebarActionClick("open", event, onOpenMarkdown)}
-          {...sortable.actionAttributes}
-          {...sortable.actionListeners}
+          className={className}
+          onClick={(event) => handleOpenActionClick(event, onOpenMarkdown)}
         >
           <FolderOpen aria-hidden="true" size={15} />
         </IconButton>
@@ -232,44 +237,60 @@ export function NativeTitleBar({
         <IconButton
           className={mergeClassNames(
             openMenuVisible ? "bg-(--bg-active) text-(--text-heading)" : "",
-            sortable.actionClassName
+            className
           )}
           label={label("app.openMarkdownOrFolder")}
           aria-expanded={openMenuVisible}
           aria-haspopup="menu"
-          onClick={(event) =>
-            handleTitlebarActionClick("open", event, () => setOpenMenuVisible((current) => !current))
-          }
-          {...sortable.actionAttributes}
-          {...sortable.actionListeners}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setOpenMenuVisible((current) => !current);
+          }}
         >
           <FolderOpen aria-hidden="true" size={15} />
         </IconButton>
         {openMenuVisible ? (
           <PopoverSurface
-            className="absolute top-[calc(100%+6px)] right-0 z-40 grid w-52 gap-1 rounded-lg p-1"
+            className={`absolute top-[calc(100%+6px)] ${openChoiceMenuAlignmentClassName} z-40 w-52 overflow-hidden rounded-lg p-0`}
             open
             role="menu"
             aria-label={label("app.openMarkdownOrFolder")}
           >
-            <Button
-              className="w-full justify-start rounded-md text-left"
-              size="sm"
-              role="menuitem"
-              onClick={() => runOpenAction(onOpenMarkdown)}
+            <div className="px-1.5 py-1">
+              <Button
+                className="h-7 w-full justify-start rounded-sm border-transparent bg-transparent px-2 text-left text-[12px] font-[520] text-(--text-heading) hover:bg-(--bg-hover)"
+                size="sm"
+                role="menuitem"
+                variant="ghost"
+                onClick={() => runOpenAction(onOpenMarkdown)}
+              >
+                <FileText aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
+                <span className="truncate">{label("app.openMarkdownFile")}</span>
+              </Button>
+            </div>
+            <div
+              className="border-t border-(--border-default) px-1.5 pt-1 pb-1.5"
+              role="group"
+              aria-label={label("app.markdownFolderSection")}
             >
-              <FileText aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
-              <span className="truncate">{label("app.openMarkdownFile")}</span>
-            </Button>
-            <Button
-              className="w-full justify-start rounded-md text-left"
-              size="sm"
-              role="menuitem"
-              onClick={() => runOpenAction(onOpenMarkdownFolder)}
-            >
-              <FolderOpen aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
-              <span className="truncate">{label("app.openFolder")}</span>
-            </Button>
+              <div
+                className="px-2 py-1 text-[11px] leading-4 font-medium text-(--text-secondary)"
+                role="presentation"
+              >
+                {label("app.markdownFolderSection")}
+              </div>
+              <Button
+                className="h-7 w-full justify-start rounded-sm border-transparent bg-transparent px-2 text-left text-[12px] font-[520] text-(--text-heading) hover:bg-(--bg-hover)"
+                size="sm"
+                role="menuitem"
+                variant="ghost"
+                onClick={() => runOpenAction(onOpenMarkdownFolder)}
+              >
+                <FolderOpen aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
+                <span className="truncate">{label("app.openFolderDialog")}</span>
+              </Button>
+            </div>
           </PopoverSurface>
         ) : null}
       </div>
@@ -349,8 +370,6 @@ export function NativeTitleBar({
         </IconButton>
       );
     }
-
-    if (id === "open") return renderOpenAction(sortable);
 
     if (id === "save") {
       return (
@@ -460,9 +479,10 @@ export function NativeTitleBar({
           aria-label={label("app.windowDragRegion")}
         >
           {renderTitleContent("native-title-slot min-w-0 h-10 pr-3 pl-4")}
-          {renderDocumentActions(
-            "document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100"
-          )}
+          <div className="relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100">
+            {renderFixedOpenAction("")}
+            {renderDocumentActions("document-actions relative flex h-10 items-center justify-end gap-0.5")}
+          </div>
         </header>
       );
     }
@@ -472,9 +492,10 @@ export function NativeTitleBar({
         className="native-titlebar fixed top-0 right-3.5 z-10 flex h-10 w-auto select-none items-center justify-end [-webkit-user-select:none]"
         aria-label={label("app.windowDragRegion")}
       >
-        {renderDocumentActions(
-          "document-actions relative flex h-10 items-center justify-end gap-0.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100"
-        )}
+        <div className="flex h-10 items-center justify-end gap-0.5 text-(--text-secondary) opacity-40 transition-[opacity,background-color,color] duration-150 ease-out hover:opacity-100 focus-within:opacity-100">
+          {renderFixedOpenAction("")}
+          {renderDocumentActions("document-actions relative flex h-10 items-center justify-end gap-0.5")}
+        </div>
       </header>
     );
   }
@@ -494,7 +515,7 @@ export function NativeTitleBar({
   };
   const titleResizing = aiAgentResizing || markdownFilesResizing;
   const showQuickCreateMarkdownFile =
-    quickCreateMarkdownFileVisible && !markdownFilesOpen && onCreateMarkdownFile;
+    quickCreateMarkdownFileVisible && !markdownFilesOpen && !titleContent && onCreateMarkdownFile;
   const TitleIcon = documentKind === "folder" ? FolderOpen : documentKind === "image" ? ImageIcon : FileText;
   const MarkdownFilesIcon = markdownFilesOpen ? PanelLeft : PanelRight;
   const showMacWindowControls = platform === "macos";
@@ -521,6 +542,7 @@ export function NativeTitleBar({
         >
           <MarkdownFilesIcon aria-hidden="true" size={15} />
         </IconButton>
+        {renderFixedOpenAction()}
         {showQuickCreateMarkdownFile ? (
           <IconButton
             className={dimTitlebarIconButtonClassName}

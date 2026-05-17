@@ -80,6 +80,7 @@ import {
   saveStoredEditorPreferences,
   saveStoredAiAgentSessionTitle,
   setStoredAiAgentSessionArchived,
+  type RecentMarkdownFolder,
   type TitlebarActionPreference
 } from "./lib/settings/app-settings";
 import { notifyAppEditorPreferencesChanged } from "./lib/settings/settings-events";
@@ -251,7 +252,9 @@ export default function App() {
     open: fileTreeOpen,
     openFolderPath,
     openMarkdownFolder,
+    openRecentFolder,
     renameFile: renameMarkdownTreeFile,
+    recentFolders: recentMarkdownFolders,
     refresh: refreshMarkdownFileTree,
     resizing: fileTreeResizing,
     resize: resizeFileTree,
@@ -1049,9 +1052,9 @@ export default function App() {
       .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
       .catch(() => {});
   }, [editorPreferences.preferences]);
-  const handleCreateMarkdownTreeFile = useCallback(async (fileName: string) => {
+  const handleCreateMarkdownTreeFile = useCallback(async (fileName: string, parentPath: string | null = null) => {
     try {
-      const file = await createMarkdownTreeFile(fileName);
+      const file = await createMarkdownTreeFile(fileName, parentPath);
       if (file) {
         setActiveImageFile(null);
         await openTreeMarkdownFile(file);
@@ -1080,9 +1083,9 @@ export default function App() {
     ));
     setActiveImageFile((currentFile) => currentFile?.path === previousPath ? renamedFile : currentFile);
   }, [replaceOpenDocumentFile]);
-  const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string) => {
+  const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string, parentPath: string | null = null) => {
     try {
-      await createMarkdownTreeFolder(folderName);
+      await createMarkdownTreeFolder(folderName, parentPath);
     } catch {
       // Native folder errors are surfaced by the platform operation when possible.
     }
@@ -1326,6 +1329,14 @@ export default function App() {
       clearOpenDocument();
     }
   }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder, translate]);
+  const handleOpenRecentMarkdownFolder = useCallback(async (folder: RecentMarkdownFolder) => {
+    const canDiscard = await confirmCanDiscardCurrentDocument();
+    if (!canDiscard) return;
+
+    setActiveImageFile(null);
+    openRecentFolder(folder);
+    clearOpenDocument();
+  }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openRecentFolder]);
   const clearExportSnapshot = useCallback((id: number) => {
     setExportSnapshot((current) => current?.id === id ? null : current);
   }, []);
@@ -1652,17 +1663,21 @@ export default function App() {
             <MarkdownFileTreeDrawer
               currentPath={activeImageFile?.path ?? (hasOpenDocument ? document.path : null)}
               files={fileTreeFiles}
+              folderOpen={Boolean(fileTree.sourcePath)}
               language={appLanguage.language}
               maxWidth={fileTreeMaxWidth}
               minWidth={fileTreeMinWidth}
               open={fileTreeOpen}
               outlineItems={outlineItems}
+              recentFolders={recentMarkdownFolders}
+              rootPath={fileTree.sourcePath}
               rootName={fileTreeRootName}
               width={fileTreeWidth}
               onCreateFile={handleCreateMarkdownTreeFile}
               onCreateFolder={handleCreateMarkdownTreeFolder}
               onDeleteFile={handleDeleteMarkdownTreeFile}
               onOpenFile={handleOpenTreeFile}
+              onOpenRecentFolder={handleOpenRecentMarkdownFolder}
               onOpenSettings={handleOpenSettings}
               onRenameFile={handleRenameMarkdownTreeFile}
               onResize={resizeFileTree}

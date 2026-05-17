@@ -487,6 +487,7 @@ describe("AiAgentPanel", () => {
     expect(handle).toHaveAttribute("aria-valuemin", "320");
     expect(handle).toHaveAttribute("aria-valuemax", "640");
     expect(handle).toHaveAttribute("aria-valuenow", "420");
+    expect(handle).toHaveClass("top-10", "bottom-0");
   });
 
   it("switches models and toggles supported agent modes", () => {

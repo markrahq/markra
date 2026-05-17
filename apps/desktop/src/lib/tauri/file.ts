@@ -223,6 +223,11 @@ function parentPathFromPath(path: string) {
   return path.slice(0, lastSeparatorIndex);
 }
 
+function normalizeNativeParentPath(path: string | null | undefined) {
+  const trimmedPath = path?.trim();
+  return trimmedPath ? trimmedPath : null;
+}
+
 export async function takeNativeOpenedMarkdownPaths(): Promise<string[]> {
   return normalizeOpenedMarkdownPaths(await invoke("take_opened_markdown_paths"));
 }
@@ -300,9 +305,14 @@ function markdownFolderFileFromResponse(file: MarkdownFolderFileResponse): Nativ
   return mappedFile;
 }
 
-export async function createNativeMarkdownTreeFile(rootPath: string, fileName: string): Promise<NativeMarkdownFolderFile> {
+export async function createNativeMarkdownTreeFile(
+  rootPath: string,
+  fileName: string,
+  parentPath: string | null = null
+): Promise<NativeMarkdownFolderFile> {
   const file = await invoke<MarkdownFolderFileResponse>("create_markdown_tree_file", {
     fileName,
+    parentPath: normalizeNativeParentPath(parentPath),
     rootPath
   });
 
@@ -311,10 +321,12 @@ export async function createNativeMarkdownTreeFile(rootPath: string, fileName: s
 
 export async function createNativeMarkdownTreeFolder(
   rootPath: string,
-  folderName: string
+  folderName: string,
+  parentPath: string | null = null
 ): Promise<NativeMarkdownFolderFile> {
   const folder = await invoke<MarkdownFolderFileResponse>("create_markdown_tree_folder", {
     folderName,
+    parentPath: normalizeNativeParentPath(parentPath),
     rootPath
   });
 

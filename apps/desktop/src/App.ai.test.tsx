@@ -161,7 +161,6 @@ describe("Markra AI workspace", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "open", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ]

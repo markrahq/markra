@@ -7,7 +7,13 @@ import {
   openNativeMarkdownFolder,
   renameNativeMarkdownTreeFile
 } from "../lib/tauri";
-import { createAiAgentSessionId, saveStoredWorkspaceState } from "../lib/settings/app-settings";
+import {
+  createAiAgentSessionId,
+  getStoredRecentMarkdownFolders,
+  saveStoredRecentMarkdownFolder,
+  saveStoredWorkspaceState,
+  type RecentMarkdownFolder
+} from "../lib/settings/app-settings";
 import { useMarkdownFileTree } from "./useMarkdownFileTree";
 
 vi.mock("../lib/tauri", () => ({
@@ -21,6 +27,12 @@ vi.mock("../lib/tauri", () => ({
 
 vi.mock("../lib/settings/app-settings", () => ({
   createAiAgentSessionId: vi.fn(),
+  getStoredRecentMarkdownFolders: vi.fn(),
+  prependRecentMarkdownFolder: vi.fn((folders: RecentMarkdownFolder[], folder: RecentMarkdownFolder) => [
+    folder,
+    ...folders.filter((item) => item.path !== folder.path)
+  ].slice(0, 5)),
+  saveStoredRecentMarkdownFolder: vi.fn(),
   saveStoredWorkspaceState: vi.fn()
 }));
 
@@ -31,6 +43,8 @@ const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesFo
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
 const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
 const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
+const mockedGetStoredRecentMarkdownFolders = vi.mocked(getStoredRecentMarkdownFolders);
+const mockedSaveStoredRecentMarkdownFolder = vi.mocked(saveStoredRecentMarkdownFolder);
 const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 
 function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) {
@@ -46,6 +60,12 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
       <p data-testid="layout-columns">{tree.workspaceLayoutStyle.gridTemplateColumns}</p>
       <button type="button" onClick={() => tree.openMarkdownFolder()}>
         Open folder
+      </button>
+      <button
+        type="button"
+        onClick={() => tree.openRecentFolder?.({ name: "notes", path: "/recent/notes" })}
+      >
+        Open recent folder
       </button>
       <button type="button" onClick={() => tree.toggle(currentPath)}>
         Toggle
@@ -68,6 +88,9 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
       <button type="button" onClick={() => tree.createFolder("Research")}>
         Create folder
       </button>
+      <button type="button" onClick={() => tree.createFolder("Sprint", "/vault/docs")}>
+        Create nested folder
+      </button>
       <button
         type="button"
         onClick={() => tree.renameFile({ name: "readme.md", path: "/vault/readme.md", relativePath: "readme.md" }, "renamed.md")}
@@ -85,6 +108,11 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
           <li key={file.path}>{file.relativePath}</li>
         ))}
       </ol>
+      <ol aria-label="Recent folders">
+        {(tree.recentFolders ?? []).map((folder) => (
+          <li key={folder.path}>{folder.path}</li>
+        ))}
+      </ol>
     </section>
   );
 }
@@ -98,8 +126,12 @@ describe("useMarkdownFileTree", () => {
     mockedOpenNativeMarkdownFolder.mockReset();
     mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedCreateAiAgentSessionId.mockReset();
+    mockedGetStoredRecentMarkdownFolders.mockReset();
+    mockedSaveStoredRecentMarkdownFolder.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
     mockedCreateAiAgentSessionId.mockReturnValue("session-folder");
+    mockedGetStoredRecentMarkdownFolders.mockResolvedValue([]);
+    mockedSaveStoredRecentMarkdownFolder.mockResolvedValue([]);
     mockedCreateNativeMarkdownTreeFile.mockResolvedValue({
       name: "Daily note.md",
       path: "/vault/Daily note.md",
@@ -143,6 +175,66 @@ describe("useMarkdownFileTree", () => {
       folderName: "vault",
       folderPath: "/vault"
     });
+    expect(mockedSaveStoredRecentMarkdownFolder).toHaveBeenCalledWith({
+      name: "vault",
+      path: "/vault"
+    });
+  });
+
+  it("loads recent markdown folders from settings", async () => {
+    mockedGetStoredRecentMarkdownFolders.mockResolvedValue([
+      { name: "notes", path: "/recent/notes" }
+    ]);
+
+    render(<FileTreeProbe />);
+
+    expect(await screen.findByText("/recent/notes")).toBeInTheDocument();
+    expect(mockedGetStoredRecentMarkdownFolders).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a remembered markdown folder without showing the native picker", async () => {
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { path: "/recent/notes/index.md", name: "index.md", relativePath: "index.md" }
+    ]);
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open recent folder" }));
+
+    expect(await screen.findByText("index.md")).toBeInTheDocument();
+    expect(screen.getByTestId("root-name")).toHaveTextContent("notes");
+    expect(mockedOpenNativeMarkdownFolder).not.toHaveBeenCalled();
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/recent/notes");
+    expect(mockedSaveStoredRecentMarkdownFolder).toHaveBeenCalledWith({
+      name: "notes",
+      path: "/recent/notes"
+    });
+  });
+
+  it("creates folders inside a selected nested folder", async () => {
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedCreateNativeMarkdownTreeFolder.mockResolvedValue({
+      kind: "folder",
+      path: "/vault/docs/Sprint",
+      name: "Sprint",
+      relativePath: "docs/Sprint"
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+    await waitFor(() => expect(screen.getByTestId("open-state")).toHaveTextContent("open"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Create nested folder" }));
+
+    await waitFor(() =>
+      expect(mockedCreateNativeMarkdownTreeFolder).toHaveBeenCalledWith("/vault", "Sprint", "/vault/docs")
+    );
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault");
   });
 
   it("refreshes from the current document path when toggled open without an explicit folder", async () => {

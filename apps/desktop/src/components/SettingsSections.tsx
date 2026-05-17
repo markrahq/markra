@@ -5,7 +5,6 @@ import {
   Cloud,
   Database,
   Download,
-  FolderOpen,
   HardDrive,
   Languages,
   Moon,
@@ -346,11 +345,6 @@ const titlebarActionOptions: Array<{
     icon: PanelRight,
     id: "splitMode",
     labelKey: "app.switchToSplitMode"
-  },
-  {
-    icon: FolderOpen,
-    id: "open",
-    labelKey: "app.openMarkdownOrFolder"
   },
   {
     icon: Save,

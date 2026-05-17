@@ -856,6 +856,38 @@ fn ensure_markdown_tree_parent(root: &Path, parent: &Path) -> Result<(), String>
     Ok(())
 }
 
+fn markdown_tree_target_parent(
+    root: &Path,
+    parent_path: Option<String>,
+) -> Result<PathBuf, String> {
+    let Some(parent_path) = parent_path
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    else {
+        return Ok(root.to_path_buf());
+    };
+
+    let candidate_parent = PathBuf::from(parent_path);
+    let candidate_parent = if candidate_parent.is_absolute() {
+        candidate_parent
+    } else {
+        root.join(candidate_parent)
+    };
+    let canonical_parent = candidate_parent
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+
+    canonical_parent
+        .strip_prefix(root)
+        .map_err(|_| "Folder is outside the current Markdown folder".to_string())?;
+
+    if !canonical_parent.is_dir() {
+        return Err("Target folder is invalid".to_string());
+    }
+
+    Ok(canonical_parent)
+}
+
 fn markdown_open_picker_title(title: Option<String>) -> String {
     title
         .map(|value| value.trim().to_string())
@@ -981,16 +1013,15 @@ pub(crate) fn list_markdown_files_for_path(
 pub(crate) fn create_markdown_tree_file(
     root_path: String,
     file_name: String,
+    parent_path: Option<String>,
 ) -> Result<MarkdownFolderFile, String> {
     let root_path = PathBuf::from(root_path);
     let root = canonical_markdown_tree_root(&root_path)?;
     let normalized_file_name = normalize_markdown_tree_file_name(&file_name)?;
-    let target_path = root.join(normalized_file_name);
-    let parent = target_path
-        .parent()
-        .ok_or_else(|| "File parent is invalid".to_string())?;
+    let parent = markdown_tree_target_parent(&root, parent_path)?;
+    let target_path = parent.join(normalized_file_name);
 
-    ensure_markdown_tree_parent(&root, parent)?;
+    ensure_markdown_tree_parent(&root, &parent)?;
 
     if target_path.exists() {
         return Err("File already exists".to_string());
@@ -1009,16 +1040,15 @@ pub(crate) fn create_markdown_tree_file(
 pub(crate) fn create_markdown_tree_folder(
     root_path: String,
     folder_name: String,
+    parent_path: Option<String>,
 ) -> Result<MarkdownFolderFile, String> {
     let root_path = PathBuf::from(root_path);
     let root = canonical_markdown_tree_root(&root_path)?;
     let normalized_folder_name = normalize_markdown_tree_folder_name(&folder_name)?;
-    let target_path = root.join(normalized_folder_name);
-    let parent = target_path
-        .parent()
-        .ok_or_else(|| "Folder parent is invalid".to_string())?;
+    let parent = markdown_tree_target_parent(&root, parent_path)?;
+    let target_path = parent.join(normalized_folder_name);
 
-    ensure_markdown_tree_parent(&root, parent)?;
+    ensure_markdown_tree_parent(&root, &parent)?;
 
     if target_path.exists() {
         return Err("Folder already exists".to_string());
@@ -1360,9 +1390,12 @@ mod tests {
             .canonicalize()
             .expect("test folder should have a canonical path");
 
-        let created =
-            create_markdown_tree_file(root.to_string_lossy().to_string(), "Daily note".to_string())
-                .expect("markdown file should be created");
+        let created = create_markdown_tree_file(
+            root.to_string_lossy().to_string(),
+            "Daily note".to_string(),
+            None,
+        )
+        .expect("markdown file should be created");
 
         assert_eq!(
             created,
@@ -1759,7 +1792,8 @@ mod tests {
 
         assert!(create_markdown_tree_file(
             root.to_string_lossy().to_string(),
-            "../escape.md".to_string()
+            "../escape.md".to_string(),
+            None
         )
         .is_err());
         assert!(rename_markdown_tree_file(
@@ -1794,9 +1828,12 @@ mod tests {
             .canonicalize()
             .expect("test folder should have a canonical path");
 
-        let created =
-            create_markdown_tree_folder(root.to_string_lossy().to_string(), "Research".to_string())
-                .expect("markdown folder should be created");
+        let created = create_markdown_tree_folder(
+            root.to_string_lossy().to_string(),
+            "Research".to_string(),
+            None,
+        )
+        .expect("markdown folder should be created");
 
         assert_eq!(
             created,
@@ -1810,9 +1847,33 @@ mod tests {
             }
         );
         assert!(root.join("Research").is_dir());
+
+        let docs = root.join("docs");
+        fs::create_dir_all(&docs).expect("nested parent folder should be created");
+        let nested = create_markdown_tree_folder(
+            root.to_string_lossy().to_string(),
+            "Sprint".to_string(),
+            Some(docs.to_string_lossy().to_string()),
+        )
+        .expect("nested markdown folder should be created");
+
+        assert_eq!(
+            nested,
+            MarkdownFolderFile {
+                kind: MarkdownFolderEntryKind::Folder,
+                path: canonical_root
+                    .join("docs")
+                    .join("Sprint")
+                    .to_string_lossy()
+                    .to_string(),
+                relative_path: "docs/Sprint".to_string(),
+            }
+        );
+        assert!(docs.join("Sprint").is_dir());
         assert!(create_markdown_tree_folder(
             root.to_string_lossy().to_string(),
-            "../escape".to_string()
+            "../escape".to_string(),
+            None
         )
         .is_err());
 
