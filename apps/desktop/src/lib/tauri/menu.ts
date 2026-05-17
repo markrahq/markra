@@ -316,12 +316,22 @@ export function createNativeMarkdownFileTreeContextMenuItems(
   file?: NativeMarkdownFolderFile
 ) {
   const label = (key: I18nKey) => menuLabel(language, key);
+  const fileIsFolder = file?.kind === "folder";
   const items: Array<MenuItemOptions | PredefinedMenuItemOptions> = [
     customItem("markra:file-tree:new", label("app.newMarkdownFile"), undefined, handlers.createFile),
     customItem("markra:file-tree:new-folder", label("app.newMarkdownFolder"), undefined, handlers.createFolder)
   ];
 
   if (!file) return items;
+
+  if (fileIsFolder) {
+    items.push(
+      separator(),
+      customItem("markra:file-tree:delete", label("app.deleteMarkdownFolder"), undefined, () => handlers.deleteFile?.(file))
+    );
+
+    return items;
+  }
 
   items.push(
     separator(),

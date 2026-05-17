@@ -575,6 +575,56 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(createFolder).toHaveBeenCalledWith("Research", "/vault/deploy");
   });
 
+  it("opens a folder context menu with a delete action for that folder", () => {
+    const deleteFile = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onDeleteFile={deleteFile}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "deploy" }));
+
+    expect(mockedShowNativeMarkdownFileTreeContextMenu).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deleteFile: expect.any(Function)
+      }),
+      "en",
+      expect.objectContaining({
+        kind: "folder",
+        name: "deploy",
+        path: "/vault/deploy",
+        relativePath: "deploy"
+      })
+    );
+
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    act(() => {
+      contextHandlers?.deleteFile?.({
+        kind: "folder",
+        name: "deploy",
+        path: "/vault/deploy",
+        relativePath: "deploy"
+      });
+    });
+
+    expect(deleteFile).toHaveBeenCalledWith({
+      kind: "folder",
+      name: "deploy",
+      path: "/vault/deploy",
+      relativePath: "deploy"
+    });
+  });
+
   it("opens native context menus for root and markdown files", () => {
     const createFile = vi.fn();
     const createFolder = vi.fn();

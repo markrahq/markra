@@ -453,6 +453,38 @@ describe("native menu", () => {
     expect(popup).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a native markdown file tree delete action for a folder target", async () => {
+    const createFile = vi.fn();
+    const createFolder = vi.fn();
+    const renameFile = vi.fn();
+    const deleteFile = vi.fn();
+    const folder = {
+      kind: "folder" as const,
+      name: "docs",
+      path: "/vault/docs",
+      relativePath: "docs"
+    };
+
+    await showNativeMarkdownFileTreeContextMenu({
+      createFile,
+      createFolder,
+      deleteFile,
+      renameFile
+    }, "en", folder);
+
+    const items = latestMenuItems();
+    const deleteItem = menuItemById(items, "markra:file-tree:delete");
+
+    expect(deleteItem).toMatchObject({ text: "Delete folder" });
+    expect(findMenuItemById(items, "markra:file-tree:rename")).toBeNull();
+
+    deleteItem.action?.("markra:file-tree:delete");
+
+    expect(deleteFile).toHaveBeenCalledWith(folder);
+    expect(renameFile).not.toHaveBeenCalled();
+    expect(popup).toHaveBeenCalledTimes(1);
+  });
+
   it("only shows create actions for the markdown file tree root target", async () => {
     await showNativeMarkdownFileTreeContextMenu({
       createFile: vi.fn(),

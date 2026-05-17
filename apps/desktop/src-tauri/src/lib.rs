@@ -31,7 +31,10 @@ use opened_files::{
     take_opened_markdown_paths, OpenedMarkdownPathsState,
 };
 use tauri::Manager;
-use watcher::{unwatch_markdown_file, watch_markdown_file, MarkdownWatcherState};
+use watcher::{
+    unwatch_markdown_file, unwatch_markdown_tree, watch_markdown_file, watch_markdown_tree,
+    MarkdownFileWatcherState, MarkdownTreeWatcherState,
+};
 use web_http::{download_web_image, request_web_resource};
 use windows::{
     apply_main_window_chrome, apply_webview_window_chrome, apply_window_event_chrome,
@@ -42,7 +45,8 @@ use windows::{
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .manage(MarkdownWatcherState::default())
+        .manage(MarkdownFileWatcherState::default())
+        .manage(MarkdownTreeWatcherState::default())
         .manage(OpenedMarkdownPathsState::default())
         .manage(NativeMenuTargetState::default())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -113,6 +117,8 @@ pub fn run() {
             export_pdf_file,
             watch_markdown_file,
             unwatch_markdown_file,
+            watch_markdown_tree,
+            unwatch_markdown_tree,
             take_opened_markdown_paths
         ])
         .build(tauri::generate_context!())

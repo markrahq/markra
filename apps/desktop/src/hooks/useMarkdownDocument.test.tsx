@@ -400,6 +400,47 @@ describe("useMarkdownDocument", () => {
     expect(result.current.tabs.some((tab) => tab.id === guideTab!.id)).toBe(true);
   });
 
+  it("closes a clean tab without prompting when the editor still exposes stale markdown", async () => {
+    const editorMarkdown = "# Previous file";
+    const confirmDiscardUnsavedChanges = vi.fn(() => false);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nClean",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        documentTabsEnabled: true,
+        editorReady: false,
+        getCurrentMarkdown: () => editorMarkdown,
+        isCurrentMarkdownEquivalent: () => false,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    const guideTab = result.current.tabs.find((tab) => tab.name === "guide.md");
+    expect(guideTab).toBeTruthy();
+
+    await act(async () => {
+      await result.current.closeMarkdownTab(guideTab!.id);
+    });
+
+    expect(confirmDiscardUnsavedChanges).not.toHaveBeenCalled();
+    expect(result.current.tabs.some((tab) => tab.id === guideTab!.id)).toBe(false);
+  });
+
   it("forwards native folder tree changes while watching an opened markdown file", async () => {
     const onMarkdownTreeChange = vi.fn();
     let emitTreeChange: (path: string) => unknown = () => {};
@@ -500,6 +541,43 @@ describe("useMarkdownDocument", () => {
       name: "test2.md",
       open: true,
       path: "/mock-files/test2.md"
+    });
+  });
+
+  it("clears an active tree file when its containing folder is deleted", async () => {
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "# Nested guide",
+      name: "guide.md",
+      path: "/mock-files/docs/guide.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/docs/guide.md",
+        relativePath: "docs/guide.md"
+      });
+    });
+
+    act(() => {
+      expect(result.current.detachDeletedDocumentFile("/mock-files/docs")).toBe(true);
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "",
+      dirty: false,
+      name: "",
+      open: false,
+      path: null
     });
   });
 });

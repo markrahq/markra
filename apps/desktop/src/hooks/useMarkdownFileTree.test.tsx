@@ -5,7 +5,8 @@ import {
   deleteNativeMarkdownTreeFile,
   listNativeMarkdownFilesForPath,
   openNativeMarkdownFolder,
-  renameNativeMarkdownTreeFile
+  renameNativeMarkdownTreeFile,
+  watchNativeMarkdownTree
 } from "../lib/tauri";
 import {
   createAiAgentSessionId,
@@ -22,7 +23,8 @@ vi.mock("../lib/tauri", () => ({
   deleteNativeMarkdownTreeFile: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn(),
   openNativeMarkdownFolder: vi.fn(),
-  renameNativeMarkdownTreeFile: vi.fn()
+  renameNativeMarkdownTreeFile: vi.fn(),
+  watchNativeMarkdownTree: vi.fn()
 }));
 
 vi.mock("../lib/settings/app-settings", () => ({
@@ -42,6 +44,7 @@ const mockedDeleteNativeMarkdownTreeFile = vi.mocked(deleteNativeMarkdownTreeFil
 const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
 const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
+const mockedWatchNativeMarkdownTree = vi.mocked(watchNativeMarkdownTree);
 const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
 const mockedGetStoredRecentMarkdownFolders = vi.mocked(getStoredRecentMarkdownFolders);
 const mockedSaveStoredRecentMarkdownFolder = vi.mocked(saveStoredRecentMarkdownFolder);
@@ -125,6 +128,7 @@ describe("useMarkdownFileTree", () => {
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
     mockedRenameNativeMarkdownTreeFile.mockReset();
+    mockedWatchNativeMarkdownTree.mockReset();
     mockedCreateAiAgentSessionId.mockReset();
     mockedGetStoredRecentMarkdownFolders.mockReset();
     mockedSaveStoredRecentMarkdownFolder.mockReset();
@@ -150,6 +154,7 @@ describe("useMarkdownFileTree", () => {
       relativePath: "renamed.md"
     });
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
+    mockedWatchNativeMarkdownTree.mockResolvedValue(() => {});
   });
 
   it("opens a selected markdown folder as the tree root", async () => {
@@ -171,6 +176,7 @@ describe("useMarkdownFileTree", () => {
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault");
     expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
       aiAgentSessionId: "session-folder",
+      filePath: null,
       fileTreeOpen: true,
       folderName: "vault",
       folderPath: "/vault"
@@ -179,6 +185,41 @@ describe("useMarkdownFileTree", () => {
       name: "vault",
       path: "/vault"
     });
+  });
+
+  it("refreshes the selected folder when its native tree watcher reports a nested change", async () => {
+    let emitTreeChange: (path: string) => unknown | Promise<unknown> = () => {};
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedListNativeMarkdownFilesForPath
+      .mockResolvedValueOnce([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" }
+      ])
+      .mockResolvedValue([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" },
+        { path: "/vault/docs/added.md", name: "added.md", relativePath: "docs/added.md" }
+      ]);
+    mockedWatchNativeMarkdownTree.mockImplementation(async (_rootPath, onTreeChange) => {
+      emitTreeChange = onTreeChange;
+      return () => {};
+    });
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    expect(await screen.findByText("index.md")).toBeInTheDocument();
+    expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function));
+
+    const callsBeforeTreeChange = mockedListNativeMarkdownFilesForPath.mock.calls.length;
+    await emitTreeChange("/vault/docs/added.md");
+
+    await waitFor(() => {
+      expect(mockedListNativeMarkdownFilesForPath.mock.calls.length).toBeGreaterThan(callsBeforeTreeChange);
+    });
+    expect(screen.getByText("docs/added.md")).toBeInTheDocument();
   });
 
   it("loads recent markdown folders from settings", async () => {

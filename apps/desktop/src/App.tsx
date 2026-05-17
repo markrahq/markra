@@ -202,6 +202,8 @@ export default function App() {
   const pendingEditorContentWidthPxRef = useRef<number | null>(null);
   const pendingSplitVisualPanePercentRef = useRef(defaultSplitVisualPanePercent);
   const sourceToVisualSyncingRef = useRef(false);
+  const documentRevisionRef = useRef(0);
+  const visualEditorReadyRevisionRef = useRef<number | null>(null);
   const sourceScrollRef = useRef<HTMLElement | null>(null);
   const visualScrollRef = useRef<HTMLElement | null>(null);
   const splitSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -233,11 +235,19 @@ export default function App() {
 
     return isEditorCurrentMarkdownEquivalent(markdown);
   }, [isEditorCurrentMarkdownEquivalent, sourceSurfaceActive]);
+  const isDocumentEditorReady = useCallback(() => {
+    if (sourceSurfaceActive) return true;
+
+    return visualEditorReadyRevisionRef.current === documentRevisionRef.current;
+  }, [sourceSurfaceActive]);
   const handleVisualEditorReady = useCallback((...args: Parameters<typeof handleMilkdownEditorReady>) => {
     const [readyEditor] = args;
     handleMilkdownEditorReady(...args);
     if (readyEditor) {
+      visualEditorReadyRevisionRef.current = documentRevisionRef.current;
       setVisualEditorReadySequence((current) => current + 1);
+    } else if (visualEditorReadyRevisionRef.current === documentRevisionRef.current) {
+      visualEditorReadyRevisionRef.current = null;
     }
   }, [handleMilkdownEditorReady]);
   useDefaultContextMenuBlocker();
@@ -279,6 +289,7 @@ export default function App() {
   const markdownDocument = useMarkdownDocument({
     confirmDiscardUnsavedChanges,
     documentTabsEnabled: editorPreferences.preferences.showDocumentTabs,
+    editorReady: isDocumentEditorReady,
     getCurrentMarkdown: readCurrentMarkdownForDocument,
     isCurrentMarkdownEquivalent: isCurrentMarkdownEquivalentForDocument,
     onMarkdownTreeChange: refreshMarkdownFileTree,
@@ -311,6 +322,7 @@ export default function App() {
     workspaceSessionId,
     wordCount
   } = markdownDocument;
+  documentRevisionRef.current = document.revision;
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
   const hasOpenDocument = document.open;
   const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
@@ -1099,10 +1111,11 @@ export default function App() {
     }
   }, [applyRenamedTreeFile, renameMarkdownTreeFile]);
   const handleDeleteMarkdownTreeFile = useCallback(async (file: NativeMarkdownFolderFile) => {
+    const fileIsFolder = file.kind === "folder";
     const confirmed = await confirmNativeMarkdownFileDelete(file.name, {
-      cancelLabel: translate("app.cancelDeleteMarkdownFile"),
-      message: translate("app.confirmDeleteMarkdownFile"),
-      okLabel: translate("app.confirmDeleteMarkdownFileAction")
+      cancelLabel: translate(fileIsFolder ? "app.cancelDeleteMarkdownFolder" : "app.cancelDeleteMarkdownFile"),
+      message: translate(fileIsFolder ? "app.confirmDeleteMarkdownFolder" : "app.confirmDeleteMarkdownFile"),
+      okLabel: translate(fileIsFolder ? "app.confirmDeleteMarkdownFolderAction" : "app.confirmDeleteMarkdownFileAction")
     });
     if (!confirmed) return;
 
@@ -1321,21 +1334,21 @@ export default function App() {
     const canDiscard = await confirmCanDiscardCurrentDocument();
     if (!canDiscard) return;
 
-    const folder = await openMarkdownFolder({
+    await openMarkdownFolder({
+      beforeOpenFolder: () => {
+        setActiveImageFile(null);
+        clearOpenDocument({ persistWorkspace: false });
+      },
       pickerTitle: translate("app.openFolder")
     });
-    if (folder) {
-      setActiveImageFile(null);
-      clearOpenDocument();
-    }
   }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder, translate]);
   const handleOpenRecentMarkdownFolder = useCallback(async (folder: RecentMarkdownFolder) => {
     const canDiscard = await confirmCanDiscardCurrentDocument();
     if (!canDiscard) return;
 
     setActiveImageFile(null);
+    clearOpenDocument({ persistWorkspace: false });
     openRecentFolder(folder);
-    clearOpenDocument();
   }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openRecentFolder]);
   const clearExportSnapshot = useCallback((id: number) => {
     setExportSnapshot((current) => current?.id === id ? null : current);

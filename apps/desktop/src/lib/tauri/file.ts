@@ -223,6 +223,14 @@ function parentPathFromPath(path: string) {
   return path.slice(0, lastSeparatorIndex);
 }
 
+function treeRootPathFromPath(path: string) {
+  if (isMarkdownTreeFilePath(path) || isMarkdownTreeAssetPath(path)) {
+    return parentPathFromPath(path);
+  }
+
+  return path;
+}
+
 function normalizeNativeParentPath(path: string | null | undefined) {
   const trimmedPath = path?.trim();
   return trimmedPath ? trimmedPath : null;
@@ -677,6 +685,29 @@ export async function watchNativeMarkdownFile(
     unlistenFile();
     unlistenTree?.();
     invoke("unwatch_markdown_file", { path });
+  };
+}
+
+export async function watchNativeMarkdownTree(
+  path: string,
+  onTreeChange: NativeMarkdownTreeChangeHandler
+) {
+  const rootPath = treeRootPathFromPath(path);
+  const unlistenTree = await listen<MarkdownTreeChangedPayload>(markdownTreeChangedEvent, (event) => {
+    if (event.payload.rootPath !== rootPath) return;
+    onTreeChange(event.payload.path);
+  });
+
+  try {
+    await invoke("watch_markdown_tree", { rootPath: path });
+  } catch (error) {
+    unlistenTree();
+    throw error;
+  }
+
+  return () => {
+    unlistenTree();
+    invoke("unwatch_markdown_tree", { rootPath: path });
   };
 }
 

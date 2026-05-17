@@ -208,6 +208,15 @@ function collectMarkdownFolderPaths(nodes: TreeNode[]) {
   return paths;
 }
 
+function folderNodeAsFile(node: FolderNode): NativeMarkdownFolderFile {
+  return {
+    kind: "folder",
+    name: node.name,
+    path: node.path ?? node.relativePath,
+    relativePath: node.relativePath
+  };
+}
+
 const defaultOutlineHeightPercent = 40;
 const minOutlineHeightPercent = 24;
 const maxOutlineHeightPercent = 72;
@@ -707,7 +716,7 @@ export function MarkdownFileTreeDrawer({
                 className={`relative flex h-8 w-full cursor-pointer items-center gap-1 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none ${rowIndentClass} ${rowBranchClass}`}
                 type="button"
                 aria-expanded={expanded}
-                onContextMenu={(event) => openContextMenu(event, undefined, node.path)}
+                onContextMenu={(event) => openContextMenu(event, folderNodeAsFile(node), node.path)}
                 onClick={() => toggleFolder(node.relativePath)}
               >
                 {expanded ? (

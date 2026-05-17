@@ -346,6 +346,11 @@ describe("Markra workspace", () => {
     expect(screen.getAllByText("vault").length).toBeGreaterThan(0);
     await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath));
     expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalledWith("/mock-files/vault/docs/deep");
+    expect(mockedSaveStoredWorkspaceState).not.toHaveBeenCalledWith({ filePath: null });
+    expect(mockedSaveStoredWorkspaceState).not.toHaveBeenCalledWith(expect.objectContaining({
+      filePath: null,
+      folderPath: mockFolderPath
+    }));
     expect(mockedSaveStoredWorkspaceState).not.toHaveBeenCalledWith(expect.objectContaining({
       folderPath: "/mock-files/vault/docs/deep"
     }));
@@ -1112,6 +1117,13 @@ describe("Markra workspace", () => {
     expect(mockedOpenNativeMarkdownFolder).toHaveBeenCalledTimes(1);
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
     expect(mockedOpenNativeMarkdownPath).not.toHaveBeenCalled();
+    expect(mockedSaveStoredWorkspaceState.mock.calls.at(-1)?.[0]).toEqual({
+      aiAgentSessionId: "session-app",
+      filePath: null,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: mockFolderPath
+    });
   });
 
   it("opens a remembered markdown folder from the sidebar recent folders area", async () => {
@@ -1137,6 +1149,13 @@ describe("Markra workspace", () => {
     expect(mockedSaveStoredRecentMarkdownFolder).toHaveBeenCalledWith({
       name: "notes",
       path: "/mock-files/notes"
+    });
+    expect(mockedSaveStoredWorkspaceState.mock.calls.at(-1)?.[0]).toEqual({
+      aiAgentSessionId: "session-app",
+      filePath: null,
+      fileTreeOpen: true,
+      folderName: "notes",
+      folderPath: "/mock-files/notes"
     });
   });
 
@@ -1233,6 +1252,46 @@ describe("Markra workspace", () => {
       expect(mockedCreateNativeMarkdownTreeFolder).toHaveBeenCalledWith(mockFolderPath, "Sprint", docsPath)
     );
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
+  });
+
+  it("deletes a sidebar folder from the context menu", async () => {
+    const docsPath = `${mockFolderPath}/docs`;
+    const docsFolder = { kind: "folder" as const, name: "docs", path: docsPath, relativePath: "docs" };
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      docsFolder,
+      { name: "guide.md", path: `${docsPath}/guide.md`, relativePath: "docs/guide.md" }
+    ]);
+    mockedConfirmNativeMarkdownFileDelete.mockResolvedValue(true);
+    mockedDeleteNativeMarkdownTreeFile.mockResolvedValue(undefined);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    const folderButton = await screen.findByRole("button", { name: "docs" });
+    fireEvent.contextMenu(folderButton);
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+
+    act(() => {
+      contextHandlers?.deleteFile?.(docsFolder);
+    });
+
+    await waitFor(() =>
+      expect(mockedConfirmNativeMarkdownFileDelete).toHaveBeenCalledWith("docs", {
+        cancelLabel: "Cancel",
+        message: "Delete this folder?",
+        okLabel: "Confirm"
+      })
+    );
+    await waitFor(() => expect(mockedDeleteNativeMarkdownTreeFile).toHaveBeenCalledWith(mockFolderPath, docsPath));
   });
 
   it("opens a markdown file from the current folder tree", async () => {
@@ -1350,6 +1409,34 @@ describe("Markra workspace", () => {
     expect(await screen.findByText("Guide")).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toBeInTheDocument();
     expect(screen.queryByRole("img", { name: "pasted-image.png" })).not.toBeInTheDocument();
+  });
+
+  it("previews an image asset from a folder-only workspace", async () => {
+    const imagePath = "/mock-files/vault/assets/pasted-image.png";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { kind: "folder", name: "assets", path: "/mock-files/vault/assets", relativePath: "assets" },
+      { kind: "asset", name: "pasted-image.png", path: imagePath, relativePath: "assets/pasted-image.png" }
+    ]);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "assets" }));
+    fireEvent.click(await screen.findByRole("button", { name: "assets/pasted-image.png" }));
+
+    const previewImage = await screen.findByRole("img", { name: "pasted-image.png" });
+    expect(previewImage).toHaveAttribute("src", imagePath);
+    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
   });
 
   it("switches between unmodified folder files without asking to discard changes", async () => {

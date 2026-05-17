@@ -28,7 +28,8 @@ import {
   saveNativeMarkdownFile,
   uploadNativeS3Image,
   uploadNativeWebDavImage,
-  watchNativeMarkdownFile
+  watchNativeMarkdownFile,
+  watchNativeMarkdownTree
 } from "./file";
 
 vi.mock("@tauri-apps/api/core", () => ({
@@ -705,6 +706,40 @@ describe("native file access", () => {
     expect(unlistenTree).toHaveBeenCalledTimes(1);
     expect(mockedInvoke).toHaveBeenCalledWith("unwatch_markdown_file", {
       path: mockReadmePath
+    });
+  });
+
+  it("starts and stops a native watcher for a selected markdown tree root", async () => {
+    const unlistenTree: () => unknown = vi.fn();
+    const onTreeChange = vi.fn();
+    let emitTreeChange: (payload: { path: string; rootPath: string }) => unknown = () => {};
+
+    mockedListen.mockImplementation(async (_event, handler) => {
+      emitTreeChange = (payload) => {
+        handler({ payload } as never);
+      };
+      return unlistenTree;
+    });
+    mockedInvoke.mockResolvedValue(undefined);
+
+    const unwatch = await watchNativeMarkdownTree(mockFolderPath, onTreeChange);
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://tree-changed", expect.any(Function));
+    expect(mockedInvoke).toHaveBeenCalledWith("watch_markdown_tree", {
+      rootPath: mockFolderPath
+    });
+
+    emitTreeChange({ path: "/mock-files/vault/docs/added.md", rootPath: mockFolderPath });
+    emitTreeChange({ path: "/other-vault/docs/added.md", rootPath: "/other-vault" });
+
+    expect(onTreeChange).toHaveBeenCalledTimes(1);
+    expect(onTreeChange).toHaveBeenCalledWith("/mock-files/vault/docs/added.md");
+
+    unwatch();
+
+    expect(unlistenTree).toHaveBeenCalledTimes(1);
+    expect(mockedInvoke).toHaveBeenCalledWith("unwatch_markdown_tree", {
+      rootPath: mockFolderPath
     });
   });
 

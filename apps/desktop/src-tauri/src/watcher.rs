@@ -13,7 +13,10 @@ struct ActiveMarkdownWatcher {
 }
 
 #[derive(Default)]
-pub(crate) struct MarkdownWatcherState(Mutex<Option<ActiveMarkdownWatcher>>);
+pub(crate) struct MarkdownFileWatcherState(Mutex<Option<ActiveMarkdownWatcher>>);
+
+#[derive(Default)]
+pub(crate) struct MarkdownTreeWatcherState(Mutex<Option<ActiveMarkdownWatcher>>);
 
 #[derive(Clone, serde::Serialize)]
 struct MarkdownFileChanged {
@@ -97,7 +100,7 @@ fn markdown_tree_event_path<'a>(event: &'a Event, root: &Path) -> Option<&'a Pat
 #[tauri::command]
 pub(crate) fn watch_markdown_file(
     app: tauri::AppHandle,
-    watcher_state: tauri::State<'_, MarkdownWatcherState>,
+    watcher_state: tauri::State<'_, MarkdownFileWatcherState>,
     path: String,
 ) -> Result<(), String> {
     let watched_path = PathBuf::from(&path);
@@ -155,7 +158,7 @@ pub(crate) fn watch_markdown_file(
 
 #[tauri::command]
 pub(crate) fn unwatch_markdown_file(
-    watcher_state: tauri::State<'_, MarkdownWatcherState>,
+    watcher_state: tauri::State<'_, MarkdownFileWatcherState>,
     path: String,
 ) -> Result<(), String> {
     let watched_path = PathBuf::from(path);
@@ -163,6 +166,78 @@ pub(crate) fn unwatch_markdown_file(
         .0
         .lock()
         .map_err(|_| "markdown file watcher state lock is poisoned".to_string())?;
+
+    if active_watcher
+        .as_ref()
+        .is_some_and(|watcher| watcher.path == watched_path)
+    {
+        *active_watcher = None;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn watch_markdown_tree(
+    app: tauri::AppHandle,
+    watcher_state: tauri::State<'_, MarkdownTreeWatcherState>,
+    root_path: String,
+) -> Result<(), String> {
+    let source_path = PathBuf::from(&root_path);
+    let watch_root = if source_path.is_dir() {
+        source_path.clone()
+    } else {
+        source_path
+            .parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| PathBuf::from("."))
+    };
+    let emitted_root = watch_root.to_string_lossy().to_string();
+    let callback_root = watch_root.clone();
+
+    let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
+        let Ok(event) = result else {
+            return;
+        };
+
+        if let Some(event_path) = markdown_tree_event_path(&event, &callback_root) {
+            let _ = app.emit(
+                MARKDOWN_TREE_CHANGED_EVENT,
+                MarkdownTreeChanged {
+                    path: event_path.to_string_lossy().to_string(),
+                    root_path: emitted_root.clone(),
+                },
+            );
+        }
+    })
+    .map_err(|error| error.to_string())?;
+
+    watcher
+        .watch(&watch_root, RecursiveMode::Recursive)
+        .map_err(|error| error.to_string())?;
+
+    let mut active_watcher = watcher_state
+        .0
+        .lock()
+        .map_err(|_| "markdown tree watcher state lock is poisoned".to_string())?;
+    *active_watcher = Some(ActiveMarkdownWatcher {
+        path: source_path,
+        _watcher: watcher,
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn unwatch_markdown_tree(
+    watcher_state: tauri::State<'_, MarkdownTreeWatcherState>,
+    root_path: String,
+) -> Result<(), String> {
+    let watched_path = PathBuf::from(root_path);
+    let mut active_watcher = watcher_state
+        .0
+        .lock()
+        .map_err(|_| "markdown tree watcher state lock is poisoned".to_string())?;
 
     if active_watcher
         .as_ref()
