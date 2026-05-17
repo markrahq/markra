@@ -129,6 +129,10 @@ function documentTabAsFolderFile(tab: MarkdownTabsBarItem): NativeMarkdownFolder
 type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 type EditorMode = "source" | "split" | "visual";
 type EditorSurface = "source" | "visual";
+type DocumentTabViewState = {
+  sourceScrollTop?: number;
+  visualScrollTop?: number;
+};
 
 function isSettingsWindowRoute() {
   return new URLSearchParams(window.location.search).has("settings");
@@ -160,6 +164,14 @@ function aiCommandTextSelection(selection: AiSelectionContext | null | undefined
   if (!selection?.text.trim()) return null;
 
   return selection;
+}
+
+function restoreElementScrollTop(element: HTMLElement, scrollTop: number) {
+  try {
+    element.scrollTop = scrollTop;
+  } catch {
+    // Non-browser DOM doubles can expose scrollTop as read-only.
+  }
 }
 
 export default function App() {
@@ -206,6 +218,7 @@ export default function App() {
   const visualEditorReadyRevisionRef = useRef<number | null>(null);
   const sourceScrollRef = useRef<HTMLElement | null>(null);
   const visualScrollRef = useRef<HTMLElement | null>(null);
+  const documentTabViewStatesRef = useRef(new Map<string, DocumentTabViewState>());
   const splitSurfaceRef = useRef<HTMLDivElement | null>(null);
   const splitScrollSyncTargetRef = useRef<EditorSurface | null>(null);
   const splitPaneResizeCleanupRef = useRef<(() => unknown) | null>(null);
@@ -362,16 +375,34 @@ export default function App() {
       src
     });
   }, [document.path]);
+  const saveDocumentTabViewState = useCallback((tabId: string | null | undefined, patch: DocumentTabViewState) => {
+    if (!tabId) return;
+
+    const current = documentTabViewStatesRef.current.get(tabId) ?? {};
+    documentTabViewStatesRef.current.set(tabId, {
+      ...current,
+      ...patch
+    });
+  }, []);
+  const captureActiveDocumentViewState = useCallback(() => {
+    if (activeImageFile || !activeTabId) return;
+
+    const nextState: DocumentTabViewState = {};
+    if (visualScrollRef.current) nextState.visualScrollTop = visualScrollRef.current.scrollTop;
+    if (sourceScrollRef.current) nextState.sourceScrollTop = sourceScrollRef.current.scrollTop;
+    if (Object.keys(nextState).length > 0) saveDocumentTabViewState(activeTabId, nextState);
+  }, [activeImageFile, activeTabId, saveDocumentTabViewState]);
   const handleOpenEditorLink = useCallback(async (href: string) => {
     const linkedFile = resolveMarkdownDocumentLinkFile(href, document.path, fileTreeFiles);
     if (linkedFile) {
+      captureActiveDocumentViewState();
       setActiveImageFile(null);
       await openTreeMarkdownFile(linkedFile);
       return;
     }
 
     await openNativeExternalUrl(href);
-  }, [document.path, fileTreeFiles, openTreeMarkdownFile]);
+  }, [captureActiveDocumentViewState, document.path, fileTreeFiles, openTreeMarkdownFile]);
   const getActiveAiSelection = useCallback(() => activeAiSelectionRef.current, []);
   const updateActiveAiSelection = useCallback((selection: AiSelectionContext | null) => {
     activeAiSelectionRef.current = selection;
@@ -1068,17 +1099,19 @@ export default function App() {
     try {
       const file = await createMarkdownTreeFile(fileName, parentPath);
       if (file) {
+        captureActiveDocumentViewState();
         setActiveImageFile(null);
         await openTreeMarkdownFile(file);
       }
     } catch {
       // Native file errors are surfaced by the platform operation when possible.
     }
-  }, [createMarkdownTreeFile, openTreeMarkdownFile]);
+  }, [captureActiveDocumentViewState, createMarkdownTreeFile, openTreeMarkdownFile]);
   const handleQuickCreateMarkdownTreeFile = useCallback(() => {
+    captureActiveDocumentViewState();
     setActiveImageFile(null);
     createBlankDocument().catch(() => {});
-  }, [createBlankDocument]);
+  }, [captureActiveDocumentViewState, createBlankDocument]);
   const openImageTab = useCallback((file: NativeMarkdownFolderFile) => {
     const tab = createImageDocumentTab(file);
     setImageTabs((currentTabs) =>
@@ -1127,6 +1160,8 @@ export default function App() {
     }
   }, [deleteMarkdownTreeFile, detachDeletedDocumentFile, translate]);
   const handleOpenTreeFile = useCallback(async (file: NativeMarkdownFolderFile) => {
+    captureActiveDocumentViewState();
+
     if (file.kind === "asset") {
       openImageTab(file);
       return;
@@ -1134,14 +1169,17 @@ export default function App() {
 
     setActiveImageFile(null);
     await openTreeMarkdownFile(file);
-  }, [openImageTab, openTreeMarkdownFile]);
+  }, [captureActiveDocumentViewState, openImageTab, openTreeMarkdownFile]);
   const handleOpenMarkdownFile = useCallback(async () => {
+    captureActiveDocumentViewState();
     setActiveImageFile(null);
     await openMarkdownFile({
       pickerTitle: translate("app.openMarkdownOrFolder")
     });
-  }, [openMarkdownFile, translate]);
+  }, [captureActiveDocumentViewState, openMarkdownFile, translate]);
   const handleCloseCurrentFile = useCallback(async () => {
+    captureActiveDocumentViewState();
+
     if (activeImageFile) {
       const closingTabId = imageDocumentTabId(activeImageFile.path);
       setImageTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== closingTabId));
@@ -1167,6 +1205,7 @@ export default function App() {
   }, [
     activeImageFile,
     activeTabId,
+    captureActiveDocumentViewState,
     clearOpenDocument,
     closeMarkdownTab,
     confirmCanDiscardCurrentDocument,
@@ -1261,11 +1300,13 @@ export default function App() {
     }, 0);
   }, [splitMode]);
   const handleSourcePaneScroll = useCallback((event: ReactUIEvent<HTMLElement>) => {
+    saveDocumentTabViewState(activeTabId, { sourceScrollTop: event.currentTarget.scrollTop });
     syncSplitPaneScroll("source", event);
-  }, [syncSplitPaneScroll]);
+  }, [activeTabId, saveDocumentTabViewState, syncSplitPaneScroll]);
   const handleVisualPaneScroll = useCallback((event: ReactUIEvent<HTMLElement>) => {
+    saveDocumentTabViewState(activeTabId, { visualScrollTop: event.currentTarget.scrollTop });
     syncSplitPaneScroll("visual", event);
-  }, [syncSplitPaneScroll]);
+  }, [activeTabId, saveDocumentTabViewState, syncSplitPaneScroll]);
   const syncVisualMarkdownAfterEditorCommand = useCallback(() => {
     if (!splitMode) return;
 
@@ -1294,6 +1335,8 @@ export default function App() {
   const handleEditorModeToggle = useCallback(() => {
     if (!sourceModeAvailable) return;
 
+    captureActiveDocumentViewState();
+
     if (sourceMode) {
       setEditorMode("visual");
       setActiveEditorSurface("visual");
@@ -1305,6 +1348,7 @@ export default function App() {
     setEditorMode("source");
     setActiveEditorSurface("source");
   }, [
+    captureActiveDocumentViewState,
     handleAiCommandClose,
     sourceMode,
     sourceModeAvailable,
@@ -1312,6 +1356,8 @@ export default function App() {
   ]);
   const handleEditorSplitToggle = useCallback(() => {
     if (!sourceModeAvailable) return;
+
+    captureActiveDocumentViewState();
 
     if (splitMode) {
       setEditorMode("visual");
@@ -1324,6 +1370,7 @@ export default function App() {
     setEditorMode("split");
     setActiveEditorSurface(sourceMode ? "source" : "visual");
   }, [
+    captureActiveDocumentViewState,
     handleAiCommandClose,
     sourceMode,
     sourceModeAvailable,
@@ -1331,6 +1378,7 @@ export default function App() {
     updateActiveAiSelection
   ]);
   const handleOpenMarkdownFolder = useCallback(async () => {
+    captureActiveDocumentViewState();
     const canDiscard = await confirmCanDiscardCurrentDocument();
     if (!canDiscard) return;
 
@@ -1341,15 +1389,16 @@ export default function App() {
       },
       pickerTitle: translate("app.openFolder")
     });
-  }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder, translate]);
+  }, [captureActiveDocumentViewState, clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder, translate]);
   const handleOpenRecentMarkdownFolder = useCallback(async (folder: RecentMarkdownFolder) => {
+    captureActiveDocumentViewState();
     const canDiscard = await confirmCanDiscardCurrentDocument();
     if (!canDiscard) return;
 
     setActiveImageFile(null);
     clearOpenDocument({ persistWorkspace: false });
     openRecentFolder(folder);
-  }, [clearOpenDocument, confirmCanDiscardCurrentDocument, openRecentFolder]);
+  }, [captureActiveDocumentViewState, clearOpenDocument, confirmCanDiscardCurrentDocument, openRecentFolder]);
   const clearExportSnapshot = useCallback((id: number) => {
     setExportSnapshot((current) => current?.id === id ? null : current);
   }, []);
@@ -1408,6 +1457,24 @@ export default function App() {
     setEditorMode("visual");
     setActiveEditorSurface("visual");
   }, [sourceModeAvailable]);
+  useEffect(() => {
+    if (activeImageFile || !activeTabId || !hasOpenDocument) return;
+
+    const viewState = documentTabViewStatesRef.current.get(activeTabId);
+    const restoreFrame = window.requestAnimationFrame(() => {
+      if ((editorMode === "visual" || editorMode === "split") && visualScrollRef.current) {
+        restoreElementScrollTop(visualScrollRef.current, viewState?.visualScrollTop ?? 0);
+      }
+
+      if ((editorMode === "source" || editorMode === "split") && sourceScrollRef.current) {
+        restoreElementScrollTop(sourceScrollRef.current, viewState?.sourceScrollTop ?? 0);
+      }
+    });
+
+    return () => {
+      window.cancelAnimationFrame(restoreFrame);
+    };
+  }, [activeImageFile, activeTabId, document.revision, editorMode, hasOpenDocument, visualEditorReadySequence]);
   useEffect(() => {
     if (!splitMode || activeEditorSurface !== "source") return;
 
@@ -1563,6 +1630,8 @@ export default function App() {
   }, [editor, restoreAiCommand, updateAiResults]);
 
   const handleCloseTitlebarTab = useCallback(async (tabId: string) => {
+    captureActiveDocumentViewState();
+
     const imageTab = imageTabs.find((tab) => tab.id === tabId);
     if (imageTab) {
       const closingActiveImage = activeImageFile ? imageDocumentTabId(activeImageFile.path) === tabId : false;
@@ -1581,6 +1650,7 @@ export default function App() {
     return true;
   }, [
     activeImageFile,
+    captureActiveDocumentViewState,
     closeMarkdownTab,
     handleAiCommandClose,
     imageTabs,
@@ -1588,6 +1658,8 @@ export default function App() {
   ]);
 
   const handleSelectTitlebarTab = useCallback((tabId: string) => {
+    captureActiveDocumentViewState();
+
     const imageTab = imageTabs.find((tab) => tab.id === tabId);
     if (imageTab) {
       setActiveImageFile(imageTab);
@@ -1601,6 +1673,7 @@ export default function App() {
     handleAiCommandClose();
     selectMarkdownTab(tabId);
   }, [
+    captureActiveDocumentViewState,
     handleAiCommandClose,
     imageTabs,
     selectMarkdownTab,
@@ -1626,6 +1699,7 @@ export default function App() {
       tabs={titlebarTabs}
       onCloseTab={handleCloseTitlebarTab}
       onNewTab={() => {
+        captureActiveDocumentViewState();
         setActiveImageFile(null);
         createBlankDocument().catch(() => {});
       }}
@@ -1793,6 +1867,8 @@ export default function App() {
                       onChange={handleSourceMarkdownChange}
                       onContentWidthChange={handleEditorContentWidthChange}
                       onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
+                      onScroll={handleSourcePaneScroll}
+                      scrollRef={sourceScrollRef}
                       topInset="titlebar"
                     />
                   ) : (
@@ -1818,6 +1894,8 @@ export default function App() {
                       onTextSelectionChange={handleTextSelectionChange}
                       resolveImageSrc={resolveImageSrc}
                       revision={document.revision}
+                      onScroll={handleVisualPaneScroll}
+                      scrollRef={visualScrollRef}
                       topInset="titlebar"
                       workspaceFiles={fileTreeFiles}
                     />

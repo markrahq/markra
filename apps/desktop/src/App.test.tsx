@@ -1539,6 +1539,70 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("restores the visual editor scroll position when switching back to a document tab", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    const notesPath = "/mock-files/vault/docs/notes.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" },
+      { name: "notes.md", path: notesPath, relativePath: "docs/notes.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === guidePath) {
+        return {
+          content: "# Guide\n\nLong guide body.",
+          name: "guide.md",
+          path: guidePath
+        };
+      }
+
+      return {
+        content: "# Notes\n\nLong notes body.",
+        name: "notes.md",
+        path: notesPath
+      };
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+
+    const guideScroll = screen.getByLabelText("Writing surface");
+    mockScrollMetrics(guideScroll, {
+      clientHeight: 300,
+      scrollHeight: 1200,
+      scrollTop: 240
+    });
+    fireEvent.scroll(guideScroll);
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/notes.md" }));
+    expect(await screen.findByText("Notes")).toBeInTheDocument();
+
+    const notesScroll = screen.getByLabelText("Writing surface");
+    mockScrollMetrics(notesScroll, {
+      clientHeight: 300,
+      scrollHeight: 1200,
+      scrollTop: 0
+    });
+    fireEvent.scroll(notesScroll);
+
+    fireEvent.click(screen.getByRole("tab", { name: /guide\.md/ }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Writing surface").scrollTop).toBe(240));
+  });
+
   it("renames an opened markdown file from a titlebar tab double click", async () => {
     const guidePath = "/mock-files/vault/docs/guide.md";
     const renamedPath = "/mock-files/vault/docs/Renamed.md";
