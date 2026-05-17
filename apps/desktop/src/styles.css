@@ -1215,9 +1215,9 @@
   .markdown-paper .markra-list-toggle-button {
     @apply absolute inline-flex size-4 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 outline-none transition-[opacity,color,background-color] duration-150 ease-out focus-visible:bg-(--bg-hover) focus-visible:outline-none;
     color: color-mix(in srgb, var(--editor-text-secondary) 62%, transparent);
-    left: -1.35em;
+    left: -2.2em;
     opacity: 0;
-    top: 0.42em;
+    top: calc((1lh - 1rem) / 2);
   }
 
   .markdown-paper .markra-list-toggle-item:hover > .markra-list-toggle-button,
@@ -1251,7 +1251,6 @@
   .markdown-paper .markra-list-toggle-item > ol {
     margin-left: 0.15em;
     padding-left: 1.2em;
-    border-left: 1px solid color-mix(in srgb, var(--editor-border-strong) 70%, transparent);
   }
 
   .markdown-paper .markra-list-collapsed-content {

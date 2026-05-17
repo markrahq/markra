@@ -3563,6 +3563,23 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("nests the current list item when Tab is pressed inside it", async () => {
+    const { container, editor, view } = await renderEditor(["- First", "- Second"].join("\n"));
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Second"));
+
+    expect(pressShortcut(view, "Tab")).toBe(true);
+
+    const topLevelItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > ul > li"));
+    const nestedItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > ul > li > ul > li"));
+    expect(topLevelItems).toHaveLength(1);
+    expect(nestedItems).toHaveLength(1);
+    expect(nestedItems[0]).toHaveTextContent("Second");
+    expect(serializeMarkdown(view.state.doc)).toContain("  * Second");
+    await settleMarkdownListener();
+  });
+
   it("exits a terminal code block so text can be added below it", async () => {
     const source = ["## Pull image", "", "```", "sudo docker pull image", "```"].join("\n");
     const { editor, view } = await renderEditor(source);

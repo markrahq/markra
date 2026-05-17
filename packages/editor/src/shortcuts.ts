@@ -5,6 +5,7 @@ import {
   emphasisSchema,
   headingSchema,
   inlineCodeSchema,
+  listItemSchema,
   orderedListSchema,
   paragraphSchema,
   strongSchema
@@ -16,7 +17,7 @@ import type { NodeType, ResolvedPos } from "@milkdown/kit/prose/model";
 import type { Command, Selection } from "@milkdown/kit/prose/state";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import { wrapInList } from "@milkdown/kit/prose/schema-list";
+import { liftListItem, sinkListItem, wrapInList } from "@milkdown/kit/prose/schema-list";
 import { $prose } from "@milkdown/kit/utils";
 import {
   defaultKeyboardShortcuts,
@@ -177,6 +178,7 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
   const strikethrough = strikethroughSchema.type(ctx);
   const paragraph = paragraphSchema.type(ctx);
   const heading = headingSchema.type(ctx);
+  const listItem = listItemSchema.type(ctx);
   const bulletList = bulletListSchema.type(ctx);
   const orderedList = orderedListSchema.type(ctx);
   const blockquote = blockquoteSchema.type(ctx);
@@ -226,7 +228,17 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
 
           event.preventDefault();
           return true;
-        } else if (event.key === "Tab" && !hasModifier) {
+        } else if (event.key === "Tab" && !event.metaKey && !event.ctrlKey && !event.altKey) {
+          if (selectionIsInsideNodeType(view.state.selection, listItem)) {
+            const handled = runCommand(view, event.shiftKey ? liftListItem(listItem) : sinkListItem(listItem));
+            if (!handled) view.focus();
+
+            event.preventDefault();
+            return true;
+          }
+
+          if (event.shiftKey) return false;
+
           const handled = insertPlainTextIndentation(view);
           if (!handled) return false;
 
