@@ -1411,6 +1411,34 @@ describe("Markra workspace", () => {
     expect(screen.queryByRole("img", { name: "pasted-image.png" })).not.toBeInTheDocument();
   });
 
+  it("previews an image asset from a folder-only workspace", async () => {
+    const imagePath = "/mock-files/vault/assets/pasted-image.png";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { kind: "folder", name: "assets", path: "/mock-files/vault/assets", relativePath: "assets" },
+      { kind: "asset", name: "pasted-image.png", path: imagePath, relativePath: "assets/pasted-image.png" }
+    ]);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "assets" }));
+    fireEvent.click(await screen.findByRole("button", { name: "assets/pasted-image.png" }));
+
+    const previewImage = await screen.findByRole("img", { name: "pasted-image.png" });
+    expect(previewImage).toHaveAttribute("src", imagePath);
+    expect(screen.queryByLabelText("Markdown editor")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
+  });
+
   it("switches between unmodified folder files without asking to discard changes", async () => {
     const guidePath = "/mock-files/vault/docs/guide.md";
     const notesPath = "/mock-files/vault/docs/notes.md";

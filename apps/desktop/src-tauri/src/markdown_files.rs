@@ -1013,14 +1013,15 @@ pub(crate) fn resolve_markdown_path(path: String) -> Result<MarkdownOpenPath, St
     markdown_open_path_for_path(&PathBuf::from(path))
 }
 
-#[tauri::command]
-pub(crate) fn list_markdown_files_for_path(
+fn list_markdown_files_for_path_with_asset_scope(
     path: String,
+    allow_root_assets: impl FnOnce(&Path) -> Result<(), String>,
 ) -> Result<Vec<MarkdownFolderFile>, String> {
     let source_path = PathBuf::from(path);
     let root = markdown_tree_root_for_path(&source_path);
     let mut files = Vec::new();
 
+    allow_root_assets(&root)?;
     collect_markdown_tree_files(&root, &root, &mut files)?;
     files.sort_by(|a, b| {
         a.relative_path
@@ -1029,6 +1030,14 @@ pub(crate) fn list_markdown_files_for_path(
     });
 
     Ok(files)
+}
+
+#[tauri::command]
+pub(crate) fn list_markdown_files_for_path(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<Vec<MarkdownFolderFile>, String> {
+    list_markdown_files_for_path_with_asset_scope(path, |root| allow_asset_directory(&app, root))
 }
 
 #[tauri::command]
@@ -1259,9 +1268,11 @@ mod tests {
         fs::write(ignored.join("dependency.md"), "# Dependency")
             .expect("ignored markdown should be created");
 
-        let files =
-            list_markdown_files_for_path(root.join("Untitled.md").to_string_lossy().to_string())
-                .expect("markdown tree should be listed");
+        let files = list_markdown_files_for_path_with_asset_scope(
+            root.join("Untitled.md").to_string_lossy().to_string(),
+            |_| Ok(()),
+        )
+        .expect("markdown tree should be listed");
 
         assert_eq!(
             files,
@@ -1325,8 +1336,11 @@ mod tests {
         fs::write(root.join("index.md"), "# Index").expect("root markdown should be created");
         fs::write(docs.join("note.md"), "# Note").expect("nested markdown should be created");
 
-        let files = list_markdown_files_for_path(root.to_string_lossy().to_string())
-            .expect("selected folder tree should be listed");
+        let files = list_markdown_files_for_path_with_asset_scope(
+            root.to_string_lossy().to_string(),
+            |_| Ok(()),
+        )
+        .expect("selected folder tree should be listed");
 
         assert_eq!(
             files,
@@ -1348,6 +1362,34 @@ mod tests {
                 },
             ]
         );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn allows_asset_scope_when_listing_markdown_folder_files() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-tree-asset-scope-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        fs::write(root.join("README.md"), "# Readme").expect("markdown file should be created");
+
+        let mut allowed_paths = Vec::new();
+        list_markdown_files_for_path_with_asset_scope(
+            root.to_string_lossy().to_string(),
+            |path: &Path| {
+                allowed_paths.push(path.to_path_buf());
+                Ok(())
+            },
+        )
+        .expect("folder files should be listed");
+
+        assert_eq!(allowed_paths, vec![root.clone()]);
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }
