@@ -432,16 +432,6 @@ function revealMathSource(view: EditorView, range: MathRange) {
   view.focus();
 }
 
-function displayMathBlockInsertPosition(state: EditorState, range: MathRange) {
-  if (range.kind !== "display") return null;
-
-  const resolvedRangeStart = state.doc.resolve(range.from);
-  if (!resolvedRangeStart.parent.isTextblock) return null;
-  if (range.from !== resolvedRangeStart.start() || range.to !== resolvedRangeStart.end()) return null;
-
-  return resolvedRangeStart.after();
-}
-
 function closeActiveMathSource(view: EditorView, event: KeyboardEvent) {
   if (event.key !== "Enter" || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false;
 
@@ -452,16 +442,7 @@ function closeActiveMathSource(view: EditorView, event: KeyboardEvent) {
   let transaction = view.state.tr.setMeta(mathRenderKey, {
     type: "deactivate"
   } satisfies MathRenderMeta);
-  const insertPosition = displayMathBlockInsertPosition(view.state, range);
-  const paragraph = view.state.schema.nodes.paragraph;
-
-  if (insertPosition !== null && paragraph) {
-    transaction = transaction.insert(insertPosition, paragraph.create());
-    transaction = transaction.setSelection(TextSelection.create(transaction.doc, insertPosition + 1));
-  } else {
-    transaction = transaction.setSelection(TextSelection.create(transaction.doc, range.to));
-  }
-
+  transaction = transaction.setSelection(TextSelection.create(transaction.doc, range.to));
   view.dispatch(transaction.scrollIntoView());
   view.focus();
   return true;

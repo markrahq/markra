@@ -13,9 +13,9 @@ import {
 import { strikethroughSchema } from "@milkdown/kit/preset/gfm";
 import { exitCode, lift, setBlockType, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
 import { redo, undo } from "@milkdown/kit/prose/history";
-import type { NodeType, ResolvedPos } from "@milkdown/kit/prose/model";
+import type { NodeType } from "@milkdown/kit/prose/model";
 import type { Command, Selection } from "@milkdown/kit/prose/state";
-import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
+import { Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { liftListItem, sinkListItem, wrapInList } from "@milkdown/kit/prose/schema-list";
 import { $prose } from "@milkdown/kit/utils";
@@ -101,62 +101,6 @@ function selectionIsEmptyBlockquote(selection: Selection, blockquote: NodeType) 
   return selectionIsEmptyTextBlock(selection) && selectionIsInsideNodeType(selection, blockquote);
 }
 
-function isPlainParagraphNodeName(nodeName: string) {
-  return nodeName === "paragraph";
-}
-
-function isAtEndOfAncestorChain($pos: ResolvedPos, topDepth: number) {
-  if ($pos.parentOffset !== $pos.parent.content.size) return false;
-
-  for (let depth = $pos.depth - 1; depth >= topDepth; depth -= 1) {
-    if ($pos.after(depth + 1) !== $pos.end(depth)) return false;
-  }
-
-  return true;
-}
-
-function findTerminalAncestorEndPosition(view: EditorView, $pos: ResolvedPos) {
-  if ($pos.depth < 1) return null;
-
-  const topNodeEnd = $pos.after(1);
-  if (topNodeEnd < view.state.doc.content.size) return null;
-  if (!isAtEndOfAncestorChain($pos, 1)) return null;
-
-  return topNodeEnd;
-}
-
-function findTerminalBlockEndPosition(view: EditorView) {
-  const { selection } = view.state;
-
-  if (selection instanceof NodeSelection) {
-    if (isPlainParagraphNodeName(selection.node.type.name)) return null;
-    if (selection.to >= view.state.doc.content.size) return selection.to;
-
-    return findTerminalAncestorEndPosition(view, selection.$to);
-  }
-
-  if (!selection.empty) return null;
-
-  const { $from } = selection;
-  if ($from.depth < 1) return null;
-
-  const topNode = $from.node(1);
-  if (isPlainParagraphNodeName(topNode.type.name)) return null;
-
-  return findTerminalAncestorEndPosition(view, $from);
-}
-
-function moveBelowTerminalBlock(view: EditorView, paragraph: ReturnType<typeof paragraphSchema.type>) {
-  const position = findTerminalBlockEndPosition(view);
-  if (position === null) return false;
-
-  const tr = view.state.tr.insert(position, paragraph.create());
-  view.dispatch(tr.setSelection(TextSelection.create(tr.doc, position + 1)).scrollIntoView());
-  view.focus();
-
-  return true;
-}
-
 const plainTextIndentation = "  ";
 
 function insertPlainTextIndentation(view: EditorView) {
@@ -217,13 +161,7 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
           event.preventDefault();
           return true;
         } else if (event.key === "Enter" && isKeyboardShortcutModKey(event) && !event.shiftKey && !event.altKey) {
-          const handled = runCommand(view, exitCode) || moveBelowTerminalBlock(view, paragraph);
-          if (!handled) return false;
-
-          event.preventDefault();
-          return true;
-        } else if (event.key === "ArrowDown" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          const handled = moveBelowTerminalBlock(view, paragraph);
+          const handled = runCommand(view, exitCode);
           if (!handled) return false;
 
           event.preventDefault();

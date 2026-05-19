@@ -1027,48 +1027,6 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).not.toContain("<br");
   });
 
-  it("creates a paragraph below a rendered display math block when pressing Enter after it", async () => {
-    const source = String.raw`$$ E = mc^2 $$`;
-    const { container, editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, source.length + 1);
-
-    expect(pressEnter(view)).toBe(true);
-    typeText(view, "After formula");
-
-    expect(view.state.doc.child(0).textContent).toBe(source);
-    expect(view.state.doc.child(1).type.name).toBe("paragraph");
-    expect(view.state.doc.child(1).textContent).toBe("After formula");
-    expect(serializeMarkdown(view.state.doc)).toContain([source, "", "After formula"].join("\n"));
-  });
-
-  it("moves down from text to display math so Enter can create a paragraph below it", async () => {
-    const formula = String.raw`$$ E = mc^2 $$`;
-    const source = ["Before formula", "", formula].join("\n");
-    const { container, editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, findTextPosition(view, "Before formula", "Before formula".length));
-
-    expect(pressArrowDown(view)).toBe(true);
-    expect(view.state.selection.from).toBe(findTextPosition(view, formula, formula.length));
-    expect(container.querySelector(".ProseMirror .markra-math-edge-caret")).not.toBeInTheDocument();
-    const nativeCaretAnchor = container.querySelector<HTMLImageElement>(
-      ".ProseMirror img.ProseMirror-separator.markra-math-caret-anchor"
-    );
-    expect(nativeCaretAnchor).toBeInTheDocument();
-    expect(nativeCaretAnchor).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"));
-
-    expect(pressEnter(view)).toBe(true);
-    typeText(view, "After formula");
-
-    expect(view.state.doc.child(0).textContent).toBe("Before formula");
-    expect(view.state.doc.child(1).textContent).toBe(formula);
-    expect(view.state.doc.child(2).textContent).toBe("After formula");
-    expect(serializeMarkdown(view.state.doc)).toContain([formula, "", "After formula"].join("\n"));
-  });
-
   it("keeps the native caret anchor when leaving display math source at the closing delimiter", async () => {
     const source = String.raw`$$ E = mc^2 $$`;
     const { container, view } = await renderEditor(source);
@@ -1097,26 +1055,6 @@ describe("MarkdownPaper editing", () => {
     expect(selectionParent).toHaveClass("markra-math-source-hidden-display");
     expect(nativeCaretAnchor).toBeInTheDocument();
     expect(nativeCaretAnchor).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"));
-  });
-
-  it("creates a paragraph below display math when confirming active formula editing", async () => {
-    const source = String.raw`$$ E = mc^2 $$`;
-    const { container, editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
-
-    fireEvent.mouseDown(blockFormula!);
-    await waitFor(() => {
-      expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
-    });
-
-    expect(pressEnter(view)).toBe(true);
-    typeText(view, "After formula");
-
-    expect(view.state.doc.child(0).textContent).toBe(source);
-    expect(view.state.doc.child(1).type.name).toBe("paragraph");
-    expect(view.state.doc.child(1).textContent).toBe("After formula");
-    expect(serializeMarkdown(view.state.doc)).toContain([source, "", "After formula"].join("\n"));
   });
 
   it("reveals math source for editing when a rendered formula is clicked", async () => {
@@ -3881,75 +3819,6 @@ describe("MarkdownPaper editing", () => {
       "",
       "Next paragraph"
     ].join("\n"));
-    await settleMarkdownListener();
-  });
-
-  it("moves below a terminal code block with ArrowDown at the block end", async () => {
-    const source = ["```", "sudo docker pull image", "```"].join("\n");
-    const { editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, findTextPosition(view, "sudo docker pull image") + "sudo docker pull image".length);
-
-    expect(pressArrowDown(view)).toBe(true);
-    insertTextDirectly(view, "Next paragraph");
-
-    expect(serializeMarkdown(view.state.doc)).toContain([
-      "```",
-      "sudo docker pull image",
-      "```",
-      "",
-      "Next paragraph"
-    ].join("\n"));
-    await settleMarkdownListener();
-  });
-
-  it("moves below a terminal table with ArrowDown from the last cell", async () => {
-    const source = ["| Name | Role |", "| --- | --- |", "| Markra | Editor |"].join("\n");
-    const { editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, findTextPosition(view, "Editor") + "Editor".length);
-
-    expect(pressArrowDown(view)).toBe(true);
-    insertTextDirectly(view, "Next paragraph");
-
-    const markdown = serializeMarkdown(view.state.doc);
-    expect(markdown).toContain("Next paragraph");
-    expect(markdown.indexOf("Next paragraph")).toBeGreaterThan(markdown.indexOf("Markra"));
-    await settleMarkdownListener();
-  });
-
-  it("exits a terminal table with the editor exit shortcut", async () => {
-    const source = ["| Name | Role |", "| --- | --- |", "| Markra | Editor |"].join("\n");
-    const { editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, findTextPosition(view, "Editor") + "Editor".length);
-
-    expect(pressShortcut(view, "Enter", { metaKey: true })).toBe(true);
-    insertTextDirectly(view, "Next paragraph");
-
-    const markdown = serializeMarkdown(view.state.doc);
-    expect(markdown).toContain("Next paragraph");
-    expect(markdown.indexOf("Next paragraph")).toBeGreaterThan(markdown.indexOf("Markra"));
-    await settleMarkdownListener();
-  });
-
-  it("moves below terminal raw HTML with ArrowDown when the node is selected", async () => {
-    const source = '<div class="example-badge">Alpha</div>';
-    const { editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    selectNode(view, findNodeStartPosition(view, "html"));
-
-    expect(pressArrowDown(view)).toBe(true);
-    insertTextDirectly(view, "Next paragraph");
-
-    const markdown = serializeMarkdown(view.state.doc);
-    expect(markdown).toContain(source);
-    expect(markdown).toContain("Next paragraph");
-    expect(markdown.indexOf("Next paragraph")).toBeGreaterThan(markdown.indexOf(source));
     await settleMarkdownListener();
   });
 
