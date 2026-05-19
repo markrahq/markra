@@ -71,6 +71,24 @@ describe("editor stylesheet", () => {
     expect(tableControlStyles).not.toContain("--accent");
   });
 
+  it("draws finalized image selection with the editor default selected-node color", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const imageSelectionStart = styles.indexOf(
+      ".markdown-paper .markra-image-node.markra-image-node-selected"
+    );
+    const imageSelectionEnd = styles.indexOf(".markdown-paper .markra-image-node-source-row");
+    const imageSelectionStyles = styles.slice(imageSelectionStart, imageSelectionEnd);
+
+    expect(imageSelectionStart).toBeGreaterThanOrEqual(0);
+    expect(imageSelectionEnd).toBeGreaterThan(imageSelectionStart);
+    expect(imageSelectionStyles).toContain(".markdown-paper .markra-image-node.ProseMirror-selectednode");
+    expect(imageSelectionStyles).toContain("outline:");
+    expect(imageSelectionStyles).toContain("#8cf");
+    expect(imageSelectionStyles).not.toContain("var(--accent)");
+    expect(imageSelectionStyles).toContain("outline-offset");
+    expect(imageSelectionStyles).not.toContain("outline-none");
+  });
+
   it("lets AI insert previews inherit the current Markdown block typography", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 
@@ -122,6 +140,28 @@ describe("editor stylesheet", () => {
     expect(sourceStyles).toContain("right: 0");
     expect(sourceStyles).toContain("-webkit-text-fill-color: transparent");
     expect(sourceStyles).not.toContain("@apply hidden");
+  });
+
+  it("styles active display math as editable source with a preview", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const activeSourceStart = styles.indexOf(".markdown-paper .markra-math-source-active {");
+    const activeSourceEnd = styles.indexOf(".markdown-paper .markra-math-token-delimiter");
+    const activeSourceStyles = styles.slice(activeSourceStart, activeSourceEnd);
+    const activeBreakStart = styles.indexOf('.markdown-paper .markra-math-source-active[data-type="hardbreak"] {');
+    const activeBreakEnd = styles.indexOf(".markdown-paper .markra-math-token-delimiter");
+    const activeBreakStyles = styles.slice(activeBreakStart, activeBreakEnd);
+
+    expect(activeSourceStart).toBeGreaterThanOrEqual(0);
+    expect(activeSourceEnd).toBeGreaterThan(activeSourceStart);
+    expect(activeSourceStyles).toContain("ui-monospace");
+    expect(activeSourceStyles).toContain("box-decoration-break: clone");
+    expect(activeBreakStart).toBeGreaterThanOrEqual(0);
+    expect(activeBreakEnd).toBeGreaterThan(activeBreakStart);
+    expect(activeBreakStyles).toContain("font-size: 0");
+    expect(activeBreakStyles).toContain('content: "\\A"');
+    expect(activeBreakStyles).not.toContain("display: block");
+    expect(styles).toContain(".markdown-paper .markra-math-render-active-preview");
+    expect(styles).toContain("margin-top");
   });
 
   it("keeps AI diff action controls visually quiet until interaction", () => {

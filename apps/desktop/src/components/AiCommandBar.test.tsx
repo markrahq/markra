@@ -311,7 +311,7 @@ describe("AiCommandBar", () => {
   it("shows a quiet thinking status while AI is running", () => {
     render(
       <AiCommandBar
-        language="zh-CN"
+        language="en"
         open
         prompt="rewrite"
         submitting
@@ -323,9 +323,9 @@ describe("AiCommandBar", () => {
 
     const status = screen.getByRole("status");
 
-    expect(status).toHaveTextContent(/^正在思考$/);
+    expect(status).toHaveTextContent(/^Thinking$/);
     expect(status).toHaveClass("text-(--text-secondary)");
-    expect(screen.getByText("正在思考")).toHaveClass("ai-command-thinking-text");
+    expect(screen.getByText("Thinking")).toHaveClass("ai-command-thinking-text");
     expect(screen.queryByText("Reading context")).not.toBeInTheDocument();
     expect(screen.queryByText("Generating suggestion")).not.toBeInTheDocument();
   });
@@ -334,9 +334,9 @@ describe("AiCommandBar", () => {
     render(
       <AiCommandBar
         externalActionPending
-        language="zh-CN"
+        language="en"
         open
-        prompt="润色"
+        prompt="Polish"
         submitting={false}
         onClose={vi.fn()}
         onPromptChange={vi.fn()}
@@ -344,13 +344,13 @@ describe("AiCommandBar", () => {
       />
     );
 
-    const input = screen.getByRole("textbox", { name: "AI 命令" });
+    const input = screen.getByRole("textbox", { name: "AI command" });
     const status = screen.getByRole("status");
     const commandBox = input.closest(".ai-command-box");
 
     expect(input).toHaveAttribute("readonly");
     expect(input).toHaveAttribute("aria-busy", "true");
-    expect(status).toHaveTextContent(/^正在思考$/);
+    expect(status).toHaveTextContent(/^Thinking$/);
     expect(commandBox).toHaveClass("min-h-21", "rounded-lg", "border-(--ai-command-expanded-border)");
     expect(commandBox).not.toHaveClass("h-14", "rounded-xl");
   });
@@ -383,9 +383,9 @@ describe("AiCommandBar", () => {
 
     render(
       <AiCommandBar
-        language="zh-CN"
+        language="en"
         open
-        prompt="都有什么ai"
+        prompt="Which AI models are available?"
         submitting={false}
         onClose={vi.fn()}
         onPromptChange={onPromptChange}
@@ -393,7 +393,7 @@ describe("AiCommandBar", () => {
       />
     );
 
-    const input = screen.getByRole("textbox", { name: "AI 命令" });
+    const input = screen.getByRole("textbox", { name: "AI command" });
     fireEvent.compositionStart(input);
     fireEvent.keyDown(input, { key: "Enter", nativeEvent: { isComposing: true, keyCode: 229 } });
     fireEvent.compositionEnd(input);
@@ -537,7 +537,7 @@ describe("AiCommandBar", () => {
 
     render(
       <AiCommandBar
-        language="zh-CN"
+        language="en"
         open
         prompt=""
         submitting={false}
@@ -547,14 +547,14 @@ describe("AiCommandBar", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("textbox", { name: "AI 命令" }));
-    fireEvent.click(await screen.findByRole("button", { name: "翻译" }));
+    fireEvent.click(screen.getByRole("textbox", { name: "AI command" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Translate" }));
 
     expect(onPromptChange).toHaveBeenCalledWith(
-      defaultAiQuickActionPrompt("translate", "Simplified Chinese")
+      defaultAiQuickActionPrompt("translate", "English")
     );
     expect(onSubmit).toHaveBeenCalledWith(
-      defaultAiQuickActionPrompt("translate", "Simplified Chinese"),
+      defaultAiQuickActionPrompt("translate", "English"),
       "translate"
     );
   });
@@ -562,11 +562,11 @@ describe("AiCommandBar", () => {
   it("keeps quick action generation in the compact input style", async () => {
     const onPromptChange = vi.fn();
     const onSubmit = vi.fn();
-    const chinesePolishPrompt = defaultAiQuickActionPrompt("polish", "Simplified Chinese");
+    const englishPolishPrompt = defaultAiQuickActionPrompt("polish", "English");
 
     const { rerender } = render(
       <AiCommandBar
-        language="zh-CN"
+        language="en"
         open
         prompt=""
         submitting={false}
@@ -576,14 +576,14 @@ describe("AiCommandBar", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("textbox", { name: "AI 命令" }));
-    fireEvent.click(await screen.findByRole("button", { name: "润色" }));
+    fireEvent.click(screen.getByRole("textbox", { name: "AI command" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Polish" }));
 
     rerender(
       <AiCommandBar
-        language="zh-CN"
+        language="en"
         open
-        prompt={chinesePolishPrompt}
+        prompt={englishPolishPrompt}
         submitting
         onClose={vi.fn()}
         onInterrupt={vi.fn()}
@@ -595,14 +595,14 @@ describe("AiCommandBar", () => {
     const status = screen.getByRole("status");
     const commandBox = status.closest(".ai-command-box");
 
-    expect(onPromptChange).toHaveBeenCalledWith(chinesePolishPrompt);
-    expect(onSubmit).toHaveBeenCalledWith(chinesePolishPrompt, "polish");
-    expect(status).toHaveTextContent("润色中……");
-    expect(screen.getByText("润色中……")).toHaveClass("ai-command-inline-loading-text");
+    expect(onPromptChange).toHaveBeenCalledWith(englishPolishPrompt);
+    expect(onSubmit).toHaveBeenCalledWith(englishPolishPrompt, "polish");
+    expect(status).toHaveTextContent("Polishing...");
+    expect(screen.getByText("Polishing...")).toHaveClass("ai-command-inline-loading-text");
     expect(commandBox).toHaveClass("h-14", "rounded-xl", "border-(--border-default)");
     expect(commandBox).not.toHaveClass("min-h-21", "border-(--ai-command-expanded-border)");
-    expect(screen.queryByRole("combobox", { name: "AI 模型" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "中断 AI 命令" })).toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: "AI model" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop AI command" })).toBeInTheDocument();
   });
 
   it("keeps the compact command input vertically centered", () => {
@@ -680,9 +680,9 @@ describe("AiCommandBar", () => {
 
     render(
       <AiCommandBar
-        language="zh-CN"
+        language="en"
         open
-        prompt="润色"
+        prompt="Polish"
         selectedProviderId="deepseek"
         submitting={false}
         supportsThinking
@@ -692,12 +692,12 @@ describe("AiCommandBar", () => {
       />
     );
 
-    const input = screen.getByRole("textbox", { name: "AI 命令" });
+    const input = screen.getByRole("textbox", { name: "AI command" });
     fireEvent.click(input);
-    fireEvent.click(screen.getByRole("button", { name: "深度思考" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deep thinking" }));
     fireEvent.keyDown(input, { key: "Enter" });
 
-    expect(screen.getByRole("button", { name: "深度思考" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Deep thinking" })).toHaveAttribute("aria-pressed", "true");
     expect(onSubmit).toHaveBeenCalledWith(undefined, "custom", { thinkingEnabled: true });
   });
 });

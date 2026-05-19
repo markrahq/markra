@@ -43,8 +43,10 @@ const movableNodeNames = new Set([
   "code_block",
   "heading",
   "horizontal_rule",
+  "image",
   "list_item",
-  "paragraph"
+  "paragraph",
+  "table"
 ]);
 const listNodeNames = new Set(["bullet_list", "ordered_list"]);
 const priorityNodeNames = ["list_item", "blockquote"];
@@ -134,6 +136,35 @@ function blockRangeAtDepth($pos: ResolvedPos, depth: number): BlockDragRange {
   };
 }
 
+function topLevelBlockRangeAtPosition(state: EditorState, position: number): BlockDragRange | null {
+  let containingRange: BlockDragRange | null = null;
+  let exactStartRange: BlockDragRange | null = null;
+  let exactEndAtomRange: BlockDragRange | null = null;
+
+  state.doc.forEach((node, offset) => {
+    if (!movableNodeNames.has(node.type.name)) return;
+
+    const end = offset + node.nodeSize;
+    const range: BlockDragRange = {
+      depth: 1,
+      node,
+      parentStart: 0,
+      parentTypeName: "doc",
+      pos: offset
+    };
+
+    if (position > offset && position < end) {
+      containingRange = range;
+    } else if (position === offset) {
+      exactStartRange ??= range;
+    } else if (position === end && node.isAtom) {
+      exactEndAtomRange = range;
+    }
+  });
+
+  return containingRange ?? exactEndAtomRange ?? exactStartRange;
+}
+
 function findAncestorRangeByName($pos: ResolvedPos, nodeName: string) {
   for (let depth = $pos.depth; depth > 0; depth -= 1) {
     const node = $pos.node(depth);
@@ -144,7 +175,13 @@ function findAncestorRangeByName($pos: ResolvedPos, nodeName: string) {
 }
 
 function findMovableBlockAtPosition(state: EditorState, position: number): BlockDragRange | null {
-  const $pos = state.doc.resolve(clampedDocumentPosition(state, position));
+  const clampedPosition = clampedDocumentPosition(state, position);
+  const topLevelRange = topLevelBlockRangeAtPosition(state, clampedPosition);
+  if (topLevelRange) return topLevelRange;
+
+  const $pos = state.doc.resolve(clampedPosition);
+  const tableRange = findAncestorRangeByName($pos, "table");
+  if (tableRange) return tableRange;
   if (hasTableAncestor($pos)) return null;
 
   for (const nodeName of priorityNodeNames) {

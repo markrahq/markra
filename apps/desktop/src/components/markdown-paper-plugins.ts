@@ -1,8 +1,10 @@
 import {
   commands as commonmarkCommands,
+  imageSchema,
   inputRules as commonmarkInputRules,
   keymap as commonmarkKeymap,
   plugins as commonmarkPlugins,
+  remarkPreserveEmptyLinePlugin,
   schema as commonmarkSchema
 } from "@milkdown/kit/preset/commonmark";
 import {
@@ -17,16 +19,138 @@ import type { ResolvedPos } from "@milkdown/kit/prose/model";
 import type { Selection } from "@milkdown/kit/prose/state";
 import { Plugin } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import { $prose } from "@milkdown/kit/utils";
+import { $prose, $remark } from "@milkdown/kit/utils";
 import type { AiSelectionContext } from "@markra/ai";
 import { readAiSelectionContextFromView } from "../hooks/useEditorController";
 
+type MarkdownTreeNode = {
+  children?: MarkdownTreeNode[];
+  type?: string;
+  value?: unknown;
+};
+
+const markraBlockImageSchema = imageSchema.extendSchema((previous) => (ctx) => ({
+  ...previous(ctx),
+  draggable: false,
+  group: "block",
+  inline: false,
+  toMarkdown: {
+    match: (node) => node.type.name === "image",
+    runner: (state, node) => {
+      state.openNode("paragraph");
+      state.addNode("image", undefined, undefined, {
+        alt: node.attrs.alt,
+        title: node.attrs.title,
+        url: node.attrs.src
+      });
+      state.closeNode();
+    }
+  }
+}));
+
+function trimParagraphEdgeWhitespace(children: MarkdownTreeNode[]) {
+  const trimmed = [...children];
+
+  while (
+    trimmed[0]?.type === "text" &&
+    typeof trimmed[0].value === "string" &&
+    trimmed[0].value.trim().length === 0
+  ) {
+    trimmed.shift();
+  }
+
+  while (
+    trimmed[trimmed.length - 1]?.type === "text" &&
+    typeof trimmed[trimmed.length - 1]?.value === "string" &&
+    String(trimmed[trimmed.length - 1]?.value).trim().length === 0
+  ) {
+    trimmed.pop();
+  }
+
+  const first = trimmed[0];
+  if (first?.type === "text" && typeof first.value === "string") {
+    trimmed[0] = {
+      ...first,
+      value: first.value.trimStart()
+    };
+  }
+
+  const lastIndex = trimmed.length - 1;
+  const last = trimmed[lastIndex];
+  if (last?.type === "text" && typeof last.value === "string") {
+    trimmed[lastIndex] = {
+      ...last,
+      value: last.value.trimEnd()
+    };
+  }
+
+  return trimmed;
+}
+
+function splitImageParagraph(paragraph: MarkdownTreeNode) {
+  if (paragraph.type !== "paragraph" || !Array.isArray(paragraph.children)) return null;
+  if (!paragraph.children.some((child) => child.type === "image")) return null;
+
+  const nodes: MarkdownTreeNode[] = [];
+  let paragraphChildren: MarkdownTreeNode[] = [];
+  const flushParagraph = () => {
+    const children = trimParagraphEdgeWhitespace(paragraphChildren);
+    paragraphChildren = [];
+    if (children.length === 0) return;
+
+    nodes.push({
+      ...paragraph,
+      children
+    });
+  };
+
+  for (const child of paragraph.children) {
+    if (child.type === "image") {
+      flushParagraph();
+      nodes.push(child);
+    } else {
+      paragraphChildren.push(child);
+    }
+  }
+
+  flushParagraph();
+  return nodes;
+}
+
+function liftImageParagraphs(node: MarkdownTreeNode) {
+  if (!Array.isArray(node.children)) return;
+
+  const children: MarkdownTreeNode[] = [];
+  for (const child of node.children) {
+    const splitNodes = splitImageParagraph(child);
+    if (splitNodes) {
+      for (const splitNode of splitNodes) {
+        liftImageParagraphs(splitNode);
+        children.push(splitNode);
+      }
+    } else {
+      liftImageParagraphs(child);
+      children.push(child);
+    }
+  }
+  node.children = children;
+}
+
+const markraBlockImageRemarkPlugin = $remark("markraBlockImageRemark", () => () => (tree: MarkdownTreeNode) => {
+  liftImageParagraphs(tree);
+});
+
 export const markraCommonmark = [
+  markraBlockImageRemarkPlugin,
   commonmarkSchema,
+  markraBlockImageSchema,
   commonmarkInputRules,
   commonmarkCommands,
   commonmarkKeymap,
-  commonmarkPlugins
+  commonmarkPlugins.filter((plugin) =>
+    plugin !== remarkPreserveEmptyLinePlugin.plugin &&
+    plugin !== remarkPreserveEmptyLinePlugin.options
+  )
 ].flat();
 
 export const markraGfm = [

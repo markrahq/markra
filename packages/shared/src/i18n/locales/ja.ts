@@ -27,6 +27,7 @@ const messages: LocaleMessages = {
   "settings.language.title": "言語",
   "settings.welcome.title": "ウェルカムドキュメント",
   "settings.welcome.button": "リセット",
+  "settings.update.currentVersion": "現在のバージョン",
   "settings.update.title": "アプリのアップデート",
   "settings.update.description": "新しい Markra リリースが利用可能か確認します。",
   "settings.update.check": "アップデートを確認",

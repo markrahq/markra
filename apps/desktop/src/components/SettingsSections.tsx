@@ -1263,6 +1263,7 @@ function SettingsTitlebarActionsControl({
 }
 
 export function GeneralSettings({
+  appVersion,
   language,
   onCheckForUpdates,
   onResetWelcomeDocument,
@@ -1272,6 +1273,7 @@ export function GeneralSettings({
   translate,
   welcomeReset
 }: {
+  appVersion: string;
   language: AppLanguage;
   onCheckForUpdates: () => unknown;
   onResetWelcomeDocument: () => unknown;
@@ -1333,6 +1335,10 @@ export function GeneralSettings({
       ) : null}
 
       <SettingsSection label={translate("settings.sections.updates")}>
+        <SettingsRow
+          title={translate("settings.update.currentVersion")}
+          description={`Markra ${appVersion}`}
+        />
         <SettingsRow
           title={translate("settings.update.title")}
           description={translate("settings.update.description")}

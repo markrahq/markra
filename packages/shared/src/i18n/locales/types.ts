@@ -44,6 +44,7 @@ export type I18nKey =
   | "settings.welcome.status"
   | "settings.startup.restoreWorkspace"
   | "settings.startup.restoreWorkspaceDescription"
+  | "settings.update.currentVersion"
   | "settings.update.title"
   | "settings.update.description"
   | "settings.update.check"

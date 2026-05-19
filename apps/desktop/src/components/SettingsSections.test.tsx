@@ -13,10 +13,6 @@ function translate(key: Parameters<typeof t>[1]) {
   return t("en", key);
 }
 
-function translateChinese(key: Parameters<typeof t>[1]) {
-  return t("zh-CN", key);
-}
-
 function mockTitlebarActionRects(actionIds: string[]) {
   actionIds.forEach((id, index) => {
     const element = document.querySelector(`[data-titlebar-action="${id}"]`) as HTMLElement;
@@ -389,18 +385,18 @@ describe("AiSettings", () => {
   it("keeps non-translation defaults in English while targeting translations to the app language", () => {
     render(
       <AiSettings
-        language="zh-CN"
+        language="en"
         preferences={defaultEditorPreferences}
-        translate={translateChinese}
+        translate={translate}
         onUpdatePreferences={vi.fn()}
       />
     );
 
-    expect(screen.getByRole("textbox", { name: "润色 提示词" })).toHaveValue(
-      defaultAiQuickActionPrompt("polish", "Simplified Chinese")
+    expect(screen.getByRole("textbox", { name: "Polish prompt" })).toHaveValue(
+      defaultAiQuickActionPrompt("polish", "English")
     );
-    expect(screen.getByRole("textbox", { name: "翻译 提示词" })).toHaveValue(
-      defaultAiQuickActionPrompt("translate", "Simplified Chinese")
+    expect(screen.getByRole("textbox", { name: "Translate prompt" })).toHaveValue(
+      defaultAiQuickActionPrompt("translate", "English")
     );
   });
 });

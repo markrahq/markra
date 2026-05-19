@@ -10,9 +10,9 @@ function toolText(result: AgentToolResult<unknown> | undefined) {
 type PreviewResultCallback = Parameters<typeof createDocumentAgentTools>[0]["onPreviewResult"];
 
 function selectedAwsHeadingToolContext(onPreviewResult: PreviewResultCallback) {
-  const documentContent = ["## 登录docker", "", "Body", "", "## 拉取 image", "", "Pull body"].join("\n");
-  const firstHeading = "## 登录docker";
-  const secondHeading = "## 拉取 image";
+  const documentContent = ["## LoginAWS", "", "Body", "", "## Pull img", "", "Pull body"].join("\n");
+  const firstHeading = "## LoginAWS";
+  const secondHeading = "## Pull img";
 
   return {
     context: {
@@ -20,11 +20,11 @@ function selectedAwsHeadingToolContext(onPreviewResult: PreviewResultCallback) {
       documentEndPosition: documentContent.length,
       documentPath: "/vault/AWS.md",
       headingAnchors: [
-        { from: 0, level: 2, title: "登录docker", to: firstHeading.length },
+        { from: 0, level: 2, title: "LoginAWS", to: firstHeading.length },
         {
           from: documentContent.indexOf(secondHeading),
           level: 2,
-          title: "拉取 image",
+          title: "Pull img",
           to: documentContent.indexOf(secondHeading) + secondHeading.length
         }
       ],
@@ -33,7 +33,7 @@ function selectedAwsHeadingToolContext(onPreviewResult: PreviewResultCallback) {
         cursor: 11,
         from: 3,
         source: "selection" as const,
-        text: "登录docker",
+        text: "LoginAWS",
         to: 11
       },
       workspaceFiles: []
@@ -389,15 +389,15 @@ describe("documentAgentTools", () => {
 
   it("reads the selected heading Markdown source from the current selection", async () => {
     const tool = createDocumentAgentTools({
-      documentContent: "# 登录docker\n\nBody",
+      documentContent: "# LoginAWS\n\nBody",
       documentEndPosition: 16,
       documentPath: "/vault/AWS.md",
-      headingAnchors: [{ from: 0, level: 1, title: "登录docker", to: 10 }],
+      headingAnchors: [{ from: 0, level: 1, title: "LoginAWS", to: 10 }],
       selection: {
         cursor: 10,
         from: 2,
         source: "selection",
-        text: "登录docker",
+        text: "LoginAWS",
         to: 10
       },
       workspaceFiles: []
@@ -406,24 +406,24 @@ describe("documentAgentTools", () => {
     const result = await tool?.execute("tool_get_selection", {});
 
     expect(toolText(result)).toContain("Markdown source range: 0-10");
-    expect(toolText(result)).toContain("```markdown\n# 登录docker\n```");
+    expect(toolText(result)).toContain("```markdown\n# LoginAWS\n```");
   });
 
   it("reads containing section Markdown source from arbitrary selected text", async () => {
-    const documentContent = ["# 登录docker", "", "Body paragraph", "", "## 拉取 image"].join("\n");
+    const documentContent = ["# LoginAWS", "", "Body paragraph", "", "## Pull img"].join("\n");
     const bodyStart = documentContent.indexOf("Body paragraph");
-    const nextHeadingStart = documentContent.indexOf("## 拉取 image");
+    const nextHeadingStart = documentContent.indexOf("## Pull img");
     const tool = createDocumentAgentTools({
       documentContent,
       documentEndPosition: documentContent.length,
       documentPath: "/vault/AWS.md",
       headingAnchors: [
-        { from: 0, level: 1, title: "登录docker", to: "# 登录docker".length },
+        { from: 0, level: 1, title: "LoginAWS", to: "# LoginAWS".length },
         {
           from: nextHeadingStart,
           level: 2,
-          title: "拉取 image",
-          to: nextHeadingStart + "## 拉取 image".length
+          title: "Pull img",
+          to: nextHeadingStart + "## Pull img".length
         }
       ],
       selection: {
@@ -439,7 +439,7 @@ describe("documentAgentTools", () => {
     const result = await tool?.execute("tool_get_selection", {});
 
     expect(toolText(result)).toContain(`Markdown source range: 0-${documentContent.length}`);
-    expect(toolText(result)).toContain("# 登录docker");
+    expect(toolText(result)).toContain("# LoginAWS");
     expect(toolText(result)).toContain("Body paragraph");
     expect(toolText(result)).not.toContain("Markdown structure: heading level");
   });
@@ -756,18 +756,18 @@ describe("documentAgentTools", () => {
     const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_block");
 
     const result = await tool?.execute("tool_replace_block", {
-      replacement: "# 登录docker"
+      replacement: "# LoginAWS"
     });
 
     expect(onPreviewResult).toHaveBeenCalledWith({
       from: 0,
-      original: "登录docker",
-      replacement: "# 登录docker",
+      original: "LoginAWS",
+      replacement: "# LoginAWS",
       target: {
         from: 0,
         id: "current-context",
         kind: "current_block",
-        title: "登录docker",
+        title: "LoginAWS",
         to: firstHeading.length
       },
       to: firstHeading.length,
@@ -783,13 +783,13 @@ describe("documentAgentTools", () => {
 
     await tool?.execute("tool_replace_region", {
       anchorId: "current-context",
-      replacement: "# 登录docker"
+      replacement: "# LoginAWS"
     });
 
     expect(onPreviewResult).toHaveBeenCalledWith({
       from: 0,
-      original: "登录docker",
-      replacement: "# 登录docker",
+      original: "LoginAWS",
+      replacement: "# LoginAWS",
       to: firstHeading.length,
       type: "replace"
     }, expect.any(String));
@@ -801,18 +801,18 @@ describe("documentAgentTools", () => {
     const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_region");
 
     await tool?.execute("tool_replace_region", {
-      replacement: "# 登录docker"
+      replacement: "# LoginAWS"
     });
 
     expect(onPreviewResult).toHaveBeenCalledWith({
       from: 0,
-      original: "登录docker",
-      replacement: "# 登录docker",
+      original: "LoginAWS",
+      replacement: "# LoginAWS",
       target: {
         from: 0,
         id: "current-context",
         kind: "current_block",
-        title: "登录docker",
+        title: "LoginAWS",
         to: firstHeading.length
       },
       to: firstHeading.length,

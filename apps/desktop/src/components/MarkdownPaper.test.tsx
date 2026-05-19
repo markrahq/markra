@@ -1027,48 +1027,6 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).not.toContain("<br");
   });
 
-  it("creates a paragraph below a rendered display math block when pressing Enter after it", async () => {
-    const source = String.raw`$$ E = mc^2 $$`;
-    const { container, editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, source.length + 1);
-
-    expect(pressEnter(view)).toBe(true);
-    typeText(view, "After formula");
-
-    expect(view.state.doc.child(0).textContent).toBe(source);
-    expect(view.state.doc.child(1).type.name).toBe("paragraph");
-    expect(view.state.doc.child(1).textContent).toBe("After formula");
-    expect(serializeMarkdown(view.state.doc)).toContain([source, "", "After formula"].join("\n"));
-  });
-
-  it("moves down from text to display math so Enter can create a paragraph below it", async () => {
-    const formula = String.raw`$$ E = mc^2 $$`;
-    const source = ["Before formula", "", formula].join("\n");
-    const { container, editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, findTextPosition(view, "Before formula", "Before formula".length));
-
-    expect(pressArrowDown(view)).toBe(true);
-    expect(view.state.selection.from).toBe(findTextPosition(view, formula, formula.length));
-    expect(container.querySelector(".ProseMirror .markra-math-edge-caret")).not.toBeInTheDocument();
-    const nativeCaretAnchor = container.querySelector<HTMLImageElement>(
-      ".ProseMirror img.ProseMirror-separator.markra-math-caret-anchor"
-    );
-    expect(nativeCaretAnchor).toBeInTheDocument();
-    expect(nativeCaretAnchor).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"));
-
-    expect(pressEnter(view)).toBe(true);
-    typeText(view, "After formula");
-
-    expect(view.state.doc.child(0).textContent).toBe("Before formula");
-    expect(view.state.doc.child(1).textContent).toBe(formula);
-    expect(view.state.doc.child(2).textContent).toBe("After formula");
-    expect(serializeMarkdown(view.state.doc)).toContain([formula, "", "After formula"].join("\n"));
-  });
-
   it("keeps the native caret anchor when leaving display math source at the closing delimiter", async () => {
     const source = String.raw`$$ E = mc^2 $$`;
     const { container, view } = await renderEditor(source);
@@ -1076,7 +1034,7 @@ describe("MarkdownPaper editing", () => {
 
     fireEvent.mouseDown(blockFormula!);
     await waitFor(() => {
-      expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
+      expect(container.querySelector(".ProseMirror .markra-math-source-active")).toBeInTheDocument();
     });
 
     moveCursor(view, findTextPosition(view, source, source.length));
@@ -1097,26 +1055,6 @@ describe("MarkdownPaper editing", () => {
     expect(selectionParent).toHaveClass("markra-math-source-hidden-display");
     expect(nativeCaretAnchor).toBeInTheDocument();
     expect(nativeCaretAnchor).toHaveAttribute("src", expect.stringContaining("data:image/svg+xml"));
-  });
-
-  it("creates a paragraph below display math when confirming active formula editing", async () => {
-    const source = String.raw`$$ E = mc^2 $$`;
-    const { container, editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
-
-    fireEvent.mouseDown(blockFormula!);
-    await waitFor(() => {
-      expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
-    });
-
-    expect(pressEnter(view)).toBe(true);
-    typeText(view, "After formula");
-
-    expect(view.state.doc.child(0).textContent).toBe(source);
-    expect(view.state.doc.child(1).type.name).toBe("paragraph");
-    expect(view.state.doc.child(1).textContent).toBe("After formula");
-    expect(serializeMarkdown(view.state.doc)).toContain([source, "", "After formula"].join("\n"));
   });
 
   it("reveals math source for editing when a rendered formula is clicked", async () => {
@@ -1149,9 +1087,135 @@ describe("MarkdownPaper editing", () => {
     await waitFor(() => {
       expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).not.toBeInTheDocument();
     });
-    expect(container.querySelector(".ProseMirror .markra-math-render-display")).not.toBeInTheDocument();
+    expect(
+      Array.from(container.querySelectorAll(".ProseMirror .markra-math-source-active"))
+        .map((node) => node.textContent)
+        .join("")
+    ).toBe(source);
+    expect(container.querySelector(".ProseMirror .markra-math-render-active-preview .katex")).toBeInTheDocument();
     expect(view.state.selection.from).toBeGreaterThan(source.indexOf("E"));
     expect(view.state.selection.from).toBeLessThan(source.indexOf("$$", 2) + 1);
+  });
+
+  it("keeps a live preview below display math source while editing", async () => {
+    const source = [
+      "$$",
+      String.raw`\begin{aligned}`,
+      String.raw`b &= a \\`,
+      String.raw`- y &= b \\`,
+      String.raw`z &= c`,
+      String.raw`\end{aligned}`,
+      "$$"
+    ].join("\n");
+    const { container } = await renderEditor(source);
+    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
+
+    fireEvent.mouseDown(blockFormula!);
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-source-active")).toBeInTheDocument();
+    });
+
+    const activeSourceText = Array.from(container.querySelectorAll(".ProseMirror .markra-math-source-active"))
+      .map((node) => node.textContent)
+      .join("");
+    const activeSourceBreaks = container.querySelectorAll(
+      '.ProseMirror .markra-math-source-active[data-type="hardbreak"]'
+    );
+
+    expect(container.querySelector(".ProseMirror .markra-math-render-active-preview .katex")).toBeInTheDocument();
+    expect(activeSourceText).toContain("\\begin{aligned}");
+    expect(activeSourceBreaks).toHaveLength(source.split("\n").length - 1);
+    expect(container.querySelector(".ProseMirror .markra-math-token-delimiter")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-token-command")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-token-operator")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-caret-anchor")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).not.toBeInTheDocument();
+  });
+
+  it("keeps display math source open when pressing inside the source block", async () => {
+    const source = [
+      "$$",
+      String.raw`\begin{aligned}`,
+      String.raw`b &= a \\`,
+      String.raw`z &= c`,
+      String.raw`\end{aligned}`,
+      "$$"
+    ].join("\n");
+    const { container } = await renderEditor(source);
+    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
+
+    fireEvent.mouseDown(blockFormula!);
+
+    const sourceBlock = await waitFor(() =>
+      container.querySelector<HTMLElement>(".ProseMirror p:has(.markra-math-source-active-display)")
+    );
+
+    fireEvent.pointerDown(sourceBlock!, {
+      clientX: 320,
+      clientY: 112
+    });
+
+    expect(container.querySelector(".ProseMirror .markra-math-source-active")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-render-active-preview")).toBeInTheDocument();
+  });
+
+  it("inserts a source newline instead of folding display math on Enter", async () => {
+    const source = [
+      "$$",
+      String.raw`\begin{aligned}`,
+      String.raw`b &= a \\`,
+      String.raw`- y &= b \\`,
+      String.raw`\end{aligned}`,
+      "$$"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
+
+    fireEvent.mouseDown(blockFormula!);
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-source-active")).toBeInTheDocument();
+    });
+
+    const firstEquation = String.raw`b &= a \\`;
+    moveCursor(view, findTextPosition(view, firstEquation, firstEquation.length));
+
+    expect(pressEnter(view)).toBe(true);
+
+    expect(container.querySelector(".ProseMirror .markra-math-source-active")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-render-active-preview")).toBeInTheDocument();
+    expect(serializeMarkdown(view.state.doc)).toContain(`${firstEquation}\n\n- y &= b`);
+  });
+
+  it("moves to the current display math source line end on Cmd+ArrowRight", async () => {
+    const source = [
+      "$$",
+      String.raw`\begin{aligned}`,
+      String.raw`b &= a \\`,
+      String.raw`- y &= b \\`,
+      String.raw`\end{aligned}`,
+      "$$"
+    ].join("\n");
+    const { container, view } = await renderEditor(source);
+    const blockFormula = container.querySelector<HTMLElement>(".ProseMirror .markra-math-render-display");
+
+    fireEvent.mouseDown(blockFormula!);
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-source-active")).toBeInTheDocument();
+    });
+
+    const firstEquation = String.raw`b &= a \\`;
+    const lineStart = findTextPosition(view, firstEquation);
+    const lineEnd = findTextPosition(view, firstEquation, firstEquation.length);
+    moveCursor(view, lineStart + 2);
+
+    expect(pressShortcut(view, "ArrowRight", { metaKey: true })).toBe(true);
+
+    expect(view.state.selection.from).toBe(lineEnd);
+    expect(container.querySelector(".ProseMirror .markra-math-source-active")).toBeInTheDocument();
   });
 
   it("folds math source when the cursor leaves the formula", async () => {
@@ -1430,6 +1494,81 @@ describe("MarkdownPaper editing", () => {
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toBe("Second\n\nFirst\n\nThird\n");
+    restoreLayout();
+  });
+
+  it("reorders blocks below a table drop target", async () => {
+    const tableMarkdown = ["| Name | Role |", "| --- | --- |", "| Markra | Editor |"].join("\n");
+    const { container, editor, view } = await renderEditor(["First", "", tableMarkdown, "", "Second"].join("\n"));
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+
+    fireEvent.pointerMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+    const dataTransfer = createDragDataTransfer();
+
+    dispatchDragEvent(handle, "dragstart", {
+      clientX: 136,
+      clientY: 112,
+      dataTransfer
+    });
+    dispatchDragEvent(paper!, "dragover", {
+      clientX: 136,
+      clientY: 160,
+      dataTransfer
+    });
+    dispatchDragEvent(paper!, "drop", {
+      clientX: 136,
+      clientY: 160,
+      dataTransfer
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("| Markra | Editor |\n\nFirst\n\nSecond");
+    restoreLayout();
+  });
+
+  it("reorders blocks below an image drop target", async () => {
+    const { container, editor, view } = await renderEditor("First\n\n![Screenshot](assets/pasted-image.png)\n\nSecond");
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    const paper = surface?.closest<HTMLElement>(".markdown-paper");
+    expect(surface).toBeInTheDocument();
+    expect(paper).toBeInTheDocument();
+
+    fireEvent.pointerMove(paper!, {
+      clientX: 136,
+      clientY: 112
+    });
+
+    const handle = await screen.findByRole("button", { name: "Drag block" });
+    const dataTransfer = createDragDataTransfer();
+
+    dispatchDragEvent(handle, "dragstart", {
+      clientX: 136,
+      clientY: 112,
+      dataTransfer
+    });
+    dispatchDragEvent(paper!, "dragover", {
+      clientX: 136,
+      clientY: 160,
+      dataTransfer
+    });
+    dispatchDragEvent(paper!, "drop", {
+      clientX: 136,
+      clientY: 160,
+      dataTransfer
+    });
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("![Screenshot](assets/pasted-image.png)\n\nFirst\n\nSecond\n");
     restoreLayout();
   });
 
@@ -2126,8 +2265,51 @@ describe("MarkdownPaper editing", () => {
     expect(screen.getByRole("option", { name: "Heading 1" })).toBeInTheDocument();
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-    expect(serializeMarkdown(view.state.doc)).toBe("First\n\nSecond\n\n<br />\n\nThird\n");
+    expect(serializeMarkdown(view.state.doc)).toBe("First\n\nSecond\n\n\n\nThird\n");
     expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("/");
+    restoreLayout();
+  });
+
+  it("saves side-toolbar blank paragraphs as markdown blank lines instead of br tags", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird", { onMarkdownChange });
+    const restoreLayout = mockTopLevelBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 152
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    await settleMarkdownListener();
+    const latestMarkdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "");
+    expect(latestMarkdown).toContain("Second\n\n\n\nThird");
+    expect(latestMarkdown).not.toContain("<br");
+    restoreLayout();
+  });
+
+  it("saves blank list items without br tags", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("- First\n- Second", { onMarkdownChange });
+    const restoreLayout = mockListItemBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface).toBeInTheDocument();
+
+    fireEvent.pointerMove(surface!, {
+      clientX: 240,
+      clientY: 112
+    });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
+
+    await settleMarkdownListener();
+    const latestMarkdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "");
+    expect(latestMarkdown).not.toContain("<br");
+    expect(latestMarkdown).toContain("* First");
+    expect(latestMarkdown).toContain("* Second");
     restoreLayout();
   });
 
@@ -3399,20 +3581,20 @@ describe("MarkdownPaper editing", () => {
   });
 
   it("clears a parsed heading replacement preview after applying from the widget", async () => {
-    const { container, editor, view } = await renderEditor("## 拉取 image\n\nBody");
-    const from = findTextPosition(view, "拉取 image");
+    const { container, editor, view } = await renderEditor("## Pull img\n\nBody");
+    const from = findTextPosition(view, "Pull img");
     const result = {
       from,
-      original: "拉取 image",
-      replacement: "# 拉取 image",
+      original: "Pull img",
+      replacement: "# Pull img",
       target: {
         from: 0,
         id: "current-context",
         kind: "current_block" as const,
-        title: "拉取 image",
-        to: "## 拉取 image".length
+        title: "Pull img",
+        to: "## Pull img".length
       },
-      to: from + "拉取 image".length,
+      to: from + "Pull img".length,
       type: "replace" as const
     };
     const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
@@ -3429,18 +3611,18 @@ describe("MarkdownPaper editing", () => {
     window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
     showAiEditorPreview(view, result, undefined, { parseMarkdown, previewId: "tool-heading" });
 
-    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("拉取 image");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Pull img");
 
     container.querySelector<HTMLButtonElement>(".ProseMirror .markra-ai-preview-apply")?.click();
 
-    expect(container.querySelector(".ProseMirror h1")).toHaveTextContent("拉取 image");
+    expect(container.querySelector(".ProseMirror h1")).toHaveTextContent("Pull img");
     expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).not.toBeInTheDocument();
     expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).not.toBeInTheDocument();
 
     expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
-    expect(container.querySelector(".ProseMirror h2")).toHaveTextContent("拉取 image");
-    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("拉取 image");
-    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("拉取 image");
+    expect(container.querySelector(".ProseMirror h2")).toHaveTextContent("Pull img");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-delete")).toHaveTextContent("Pull img");
+    expect(container.querySelector(".ProseMirror .markra-ai-preview-insert")).toHaveTextContent("Pull img");
 
     window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onPreviewAction);
     clearAiEditorPreview(view);
@@ -3621,20 +3803,20 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
-  it("does not restore a parsed Chinese block insert preview after applying it", async () => {
+  it("does not restore a parsed Markdown block insert preview after applying it", async () => {
     const { container, editor, view } = await renderEditor("# Alpha\n\nBody");
     const documentEnd = view.state.doc.content.size;
     const result = {
       from: documentEnd,
       original: "",
       replacement: [
-        "## 📝 总结",
+        "## Summary",
         "",
-        "`vue3-lazyload` 是一款专为 Vue 3 设计的轻量级图片懒加载插件，具有以下核心优势：",
+        "`vue3-lazyload` is a lightweight image lazy-loading plugin for Vue 3 with these strengths:",
         "",
-        "- **零运行时依赖**：不增加额外打包体积",
-        "- **TypeScript 支持**：提供完整的类型定义",
-        "- **多种使用方式**：支持指令和组件"
+        "- **No runtime dependencies**: No extra bundle weight",
+        "- **TypeScript support**: Ships complete type definitions",
+        "- **Multiple usage modes**: Supports directives and components"
       ].join("\n"),
       to: documentEnd,
       type: "insert" as const
@@ -3648,7 +3830,7 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(0);
     expect(container.querySelector(".ProseMirror")?.textContent).toContain("vue3-lazyload");
-    expect(container.querySelector(".ProseMirror")?.textContent).toContain("零运行时依赖");
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("No runtime dependencies");
 
     clearAiEditorPreview(view);
     await settleMarkdownListener();
@@ -3841,75 +4023,6 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
-  it("moves below a terminal code block with ArrowDown at the block end", async () => {
-    const source = ["```", "sudo docker pull image", "```"].join("\n");
-    const { editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, findTextPosition(view, "sudo docker pull image") + "sudo docker pull image".length);
-
-    expect(pressArrowDown(view)).toBe(true);
-    insertTextDirectly(view, "Next paragraph");
-
-    expect(serializeMarkdown(view.state.doc)).toContain([
-      "```",
-      "sudo docker pull image",
-      "```",
-      "",
-      "Next paragraph"
-    ].join("\n"));
-    await settleMarkdownListener();
-  });
-
-  it("moves below a terminal table with ArrowDown from the last cell", async () => {
-    const source = ["| Name | Role |", "| --- | --- |", "| Markra | Editor |"].join("\n");
-    const { editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, findTextPosition(view, "Editor") + "Editor".length);
-
-    expect(pressArrowDown(view)).toBe(true);
-    insertTextDirectly(view, "Next paragraph");
-
-    const markdown = serializeMarkdown(view.state.doc);
-    expect(markdown).toContain("Next paragraph");
-    expect(markdown.indexOf("Next paragraph")).toBeGreaterThan(markdown.indexOf("Markra"));
-    await settleMarkdownListener();
-  });
-
-  it("exits a terminal table with the editor exit shortcut", async () => {
-    const source = ["| Name | Role |", "| --- | --- |", "| Markra | Editor |"].join("\n");
-    const { editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    moveCursor(view, findTextPosition(view, "Editor") + "Editor".length);
-
-    expect(pressShortcut(view, "Enter", { metaKey: true })).toBe(true);
-    insertTextDirectly(view, "Next paragraph");
-
-    const markdown = serializeMarkdown(view.state.doc);
-    expect(markdown).toContain("Next paragraph");
-    expect(markdown.indexOf("Next paragraph")).toBeGreaterThan(markdown.indexOf("Markra"));
-    await settleMarkdownListener();
-  });
-
-  it("moves below terminal raw HTML with ArrowDown when the node is selected", async () => {
-    const source = '<div class="example-badge">Alpha</div>';
-    const { editor, view } = await renderEditor(source);
-    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-
-    selectNode(view, findNodeStartPosition(view, "html"));
-
-    expect(pressArrowDown(view)).toBe(true);
-    insertTextDirectly(view, "Next paragraph");
-
-    const markdown = serializeMarkdown(view.state.doc);
-    expect(markdown).toContain(source);
-    expect(markdown).toContain("Next paragraph");
-    expect(markdown.indexOf("Next paragraph")).toBeGreaterThan(markdown.indexOf(source));
-    await settleMarkdownListener();
-  });
-
   it("supports block markdown formatting shortcuts", async () => {
     const heading = await renderEditor();
     typeText(heading.view, "Heading");
@@ -3999,16 +4112,16 @@ describe("MarkdownPaper editing", () => {
   it("turns typed strong markdown into bold text after existing prose", async () => {
     const { container, view } = await renderEditor();
 
-    typeText(view, "后**a**");
+    typeText(view, "pre**a**");
 
     expectLiveMark(container, "strong", "a");
-    expect(container.querySelector(".ProseMirror")?.textContent).toBe("后**a**");
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("pre**a**");
 
     expect(pressEnter(view)).toBe(true);
 
     const strong = container.querySelector(".ProseMirror strong");
     expect(strong).toHaveTextContent("a");
-    expect(container.querySelector(".ProseMirror")?.textContent).toBe("后a");
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("prea");
     await settleMarkdownListener();
   });
 
@@ -4030,30 +4143,30 @@ describe("MarkdownPaper editing", () => {
 
   it("turns typed strong emphasis markdown into bold italic text", async () => {
     const stars = await renderEditor();
-    typeText(stars.view, "***粗斜体文本***");
+    typeText(stars.view, "***bold italic text***");
 
-    expectLiveStrongEmphasis(stars.container, "粗斜体文本");
+    expectLiveStrongEmphasis(stars.container, "bold italic text");
     expectMarkdownDelimiters(stars.container, 2);
-    expect(stars.container.querySelector(".ProseMirror")?.textContent).toBe("***粗斜体文本***");
+    expect(stars.container.querySelector(".ProseMirror")?.textContent).toBe("***bold italic text***");
 
     expect(pressEnter(stars.view)).toBe(true);
 
-    expect(stars.container.querySelector(".ProseMirror strong")).toHaveTextContent("粗斜体文本");
-    expect(stars.container.querySelector(".ProseMirror em")).toHaveTextContent("粗斜体文本");
-    expect(stars.container.querySelector(".ProseMirror")?.textContent).toBe("粗斜体文本");
+    expect(stars.container.querySelector(".ProseMirror strong")).toHaveTextContent("bold italic text");
+    expect(stars.container.querySelector(".ProseMirror em")).toHaveTextContent("bold italic text");
+    expect(stars.container.querySelector(".ProseMirror")?.textContent).toBe("bold italic text");
 
     const underscores = await renderEditor();
-    typeText(underscores.view, "___粗斜体文本___");
+    typeText(underscores.view, "___bold italic text___");
 
-    expectLiveStrongEmphasis(underscores.container, "粗斜体文本");
+    expectLiveStrongEmphasis(underscores.container, "bold italic text");
     expectMarkdownDelimiters(underscores.container, 2);
-    expect(underscores.container.querySelector(".ProseMirror")?.textContent).toBe("___粗斜体文本___");
+    expect(underscores.container.querySelector(".ProseMirror")?.textContent).toBe("___bold italic text___");
 
     expect(pressEnter(underscores.view)).toBe(true);
 
-    expect(underscores.container.querySelector(".ProseMirror strong")).toHaveTextContent("粗斜体文本");
-    expect(underscores.container.querySelector(".ProseMirror em")).toHaveTextContent("粗斜体文本");
-    expect(underscores.container.querySelector(".ProseMirror")?.textContent).toBe("粗斜体文本");
+    expect(underscores.container.querySelector(".ProseMirror strong")).toHaveTextContent("bold italic text");
+    expect(underscores.container.querySelector(".ProseMirror em")).toHaveTextContent("bold italic text");
+    expect(underscores.container.querySelector(".ProseMirror")?.textContent).toBe("bold italic text");
     await settleMarkdownListener();
   });
 
@@ -4495,6 +4608,28 @@ describe("MarkdownPaper editing", () => {
     expect(table).toHaveTextContent("Editor");
   });
 
+  it("keeps a preceding table when pressing Backspace from an empty paragraph below it", async () => {
+    const tableMarkdown = ["| Name | Role |", "| --- | --- |", "| Markra | Editor |"].join("\n");
+    const { container, editor, view } = await renderEditor([tableMarkdown, "", "![Screenshot](assets/pasted-image.png)"].join("\n"));
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const insertPosition = findNodeEndPosition(view, "table");
+    const paragraph = view.state.schema.nodes.paragraph.create();
+    const transaction = view.state.tr.insert(insertPosition, paragraph);
+
+    view.dispatch(transaction.setSelection(TextSelection.create(transaction.doc, insertPosition + 1)));
+
+    expect(view.state.doc.child(0).type.name).toBe("table");
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(pressBackspace(view)).toBe(true);
+
+    expect(container.querySelector(".ProseMirror table")).toBeInTheDocument();
+    expect(view.state.doc.child(0).type.name).toBe("table");
+    expect(view.state.doc.child(1).type.name).toBe("image");
+    expect(view.state.selection.$from.parent.type.name).toBe("paragraph");
+    expect(view.state.selection.$from.parent.textContent).toBe("Editor");
+    expect(serializeMarkdown(view.state.doc)).toContain("| Markra | Editor |");
+  });
+
   it("renders GitHub-style alert blockquotes as callouts while preserving Markdown source", async () => {
     const source = "> [!NOTE]\n> Keep this in mind.";
     const { container, editor, view } = await renderEditor(source);
@@ -4757,32 +4892,32 @@ describe("MarkdownPaper editing", () => {
 
   it("serializes edited expanded links as markdown instead of escaped text", async () => {
     const onMarkdownChange = vi.fn();
-    const { container, view } = await renderEditor("[关于我们](https://m.techflowpost.com/article/9424)", {
+    const { container, view } = await renderEditor("[About us](https://example.test/articles/about)", {
       onMarkdownChange
     });
 
     const link = container.querySelector<HTMLAnchorElement>(
-      '.ProseMirror a[href="https://m.techflowpost.com/article/9424"]'
+      '.ProseMirror a[href="https://example.test/articles/about"]'
     );
     expect(link).toBeInTheDocument();
 
     link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
-    const labelFrom = findTextPosition(view, "关于我们");
-    selectText(view, labelFrom, labelFrom + "关于我们".length);
-    insertTextDirectly(view, "是关于我们");
+    const labelFrom = findTextPosition(view, "About us");
+    selectText(view, labelFrom, labelFrom + "About us".length);
+    insertTextDirectly(view, "Edited about us");
 
     await waitFor(() => {
       expect(
         onMarkdownChange.mock.calls.some(([markdown]) =>
-          String(markdown).includes("[是关于我们](https://m.techflowpost.com/article/9424)")
+          String(markdown).includes("[Edited about us](https://example.test/articles/about)")
         )
       ).toBe(true);
     });
 
     const latestMarkdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "");
-    expect(latestMarkdown).not.toContain("\\[是关于我们\\]");
-    expect(latestMarkdown).not.toContain("\\(https\\://m.techflowpost.com/article/9424\\)");
+    expect(latestMarkdown).not.toContain("\\[Edited about us\\]");
+    expect(latestMarkdown).not.toContain("\\(https\\://example.test/articles/about\\)");
   });
 
   it("renders local image markdown with resolved preview sources", async () => {
@@ -4802,6 +4937,45 @@ describe("MarkdownPaper editing", () => {
     expect(fireEvent.dragStart(imageNode!)).toBe(false);
   });
 
+  it("renders standalone images as top-level image nodes", async () => {
+    const { container, view } = await renderEditor("![Screenshot](assets/pasted-image.png)");
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    const imageNode = image?.closest<HTMLElement>(".markra-image-node");
+
+    expect(view.state.doc.child(0).type.name).toBe("image");
+    expect(imageNode?.parentElement).toBe(container.querySelector(".ProseMirror"));
+  });
+
+  it("splits paragraph image markdown into block image nodes", async () => {
+    const { container, view } = await renderEditor("Before ![Screenshot](assets/pasted-image.png) after");
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+
+    expect(view.state.doc.childCount).toBe(3);
+    expect(view.state.doc.child(0).type.name).toBe("paragraph");
+    expect(view.state.doc.child(0).textContent).toBe("Before");
+    expect(view.state.doc.child(1).type.name).toBe("image");
+    expect(view.state.doc.child(2).type.name).toBe("paragraph");
+    expect(view.state.doc.child(2).textContent).toBe("after");
+    expect(image?.closest(".markra-image-node")?.parentElement).toBe(container.querySelector(".ProseMirror"));
+  });
+
+  it("keeps image markdown source stable when editing surrounding text", async () => {
+    const source = ["Intro", "", "![Screenshot](assets/pasted-image.png)", "", "Outro"].join("\n");
+    const onMarkdownChange = vi.fn();
+    const { editor, view } = await renderEditor(source, { onMarkdownChange });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const expectedMarkdown = ["Intro updated", "", "![Screenshot](assets/pasted-image.png)", "", "Outro", ""].join(
+      "\n"
+    );
+
+    moveCursor(view, findTextPosition(view, "Intro", "Intro".length));
+    typeText(view, " updated");
+    await settleMarkdownListener();
+
+    expect(serializeMarkdown(view.state.doc)).toBe(expectedMarkdown);
+    expect(onMarkdownChange).toHaveBeenLastCalledWith(expectedMarkdown);
+  });
+
   it("shows finalized image markdown source when the image is clicked", async () => {
     const { container, editor, view } = await renderEditor("![Screenshot](assets/pasted-image.png)");
 
@@ -4815,6 +4989,7 @@ describe("MarkdownPaper editing", () => {
 
     const source = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
     expect(source).toHaveValue("![Screenshot](assets/pasted-image.png)");
+    expect(image?.closest(".markra-image-node")).toHaveClass("markra-image-node-selected");
     expect(image?.closest(".markra-image-node")).not.toHaveClass("ProseMirror-selectednode");
 
     fireEvent.change(source!, { target: { value: "![Edited screenshot](assets/edited.png)" } });
@@ -4824,6 +4999,50 @@ describe("MarkdownPaper editing", () => {
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toContain("![Edited screenshot](assets/edited.png)");
+  });
+
+  it("moves from finalized image source editing to a new paragraph on Enter", async () => {
+    const { container, editor, view } = await renderEditor("![Screenshot](assets/pasted-image.png)");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    expect(image).toBeInTheDocument();
+
+    expect(fireEvent.mouseDown(image!)).toBe(false);
+
+    const source = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
+    expect(source).toHaveValue("![Screenshot](assets/pasted-image.png)");
+
+    expect(fireEvent.keyDown(source!, { key: "Enter" })).toBe(false);
+
+    expect(container.querySelector(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
+    expect(view.state.doc.child(0).type.name).toBe("image");
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.selection.$from.parent.type.name).toBe("paragraph");
+
+    typeText(view, "Next");
+
+    expect(serializeMarkdown(view.state.doc)).toBe("![Screenshot](assets/pasted-image.png)\n\nNext\n");
+  });
+
+  it("removes the image source Enter paragraph on Backspace", async () => {
+    const { container, view } = await renderEditor("![Screenshot](assets/pasted-image.png)");
+
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    expect(image).toBeInTheDocument();
+
+    expect(fireEvent.mouseDown(image!)).toBe(false);
+
+    const source = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
+    expect(source).toHaveValue("![Screenshot](assets/pasted-image.png)");
+    expect(fireEvent.keyDown(source!, { key: "Enter" })).toBe(false);
+
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(pressBackspace(view)).toBe(true);
+
+    expect(view.state.doc.childCount).toBe(1);
+    expect(view.state.doc.child(0).type.name).toBe("image");
+    expect(view.state.selection).toBeInstanceOf(NodeSelection);
   });
 
   it("deletes a finalized image when its markdown source is cleared", async () => {

@@ -13,7 +13,7 @@ import {
 import { strikethroughSchema } from "@milkdown/kit/preset/gfm";
 import { exitCode, lift, setBlockType, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
 import { redo, undo } from "@milkdown/kit/prose/history";
-import type { NodeType, ResolvedPos } from "@milkdown/kit/prose/model";
+import type { NodeType } from "@milkdown/kit/prose/model";
 import type { Command, Selection } from "@milkdown/kit/prose/state";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
@@ -101,59 +101,89 @@ function selectionIsEmptyBlockquote(selection: Selection, blockquote: NodeType) 
   return selectionIsEmptyTextBlock(selection) && selectionIsInsideNodeType(selection, blockquote);
 }
 
-function isPlainParagraphNodeName(nodeName: string) {
-  return nodeName === "paragraph";
+function emptyTopLevelParagraphAfterTable(view: EditorView, paragraph: NodeType) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+
+  const { $from } = selection;
+  if ($from.depth !== 1) return null;
+  if ($from.parent.type !== paragraph || $from.parent.content.size > 0 || $from.parentOffset !== 0) return null;
+
+  const index = $from.index(0);
+  if (index <= 0) return null;
+
+  const previousNode = view.state.doc.child(index - 1);
+  if (previousNode.type.name !== "table") return null;
+
+  const paragraphFrom = $from.before(1);
+  const paragraphTo = $from.after(1);
+  const tableFrom = paragraphFrom - previousNode.nodeSize;
+  let cursor: number | null = null;
+
+  previousNode.descendants((node, position) => {
+    if (!node.isTextblock) return true;
+
+    cursor = tableFrom + 1 + position + node.content.size;
+    return true;
+  });
+
+  if (cursor === null) return null;
+
+  return {
+    cursor,
+    paragraphFrom,
+    paragraphTo
+  };
 }
 
-function isAtEndOfAncestorChain($pos: ResolvedPos, topDepth: number) {
-  if ($pos.parentOffset !== $pos.parent.content.size) return false;
+function moveBackIntoTableFromEmptyParagraph(view: EditorView, paragraph: NodeType) {
+  const target = emptyTopLevelParagraphAfterTable(view, paragraph);
+  if (!target) return false;
 
-  for (let depth = $pos.depth - 1; depth >= topDepth; depth -= 1) {
-    if ($pos.after(depth + 1) !== $pos.end(depth)) return false;
-  }
-
+  const transaction = view.state.tr.delete(target.paragraphFrom, target.paragraphTo);
+  view.dispatch(
+    transaction
+      .setSelection(TextSelection.create(transaction.doc, transaction.mapping.map(target.cursor, -1)))
+      .scrollIntoView()
+  );
+  view.focus();
   return true;
 }
 
-function findTerminalAncestorEndPosition(view: EditorView, $pos: ResolvedPos) {
-  if ($pos.depth < 1) return null;
-
-  const topNodeEnd = $pos.after(1);
-  if (topNodeEnd < view.state.doc.content.size) return null;
-  if (!isAtEndOfAncestorChain($pos, 1)) return null;
-
-  return topNodeEnd;
-}
-
-function findTerminalBlockEndPosition(view: EditorView) {
+function emptyTopLevelParagraphAfterImage(view: EditorView, paragraph: NodeType) {
   const { selection } = view.state;
-
-  if (selection instanceof NodeSelection) {
-    if (isPlainParagraphNodeName(selection.node.type.name)) return null;
-    if (selection.to >= view.state.doc.content.size) return selection.to;
-
-    return findTerminalAncestorEndPosition(view, selection.$to);
-  }
-
-  if (!selection.empty) return null;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
 
   const { $from } = selection;
-  if ($from.depth < 1) return null;
+  if ($from.depth !== 1) return null;
+  if ($from.parent.type !== paragraph || $from.parent.content.size > 0 || $from.parentOffset !== 0) return null;
 
-  const topNode = $from.node(1);
-  if (isPlainParagraphNodeName(topNode.type.name)) return null;
+  const index = $from.index(0);
+  if (index <= 0) return null;
 
-  return findTerminalAncestorEndPosition(view, $from);
+  const previousNode = view.state.doc.child(index - 1);
+  if (previousNode.type.name !== "image") return null;
+
+  const paragraphFrom = $from.before(1);
+
+  return {
+    imagePosition: paragraphFrom - previousNode.nodeSize,
+    paragraphFrom,
+    paragraphTo: $from.after(1)
+  };
 }
 
-function moveBelowTerminalBlock(view: EditorView, paragraph: ReturnType<typeof paragraphSchema.type>) {
-  const position = findTerminalBlockEndPosition(view);
-  if (position === null) return false;
+function moveBackToImageFromEmptyParagraph(view: EditorView, paragraph: NodeType) {
+  const target = emptyTopLevelParagraphAfterImage(view, paragraph);
+  if (!target) return false;
 
-  const tr = view.state.tr.insert(position, paragraph.create());
-  view.dispatch(tr.setSelection(TextSelection.create(tr.doc, position + 1)).scrollIntoView());
+  const transaction = view.state.tr.delete(target.paragraphFrom, target.paragraphTo);
+  view.dispatch(
+    transaction
+      .setSelection(NodeSelection.create(transaction.doc, transaction.mapping.map(target.imagePosition, -1)))
+      .scrollIntoView()
+  );
   view.focus();
-
   return true;
 }
 
@@ -216,14 +246,16 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
 
           event.preventDefault();
           return true;
-        } else if (event.key === "Enter" && isKeyboardShortcutModKey(event) && !event.shiftKey && !event.altKey) {
-          const handled = runCommand(view, exitCode) || moveBelowTerminalBlock(view, paragraph);
+        } else if (event.key === "Backspace" && !hasModifier) {
+          const handled =
+            moveBackIntoTableFromEmptyParagraph(view, paragraph) ||
+            moveBackToImageFromEmptyParagraph(view, paragraph);
           if (!handled) return false;
 
           event.preventDefault();
           return true;
-        } else if (event.key === "ArrowDown" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey) {
-          const handled = moveBelowTerminalBlock(view, paragraph);
+        } else if (event.key === "Enter" && isKeyboardShortcutModKey(event) && !event.shiftKey && !event.altKey) {
+          const handled = runCommand(view, exitCode);
           if (!handled) return false;
 
           event.preventDefault();

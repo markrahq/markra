@@ -305,13 +305,13 @@ describe("AiAgentPanel", () => {
 
   it("does not send when Enter confirms an IME composition", () => {
     function Harness() {
-      const [draft, setDraft] = useState("都有什么ai");
+      const [draft, setDraft] = useState("Which AI models are available?");
       const [messages, setMessages] = useState<{ id: number; role: "assistant" | "user"; text: string }[]>([]);
 
       return (
         <AiAgentPanel
           draft={draft}
-          language="zh-CN"
+          language="en"
           messages={messages}
           open
           onClose={() => {}}
@@ -329,13 +329,13 @@ describe("AiAgentPanel", () => {
 
     render(<Harness />);
 
-    const input = screen.getByRole("textbox", { name: "Markra AI 消息" });
+    const input = screen.getByRole("textbox", { name: "Markra AI message" });
     fireEvent.compositionStart(input);
     fireEvent.keyDown(input, { key: "Enter", nativeEvent: { isComposing: true, keyCode: 229 } });
     fireEvent.compositionEnd(input);
 
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
-    expect(input).toHaveValue("都有什么ai");
+    expect(input).toHaveValue("Which AI models are available?");
   });
 
   it("keeps the transcript scrolled to the newest streamed message", async () => {

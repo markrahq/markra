@@ -32,6 +32,7 @@ const messages: LocaleMessages = {
   "settings.welcome.buttonLabel": "下次启动时显示欢迎文档",
   "settings.startup.restoreWorkspace": "恢复上次工作区",
   "settings.startup.restoreWorkspaceDescription": "启动 Markra 时重新打开上次的文件和文件树。",
+  "settings.update.currentVersion": "当前版本",
   "settings.update.title": "应用更新",
   "settings.update.description": "检查是否有新的 Markra 版本可用。",
   "settings.update.check": "检查更新",

@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
+import desktopPackage from "../package.json";
 import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
 import {
   dispatchAiEditorPreviewAction,
@@ -155,7 +156,7 @@ describe("Markra workspace", () => {
     expect(screen.getByLabelText("Markdown editor")).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "milkdown");
     expect(container.querySelector("[data-milkdown-root]")).toBeInTheDocument();
-    expect(screen.queryByText("文件")).not.toBeInTheDocument();
+    expect(screen.queryByText("File")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle file list" })).toBeInTheDocument();
     expect(container.querySelector(".quiet-status")?.closest(".editor-content-slot")).toBeInTheDocument();
@@ -532,6 +533,7 @@ describe("Markra workspace", () => {
     settingsGroups.forEach((group) => expect(group).not.toHaveClass("border-y"));
     expect(settingsGroups[0]).not.toHaveClass("divide-y");
     expect(settingsGroups.some((group) => group.classList.contains("divide-y"))).toBe(true);
+    expect(screen.getByText(`Markra ${desktopPackage.version}`)).toBeInTheDocument();
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
     expect(categoryButtons).toHaveLength(9);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
@@ -544,14 +546,14 @@ describe("Markra workspace", () => {
     expect(document.documentElement).toHaveAttribute("data-window", "settings");
 
     fireEvent.change(languageSelect!, {
-      target: { value: "zh-CN" }
+      target: { value: "fr" }
     });
-    await waitFor(() => expect(mockedSaveStoredLanguage).toHaveBeenCalledWith("zh-CN"));
-    await waitFor(() => expect(mockedNotifyAppLanguageChanged).toHaveBeenCalledWith("zh-CN"));
+    await waitFor(() => expect(mockedSaveStoredLanguage).toHaveBeenCalledWith("fr"));
+    await waitFor(() => expect(mockedNotifyAppLanguageChanged).toHaveBeenCalledWith("fr"));
 
     fireEvent.click(categoryButtons[5]);
     expect(categoryButtons[5]).toHaveAttribute("aria-current", "page");
-    const themeSelect = screen.getByRole("combobox", { name: "颜色主题" });
+    const themeSelect = screen.getByRole("combobox");
     expect(themeSelect).toHaveValue("light");
     expect(screen.getByRole("option", { name: "Night" })).toBeInTheDocument();
     fireEvent.change(themeSelect, { target: { value: "night" } });
@@ -561,7 +563,7 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedNotifyAppThemeChanged).toHaveBeenCalledWith("night"));
 
     fireEvent.change(themeSelect, { target: { value: "custom" } });
-    const customCss = await screen.findByRole("textbox", { name: "自定义主题 CSS" });
+    const customCss = await screen.findByRole("textbox");
     fireEvent.change(customCss, {
       target: { value: ":root[data-theme=\"custom\"] { --accent: #0969da; }" }
     });
@@ -2694,7 +2696,7 @@ describe("Markra workspace", () => {
 
   it("saves expanded link source as markdown instead of escaped text", async () => {
     mockOpenMarkdownFile({
-      content: "[关于我们](https://m.techflowpost.com/article/9424)",
+      content: "[About us](https://example.test/articles/about)",
       name: "native.md",
       path: mockNativePath
     });
@@ -2706,11 +2708,11 @@ describe("Markra workspace", () => {
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 
-    const link = await screen.findByText("关于我们");
+    const link = await screen.findByText("About us");
     fireEvent.click(link.closest("a")!);
 
     expect(container.querySelector(".ProseMirror")?.textContent).toBe(
-      "[关于我们](https://m.techflowpost.com/article/9424)"
+      "[About us](https://example.test/articles/about)"
     );
 
     fireEvent.keyDown(window, { key: "s", metaKey: true });
@@ -2724,9 +2726,9 @@ describe("Markra workspace", () => {
       )
     );
     const savedContents = mockedSaveNativeMarkdownFile.mock.calls.at(-1)?.[0].contents ?? "";
-    expect(savedContents).toContain("[关于我们](https://m.techflowpost.com/article/9424)");
-    expect(savedContents).not.toContain("\\[关于我们\\]");
-    expect(savedContents).not.toContain("\\(https\\://m.techflowpost.com/article/9424\\)");
+    expect(savedContents).toContain("[About us](https://example.test/articles/about)");
+    expect(savedContents).not.toContain("\\[About us\\]");
+    expect(savedContents).not.toContain("\\(https\\://example.test/articles/about\\)");
   });
 
   it("opens relative markdown links inside the current folder workspace", async () => {

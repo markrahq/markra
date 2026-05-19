@@ -1,4 +1,5 @@
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
+import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView, ViewMutationRecord } from "@milkdown/kit/prose/view";
 import type { RawImageRange, ResolveMarkdownImageSrc } from "./types.ts";
 
@@ -161,20 +162,20 @@ export function createFinalizedImageNodeView(
   const syncSource = () => {
     const position = typeof getPos === "function" ? getPos() : undefined;
     if (source.value.trim().length === 0) {
-      if (typeof position !== "number") return;
+      if (typeof position !== "number") return false;
 
       view.dispatch(view.state.tr.delete(position, position + currentNode.nodeSize).scrollIntoView());
-      return;
+      return false;
     }
 
     const parsed = parseImageMarkdownSource(source.value);
     if (!parsed) {
       dom.classList.add("markra-image-node-source-invalid");
-      return;
+      return false;
     }
 
     dom.classList.remove("markra-image-node-source-invalid");
-    if (typeof position !== "number") return;
+    if (typeof position !== "number") return false;
 
     view.dispatch(
       view.state.tr.setNodeMarkup(position, undefined, {
@@ -183,6 +184,34 @@ export function createFinalizedImageNodeView(
         title: parsed.title
       })
     );
+    return true;
+  };
+
+  const moveToParagraphAfterImage = (event: KeyboardEvent) => {
+    if (event.key !== "Enter" || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (!syncSource()) return;
+
+    const position = typeof getPos === "function" ? getPos() : undefined;
+    const paragraph = view.state.schema.nodes.paragraph;
+    if (typeof position !== "number" || !paragraph) return;
+
+    const imageEnd = position + currentNode.nodeSize;
+    const nextNode = view.state.doc.resolve(imageEnd).nodeAfter;
+    if (nextNode?.type === paragraph && nextNode.content.size === 0) {
+      view.dispatch(
+        view.state.tr.setSelection(TextSelection.create(view.state.doc, imageEnd + 1)).scrollIntoView()
+      );
+    } else {
+      const transaction = view.state.tr.insert(imageEnd, paragraph.create());
+      view.dispatch(transaction.setSelection(TextSelection.create(transaction.doc, imageEnd + 1)).scrollIntoView());
+    }
+
+    hideSource();
+    view.focus();
   };
 
   const selectImage = (event: MouseEvent) => {
@@ -198,6 +227,7 @@ export function createFinalizedImageNodeView(
   image.addEventListener("click", selectImage);
   source.addEventListener("input", syncSource);
   source.addEventListener("change", syncSource);
+  source.addEventListener("keydown", moveToParagraphAfterImage);
 
   return {
     dom,
@@ -223,6 +253,7 @@ export function createFinalizedImageNodeView(
       image.removeEventListener("click", selectImage);
       source.removeEventListener("input", syncSource);
       source.removeEventListener("change", syncSource);
+      source.removeEventListener("keydown", moveToParagraphAfterImage);
     }
   };
 }

@@ -1,9 +1,13 @@
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import { stripDebugPlugin } from "./scripts/vite/strip-debug";
 
+const desktopPackage = JSON.parse(
+  readFileSync(new URL("./package.json", import.meta.url), "utf8")
+) as { version?: string };
 const chunkSizeWarningLimitKb = 1200;
 const fontAssetPattern = /\.(?:otf|ttf|woff2?)$/i;
 const imageAssetPattern = /\.(?:avif|gif|ico|jpe?g|png|svg|webp)$/i;
@@ -93,6 +97,7 @@ function vendorChunkName(id: string) {
 
 export default defineConfig(({ mode }) => ({
   define: {
+    __MARKRA_APP_VERSION__: JSON.stringify(desktopPackage.version ?? "0.0.0"),
     __MARKRA_DEBUG__: JSON.stringify(mode !== "production")
   },
   resolve: mode === "test"

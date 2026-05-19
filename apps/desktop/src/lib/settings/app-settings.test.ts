@@ -1722,8 +1722,8 @@ describe("app settings", () => {
       return {
         draft: "",
         messages: [
-          { id: 1, role: "user", text: "看看这组数据" },
-          { id: 2, role: "assistant", text: "黄金价格有问题" }
+          { id: 1, role: "user", text: "Check this dataset" },
+          { id: 2, role: "assistant", text: "Gold price looks wrong" }
         ],
         panelOpen: true,
         panelWidth: 420,

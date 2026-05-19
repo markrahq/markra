@@ -138,25 +138,25 @@ describe("native file access", () => {
       })
       .mockResolvedValueOnce({ kind: "folder", path: mockFolderPath });
 
-    await openNativeMarkdownFile({ title: "打开 Markdown 文件" });
-    await openNativeMarkdownFolder({ title: "打开文件夹" });
-    await openNativeMarkdownPath({ title: "打开 Markdown 或文件夹" });
+    await openNativeMarkdownFile({ title: "Open Markdown file" });
+    await openNativeMarkdownFolder({ title: "Open folder" });
+    await openNativeMarkdownPath({ title: "Open Markdown or folder" });
 
     expect(mockedOpen).toHaveBeenNthCalledWith(1, {
       multiple: false,
       fileAccessMode: "scoped",
       filters: [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }],
-      title: "打开 Markdown 文件"
+      title: "Open Markdown file"
     });
     expect(mockedOpen).toHaveBeenNthCalledWith(2, {
       multiple: false,
       directory: true,
       recursive: true,
       fileAccessMode: "scoped",
-      title: "打开文件夹"
+      title: "Open folder"
     });
     expect(mockedInvoke).toHaveBeenNthCalledWith(2, "open_markdown_path", {
-      title: "打开 Markdown 或文件夹"
+      title: "Open Markdown or folder"
     });
   });
 

@@ -32,6 +32,7 @@ const messages: BaseLocaleMessages = {
   "settings.welcome.buttonLabel": "Show welcome next launch",
   "settings.startup.restoreWorkspace": "Restore last workspace",
   "settings.startup.restoreWorkspaceDescription": "Reopen the last file and file tree when Markra starts.",
+  "settings.update.currentVersion": "Current version",
   "settings.update.title": "App updates",
   "settings.update.description": "Check whether a newer Markra release is available.",
   "settings.update.check": "Check for updates",

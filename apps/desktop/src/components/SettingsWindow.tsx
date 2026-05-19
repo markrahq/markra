@@ -14,6 +14,7 @@ import { SettingsContent, SettingsSidebar } from "./SettingsShell";
 import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
 import { useAutoUpdater } from "../hooks/useAutoUpdater";
 import { useDefaultContextMenuBlocker } from "../hooks/useDefaultContextMenuBlocker";
+import { appVersion } from "../lib/app-version";
 import { resolveDesktopPlatform } from "../lib/platform";
 import { MacWindowControls } from "./MacWindowControls";
 
@@ -75,6 +76,7 @@ export function SettingsWindow() {
         <SettingsContent activeCategory={activeCategory} translate={translate}>
           {activeCategory === "general" ? (
             <GeneralSettings
+              appVersion={appVersion}
               preferences={editorPreferences}
               language={appLanguage.language}
               translate={translate}
