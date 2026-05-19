@@ -41,18 +41,18 @@ describe("AiSelectionToolbar", () => {
     render(
       <AiSelectionToolbar
         anchor={anchor}
-        language="zh-CN"
+        language="en"
         open
         onOpenCommand={vi.fn()}
         onRunAction={onRunAction}
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "翻译" }));
+    fireEvent.click(screen.getByRole("button", { name: "Translate" }));
 
     expect(onRunAction).toHaveBeenCalledWith(
       "translate",
-      defaultAiQuickActionPrompt("translate", "Simplified Chinese")
+      defaultAiQuickActionPrompt("translate", "English")
     );
   });
 
@@ -62,20 +62,20 @@ describe("AiSelectionToolbar", () => {
     render(
       <AiSelectionToolbar
         anchor={anchor}
-        language="zh-CN"
+        language="en"
         open
         quickActionPrompts={{
           ...defaultAiQuickActionPrompts,
-          polish: "让选中的内容更清晰"
+          polish: "Make the selected text clearer."
         }}
         onOpenCommand={vi.fn()}
         onRunAction={onRunAction}
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "润色" }));
+    fireEvent.click(screen.getByRole("button", { name: "Polish" }));
 
-    expect(onRunAction).toHaveBeenCalledWith("polish", "让选中的内容更清晰");
+    expect(onRunAction).toHaveBeenCalledWith("polish", "Make the selected text clearer.");
   });
 
   it("opens the full command input for a custom instruction", () => {

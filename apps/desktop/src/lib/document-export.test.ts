@@ -38,8 +38,8 @@ describe("document export helpers", () => {
     expect(localFileUrlFromPath("/Users/me/notes/assets/pasted image.png")).toBe(
       "file:///Users/me/notes/assets/pasted%20image.png"
     );
-    expect(localFileUrlFromPath("C:\\Users\\me\\notes\\图像.png")).toBe(
-      "file:///C:/Users/me/notes/%E5%9B%BE%E5%83%8F.png"
+    expect(localFileUrlFromPath("C:\\Users\\me\\notes\\image.png")).toBe(
+      "file:///C:/Users/me/notes/image.png"
     );
   });
 });

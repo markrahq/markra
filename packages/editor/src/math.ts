@@ -310,7 +310,7 @@ function findActiveMathRange(state: EditorState) {
   return relativeRange ? makeAbsoluteRange(relativeRange, $from.start()) : null;
 }
 
-function findMathRangeByBounds(doc: ProseNode, bounds: ActiveMathSource) {
+function findMathRangeByBounds(doc: ProseNode, bounds: ActiveMathSource): MathRange | null {
   let activeRange: MathRange | null = null;
 
   doc.descendants((node, position) => {
@@ -330,7 +330,7 @@ function findMathRangeByBounds(doc: ProseNode, bounds: ActiveMathSource) {
   return activeRange;
 }
 
-function getActiveMathSource(state: EditorState) {
+function getActiveMathSource(state: EditorState): MathRange | null {
   const activeSource = mathRenderKey.getState(state) as ActiveMathSource | null;
   if (!activeSource) return null;
 
@@ -432,8 +432,87 @@ function revealMathSource(view: EditorView, range: MathRange) {
   view.focus();
 }
 
+function isPlainEnter(event: KeyboardEvent) {
+  return event.key === "Enter" && !event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey;
+}
+
+function insertDisplayMathSourceNewline(view: EditorView, event: KeyboardEvent) {
+  if (!isPlainEnter(event)) return false;
+
+  const range = getActiveMathSource(view.state);
+  if (!range || range.kind !== "display") return false;
+  if (!selectionIsInsideMathRange(view.state, range)) return false;
+
+  const hardbreak = view.state.schema.nodes.hardbreak;
+  if (!hardbreak) return false;
+
+  event.preventDefault();
+  view.dispatch(view.state.tr.replaceSelectionWith(hardbreak.create()).scrollIntoView());
+  view.focus();
+  return true;
+}
+
+function displayMathSourceLineBounds(state: EditorState, range: MathRange) {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+
+  const { $from } = selection;
+  if (!$from.parent.isTextblock) return null;
+
+  const hardbreak = state.schema.nodes.hardbreak;
+  if (!hardbreak) return null;
+
+  const cursor = selection.from;
+  const parentStart = $from.start();
+  let lineStart = range.from;
+  let lineEnd = range.to;
+
+  for (let index = 0, offset = 0; index < $from.parent.childCount; index += 1) {
+    const child = $from.parent.child(index);
+    const childFrom = parentStart + offset;
+
+    if (child.type === hardbreak) {
+      if (childFrom < cursor) {
+        lineStart = Math.max(range.from, childFrom + child.nodeSize);
+      } else {
+        lineEnd = Math.min(range.to, childFrom);
+        break;
+      }
+    }
+
+    offset += child.nodeSize;
+  }
+
+  return { from: lineStart, to: lineEnd };
+}
+
+function moveDisplayMathSourceLineBoundary(view: EditorView, event: KeyboardEvent) {
+  if (
+    (event.key !== "ArrowRight" && event.key !== "ArrowLeft") ||
+    !event.metaKey ||
+    event.shiftKey ||
+    event.altKey ||
+    event.ctrlKey
+  ) {
+    return false;
+  }
+
+  const range = getActiveMathSource(view.state);
+  if (!range || range.kind !== "display") return false;
+  if (!selectionIsInsideMathRange(view.state, range)) return false;
+
+  const lineBounds = displayMathSourceLineBounds(view.state, range);
+  if (!lineBounds) return false;
+
+  const target = event.key === "ArrowRight" ? lineBounds.to : lineBounds.from;
+  event.preventDefault();
+  view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, target)).scrollIntoView());
+  view.focus();
+  return true;
+}
+
 function closeActiveMathSource(view: EditorView, event: KeyboardEvent) {
-  if (event.key !== "Enter" || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false;
+  if (!isPlainEnter(event)) return false;
 
   const range = getEditableMathRange(view.state);
   if (!range) return false;
@@ -484,7 +563,13 @@ function moveDownToDisplayMath(view: EditorView, event: KeyboardEvent) {
 }
 
 function handleMathKeyDown(view: EditorView, event: KeyboardEvent) {
-  return moveDownToDisplayMath(view, event) || closeActiveMathSource(view, event) || deleteAdjacentMathSource(view, event);
+  return (
+    moveDownToDisplayMath(view, event) ||
+    moveDisplayMathSourceLineBoundary(view, event) ||
+    insertDisplayMathSourceNewline(view, event) ||
+    closeActiveMathSource(view, event) ||
+    deleteAdjacentMathSource(view, event)
+  );
 }
 
 function selectionIsInsideMathRange(state: EditorState, range: MathRange) {
@@ -511,9 +596,16 @@ function closeInactiveMathSource(state: EditorState) {
 
 function targetIsInsideActiveMathSource(target: EventTarget | null, root: HTMLElement) {
   const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
-  const source = element?.closest(".markra-math-source:not(.markra-math-source-hidden)") ?? null;
+  const source =
+    element?.closest(".markra-math-source:not(.markra-math-source-hidden), .markra-math-render-active-preview") ?? null;
+  const displaySourceBlock = element?.closest("p") ?? null;
 
-  return Boolean(source && root.contains(source));
+  return Boolean(
+    (source && root.contains(source)) ||
+      (displaySourceBlock &&
+        root.contains(displaySourceBlock) &&
+        displaySourceBlock.querySelector(".markra-math-source-active-display"))
+  );
 }
 
 function closeActiveMathSourceFromPointer(view: EditorView, event: PointerEvent) {
@@ -541,32 +633,39 @@ function createMathNativeCaretAnchor() {
   };
 }
 
-function createMathWidget(range: MathRange) {
+function createMathWidget(range: MathRange, activePreview = false) {
   return (view: EditorView) => {
     const element = view.dom.ownerDocument.createElement("span");
     element.className = `markra-math-render markra-math-render-${range.kind}`;
-    element.setAttribute("aria-label", range.kind === "display" ? "Math formula" : "Inline math formula");
-    element.tabIndex = 0;
+    element.setAttribute(
+      "aria-label",
+      activePreview ? "Math formula preview" : range.kind === "display" ? "Math formula" : "Inline math formula"
+    );
+    element.tabIndex = activePreview ? -1 : 0;
 
-    element.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      revealMathSource(view, range);
-    });
-    element.addEventListener("keydown", (event) => {
-      if (event.key === "Backspace" || event.key === "Delete") {
+    if (activePreview) {
+      element.classList.add("markra-math-render-active-preview");
+    } else {
+      element.addEventListener("mousedown", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        deleteMathRange(view, range);
-        return;
-      }
+        revealMathSource(view, range);
+      });
+      element.addEventListener("keydown", (event) => {
+        if (event.key === "Backspace" || event.key === "Delete") {
+          event.preventDefault();
+          event.stopPropagation();
+          deleteMathRange(view, range);
+          return;
+        }
 
-      if (event.key !== "Enter" && event.key !== " ") return;
+        if (event.key !== "Enter" && event.key !== " ") return;
 
-      event.preventDefault();
-      event.stopPropagation();
-      revealMathSource(view, range);
-    });
+        event.preventDefault();
+        event.stopPropagation();
+        revealMathSource(view, range);
+      });
+    }
 
     try {
       element.innerHTML = renderFormula(range);
@@ -577,6 +676,44 @@ function createMathWidget(range: MathRange) {
 
     return element;
   };
+}
+
+function activeMathTokenDecorations(range: MathRange) {
+  const decorations: Decoration[] = [];
+  const delimiterLength = range.kind === "display" ? 2 : 1;
+
+  decorations.push(
+    Decoration.inline(range.from, range.from + delimiterLength, {
+      class: "markra-math-token markra-math-token-delimiter"
+    }),
+    Decoration.inline(range.to - delimiterLength, range.to, {
+      class: "markra-math-token markra-math-token-delimiter"
+    })
+  );
+
+  const tokenPatterns: Array<[RegExp, string]> = [
+    [/\\[a-zA-Z]+/gu, "markra-math-token-command"],
+    [/[{}]/gu, "markra-math-token-brace"],
+    [/(?:\\\\|[&=+\-*/^_])/gu, "markra-math-token-operator"]
+  ];
+
+  for (const [pattern, className] of tokenPatterns) {
+    for (const match of range.source.matchAll(pattern)) {
+      if (typeof match.index !== "number") continue;
+
+      const from = range.from + match.index;
+      const to = from + match[0].length;
+      if (to <= range.from + delimiterLength || from >= range.to - delimiterLength) continue;
+
+      decorations.push(
+        Decoration.inline(from, to, {
+          class: `markra-math-token ${className}`
+        })
+      );
+    }
+  }
+
+  return decorations;
 }
 
 function selectionIsAtMathRangeEnd(state: EditorState, range: MathRange) {
@@ -607,7 +744,11 @@ function buildMathDecorations(state: EditorState, activeRange: MathRange | null)
       decorations.push(
         Decoration.inline(range.from, range.to, {
           class: isActive
-            ? "markra-math-source markra-md-delimiter"
+            ? [
+                "markra-math-source",
+                "markra-math-source-active",
+                range.kind === "display" ? "markra-math-source-active-display" : "markra-math-source-active-inline"
+              ].join(" ")
             : [
                 "markra-math-source",
                 "markra-math-source-hidden",
@@ -619,7 +760,19 @@ function buildMathDecorations(state: EditorState, activeRange: MathRange | null)
         })
       );
 
-      if (!isActive) {
+      if (isActive) {
+        decorations.push(...activeMathTokenDecorations(range));
+
+        if (range.kind === "display") {
+          decorations.push(
+            Decoration.widget(range.to, createMathWidget(range, true), {
+              ignoreSelection: true,
+              key: `markra-math-active-preview-${range.from}-${range.to}`,
+              side: 1
+            })
+          );
+        }
+      } else {
         decorations.push(
           Decoration.widget(range.from, createMathWidget(range), {
             ignoreSelection: true,

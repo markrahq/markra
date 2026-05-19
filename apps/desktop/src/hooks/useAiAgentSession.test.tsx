@@ -620,7 +620,7 @@ describe("useAiAgentSession", () => {
     });
 
     await act(async () => {
-      await result.current.submit("这张截图里有什么？");
+      await result.current.submit("What is in this screenshot?");
     });
 
     expect(mockedRunDocumentAiAgent).toHaveBeenCalledWith(expect.objectContaining({
@@ -1163,7 +1163,7 @@ describe("useAiAgentSession", () => {
     });
 
     await act(async () => {
-      await result.current.submit("看看这组数据，黄金和白银价格是不是获取的有问题");
+      await result.current.submit("Check whether the gold and silver prices in this dataset look wrong");
     });
 
     await waitFor(() =>
@@ -1171,7 +1171,7 @@ describe("useAiAgentSession", () => {
         messages: [
           {
             role: "user",
-            text: "看看这组数据，黄金和白银价格是不是获取的有问题"
+            text: "Check whether the gold and silver prices in this dataset look wrong"
           },
           {
             role: "assistant",

@@ -142,6 +142,28 @@ describe("editor stylesheet", () => {
     expect(sourceStyles).not.toContain("@apply hidden");
   });
 
+  it("styles active display math as editable source with a preview", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const activeSourceStart = styles.indexOf(".markdown-paper .markra-math-source-active {");
+    const activeSourceEnd = styles.indexOf(".markdown-paper .markra-math-token-delimiter");
+    const activeSourceStyles = styles.slice(activeSourceStart, activeSourceEnd);
+    const activeBreakStart = styles.indexOf('.markdown-paper .markra-math-source-active[data-type="hardbreak"] {');
+    const activeBreakEnd = styles.indexOf(".markdown-paper .markra-math-token-delimiter");
+    const activeBreakStyles = styles.slice(activeBreakStart, activeBreakEnd);
+
+    expect(activeSourceStart).toBeGreaterThanOrEqual(0);
+    expect(activeSourceEnd).toBeGreaterThan(activeSourceStart);
+    expect(activeSourceStyles).toContain("ui-monospace");
+    expect(activeSourceStyles).toContain("box-decoration-break: clone");
+    expect(activeBreakStart).toBeGreaterThanOrEqual(0);
+    expect(activeBreakEnd).toBeGreaterThan(activeBreakStart);
+    expect(activeBreakStyles).toContain("font-size: 0");
+    expect(activeBreakStyles).toContain('content: "\\A"');
+    expect(activeBreakStyles).not.toContain("display: block");
+    expect(styles).toContain(".markdown-paper .markra-math-render-active-preview");
+    expect(styles).toContain("margin-top");
+  });
+
   it("keeps AI diff action controls visually quiet until interaction", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

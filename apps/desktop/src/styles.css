@@ -1931,6 +1931,59 @@
     color: var(--text-secondary);
   }
 
+  .markdown-paper p:has(.markra-math-source-active-display) {
+    margin-top: 0.85em;
+    margin-bottom: 0.85em;
+  }
+
+  .markdown-paper .markra-math-source-active {
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    color: var(--editor-text-primary);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.95em;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  .markdown-paper .markra-math-source-active[data-type="hardbreak"] {
+    display: inline;
+    overflow: visible;
+    background: transparent;
+    color: transparent;
+    font-size: 0;
+    line-height: 0;
+  }
+
+  .markdown-paper .markra-math-source-active[data-type="hardbreak"]::after {
+    content: "\A";
+    white-space: pre;
+  }
+
+  .markdown-paper .markra-math-token-delimiter {
+    color: var(--accent);
+  }
+
+  .markdown-paper .markra-math-token-command {
+    color: var(--editor-hl-keyword);
+    font-weight: 620;
+  }
+
+  .markdown-paper .markra-math-token-brace {
+    color: var(--editor-hl-type);
+  }
+
+  .markdown-paper .markra-math-token-operator {
+    color: var(--editor-hl-number);
+  }
+
+  .markdown-paper .markra-math-render-active-preview {
+    margin-top: 1em;
+    opacity: 0.96;
+  }
+
   .markdown-paper strong {
     @apply text-(--text-heading) font-[760];
   }

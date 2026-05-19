@@ -28,7 +28,7 @@ const messages: ChatMessage[] = [
 const multimodalMessages: ChatMessage[] = [
   { content: "You inspect Markdown images.", role: "system" },
   {
-    content: "User request:\n这张截图里有什么？",
+    content: "User request:\nWhat is in this screenshot?",
     images: [
       {
         dataUrl: "data:image/png;base64,aGVsbG8=",
@@ -1058,7 +1058,7 @@ describe("AI chat adapters", () => {
         { content: "You inspect Markdown images.", role: "system" },
         {
           content: [
-            { text: "User request:\n这张截图里有什么？", type: "text" },
+            { text: "User request:\nWhat is in this screenshot?", type: "text" },
             { image_url: { url: "data:image/png;base64,aGVsbG8=" }, type: "image_url" }
           ],
           role: "user"
@@ -1071,7 +1071,7 @@ describe("AI chat adapters", () => {
         messages: [
           {
             content: [
-              { text: "User request:\n这张截图里有什么？", type: "text" },
+              { text: "User request:\nWhat is in this screenshot?", type: "text" },
               {
                 source: { data: "aGVsbG8=", media_type: "image/png", type: "base64" },
                 type: "image"
@@ -1089,7 +1089,7 @@ describe("AI chat adapters", () => {
       contents: [
         {
           parts: [
-            { text: "User request:\n这张截图里有什么？" },
+            { text: "User request:\nWhat is in this screenshot?" },
             { inlineData: { data: "aGVsbG8=", mimeType: "image/png" } }
           ],
           role: "user"

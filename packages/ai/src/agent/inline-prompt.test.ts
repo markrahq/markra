@@ -42,19 +42,19 @@ describe("inline AI prompt builder", () => {
 
   it("frames custom questions as answers grounded in the selected text context", () => {
     const messages = buildInlineAiMessages({
-      documentContent: "- 2042年3月4日，项目团队发布了“示例口号”。",
+      documentContent: '- On 2042-03-04, the project team introduced "sample slogan".',
       intent: "custom",
-      prompt: "这是什么时候提出来的",
-      targetContext: "- 2042年3月4日，项目团队发布了“示例口号”。",
+      prompt: "When was this introduced?",
+      targetContext: '- On 2042-03-04, the project team introduced "sample slogan".',
       targetScope: "selection",
-      targetText: "示例口号",
+      targetText: "sample slogan",
       targetType: "replace"
     });
 
     expect(messages[0]?.content).toContain("If the user asks a question, answer it directly");
     expect(messages[1]?.content).toContain("Nearby target context:");
-    expect(messages[1]?.content).toContain("2042年3月4日");
-    expect(messages[1]?.content).toContain("User instruction:\n这是什么时候提出来的");
+    expect(messages[1]?.content).toContain("2042-03-04");
+    expect(messages[1]?.content).toContain("User instruction:\nWhen was this introduced?");
   });
 
   it("frames continuation as inserted text without repeating the target", () => {
@@ -74,17 +74,17 @@ describe("inline AI prompt builder", () => {
 
   it("auto-detects the current text language before choosing a translation target", () => {
     const messages = buildInlineAiMessages({
-      documentContent: "# 标题\n\n你好",
+      documentContent: "# Title\n\nBonjour",
       intent: "translate",
       prompt: "Translate",
-      targetText: "你好",
+      targetText: "Bonjour",
       translationTargetLanguage: "Japanese"
     });
     const defaultMessages = buildInlineAiMessages({
-      documentContent: "# 标题\n\n你好",
+      documentContent: "# Title\n\nBonjour",
       intent: "translate",
       prompt: "Translate",
-      targetText: "你好"
+      targetText: "Bonjour"
     });
 
     expect(messages[1]?.content).toContain("Task:\nAutomatically detect the target text's current language");
