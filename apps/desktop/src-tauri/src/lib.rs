@@ -8,6 +8,7 @@ mod menu_labels;
 mod opened_files;
 mod watcher;
 mod web_http;
+mod window_state;
 mod windows;
 
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
@@ -36,6 +37,10 @@ use watcher::{
     MarkdownFileWatcherState, MarkdownTreeWatcherState,
 };
 use web_http::{download_web_image, request_web_resource};
+use window_state::{
+    list_editor_window_restore_states, remove_editor_window_restore_state,
+    set_editor_window_restore_state, EditorWindowRestoreState,
+};
 use windows::{
     apply_main_window_chrome, apply_webview_window_chrome, apply_window_event_chrome,
     open_blank_editor_window, open_settings_window, spawn_blank_editor_window,
@@ -49,6 +54,7 @@ pub fn run() {
         .manage(MarkdownTreeWatcherState::default())
         .manage(OpenedMarkdownPathsState::default())
         .manage(NativeMenuTargetState::default())
+        .manage(EditorWindowRestoreState::default())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_os::init())
@@ -69,6 +75,7 @@ pub fn run() {
         .on_window_event(|window, event| {
             remember_native_menu_window_from_event(window, event);
             apply_window_event_chrome(window, event);
+            remove_editor_window_restore_state(window, event);
         })
         .menu(create_application_menu)
         .on_menu_event(|app, event| {
@@ -119,7 +126,9 @@ pub fn run() {
             unwatch_markdown_file,
             watch_markdown_tree,
             unwatch_markdown_tree,
-            take_opened_markdown_paths
+            take_opened_markdown_paths,
+            set_editor_window_restore_state,
+            list_editor_window_restore_states
         ])
         .build(tauri::generate_context!())
         .expect("error while building Markra")

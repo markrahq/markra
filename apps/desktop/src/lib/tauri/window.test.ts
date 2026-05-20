@@ -1,7 +1,10 @@
+import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   closeNativeWindow,
+  listNativeEditorWindowRestoreStates,
   minimizeNativeWindow,
+  setNativeEditorWindowRestoreState,
   toggleNativeWindowMaximized
 } from "./window";
 
@@ -14,6 +17,7 @@ vi.mock("@tauri-apps/api/window", () => ({
 }));
 
 const mockedGetCurrentWindow = vi.mocked(getCurrentWindow);
+const mockedInvoke = vi.mocked(invoke);
 
 describe("native window actions", () => {
   beforeEach(() => {
@@ -22,6 +26,7 @@ describe("native window actions", () => {
       value: {}
     });
     mockedGetCurrentWindow.mockReset();
+    mockedInvoke.mockReset();
   });
 
   afterEach(() => {
@@ -63,5 +68,43 @@ describe("native window actions", () => {
     await toggleNativeWindowMaximized();
 
     expect(mockedGetCurrentWindow).not.toHaveBeenCalled();
+  });
+
+  it("registers the current editor window restore state in Tauri", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await setNativeEditorWindowRestoreState({
+      filePath: "/mock-files/notes.md",
+      openFilePaths: ["/mock-files/notes.md"]
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("set_editor_window_restore_state", {
+      filePath: "/mock-files/notes.md",
+      openFilePaths: ["/mock-files/notes.md"]
+    });
+  });
+
+  it("lists normalized editor window restore states from Tauri", async () => {
+    mockedInvoke.mockResolvedValue([
+      {
+        filePath: " /mock-files/first.md ",
+        label: "main",
+        openFilePaths: [" /mock-files/first.md ", " "]
+      },
+      {
+        filePath: null,
+        label: "empty",
+        openFilePaths: []
+      }
+    ]);
+
+    await expect(listNativeEditorWindowRestoreStates()).resolves.toEqual([
+      {
+        filePath: "/mock-files/first.md",
+        label: "main",
+        openFilePaths: ["/mock-files/first.md"]
+      }
+    ]);
+    expect(mockedInvoke).toHaveBeenCalledWith("list_editor_window_restore_states");
   });
 });

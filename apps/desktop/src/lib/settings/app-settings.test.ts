@@ -809,6 +809,27 @@ describe("app settings", () => {
         "/mock-files/vault/README.md",
         "/mock-files/vault/notes.md"
       ],
+      openWindows: [
+        {
+          filePath: "/mock-files/vault/README.md",
+          label: "main",
+          openFilePaths: [
+            "/mock-files/vault/notes.md",
+            "/mock-files/vault/README.md",
+            "/mock-files/vault/notes.md"
+          ]
+        },
+        {
+          filePath: " ",
+          label: "blank-window",
+          openFilePaths: []
+        },
+        {
+          filePath: "/mock-files/vault/archive.md",
+          label: "main",
+          openFilePaths: ["/mock-files/vault/archive.md"]
+        }
+      ],
       sideBySideGroup: {
         primaryFilePath: "/mock-files/vault/README.md",
         sideFilePath: "/mock-files/vault/notes.md"
@@ -824,6 +845,16 @@ describe("app settings", () => {
       openFilePaths: [
         "/mock-files/vault/notes.md",
         "/mock-files/vault/README.md"
+      ],
+      openWindows: [
+        {
+          filePath: "/mock-files/vault/README.md",
+          label: "main",
+          openFilePaths: [
+            "/mock-files/vault/notes.md",
+            "/mock-files/vault/README.md"
+          ]
+        }
       ],
       sideBySideGroup: {
         primaryFilePath: "/mock-files/vault/README.md",
@@ -870,6 +901,7 @@ describe("app settings", () => {
         "/mock-files/vault/README.md",
         "/mock-files/vault/notes.md"
       ],
+      openWindows: [],
       sideBySideGroup: {
         primaryFilePath: "/mock-files/vault/README.md",
         sideFilePath: "/mock-files/vault/notes.md"
@@ -908,7 +940,8 @@ describe("app settings", () => {
       openFilePaths: [
         "/mock-files/vault/README.md",
         "/mock-files/vault/notes.md"
-      ]
+      ],
+      openWindows: []
     });
     expect(store.save).toHaveBeenCalledTimes(1);
   });
@@ -933,7 +966,8 @@ describe("app settings", () => {
       fileTreeOpen: true,
       folderName: "vault",
       folderPath: "/mock-files/vault",
-      openFilePaths: ["/mock-files/vault/README.md"]
+      openFilePaths: ["/mock-files/vault/README.md"],
+      openWindows: []
     });
   });
 
