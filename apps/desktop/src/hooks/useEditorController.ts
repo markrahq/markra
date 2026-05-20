@@ -20,7 +20,9 @@ import {
 } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 
-const outlineScrollTopOffset = 24;
+const fixedTitlebarHeight = 40;
+const outlineScrollTopMargin = 24;
+const outlineScrollTopOffset = fixedTitlebarHeight + outlineScrollTopMargin;
 const aiCommandSelectionBottomMargin = 24;
 const defaultMarkdownTable = [
   "| Column 1 | Column 2 |",

@@ -2045,7 +2045,7 @@ describe("Markra workspace", () => {
     await waitFor(() =>
       expect(scrollTo).toHaveBeenCalledWith({
         behavior: "auto",
-        top: 396
+        top: 356
       })
     );
   });
@@ -2118,7 +2118,7 @@ describe("Markra workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "B" }));
 
     await waitFor(() =>
-      expect(scrollTo.mock.calls.map(([options]) => (options as ScrollToOptions).top)).toEqual([376, 0, 376])
+      expect(scrollTo.mock.calls.map(([options]) => (options as ScrollToOptions).top)).toEqual([336, 0, 336])
     );
   });
 

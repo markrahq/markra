@@ -1,4 +1,4 @@
-import { scrollElementsAboveContainerBottomInset } from "./useEditorController";
+import { scrollElementToContainerTop, scrollElementsAboveContainerBottomInset } from "./useEditorController";
 
 function rect(overrides: Partial<DOMRect> = {}): DOMRect {
   return {
@@ -16,6 +16,30 @@ function rect(overrides: Partial<DOMRect> = {}): DOMRect {
 }
 
 describe("editor controller scrolling", () => {
+  it("keeps outline jumps below the fixed titlebar", () => {
+    const container = document.createElement("div");
+    const target = document.createElement("h2");
+    const scrollTo = vi.fn();
+
+    Object.defineProperty(container, "scrollTop", {
+      configurable: true,
+      value: 100
+    });
+    Object.defineProperty(container, "scrollTo", {
+      configurable: true,
+      value: scrollTo
+    });
+    vi.spyOn(container, "getBoundingClientRect").mockReturnValue(rect({ height: 700, top: 0 }));
+    vi.spyOn(target, "getBoundingClientRect").mockReturnValue(rect({ height: 48, top: 240 }));
+
+    scrollElementToContainerTop(target, container);
+
+    expect(scrollTo).toHaveBeenCalledWith({
+      behavior: "auto",
+      top: 276
+    });
+  });
+
   it("scrolls a selected element above a bottom overlay", () => {
     const container = document.createElement("div");
     const target = document.createElement("span");
