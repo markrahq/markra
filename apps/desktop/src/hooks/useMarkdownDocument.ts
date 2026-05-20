@@ -394,6 +394,28 @@ export function useMarkdownDocument({
     setActiveDocument(nextDocument);
   }, [editorReady, isActiveEditorMarkdownEquivalent, setActiveDocument]);
 
+  const handleMarkdownTabChange = useCallback((tabId: string, content: string) => {
+    if (tabId === activeTabIdRef.current) {
+      handleMarkdownChange(content);
+      return;
+    }
+
+    setTabs((currentTabs) => {
+      const nextTabs = currentTabs.map((tab) => {
+        if (tab.id !== tabId || !tab.open || tab.content === content) return tab;
+
+        return {
+          ...tab,
+          content,
+          dirty: tab.dirty || !isEquivalentEditorMarkdown(tab.content, content)
+        };
+      });
+
+      tabsRef.current = nextTabs;
+      return nextTabs;
+    });
+  }, [handleMarkdownChange]);
+
   const resetToBlankDocument = useCallback(() => {
     const nextDocument = {
       path: null,
@@ -616,6 +638,43 @@ export function useMarkdownDocument({
     [confirmCanDiscardCurrentDocument, documentTabsEnabled, loadNativeMarkdownPath]
   );
 
+  const openTreeMarkdownFileInBackground = useCallback(
+    async (file: NativeMarkdownFolderFile) => {
+      try {
+        const nativeFile = await readNativeMarkdownFile(file.path);
+        const nextDocument = {
+          path: nativeFile.path,
+          name: nativeFile.name,
+          content: nativeFile.content,
+          dirty: false,
+          open: true,
+          revision: documentRef.current.revision + 1
+        };
+
+        syncActiveDocumentFromEditor();
+
+        const currentTabs = tabsRef.current;
+        const existingTab = currentTabs.find((tab) => tab.path === nativeFile.path);
+        if (existingTab) return existingTab.id;
+
+        const nextTab = createDocumentTab(nextDocument, fileTabId(nativeFile.path));
+        const nextTabs = [...currentTabs, nextTab];
+
+        tabsRef.current = nextTabs;
+        setTabs(nextTabs);
+        persistWorkspaceState({
+          filePath: activeFilePathFromTabs(nextTabs, activeTabIdRef.current),
+          openFilePaths: openFilePathsFromTabs(nextTabs)
+        });
+
+        return nextTab.id;
+      } catch {
+        return null;
+      }
+    },
+    [syncActiveDocumentFromEditor]
+  );
+
   const replaceOpenDocumentFile = useCallback((previousPath: string, file: NativeMarkdownFolderFile) => {
     const affected = tabsRef.current.some((tab) => tab.path === previousPath) || documentRef.current.path === previousPath;
     if (!affected) return false;
@@ -690,7 +749,7 @@ export function useMarkdownDocument({
   const saveCurrentDocument = useCallback(
     async (saveAs = false) => {
       const current = documentRef.current;
-      if (!current.open) return;
+      if (!current.open) return null;
 
       const contents = currentMarkdown();
       const savedFile = await saveNativeMarkdownFile({
@@ -699,7 +758,7 @@ export function useMarkdownDocument({
         contents
       });
 
-      if (!savedFile) return;
+      if (!savedFile) return null;
 
       const nextDocument = {
         ...documentRef.current,
@@ -721,8 +780,55 @@ export function useMarkdownDocument({
         openFilePaths: nextOpenFilePaths,
         ...(saveAs || current.path === null ? { folderName: null, folderPath: null } : {})
       });
+      return savedFile;
     },
     [currentMarkdown, documentTabsEnabled, onTreeRootFromFilePath, setActiveDocument]
+  );
+
+  const saveMarkdownTab = useCallback(
+    async (tabId: string, saveAs = false) => {
+      syncActiveDocumentFromEditor();
+
+      const tab = tabsRef.current.find((candidate) => candidate.id === tabId);
+      if (!tab?.open) return null;
+
+      const contents = tab.id === activeTabIdRef.current ? currentMarkdown() : tab.content;
+      const savedFile = await saveNativeMarkdownFile({
+        path: saveAs ? null : tab.path,
+        suggestedName: tab.name || "Untitled.md",
+        contents
+      });
+
+      if (!savedFile) return null;
+
+      const nextDocument = {
+        ...documentFromTab(tab),
+        path: savedFile.path,
+        name: savedFile.name,
+        content: contents,
+        dirty: false
+      };
+      const nextTabs = tabsRef.current.map((candidate) =>
+        candidate.id === tabId ? createDocumentTab(nextDocument, candidate.id) : candidate
+      );
+
+      tabsRef.current = nextTabs;
+      setTabs(nextTabs);
+
+      if (tab.id === activeTabIdRef.current) {
+        documentRef.current = nextDocument;
+        setDocument(nextDocument);
+      }
+
+      if (saveAs || tab.path === null) onTreeRootFromFilePath(savedFile.path);
+      persistWorkspaceState({
+        filePath: activeFilePathFromTabs(nextTabs, activeTabIdRef.current),
+        openFilePaths: openFilePathsFromTabs(nextTabs),
+        ...(saveAs || tab.path === null ? { folderName: null, folderPath: null } : {})
+      });
+      return savedFile;
+    },
+    [currentMarkdown, onTreeRootFromFilePath, syncActiveDocumentFromEditor]
   );
 
   const handleSaveClick = useCallback(() => {
@@ -1061,12 +1167,15 @@ export function useMarkdownDocument({
     activeTabId,
     handleDroppedMarkdownPath,
     handleMarkdownChange,
+    handleMarkdownTabChange,
     handleSaveClick,
     openMarkdownFile,
+    openTreeMarkdownFileInBackground,
     openTreeMarkdownFile,
     outlineItems,
     replaceOpenDocumentFile,
     saveCurrentDocument,
+    saveMarkdownTab,
     selectMarkdownTab,
     selectWorkspaceSession,
     workspaceSessionId,

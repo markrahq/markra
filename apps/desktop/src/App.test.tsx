@@ -296,6 +296,64 @@ describe("Markra workspace", () => {
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
 
+  it("restores a saved side-by-side tab group on app launch", async () => {
+    const firstPath = "/mock-files/vault/docs/1.md";
+    const secondPath = "/mock-files/vault/docs/2.md";
+    const thirdPath = "/mock-files/vault/docs/3.md";
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-side-by-side",
+      filePath: firstPath,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: mockFolderPath,
+      openFilePaths: [firstPath, secondPath, thirdPath],
+      sideBySideGroup: {
+        primaryFilePath: firstPath,
+        sideFilePath: secondPath
+      }
+    } as Awaited<ReturnType<typeof mockedGetStoredWorkspaceState>>);
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "1.md", path: firstPath, relativePath: "docs/1.md" },
+      { name: "2.md", path: secondPath, relativePath: "docs/2.md" },
+      { name: "3.md", path: thirdPath, relativePath: "docs/3.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === firstPath) {
+        return {
+          content: "# First\n\nRestored main",
+          name: "1.md",
+          path
+        };
+      }
+
+      if (path === secondPath) {
+        return {
+          content: "# Second\n\nRestored side",
+          name: "2.md",
+          path
+        };
+      }
+
+      return {
+        content: "# Third\n\nRestored standalone",
+        name: "3.md",
+        path
+      };
+    });
+
+    const { container } = renderApp();
+
+    expect(await screen.findByText("First")).toBeInTheDocument();
+    const restoredGroup = container.querySelector(".document-tabs-side-by-side-group") as HTMLElement;
+    expect(restoredGroup).toBeInTheDocument();
+    expect(within(restoredGroup).getByRole("tab", { name: /1\.md/ })).toHaveAttribute("aria-selected", "true");
+    expect(within(restoredGroup).getByRole("tab", { name: /2\.md/ })).toHaveAttribute("aria-selected", "false");
+    await waitFor(() =>
+      expect(within(container.querySelector(".side-document-pane") as HTMLElement).getByText("Restored side")).toBeInTheDocument()
+    );
+    expect(screen.getByRole("tab", { name: /3\.md/ })).toBeInTheDocument();
+  });
+
   it("restores the last opened markdown folder on app launch", async () => {
     mockedGetStoredWorkspaceState.mockResolvedValue({
       aiAgentSessionId: "session-app",
@@ -1593,6 +1651,515 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("opens a document tab to a side editor, toggles both panes to source mode, and closes the side tab from the titlebar", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    const notesPath = "/mock-files/vault/docs/notes.md";
+    const thirdPath = "/mock-files/vault/docs/third.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "docs/guide.md" },
+      { name: "notes.md", path: notesPath, relativePath: "docs/notes.md" },
+      { name: "third.md", path: thirdPath, relativePath: "docs/third.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === guidePath) {
+        return {
+          content: "# Guide\n\nReference",
+          name: "guide.md",
+          path: guidePath
+        };
+      }
+
+      if (path === thirdPath) {
+        return {
+          content: "# Third\n\nIndependent",
+          name: "third.md",
+          path: thirdPath
+        };
+      }
+
+      return {
+        content: "# Notes\n\nDraft",
+        name: "notes.md",
+        path: notesPath
+      };
+    });
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/notes.md" }));
+    expect(await screen.findByText("Notes")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/third.md" }));
+    expect(await screen.findByText("Third")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /guide\.md/ }));
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /notes\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+
+    const sideSurface = container.querySelector(".editor-side-by-side-surface");
+    expect(sideSurface).toBeInTheDocument();
+    const sideBySideTabGroup = container.querySelector(".document-tabs-side-by-side-group") as HTMLElement;
+    expect(sideBySideTabGroup).toBeInTheDocument();
+    expect(within(sideBySideTabGroup).getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "true");
+    expect(within(sideBySideTabGroup).getByRole("tab", { name: /notes\.md/ })).toHaveAttribute("aria-selected", "false");
+    expect(within(sideBySideTabGroup).getByRole("button", { name: "Close tab guide.md" })).toBeInTheDocument();
+    expect(within(sideBySideTabGroup).getByRole("button", { name: "Close tab notes.md" })).toBeInTheDocument();
+    const sidePane = container.querySelector(".side-document-pane") as HTMLElement;
+    await waitFor(() => expect(within(sidePane).getByText("Notes")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("tab", { name: /third\.md/ }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).not.toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: /third\.md/ })).toHaveAttribute("aria-selected", "true");
+    const inactiveSideBySideTabGroup = container.querySelector(".document-tabs-side-by-side-group") as HTMLElement;
+    expect(inactiveSideBySideTabGroup).toBeInTheDocument();
+    expect(within(inactiveSideBySideTabGroup).getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "false");
+    expect(within(inactiveSideBySideTabGroup).getByRole("tab", { name: /notes\.md/ })).toHaveAttribute("aria-selected", "false");
+
+    fireEvent.click(screen.getByRole("tab", { name: /guide\.md/ }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).toBeInTheDocument());
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /notes\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /third\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+
+    const replacedSideBySideTabGroup = container.querySelector(".document-tabs-side-by-side-group") as HTMLElement;
+    expect(within(replacedSideBySideTabGroup).getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "true");
+    expect(within(replacedSideBySideTabGroup).queryByRole("tab", { name: /notes\.md/ })).not.toBeInTheDocument();
+    expect(within(replacedSideBySideTabGroup).getByRole("tab", { name: /third\.md/ })).toHaveAttribute("aria-selected", "false");
+    await waitFor(() =>
+      expect(within(container.querySelector(".side-document-pane") as HTMLElement).getByText("Third")).toBeInTheDocument()
+    );
+
+    const replacedSidePane = container.querySelector(".side-document-pane") as HTMLElement;
+    expect(within(replacedSidePane).queryByRole("button", { name: "Save side document" })).not.toBeInTheDocument();
+    expect(within(replacedSidePane).queryByRole("button", { name: "Close side document" })).not.toBeInTheDocument();
+    expect(screen.queryAllByRole("textbox", { name: "Markdown source" })).toHaveLength(0);
+
+    const sourceModeButton = screen.getByRole("button", { name: "Switch to source mode" });
+    expect(sourceModeButton).toBeEnabled();
+    fireEvent.click(sourceModeButton);
+
+    const sourceEditors = screen.getAllByRole("textbox", { name: "Markdown source" });
+    expect(sourceEditors.map((editor) => (editor as HTMLTextAreaElement).value.trimEnd())).toEqual(
+      expect.arrayContaining(["# Guide\n\nReference", "# Third\n\nIndependent"])
+    );
+
+    const sideSource = within(replacedSidePane).getByRole("textbox", { name: "Markdown source" });
+    expect(sideSource).toHaveValue("# Third\n\nIndependent");
+
+    fireEvent.change(sideSource, {
+      target: {
+        value: "# Third\n\nIndependent update"
+      }
+    });
+    expect(screen.getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to visual mode" }));
+    expect(screen.queryAllByRole("textbox", { name: "Markdown source" })).toHaveLength(0);
+    await waitFor(() => expect(within(replacedSidePane).getByText("Independent update")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Close tab third.md" }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).not.toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps a side-by-side tab group while selecting a standalone clean tab", async () => {
+    const firstPath = "/mock-files/vault/docs/1.md";
+    const secondPath = "/mock-files/vault/docs/2.md";
+    const thirdPath = "/mock-files/vault/docs/3.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "1.md", path: firstPath, relativePath: "docs/1.md" },
+      { name: "2.md", path: secondPath, relativePath: "docs/2.md" },
+      { name: "3.md", path: thirdPath, relativePath: "docs/3.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === firstPath) {
+        return {
+          content: "# First\n\nOriginal",
+          name: "1.md",
+          path: firstPath
+        };
+      }
+
+      if (path === secondPath) {
+        return {
+          content: "<br />\n\n# Second\n\nOriginal",
+          name: "2.md",
+          path: secondPath
+        };
+      }
+
+      return {
+        content: "# Third\n\nOriginal",
+        name: "3.md",
+        path: thirdPath
+      };
+    });
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/1.md" }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/2.md" }));
+    expect(await screen.findByText("Second")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/3.md" }));
+    expect(await screen.findByText("Third")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /1\.md/ }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /2\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+
+    const groupedTabs = container.querySelector(".document-tabs-side-by-side-group") as HTMLElement;
+    expect(groupedTabs).toBeInTheDocument();
+    expect(within(groupedTabs).getByRole("tab", { name: /1\.md/ })).toHaveAttribute("aria-selected", "true");
+    expect(within(groupedTabs).getByRole("tab", { name: /2\.md/ })).toHaveAttribute("aria-selected", "false");
+    await waitFor(() =>
+      expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+        sideBySideGroup: {
+          primaryFilePath: firstPath,
+          sideFilePath: secondPath
+        }
+      })
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /3\.md/ }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).not.toBeInTheDocument());
+    const inactiveGroup = container.querySelector(".document-tabs-side-by-side-group") as HTMLElement;
+    expect(inactiveGroup).toBeInTheDocument();
+    expect(within(inactiveGroup).getByRole("tab", { name: /1\.md/ })).toHaveAttribute("aria-selected", "false");
+    expect(within(inactiveGroup).getByRole("tab", { name: /2\.md/ })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: /3\.md/ })).toHaveAttribute("aria-selected", "true");
+    expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
+
+    fireEvent.click(within(inactiveGroup).getByRole("tab", { name: /2\.md/ }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).toBeInTheDocument());
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /2\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+
+    const regroupedTabs = container.querySelector(".document-tabs-side-by-side-group") as HTMLElement;
+    expect(regroupedTabs).toBeInTheDocument();
+
+    fireEvent.click(within(regroupedTabs).getByRole("button", { name: "Close tab 2.md" }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).not.toBeInTheDocument());
+    expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+      sideBySideGroup: null
+    });
+  });
+
+  it("saves the side-by-side document whose editor has focus", async () => {
+    const firstPath = "/mock-files/vault/docs/1.md";
+    const secondPath = "/mock-files/vault/docs/2.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "1.md", path: firstPath, relativePath: "docs/1.md" },
+      { name: "2.md", path: secondPath, relativePath: "docs/2.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === firstPath) {
+        return {
+          content: "# First\n\nOriginal",
+          name: "1.md",
+          path: firstPath
+        };
+      }
+
+      return {
+        content: "# Second\n\nOriginal",
+        name: "2.md",
+        path: secondPath
+      };
+    });
+    mockedSaveNativeMarkdownFile.mockImplementation(async ({ path, suggestedName }) => ({
+      name: path ? suggestedName : `saved-${suggestedName}`,
+      path: path ?? `/mock-files/vault/docs/saved-${suggestedName}`
+    }));
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/1.md" }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/2.md" }));
+    expect(await screen.findByText("Second")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /1\.md/ }));
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /2\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).toBeInTheDocument());
+    mockedSaveStoredWorkspaceState.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+    const sidePane = container.querySelector(".side-document-pane") as HTMLElement;
+    const sideSource = within(sidePane).getByRole("textbox", { name: "Markdown source" });
+    const mainSource = screen.getAllByRole("textbox", { name: "Markdown source" }).find((editor) =>
+      !sidePane.contains(editor)
+    ) as HTMLTextAreaElement;
+
+    fireEvent.focus(sideSource);
+    fireEvent.change(sideSource, {
+      target: {
+        value: "# Second\n\nFocused side edit"
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Markdown" }));
+
+    await waitFor(() =>
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          contents: "# Second\n\nFocused side edit",
+          path: secondPath,
+          suggestedName: "2.md"
+        })
+      )
+    );
+
+    fireEvent.focus(sideSource);
+    fireEvent.change(sideSource, {
+      target: {
+        value: "# Second\n\nFocused side save as"
+      }
+    });
+    fireEvent.keyDown(window, { key: "s", metaKey: true, shiftKey: true });
+
+    await waitFor(() =>
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          contents: "# Second\n\nFocused side save as",
+          path: null,
+          suggestedName: "2.md"
+        })
+      )
+    );
+    await waitFor(() =>
+      expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+        sideBySideGroup: {
+          primaryFilePath: firstPath,
+          sideFilePath: "/mock-files/vault/docs/saved-2.md"
+        }
+      })
+    );
+
+    fireEvent.focus(mainSource);
+    fireEvent.change(mainSource, {
+      target: {
+        value: "# First\n\nFocused main edit"
+      }
+    });
+    fireEvent.keyDown(window, { key: "s", metaKey: true, shiftKey: true });
+
+    await waitFor(() =>
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          contents: "# First\n\nFocused main edit",
+          path: null,
+          suggestedName: "1.md"
+        })
+      )
+    );
+    await waitFor(() =>
+      expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+        sideBySideGroup: {
+          primaryFilePath: "/mock-files/vault/docs/saved-1.md",
+          sideFilePath: "/mock-files/vault/docs/saved-2.md"
+        }
+      })
+    );
+  });
+
+  it("returns save actions to the main document after switching away from a focused side editor", async () => {
+    const firstPath = "/mock-files/vault/docs/1.md";
+    const secondPath = "/mock-files/vault/docs/2.md";
+    const thirdPath = "/mock-files/vault/docs/3.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "1.md", path: firstPath, relativePath: "docs/1.md" },
+      { name: "2.md", path: secondPath, relativePath: "docs/2.md" },
+      { name: "3.md", path: thirdPath, relativePath: "docs/3.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === firstPath) {
+        return {
+          content: "# First\n\nOriginal",
+          name: "1.md",
+          path: firstPath
+        };
+      }
+
+      if (path === secondPath) {
+        return {
+          content: "# Second\n\nOriginal",
+          name: "2.md",
+          path: secondPath
+        };
+      }
+
+      return {
+        content: "# Third\n\nOriginal",
+        name: "3.md",
+        path: thirdPath
+      };
+    });
+    mockedSaveNativeMarkdownFile.mockImplementation(async ({ path, suggestedName }) => ({
+      name: suggestedName,
+      path: path ?? `/mock-files/vault/docs/${suggestedName}`
+    }));
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/1.md" }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/2.md" }));
+    expect(await screen.findByText("Second")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/3.md" }));
+    expect(await screen.findByText("Third")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /1\.md/ }));
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /2\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+    const sidePane = container.querySelector(".side-document-pane") as HTMLElement;
+    const sideSource = within(sidePane).getByRole("textbox", { name: "Markdown source" });
+
+    fireEvent.focus(sideSource);
+    fireEvent.change(sideSource, {
+      target: {
+        value: "# Second\n\nFocused side draft"
+      }
+    });
+
+    fireEvent.click(screen.getByRole("tab", { name: /3\.md/ }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).not.toBeInTheDocument());
+
+    const inactiveGroup = container.querySelector(".document-tabs-side-by-side-group") as HTMLElement;
+    fireEvent.click(within(inactiveGroup).getByRole("tab", { name: /2\.md/ }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Markdown" }));
+
+    await waitFor(() =>
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          contents: "# First\n\nOriginal",
+          path: firstPath,
+          suggestedName: "1.md"
+        })
+      )
+    );
+  });
+
+  it("closes the focused side-by-side document from the close shortcut", async () => {
+    const firstPath = "/mock-files/vault/docs/1.md";
+    const secondPath = "/mock-files/vault/docs/2.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "1.md", path: firstPath, relativePath: "docs/1.md" },
+      { name: "2.md", path: secondPath, relativePath: "docs/2.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === firstPath) {
+        return {
+          content: "# First",
+          name: "1.md",
+          path: firstPath
+        };
+      }
+
+      return {
+        content: "# Second",
+        name: "2.md",
+        path: secondPath
+      };
+    });
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/1.md" }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/2.md" }));
+    expect(await screen.findByText("Second")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /1\.md/ }));
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /2\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+    const sidePane = container.querySelector(".side-document-pane") as HTMLElement;
+    fireEvent.focus(within(sidePane).getByRole("textbox", { name: "Markdown source" }));
+
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
+
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).not.toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: /1\.md/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("tab", { name: /2\.md/ })).not.toBeInTheDocument();
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+      sideBySideGroup: null
+    });
+  });
+
   it("restores the visual editor scroll position when switching back to a document tab", async () => {
     const guidePath = "/mock-files/vault/docs/guide.md";
     const notesPath = "/mock-files/vault/docs/notes.md";
@@ -1703,6 +2270,79 @@ describe("Markra workspace", () => {
       expect(mockedRenameNativeMarkdownTreeFile).toHaveBeenCalledWith(mockFolderPath, guidePath, "Renamed.md")
     );
     expect(await screen.findByRole("tab", { name: /Renamed\.md/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps the saved side-by-side group in sync when a grouped tab is renamed", async () => {
+    const firstPath = "/mock-files/vault/docs/1.md";
+    const secondPath = "/mock-files/vault/docs/2.md";
+    const renamedSecondPath = "/mock-files/vault/docs/renamed-2.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "1.md", path: firstPath, relativePath: "docs/1.md" },
+      { name: "2.md", path: secondPath, relativePath: "docs/2.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === firstPath) {
+        return {
+          content: "# First",
+          name: "1.md",
+          path: firstPath
+        };
+      }
+
+      return {
+        content: "# Second",
+        name: "2.md",
+        path: secondPath
+      };
+    });
+    mockedRenameNativeMarkdownTreeFile.mockResolvedValue({
+      name: "renamed-2.md",
+      path: renamedSecondPath,
+      relativePath: "docs/renamed-2.md"
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/1.md" }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/2.md" }));
+    expect(await screen.findByText("Second")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /1\.md/ }));
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /2\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+    await waitFor(() => expect(container.querySelector(".document-tabs-side-by-side-group")).toBeInTheDocument());
+    mockedSaveStoredWorkspaceState.mockClear();
+
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /2\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Rename file" }));
+    const renameInput = await screen.findByRole("textbox", { name: "Rename file" });
+    fireEvent.change(renameInput, { target: { value: "renamed-2.md" } });
+    fireEvent.keyDown(renameInput, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(mockedRenameNativeMarkdownTreeFile).toHaveBeenCalledWith(mockFolderPath, secondPath, "renamed-2.md")
+    );
+    await waitFor(() =>
+      expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+        sideBySideGroup: {
+          primaryFilePath: firstPath,
+          sideFilePath: renamedSecondPath
+        }
+      })
+    );
   });
 
   it("switches away from a clean file with normalized markdown without asking to discard changes", async () => {
@@ -1819,6 +2459,64 @@ describe("Markra workspace", () => {
 
     expect(await screen.findByText("Test 2")).toBeInTheDocument();
     expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
+  });
+
+  it("does not expose side-open file tree actions when document tabs are hidden", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiSelectionDisplayMode: "command",
+      autoOpenAiOnSelection: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "assets",
+      closeAiCommandOnAgentPanelOpen: false,
+      contentWidth: "default",
+      contentWidthPx: null,
+      imageUpload: defaultImageUpload,
+      lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
+      restoreWorkspaceOnStartup: true,
+      suggestAiPanelForComplexInlinePrompts: true,
+      showDocumentTabs: false,
+      splitVisualPanePercent: 50,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "splitMode", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
+      showWordCount: true
+    });
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "1.md", path: "/mock-files/vault/docs/1.md", relativePath: "docs/1.md" },
+      { name: "2.md", path: "/mock-files/vault/docs/2.md", relativePath: "docs/2.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# First",
+      name: "1.md",
+      path: "/mock-files/vault/docs/1.md"
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/1.md" }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "docs/2.md" }));
+
+    const fileTreeContextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+    expect(fileTreeContextHandlers?.openFileToSide).toBeUndefined();
   });
 
   it("quick opens an unsaved blank markdown document from the titlebar while the file tree is collapsed", async () => {
@@ -2613,6 +3311,29 @@ describe("Markra workspace", () => {
     fireEvent.keyDown(window, { key: "l", altKey: true, metaKey: true });
 
     expect(await screen.findByRole("textbox", { name: "Markdown source" })).toHaveAttribute("readonly");
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+  });
+
+  it("prevents visual table controls from editing after read-only mode is toggled", async () => {
+    mockOpenMarkdownFile({
+      content: ["| Field | Value |", "| --- | --- |", "| Name | Markra |"].join("\n"),
+      name: "table.md",
+      path: mockNativePath
+    });
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await waitFor(() => expect(container.querySelector(".ProseMirror table")).toBeInTheDocument());
+    const rowCount = () => container.querySelectorAll(".ProseMirror table tr").length;
+
+    expect(rowCount()).toBe(2);
+
+    fireEvent.keyDown(window, { key: "l", altKey: true, metaKey: true });
+    expect(container.querySelector(".ProseMirror")).toHaveAttribute("contenteditable", "false");
+
+    fireEvent.mouseDown(screen.getByRole("button", { name: "Add row below" }));
+
+    expect(rowCount()).toBe(2);
     expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
   });
 

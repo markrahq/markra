@@ -732,6 +732,48 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(deleteFile).toHaveBeenCalledWith(markdownFiles[0]);
   });
 
+  it("marks active markdown files as unavailable for side-open context actions", () => {
+    const openFileToSide = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onOpenFileToSide={openFileToSide}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
+
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    expect(contextHandlers?.openFileToSide).toBe(openFileToSide);
+    expect(contextHandlers?.canOpenFileToSide?.(markdownFiles[0])).toBe(false);
+    expect(contextHandlers?.canOpenFileToSide?.(markdownFiles[1])).toBe(true);
+  });
+
+  it("keeps file tree context-menu rows from selecting text", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    expect(screen.getByText("Obsidian Vault").closest("div")).toHaveClass("select-none", "[-webkit-user-select:none]");
+    expect(screen.getByRole("button", { name: "deploy" })).toHaveClass("select-none", "[-webkit-user-select:none]");
+    expect(screen.getByRole("button", { name: "Untitled.md" })).toHaveClass("select-none", "[-webkit-user-select:none]");
+  });
+
   it("keeps child branches visually connected when a folder is expanded", () => {
     render(
       <MarkdownFileTreeDrawer

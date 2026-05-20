@@ -23,9 +23,10 @@ import {
 import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
 import { MarkdownSourceEditor } from "./components/MarkdownSourceEditor";
-import { MarkdownTabsBar, type MarkdownTabsBarItem } from "./components/MarkdownTabsBar";
+import { MarkdownTabsBar, type MarkdownTabsBarDocumentItem } from "./components/MarkdownTabsBar";
 import { NativeTitleBar } from "./components/NativeTitleBar";
 import { QuietStatus } from "./components/QuietStatus";
+import { SideDocumentPane } from "./components/SideDocumentPane";
 import { SettingsWindow } from "./components/SettingsWindow";
 import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppTheme } from "./hooks/useAppTheme";
@@ -43,6 +44,7 @@ import { useExportSettings } from "./hooks/useExportSettings";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
+import { useSideBySideTabs } from "./hooks/useSideBySideTabs";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
 import { useDefaultContextMenuBlocker } from "./hooks/useDefaultContextMenuBlocker";
 import { useWebSearchSettings } from "./hooks/useWebSearchSettings";
@@ -75,13 +77,16 @@ import {
   createAiAgentSessionId,
   defaultSplitVisualPanePercent,
   deleteStoredAiAgentSession,
+  getStoredWorkspaceState,
   initializeStoredAiAgentSession,
   splitVisualPanePercentMax,
   splitVisualPanePercentMin,
   saveStoredEditorPreferences,
   saveStoredAiAgentSessionTitle,
+  saveStoredWorkspaceState,
   setStoredAiAgentSessionArchived,
   type RecentMarkdownFolder,
+  type StoredWorkspaceSideBySideGroup,
   type TitlebarActionPreference
 } from "./lib/settings/app-settings";
 import { notifyAppEditorPreferencesChanged } from "./lib/settings/settings-events";
@@ -101,6 +106,10 @@ const aiAgentPanelMinWidth = 320;
 const aiAgentPanelMaxWidth = 760;
 const splitPaneKeyboardStepPercent = 5;
 const aiResultSignatureSeparator = "\u001f";
+const sideDocumentPaneKeyboardStepPercent = 5;
+const sideDocumentMainPanePercentMin = 35;
+const sideDocumentMainPanePercentMax = 70;
+const defaultSideDocumentMainPanePercent = 50;
 
 type ImageDocumentTab = NativeMarkdownFolderFile & {
   id: string;
@@ -117,7 +126,7 @@ function createImageDocumentTab(file: NativeMarkdownFolderFile): ImageDocumentTa
   };
 }
 
-function documentTabAsFolderFile(tab: MarkdownTabsBarItem): NativeMarkdownFolderFile | null {
+function documentTabAsFolderFile(tab: MarkdownTabsBarDocumentItem): NativeMarkdownFolderFile | null {
   if (!tab.path) return null;
 
   return {
@@ -127,6 +136,11 @@ function documentTabAsFolderFile(tab: MarkdownTabsBarItem): NativeMarkdownFolder
     relativePath: tab.path
   };
 }
+
+function persistSideDocumentGroup(group: StoredWorkspaceSideBySideGroup | null) {
+  saveStoredWorkspaceState({ sideBySideGroup: group }).catch(() => {});
+}
+
 type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 type EditorMode = "source" | "split" | "visual";
 type EditorSurface = "source" | "visual";
@@ -203,6 +217,7 @@ export default function App() {
   const [activeEditorSurface, setActiveEditorSurface] = useState<EditorSurface>("visual");
   const [readOnlyMode, setReadOnlyMode] = useState(false);
   const [splitVisualPanePercent, setSplitVisualPanePercent] = useState(defaultSplitVisualPanePercent);
+  const [sideDocumentMainPanePercent, setSideDocumentMainPanePercent] = useState(defaultSideDocumentMainPanePercent);
   const [visualEditorReadySequence, setVisualEditorReadySequence] = useState(0);
   const [exportSnapshot, setExportSnapshot] = useState<MarkdownExportSnapshot | null>(null);
   const sourceMode = editorMode === "source";
@@ -215,6 +230,7 @@ export default function App() {
   const exportRequestIdRef = useRef(0);
   const pendingEditorContentWidthPxRef = useRef<number | null>(null);
   const pendingSplitVisualPanePercentRef = useRef(defaultSplitVisualPanePercent);
+  const pendingSideDocumentMainPanePercentRef = useRef(defaultSideDocumentMainPanePercent);
   const sourceToVisualSyncingRef = useRef(false);
   const documentRevisionRef = useRef(0);
   const visualEditorReadyRevisionRef = useRef<number | null>(null);
@@ -222,8 +238,10 @@ export default function App() {
   const visualScrollRef = useRef<HTMLElement | null>(null);
   const documentTabViewStatesRef = useRef(new Map<string, DocumentTabViewState>());
   const splitSurfaceRef = useRef<HTMLDivElement | null>(null);
+  const sideDocumentSurfaceRef = useRef<HTMLDivElement | null>(null);
   const splitScrollSyncTargetRef = useRef<EditorSurface | null>(null);
   const splitPaneResizeCleanupRef = useRef<(() => unknown) | null>(null);
+  const sideDocumentPaneResizeCleanupRef = useRef<(() => unknown) | null>(null);
   const exportContextRef = useRef({
     activeImageFile: false,
     content: "",
@@ -332,12 +350,14 @@ export default function App() {
     closeMarkdownTab,
     handleDroppedMarkdownPath,
     handleMarkdownChange,
-    handleSaveClick,
+    handleMarkdownTabChange,
     openMarkdownFile,
+    openTreeMarkdownFileInBackground,
     openTreeMarkdownFile,
     outlineItems,
     replaceOpenDocumentFile,
     saveCurrentDocument,
+    saveMarkdownTab,
     selectMarkdownTab,
     selectWorkspaceSession,
     workspaceSessionId,
@@ -352,10 +372,20 @@ export default function App() {
   const activeEditorContentWidthPx = editorContentWidthPx ?? editorPreferences.preferences.contentWidthPx ?? null;
   const resolvedSplitVisualPanePercent =
     clampNumber(splitVisualPanePercent, splitVisualPanePercentMin, splitVisualPanePercentMax) ?? defaultSplitVisualPanePercent;
+  const resolvedSideDocumentMainPanePercent =
+    clampNumber(
+      sideDocumentMainPanePercent,
+      sideDocumentMainPanePercentMin,
+      sideDocumentMainPanePercentMax
+    ) ?? defaultSideDocumentMainPanePercent;
   const splitSurfaceStyle = useMemo(() => ({
     "--split-visual-pane": `${resolvedSplitVisualPanePercent}fr`,
     "--split-source-pane": `${100 - resolvedSplitVisualPanePercent}fr`
   } as CSSProperties), [resolvedSplitVisualPanePercent]);
+  const sideDocumentSurfaceStyle = useMemo(() => ({
+    "--side-document-main-pane": `${resolvedSideDocumentMainPanePercent}fr`,
+    "--side-document-secondary-pane": `${100 - resolvedSideDocumentMainPanePercent}fr`
+  } as CSSProperties), [resolvedSideDocumentMainPanePercent]);
   const resolveImageSrc = useMemo(() => createMarkdownImageSrcResolver(document.path), [document.path]);
   const resolveExportImageSrc = useMemo(
     () => createMarkdownImageSrcResolver(document.path, { convertFileSrc: localFileUrlFromPath }),
@@ -366,6 +396,41 @@ export default function App() {
 
     return createMarkdownImageSrcResolver(activeImageFile.path)(activeImageFile.path);
   }, [activeImageFile]);
+  const titlebarTabs = useMemo<MarkdownTabsBarDocumentItem[]>(() => [
+    ...documentTabs,
+    ...imageTabs.map((tab) => ({
+      dirty: false,
+      displayKind: "image" as const,
+      id: tab.id,
+      name: tab.name,
+      path: tab.path
+    }))
+  ], [documentTabs, imageTabs]);
+  const activeTitlebarTabId = activeImageFile ? imageDocumentTabId(activeImageFile.path) : activeTabId;
+  const {
+    clearSideDocumentGroup,
+    documentOperationTarget,
+    focusedSideDocumentTabId,
+    openSideDocumentGroup,
+    persistSideDocumentGroupPathUpdate,
+    persistSideDocumentGroupSavedTabPath,
+    setDocumentOperationTarget,
+    sideDocumentGroup,
+    sideDocumentOpen,
+    sideDocumentTab,
+    titlebarItems
+  } = useSideBySideTabs({
+    activeImageFileOpen: Boolean(activeImageFile),
+    activeTabId,
+    documentTabs,
+    documentTabsEnabled: editorPreferences.preferences.showDocumentTabs,
+    hasOpenDocument,
+    loadStoredWorkspaceState: getStoredWorkspaceState,
+    persistSideDocumentGroup,
+    restoreReady: !editorPreferences.loading,
+    restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup,
+    titlebarTabs
+  });
   const getAiDocumentContent = useCallback(
     () => (document.open ? readCurrentMarkdownForDocument(document.content) : document.content),
     [document.content, document.open, readCurrentMarkdownForDocument]
@@ -870,7 +935,6 @@ export default function App() {
     reveal: scrollAiSelectionAboveCommand,
     selection: activeAiSelection
   });
-  const saveDocumentAs = useCallback(() => saveCurrentDocument(true), [saveCurrentDocument]);
   const handleApplyAiResult = useCallback((restoredResult?: AiDiffResult | null, previewId?: string) => {
     if (readOnlyMode) return;
 
@@ -1006,6 +1070,8 @@ export default function App() {
     return () => {
       splitPaneResizeCleanupRef.current?.();
       splitPaneResizeCleanupRef.current = null;
+      sideDocumentPaneResizeCleanupRef.current?.();
+      sideDocumentPaneResizeCleanupRef.current = null;
     };
   }, []);
 
@@ -1131,6 +1197,91 @@ export default function App() {
       handleSplitPaneResizeEnd();
     }
   }, [handleSplitPaneResizeEnd, resizeSplitVisualPane, splitVisualPanePercent]);
+  const resizeSideDocumentMainPane = useCallback((nextPercent: number | null) => {
+    if (nextPercent === null) return;
+
+    const roundedPercent = Math.round(nextPercent);
+    pendingSideDocumentMainPanePercentRef.current = roundedPercent;
+    setSideDocumentMainPanePercent(roundedPercent);
+  }, []);
+  const handleSideDocumentPaneResizePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
+    const sideDocumentSurface = sideDocumentSurfaceRef.current;
+    if (!sideDocumentSurface) return;
+
+    const surfaceRect = sideDocumentSurface.getBoundingClientRect();
+    if (surfaceRect.width <= 0) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+
+    const startX = event.clientX;
+    const startPercent = pendingSideDocumentMainPanePercentRef.current;
+    const previousCursor = window.document.body.style.cursor;
+    const previousUserSelect = window.document.body.style.userSelect;
+
+    window.document.body.style.cursor = "col-resize";
+    window.document.body.style.userSelect = "none";
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      resizeSideDocumentMainPane(clampNumber(
+        startPercent + ((moveEvent.clientX - startX) / surfaceRect.width) * 100,
+        sideDocumentMainPanePercentMin,
+        sideDocumentMainPanePercentMax
+      ));
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+      window.document.body.style.cursor = previousCursor;
+      window.document.body.style.userSelect = previousUserSelect;
+      sideDocumentPaneResizeCleanupRef.current = null;
+    };
+
+    const handlePointerUp = () => {
+      cleanup();
+    };
+
+    sideDocumentPaneResizeCleanupRef.current?.();
+    sideDocumentPaneResizeCleanupRef.current = cleanup;
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+  }, [resizeSideDocumentMainPane]);
+  const handleSideDocumentPaneResizeKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      resizeSideDocumentMainPane(clampNumber(
+        sideDocumentMainPanePercent - sideDocumentPaneKeyboardStepPercent,
+        sideDocumentMainPanePercentMin,
+        sideDocumentMainPanePercentMax
+      ));
+      return;
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      resizeSideDocumentMainPane(clampNumber(
+        sideDocumentMainPanePercent + sideDocumentPaneKeyboardStepPercent,
+        sideDocumentMainPanePercentMin,
+        sideDocumentMainPanePercentMax
+      ));
+      return;
+    }
+
+    if (event.key === "Home") {
+      event.preventDefault();
+      resizeSideDocumentMainPane(sideDocumentMainPanePercentMin);
+      return;
+    }
+
+    if (event.key === "End") {
+      event.preventDefault();
+      resizeSideDocumentMainPane(sideDocumentMainPanePercentMax);
+    }
+  }, [resizeSideDocumentMainPane, sideDocumentMainPanePercent]);
   const handleTitlebarActionsChange = useCallback((titlebarActions: TitlebarActionPreference[]) => {
     const nextPreferences = {
       ...editorPreferences.preferences,
@@ -1169,11 +1320,15 @@ export default function App() {
   }, []);
   const applyRenamedTreeFile = useCallback((previousPath: string, renamedFile: NativeMarkdownFolderFile) => {
     replaceOpenDocumentFile(previousPath, renamedFile);
+    persistSideDocumentGroupPathUpdate({
+      nextPath: renamedFile.path,
+      previousPath
+    });
     setImageTabs((currentTabs) => currentTabs.map((tab) =>
       tab.path === previousPath ? createImageDocumentTab(renamedFile) : tab
     ));
     setActiveImageFile((currentFile) => currentFile?.path === previousPath ? renamedFile : currentFile);
-  }, [replaceOpenDocumentFile]);
+  }, [persistSideDocumentGroupPathUpdate, replaceOpenDocumentFile]);
   const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string, parentPath: string | null = null) => {
     try {
       await createMarkdownTreeFolder(folderName, parentPath);
@@ -1216,6 +1371,52 @@ export default function App() {
     setActiveImageFile(null);
     await openTreeMarkdownFile(file);
   }, [captureActiveDocumentViewState, openImageTab, openTreeMarkdownFile]);
+  const handleOpenTreeFileToSide = useCallback(async (file: NativeMarkdownFolderFile) => {
+    captureActiveDocumentViewState();
+
+    if (file.kind === "asset") {
+      openImageTab(file);
+      return;
+    }
+
+    if (!editorPreferences.preferences.showDocumentTabs || activeImageFile || !hasOpenDocument) {
+      setActiveImageFile(null);
+      await openTreeMarkdownFile(file);
+      return;
+    }
+
+    const tabId = await openTreeMarkdownFileInBackground(file);
+    if (!activeTabId || !tabId || tabId === activeTabId) return;
+
+    updateActiveAiSelection(null);
+    handleAiCommandClose();
+    if (splitMode) {
+      setEditorMode("visual");
+      setActiveEditorSurface("visual");
+    }
+    const primaryFilePath = documentTabs.find((tab) => tab.id === activeTabId)?.path ?? document.path;
+    openSideDocumentGroup({
+      primaryFilePath,
+      primaryTabId: activeTabId,
+      sideFilePath: file.path,
+      sideTabId: tabId
+    });
+  }, [
+    activeImageFile,
+    activeTabId,
+    captureActiveDocumentViewState,
+    handleAiCommandClose,
+    hasOpenDocument,
+    document.path,
+    documentTabs,
+    editorPreferences.preferences.showDocumentTabs,
+    openSideDocumentGroup,
+    openImageTab,
+    openTreeMarkdownFile,
+    openTreeMarkdownFileInBackground,
+    splitMode,
+    updateActiveAiSelection
+  ]);
   const handleOpenMarkdownFile = useCallback(async () => {
     captureActiveDocumentViewState();
     setActiveImageFile(null);
@@ -1225,6 +1426,23 @@ export default function App() {
   }, [captureActiveDocumentViewState, openMarkdownFile, translate]);
   const handleCloseCurrentFile = useCallback(async () => {
     captureActiveDocumentViewState();
+
+    const focusedSideCloseTabId =
+      documentOperationTarget === "side" &&
+      !activeImageFile &&
+      sideDocumentGroup?.primaryTabId === activeTabId
+        ? sideDocumentGroup.sideTabId
+        : null;
+
+    if (focusedSideCloseTabId) {
+      const closed = await closeMarkdownTab(focusedSideCloseTabId);
+      if (!closed) return;
+
+      clearSideDocumentGroup();
+      updateActiveAiSelection(null);
+      handleAiCommandClose();
+      return;
+    }
 
     if (activeImageFile) {
       const closingTabId = imageDocumentTabId(activeImageFile.path);
@@ -1237,6 +1455,9 @@ export default function App() {
       const closed = await closeMarkdownTab(activeTabId);
       if (!closed) return;
 
+      if (sideDocumentGroup?.primaryTabId === activeTabId || sideDocumentGroup?.sideTabId === activeTabId) {
+        clearSideDocumentGroup();
+      }
       updateActiveAiSelection(null);
       handleAiCommandClose();
       return;
@@ -1252,10 +1473,13 @@ export default function App() {
     activeImageFile,
     activeTabId,
     captureActiveDocumentViewState,
+    clearSideDocumentGroup,
     clearOpenDocument,
     closeMarkdownTab,
     confirmCanDiscardCurrentDocument,
+    documentOperationTarget,
     handleAiCommandClose,
+    sideDocumentGroup,
     updateActiveAiSelection
   ]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
@@ -1278,17 +1502,29 @@ export default function App() {
       : rawFileTreeRootName === "Files"
         ? translate("app.files")
         : rawFileTreeRootName;
-  const titlebarTabs = useMemo<MarkdownTabsBarItem[]>(() => [
-    ...documentTabs,
-    ...imageTabs.map((tab) => ({
-      dirty: false,
-      displayKind: "image" as const,
-      id: tab.id,
-      name: tab.name,
-      path: tab.path
-    }))
-  ], [documentTabs, imageTabs]);
-  const activeTitlebarTabId = activeImageFile ? imageDocumentTabId(activeImageFile.path) : activeTabId;
+  const saveDocument = useCallback(async (saveAs = false) => {
+    if (focusedSideDocumentTabId) {
+      const savedFile = await saveMarkdownTab(focusedSideDocumentTabId, saveAs);
+      if (savedFile) persistSideDocumentGroupSavedTabPath(focusedSideDocumentTabId, savedFile.path);
+      return savedFile;
+    }
+
+    const savedFile = await saveCurrentDocument(saveAs);
+    if (savedFile && activeTabId) persistSideDocumentGroupSavedTabPath(activeTabId, savedFile.path);
+    return savedFile;
+  }, [
+    activeTabId,
+    focusedSideDocumentTabId,
+    persistSideDocumentGroupSavedTabPath,
+    saveCurrentDocument,
+    saveMarkdownTab
+  ]);
+  const handleSaveDocument = useCallback(() => saveDocument(false), [saveDocument]);
+  const saveDocumentAs = useCallback(() => saveDocument(true), [saveDocument]);
+  const resolveSideDocumentImageSrc = useMemo(
+    () => createMarkdownImageSrcResolver(sideDocumentTab?.path ?? null),
+    [sideDocumentTab?.path]
+  );
   const documentTabsVisible =
     editorPreferences.preferences.showDocumentTabs &&
     (hasOpenDocument || Boolean(activeImageFile)) &&
@@ -1297,13 +1533,21 @@ export default function App() {
   const titleDocumentKind = activeImageFile ? "image" : hasOpenDocument ? "file" : "folder";
   const sourceModeAvailable = hasOpenDocument && !activeImageFile;
   const supportsAiThinking = selectedInlineAiModel?.capabilities.includes("reasoning") ?? false;
+  const handleMainDocumentPaneFocus = useCallback(() => {
+    setDocumentOperationTarget("main");
+  }, []);
   const handleVisualPaneFocus = useCallback(() => {
+    setDocumentOperationTarget("main");
     setActiveEditorSurface("visual");
   }, []);
   const handleSourcePaneFocus = useCallback(() => {
+    setDocumentOperationTarget("main");
     setActiveEditorSurface("source");
     updateActiveAiSelection(null);
   }, [updateActiveAiSelection]);
+  const handleSideDocumentPaneFocus = useCallback(() => {
+    setDocumentOperationTarget("side");
+  }, []);
   const handleVisualMarkdownChange = useCallback((content: string) => {
     if (sourceToVisualSyncingRef.current) return;
     if (readOnlyMode) return;
@@ -1422,11 +1666,14 @@ export default function App() {
 
     updateActiveAiSelection(null);
     handleAiCommandClose();
+    if (sideDocumentGroup) clearSideDocumentGroup();
     setEditorMode("split");
     setActiveEditorSurface(sourceMode ? "source" : "visual");
   }, [
     captureActiveDocumentViewState,
+    clearSideDocumentGroup,
     handleAiCommandClose,
+    sideDocumentGroup,
     sourceMode,
     sourceModeAvailable,
     splitMode,
@@ -1579,7 +1826,7 @@ export default function App() {
     openFolder: handleOpenMarkdownFolder,
     runAiQuickAction: handleAiContextMenuAction,
     runEditorShortcut: handleRunEditorShortcut,
-    saveDocument: handleSaveClick,
+    saveDocument: handleSaveDocument,
     saveDocumentAs,
     toggleAiAgent: handleAiAgentToggle,
     toggleAiCommand: handleAiCommandToggle,
@@ -1600,7 +1847,7 @@ export default function App() {
     markdownShortcuts: editorPreferences.preferences.markdownShortcuts,
     openDocument: handleOpenMarkdownFile,
     openFolder: handleOpenMarkdownFolder,
-    saveDocument: handleSaveClick,
+    saveDocument: handleSaveDocument,
     saveDocumentAs,
     toggleAiAgent: handleAiAgentToggle,
     toggleAiCommand: handleAiCommandToggle,
@@ -1688,6 +1935,42 @@ export default function App() {
     };
   }, [editor, restoreAiCommand, updateAiResults]);
 
+  const handleOpenTitlebarTabToSide = useCallback((tabId: string) => {
+    if (!activeTabId || tabId === activeTabId) return;
+    const tab = documentTabs.find((candidate) => candidate.id === tabId);
+    if (!tab?.path) return;
+
+    captureActiveDocumentViewState();
+    setActiveImageFile(null);
+    updateActiveAiSelection(null);
+    handleAiCommandClose();
+    if (splitMode) {
+      setEditorMode("visual");
+      setActiveEditorSurface("visual");
+    }
+    const primaryFilePath = documentTabs.find((candidate) => candidate.id === activeTabId)?.path ?? document.path;
+    openSideDocumentGroup({
+      primaryFilePath,
+      primaryTabId: activeTabId,
+      sideFilePath: tab.path,
+      sideTabId: tabId
+    });
+  }, [
+    activeTabId,
+    captureActiveDocumentViewState,
+    document.path,
+    documentTabs,
+    handleAiCommandClose,
+    openSideDocumentGroup,
+    splitMode,
+    updateActiveAiSelection
+  ]);
+  const handleSideDocumentChange = useCallback((content: string) => {
+    if (!sideDocumentGroup || readOnlyMode) return;
+
+    handleMarkdownTabChange(sideDocumentGroup.sideTabId, content);
+  }, [handleMarkdownTabChange, readOnlyMode, sideDocumentGroup]);
+
   const handleCloseTitlebarTab = useCallback(async (tabId: string) => {
     captureActiveDocumentViewState();
 
@@ -1704,20 +1987,26 @@ export default function App() {
     const closed = await closeMarkdownTab(tabId);
     if (!closed) return false;
 
+    if (sideDocumentGroup?.primaryTabId === tabId || sideDocumentGroup?.sideTabId === tabId) {
+      clearSideDocumentGroup();
+    }
     updateActiveAiSelection(null);
     handleAiCommandClose();
     return true;
   }, [
     activeImageFile,
     captureActiveDocumentViewState,
+    clearSideDocumentGroup,
     closeMarkdownTab,
     handleAiCommandClose,
     imageTabs,
+    sideDocumentGroup,
     updateActiveAiSelection
   ]);
 
   const handleSelectTitlebarTab = useCallback((tabId: string) => {
     captureActiveDocumentViewState();
+    setDocumentOperationTarget("main");
 
     const imageTab = imageTabs.find((tab) => tab.id === tabId);
     if (imageTab) {
@@ -1738,7 +2027,7 @@ export default function App() {
     selectMarkdownTab,
     updateActiveAiSelection
   ]);
-  const handleRenameTitlebarTab = useCallback(async (tab: MarkdownTabsBarItem, fileName: string) => {
+  const handleRenameTitlebarTab = useCallback(async (tab: MarkdownTabsBarDocumentItem, fileName: string) => {
     const file = documentTabAsFolderFile(tab);
     if (!file) return;
 
@@ -1753,15 +2042,16 @@ export default function App() {
   const titlebarDocumentTabs = documentTabsVisible ? (
     <MarkdownTabsBar
       activeTabId={activeTitlebarTabId}
+      items={titlebarItems}
       language={appLanguage.language}
       placement="titlebar"
-      tabs={titlebarTabs}
       onCloseTab={handleCloseTitlebarTab}
       onNewTab={() => {
         captureActiveDocumentViewState();
         setActiveImageFile(null);
         createBlankDocument().catch(() => {});
       }}
+      onOpenTabToSide={handleOpenTitlebarTabToSide}
       onRenameTab={handleRenameTitlebarTab}
       onSelectTab={handleSelectTitlebarTab}
     />
@@ -1793,7 +2083,7 @@ export default function App() {
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
           onOpenMarkdown={handleOpenMarkdownFile}
           onOpenMarkdownFolder={handleOpenMarkdownFolder}
-          onSaveMarkdown={handleSaveClick}
+          onSaveMarkdown={handleSaveDocument}
           onTitlebarActionsChange={handleTitlebarActionsChange}
           onToggleAiAgent={handleAiAgentToggle}
           onToggleMarkdownFiles={handleFileTreeToggle}
@@ -1823,6 +2113,11 @@ export default function App() {
               onCreateFolder={handleCreateMarkdownTreeFolder}
               onDeleteFile={handleDeleteMarkdownTreeFile}
               onOpenFile={handleOpenTreeFile}
+              onOpenFileToSide={
+                editorPreferences.preferences.showDocumentTabs
+                  ? handleOpenTreeFileToSide
+                  : undefined
+              }
               onOpenRecentFolder={handleOpenRecentMarkdownFolder}
               onOpenSettings={handleOpenSettings}
               onRemoveRecentFolder={removeRecentFolder}
@@ -1847,8 +2142,17 @@ export default function App() {
                   src={imagePreviewSrc}
                 />
               ) : hasOpenDocument ? (
-                <>
-                  {splitMode ? (
+                <div
+                  className={
+                    sideDocumentOpen
+                      ? "editor-side-by-side-surface grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] divide-y divide-(--border-default) min-[960px]:grid-cols-[minmax(0,var(--side-document-main-pane))_8px_minmax(0,var(--side-document-secondary-pane))] min-[960px]:grid-rows-[minmax(0,1fr)] min-[960px]:divide-y-0"
+                      : "relative h-full min-h-0"
+                  }
+                  ref={sideDocumentOpen ? sideDocumentSurfaceRef : undefined}
+                  style={sideDocumentOpen ? sideDocumentSurfaceStyle : undefined}
+                >
+                  <div className="relative h-full min-h-0 overflow-hidden" onFocusCapture={handleMainDocumentPaneFocus}>
+                    {splitMode ? (
                     <div
                       className="editor-split-surface grid h-full min-h-0 grid-cols-1 grid-rows-[minmax(0,1fr)_minmax(0,1fr)] divide-y divide-(--border-default) min-[900px]:grid-cols-[minmax(0,var(--split-visual-pane))_8px_minmax(0,var(--split-source-pane))] min-[900px]:grid-rows-[minmax(0,1fr)] min-[900px]:divide-y-0"
                       ref={splitSurfaceRef}
@@ -1971,7 +2275,47 @@ export default function App() {
                     showWordCount={editorPreferences.preferences.showWordCount}
                     wordCount={wordCount}
                   />
-                </>
+                  </div>
+                  {sideDocumentOpen && sideDocumentTab ? (
+                    <>
+                      <div
+                        className="group/side-resizer relative z-20 hidden cursor-col-resize touch-none outline-none min-[960px]:block"
+                        role="separator"
+                        tabIndex={0}
+                        aria-label={translate("app.resizeSideBySideDocuments")}
+                        aria-orientation="vertical"
+                        aria-valuemin={sideDocumentMainPanePercentMin}
+                        aria-valuemax={sideDocumentMainPanePercentMax}
+                        aria-valuenow={resolvedSideDocumentMainPanePercent}
+                        onKeyDown={handleSideDocumentPaneResizeKeyDown}
+                        onPointerDown={handleSideDocumentPaneResizePointerDown}
+                      >
+                        <span className="pointer-events-none absolute inset-y-5 left-1/2 w-px -translate-x-1/2 bg-(--border-default) transition-colors duration-150 ease-out group-hover/side-resizer:bg-(--accent) group-focus/side-resizer:bg-(--accent)" />
+                      </div>
+                      <SideDocumentPane
+                        bodyFontSize={editorPreferences.preferences.bodyFontSize}
+                        content={sideDocumentTab.content}
+                        contentWidth={activeEditorContentWidth}
+                        contentWidthPx={activeEditorContentWidthPx}
+                        documentPath={sideDocumentTab.path}
+                        editorTheme={appTheme.editorTheme}
+                        language={appLanguage.language}
+                        lineHeight={editorPreferences.preferences.lineHeight}
+                        markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
+                        mode={sourceMode ? "source" : "visual"}
+                        openExternalUrl={handleOpenEditorLink}
+                        readOnly={readOnlyMode}
+                        resolveImageSrc={resolveSideDocumentImageSrc}
+                        revision={sideDocumentTab.revision}
+                        workspaceFiles={fileTreeFiles}
+                        onChange={handleSideDocumentChange}
+                        onContentWidthChange={handleEditorContentWidthChange}
+                        onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
+                        onFocus={handleSideDocumentPaneFocus}
+                      />
+                    </>
+                  ) : null}
+                </div>
               ) : null}
             </div>
             <div className="ai-agent-panel-slot relative z-20 min-h-0 overflow-hidden">

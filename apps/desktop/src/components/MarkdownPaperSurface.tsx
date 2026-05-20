@@ -2,8 +2,10 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { defaultValueCtx, Editor, editorViewCtx, editorViewOptionsCtx, parserCtx, rootCtx, serializerCtx } from "@milkdown/kit/core";
 import { history } from "@milkdown/kit/plugin/history";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
+import { Plugin } from "@milkdown/kit/prose/state";
 import { headingSchema, imageSchema, linkSchema, paragraphSchema } from "@milkdown/kit/preset/commonmark";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
+import { $prose } from "@milkdown/kit/utils";
 import type { AiSelectionContext } from "@markra/ai";
 import {
   markraAiEditorPreviewPlugin,
@@ -103,6 +105,14 @@ function MilkdownReadOnlyBridge({ readOnly = false }: Pick<MarkdownPaperSurfaceP
   }, [getEditor, loading, readOnly]);
 
   return null;
+}
+
+function markraReadOnlyTransactionGuard(readOnlyRef: { current: boolean }) {
+  return $prose(() => new Plugin({
+    filterTransaction(transaction) {
+      return !readOnlyRef.current || !transaction.docChanged;
+    }
+  }));
 }
 
 function MilkdownEditorSurface({
@@ -244,6 +254,7 @@ function MilkdownEditorSurface({
             }
           });
         })
+        .use(markraReadOnlyTransactionGuard(readOnlyRef))
         .use(listener)
         .use(history)
         .use(markraMathRemarkPlugin)

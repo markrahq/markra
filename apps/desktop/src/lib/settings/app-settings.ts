@@ -138,6 +138,11 @@ export type StoredWorkspaceState = {
   folderName: string | null;
   folderPath: string | null;
   openFilePaths: string[];
+  sideBySideGroup?: StoredWorkspaceSideBySideGroup | null;
+};
+export type StoredWorkspaceSideBySideGroup = {
+  primaryFilePath: string;
+  sideFilePath: string;
 };
 export type RecentMarkdownFolder = {
   name: string;
@@ -1093,6 +1098,15 @@ export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
   if (typeof value !== "object" || value === null) return defaultWorkspaceState;
 
   const workspace = value as Partial<StoredWorkspaceState>;
+  const openFilePaths = normalizeWorkspaceOpenFilePaths(workspace.openFilePaths);
+  const openFilePathSet = new Set(openFilePaths);
+  const sideBySideGroup = normalizeWorkspaceSideBySideGroup(workspace.sideBySideGroup);
+  const persistedSideBySideGroup =
+    sideBySideGroup &&
+    openFilePathSet.has(sideBySideGroup.primaryFilePath) &&
+    openFilePathSet.has(sideBySideGroup.sideFilePath)
+      ? sideBySideGroup
+      : null;
 
   return {
     aiAgentSessionId: normalizeNullableString(workspace.aiAgentSessionId),
@@ -1100,7 +1114,8 @@ export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
     fileTreeOpen: typeof workspace.fileTreeOpen === "boolean" ? workspace.fileTreeOpen : false,
     folderName: normalizeNullableString(workspace.folderName),
     folderPath: normalizeNullableString(workspace.folderPath),
-    openFilePaths: normalizeWorkspaceOpenFilePaths(workspace.openFilePaths)
+    openFilePaths,
+    ...(persistedSideBySideGroup ? { sideBySideGroup: persistedSideBySideGroup } : {})
   };
 }
 
@@ -1119,6 +1134,20 @@ function normalizeWorkspaceOpenFilePaths(value: unknown) {
   });
 
   return paths;
+}
+
+function normalizeWorkspaceSideBySideGroup(value: unknown): StoredWorkspaceSideBySideGroup | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const group = value as Partial<StoredWorkspaceSideBySideGroup>;
+  const primaryFilePath = normalizeNullableString(group.primaryFilePath);
+  const sideFilePath = normalizeNullableString(group.sideFilePath);
+  if (!primaryFilePath || !sideFilePath || primaryFilePath === sideFilePath) return null;
+
+  return {
+    primaryFilePath,
+    sideFilePath
+  };
 }
 
 function aiAgentSessionStorePath(sessionId: string | null) {

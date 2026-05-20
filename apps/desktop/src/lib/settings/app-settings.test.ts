@@ -808,7 +808,11 @@ describe("app settings", () => {
         " ",
         "/mock-files/vault/README.md",
         "/mock-files/vault/notes.md"
-      ]
+      ],
+      sideBySideGroup: {
+        primaryFilePath: "/mock-files/vault/README.md",
+        sideFilePath: "/mock-files/vault/notes.md"
+      }
     });
 
     await expect(getStoredWorkspaceState()).resolves.toEqual({
@@ -820,7 +824,11 @@ describe("app settings", () => {
       openFilePaths: [
         "/mock-files/vault/notes.md",
         "/mock-files/vault/README.md"
-      ]
+      ],
+      sideBySideGroup: {
+        primaryFilePath: "/mock-files/vault/README.md",
+        sideFilePath: "/mock-files/vault/notes.md"
+      }
     });
 
     expect(store.get).toHaveBeenCalledWith("workspace");
@@ -833,7 +841,11 @@ describe("app settings", () => {
       fileTreeOpen: true,
       folderName: "vault",
       folderPath: "/mock-files/vault",
-      openFilePaths: ["/mock-files/vault/notes.md"]
+      openFilePaths: ["/mock-files/vault/notes.md"],
+      sideBySideGroup: {
+        primaryFilePath: "/mock-files/vault/notes.md",
+        sideFilePath: "/mock-files/vault/archive.md"
+      }
     });
 
     await saveStoredWorkspaceState({
@@ -841,7 +853,50 @@ describe("app settings", () => {
       openFilePaths: [
         "/mock-files/vault/README.md",
         "/mock-files/vault/notes.md"
-      ]
+      ],
+      sideBySideGroup: {
+        primaryFilePath: "/mock-files/vault/README.md",
+        sideFilePath: "/mock-files/vault/notes.md"
+      }
+    });
+
+    expect(store.set).toHaveBeenCalledWith("workspace", {
+      aiAgentSessionId: "session-a",
+      filePath: "/mock-files/vault/README.md",
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault",
+      openFilePaths: [
+        "/mock-files/vault/README.md",
+        "/mock-files/vault/notes.md"
+      ],
+      sideBySideGroup: {
+        primaryFilePath: "/mock-files/vault/README.md",
+        sideFilePath: "/mock-files/vault/notes.md"
+      }
+    });
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears the saved side-by-side workspace group", async () => {
+    store.get.mockResolvedValue({
+      aiAgentSessionId: "session-a",
+      filePath: "/mock-files/vault/README.md",
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault",
+      openFilePaths: [
+        "/mock-files/vault/README.md",
+        "/mock-files/vault/notes.md"
+      ],
+      sideBySideGroup: {
+        primaryFilePath: "/mock-files/vault/README.md",
+        sideFilePath: "/mock-files/vault/notes.md"
+      }
+    });
+
+    await saveStoredWorkspaceState({
+      sideBySideGroup: null
     });
 
     expect(store.set).toHaveBeenCalledWith("workspace", {
@@ -856,6 +911,30 @@ describe("app settings", () => {
       ]
     });
     expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a side-by-side workspace group when one grouped file is not open", async () => {
+    store.get.mockResolvedValue({
+      aiAgentSessionId: "session-a",
+      filePath: "/mock-files/vault/README.md",
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault",
+      openFilePaths: ["/mock-files/vault/README.md"],
+      sideBySideGroup: {
+        primaryFilePath: "/mock-files/vault/README.md",
+        sideFilePath: "/mock-files/vault/notes.md"
+      }
+    });
+
+    await expect(getStoredWorkspaceState()).resolves.toEqual({
+      aiAgentSessionId: "session-a",
+      filePath: "/mock-files/vault/README.md",
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault",
+      openFilePaths: ["/mock-files/vault/README.md"]
+    });
   });
 
   it("normalizes recently used markdown folders", () => {

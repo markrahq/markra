@@ -25,7 +25,7 @@ type MarkdownSourceEditorProps = {
   onScroll?: (event: UIEvent<HTMLElement>) => unknown;
   readOnly?: boolean;
   scrollRef?: Ref<HTMLElement>;
-  topInset?: "tabs" | "titlebar";
+  topInset?: "none" | "tabs" | "titlebar";
 };
 
 type FenceState = {
@@ -189,7 +189,12 @@ export function MarkdownSourceEditor({
 
     onChange(event.currentTarget.value);
   };
-  const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";
+  const topInsetClassName =
+    topInset === "tabs"
+      ? "pt-24 max-[900px]:pt-20"
+      : topInset === "titlebar"
+        ? "pt-14 max-[900px]:pt-10"
+        : "pt-6 max-[900px]:pt-5";
 
   return (
     <section

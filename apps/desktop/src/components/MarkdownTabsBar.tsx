@@ -1,22 +1,25 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
-import { FileText, ImageIcon, Pencil, Plus, X } from "lucide-react";
+import { Columns2, FileText, ImageIcon, Pencil, Plus, X } from "lucide-react";
 import { Button, IconButton, PopoverSurface } from "@markra/ui";
 import { t, type AppLanguage } from "@markra/shared";
 import type { MarkdownDocumentTab } from "../hooks/useMarkdownDocument";
 
-export type MarkdownTabsBarItem = Pick<MarkdownDocumentTab, "dirty" | "id" | "name"> & {
+export type MarkdownTabsBarDocumentItem = Pick<MarkdownDocumentTab, "dirty" | "id" | "name"> & {
   displayKind?: "image" | "markdown";
   path?: string | null;
 };
 
+export type MarkdownTabsBarItem = MarkdownTabsBarDocumentItem | MarkdownTabsBarDocumentItem[];
+
 type MarkdownTabsBarProps = {
   activeTabId: string | null;
+  items: MarkdownTabsBarItem[];
   language?: AppLanguage;
   placement?: "editor" | "titlebar";
-  tabs: MarkdownTabsBarItem[];
   onCloseTab: (tabId: string) => unknown;
   onNewTab: () => unknown;
-  onRenameTab?: (tab: MarkdownTabsBarItem, name: string) => unknown;
+  onOpenTabToSide?: (tabId: string) => unknown;
+  onRenameTab?: (tab: MarkdownTabsBarDocumentItem, name: string) => unknown;
   onSelectTab: (tabId: string) => unknown;
 };
 
@@ -28,11 +31,12 @@ type TabContextMenuState = {
 
 export function MarkdownTabsBar({
   activeTabId,
+  items,
   language = "en",
   placement = "editor",
-  tabs,
   onCloseTab,
   onNewTab,
+  onOpenTabToSide,
   onRenameTab,
   onSelectTab
 }: MarkdownTabsBarProps) {
@@ -70,14 +74,34 @@ export function MarkdownTabsBar({
     };
   }, [contextMenu]);
 
-  if (tabs.length === 0) return null;
+  const tabItemGroups = items.map((item) => Array.isArray(item) ? item : [item]);
+  const documentItems = tabItemGroups.flatMap((item) => item);
+  const sideGroupedTabIds = new Set(
+    items.flatMap((item) => Array.isArray(item) ? item.slice(1).map((tab) => tab.id) : [])
+  );
+
+  if (documentItems.length === 0) return null;
 
   const titlebarPlacement = placement === "titlebar";
-  const contextMenuTab = contextMenu ? tabs.find((tab) => tab.id === contextMenu.tabId) ?? null : null;
-  const contextMenuTabIndex = contextMenuTab ? tabs.findIndex((tab) => tab.id === contextMenuTab.id) : -1;
-  const contextMenuOtherTabIds = contextMenuTab ? tabs.filter((tab) => tab.id !== contextMenuTab.id).map((tab) => tab.id) : [];
-  const contextMenuRightTabIds = contextMenuTabIndex >= 0 ? tabs.slice(contextMenuTabIndex + 1).map((tab) => tab.id) : [];
-  const startRenamingTab = (tab: MarkdownTabsBarItem) => {
+  const contextMenuTab = contextMenu ? documentItems.find((tab) => tab.id === contextMenu.tabId) ?? null : null;
+  const contextMenuTabItemIndex = contextMenuTab
+    ? tabItemGroups.findIndex((item) => item.some((tab) => tab.id === contextMenuTab.id))
+    : -1;
+  const contextMenuOtherTabIds = contextMenuTab
+    ? tabItemGroups
+      .filter((_, index) => index !== contextMenuTabItemIndex)
+      .flatMap((item) => item.map((tab) => tab.id))
+    : [];
+  const contextMenuRightTabIds = contextMenuTabItemIndex >= 0
+    ? tabItemGroups.slice(contextMenuTabItemIndex + 1).flatMap((item) => item.map((tab) => tab.id))
+    : [];
+  const contextMenuTabCanOpenToSide =
+    Boolean(onOpenTabToSide) &&
+    Boolean(contextMenuTab?.path) &&
+    contextMenuTab?.displayKind !== "image" &&
+    contextMenuTab?.id !== activeTabId &&
+    !sideGroupedTabIds.has(contextMenuTab?.id ?? "");
+  const startRenamingTab = (tab: MarkdownTabsBarDocumentItem) => {
     if (!tab.path || !onRenameTab) return;
 
     renameCancelledRef.current = false;
@@ -89,7 +113,7 @@ export function MarkdownTabsBar({
     setRenamingTabId(null);
     setRenameFileName("");
   };
-  const commitRenamingTab = (tab: MarkdownTabsBarItem, value = renameFileName) => {
+  const commitRenamingTab = (tab: MarkdownTabsBarDocumentItem, value = renameFileName) => {
     if (renameCancelledRef.current) {
       renameCancelledRef.current = false;
       return;
@@ -111,7 +135,7 @@ export function MarkdownTabsBar({
 
     closeSequence.catch(() => {});
   };
-  const openTabContextMenu = (event: ReactMouseEvent, tab: MarkdownTabsBarItem) => {
+  const openTabContextMenu = (event: ReactMouseEvent, tab: MarkdownTabsBarDocumentItem) => {
     event.preventDefault();
     event.stopPropagation();
     setContextMenu({
@@ -123,6 +147,116 @@ export function MarkdownTabsBar({
   const runTabContextMenuAction = (action: () => unknown) => {
     setContextMenu(null);
     action();
+  };
+  const renderTabButton = (tab: MarkdownTabsBarDocumentItem, active: boolean, selectTabId = tab.id) => {
+    const TabIcon = tab.displayKind === "image" ? ImageIcon : FileText;
+    const renaming = tab.id === renamingTabId;
+
+    return renaming ? (
+      <div className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2">
+        <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
+        <input
+          ref={renameInputRef}
+          aria-label={label("app.renameMarkdownFile")}
+          className="min-w-0 flex-1 rounded-sm border border-(--accent) bg-(--bg-primary) px-1 text-[12px] leading-5 font-[560] text-(--text-heading) outline-none"
+          type="text"
+          value={renameFileName}
+          onBlur={(event) => commitRenamingTab(tab, event.currentTarget.value)}
+          onChange={(event) => setRenameFileName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.currentTarget.blur();
+              return;
+            }
+
+            if (event.key === "Escape") {
+              event.preventDefault();
+              cancelRenamingTab();
+            }
+          }}
+        />
+      </div>
+    ) : (
+      <button
+        className={`flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
+          active ? "text-(--text-heading)" : "text-(--text-secondary)"
+        }`}
+        type="button"
+        role="tab"
+        aria-selected={active}
+        onClick={() => onSelectTab(selectTabId)}
+        onDoubleClick={() => startRenamingTab(tab)}
+      >
+        <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
+        <span className="min-w-0 truncate">{tab.name || "Untitled.md"}</span>
+        {tab.dirty ? (
+          <span className="size-1.25 shrink-0 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
+        ) : null}
+      </button>
+    );
+  };
+  const renderCloseTabButton = (tab: MarkdownTabsBarDocumentItem, active: boolean, alwaysVisible = false) => (
+    <button
+      className={`mr-1 flex size-5 items-center justify-center rounded text-(--text-secondary) transition-[opacity,background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
+        alwaysVisible ? "opacity-100" : active ? "opacity-100" : "opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100"
+      }`}
+      type="button"
+      aria-label={`${label("app.closeDocumentTab")} ${tab.name || "Untitled.md"}`}
+      onClick={() => closeTabs([tab.id])}
+    >
+      <X aria-hidden="true" size={12} />
+    </button>
+  );
+  const renderDocumentTab = (tab: MarkdownTabsBarDocumentItem) => {
+    const active = tab.id === activeTabId;
+
+    return (
+      <div
+        className={`group/tab grid h-7 max-w-52 min-w-28 grid-cols-[minmax(0,1fr)_auto] items-center rounded-md border transition-colors duration-150 ease-out ${
+          titlebarPlacement ? "" : "mb-1"
+        } ${
+          active
+            ? "border-(--border-default) bg-(--bg-active) text-(--text-heading)"
+            : "border-transparent bg-transparent text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading)"
+        }`}
+        key={tab.id}
+        onContextMenu={(event) => openTabContextMenu(event, tab)}
+      >
+        {renderTabButton(tab, active)}
+        {renderCloseTabButton(tab, active)}
+      </div>
+    );
+  };
+  const renderDocumentTabGroup = (group: MarkdownTabsBarDocumentItem[], index: number) => {
+    if (group.length === 0) return null;
+    const groupPrimaryTabId = group[0]!.id;
+
+    return (
+      <div
+        className={`document-tabs-side-by-side-group flex h-7 max-w-[30rem] min-w-60 overflow-hidden rounded-md border border-(--border-default) bg-(--bg-active) text-(--text-heading) ${
+          titlebarPlacement ? "" : "mb-1"
+        }`}
+        key={`group-${index}-${group.map((tab) => tab.id).join(":")}`}
+      >
+        {group.map((tab, tabIndex) => {
+          const active = tab.id === activeTabId;
+
+          return (
+            <div
+              className={`group/tab grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-center transition-colors duration-150 ease-out ${
+                tabIndex > 0 ? "border-l border-(--border-default)" : ""
+              } ${active ? "bg-(--bg-active)" : "bg-transparent"}`}
+              key={tab.id}
+              onContextMenu={(event) => openTabContextMenu(event, tab)}
+            >
+              {renderTabButton(tab, active, groupPrimaryTabId)}
+              {renderCloseTabButton(tab, active, true)}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -142,77 +276,7 @@ export function MarkdownTabsBar({
         role="tablist"
         aria-label={label("app.documentTabs")}
       >
-        {tabs.map((tab) => {
-          const active = tab.id === activeTabId;
-          const renaming = tab.id === renamingTabId;
-          const TabIcon = tab.displayKind === "image" ? ImageIcon : FileText;
-
-          return (
-            <div
-              className={`group/tab grid h-7 max-w-52 min-w-28 grid-cols-[minmax(0,1fr)_auto] items-center rounded-md border transition-colors duration-150 ease-out ${
-                titlebarPlacement ? "" : "mb-1"
-              } ${
-                active
-                  ? "border-(--border-default) bg-(--bg-active) text-(--text-heading)"
-                  : "border-transparent bg-transparent text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading)"
-              }`}
-              key={tab.id}
-              onContextMenu={(event) => openTabContextMenu(event, tab)}
-            >
-              {renaming ? (
-                <div className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2">
-                  <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
-                  <input
-                    ref={renameInputRef}
-                    aria-label={label("app.renameMarkdownFile")}
-                    className="min-w-0 flex-1 rounded-sm border border-(--accent) bg-(--bg-primary) px-1 text-[12px] leading-5 font-[560] text-(--text-heading) outline-none"
-                    type="text"
-                    value={renameFileName}
-                    onBlur={(event) => commitRenamingTab(tab, event.currentTarget.value)}
-                    onChange={(event) => setRenameFileName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        event.currentTarget.blur();
-                        return;
-                      }
-
-                      if (event.key === "Escape") {
-                        event.preventDefault();
-                        cancelRenamingTab();
-                      }
-                    }}
-                  />
-                </div>
-              ) : (
-                <button
-                  className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => onSelectTab(tab.id)}
-                  onDoubleClick={() => startRenamingTab(tab)}
-                >
-                  <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
-                  <span className="min-w-0 truncate">{tab.name || "Untitled.md"}</span>
-                  {tab.dirty ? (
-                    <span className="size-1.25 shrink-0 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
-                  ) : null}
-                </button>
-              )}
-              <button
-                className={`mr-1 flex size-5 items-center justify-center rounded text-(--text-secondary) transition-[opacity,background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
-                  active ? "opacity-100" : "opacity-0 group-hover/tab:opacity-100 focus-visible:opacity-100"
-                }`}
-                type="button"
-                aria-label={`${label("app.closeDocumentTab")} ${tab.name || "Untitled.md"}`}
-                onClick={() => closeTabs([tab.id])}
-              >
-                <X aria-hidden="true" size={12} />
-              </button>
-            </div>
-          );
-        })}
+        {items.map((item, index) => Array.isArray(item) ? renderDocumentTabGroup(item, index) : renderDocumentTab(item))}
         <IconButton
           className={`${titlebarPlacement ? "" : "mb-1"} rounded-md opacity-70 hover:opacity-100 focus-visible:opacity-100`}
           label={label("app.newDocumentTab")}
@@ -255,6 +319,19 @@ export function MarkdownTabsBar({
               >
                 <Pencil aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
                 <span className="truncate">{label("app.renameMarkdownFile")}</span>
+              </Button>
+            ) : null}
+            {onOpenTabToSide && contextMenuTab.path && contextMenuTab.displayKind !== "image" ? (
+              <Button
+                className="w-full justify-start rounded-md text-left"
+                disabled={!contextMenuTabCanOpenToSide}
+                size="sm"
+                variant="ghost"
+                role="menuitem"
+                onClick={() => runTabContextMenuAction(() => onOpenTabToSide(contextMenuTab.id))}
+              >
+                <Columns2 aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
+                <span className="truncate">{label("app.openDocumentToSide")}</span>
               </Button>
             ) : null}
             <Button

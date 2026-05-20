@@ -3,6 +3,7 @@ import { useMarkdownDocument } from "./useMarkdownDocument";
 import {
   openNativeMarkdownPath,
   readNativeMarkdownFile,
+  saveNativeMarkdownFile,
   watchNativeMarkdownFile
 } from "../lib/tauri";
 import {
@@ -30,6 +31,7 @@ vi.mock("../lib/tauri", () => ({
 
 const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
 const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
+const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
 const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
@@ -40,6 +42,7 @@ describe("useMarkdownDocument", () => {
     window.history.pushState({}, "", "/");
     mockedOpenNativeMarkdownPath.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
+    mockedSaveNativeMarkdownFile.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
     mockedConsumeWelcomeDocumentState.mockReset();
     mockedGetStoredWorkspaceState.mockReset();
@@ -55,6 +58,10 @@ describe("useMarkdownDocument", () => {
       openFilePaths: []
     });
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "saved.md",
+      path: "/mock-files/saved.md"
+    });
   });
 
   it("does not ask to discard an untouched blank document when the editor still exposes stale markdown", async () => {
@@ -304,6 +311,85 @@ describe("useMarkdownDocument", () => {
       content: "# Guide\n\nDraft",
       dirty: true,
       name: "guide.md"
+    });
+  });
+
+  it("opens and saves a background markdown tab without activating it", async () => {
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === "/mock-files/guide.md") {
+        return {
+          content: "# Guide\n\nClean",
+          name: "guide.md",
+          path
+        };
+      }
+
+      return {
+        content: "# Notes\n\nClean",
+        name: "notes.md",
+        path
+      };
+    });
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "notes.md",
+      path: "/mock-files/notes.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    const backgroundTabId = await act(async () =>
+      result.current.openTreeMarkdownFileInBackground({
+        name: "notes.md",
+        path: "/mock-files/notes.md",
+        relativePath: "notes.md"
+      })
+    );
+
+    expect(backgroundTabId).toBe("file:/mock-files/notes.md");
+    expect(result.current.document.name).toBe("guide.md");
+    expect(result.current.activeTabId).not.toBe(backgroundTabId);
+    expect(result.current.tabs.map((tab) => tab.name)).toEqual(["guide.md", "notes.md"]);
+
+    act(() => {
+      result.current.handleMarkdownTabChange(backgroundTabId!, "# Notes\n\nDraft");
+    });
+
+    expect(result.current.tabs.find((tab) => tab.id === backgroundTabId)).toMatchObject({
+      content: "# Notes\n\nDraft",
+      dirty: true,
+      name: "notes.md"
+    });
+
+    await act(async () => {
+      await result.current.saveMarkdownTab(backgroundTabId!);
+    });
+
+    expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledWith({
+      contents: "# Notes\n\nDraft",
+      path: "/mock-files/notes.md",
+      suggestedName: "notes.md"
+    });
+    expect(result.current.document.name).toBe("guide.md");
+    expect(result.current.tabs.find((tab) => tab.id === backgroundTabId)).toMatchObject({
+      dirty: false,
+      name: "notes.md",
+      path: "/mock-files/notes.md"
     });
   });
 

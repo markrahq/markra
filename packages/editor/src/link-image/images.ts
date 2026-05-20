@@ -146,10 +146,16 @@ export function createFinalizedImageNodeView(
   dom.append(image);
 
   const showSource = () => {
+    if (!view.editable) {
+      hideSource();
+      return false;
+    }
+
     source.value = imageMarkdownSource(currentNode);
     if (!sourceRow.isConnected) dom.insertBefore(sourceRow, image);
     dom.classList.add("markra-image-node-selected");
     dom.ownerDocument.addEventListener("mousedown", hideSourceOnOutsidePress, true);
+    return true;
   };
 
   const hideSource = () => {
@@ -160,6 +166,8 @@ export function createFinalizedImageNodeView(
   };
 
   const syncSource = () => {
+    if (!view.editable) return false;
+
     const position = typeof getPos === "function" ? getPos() : undefined;
     if (source.value.trim().length === 0) {
       if (typeof position !== "number") return false;
@@ -188,6 +196,7 @@ export function createFinalizedImageNodeView(
   };
 
   const moveToParagraphAfterImage = (event: KeyboardEvent) => {
+    if (!view.editable) return;
     if (event.key !== "Enter" || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
 
     event.preventDefault();
@@ -217,6 +226,11 @@ export function createFinalizedImageNodeView(
   const selectImage = (event: MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
+
+    if (!view.editable) {
+      hideSource();
+      return;
+    }
 
     showSource();
     focusImageSource(source, currentNode);

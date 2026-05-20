@@ -51,6 +51,7 @@ async function renderEditor(
     onSaveRemoteClipboardImage?: (image: RemoteClipboardImage) => Promise<{ alt: string; src: string } | null>;
     openExternalUrl?: (url: string) => unknown;
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
+    readOnly?: boolean;
     resolveImageSrc?: (src: string) => string;
     markdownShortcuts?: MarkdownShortcutMap;
     workspaceFiles?: Array<{
@@ -75,6 +76,7 @@ async function renderEditor(
       onSaveClipboardImage={options.onSaveClipboardImage}
       onSaveRemoteClipboardImage={options.onSaveRemoteClipboardImage}
       openExternalUrl={options.openExternalUrl}
+      readOnly={options.readOnly}
       onTextSelectionChange={options.onTextSelectionChange}
       resolveImageSrc={options.resolveImageSrc}
       revision={0}
@@ -621,6 +623,72 @@ describe("MarkdownPaper editing", () => {
     const { container } = await renderEditor();
 
     expect(container.querySelector(".markdown-paper")).toHaveAttribute("data-editor-theme", "light");
+  });
+
+  it("blocks document-changing editor transactions while read-only", async () => {
+    const onMarkdownChange = vi.fn();
+    const { editor, view } = await renderEditor("Locked content", {
+      onMarkdownChange,
+      readOnly: true
+    });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const initialMarkdown = serializeMarkdown(view.state.doc);
+
+    onMarkdownChange.mockClear();
+    const insertionPoint = findTextPosition(view, "Locked content", "Locked content".length);
+    view.dispatch(view.state.tr.insertText(" edited", insertionPoint, insertionPoint).scrollIntoView());
+    await settleMarkdownListener();
+
+    expect(serializeMarkdown(view.state.doc)).toBe(initialMarkdown);
+    expect(onMarkdownChange).not.toHaveBeenCalled();
+  });
+
+  it("keeps finalized image source controls hidden while read-only", async () => {
+    const { container } = await renderEditor("![Screenshot](assets/pasted-image.png)", {
+      readOnly: true
+    });
+
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    expect(image).toBeInTheDocument();
+
+    fireEvent.mouseDown(image!);
+
+    expect(container.querySelector(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
+  });
+
+  it("hides open finalized image source controls when read-only is enabled", async () => {
+    let editor: Editor | null = null;
+    const onEditorReady = (instance: Editor | null) => {
+      editor = instance;
+    };
+    const { container, rerender } = render(
+      <MarkdownPaper
+        initialContent="![Screenshot](assets/pasted-image.png)"
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        revision={0}
+      />
+    );
+
+    await waitFor(() => expect(editor).not.toBeNull());
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    expect(image).toBeInTheDocument();
+
+    fireEvent.mouseDown(image!);
+    expect(container.querySelector(".ProseMirror .markra-image-node-source")).toBeInTheDocument();
+
+    rerender(
+      <MarkdownPaper
+        initialContent="![Screenshot](assets/pasted-image.png)"
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        readOnly
+        revision={0}
+      />
+    );
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror")).toHaveAttribute("contenteditable", "false"));
+    expect(container.querySelector(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
   });
 
   it("renders fenced code blocks with syntax highlighting and line numbers", async () => {

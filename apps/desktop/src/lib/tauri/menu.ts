@@ -19,9 +19,11 @@ import type { NativeMarkdownFolderFile } from "./file";
 export type NativeMenuHandlers = Partial<Record<NativeMenuCommand, () => unknown | Promise<unknown>>>;
 
 export type NativeMarkdownFileTreeContextMenuHandlers = {
+  canOpenFileToSide?: (file: NativeMarkdownFolderFile) => boolean;
   createFile?: () => unknown | Promise<unknown>;
   createFolder?: () => unknown | Promise<unknown>;
   deleteFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
+  openFileToSide?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   renameFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
 };
 
@@ -125,13 +127,15 @@ function customItem(
   id: string,
   text: string,
   accelerator: string | undefined,
-  handler: (() => unknown | Promise<unknown>) | undefined
+  handler: (() => unknown | Promise<unknown>) | undefined,
+  enabled = true
 ): MenuItemOptions {
   return {
     id,
     text,
     accelerator,
-    action: () => runNativeMenuAction(handler)
+    enabled,
+    action: enabled ? () => runNativeMenuAction(handler) : undefined
   };
 }
 
@@ -319,6 +323,7 @@ export function createNativeMarkdownFileTreeContextMenuItems(
 ) {
   const label = (key: I18nKey) => menuLabel(language, key);
   const fileIsFolder = file?.kind === "folder";
+  const fileIsAsset = file?.kind === "asset";
   const items: Array<MenuItemOptions | PredefinedMenuItemOptions> = [
     customItem("markra:file-tree:new", label("app.newMarkdownFile"), undefined, handlers.createFile),
     customItem("markra:file-tree:new-folder", label("app.newMarkdownFolder"), undefined, handlers.createFolder)
@@ -335,8 +340,20 @@ export function createNativeMarkdownFileTreeContextMenuItems(
     return items;
   }
 
+  items.push(separator());
+  if (!fileIsAsset && handlers.openFileToSide) {
+    const canOpenFileToSide = handlers.canOpenFileToSide?.(file) ?? true;
+    items.push(
+      customItem(
+        "markra:file-tree:open-to-side",
+        label("app.openDocumentToSide"),
+        undefined,
+        canOpenFileToSide ? () => handlers.openFileToSide?.(file) : undefined,
+        canOpenFileToSide
+      )
+    );
+  }
   items.push(
-    separator(),
     customItem("markra:file-tree:rename", label("app.renameMarkdownFile"), undefined, () => handlers.renameFile?.(file)),
     customItem("markra:file-tree:delete", label("app.deleteMarkdownFile"), undefined, () => handlers.deleteFile?.(file))
   );
