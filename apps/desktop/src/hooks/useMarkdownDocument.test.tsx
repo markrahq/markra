@@ -1,9 +1,11 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useMarkdownDocument } from "./useMarkdownDocument";
 import {
+  openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
   readNativeMarkdownFile,
   saveNativeMarkdownFile,
+  setNativeEditorWindowRestoreState,
   watchNativeMarkdownFile
 } from "../lib/tauri";
 import {
@@ -25,13 +27,16 @@ vi.mock("../lib/tauri", () => ({
   openNativeMarkdownPath: vi.fn(),
   readNativeMarkdownFile: vi.fn(),
   saveNativeMarkdownFile: vi.fn(),
+  setNativeEditorWindowRestoreState: vi.fn(),
   setNativeWindowTitle: vi.fn(),
   watchNativeMarkdownFile: vi.fn()
 }));
 
+const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFileInNewWindow);
 const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
 const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
 const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
+const mockedSetNativeEditorWindowRestoreState = vi.mocked(setNativeEditorWindowRestoreState);
 const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
@@ -41,8 +46,10 @@ describe("useMarkdownDocument", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/");
     mockedOpenNativeMarkdownPath.mockReset();
+    mockedOpenNativeMarkdownFileInNewWindow.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
+    mockedSetNativeEditorWindowRestoreState.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
     mockedConsumeWelcomeDocumentState.mockReset();
     mockedGetStoredWorkspaceState.mockReset();
@@ -62,6 +69,7 @@ describe("useMarkdownDocument", () => {
       name: "saved.md",
       path: "/mock-files/saved.md"
     });
+    mockedSetNativeEditorWindowRestoreState.mockResolvedValue(undefined);
   });
 
   it("does not ask to discard an untouched blank document when the editor still exposes stale markdown", async () => {
@@ -837,5 +845,82 @@ describe("useMarkdownDocument", () => {
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(notesPath);
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+  });
+
+  it("restores additional editor windows from the saved update-restart snapshot", async () => {
+    const firstPath = "/mock-files/vault/first.md";
+    const secondPath = "/mock-files/vault/second.md";
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-window-restore",
+      filePath: null,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: [],
+      openWindows: [
+        {
+          filePath: firstPath,
+          label: "main",
+          openFilePaths: [firstPath]
+        },
+        {
+          filePath: secondPath,
+          label: "markra-editor-1",
+          openFilePaths: [secondPath]
+        }
+      ]
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# First",
+      name: "first.md",
+      path: firstPath
+    });
+
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: true,
+        restoreWorkspaceOnStartup: true
+      })
+    );
+
+    await waitFor(() => expect(result.current.document.name).toBe("first.md"));
+
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(firstPath);
+    expect(mockedOpenNativeMarkdownFileInNewWindow).toHaveBeenCalledWith(secondPath);
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({ openWindows: [] });
+    expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+  });
+
+  it("registers the current editor window restore state when a markdown file opens", async () => {
+    const filePath = "/mock-files/vault/current.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "file",
+      file: {
+        content: "# Current",
+        name: "current.md",
+        path: filePath
+      }
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openMarkdownFile();
+    });
+
+    expect(mockedSetNativeEditorWindowRestoreState).toHaveBeenCalledWith({
+      filePath,
+      openFilePaths: [filePath]
+    });
   });
 });

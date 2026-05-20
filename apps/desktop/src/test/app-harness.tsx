@@ -19,6 +19,7 @@ import {
   saveNativeHtmlFile,
   saveNativeMarkdownFile,
   saveNativePdfFile,
+  setNativeEditorWindowRestoreState,
   showNativeMarkdownFileTreeContextMenu,
   installNativeMarkdownFileDrop,
   listNativeMarkdownFilesForPath,
@@ -120,6 +121,7 @@ vi.mock("../lib/tauri", () => ({
   saveNativeHtmlFile: vi.fn(),
   saveNativeMarkdownFile: vi.fn(),
   saveNativePdfFile: vi.fn(),
+  setNativeEditorWindowRestoreState: vi.fn(),
   showNativeMarkdownFileTreeContextMenu: vi.fn(),
   uploadNativeS3Image: vi.fn(),
   uploadNativeWebDavImage: vi.fn(),
@@ -474,6 +476,7 @@ export const mockedResolveNativeMarkdownPath = vi.mocked(resolveNativeMarkdownPa
 export const mockedSaveNativeHtmlFile = vi.mocked(saveNativeHtmlFile);
 export const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
 export const mockedSaveNativePdfFile = vi.mocked(saveNativePdfFile);
+export const mockedSetNativeEditorWindowRestoreState = vi.mocked(setNativeEditorWindowRestoreState);
 export const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
 export const mockedInstallNativeMarkdownFileDrop = vi.mocked(installNativeMarkdownFileDrop);
 export const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
@@ -630,6 +633,7 @@ export function installAppTestHarness() {
     mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
     mockedShowNativeMarkdownFileTreeContextMenu.mockReset();
+    mockedSetNativeEditorWindowRestoreState.mockReset();
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedTakeNativeOpenedMarkdownPaths.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
@@ -725,6 +729,7 @@ export function installAppTestHarness() {
       path: "/mock-files/Untitled.pdf"
     });
     mockedShowNativeMarkdownFileTreeContextMenu.mockResolvedValue(undefined);
+    mockedSetNativeEditorWindowRestoreState.mockResolvedValue(undefined);
     mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppCustomThemeCssChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});

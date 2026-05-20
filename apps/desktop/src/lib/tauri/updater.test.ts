@@ -1,5 +1,7 @@
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { saveStoredWorkspaceState } from "../settings/app-settings";
+import { listNativeEditorWindowRestoreStates } from "./window";
 import { checkNativeAppUpdate } from "./updater";
 
 vi.mock("@tauri-apps/plugin-updater", () => ({
@@ -10,13 +12,27 @@ vi.mock("@tauri-apps/plugin-process", () => ({
   relaunch: vi.fn()
 }));
 
+vi.mock("../settings/app-settings", () => ({
+  saveStoredWorkspaceState: vi.fn()
+}));
+
+vi.mock("./window", () => ({
+  listNativeEditorWindowRestoreStates: vi.fn()
+}));
+
 const mockedCheck = vi.mocked(check);
 const mockedRelaunch = vi.mocked(relaunch);
+const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
+const mockedListNativeEditorWindowRestoreStates = vi.mocked(listNativeEditorWindowRestoreStates);
 
 describe("native app updater", () => {
   beforeEach(() => {
     mockedCheck.mockReset();
     mockedRelaunch.mockReset();
+    mockedSaveStoredWorkspaceState.mockReset();
+    mockedListNativeEditorWindowRestoreStates.mockReset();
+    mockedListNativeEditorWindowRestoreStates.mockResolvedValue([]);
+    mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
     delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
   });
 
@@ -110,6 +126,47 @@ describe("native app updater", () => {
 
     await update?.restart();
 
+    expect(mockedRelaunch).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists the registered editor window restore snapshot before relaunching", async () => {
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    mockedListNativeEditorWindowRestoreStates.mockResolvedValue([
+      {
+        filePath: "/mock-files/first.md",
+        label: "main",
+        openFilePaths: ["/mock-files/first.md"]
+      },
+      {
+        filePath: "/mock-files/second.md",
+        label: "markra-editor-1",
+        openFilePaths: ["/mock-files/second.md"]
+      }
+    ]);
+    mockedCheck.mockResolvedValue({
+      currentVersion: "0.0.6",
+      downloadAndInstall: vi.fn(),
+      rawJson: {},
+      version: "0.0.7"
+    } as unknown as Awaited<ReturnType<typeof check>>);
+
+    const update = await checkNativeAppUpdate();
+    await update?.restart();
+
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+      openWindows: [
+        {
+          filePath: "/mock-files/first.md",
+          label: "main",
+          openFilePaths: ["/mock-files/first.md"]
+        },
+        {
+          filePath: "/mock-files/second.md",
+          label: "markra-editor-1",
+          openFilePaths: ["/mock-files/second.md"]
+        }
+      ]
+    });
     expect(mockedRelaunch).toHaveBeenCalledTimes(1);
   });
 });

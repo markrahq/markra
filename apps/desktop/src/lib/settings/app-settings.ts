@@ -138,7 +138,13 @@ export type StoredWorkspaceState = {
   folderName: string | null;
   folderPath: string | null;
   openFilePaths: string[];
+  openWindows?: StoredWorkspaceWindow[];
   sideBySideGroup?: StoredWorkspaceSideBySideGroup | null;
+};
+export type StoredWorkspaceWindow = {
+  filePath: string | null;
+  label: string;
+  openFilePaths: string[];
 };
 export type StoredWorkspaceSideBySideGroup = {
   primaryFilePath: string;
@@ -285,7 +291,8 @@ export const defaultWorkspaceState: StoredWorkspaceState = {
   fileTreeOpen: false,
   folderName: null,
   folderPath: null,
-  openFilePaths: []
+  openFilePaths: [],
+  openWindows: []
 };
 
 function loadSettingsStore() {
@@ -1115,6 +1122,7 @@ export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
     folderName: normalizeNullableString(workspace.folderName),
     folderPath: normalizeNullableString(workspace.folderPath),
     openFilePaths,
+    openWindows: normalizeWorkspaceWindows(workspace.openWindows),
     ...(persistedSideBySideGroup ? { sideBySideGroup: persistedSideBySideGroup } : {})
   };
 }
@@ -1134,6 +1142,35 @@ function normalizeWorkspaceOpenFilePaths(value: unknown) {
   });
 
   return paths;
+}
+
+function normalizeWorkspaceWindows(value: unknown): StoredWorkspaceWindow[] {
+  if (!Array.isArray(value)) return [];
+
+  const seenLabels = new Set<string>();
+  const windows: StoredWorkspaceWindow[] = [];
+
+  value.forEach((item) => {
+    if (typeof item !== "object" || item === null) return;
+
+    const candidate = item as Partial<StoredWorkspaceWindow>;
+    const label = normalizeNullableString(candidate.label);
+    if (!label || seenLabels.has(label)) return;
+
+    const filePath = normalizeNullableString(candidate.filePath);
+    const openFilePaths = normalizeWorkspaceOpenFilePaths(candidate.openFilePaths);
+    if (filePath && !openFilePaths.includes(filePath)) openFilePaths.push(filePath);
+    if (!filePath && openFilePaths.length === 0) return;
+
+    seenLabels.add(label);
+    windows.push({
+      filePath,
+      label,
+      openFilePaths
+    });
+  });
+
+  return windows;
 }
 
 function normalizeWorkspaceSideBySideGroup(value: unknown): StoredWorkspaceSideBySideGroup | null {

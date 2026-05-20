@@ -1,5 +1,7 @@
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { saveStoredWorkspaceState } from "../settings/app-settings";
+import { listNativeEditorWindowRestoreStates } from "./window";
 
 const localUpdaterProxyUrls = [
   "http://127.0.0.1:7890",
@@ -62,6 +64,15 @@ function emitProgress({
   });
 }
 
+async function persistEditorWindowRestoreSnapshot() {
+  try {
+    const openWindows = await listNativeEditorWindowRestoreStates();
+    await saveStoredWorkspaceState({ openWindows });
+  } catch {
+    // Relaunching for an installed update should not be blocked by opportunistic restore state.
+  }
+}
+
 export async function checkNativeAppUpdate(): Promise<NativeAppUpdate | null> {
   if (!isTauriRuntime()) return null;
 
@@ -96,7 +107,10 @@ export async function checkNativeAppUpdate(): Promise<NativeAppUpdate | null> {
         }
       });
     },
-    restart: relaunch,
+    async restart() {
+      await persistEditorWindowRestoreSnapshot();
+      await relaunch();
+    },
     version: update.version
   };
 }
