@@ -55,7 +55,7 @@ export function applyAgentEventToProcesses(
       detail: formatToolArgs(event.args),
       id: `tool:${event.toolCallId}`,
       kind: "tool_call",
-      label: toolLabelForName(event.toolName, translate),
+      label: toolLabelForToolStart(event, translate),
       rawLabel: event.toolName,
       status: "running",
       turn
@@ -68,7 +68,7 @@ export function applyAgentEventToProcesses(
       detail: formatToolResult(event),
       id: `tool:${event.toolCallId}`,
       kind: "tool_call",
-      label: toolLabelForName(event.toolName, translate),
+      label: toolLabelForToolEnd(event, translate),
       rawLabel: event.toolName,
       status: event.isError ? "error" : "completed",
       turn
@@ -196,7 +196,7 @@ function formatToolArgs(args: unknown) {
 
 function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end" }>) {
   if (event.isError) return formatToolErrorResult(event.result);
-  if (event.toolName === "list_workspace_files" && typeof event.result?.details?.count === "number") {
+  if (event.toolName === "search_workspace" && typeof event.result?.details?.count === "number") {
     return `${event.result.details.count} files`;
   }
   if (event.toolName === "read_workspace_file" && typeof event.result?.details?.relativePath === "string") {
@@ -204,51 +204,45 @@ function formatToolResult(event: Extract<AgentEvent, { type: "tool_execution_end
 
     return `${event.result.details.relativePath}${length}`;
   }
-  if (event.toolName === "list_document_images" && typeof event.result?.details?.count === "number") {
+  if (event.toolName === "list_assets" && typeof event.result?.details?.count === "number") {
     const unit = event.result.details.count === 1 ? "image" : "images";
 
     return `${event.result.details.count} ${unit}`;
   }
-  if (event.toolName === "view_document_image" && typeof event.result?.details?.src === "string") {
+  if (event.toolName === "view_asset" && typeof event.result?.details?.src === "string") {
     const mimeType = typeof event.result.details.mimeType === "string" ? ` · ${event.result.details.mimeType}` : "";
 
     return `${event.result.details.src}${mimeType}`;
   }
-  if (event.toolName === "builtin_web_search" && typeof event.result?.details?.count === "number") {
+  if (event.toolName === "web_search" && typeof event.result?.details?.count === "number") {
     const unit = event.result.details.count === 1 ? "source" : "sources";
 
     return `${event.result.details.count} ${unit}`;
   }
-  if (event.toolName === "get_document" && typeof event.result?.details?.length === "number") {
+  if (event.toolName === "get_editor_context" && typeof event.result?.details?.documentLength === "number") {
+    return `${event.result.details.documentLength} chars`;
+  }
+  if (event.toolName === "read_document" && typeof event.result?.details?.length === "number") {
     return `${event.result.details.length} chars`;
   }
-  if (event.toolName === "get_available_anchors" && typeof event.result?.details?.count === "number") {
-    return `${event.result.details.count} anchors`;
+  if (event.toolName === "inspect_document_structure" && typeof event.result?.details?.anchorCount === "number") {
+    return `${event.result.details.anchorCount} anchors`;
   }
-  if (event.toolName === "get_document_sections" && typeof event.result?.details?.count === "number") {
-    return `${event.result.details.count} sections`;
+  if (event.toolName === "search_document" && typeof event.result?.details?.count === "number") {
+    return `${event.result.details.count} matches`;
   }
-  if (event.toolName === "get_selection" && typeof event.result?.details?.text === "string") {
-    return `${event.result.details.text.length} chars`;
+  if (event.toolName === "validate_edit" && typeof event.result?.details?.issueCount === "number") {
+    return `${event.result.details.issueCount} issues`;
   }
-  if (event.toolName === "get_document_outline" && typeof event.result?.details?.count === "number") {
-    return `${event.result.details.count} headings`;
-  }
-  if (event.toolName === "locate_markdown_region" && typeof event.result?.details?.anchorId === "string") {
-    return formatLocatedAnchorDetail(event.result.details);
-  }
-  if (event.toolName === "locate_section" && typeof event.result?.details?.anchorId === "string") {
+  if (event.toolName === "locate_content" && typeof event.result?.details?.anchorId === "string") {
     return formatLocatedAnchorDetail(event.result.details);
   }
   if (
     (
-      event.toolName === "replace_region" ||
-      event.toolName === "replace_block" ||
-      event.toolName === "replace_table" ||
-      event.toolName === "replace_document" ||
-      event.toolName === "replace_section" ||
-      event.toolName === "delete_region" ||
-      event.toolName === "delete_section" ||
+      event.toolName === "replace_content" ||
+      event.toolName === "delete_content" ||
+      event.toolName === "move_content" ||
+      event.toolName === "batch_edit" ||
       event.toolName === "delete_selection"
     ) &&
     typeof event.result?.details?.original === "string"
@@ -310,31 +304,43 @@ function assistantTextFromMessageContent(content: unknown) {
     .trim();
 }
 
+function toolLabelForToolStart(event: Extract<AgentEvent, { type: "tool_execution_start" }>, translate: Translate) {
+  if (event.toolName === "locate_content") return locateContentLabel((event.args as { targetKind?: unknown } | undefined)?.targetKind, translate);
+
+  return toolLabelForName(event.toolName, translate);
+}
+
+function toolLabelForToolEnd(event: Extract<AgentEvent, { type: "tool_execution_end" }>, translate: Translate) {
+  if (event.toolName === "locate_content") return locateContentLabel((event.result?.details as { targetKind?: unknown } | undefined)?.targetKind, translate);
+
+  return toolLabelForName(event.toolName, translate);
+}
+
 function toolLabelForName(toolName: string, translate: Translate) {
-  if (toolName === "get_document") return translate("app.aiAgentProcessReadDocument");
-  if (toolName === "get_available_anchors") return translate("app.aiAgentProcessReadAnchors");
-  if (toolName === "get_document_outline") return translate("app.aiAgentProcessReadDocumentOutline");
-  if (toolName === "get_document_sections") return translate("app.aiAgentProcessReadSections");
-  if (toolName === "locate_markdown_region") return translate("app.aiAgentProcessLocateRegion");
-  if (toolName === "locate_section") return translate("app.aiAgentProcessLocateSection");
-  if (toolName === "get_selection") return translate("app.aiAgentProcessReadSelection");
-  if (toolName === "list_document_images") return translate("app.aiAgentProcessListDocumentImages");
-  if (toolName === "view_document_image") return translate("app.aiAgentProcessReadDocumentImage");
-  if (toolName === "builtin_web_search") return translate("app.aiAgentProcessWebSearch");
-  if (toolName === "list_workspace_files") return translate("app.aiAgentProcessListWorkspaceFiles");
+  if (toolName === "get_editor_context") return translate("app.aiAgentProcessReadSelection");
+  if (toolName === "read_document") return translate("app.aiAgentProcessReadDocument");
+  if (toolName === "inspect_document_structure") return translate("app.aiAgentProcessReadAnchors");
+  if (toolName === "search_document") return translate("app.aiAgentProcessLocateRegion");
+  if (toolName === "search_workspace") return translate("app.aiAgentProcessListWorkspaceFiles");
   if (toolName === "read_workspace_file") return translate("app.aiAgentProcessReadWorkspaceFile");
-  if (toolName === "replace_document") return translate("app.aiAgentProcessReplaceDocument");
-  if (toolName === "replace_block") return translate("app.aiAgentProcessReplaceBlock");
-  if (toolName === "replace_region") return translate("app.aiAgentProcessReplaceRegion");
-  if (toolName === "replace_section") return translate("app.aiAgentProcessReplaceSection");
+  if (toolName === "list_assets") return translate("app.aiAgentProcessListDocumentImages");
+  if (toolName === "view_asset") return translate("app.aiAgentProcessReadDocumentImage");
+  if (toolName === "web_search") return translate("app.aiAgentProcessWebSearch");
+  if (toolName === "replace_content") return translate("app.aiAgentProcessReplaceRegion");
   if (toolName === "replace_selection") return translate("app.aiAgentProcessReplaceSelection");
   if (toolName === "insert_after_selection") return translate("app.aiAgentProcessInsertAfterSelection");
-  if (toolName === "insert_markdown") return translate("app.aiAgentProcessInsertMarkdown");
-  if (toolName === "delete_region") return translate("app.aiAgentProcessDeleteRegion");
-  if (toolName === "delete_section") return translate("app.aiAgentProcessDeleteSection");
+  if (toolName === "insert_content") return translate("app.aiAgentProcessInsertMarkdown");
+  if (toolName === "delete_content") return translate("app.aiAgentProcessDeleteRegion");
   if (toolName === "delete_selection") return translate("app.aiAgentProcessDeleteSelection");
+  if (toolName === "batch_edit") return translate("app.aiAgentProcessReplaceRegion");
 
   return translate("app.aiAgentProcessRunTool");
+}
+
+function locateContentLabel(targetKind: unknown, translate: Translate) {
+  return targetKind === "section"
+    ? translate("app.aiAgentProcessLocateSection")
+    : translate("app.aiAgentProcessLocateRegion");
 }
 
 function formatLocatedAnchorDetail(details: unknown) {

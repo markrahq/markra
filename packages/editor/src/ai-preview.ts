@@ -1292,7 +1292,7 @@ function markdownLineToComparableText(line: string) {
   if (/^\|?\s*:?-{3,}:?(\s*\|\s*:?-{3,}:?)*\s*\|?$/u.test(trimmed)) return "";
 
   return normalizePreviewComparableText(
-    trimmed
+    stripInlineMarkdownSyntax(trimmed)
       .replace(/^#{1,6}\s+/u, "")
       .replace(/^[-*+]\s+/u, "")
       .replace(/^\d+\.\s+/u, "")
@@ -1300,6 +1300,17 @@ function markdownLineToComparableText(line: string) {
       .replace(/\|$/u, "")
       .replace(/\|/gu, " ")
   );
+}
+
+function stripInlineMarkdownSyntax(value: string) {
+  return value
+    .replace(/!\[([^\]]*)\]\([^)]+\)/gu, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/gu, "$1")
+    .replace(/`([^`]+)`/gu, "$1")
+    .replace(/\*\*([^*]+)\*\*/gu, "$1")
+    .replace(/__([^_]+)__/gu, "$1")
+    .replace(/\*([^*]+)\*/gu, "$1")
+    .replace(/_([^_]+)_/gu, "$1");
 }
 
 function normalizePreviewComparableText(value: string) {

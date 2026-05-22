@@ -2,25 +2,24 @@ import { Type } from "@mariozechner/pi-ai";
 import type { AiDiffResult } from "../inline";
 import { debug } from "@markra/shared";
 import { DocumentAgentToolFactory } from "./base";
-import { typedInsertMarkdownArgs } from "./params";
+import { typedInsertContentArgs } from "./params";
 import {
   duplicatePreparedInsertionResult,
   findDuplicatePreparedInsertion,
   normalizePreparedInsertionContent,
-  rememberPreparedInsertion,
-  previewPreparedResult
+  rememberPreparedInsertion
 } from "./results";
 import { beginPreparedWrite, resolveInsertionPosition } from "./regions";
 
-export class InsertMarkdownToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedInsertMarkdownArgs>> {
+export class InsertContentToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedInsertContentArgs>> {
   protected readonly description = [
-    "Insert new Markdown using either the current editor context or a resolved anchor.",
-    "Prefer anchorId after using locate_markdown_region when the location is not obvious.",
+    "Insert new Markdown content using either the current editor context or a resolved anchor.",
+    "Prefer anchorId after using locate_content when the location is not obvious.",
     "Use placement=cursor only when the insertion should follow the active caret.",
-    "Use placement=after_anchor or placement=before_anchor with anchorId when you want to insert around a heading, current block, or document end anchor."
+    "Use placement=after_anchor or placement=before_anchor with anchorId when inserting around a heading, current block, or document end anchor."
   ].join(" ");
-  protected readonly label = "Insert markdown";
-  protected readonly name = "insert_markdown";
+  protected readonly label = "Insert content";
+  protected readonly name = "insert_content";
   protected readonly parameters = Type.Object({
     anchorId: Type.Optional(Type.String()),
     content: Type.String({ minLength: 1 }),
@@ -36,10 +35,10 @@ export class InsertMarkdownToolFactory extends DocumentAgentToolFactory<ReturnTy
   });
 
   protected parseParams(params: unknown) {
-    return typedInsertMarkdownArgs(params);
+    return typedInsertContentArgs(params);
   }
 
-  protected executeTool(toolCallId: string, params: ReturnType<typeof typedInsertMarkdownArgs>) {
+  protected executeTool(toolCallId: string, params: ReturnType<typeof typedInsertContentArgs>) {
     const duplicatePreparedInsertion = findDuplicatePreparedInsertion(this.state, params.content);
     if (duplicatePreparedInsertion) {
       debug(() => ["[markra-ai-preview] duplicate insert preview suppressed", {
@@ -57,7 +56,6 @@ export class InsertMarkdownToolFactory extends DocumentAgentToolFactory<ReturnTy
     const position = resolveInsertionPosition(this.context, params);
     if ("error" in position) return position.error;
 
-    this.markPreparedWrite();
     const result: AiDiffResult = {
       from: position.position,
       original: "",
@@ -65,7 +63,11 @@ export class InsertMarkdownToolFactory extends DocumentAgentToolFactory<ReturnTy
       to: position.position,
       type: "insert"
     };
-    this.context.onPreviewResult?.(result, toolCallId);
+    const preview = this.preparePreview(
+      toolCallId,
+      result,
+      `Prepared an insertion preview at ${params.anchorId ? `${params.placement} (${params.anchorId})` : params.placement}.`
+    );
     rememberPreparedInsertion(this.state, {
       content: params.content,
       normalizedContent: normalizePreparedInsertionContent(params.content),
@@ -73,9 +75,6 @@ export class InsertMarkdownToolFactory extends DocumentAgentToolFactory<ReturnTy
       previewId: toolCallId
     });
 
-    return previewPreparedResult(
-      result,
-      `Prepared an insertion preview at ${params.anchorId ? `${params.placement} (${params.anchorId})` : params.placement}.`
-    );
+    return preview;
   }
 }

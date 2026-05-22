@@ -44,8 +44,8 @@ describe("agentProcessTrace", () => {
             count: 2
           }
         },
-        toolCallId: "call_list_document_images",
-        toolName: "list_document_images",
+        toolCallId: "call_list_assets",
+        toolName: "list_assets",
         type: "tool_execution_end"
       } as AgentEvent,
       translate
@@ -60,8 +60,8 @@ describe("agentProcessTrace", () => {
             src: "assets/arch.png"
           }
         },
-        toolCallId: "call_view_document_image",
-        toolName: "view_document_image",
+        toolCallId: "call_view_asset",
+        toolName: "view_asset",
         type: "tool_execution_end"
       } as AgentEvent,
       translate
@@ -69,16 +69,16 @@ describe("agentProcessTrace", () => {
 
     expect(viewedProcesses).toContainEqual(expect.objectContaining({
       detail: "2 images",
-      id: "tool:call_list_document_images",
+      id: "tool:call_list_assets",
       label: "app.aiAgentProcessListDocumentImages",
-      rawLabel: "list_document_images",
+      rawLabel: "list_assets",
       status: "completed"
     }));
     expect(viewedProcesses).toContainEqual(expect.objectContaining({
       detail: "assets/arch.png · image/png",
-      id: "tool:call_view_document_image",
+      id: "tool:call_view_asset",
       label: "app.aiAgentProcessReadDocumentImage",
-      rawLabel: "view_document_image",
+      rawLabel: "view_asset",
       status: "completed"
     }));
   });
@@ -96,8 +96,8 @@ describe("agentProcessTrace", () => {
             query: "Markra web search"
           }
         },
-        toolCallId: "call_builtin_web_search",
-        toolName: "builtin_web_search",
+        toolCallId: "call_web_search",
+        toolName: "web_search",
         type: "tool_execution_end"
       } as AgentEvent,
       translate
@@ -105,9 +105,9 @@ describe("agentProcessTrace", () => {
 
     expect(nextProcesses).toContainEqual(expect.objectContaining({
       detail: "3 sources",
-      id: "tool:call_builtin_web_search",
+      id: "tool:call_web_search",
       label: "app.aiAgentProcessWebSearch",
-      rawLabel: "builtin_web_search",
+      rawLabel: "web_search",
       status: "completed"
     }));
   });
@@ -129,11 +129,12 @@ describe("agentProcessTrace", () => {
                 score: 20
               }
             ],
-            reason: 'Exact heading match for "11. Follow-ups".'
+            reason: 'Exact heading match for "11. Follow-ups".',
+            targetKind: "section"
           }
         },
-        toolCallId: "call_locate_section",
-        toolName: "locate_section",
+        toolCallId: "call_locate_content",
+        toolName: "locate_content",
         type: "tool_execution_end"
       } as AgentEvent,
       translate
@@ -141,7 +142,7 @@ describe("agentProcessTrace", () => {
 
     expect(nextProcesses).toContainEqual(expect.objectContaining({
       detail: expect.stringContaining("Section 11. Follow-ups"),
-      id: "tool:call_locate_section",
+      id: "tool:call_locate_content",
       label: "app.aiAgentProcessLocateSection",
       status: "completed"
     }));
@@ -168,8 +169,8 @@ describe("agentProcessTrace", () => {
             }
           }
         },
-        toolCallId: "call_replace_table",
-        toolName: "replace_table",
+        toolCallId: "call_replace_content",
+        toolName: "replace_content",
         type: "tool_execution_end"
       } as AgentEvent,
       translate
@@ -177,9 +178,9 @@ describe("agentProcessTrace", () => {
 
     expect(nextProcesses).toContainEqual(expect.objectContaining({
       detail: "table: Cost impact · 9 chars",
-      id: "tool:call_replace_table",
-      label: "app.aiAgentProcessRunTool",
-      rawLabel: "replace_table",
+      id: "tool:call_replace_content",
+      label: "app.aiAgentProcessReplaceRegion",
+      rawLabel: "replace_content",
       status: "completed"
     }));
   });
@@ -199,8 +200,8 @@ describe("agentProcessTrace", () => {
           ],
           details: {}
         },
-        toolCallId: "call_insert_markdown",
-        toolName: "insert_markdown",
+        toolCallId: "call_insert_content",
+        toolName: "insert_content",
         type: "tool_execution_end"
       } as AgentEvent,
       translate
@@ -208,7 +209,7 @@ describe("agentProcessTrace", () => {
 
     expect(nextProcesses).toContainEqual(expect.objectContaining({
       detail: expect.stringContaining('Cannot insert because the anchor "heading:99"'),
-      id: "tool:call_insert_markdown",
+      id: "tool:call_insert_content",
       label: "app.aiAgentProcessInsertMarkdown",
       status: "error"
     }));

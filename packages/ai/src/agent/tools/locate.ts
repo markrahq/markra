@@ -1,6 +1,5 @@
 import type { AiDocumentAnchor } from "../inline";
 import type { RegionOperation } from "./context";
-import type { LocateSectionArgs } from "./params";
 import { containsAny, normalizeText, overlapScore } from "./text";
 
 export type LocatedMarkdownRegion = ReturnType<typeof locateMarkdownRegion>;
@@ -41,7 +40,7 @@ export function locateMarkdownRegion(anchors: AiDocumentAnchor[], goal: string, 
   };
 }
 
-export function locateSection(sectionAnchors: AiDocumentAnchor[], args: LocateSectionArgs) {
+export function locateSection(sectionAnchors: AiDocumentAnchor[], args: { goal?: string; headingTitle?: string }) {
   const normalizedHeadingTitle = normalizeText(args.headingTitle ?? "");
   const normalizedGoal = normalizeText(args.goal ?? args.headingTitle ?? "");
   const scoredSections = sectionAnchors

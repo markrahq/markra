@@ -1,6 +1,8 @@
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { TSchema } from "@mariozechner/pi-ai";
+import type { AiDiffResult } from "../inline";
 import type { DocumentAgentToolContext, DocumentAgentToolState } from "./context";
+import { previewPreparedResult } from "./results";
 
 export abstract class DocumentAgentToolFactory<TParams = unknown> {
   constructor(
@@ -23,8 +25,10 @@ export abstract class DocumentAgentToolFactory<TParams = unknown> {
     };
   }
 
-  protected markPreparedWrite() {
-    this.state.preparedWriteCount += 1;
+  protected preparePreview(toolCallId: string, result: AiDiffResult, message: string) {
+    this.context.onPreviewResult?.(result, toolCallId);
+
+    return previewPreparedResult(result, message);
   }
 
   protected parseParams(params: unknown): TParams {

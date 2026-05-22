@@ -1,5 +1,5 @@
 import type { AgentToolResult } from "@mariozechner/pi-agent-core";
-import type { AiDiffTarget, AiDocumentAnchor, AiSelectionContext } from "../inline";
+import type { AiDiffResult, AiDiffTarget, AiDocumentAnchor, AiSelectionContext } from "../inline";
 import {
   buildDocumentAnchors,
   buildSectionAnchors,
@@ -8,7 +8,7 @@ import {
   documentTableAnchors
 } from "./anchors";
 import type { DocumentAgentToolContext, DocumentAnchorPlacement, RegionOperation } from "./context";
-import type { InsertMarkdownArgs } from "./params";
+import type { InsertContentArgs, MoveContentArgs } from "./params";
 import { toolErrorResult } from "./results";
 import {
   isCompleteMarkdownTableBlock,
@@ -117,7 +117,7 @@ export function resolveBlockRegion(
       return {
         anchorId: "current-context",
         error: toolErrorResult(
-          "Cannot replace a block because the current editor context is an inline selection. Use replace_region for inline selection edits."
+          "Cannot replace a block because the current editor context is an inline selection. Use replace_content with targetKind=region for inline selection edits."
         )
       };
     }
@@ -152,28 +152,28 @@ export function resolveBlockRegion(
   if (anchor.kind === "table") {
     return {
       anchorId,
-      error: toolErrorResult("Cannot replace a table anchor with replace_block. Use replace_table with a table anchor.")
+      error: toolErrorResult("Cannot replace a table anchor with targetKind=block. Use replace_content with targetKind=table.")
     };
   }
 
   if (anchor.kind === "section") {
     return {
       anchorId,
-      error: toolErrorResult("Cannot replace a section anchor with replace_block. Use replace_section with a section anchor.")
+      error: toolErrorResult("Cannot replace a section anchor with targetKind=block. Use replace_content with targetKind=section.")
     };
   }
 
   if (anchor.kind === "document") {
     return {
       anchorId,
-      error: toolErrorResult("Cannot replace the whole-document anchor with replace_block. Use replace_document instead.")
+      error: toolErrorResult("Cannot replace the whole-document anchor with targetKind=block. Use replace_content with targetKind=document.")
     };
   }
 
   if (anchor.kind === "document_end") {
     return {
       anchorId,
-      error: toolErrorResult("Cannot replace the document-end anchor with replace_block. Resolve a concrete block or heading instead.")
+      error: toolErrorResult("Cannot replace the document-end anchor with targetKind=block. Resolve a concrete block or heading instead.")
     };
   }
 
@@ -231,7 +231,7 @@ export function ensureReplacementFitsRegion(
     if (anchor?.kind !== "table" || !isCompleteMarkdownTableBlock(region.original)) {
       return {
         error: toolErrorResult(
-          "Cannot replace this region with a Markdown table because the target is not a complete table anchor. Use replace_table with a table anchor."
+          "Cannot replace this region with a Markdown table because the target is not a complete table anchor. Use replace_content with targetKind=table and a table anchor."
         )
       };
     }
@@ -379,9 +379,187 @@ export function resolveSectionAnchor(
   return { anchor: sectionAnchor };
 }
 
+export function resolveAnyAnchor(
+  context: DocumentAgentToolContext,
+  anchorId: string
+): { error: AgentToolResult<{ message: string }> } | { anchor: AiDocumentAnchor } {
+  const anchor = [
+    ...buildDocumentAnchors(context),
+    ...buildSectionAnchors(context)
+  ].find((candidate) => candidate.id === anchorId);
+
+  if (!anchor) {
+    return {
+      error: toolErrorResult(`Cannot resolve anchor "${anchorId}". Inspect available anchors first and use a valid anchor id.`)
+    };
+  }
+
+  return { anchor };
+}
+
+export function resolveExactTextRegion(
+  context: DocumentAgentToolContext,
+  text: string,
+  label: string
+): { error: AgentToolResult<{ message: string }> } | { region: { from: number; original: string; to: number } } {
+  if (!text) {
+    return {
+      error: toolErrorResult(`Cannot resolve ${label} because the text is empty.`)
+    };
+  }
+
+  const from = context.documentContent.indexOf(text);
+  if (from < 0) {
+    return {
+      error: toolErrorResult(`Cannot resolve ${label} because the text was not found in the current document.`)
+    };
+  }
+
+  const duplicateFrom = context.documentContent.indexOf(text, from + text.length);
+  if (duplicateFrom >= 0) {
+    return {
+      error: toolErrorResult(`Cannot resolve ${label} because the text appears multiple times. Use a more specific snippet or an anchor id.`)
+    };
+  }
+
+  return {
+    region: {
+      from,
+      original: text,
+      to: from + text.length
+    }
+  };
+}
+
+export function buildMovePreview(
+  context: DocumentAgentToolContext,
+  args: MoveContentArgs
+): { error: AgentToolResult<{ message: string }> } | { result: AiDiffResult } {
+  const source = resolveMoveSource(context, args);
+  if ("error" in source) return source;
+  const destination = resolveMoveDestination(context, args);
+  if ("error" in destination) return destination;
+
+  if (destination.position === source.region.from || destination.position === source.region.to) {
+    return {
+      error: toolErrorResult("Cannot move content because the requested move would not change the document.")
+    };
+  }
+
+  if (destination.position > source.region.from && destination.position < source.region.to) {
+    return {
+      error: toolErrorResult("Cannot move content because the destination is inside the source range.")
+    };
+  }
+
+  const sourceLength = source.region.to - source.region.from;
+  const contentWithoutSource = [
+    context.documentContent.slice(0, source.region.from),
+    context.documentContent.slice(source.region.to)
+  ].join("");
+  const insertPosition = destination.position > source.region.to
+    ? destination.position - sourceLength
+    : destination.position;
+  const movedContent = [
+    contentWithoutSource.slice(0, insertPosition),
+    source.region.original,
+    contentWithoutSource.slice(insertPosition)
+  ].join("");
+  const result = moveReplaceResult(
+    context.documentContent,
+    movedContent,
+    source.region,
+    destination.position
+  );
+  if (!result) {
+    return {
+      error: toolErrorResult("Cannot move content because the requested move would not change the document.")
+    };
+  }
+
+  return { result };
+}
+
+function resolveMoveSource(
+  context: DocumentAgentToolContext,
+  args: MoveContentArgs
+): { error: AgentToolResult<{ message: string }> } | { region: { from: number; original: string; to: number } } {
+  if (args.sourceAnchorId) {
+    const source = resolveAnyAnchor(context, args.sourceAnchorId);
+    if ("error" in source) return source;
+    if (source.anchor.kind === "document" || source.anchor.kind === "document_end") {
+      return {
+        error: toolErrorResult("Cannot move the whole-document or document-end anchor. Use a concrete block, table, heading, section, or text snippet.")
+      };
+    }
+
+    return {
+      region: {
+        from: source.anchor.from,
+        original: source.anchor.text ?? sliceDocumentText(context.documentContent, source.anchor.from, source.anchor.to),
+        to: source.anchor.to
+      }
+    };
+  }
+
+  if (args.sourceText) {
+    return resolveExactTextRegion(context, args.sourceText, "move source");
+  }
+
+  return {
+    error: toolErrorResult("Cannot move content because neither sourceAnchorId nor sourceText was provided.")
+  };
+}
+
+function resolveMoveDestination(
+  context: DocumentAgentToolContext,
+  args: MoveContentArgs
+): { error: AgentToolResult<{ message: string }> } | { position: number } {
+  if (args.destinationAnchorId) {
+    const destination = resolveAnyAnchor(context, args.destinationAnchorId);
+    if ("error" in destination) return destination;
+
+    return {
+      position: args.placement === "after" ? destination.anchor.to : destination.anchor.from
+    };
+  }
+
+  if (args.destinationText) {
+    const destination = resolveExactTextRegion(context, args.destinationText, "move destination");
+    if ("error" in destination) return destination;
+
+    return {
+      position: args.placement === "after" ? destination.region.to : destination.region.from
+    };
+  }
+
+  return {
+    error: toolErrorResult("Cannot move content because neither destinationAnchorId nor destinationText was provided.")
+  };
+}
+
+function moveReplaceResult(
+  originalContent: string,
+  nextContent: string,
+  source: { from: number; to: number },
+  destinationPosition: number
+): AiDiffResult | null {
+  const from = Math.min(source.from, destinationPosition);
+  const to = Math.max(source.to, destinationPosition);
+  if (originalContent.slice(from, to) === nextContent.slice(from, to)) return null;
+
+  return {
+    from,
+    original: originalContent.slice(from, to),
+    replacement: nextContent.slice(from, to),
+    to,
+    type: "replace"
+  };
+}
+
 export function resolveInsertionPosition(
   context: DocumentAgentToolContext,
-  args: InsertMarkdownArgs
+  args: InsertContentArgs
 ): { error: AgentToolResult<{ message: string }> } | { position: number } {
   if (args.anchorId) {
     const anchor = buildDocumentAnchors(context).find((candidate) => candidate.id === args.anchorId);
@@ -410,7 +588,7 @@ export function resolveInsertionPosition(
 
   return {
     error: toolErrorResult(
-      "Cannot insert because there is no active editor selection for that placement. Call locate_markdown_region or get_available_anchors first and then insert via anchorId."
+      "Cannot insert because there is no active editor selection for that placement. Call locate_content or inspect_document_structure first and then insert via anchorId."
     )
   };
 }

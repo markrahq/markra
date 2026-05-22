@@ -162,18 +162,18 @@ describe("AI chat adapters", () => {
           toolCalls: [
             {
               arguments: {},
-              id: "call_get_document",
-              name: "get_document"
+              id: "call_read_document",
+              name: "read_document"
             }
           ]
         },
         {
-          content: "Tool result from get_document:\n# Draft",
+          content: "Tool result from read_document:\n# Draft",
           role: "user",
           toolResult: {
             outputText: "# Draft",
-            toolCallId: "call_get_document",
-            toolName: "get_document"
+            toolCallId: "call_read_document",
+            toolName: "read_document"
           }
         }
       ],
@@ -196,18 +196,18 @@ describe("AI chat adapters", () => {
             {
               function: {
                 arguments: "{}",
-                name: "get_document"
+                name: "read_document"
               },
-              id: "call_get_document",
+              id: "call_read_document",
               type: "function"
             }
           ]
         },
         {
           content: "# Draft",
-          name: "get_document",
+          name: "read_document",
           role: "tool",
-          tool_call_id: "call_get_document"
+          tool_call_id: "call_read_document"
         }
       ],
       thinking: { type: "enabled" }

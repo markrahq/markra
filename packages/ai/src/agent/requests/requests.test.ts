@@ -104,17 +104,17 @@ describe("request builders", () => {
             {
               arguments: { path: "README.md" },
               id: "call_read_document|tool-call-1",
-              name: "get_document"
+              name: "read_document"
             }
           ]
         },
         {
-          content: "Tool result from get_document:\n# README",
+          content: "Tool result from read_document:\n# README",
           role: "user",
           toolResult: {
             outputText: "# README",
             toolCallId: "call_read_document|tool-call-1",
-            toolName: "get_document"
+            toolName: "read_document"
           }
         }
       ],
@@ -127,7 +127,7 @@ describe("request builders", () => {
           arguments: "{\"path\":\"README.md\"}",
           call_id: "call_read_document",
           id: "tool-call-1",
-          name: "get_document",
+          name: "read_document",
           type: "function_call"
         },
         {

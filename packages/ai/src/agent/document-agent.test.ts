@@ -72,14 +72,14 @@ describe("document AI agent", () => {
       .mockImplementationOnce(async (_provider, _model, _messages: ChatMessage[], options) => {
         const toolNames = options?.tools?.map((tool: { name: string }) => tool.name) ?? [];
         expect(toolNames).toEqual(expect.arrayContaining([
-          "list_document_images",
-          "view_document_image"
+          "list_assets",
+          "view_asset"
         ]));
         expect(readDocumentImage).not.toHaveBeenCalled();
         options?.onToolCallDelta?.({
-          id: "call_view_document_image",
+          id: "call_view_asset",
           index: 0,
-          nameDelta: "view_document_image"
+          nameDelta: "view_asset"
         });
         options?.onToolCallDelta?.({
           argumentsDelta: JSON.stringify({
@@ -95,7 +95,7 @@ describe("document AI agent", () => {
       })
       .mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
         const toolResult = messages.at(-1);
-        expect(toolResult?.content).toContain("Tool result from view_document_image:");
+        expect(toolResult?.content).toContain("Tool result from view_asset:");
         expect(toolResult?.images).toEqual([
           {
             dataUrl: "data:image/png;base64,aGVsbG8=",
@@ -131,8 +131,8 @@ describe("document AI agent", () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, _messages: ChatMessage[], options) => {
       const toolNames = options?.tools?.map((tool: { name: string }) => tool.name) ?? [];
       expect(toolNames).toEqual(expect.arrayContaining([
-        "list_document_images",
-        "view_document_image"
+        "list_assets",
+        "view_asset"
       ]));
 
       return {
@@ -169,10 +169,10 @@ describe("document AI agent", () => {
         options?.onToolCallDelta?.({
           id: "call_read_document",
           index: 0,
-          nameDelta: "get_document"
+          nameDelta: "read_document"
         });
         options?.onToolCallDelta?.({
-          argumentsDelta: "{}",
+          argumentsDelta: JSON.stringify({ targetKind: "document" }),
           id: "call_read_document",
           index: 0
         });
@@ -214,19 +214,21 @@ describe("document AI agent", () => {
       role: "assistant",
       toolCalls: [
         {
-          arguments: {},
+          arguments: {
+            targetKind: "document"
+          },
           id: "call_read_document|tool-call-1",
-          name: "get_document"
+          name: "read_document"
         }
       ]
     });
     expect(replayMessages.at(-1)).toMatchObject({
-      content: expect.stringContaining("Tool result from get_document:"),
+      content: expect.stringContaining("Tool result from read_document:"),
       role: "user",
       toolResult: {
         outputText: expect.stringContaining("# Draft"),
         toolCallId: "call_read_document|tool-call-1",
-        toolName: "get_document"
+        toolName: "read_document"
       }
     });
     expect(result.content).toBe("I have the document content now.");
@@ -455,10 +457,10 @@ describe("document AI agent", () => {
       expect(messages[1]?.content).toContain("Current selection snapshot:");
       expect(messages[1]?.content).toContain("Range: 2-13");
       expect(messages[1]?.content).toContain("Synthetic text");
-      expect(messages[1]?.content).toContain("Use builtin_web_search for live web information.");
+      expect(messages[1]?.content).toContain("Use web_search for live web information.");
       expect(messages[2]?.content).toBe("User request:\nRewrite the selected synthetic text");
       expect(messages[2]?.content).not.toContain("Current selection snapshot:");
-      expect(messages[2]?.content).not.toContain("Use builtin_web_search for live web information.");
+      expect(messages[2]?.content).not.toContain("Use web_search for live web information.");
 
       return {
         content: "Synthetic response",
@@ -601,7 +603,7 @@ describe("document AI agent", () => {
 
   it("registers the Cherry-style web search tool for tool-calling agents when enabled and configured", async () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
-      expect(messages[0]?.content).toContain("builtin_web_search");
+      expect(messages[0]?.content).toContain("web_search");
 
       return {
         content: "I can search the web with the configured tool.",
@@ -642,10 +644,10 @@ describe("document AI agent", () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[], options) => {
       const toolNames = options?.tools?.map((tool: { name: string }) => tool.name) ?? [];
 
-      expect(messages[0]?.content).not.toContain("builtin_web_search");
+      expect(messages[0]?.content).not.toContain("web_search");
       expect(messages[1]?.content).toContain("Native web search is enabled for this request.");
       expect(messages[1]?.content).not.toContain("If live browsing is unavailable");
-      expect(toolNames).not.toContain("builtin_web_search");
+      expect(toolNames).not.toContain("web_search");
       expect(options?.webSearchEnabled).toBe(true);
 
       return {
@@ -801,8 +803,8 @@ describe("document AI agent", () => {
 
   it("guides the tool-calling agent to use table-specific replacement for table edits", async () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
-      expect(messages[0]?.content).toContain("replace_table");
-      expect(messages[0]?.content).toContain("replace_block");
+      expect(messages[0]?.content).toContain("replace_content");
+      expect(messages[0]?.content).toContain("move_content");
       expect(messages[0]?.content).toContain("table anchor");
 
       return {
@@ -876,9 +878,9 @@ describe("document AI agent", () => {
       .fn()
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onToolCallDelta?.({
-          id: "call_replace_region",
+          id: "call_replace_content",
           index: 0,
-          nameDelta: "replace_region"
+          nameDelta: "replace_content"
         });
         options?.onToolCallDelta?.({
           argumentsDelta: "{\"replacement\":\"Polished draft\"}",
@@ -935,9 +937,9 @@ describe("document AI agent", () => {
     const onPreviewResult = vi.fn();
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, _messages, options) => {
       options?.onToolCallDelta?.({
-        id: "call_insert_markdown_intro",
+        id: "call_insert_content_intro",
         index: 0,
-        nameDelta: "insert_markdown"
+        nameDelta: "insert_content"
       });
       options?.onToolCallDelta?.({
         argumentsDelta: JSON.stringify({
@@ -948,9 +950,9 @@ describe("document AI agent", () => {
         index: 0
       });
       options?.onToolCallDelta?.({
-        id: "call_insert_markdown_summary",
+        id: "call_insert_content_summary",
         index: 1,
-        nameDelta: "insert_markdown"
+        nameDelta: "insert_content"
       });
       options?.onToolCallDelta?.({
         argumentsDelta: JSON.stringify({
@@ -994,13 +996,13 @@ describe("document AI agent", () => {
     expect(complete).toHaveBeenCalledTimes(1);
   });
 
-  it("collapses duplicate insert_markdown retries with identical content in the same assistant turn", async () => {
+  it("collapses duplicate insert_content retries with identical content in the same assistant turn", async () => {
     const onPreviewResult = vi.fn();
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, _messages, options) => {
       options?.onToolCallDelta?.({
-        id: "call_insert_markdown_first",
+        id: "call_insert_content_first",
         index: 0,
-        nameDelta: "insert_markdown"
+        nameDelta: "insert_content"
       });
       options?.onToolCallDelta?.({
         argumentsDelta: JSON.stringify({
@@ -1011,9 +1013,9 @@ describe("document AI agent", () => {
         index: 0
       });
       options?.onToolCallDelta?.({
-        id: "call_insert_markdown_second",
+        id: "call_insert_content_second",
         index: 1,
-        nameDelta: "insert_markdown"
+        nameDelta: "insert_content"
       });
       options?.onToolCallDelta?.({
         argumentsDelta: JSON.stringify({
@@ -1063,9 +1065,9 @@ describe("document AI agent", () => {
       .fn()
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onToolCallDelta?.({
-          id: "call_insert_markdown",
+          id: "call_insert_content",
           index: 0,
-          nameDelta: "insert_markdown"
+          nameDelta: "insert_content"
         });
         options?.onToolCallDelta?.({
           argumentsDelta: JSON.stringify({
@@ -1118,9 +1120,9 @@ describe("document AI agent", () => {
       .fn()
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onToolCallDelta?.({
-          id: "call_insert_markdown",
+          id: "call_insert_content",
           index: 0,
-          nameDelta: "insert_markdown"
+          nameDelta: "insert_content"
         });
         options?.onToolCallDelta?.({
           argumentsDelta: JSON.stringify({
@@ -1173,9 +1175,9 @@ describe("document AI agent", () => {
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onDelta?.("I inspected the document and found it is empty.");
         options?.onToolCallDelta?.({
-          id: "call_get_document",
+          id: "call_read_document",
           index: 0,
-          nameDelta: "get_document"
+          nameDelta: "read_document"
         });
 
         return {
@@ -1213,7 +1215,7 @@ describe("document AI agent", () => {
         options?.onToolCallDelta?.({
           id: "provider-tool-1",
           index: 0,
-          nameDelta: "get_document_outline"
+          nameDelta: "read_document"
         });
 
         return {
@@ -1225,7 +1227,7 @@ describe("document AI agent", () => {
         options?.onToolCallDelta?.({
           id: "provider-tool-1",
           index: 0,
-          nameDelta: "get_document"
+          nameDelta: "read_document"
         });
 
         return {
@@ -1268,9 +1270,9 @@ describe("document AI agent", () => {
       .fn()
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onToolCallDelta?.({
-          id: "call_delete_region",
+          id: "call_delete_content",
           index: 0,
-          nameDelta: "delete_region"
+          nameDelta: "delete_content"
         });
 
         return {
@@ -1322,12 +1324,13 @@ describe("document AI agent", () => {
       .fn()
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onToolCallDelta?.({
-          id: "call_replace_document",
+          id: "call_replace_content",
           index: 0,
-          nameDelta: "replace_document"
+          nameDelta: "replace_content"
         });
         options?.onToolCallDelta?.({
           argumentsDelta: JSON.stringify({
+            targetKind: "document",
             replacement: "# Synthetic focus note\n\nFocused comparison."
           }),
           index: 0
@@ -1388,9 +1391,9 @@ describe("document AI agent", () => {
       .fn()
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onToolCallDelta?.({
-          id: "call_replace_table",
+          id: "call_replace_content",
           index: 0,
-          nameDelta: "replace_table"
+          nameDelta: "replace_content"
         });
         options?.onToolCallDelta?.({
           argumentsDelta: JSON.stringify({
@@ -1454,9 +1457,9 @@ describe("document AI agent", () => {
       .fn()
       .mockImplementationOnce(async (_provider, _model, _messages, options) => {
         options?.onToolCallDelta?.({
-          id: "call_delete_section",
+          id: "call_delete_content",
           index: 0,
-          nameDelta: "delete_section"
+          nameDelta: "delete_content"
         });
         options?.onToolCallDelta?.({
           argumentsDelta: JSON.stringify({

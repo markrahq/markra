@@ -4055,6 +4055,51 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("does not restore a parsed Markdown block insert preview with leading whitespace in the middle of a document", async () => {
+    const { container, editor, view } = await renderEditor([
+      "# Alpha",
+      "",
+      "Intro paragraph.",
+      "",
+      "## Existing Section",
+      "",
+      "The original body stays after the insertion point."
+    ].join("\n"));
+    const afterIntro = findTextPosition(view, "Intro paragraph.") + "Intro paragraph.".length;
+    const result = {
+      from: afterIntro,
+      original: "",
+      replacement: [
+        "",
+        "## 测试标题",
+        "",
+        "甲甲**乙乙**丙丙。",
+        "",
+        "### 测试小节",
+        "- **项目**：占位条目。"
+      ].join("\n"),
+      to: afterIntro,
+      type: "insert" as const
+    };
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+    const onRestore = vi.fn();
+
+    window.addEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, onRestore);
+    showAiEditorPreview(view, result, undefined, { parseMarkdown, previewId: "tool-call-leading-space" });
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(1);
+
+    expect(applyAiEditorResult(view, result, { parseMarkdown, previewId: "tool-call-leading-space" })).toBe(true);
+
+    expect(onRestore).not.toHaveBeenCalled();
+    expect(container.querySelectorAll(".ProseMirror .markra-ai-preview-insert")).toHaveLength(0);
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("测试标题");
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("Existing Section");
+
+    window.removeEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, onRestore);
+    clearAiEditorPreview(view);
+    await settleMarkdownListener();
+  });
+
   it("can reject an AI comparison and undo it back to pending again", async () => {
     const { container, view } = await renderEditor("Original text");
     const from = findTextPosition(view, "Original");

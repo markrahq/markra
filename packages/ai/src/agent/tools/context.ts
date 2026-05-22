@@ -51,5 +51,4 @@ export type PreparedInsertionPreview = {
 
 export type DocumentAgentToolState = {
   preparedInsertions: PreparedInsertionPreview[];
-  preparedWriteCount: number;
 };

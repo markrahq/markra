@@ -1,17 +1,17 @@
 import { Type } from "@mariozechner/pi-ai";
-import { formatWebSearchToolResult, runCherryStyleWebSearch } from "./web-search";
 import { DocumentAgentToolFactory } from "./base";
 import { typedWebSearchArgs } from "./params";
 import { toolErrorResult } from "./results";
+import { formatWebSearchToolResult, runCherryStyleWebSearch } from "./web-search";
 
-export class BuiltinWebSearchToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedWebSearchArgs>> {
+export class WebSearchToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedWebSearchArgs>> {
   protected readonly description = [
     "Search the web with the configured Cherry-style search provider.",
     "This tool searches first, fetches readable page content for the best results, and returns source URLs with citation numbers.",
     "Use it only when the user's request needs current or external web information."
   ].join(" ");
   protected readonly label = "Web search";
-  protected readonly name = "builtin_web_search";
+  protected readonly name = "web_search";
   protected readonly parameters = Type.Object({
     query: Type.String({ minLength: 1 })
   });

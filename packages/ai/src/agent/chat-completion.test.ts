@@ -375,12 +375,12 @@ describe("chatCompletion", () => {
     const onToolCallDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
       onChunk('data: {"type":"response.created","response":{"id":"resp_tool","created_at":0,"model":"gpt-5.5","object":"response","status":"in_progress"}}\n\n');
-      onChunk('data: {"type":"response.output_item.added","output_index":0,"item":{"id":"fc_1","type":"function_call","status":"in_progress","call_id":"call_read","name":"get_document","arguments":""}}\n\n');
+      onChunk('data: {"type":"response.output_item.added","output_index":0,"item":{"id":"fc_1","type":"function_call","status":"in_progress","call_id":"call_read","name":"read_document","arguments":""}}\n\n');
       onChunk('data: {"type":"response.function_call_arguments.delta","item_id":"fc_1","output_index":0,"delta":"{\\"path\\":"}\n\n');
       onChunk('data: {"type":"response.function_call_arguments.delta","item_id":"fc_1","output_index":0,"delta":"\\"README.md\\"}"}\n\n');
       onChunk('data: {"type":"response.function_call_arguments.done","item_id":"fc_1","output_index":0,"arguments":"{\\"path\\":\\"README.md\\"}"}\n\n');
-      onChunk('data: {"type":"response.output_item.done","output_index":0,"item":{"id":"fc_1","type":"function_call","status":"completed","call_id":"call_read","name":"get_document","arguments":"{\\"path\\":\\"README.md\\"}"}}\n\n');
-      onChunk('data: {"type":"response.completed","response":{"id":"resp_tool","created_at":0,"model":"gpt-5.5","object":"response","status":"completed","output":[{"id":"fc_1","type":"function_call","status":"completed","call_id":"call_read","name":"get_document","arguments":"{\\"path\\":\\"README.md\\"}"}],"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}}\n\n');
+      onChunk('data: {"type":"response.output_item.done","output_index":0,"item":{"id":"fc_1","type":"function_call","status":"completed","call_id":"call_read","name":"read_document","arguments":"{\\"path\\":\\"README.md\\"}"}}\n\n');
+      onChunk('data: {"type":"response.completed","response":{"id":"resp_tool","created_at":0,"model":"gpt-5.5","object":"response","status":"completed","output":[{"id":"fc_1","type":"function_call","status":"completed","call_id":"call_read","name":"read_document","arguments":"{\\"path\\":\\"README.md\\"}"}],"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}}\n\n');
       onChunk("data: [DONE]\n\n");
 
       return { status: 200 };
@@ -400,7 +400,7 @@ describe("chatCompletion", () => {
           tools: [
             {
               description: "Read the current document.",
-              name: "get_document",
+              name: "read_document",
               parameters: {
                 additionalProperties: false,
                 properties: {
@@ -421,7 +421,7 @@ describe("chatCompletion", () => {
         {
           arguments: { path: "README.md" },
           id: "call_read",
-          name: "get_document"
+          name: "read_document"
         }
       ]
     });
@@ -429,13 +429,13 @@ describe("chatCompletion", () => {
     expect(onToolCallDelta).toHaveBeenCalledWith({
       id: "call_read",
       index: 0,
-      nameDelta: "get_document"
+      nameDelta: "read_document"
     });
     expect(onToolCallDelta).toHaveBeenCalledWith({
       argumentsDelta: "{\"path\":\"README.md\"}",
       id: "call_read",
       index: 0,
-      nameDelta: "get_document",
+      nameDelta: "read_document",
       replaceArguments: true,
       replaceName: true
     });
@@ -445,7 +445,7 @@ describe("chatCompletion", () => {
     const onToolCallDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
       onChunk('data: {"type":"response.created","response":{"id":"resp_tool","created_at":0,"model":"gpt-5.5","object":"response","status":"in_progress"}}\n\n');
-      onChunk('data: {"type":"response.output_item.added","output_index":0,"item":{"id":"fc_1","type":"function_call","status":"in_progress","call_id":"call_read","name":"get_document","arguments":""}}\n\n');
+      onChunk('data: {"type":"response.output_item.added","output_index":0,"item":{"id":"fc_1","type":"function_call","status":"in_progress","call_id":"call_read","name":"read_document","arguments":""}}\n\n');
       onChunk('data: {"type":"response.function_call_arguments.delta","item_id":"fc_1","output_index":0,"delta":"{\\"path\\":"}\n\n');
       onChunk('data: {"type":"response.output_text.delta","item_id":"msg_1","output_index":1,"content_index":0,"delta":"unterminated}\n\n');
 
@@ -458,7 +458,7 @@ describe("chatCompletion", () => {
           {
             arguments: "{\"path\":\"README.md\"}",
             call_id: "call_read",
-            name: "get_document",
+            name: "read_document",
             type: "function_call"
           }
         ],
@@ -481,7 +481,7 @@ describe("chatCompletion", () => {
           tools: [
             {
               description: "Read the current document.",
-              name: "get_document",
+              name: "read_document",
               parameters: {
                 additionalProperties: false,
                 properties: {
@@ -502,7 +502,7 @@ describe("chatCompletion", () => {
         {
           arguments: { path: "README.md" },
           id: "call_read",
-          name: "get_document"
+          name: "read_document"
         }
       ]
     });
@@ -510,7 +510,7 @@ describe("chatCompletion", () => {
     expect(onToolCallDelta).toHaveBeenCalledWith({
       id: "call_read",
       index: 0,
-      nameDelta: "get_document"
+      nameDelta: "read_document"
     });
     expect(fallbackTransport).toHaveBeenCalledOnce();
   });
@@ -625,7 +625,7 @@ describe("chatCompletion", () => {
     const onToolCallDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
       onChunk('data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}\n\n');
-      onChunk('data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"call_read","name":"get_document","input":{}}}\n\n');
+      onChunk('data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"call_read","name":"read_document","input":{}}}\n\n');
       onChunk('data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\\"path\\":"}}\n\n');
       onChunk('data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\\"README.md\\"}"}}\n\n');
       onChunk('data: {"type":"content_block_stop","index":0}\n\n');
@@ -653,7 +653,7 @@ describe("chatCompletion", () => {
           tools: [
             {
               description: "Read the current document.",
-              name: "get_document",
+              name: "read_document",
               parameters: {
                 additionalProperties: false,
                 properties: {
@@ -674,7 +674,7 @@ describe("chatCompletion", () => {
         {
           arguments: { path: "README.md" },
           id: "call_read",
-          name: "get_document"
+          name: "read_document"
         }
       ]
     });
@@ -683,7 +683,7 @@ describe("chatCompletion", () => {
       argumentsDelta: "{\"path\":\"README.md\"}",
       id: "call_read",
       index: 0,
-      nameDelta: "get_document",
+      nameDelta: "read_document",
       replaceArguments: true,
       replaceName: true
     });
@@ -1035,7 +1035,7 @@ describe("chatCompletion", () => {
   it("falls back to non-stream Responses requests when malformed stream JSON follows tool call deltas", async () => {
     const onToolCallDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
-      onChunk('data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","call_id":"call_read_document","name":"get_document"}}\n\n');
+      onChunk('data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","call_id":"call_read_document","name":"read_document"}}\n\n');
       onChunk('data: {"type":"response.function_call_arguments.delta","output_index":0,"call_id":"call_read_document","delta":"{\\"path\\"\n\n');
 
       return { status: 200 };
@@ -1047,7 +1047,7 @@ describe("chatCompletion", () => {
           {
             arguments: "{\"path\":\"README.md\"}",
             call_id: "call_read_document",
-            name: "get_document",
+            name: "read_document",
             type: "function_call"
           }
         ],
@@ -1070,7 +1070,7 @@ describe("chatCompletion", () => {
           tools: [
             {
               description: "Read the current document.",
-              name: "get_document",
+              name: "read_document",
               parameters: {
                 additionalProperties: false,
                 properties: {},
@@ -1087,7 +1087,7 @@ describe("chatCompletion", () => {
         {
           arguments: { path: "README.md" },
           id: "call_read_document",
-          name: "get_document"
+          name: "read_document"
         }
       ]
     });
@@ -1095,7 +1095,7 @@ describe("chatCompletion", () => {
     expect(onToolCallDelta).toHaveBeenCalledWith({
       id: "call_read_document",
       index: 0,
-      nameDelta: "get_document"
+      nameDelta: "read_document"
     });
     expect(fallbackTransport).toHaveBeenCalledOnce();
   });
@@ -1250,7 +1250,7 @@ describe("chatCompletion", () => {
   it("reconstructs Responses API tool calls from function_call_arguments.done events", async () => {
     const onToolCallDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
-      onChunk('data: {"type":"response.function_call_arguments.done","output_index":0,"call_id":"call_read_document","name":"get_document","arguments":"{\\"path\\":\\"README.md\\"}"}\n\n');
+      onChunk('data: {"type":"response.function_call_arguments.done","output_index":0,"call_id":"call_read_document","name":"read_document","arguments":"{\\"path\\":\\"README.md\\"}"}\n\n');
       onChunk('data: {"type":"response.completed"}\n\n');
       onChunk("data: [DONE]\n\n");
 
@@ -1272,7 +1272,7 @@ describe("chatCompletion", () => {
           tools: [
             {
               description: "Read the document.",
-              name: "get_document",
+              name: "read_document",
               parameters: {
                 additionalProperties: false,
                 properties: {},
@@ -1290,7 +1290,7 @@ describe("chatCompletion", () => {
         {
           arguments: { path: "README.md" },
           id: "call_read_document",
-          name: "get_document"
+          name: "read_document"
         }
       ]
     });
@@ -1299,7 +1299,7 @@ describe("chatCompletion", () => {
       argumentsDelta: "{\"path\":\"README.md\"}",
       id: "call_read_document",
       index: 0,
-      nameDelta: "get_document",
+      nameDelta: "read_document",
       replaceArguments: true,
       replaceName: true
     });

@@ -635,7 +635,7 @@ describe("useAiAgentSession", () => {
       onEvent?.({
         args: {},
         toolCallId: "tool-1",
-        toolName: "get_document",
+        toolName: "read_document",
         type: "tool_execution_start"
       });
       onEvent?.({
@@ -646,7 +646,7 @@ describe("useAiAgentSession", () => {
           }
         },
         toolCallId: "tool-1",
-        toolName: "get_document",
+        toolName: "read_document",
         type: "tool_execution_end"
       });
       onEvent?.({
@@ -703,7 +703,7 @@ describe("useAiAgentSession", () => {
           id: "tool:tool-1",
           kind: "tool_call",
           label: "Read current document",
-          rawLabel: "get_document",
+          rawLabel: "read_document",
           status: "completed"
         },
         {

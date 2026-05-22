@@ -58,14 +58,14 @@ describe("documentAgentTools", () => {
       selection: null,
       workspaceFiles: []
     });
-    const listTool = tools.find((item) => item.name === "list_document_images");
-    const viewTool = tools.find((item) => item.name === "view_document_image");
+    const listTool = tools.find((item) => item.name === "list_assets");
+    const viewTool = tools.find((item) => item.name === "view_asset");
 
-    const listResult = await listTool?.execute("tool_list_document_images", {});
+    const listResult = await listTool?.execute("tool_list_assets", {});
     expect(toolText(listResult)).toContain("src: assets/screen%20shot.png");
     expect(toolText(listResult)).toContain("file: screen shot.png");
 
-    const viewResult = await viewTool?.execute("tool_view_document_image", {
+    const viewResult = await viewTool?.execute("tool_view_asset", {
       src: "assets/screen%20shot.png"
     });
 
@@ -91,9 +91,9 @@ describe("documentAgentTools", () => {
       readDocumentImage,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "view_document_image");
+    }).find((item) => item.name === "view_asset");
 
-    await expect(viewTool?.execute("tool_view_document_image", {
+    await expect(viewTool?.execute("tool_view_asset", {
       src: "../private.png"
     })).rejects.toThrow(
       "Cannot read that image because it is not referenced by the current Markdown document."
@@ -120,6 +120,7 @@ describe("documentAgentTools", () => {
     const tool = createDocumentAgentTools(context).find((item) => item.name === "read_workspace_file");
 
     const result = await tool?.execute("tool_read_workspace_file", {
+      action: "read",
       relativePath: "notes/compare.md"
     });
 
@@ -155,7 +156,7 @@ describe("documentAgentTools", () => {
         }
       },
       workspaceFiles: []
-    }).find((item) => item.name === "builtin_web_search");
+    }).find((item) => item.name === "web_search");
 
     const result = await tool?.execute("tool_web_search", {
       query: "current release"
@@ -197,10 +198,71 @@ describe("documentAgentTools", () => {
     const tool = createDocumentAgentTools(context).find((item) => item.name === "read_workspace_file");
 
     await expect(tool?.execute("tool_read_workspace_file", {
+      action: "read",
       path: "/vault/../private.md"
     })).rejects.toThrow(
       "Cannot read that file because it is not in the current Markdown workspace."
     );
+    expect(readWorkspaceFile).not.toHaveBeenCalled();
+  });
+
+  it("searches nearby workspace Markdown files by path and content", async () => {
+    const readWorkspaceFile = vi.fn(async (path: string) =>
+      path.endsWith("install.md") ? "# Install\n\nUse pnpm install." : "# Notes\n\nOther content."
+    );
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      readWorkspaceFile,
+      selection: null,
+      workspaceFiles: [
+        {
+          name: "install.md",
+          path: "/vault/docs/install.md",
+          relativePath: "docs/install.md"
+        },
+        {
+          name: "notes.md",
+          path: "/vault/notes.md",
+          relativePath: "notes.md"
+        }
+      ]
+    }).find((item) => item.name === "search_workspace");
+
+    const result = await tool?.execute("tool_search_workspace", {
+      query: "pnpm install"
+    });
+
+    expect(readWorkspaceFile).toHaveBeenCalledWith("/vault/docs/install.md");
+    expect(toolText(result)).toContain("docs/install.md");
+    expect(toolText(result)).toContain("Use pnpm install.");
+    expect(result?.details).toEqual(expect.objectContaining({
+      count: 1,
+      query: "pnpm install"
+    }));
+  });
+
+  it("rejects workspace searches with an empty normalized query", async () => {
+    const readWorkspaceFile = vi.fn(async () => "# Alpha");
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      readWorkspaceFile,
+      selection: null,
+      workspaceFiles: [
+        {
+          name: "alpha.md",
+          path: "/vault/alpha.md",
+          relativePath: "alpha.md"
+        }
+      ]
+    }).find((item) => item.name === "search_workspace");
+
+    await expect(tool?.execute("tool_search_workspace", {
+      query: "!!!"
+    })).rejects.toThrow("Cannot search workspace because the query is empty.");
     expect(readWorkspaceFile).not.toHaveBeenCalled();
   });
 
@@ -215,12 +277,33 @@ describe("documentAgentTools", () => {
       ],
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "get_document_outline");
+    }).find((item) => item.name === "inspect_document_structure");
 
-    const result = await tool?.execute("tool_get_document_outline", {});
+    const result = await tool?.execute("tool_inspect_document_structure", {});
 
     expect(toolText(result)).toContain("# Title (0-8)");
     expect(toolText(result)).toContain("## Section (10-21)");
+  });
+
+  it("reads the full current document through read_document", async () => {
+    const tool = createDocumentAgentTools({
+      documentContent: "# Title\n\nBody",
+      documentEndPosition: 13,
+      documentPath: "/vault/README.md",
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "read_document");
+
+    const result = await tool?.execute("tool_read_document", {
+      targetKind: "document"
+    });
+
+    expect(toolText(result)).toContain("Document path: /vault/README.md");
+    expect(toolText(result)).toContain("# Title\n\nBody");
+    expect(result?.details).toEqual(expect.objectContaining({
+      length: 13,
+      targetKind: "document"
+    }));
   });
 
   it("returns section anchors derived from headings", async () => {
@@ -236,9 +319,9 @@ describe("documentAgentTools", () => {
       ],
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "get_document_sections");
+    }).find((item) => item.name === "inspect_document_structure");
 
-    const result = await tool?.execute("tool_get_document_sections", {});
+    const result = await tool?.execute("tool_inspect_document_structure", {});
 
     expect(toolText(result)).toContain(`section:0: Title (0-${documentContent.length})`);
     expect(toolText(result)).toContain(`section:1: Section (${sectionHeadingStart}-${documentContent.length})`);
@@ -261,9 +344,9 @@ describe("documentAgentTools", () => {
         to: 7
       },
       workspaceFiles: []
-    }).find((item) => item.name === "delete_region");
+    }).find((item) => item.name === "delete_content");
 
-    const result = await tool?.execute("tool_delete_region", {});
+    const result = await tool?.execute("tool_delete_content", {});
 
     expect(onPreviewResult).toHaveBeenCalledWith({
       from: 0,
@@ -284,9 +367,10 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_document");
+    }).find((item) => item.name === "replace_content");
 
-    const result = await tool?.execute("tool_replace_document", {
+    const result = await tool?.execute("tool_replace_content", {
+      targetKind: "document",
       replacement: "# Focused note\n\nOnly the important part."
     });
 
@@ -309,14 +393,14 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "insert_markdown");
+    }).find((item) => item.name === "insert_content");
 
-    const firstResult = await tool?.execute("tool_insert_markdown_first", {
+    const firstResult = await tool?.execute("tool_insert_content_first", {
       anchorId: "document-end",
       content: "## Repeated summary\n\nSame generated report.",
       placement: "before_anchor"
     });
-    const secondResult = await tool?.execute("tool_insert_markdown_second", {
+    const secondResult = await tool?.execute("tool_insert_content_second", {
       anchorId: "heading:0",
       content: "## Repeated summary\n\nSame generated report.",
       placement: "after_anchor"
@@ -329,7 +413,7 @@ describe("documentAgentTools", () => {
       replacement: "## Repeated summary\n\nSame generated report.",
       to: 13,
       type: "insert"
-    }, "tool_insert_markdown_first");
+    }, "tool_insert_content_first");
     expect(toolText(firstResult)).toContain("Prepared an insertion preview");
     expect(toolText(secondResult)).toContain("An identical insertion preview was already prepared earlier in this turn");
   });
@@ -343,14 +427,14 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "insert_markdown");
+    }).find((item) => item.name === "insert_content");
 
-    await tool?.execute("tool_insert_markdown_first", {
+    await tool?.execute("tool_insert_content_first", {
       anchorId: "document-end",
       content: "## Repeated summary\n\nSame generated report.\n",
       placement: "before_anchor"
     });
-    const secondResult = await tool?.execute("tool_insert_markdown_second", {
+    const secondResult = await tool?.execute("tool_insert_content_second", {
       anchorId: "document-end",
       content: "## Repeated summary  \n\nSame generated report.\n\n\n",
       placement: "before_anchor"
@@ -377,9 +461,9 @@ describe("documentAgentTools", () => {
         to: 17
       },
       workspaceFiles: []
-    }).find((item) => item.name === "get_available_anchors");
+    }).find((item) => item.name === "inspect_document_structure");
 
-    const result = await tool?.execute("tool_get_available_anchors", {});
+    const result = await tool?.execute("tool_inspect_document_structure", {});
 
     expect(toolText(result)).toContain("current-context");
     expect(toolText(result)).toContain("whole-document");
@@ -387,7 +471,7 @@ describe("documentAgentTools", () => {
     expect(toolText(result)).toContain("document-end");
   });
 
-  it("reads the selected heading Markdown source from the current selection", async () => {
+  it("reads lightweight editor context for the current selection", async () => {
     const tool = createDocumentAgentTools({
       documentContent: "# LoginAWS\n\nBody",
       documentEndPosition: 16,
@@ -401,15 +485,18 @@ describe("documentAgentTools", () => {
         to: 10
       },
       workspaceFiles: []
-    }).find((item) => item.name === "get_selection");
+    }).find((item) => item.name === "get_editor_context");
 
-    const result = await tool?.execute("tool_get_selection", {});
+    const result = await tool?.execute("tool_get_editor_context", {});
 
-    expect(toolText(result)).toContain("Markdown source range: 0-10");
-    expect(toolText(result)).toContain("```markdown\n# LoginAWS\n```");
+    expect(toolText(result)).toContain("Document path: /vault/AWS.md");
+    expect(toolText(result)).toContain("Document length: 16");
+    expect(toolText(result)).toContain("Selection range: 2-10");
+    expect(toolText(result)).toContain("Selection source: selection");
+    expect(toolText(result)).not.toContain("# LoginAWS\n\nBody");
   });
 
-  it("reads containing section Markdown source from arbitrary selected text", async () => {
+  it("reads document content by range", async () => {
     const documentContent = ["# LoginAWS", "", "Body paragraph", "", "## Pull img"].join("\n");
     const bodyStart = documentContent.indexOf("Body paragraph");
     const nextHeadingStart = documentContent.indexOf("## Pull img");
@@ -434,14 +521,81 @@ describe("documentAgentTools", () => {
         to: bodyStart + "Body paragraph".length
       },
       workspaceFiles: []
-    }).find((item) => item.name === "get_selection");
+    }).find((item) => item.name === "read_document");
 
-    const result = await tool?.execute("tool_get_selection", {});
+    const result = await tool?.execute("tool_read_document", {
+      from: bodyStart,
+      targetKind: "range",
+      to: bodyStart + "Body paragraph".length
+    });
 
-    expect(toolText(result)).toContain(`Markdown source range: 0-${documentContent.length}`);
-    expect(toolText(result)).toContain("# LoginAWS");
     expect(toolText(result)).toContain("Body paragraph");
-    expect(toolText(result)).not.toContain("Markdown structure: heading level");
+    expect(toolText(result)).not.toContain("# LoginAWS");
+    expect(result?.details).toEqual(expect.objectContaining({
+      from: bodyStart,
+      targetKind: "range",
+      to: bodyStart + "Body paragraph".length
+    }));
+  });
+
+  it("searches the current document for exact text", async () => {
+    const documentContent = "# Title\n\nAlpha paragraph.\n\nBeta install steps.\n\n| Key | Value |\n| --- | --- |\n| token | abc |";
+    const matchStart = documentContent.indexOf("Beta install steps.");
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/README.md",
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "search_document");
+
+    const result = await tool?.execute("tool_search_document", {
+      query: "install steps"
+    });
+
+    expect(toolText(result)).toContain("install steps");
+    expect(result?.details).toEqual(expect.objectContaining({
+      count: 1,
+      matches: expect.arrayContaining([
+        expect.objectContaining({
+          from: matchStart,
+          to: matchStart + "Beta install steps.".length
+        })
+      ])
+    }));
+  });
+
+  it("rejects document searches with an empty normalized query", async () => {
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current\n\nAlpha note.",
+      documentEndPosition: 22,
+      documentPath: "/vault/current.md",
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "search_document");
+
+    await expect(tool?.execute("tool_search_document", {
+      mode: "text",
+      query: "   "
+    })).rejects.toThrow("Cannot search document because the query is empty.");
+  });
+
+  it("rejects normalized-empty heading searches", async () => {
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current\n\nAlpha note.",
+      documentEndPosition: 22,
+      documentPath: "/vault/current.md",
+      headingAnchors: [
+        { from: 0, level: 1, title: "Current", to: "# Current".length }
+      ],
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "search_document");
+
+    await expect(tool?.execute("tool_search_document", {
+      mode: "heading",
+      query: "!!!"
+    })).rejects.toThrow("Cannot search document because the query is empty.");
   });
 
   it("locates the most appropriate region before insertion", async () => {
@@ -464,9 +618,9 @@ describe("documentAgentTools", () => {
         to: sectionHeadingStart + sectionHeading.length
       },
       workspaceFiles: []
-    }).find((item) => item.name === "locate_markdown_region");
+    }).find((item) => item.name === "locate_content");
 
-    const result = await tool?.execute("tool_locate_markdown_region", {
+    const result = await tool?.execute("tool_locate_content", {
       goal: "Insert the follow-up section after Section"
     });
 
@@ -502,9 +656,9 @@ describe("documentAgentTools", () => {
       ],
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "locate_markdown_region");
+    }).find((item) => item.name === "locate_content");
 
-    const result = await tool?.execute("tool_locate_markdown_region", {
+    const result = await tool?.execute("tool_locate_content", {
       goal: "replace only the table under Section Alpha and change old-token to new-token",
       operation: "replace"
     });
@@ -525,10 +679,10 @@ describe("documentAgentTools", () => {
       selection: null,
       workspaceFiles: []
     });
-    const insertMarkdown = tools.find((item) => item.name === "insert_markdown");
-    const locateMarkdownRegion = tools.find((item) => item.name === "locate_markdown_region");
+    const insertContent = tools.find((item) => item.name === "insert_content");
+    const locateContent = tools.find((item) => item.name === "locate_content");
 
-    expect(insertMarkdown?.parameters).toEqual(expect.objectContaining({
+    expect(insertContent?.parameters).toEqual(expect.objectContaining({
       properties: expect.objectContaining({
         placement: expect.objectContaining({
           anyOf: expect.arrayContaining([
@@ -539,13 +693,19 @@ describe("documentAgentTools", () => {
         })
       })
     }));
-    expect(locateMarkdownRegion?.parameters).toEqual(expect.objectContaining({
+    expect(locateContent?.parameters).toEqual(expect.objectContaining({
       properties: expect.objectContaining({
         operation: expect.objectContaining({
           anyOf: expect.arrayContaining([
             expect.objectContaining({ const: "delete" }),
             expect.objectContaining({ const: "insert" }),
             expect.objectContaining({ const: "replace" })
+          ])
+        }),
+        targetKind: expect.objectContaining({
+          anyOf: expect.arrayContaining([
+            expect.objectContaining({ const: "region" }),
+            expect.objectContaining({ const: "section" })
           ])
         })
       })
@@ -569,10 +729,11 @@ describe("documentAgentTools", () => {
       ],
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "locate_section");
+    }).find((item) => item.name === "locate_content");
 
-    const result = await tool?.execute("tool_locate_section", {
-      headingTitle: "11. Follow-ups"
+    const result = await tool?.execute("tool_locate_content", {
+      headingTitle: "11. Follow-ups",
+      targetKind: "section"
     });
 
     expect(result?.details).toEqual(expect.objectContaining({
@@ -590,9 +751,9 @@ describe("documentAgentTools", () => {
       documentPath: null,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "delete_region");
+    }).find((item) => item.name === "delete_content");
 
-    await expect(tool?.execute("tool_delete_region", {})).rejects.toThrow(
+    await expect(tool?.execute("tool_delete_content", {})).rejects.toThrow(
       "Cannot delete because there is no active selection, current block, or structural anchor available."
     );
   });
@@ -616,9 +777,9 @@ describe("documentAgentTools", () => {
         to: 5
       },
       workspaceFiles: []
-    }).find((item) => item.name === "insert_markdown");
+    }).find((item) => item.name === "insert_content");
 
-    const result = await tool?.execute("tool_insert_markdown", {
+    const result = await tool?.execute("tool_insert_content", {
       anchorId: "heading:1",
       content: "\n\n### Follow-up\n\nMore details.",
       placement: "after_anchor"
@@ -643,9 +804,9 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "insert_markdown");
+    }).find((item) => item.name === "insert_content");
 
-    const result = await tool?.execute("tool_insert_markdown", {
+    const result = await tool?.execute("tool_insert_content", {
       content: "\n\nContinue here.",
       placement: "cursor"
     });
@@ -674,10 +835,10 @@ describe("documentAgentTools", () => {
         to: 5
       },
       workspaceFiles: []
-    }).find((item) => item.name === "insert_markdown");
+    }).find((item) => item.name === "insert_content");
 
     await expect(
-      tool?.execute("tool_insert_markdown", {
+      tool?.execute("tool_insert_content", {
         anchorId: "heading:99",
         content: "\n\nExtra section",
         placement: "after_anchor"
@@ -695,9 +856,9 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_region");
+    }).find((item) => item.name === "replace_content");
 
-    await tool?.execute("tool_replace_region", {
+    await tool?.execute("tool_replace_content", {
       anchorId: "heading:0",
       replacement: "## Better Section"
     });
@@ -726,10 +887,10 @@ describe("documentAgentTools", () => {
         to: 32
       },
       workspaceFiles: []
-    }).find((item) => item.name === "replace_block");
+    }).find((item) => item.name === "replace_content");
 
     expect(tool).toBeDefined();
-    const result = await tool?.execute("tool_replace_block", {
+    const result = await tool?.execute("tool_replace_content", {
       replacement: "New synthetic paragraph"
     });
 
@@ -753,9 +914,10 @@ describe("documentAgentTools", () => {
   it("prepares a block replacement for selected heading text", async () => {
     const onPreviewResult = vi.fn();
     const { context, firstHeading } = selectedAwsHeadingToolContext(onPreviewResult);
-    const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_block");
+    const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_content");
 
-    const result = await tool?.execute("tool_replace_block", {
+    const result = await tool?.execute("tool_replace_content", {
+      targetKind: "block",
       replacement: "# LoginAWS"
     });
 
@@ -779,9 +941,9 @@ describe("documentAgentTools", () => {
   it("uses the selected heading block for the current-context anchor", async () => {
     const onPreviewResult = vi.fn();
     const { context, firstHeading } = selectedAwsHeadingToolContext(onPreviewResult);
-    const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_region");
+    const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_content");
 
-    await tool?.execute("tool_replace_region", {
+    await tool?.execute("tool_replace_content", {
       anchorId: "current-context",
       replacement: "# LoginAWS"
     });
@@ -795,12 +957,12 @@ describe("documentAgentTools", () => {
     }, expect.any(String));
   });
 
-  it("promotes selected heading text when replace_region receives block Markdown", async () => {
+  it("promotes selected heading text when replace_content receives block Markdown", async () => {
     const onPreviewResult = vi.fn();
     const { context, firstHeading } = selectedAwsHeadingToolContext(onPreviewResult);
-    const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_region");
+    const tool = createDocumentAgentTools(context).find((item) => item.name === "replace_content");
 
-    await tool?.execute("tool_replace_region", {
+    await tool?.execute("tool_replace_content", {
       replacement: "# LoginAWS"
     });
 
@@ -820,7 +982,7 @@ describe("documentAgentTools", () => {
     }, expect.any(String));
   });
 
-  it("rejects table anchors through replace_block", async () => {
+  it("rejects table anchors through block replacement", async () => {
     const table = [
       "| Field | Variant One | Variant Two |",
       "| ----- | ----------- | ----------- |",
@@ -832,15 +994,16 @@ describe("documentAgentTools", () => {
       documentPath: "/vault/example.md",
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_block");
+    }).find((item) => item.name === "replace_content");
 
-    await expect(tool?.execute("tool_replace_block", {
+    await expect(tool?.execute("tool_replace_content", {
       anchorId: "table:0",
-      replacement: "Synthetic paragraph"
-    })).rejects.toThrow("Cannot replace a table anchor with replace_block. Use replace_table with a table anchor.");
+      replacement: "Synthetic paragraph",
+      targetKind: "block"
+    })).rejects.toThrow("Cannot replace a table anchor with targetKind=block. Use replace_content with targetKind=table.");
   });
 
-  it("rejects inline selections through replace_block", async () => {
+  it("rejects inline selections through replace_content", async () => {
     const onPreviewResult = vi.fn();
     const tool = createDocumentAgentTools({
       documentContent: "Alpha beta gamma",
@@ -854,9 +1017,10 @@ describe("documentAgentTools", () => {
         to: 11
       },
       workspaceFiles: []
-    }).find((item) => item.name === "replace_block");
+    }).find((item) => item.name === "replace_content");
 
-    await expect(tool?.execute("tool_replace_block", {
+    await expect(tool?.execute("tool_replace_content", {
+      targetKind: "block",
       replacement: "delta"
     })).rejects.toThrow("Cannot replace a block because the current editor context is an inline selection.");
     expect(onPreviewResult).not.toHaveBeenCalled();
@@ -887,9 +1051,9 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_region");
+    }).find((item) => item.name === "replace_content");
 
-    await tool?.execute("tool_replace_region", {
+    await tool?.execute("tool_replace_content", {
       anchorId: "table:0",
       replacement
     });
@@ -935,10 +1099,10 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_table");
+    }).find((item) => item.name === "replace_content");
 
     expect(tool).toBeDefined();
-    const result = await tool?.execute("tool_replace_table", {
+    const result = await tool?.execute("tool_replace_content", {
       anchorId: "table:0",
       replacement
     });
@@ -985,10 +1149,10 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_table_by_heading");
+    }).find((item) => item.name === "replace_content");
 
     expect(tool).toBeDefined();
-    const result = await tool?.execute("tool_replace_table_by_heading", {
+    const result = await tool?.execute("tool_replace_content", {
       headingTitle: "Section Alpha",
       replacement
     });
@@ -1020,10 +1184,10 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_block_by_text");
+    }).find((item) => item.name === "replace_content");
 
     expect(tool).toBeDefined();
-    const result = await tool?.execute("tool_replace_block_by_text", {
+    const result = await tool?.execute("tool_replace_content", {
       originalText: original,
       replacement: "Gamma paragraph."
     });
@@ -1037,6 +1201,42 @@ describe("documentAgentTools", () => {
         id: "text-match",
         kind: "current_block",
         title: original,
+        to: from + original.length
+      },
+      to: from + original.length,
+      type: "replace"
+    }, expect.any(String));
+    expect(toolText(result)).toContain("Prepared a block replacement preview for matched text.");
+  });
+
+  it("preserves surrounding whitespace when replacing exact original text", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = "# Title\n\nAlpha [ key ] Beta";
+    const original = " key ";
+    const from = documentContent.indexOf(original);
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "replace_content");
+
+    const result = await tool?.execute("tool_replace_content", {
+      originalText: original,
+      replacement: "value"
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from,
+      original,
+      replacement: "value",
+      target: {
+        from,
+        id: "text-match",
+        kind: "current_block",
+        title: "key",
         to: from + original.length
       },
       to: from + original.length,
@@ -1065,9 +1265,9 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_table");
+    }).find((item) => item.name === "replace_content");
 
-    await tool?.execute("tool_replace_table", {
+    await tool?.execute("tool_replace_content", {
       anchorId: "table:0",
       replacement
     });
@@ -1120,9 +1320,9 @@ describe("documentAgentTools", () => {
         }
       ],
       workspaceFiles: []
-    }).find((item) => item.name === "replace_table");
+    }).find((item) => item.name === "replace_content");
 
-    await tool?.execute("tool_replace_table", {
+    await tool?.execute("tool_replace_content", {
       anchorId: "table:0",
       replacement
     });
@@ -1143,7 +1343,7 @@ describe("documentAgentTools", () => {
     }, expect.any(String));
   });
 
-  it("rejects Markdown table replacements through replace_region unless the target is a complete table anchor", async () => {
+  it("rejects Markdown table replacements through replace_content unless the target is a complete table anchor", async () => {
     const onPreviewResult = vi.fn();
     const tableReplacement = [
       "| Field | Variant One | Variant Two |",
@@ -1161,18 +1361,18 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_region");
+    }).find((item) => item.name === "replace_content");
 
-    await expect(tool?.execute("tool_replace_region", {
+    await expect(tool?.execute("tool_replace_content", {
       anchorId: "heading:0",
       replacement: tableReplacement
     })).rejects.toThrow(
-      "Cannot replace this region with a Markdown table because the target is not a complete table anchor. Use replace_table with a table anchor."
+      "Cannot replace this region with a Markdown table because the target is not a complete table anchor. Use replace_content with targetKind=table and a table anchor."
     );
     expect(onPreviewResult).not.toHaveBeenCalled();
   });
 
-  it("rejects fenced Markdown table replacements through replace_region unless the target is a complete table anchor", async () => {
+  it("rejects fenced Markdown table replacements through replace_content unless the target is a complete table anchor", async () => {
     const onPreviewResult = vi.fn();
     const tableReplacement = [
       "```markdown",
@@ -1192,13 +1392,13 @@ describe("documentAgentTools", () => {
       onPreviewResult,
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_region");
+    }).find((item) => item.name === "replace_content");
 
-    await expect(tool?.execute("tool_replace_region", {
+    await expect(tool?.execute("tool_replace_content", {
       anchorId: "heading:0",
       replacement: tableReplacement
     })).rejects.toThrow(
-      "Cannot replace this region with a Markdown table because the target is not a complete table anchor. Use replace_table with a table anchor."
+      "Cannot replace this region with a Markdown table because the target is not a complete table anchor. Use replace_content with targetKind=table and a table anchor."
     );
     expect(onPreviewResult).not.toHaveBeenCalled();
   });
@@ -1224,9 +1424,9 @@ describe("documentAgentTools", () => {
         to: selectedFrom + selectedText.length
       },
       workspaceFiles: []
-    }).find((item) => item.name === "replace_region");
+    }).find((item) => item.name === "replace_content");
 
-    await expect(tool?.execute("tool_replace_region", {
+    await expect(tool?.execute("tool_replace_content", {
       replacement: [
         "| Field | Variant One | Variant Two |",
         "| ----- | ----------- | ----------- |",
@@ -1256,9 +1456,9 @@ describe("documentAgentTools", () => {
         to: 58
       },
       workspaceFiles: []
-    }).find((item) => item.name === "delete_section");
+    }).find((item) => item.name === "delete_content");
 
-    await tool?.execute("tool_delete_section", {
+    await tool?.execute("tool_delete_content", {
       anchorId: "section:2"
     });
 
@@ -1293,9 +1493,9 @@ describe("documentAgentTools", () => {
       ],
       selection: null,
       workspaceFiles: []
-    }).find((item) => item.name === "replace_section");
+    }).find((item) => item.name === "replace_content");
 
-    await tool?.execute("tool_replace_section", {
+    await tool?.execute("tool_replace_content", {
       anchorId: "section:0",
       replacement
     });
@@ -1309,7 +1509,226 @@ describe("documentAgentTools", () => {
     }, expect.any(String));
   });
 
-  it("does not expose legacy selection-only write tools", () => {
+  it("prepares a move preview without replacing the full document", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = [
+      "# Title",
+      "",
+      "Alpha paragraph.",
+      "",
+      "Gamma paragraph.",
+      "",
+      "Beta paragraph."
+    ].join("\n");
+    const from = documentContent.indexOf("Alpha paragraph.");
+    const to = documentContent.indexOf("Beta paragraph.");
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "move_content");
+
+    const result = await tool?.execute("tool_move_content", {
+      destinationText: "Alpha paragraph.",
+      placement: "before",
+      sourceText: "Gamma paragraph.\n\n"
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from,
+      original: "Alpha paragraph.\n\nGamma paragraph.\n\n",
+      replacement: "Gamma paragraph.\n\nAlpha paragraph.\n\n",
+      to,
+      type: "replace"
+    }, expect.any(String));
+    expect(toolText(result)).toContain("Prepared a move preview");
+  });
+
+  it("rejects moving content after itself", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = "# Title\n\nAlpha paragraph.\n\nTail";
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "move_content");
+
+    await expect(tool?.execute("tool_move_content", {
+      destinationText: "Alpha paragraph.",
+      placement: "after",
+      sourceText: "Alpha paragraph."
+    })).rejects.toThrow("Cannot move content because the requested move would not change the document.");
+    expect(onPreviewResult).not.toHaveBeenCalled();
+  });
+
+  it("prepares a structured batch edit preview without accepting a whole-document replacement", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = "# Title\n\nAlpha note.\n\nRemove me.\n\nTail";
+    const from = documentContent.indexOf("Alpha note.");
+    const to = documentContent.indexOf("\n\nTail");
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "batch_edit");
+
+    const result = await tool?.execute("tool_batch_edit", {
+      operations: [
+        {
+          exactText: "Alpha note.",
+          replacement: "Beta note.",
+          type: "replace"
+        },
+        {
+          exactText: "\n\nRemove me.",
+          type: "delete"
+        }
+      ]
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from,
+      original: "Alpha note.\n\nRemove me.",
+      replacement: "Beta note.",
+      to,
+      type: "replace"
+    }, expect.any(String));
+    expect(toolText(result)).toContain("Prepared a batch edit preview with 2 operations");
+  });
+
+  it("preserves operation order for batch insertions at the same position", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = "# Title\n\nTail";
+    const position = documentContent.indexOf("Tail");
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "batch_edit");
+
+    const result = await tool?.execute("tool_batch_edit", {
+      operations: [
+        {
+          content: "First ",
+          from: position,
+          type: "insert"
+        },
+        {
+          content: "Second ",
+          from: position,
+          type: "insert"
+        }
+      ]
+    });
+
+    expect(onPreviewResult).toHaveBeenCalledWith({
+      from: position,
+      original: "",
+      replacement: "First Second ",
+      to: position,
+      type: "replace"
+    }, expect.any(String));
+    expect(toolText(result)).toContain("Prepared a batch edit preview with 2 operations");
+  });
+
+  it("rejects batch edit ranges outside the document", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = "# Title\n\nTail";
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "batch_edit");
+
+    await expect(tool?.execute("tool_batch_edit", {
+      operations: [
+        {
+          from: documentContent.length + 1,
+          replacement: "Replacement",
+          to: documentContent.length + 2,
+          type: "replace"
+        }
+      ]
+    })).rejects.toThrow("Cannot resolve batch edit operation 1 because the range is outside the document.");
+    expect(onPreviewResult).not.toHaveBeenCalled();
+  });
+
+  it("rejects batch insert positions outside the document", async () => {
+    const onPreviewResult = vi.fn();
+    const documentContent = "# Title\n\nTail";
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      onPreviewResult,
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "batch_edit");
+
+    await expect(tool?.execute("tool_batch_edit", {
+      operations: [
+        {
+          content: "Inserted",
+          from: documentContent.length + 1,
+          type: "insert"
+        }
+      ]
+    })).rejects.toThrow("Cannot resolve batch insert operation 1 because the position is outside the document.");
+    expect(onPreviewResult).not.toHaveBeenCalled();
+  });
+
+  it("validates Markdown structure issues in the current document", async () => {
+    const documentContent = [
+      "# Title",
+      "",
+      "## Duplicate",
+      "",
+      "Body",
+      "",
+      "## Duplicate",
+      "",
+      "| Key | Value |",
+      "| --- |",
+      "| token | abc |"
+    ].join("\n");
+    const tool = createDocumentAgentTools({
+      documentContent,
+      documentEndPosition: documentContent.length,
+      documentPath: "/vault/example.md",
+      headingAnchors: [
+        { from: 0, level: 1, title: "Title", to: "# Title".length },
+        { from: documentContent.indexOf("## Duplicate"), level: 2, title: "Duplicate", to: documentContent.indexOf("## Duplicate") + "## Duplicate".length },
+        { from: documentContent.lastIndexOf("## Duplicate"), level: 2, title: "Duplicate", to: documentContent.lastIndexOf("## Duplicate") + "## Duplicate".length }
+      ],
+      selection: null,
+      workspaceFiles: []
+    }).find((item) => item.name === "validate_edit");
+
+    const result = await tool?.execute("tool_validate_edit", {});
+
+    expect(toolText(result)).toContain("Duplicate heading");
+    expect(toolText(result)).toContain("Markdown table row has 1 cells but expected 2");
+    expect(result?.details).toEqual(expect.objectContaining({
+      issueCount: 2
+    }));
+  });
+
+  it("exposes the consolidated document tool surface", () => {
     const toolNames = createDocumentAgentTools({
       documentContent: "# Title",
       documentEndPosition: 7,
@@ -1326,5 +1745,44 @@ describe("documentAgentTools", () => {
     expect(toolNames).not.toContain("replace_selection");
     expect(toolNames).not.toContain("delete_selection");
     expect(toolNames).not.toContain("insert_after_selection");
+    expect(toolNames).not.toContain("get_document");
+    expect(toolNames).not.toContain("get_selection");
+    expect(toolNames).not.toContain("get_document_outline");
+    expect(toolNames).not.toContain("get_document_sections");
+    expect(toolNames).not.toContain("get_available_anchors");
+    expect(toolNames).not.toContain("locate_markdown_region");
+    expect(toolNames).not.toContain("locate_section");
+    expect(toolNames).not.toContain("list_workspace_files");
+    expect(toolNames).not.toContain("read_context");
+    expect(toolNames).not.toContain("read_workspace");
+    expect(toolNames).not.toContain("list_images");
+    expect(toolNames).not.toContain("view_image");
+    expect(toolNames).not.toContain("replace_document");
+    expect(toolNames).not.toContain("replace_block");
+    expect(toolNames).not.toContain("replace_region");
+    expect(toolNames).not.toContain("replace_table");
+    expect(toolNames).not.toContain("replace_section");
+    expect(toolNames).not.toContain("delete_region");
+    expect(toolNames).not.toContain("delete_section");
+    expect(toolNames).not.toContain("insert_markdown");
+    expect(toolNames).not.toContain("replace_table_by_heading");
+    expect(toolNames).not.toContain("replace_block_by_text");
+    expect(toolNames).toEqual([
+      "get_editor_context",
+      "read_document",
+      "inspect_document_structure",
+      "search_document",
+      "locate_content",
+      "replace_content",
+      "insert_content",
+      "delete_content",
+      "move_content",
+      "batch_edit",
+      "search_workspace",
+      "read_workspace_file",
+      "list_assets",
+      "view_asset",
+      "validate_edit"
+    ]);
   });
 });

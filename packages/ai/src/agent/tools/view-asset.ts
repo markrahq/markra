@@ -4,32 +4,29 @@ import {
   extractMarkdownImageReferences,
   resolveMarkdownImageReference
 } from "./images";
-import { typedViewDocumentImageArgs } from "./params";
-import {
-  toolErrorResult
-} from "./results";
+import { typedViewAssetArgs } from "./params";
+import { toolErrorResult } from "./results";
 
-export class ViewDocumentImageToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedViewDocumentImageArgs>> {
+export class ViewAssetToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedViewAssetArgs>> {
   protected readonly description = [
-    "Read one local image referenced by the current Markdown document and return it for visual understanding.",
-    "Call list_document_images first, then pass an exact src from that list.",
-    "Use this only when the user's request requires understanding the image pixels."
+    "Read one asset referenced by the current Markdown document and return it for understanding.",
+    "Currently supports local Markdown image references. Call list_assets first, then pass an exact src."
   ].join(" ");
-  protected readonly label = "View document image";
-  protected readonly name = "view_document_image";
+  protected readonly label = "View asset";
+  protected readonly name = "view_asset";
   protected readonly parameters = Type.Object({
     src: Type.String({ minLength: 1 })
   });
 
   protected parseParams(params: unknown) {
-    return typedViewDocumentImageArgs(params);
+    return typedViewAssetArgs(params);
   }
 
-  protected async executeTool(_toolCallId: string, params: ReturnType<typeof typedViewDocumentImageArgs>) {
+  protected async executeTool(_toolCallId: string, params: ReturnType<typeof typedViewAssetArgs>) {
     const references = extractMarkdownImageReferences(this.context.documentContent);
     const reference = resolveMarkdownImageReference(references, params.src);
     if (!reference) {
-      return toolErrorResult("Cannot read that image because it is not referenced by the current Markdown document. Call list_document_images and pass an exact src.");
+      return toolErrorResult("Cannot read that image because it is not referenced by the current Markdown document. Call list_assets and pass an exact src.");
     }
 
     if (!this.context.readDocumentImage) {
@@ -60,6 +57,7 @@ export class ViewDocumentImageToolFactory extends DocumentAgentToolFactory<Retur
         ],
         details: {
           alt: reference.alt,
+          kind: "image",
           mimeType: image.mimeType,
           path: image.path ?? null,
           src: reference.src

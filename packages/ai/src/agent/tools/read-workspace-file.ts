@@ -10,8 +10,8 @@ import {
 
 export class ReadWorkspaceFileToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedReadWorkspaceFileArgs>> {
   protected readonly description = [
-    "Read a Markdown file from the current workspace.",
-    "Call list_workspace_files first, then pass an exact relativePath or exact path from that list.",
+    "Read one Markdown file from the current workspace.",
+    "Pass an exact relativePath or path returned by search_workspace.",
     "This tool cannot read arbitrary paths outside the current Markdown workspace."
   ].join(" ");
   protected readonly label = "Read workspace file";
@@ -29,7 +29,7 @@ export class ReadWorkspaceFileToolFactory extends DocumentAgentToolFactory<Retur
     const file = resolveWorkspaceFile(this.context.workspaceFiles, params);
     if (!file) {
       return toolErrorResult(
-        "Cannot read that file because it is not in the current Markdown workspace. Call list_workspace_files first and pass an exact relativePath or path."
+        "Cannot read that file because it is not in the current Markdown workspace. Call search_workspace first and pass an exact relativePath or path."
       );
     }
 

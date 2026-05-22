@@ -189,7 +189,7 @@ describe("inline AI agent runtime", () => {
         {
           content: [
             { thinking: "Need to inspect the document first.", type: "thinking" },
-            { arguments: {}, id: "call_get_document", name: "get_document", type: "toolCall" }
+            { arguments: {}, id: "call_read_document", name: "read_document", type: "toolCall" }
           ],
           role: "assistant"
         }
@@ -203,8 +203,8 @@ describe("inline AI agent runtime", () => {
         toolCalls: [
           {
             arguments: {},
-            id: "call_get_document",
-            name: "get_document"
+            id: "call_read_document",
+            name: "read_document"
           }
         ]
       }
