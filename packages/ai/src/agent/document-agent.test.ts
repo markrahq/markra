@@ -1,6 +1,7 @@
 import { runDocumentAiAgent, type DocumentAiHistoryMessage } from "./document-agent";
 import type { AiProviderConfig } from "@markra/providers";
 import type { ChatMessage } from "./chat/types";
+import { buildDocumentAgentMessages, buildDocumentToolCallingSystemPrompt } from "./document/messages";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
   return {
@@ -17,6 +18,33 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
 }
 
 describe("document AI agent", () => {
+  it("adds basic runtime context to document system prompts", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2042, 2, 4, 5, 6, 7));
+
+    try {
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "unknown";
+      const chatOnlySystemPrompt = buildDocumentAgentMessages({
+        documentContent: "# Synthetic note",
+        documentImages: [],
+        history: [],
+        prompt: "Summarize this synthetic note.",
+        selection: null,
+        toolResults: [],
+        webSearchMode: "none"
+      })[0]?.content ?? "";
+      const toolCallingSystemPrompt = buildDocumentToolCallingSystemPrompt("none");
+
+      for (const systemPrompt of [chatOnlySystemPrompt, toolCallingSystemPrompt]) {
+        expect(systemPrompt).toContain("Current date: 2042-03-04");
+        expect(systemPrompt).toContain("Current time: 05:06:07");
+        expect(systemPrompt).toContain(`Current timezone: ${timezone}`);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("surfaces provider errors from the tool-calling runtime", async () => {
     const complete = vi.fn().mockRejectedValue(new Error("Concurrency limit exceeded for user, please retry later"));
 

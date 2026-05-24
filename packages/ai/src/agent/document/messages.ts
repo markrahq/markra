@@ -140,7 +140,8 @@ export function buildDocumentToolCallingSystemPrompt(webSearchMode: DocumentTool
     "Use move tools for reordering or moving content, and batch edits only for multiple small structured changes.",
     "If there is no active selection, inspect the document structure and choose the most appropriate location. Ask a clarification question only when several plausible targets remain and choosing one would be risky.",
     "When working with images, use available asset tools to inspect the actual image. Do not infer image contents from filenames or alt text alone.",
-    "After a successful write tool call, briefly tell the user what changed. If no edit was made, say what you found or why no change was applied."
+    "After a successful write tool call, briefly tell the user what changed. If no edit was made, say what you found or why no change was applied.",
+    ...buildBasicRuntimeContext()
   ].join("\n");
 }
 
@@ -163,8 +164,40 @@ function buildDocumentAgentSystemPrompt() {
     "Be concise, practical, and explicit about what you know from the provided context.",
     "Reply in the user's language unless the user asks for another language.",
     "If the user asks for a rewrite or edit, provide the revised text first, then add a short explanation only when it helps.",
-    "Do not claim to have searched the web or read files that were not included in the provided context."
+    "Do not claim to have searched the web or read files that were not included in the provided context.",
+    ...buildBasicRuntimeContext()
   ].join("\n");
+}
+
+function buildBasicRuntimeContext(now = new Date()) {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone ?? "unknown";
+
+  return [
+    "Basic runtime context:",
+    `Current date: ${formatLocalDate(now)}`,
+    `Current time: ${formatLocalTime(now)}`,
+    `Current timezone: ${timezone}`
+  ];
+}
+
+function formatLocalDate(date: Date) {
+  return [
+    date.getFullYear(),
+    padDateTimePart(date.getMonth() + 1),
+    padDateTimePart(date.getDate())
+  ].join("-");
+}
+
+function formatLocalTime(date: Date) {
+  return [
+    padDateTimePart(date.getHours()),
+    padDateTimePart(date.getMinutes()),
+    padDateTimePart(date.getSeconds())
+  ].join(":");
+}
+
+function padDateTimePart(part: number) {
+  return String(part).padStart(2, "0");
 }
 
 function documentToolCallingWebSearchInstructions(webSearchMode: DocumentToolCallingWebSearchMode) {
