@@ -34,8 +34,8 @@ describe("document AI agent", () => {
   it("asks the tool-calling agent to answer in the user's language", async () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
       expect(messages[0]?.content).toContain("Reply in the user's language");
-      expect(messages[0]?.content).toContain("After tool results return, provide a final user-visible answer");
-      expect(messages[0]?.content).toContain("Do not put the final answer only in thinking");
+      expect(messages[0]?.content).toContain("Use only the context and tools available in this turn");
+      expect(messages[0]?.content).toContain("After a successful write tool call, briefly tell the user what changed");
 
       return {
         content: "I will answer in the user's language.",
@@ -803,9 +803,9 @@ describe("document AI agent", () => {
 
   it("guides the tool-calling agent to use table-specific replacement for table edits", async () => {
     const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
-      expect(messages[0]?.content).toContain("replace_content");
-      expect(messages[0]?.content).toContain("move_content");
-      expect(messages[0]?.content).toContain("table anchor");
+      expect(messages[0]?.content).toContain("Apply the narrowest reliable edit");
+      expect(messages[0]?.content).toContain("Use table-level edits for Markdown tables");
+      expect(messages[0]?.content).toContain("Use move tools for reordering or moving content");
 
       return {
         content: "I will use the table-specific edit path.",
