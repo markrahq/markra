@@ -17,7 +17,7 @@
   <img alt="WYSIWYG Markdown" src="https://img.shields.io/badge/Markdown-WYSIWYG-000000" />
   <img alt="Native AI" src="https://img.shields.io/badge/AI-Native-7C3AED" />
   <img alt="Free" src="https://img.shields.io/badge/Free-Open_Source-16A34A" />
-  <img alt="下载量" src="https://img.shields.io/github/downloads/murongg/markra/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&color=0EA5E9" />
+  <img alt="下载量" src="https://img.shields.io/github/downloads/murongg/markra/total?label=%E4%B8%8B%E8%BD%BD%E9%87%8F&amp;color=0EA5E9&amp;cacheSeconds=3600" />
   <img alt="License" src="https://img.shields.io/badge/License-AGPL--3.0-important" />
 </p>
 
