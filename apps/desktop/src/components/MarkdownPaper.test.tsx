@@ -1104,6 +1104,35 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("Where $A$ is the final amount.");
   });
 
+  it("renders Hugo-style inline and display math formulas while preserving markdown source", async () => {
+    const inlineFormula = String.raw`\(a^2 + b^2 = c^2\)`;
+    const displayFormula = [
+      String.raw`\[`,
+      String.raw`\begin{aligned}`,
+      String.raw`x &= a \\`,
+      String.raw`- y &= b`,
+      String.raw`\end{aligned}`,
+      String.raw`\]`
+    ].join("\n");
+    const source = [`Where ${inlineFormula}.`, "", displayFormula].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+
+    expect(container.querySelector(".ProseMirror .markra-math-render-inline .katex")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-render-display .katex")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror ul")).not.toBeInTheDocument();
+    const hiddenMathSource = Array.from(container.querySelectorAll(".ProseMirror .markra-math-source-hidden"))
+      .map((node) => node.textContent)
+      .join("");
+    expect(hiddenMathSource).toContain(inlineFormula);
+    expect(hiddenMathSource).toContain(String.raw`\begin{aligned}`);
+    expect(hiddenMathSource).toContain("- y &= b");
+    expect(hiddenMathSource).toContain(String.raw`\]`);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain(`Where ${inlineFormula}.`);
+    expect(serializeMarkdown(view.state.doc)).toContain(displayFormula);
+  });
+
   it("keeps dollar-prefixed amounts as plain markdown text", async () => {
     const source = "Invoice options: $1000、 $100";
     const { container, editor, view } = await renderEditor(source);
@@ -1172,6 +1201,23 @@ describe("MarkdownPaper editing", () => {
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toContain(["$$", String.raw`\int_0^1 x^2 \, dx`, "$$"].join("\n"));
+  });
+
+  it("renders Hugo-style multiline display math when typed directly", async () => {
+    const { container, editor, view } = await renderEditor();
+
+    typeText(view, String.raw`\[`);
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, String.raw`\int_0^1 x^2 \, dx`);
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, String.raw`\]`);
+
+    expect(container.querySelector(".ProseMirror .markra-math-render-display .katex")).toBeInTheDocument();
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain(
+      [String.raw`\[`, String.raw`\int_0^1 x^2 \, dx`, String.raw`\]`].join("\n")
+    );
   });
 
   it("renders ordinary paragraph line breaks without requiring explicit br tags", async () => {

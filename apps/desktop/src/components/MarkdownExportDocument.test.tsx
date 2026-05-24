@@ -59,6 +59,40 @@ describe("MarkdownExportDocument", () => {
     expect(bodyHtml).not.toContain("language-math");
   });
 
+  it("renders Hugo-style inline and display math before exporting HTML", async () => {
+    const onRendered = vi.fn();
+
+    render(
+      <MarkdownExportDocument
+        onRendered={onRendered}
+        snapshot={{
+          id: 1,
+          kind: "pdf",
+          markdown: [
+            String.raw`Inline \(x^2\) formula.`,
+            "",
+            String.raw`\[`,
+            String.raw`\begin{aligned}`,
+            String.raw`x &= a \\`,
+            String.raw`- y &= b`,
+            String.raw`\end{aligned}`,
+            String.raw`\]`
+          ].join("\n"),
+          title: "hugo-math.md"
+        }}
+      />
+    );
+
+    await waitFor(() => expect(onRendered).toHaveBeenCalledTimes(1));
+
+    const bodyHtml = onRendered.mock.calls[0]?.[0].bodyHtml as string;
+    expect(bodyHtml).toContain("markra-math-render-inline");
+    expect(bodyHtml).toContain("markra-math-render-display");
+    expect(bodyHtml).toContain("katex");
+    expect(bodyHtml).not.toContain("<ul>");
+    expect(bodyHtml).not.toContain("language-math");
+  });
+
   it("applies display math macro definitions before exporting HTML", async () => {
     const onRendered = vi.fn();
 

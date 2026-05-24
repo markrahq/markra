@@ -8,6 +8,7 @@ import {
   isMarkraMathMacroDefinitionSource,
   isMermaidLanguage,
   mermaidThemeFromElement,
+  remarkHugoMath,
   renderMarkraMathToString,
   renderMermaidToSvg,
   type MarkraMathMacros
@@ -241,7 +242,7 @@ export function MarkdownExportDocument({
     >
       <article className="markdown-paper markdown-export-paper" ref={articleRef}>
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkHugoMath]}
           components={{
             a: ({ node: _node, ...props }) => <a {...props} rel="noreferrer" target="_blank" />,
             blockquote: ({ node: _node, ...props }) =>

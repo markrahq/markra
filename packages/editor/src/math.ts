@@ -5,6 +5,9 @@ import type { MarkdownNode } from "@milkdown/kit/transformer";
 import { $prose, $remark } from "@milkdown/kit/utils";
 import { renderToString, type KatexOptions } from "katex";
 import remarkMath from "remark-math";
+import { remarkHugoMath } from "./hugo-math.ts";
+
+export { remarkHugoMath } from "./hugo-math.ts";
 
 export type MarkraMathKind = "display" | "inline";
 export type MarkraMathMacros = NonNullable<KatexOptions["macros"]>;
@@ -195,6 +198,12 @@ type MarkdownSerializerState = {
   enter: (name: string) => () => unknown;
 };
 
+type RemarkProcessorData = {
+  fromMarkdownExtensions?: unknown[];
+  micromarkExtensions?: unknown[];
+  toMarkdownExtensions?: unknown[];
+};
+
 function mathSourceFromPosition(markdown: string, node: MathMarkdownNode, fallback: string) {
   const start = node.position?.start?.offset;
   const end = node.position?.end?.offset;
@@ -291,6 +300,42 @@ function isDisplayMathSource(source: string) {
   return ranges.length === 1 && ranges[0]?.kind === "display" && ranges[0].from === 0 && ranges[0].to === source.length;
 }
 
+function isHugoMathRange(range: MathRange) {
+  return range.source.startsWith("\\(") || range.source.startsWith("\\[");
+}
+
+function serializeMarkdownSourceSegment(source: string, state: MarkdownSerializerState, info: MarkdownSerializerInfo) {
+  if (!source) return "";
+
+  return state.containerPhrasing(
+    {
+      children: sourceToInlineMarkdownNodes(source),
+      type: "paragraph"
+    },
+    info
+  );
+}
+
+function serializeHugoMathAwareParagraphSource(
+  source: string,
+  state: MarkdownSerializerState,
+  info: MarkdownSerializerInfo
+) {
+  const ranges = getMathRanges(source);
+  if (!ranges.some(isHugoMathRange)) return null;
+
+  let cursor = 0;
+  let value = "";
+  for (const range of ranges) {
+    value += serializeMarkdownSourceSegment(source.slice(cursor, range.from), state, info);
+    value += range.source;
+    cursor = range.to;
+  }
+
+  value += serializeMarkdownSourceSegment(source.slice(cursor), state, info);
+  return value;
+}
+
 function serializeMathAwareParagraph(
   node: MarkdownNode,
   _parent: MarkdownNode | undefined,
@@ -302,13 +347,16 @@ function serializeMathAwareParagraph(
 
   const exit = state.enter("paragraph");
   const subexit = state.enter("phrasing");
-  const value = state.containerPhrasing(node, info);
+  const value =
+    source === null
+      ? state.containerPhrasing(node, info)
+      : serializeHugoMathAwareParagraphSource(source, state, info) ?? state.containerPhrasing(node, info);
   subexit();
   exit();
   return value;
 }
 
-function remarkMathParseOnly(this: { data: () => { toMarkdownExtensions?: unknown[] } }) {
+function remarkMathParseOnly(this: { data: () => RemarkProcessorData }) {
   const dataBeforeMath = this.data();
   const toMarkdownExtensionCount = dataBeforeMath.toMarkdownExtensions?.length ?? 0;
 
@@ -316,6 +364,8 @@ function remarkMathParseOnly(this: { data: () => { toMarkdownExtensions?: unknow
   remarkMath.call(this);
 
   const dataAfterMath = this.data();
+  remarkHugoMath.call(this);
+
   if (!Array.isArray(dataAfterMath.toMarkdownExtensions)) return;
 
   dataAfterMath.toMarkdownExtensions.splice(toMarkdownExtensionCount);
@@ -359,6 +409,15 @@ function findClosingDelimiter(text: string, delimiter: "$" | "$$", from: number)
   return -1;
 }
 
+function findClosingBracketMathDelimiter(text: string, delimiter: "\\)" | "\\]", from: number) {
+  for (let index = from; index < text.length - 1; index += 1) {
+    if (text[index] !== "\\" || isEscaped(text, index)) continue;
+    if (text.startsWith(delimiter, index)) return index;
+  }
+
+  return -1;
+}
+
 function readCurrencyAmountEnd(text: string, dollarIndex: number) {
   if (!/\d/u.test(text[dollarIndex + 1] ?? "")) return null;
 
@@ -386,6 +445,52 @@ function getMathRanges(text: string) {
   let index = 0;
 
   while (index < text.length) {
+    if (text.startsWith("\\(", index) && !isEscaped(text, index)) {
+      const closingIndex = findClosingBracketMathDelimiter(text, "\\)", index + 2);
+      if (closingIndex === -1) {
+        index += 2;
+        continue;
+      }
+
+      const to = closingIndex + 2;
+      const tex = text.slice(index + 2, closingIndex).trim();
+      if (tex) {
+        ranges.push({
+          from: index,
+          kind: "inline",
+          source: text.slice(index, to),
+          tex,
+          to
+        });
+      }
+
+      index = to;
+      continue;
+    }
+
+    if (text.startsWith("\\[", index) && !isEscaped(text, index)) {
+      const closingIndex = findClosingBracketMathDelimiter(text, "\\]", index + 2);
+      if (closingIndex === -1) {
+        index += 2;
+        continue;
+      }
+
+      const to = closingIndex + 2;
+      const tex = text.slice(index + 2, closingIndex).trim();
+      if (tex) {
+        ranges.push({
+          from: index,
+          kind: "display",
+          source: text.slice(index, to),
+          tex,
+          to
+        });
+      }
+
+      index = to;
+      continue;
+    }
+
     if (text[index] !== "$" || isEscaped(text, index)) {
       index += 1;
       continue;
@@ -605,8 +710,13 @@ function renderMathRange(range: MathRange, macros: MarkraMathMacros): MathRange 
   }
 }
 
+function mathDelimiterLength(range: MathRange) {
+  if (range.source.startsWith("$$") || range.source.startsWith("\\(") || range.source.startsWith("\\[")) return 2;
+  return 1;
+}
+
 function mathSourceEditPosition(range: MathRange) {
-  const delimiterLength = range.kind === "display" ? 2 : 1;
+  const delimiterLength = mathDelimiterLength(range);
   const sourceAfterDelimiter = range.source.slice(delimiterLength);
   const firstContentOffset = sourceAfterDelimiter.search(/\S/u);
   const fallbackPosition = range.from + delimiterLength;
@@ -640,11 +750,15 @@ function unclosedDisplayMathSourceBeforeCursor(state: EditorState) {
   if (!$from.parent.isTextblock || $from.parent.type.spec.code) return null;
 
   const textBeforeCursor = $from.parent.textBetween(0, $from.parentOffset, "\n", "\n");
-  const openingMatch = /^\s*\$\$(?!\$)/u.exec(textBeforeCursor);
+  const openingMatch = /^\s*(\$\$(?!\$)|\\\[)/u.exec(textBeforeCursor);
   if (!openingMatch) return null;
 
-  const openingIndex = openingMatch[0].lastIndexOf("$$");
-  const closingIndex = findClosingDelimiter(textBeforeCursor, "$$", openingIndex + 2);
+  const openingDelimiter = openingMatch[1];
+  const openingIndex = openingMatch[0].lastIndexOf(openingDelimiter);
+  const closingIndex =
+    openingDelimiter === "$$"
+      ? findClosingDelimiter(textBeforeCursor, "$$", openingIndex + 2)
+      : findClosingBracketMathDelimiter(textBeforeCursor, "\\]", openingIndex + 2);
   if (closingIndex !== -1) return null;
 
   return textBeforeCursor;
@@ -942,7 +1056,7 @@ function createMathMacroDefinitionFoldWidget(range: MathRange) {
 
 function activeMathTokenDecorations(range: MathRange) {
   const decorations: Decoration[] = [];
-  const delimiterLength = range.kind === "display" ? 2 : 1;
+  const delimiterLength = mathDelimiterLength(range);
 
   decorations.push(
     Decoration.inline(range.from, range.from + delimiterLength, {
