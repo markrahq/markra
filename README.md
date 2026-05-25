@@ -122,6 +122,10 @@ Product docs · Blog posts · Research notes · Technical writing with tables, c
 
 Contributions are welcome — whether it's product experience, Markdown editing, AI workflows, cross-platform fixes, or docs. See [issues](https://github.com/murongg/markra/issues) for open tasks or start a discussion.
 
+## Sponsors
+
+[![Sponsors](https://raw.githubusercontent.com/murongg/sponsorskit/main/public/sponsors.svg)](https://sponsorskit.vercel.app)
+
 ## Star History
 
 <p align="center">
