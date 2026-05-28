@@ -1247,7 +1247,7 @@ fn markdown_open_picker_title(title: Option<String>) -> String {
 }
 
 #[cfg(target_os = "macos")]
-fn pick_markdown_path<R: tauri::Runtime>(
+async fn pick_markdown_path<R: tauri::Runtime>(
     _app: &tauri::AppHandle<R>,
     title: Option<String>,
 ) -> Result<Option<PathBuf>, String> {
@@ -1290,19 +1290,23 @@ fn pick_markdown_path<R: tauri::Runtime>(
 }
 
 #[cfg(not(target_os = "macos"))]
-fn pick_markdown_path<R: tauri::Runtime>(
+async fn pick_markdown_path<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     title: Option<String>,
 ) -> Result<Option<PathBuf>, String> {
     use tauri_plugin_dialog::DialogExt;
 
-    let Some(path) = app
-        .dialog()
+    let (path_tx, mut path_rx) = tauri::async_runtime::channel(1);
+
+    app.dialog()
         .file()
         .set_title(markdown_open_picker_title(title))
         .add_filter("Markdown", &["md", "markdown", "txt"])
-        .blocking_pick_file()
-    else {
+        .pick_file(move |selected_path| {
+            let _ = path_tx.try_send(selected_path);
+        });
+
+    let Some(path) = path_rx.recv().await.flatten() else {
         return Ok(None);
     };
 
@@ -1365,11 +1369,11 @@ pub(crate) fn delete_markdown_template_file(
 }
 
 #[tauri::command]
-pub(crate) fn open_markdown_path(
+pub(crate) async fn open_markdown_path(
     app: tauri::AppHandle,
     title: Option<String>,
 ) -> Result<Option<MarkdownOpenPath>, String> {
-    let Some(path) = pick_markdown_path(&app, title)? else {
+    let Some(path) = pick_markdown_path(&app, title).await? else {
         return Ok(None);
     };
 
@@ -1937,6 +1941,16 @@ mod tests {
             markdown_open_picker_title(None),
             "Open Markdown File or Folder"
         );
+    }
+
+    #[test]
+    fn non_macos_unified_open_picker_avoids_blocking_dialog_call() {
+        let source = include_str!("markdown_files.rs");
+        let blocking_pick_file_call = [".blocking", "_pick_file("].concat();
+        let async_pick_file_call = [".pick", "_file(move"].concat();
+
+        assert!(!source.contains(&blocking_pick_file_call));
+        assert!(source.contains(&async_pick_file_call));
     }
 
     #[test]
