@@ -9,11 +9,12 @@
 </p>
 
 <p align="center">
-  English | <a href="README.zh-CN.md">简体中文</a> | <a href="#download">Download</a> | <a href="#key-features">Key Features</a> | <a href="#contributing">Contributing</a> | <a href="#license">License</a>
+  English | <a href="README.zh-CN.md">简体中文</a> | <a href="https://editor.markra.app/">Web Editor</a> | <a href="#download">Download</a> | <a href="#key-features">Key Features</a> | <a href="#contributing">Contributing</a> | <a href="#license">License</a>
 </p>
 
 <p align="center">
   <img alt="Desktop" src="https://img.shields.io/badge/Desktop-Tauri-24C8DB" />
+  <img alt="Web Editor" src="https://img.shields.io/badge/Web-Editor-2563EB" />
   <img alt="WYSIWYG Markdown" src="https://img.shields.io/badge/Markdown-WYSIWYG-000000" />
   <img alt="Native AI" src="https://img.shields.io/badge/AI-Native-7C3AED" />
   <img alt="Free" src="https://img.shields.io/badge/Free-Open_Source-16A34A" />
@@ -50,6 +51,8 @@ No cloud sync, no account required. AI calls only go where you point them.
 | ![Markra AI side panel with document context](assets/screenshots/ai-agent-panel.png) | ![Markra AI provider settings](assets/screenshots/ai-provider-settings.png) |
 
 ## Download
+
+Use the web editor at [editor.markra.app](https://editor.markra.app/).
 
 Download the latest desktop builds from [GitHub Releases](https://github.com/murongg/markra/releases/latest): macOS Apple Silicon/Intel, Windows installer/portable, and Linux AppImage.
 
@@ -113,7 +116,7 @@ Product docs · Blog posts · Research notes · Technical writing with tables, c
 
 ## Getting Started
 
-1. [Download](https://github.com/murongg/markra/releases/latest) the latest release for your platform.
+1. Open the [web editor](https://editor.markra.app/) or [download](https://github.com/murongg/markra/releases/latest) the latest desktop release for your platform.
 2. Open a Markdown file or folder.
 3. Write — use WYSIWYG, slash commands, or source mode.
 4. Configure AI providers in settings when you're ready for AI assistance.
