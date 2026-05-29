@@ -205,6 +205,19 @@ jobs:
           fs.writeFileSync(path.join(desktopDir, "tauri.updater.conf.json"), `${JSON.stringify(updaterConfig, null, 2)}\n`);
           NODE
 
+      - name: Resolve Tauri build args
+        id: tauri_args
+        shell: bash
+        env:
+          ASSET_PLATFORM: ${{ matrix.asset_platform }}
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+          TAURI_BUILD_ARGS: ${{ matrix.args }}
+        run: |
+          set -euo pipefail
+
+          tauri_args="$(node .release-scripts/scripts/release/resolve-tauri-build-args.mjs)"
+          echo "args=${tauri_args}" >> "${GITHUB_OUTPUT}"
+
       - name: Build and bundle app
         id: tauri_build
         uses: tauri-apps/tauri-action@v0.6.0
@@ -214,7 +227,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: ${{ env.DESKTOP_DIR }}
-          args: ${{ matrix.args }} --config tauri.updater.conf.json
+          args: ${{ steps.tauri_args.outputs.args }} --config tauri.updater.conf.json
 
       - name: Rebuild Linux AppImage library policy
         if: matrix.os == 'ubuntu-22.04'
