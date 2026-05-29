@@ -4341,6 +4341,26 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps intraword underscores in identifiers as plain text", async () => {
+    const { container, view } = await renderEditor("user_info_data user__meta__data");
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("user_info_data user__meta__data");
+    expect(container.querySelector(".ProseMirror .markra-live-mark-emphasis")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-live-mark-strong")).not.toBeInTheDocument();
+    expectHiddenMarkdownDelimiters(container, 0);
+
+    moveCursor(view, findTextPosition(view, "user__meta__data", "user__meta__data".length));
+    typeText(view, " mock_value_name mock__token__name");
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe(
+      "user_info_data user__meta__data mock_value_name mock__token__name"
+    );
+    expect(container.querySelector(".ProseMirror .markra-live-mark-emphasis")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-live-mark-strong")).not.toBeInTheDocument();
+    expectHiddenMarkdownDelimiters(container, 0);
+    await settleMarkdownListener();
+  });
+
   it("supports inline markdown formatting shortcuts", async () => {
     const strong = await renderEditor();
     typeText(strong.view, "bold");

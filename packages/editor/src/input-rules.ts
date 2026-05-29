@@ -387,8 +387,8 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       ]
     },
     {
-      markers: ["***", "___"],
-      pattern: /(?:\*\*\*|___)[^\n]*?(?:\*\*\*|___)/g,
+      markers: ["***"],
+      pattern: /\*\*\*[^\n]*?\*\*\*/g,
       marks: [
         {
           kind: "strong",
@@ -407,8 +407,41 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       ]
     },
     {
-      markers: ["**", "__"],
-      pattern: /(?:\*\*|__)[^\n]*?(?:\*\*|__)/g,
+      markers: ["___"],
+      pattern: /(?<![\p{L}\p{N}_])___(?!_)[^\n]*?(?<!_)___(?!_)(?![\p{L}\p{N}_])/gu,
+      marks: [
+        {
+          kind: "strong",
+          markType: strongSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker: marker[0]
+          })
+        },
+        {
+          kind: "emphasis",
+          markType: emphasisSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker: marker[0]
+          })
+        }
+      ]
+    },
+    {
+      markers: ["**"],
+      pattern: /\*\*[^\n]*?\*\*/g,
+      marks: [
+        {
+          kind: "strong",
+          markType: strongSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker: marker[0]
+          })
+        }
+      ]
+    },
+    {
+      markers: ["__"],
+      pattern: /(?<![\p{L}\p{N}_])__(?!_)[^\n]*?(?<!_)__(?!_)(?![\p{L}\p{N}_])/gu,
       marks: [
         {
           kind: "strong",
@@ -454,7 +487,7 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
     },
     {
       markers: ["_"],
-      pattern: /(?<!_)_(?!_)[^_\n]*?(?<!_)_(?!_)/g,
+      pattern: /(?<![\p{L}\p{N}_])_(?!_)[^\n]*?(?<!_)_(?!_)(?![\p{L}\p{N}_])/gu,
       marks: [
         {
           kind: "emphasis",
