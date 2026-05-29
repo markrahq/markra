@@ -4722,6 +4722,31 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps live closing delimiters visible after deleting adjacent plain text", async () => {
+    const cases = [
+      { markdown: "*a*a", marker: "*", kind: "emphasis" },
+      { markdown: "**a**a", marker: "**", kind: "strong" },
+      { markdown: "~~a~~a", marker: "~~", kind: "strikethrough" },
+      { markdown: "`a`a", marker: "`", kind: "inlineCode" }
+    ];
+
+    for (const { markdown, marker, kind } of cases) {
+      const { container, view } = await renderEditor();
+
+      typeText(view, markdown);
+
+      expectMarkdownDelimiters(container, 0);
+      expect(pressBackspace(view)).toBe(true);
+
+      expectLiveMark(container, kind, "a");
+      expectMarkdownDelimiterText(container, marker);
+      expect(container.querySelector(".ProseMirror p")?.textContent).toBe(markdown.slice(0, -1));
+      expect(view.state.selection.from).toBe(findLastTextBlockEndCursor(view));
+    }
+
+    await settleMarkdownListener();
+  });
+
   it("moves the cursor over live markdown delimiters as a single visible step", async () => {
     const { view } = await renderEditor();
 

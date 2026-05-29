@@ -179,6 +179,36 @@ function clearManagedStoredMarks(state: EditorState, markTypes: MarkType[]) {
   return state.tr.setStoredMarks(nextMarks);
 }
 
+function deleteTextAfterLiveMarkdownRange(
+  view: EditorView,
+  specs: LiveMarkdownSpec[],
+  markTypes: MarkType[]
+) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+
+  const { $from } = selection;
+  if (!$from.parent.isTextblock) return false;
+
+  const cursor = $from.parentOffset;
+  const range = getLiveMarkdownRanges($from.parent.textContent, specs).find(
+    (candidate) => candidate.to + 1 === cursor
+  );
+  if (!range) return false;
+
+  const from = $from.start() + range.to;
+  const storedMarks = view.state.storedMarks?.filter((mark) => !markTypes.includes(mark.type)) ?? [];
+  const transaction = view.state.tr.delete(from, from + 1);
+
+  view.dispatch(
+    transaction
+      .setSelection(TextSelection.create(transaction.doc, from))
+      .setStoredMarks(storedMarks)
+      .scrollIntoView()
+  );
+  return true;
+}
+
 function getMarkerFromFoldedMarks(marks: readonly Mark[], spec: LiveMarkdownSpec) {
   const strongMark = spec.marks.find((mark) => mark.kind === "strong");
   const emphasisMark = spec.marks.find((mark) => mark.kind === "emphasis");
@@ -648,6 +678,14 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       },
       handleKeyDown: (view, event) => {
         const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
+
+        if (event.key === "Backspace" && !hasModifier) {
+          const handled = deleteTextAfterLiveMarkdownRange(view, specs, managedMarkTypes);
+          if (handled) {
+            event.preventDefault();
+            return true;
+          }
+        }
 
         if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !hasModifier) {
           const handled = moveCursorOverLiveMarkdownDelimiter(
