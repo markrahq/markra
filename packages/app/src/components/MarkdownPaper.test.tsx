@@ -4907,6 +4907,34 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps inline formatting when editing inside remaining finalized marks", async () => {
+    const cases = [
+      { markdown: "_bold_", selector: "em" },
+      { markdown: "**bold**", selector: "strong" },
+      { markdown: "~~bold~~", selector: "del" },
+      { markdown: "`bold`", selector: "code" }
+    ];
+
+    for (const { markdown, selector } of cases) {
+      const { container, view } = await renderEditor();
+
+      typeText(view, markdown);
+      expect(pressEnter(view)).toBe(true);
+
+      selectText(view, findTextPosition(view, "ol"), findTextPosition(view, "ol", "ol".length));
+      view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+      typeText(view, "OO");
+
+      const markedText = Array.from(container.querySelectorAll(`.ProseMirror ${selector}`))
+        .map((node) => node.textContent ?? "")
+        .join("");
+      expect(markedText).toBe("bOOd");
+      expect(container.querySelector(".ProseMirror")?.textContent).toBe("bOOd");
+    }
+
+    await settleMarkdownListener();
+  });
+
   it("renders ==text== highlight syntax only when the extension is enabled", async () => {
     const enabled = await renderEditor("", {
       extendedSyntax: {
