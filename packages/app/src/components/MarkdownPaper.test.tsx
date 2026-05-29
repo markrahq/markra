@@ -4874,6 +4874,39 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("clears inline formatting after deleting finalized markdown marks", async () => {
+    const cases = [
+      { markdown: "_2_", selectors: ["em"] },
+      { markdown: "**2**", selectors: ["strong"] },
+      { markdown: "___2___", selectors: ["strong", "em"] },
+      { markdown: "~~2~~", selectors: ["del"] },
+      { markdown: "`2`", selectors: ["code"] }
+    ];
+
+    for (const { markdown, selectors } of cases) {
+      const { container, view } = await renderEditor();
+
+      typeText(view, markdown);
+      expect(pressEnter(view)).toBe(true);
+
+      for (const selector of selectors) {
+        expect(container.querySelector(`.ProseMirror ${selector}`)).toHaveTextContent("2");
+      }
+
+      selectText(view, 1, 2);
+      view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+      typeText(view, "plain");
+
+      for (const selector of selectors) {
+        expect(container.querySelector(`.ProseMirror ${selector}`)).not.toBeInTheDocument();
+      }
+
+      expect(container.querySelector(".ProseMirror")?.textContent).toBe("plain");
+    }
+
+    await settleMarkdownListener();
+  });
+
   it("renders ==text== highlight syntax only when the extension is enabled", async () => {
     const enabled = await renderEditor("", {
       extendedSyntax: {

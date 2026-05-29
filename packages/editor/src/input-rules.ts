@@ -110,6 +110,75 @@ function getMarkByType(marks: readonly Mark[], markType: MarkType) {
   return marks.find((mark) => mark.type === markType);
 }
 
+function getManagedMarkTypes(specs: LiveMarkdownSpec[]) {
+  const markTypes: MarkType[] = [];
+
+  for (const spec of specs) {
+    for (const mark of spec.marks) {
+      if (!markTypes.includes(mark.markType)) {
+        markTypes.push(mark.markType);
+      }
+    }
+  }
+
+  return markTypes;
+}
+
+function hasManagedMark(marks: readonly Mark[] | null | undefined, markTypes: MarkType[]) {
+  return Boolean(marks?.some((mark) => markTypes.includes(mark.type)));
+}
+
+function selectionContainsManagedMark(state: EditorState, markTypes: MarkType[]) {
+  const { selection } = state;
+  if (selection.empty) return false;
+
+  let found = false;
+  state.doc.nodesBetween(selection.from, selection.to, (node) => {
+    if (found) return false;
+    if (!node.isText) return true;
+
+    found = hasManagedMark(node.marks, markTypes);
+    return !found;
+  });
+
+  return found;
+}
+
+function emptyTextblockSelection(state: EditorState) {
+  const { selection } = state;
+
+  return (
+    selection instanceof TextSelection &&
+    selection.empty &&
+    selection.$from.parent.isTextblock &&
+    selection.$from.parent.content.size === 0
+  );
+}
+
+function shouldClearManagedStoredMarks(
+  transactions: readonly { docChanged: boolean }[],
+  oldState: EditorState,
+  newState: EditorState,
+  markTypes: MarkType[]
+) {
+  if (!hasManagedMark(newState.storedMarks, markTypes)) return false;
+  if (!transactions.some((transaction) => transaction.docChanged)) return false;
+
+  if (selectionContainsManagedMark(oldState, markTypes)) return true;
+
+  return oldState.doc.content.size > newState.doc.content.size && emptyTextblockSelection(newState);
+}
+
+function clearManagedStoredMarks(state: EditorState, markTypes: MarkType[]) {
+  const storedMarks = state.storedMarks;
+  if (!storedMarks) return null;
+
+  const nextMarks = storedMarks.filter((mark) => !markTypes.includes(mark.type));
+  if (nextMarks.length === storedMarks.length) return null;
+
+  return state.tr.setStoredMarks(nextMarks);
+}
+
 function getMarkerFromFoldedMarks(marks: readonly Mark[], spec: LiveMarkdownSpec) {
   const strongMark = spec.marks.find((mark) => mark.kind === "strong");
   const emphasisMark = spec.marks.find((mark) => mark.kind === "emphasis");
@@ -499,9 +568,15 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       ]
     }
   ];
+  const managedMarkTypes = getManagedMarkTypes(specs);
 
   return new Plugin({
     key: liveMarkdownKey,
+    appendTransaction: (transactions, oldState, newState) => {
+      if (!shouldClearManagedStoredMarks(transactions, oldState, newState, managedMarkTypes)) return null;
+
+      return clearManagedStoredMarks(newState, managedMarkTypes);
+    },
     state: {
       init: (): LiveMarkdownPluginState => ({
         suppressActiveAt: null,
