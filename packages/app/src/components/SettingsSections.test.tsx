@@ -852,6 +852,15 @@ describe("EditorSettings", () => {
         provider: "webdav"
       }
     });
+
+    fireEvent.click(within(storageType).getByRole("button", { name: "Use PicGo/PicList server" }));
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        provider: "picgo"
+      }
+    });
   });
 
   it("hides S3 storage choices when the runtime cannot upload through S3", () => {
@@ -877,6 +886,7 @@ describe("EditorSettings", () => {
       "true"
     );
     expect(within(storageType).getByRole("button", { name: "Use WebDAV storage" })).toBeInTheDocument();
+    expect(within(storageType).getByRole("button", { name: "Use PicGo/PicList server" })).toBeInTheDocument();
     expect(within(storageType).queryByRole("button", { name: "Use S3-compatible storage" })).not.toBeInTheDocument();
   });
 });
@@ -896,6 +906,7 @@ describe("StorageSettings", () => {
     expect(screen.queryByText("Storage type")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Storage type: Local")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Use WebDAV storage" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Use PicGo/PicList server" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Use S3-compatible storage" })).not.toBeInTheDocument();
 
     const settingsTypeRow = screen.getByText("Settings type").closest(".settings-row") as HTMLElement | null;
@@ -915,6 +926,7 @@ describe("StorageSettings", () => {
     expect(screen.queryByRole("heading", { name: "Local" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Clipboard image folder" })).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "WebDAV server URL" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "PicGo/PicList server URL" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "S3 endpoint URL" })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByRole("textbox", { name: "File naming pattern" }), {
@@ -975,6 +987,45 @@ describe("StorageSettings", () => {
       }
     });
 
+    fireEvent.click(within(settingsType).getByRole("button", { name: "Show PicGo/PicList settings" }));
+    expect(within(settingsType).getByRole("button", { name: "Show PicGo/PicList settings" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.queryByRole("textbox", { name: "Clipboard image folder" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "WebDAV server URL" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "PicGo/PicList server URL" })).toBeInTheDocument();
+    expect(screen.getByLabelText("PicGo/PicList secret")).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "S3 endpoint URL" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "PicGo/PicList server URL" }), {
+      target: { value: "http://127.0.0.1:36677/upload" }
+    });
+    fireEvent.change(screen.getByLabelText("PicGo/PicList secret"), {
+      target: { value: "server-secret" }
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        picgo: {
+          ...defaultEditorPreferences.imageUpload.picgo,
+          serverUrl: "http://127.0.0.1:36677/upload"
+        }
+      }
+    });
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        picgo: {
+          ...defaultEditorPreferences.imageUpload.picgo,
+          secret: "server-secret"
+        }
+      }
+    });
+
     fireEvent.click(within(settingsType).getByRole("button", { name: "Show S3-compatible settings" }));
     expect(within(settingsType).getByRole("button", { name: "Show S3-compatible settings" })).toHaveAttribute(
       "aria-pressed",
@@ -982,6 +1033,7 @@ describe("StorageSettings", () => {
     );
     expect(screen.queryByRole("textbox", { name: "Clipboard image folder" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "WebDAV server URL" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "PicGo/PicList server URL" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "S3" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "S3 endpoint URL" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "S3 bucket" })).toBeInTheDocument();
@@ -1040,6 +1092,7 @@ describe("StorageSettings", () => {
       "true"
     );
     expect(within(settingsType).getByRole("button", { name: "Show WebDAV settings" })).toBeInTheDocument();
+    expect(within(settingsType).getByRole("button", { name: "Show PicGo/PicList settings" })).toBeInTheDocument();
     expect(within(settingsType).queryByRole("button", { name: "Show S3-compatible settings" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "S3 endpoint URL" })).not.toBeInTheDocument();
   });

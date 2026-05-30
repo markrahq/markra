@@ -1,4 +1,8 @@
-import type { S3ImageUploadSettings, WebDavImageUploadSettings } from "../settings/app-settings";
+import type {
+  PicGoImageUploadSettings,
+  S3ImageUploadSettings,
+  WebDavImageUploadSettings
+} from "../settings/app-settings";
 import { getAppRuntime } from "../../runtime";
 
 export type NativeMarkdownFile = {
@@ -110,6 +114,12 @@ export type UploadNativeWebDavImageInput = {
   fileName: string;
   image: File;
   settings: WebDavImageUploadSettings;
+};
+
+export type UploadNativePicGoImageInput = {
+  fileName: string;
+  image: File;
+  settings: PicGoImageUploadSettings;
 };
 
 export type UploadNativeS3ImageInput = {
@@ -267,6 +277,10 @@ export function downloadNativeWebImage(input: DownloadNativeWebImageInput) {
 
 export function uploadNativeWebDavImage(input: UploadNativeWebDavImageInput) {
   return getAppRuntime().files.uploadWebDavImage(input);
+}
+
+export function uploadNativePicGoImage(input: UploadNativePicGoImageInput) {
+  return getAppRuntime().files.uploadPicGoImage(input);
 }
 
 export function uploadNativeS3Image(input: UploadNativeS3ImageInput) {

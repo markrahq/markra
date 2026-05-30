@@ -13,7 +13,7 @@ mod windows;
 
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
 use external_urls::open_external_url;
-use image_upload::{upload_s3_image, upload_webdav_image};
+use image_upload::{upload_picgo_image, upload_s3_image, upload_webdav_image};
 use markdown_files::{
     check_pandoc_available, create_markdown_tree_file, create_markdown_tree_folder,
     delete_markdown_template_file, delete_markdown_tree_file, detect_pandoc_path,
@@ -127,6 +127,7 @@ pub fn run() {
             request_native_chat_stream,
             request_web_resource,
             download_web_image,
+            upload_picgo_image,
             upload_s3_image,
             upload_webdav_image,
             write_markdown_file,

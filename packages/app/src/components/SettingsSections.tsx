@@ -16,6 +16,7 @@ import {
   RefreshCw,
   RotateCcw,
   Save,
+  Server,
   Sparkles,
   Trash2,
   Upload,
@@ -308,6 +309,12 @@ const imageUploadProviderOptions: Array<{
     value: "webdav"
   },
   {
+    actionLabelKey: "settings.editor.imageUploadProvider.usePicGo",
+    icon: Server,
+    labelKey: "settings.editor.imageUploadProvider.picgo",
+    value: "picgo"
+  },
+  {
     actionLabelKey: "settings.editor.imageUploadProvider.useS3",
     icon: Database,
     labelKey: "settings.editor.imageUploadProvider.s3",
@@ -317,6 +324,7 @@ const imageUploadProviderOptions: Array<{
 
 const imageUploadProviderSettingsActionLabelKeys: Record<ImageUploadProvider, I18nKey> = {
   local: "settings.editor.imageUploadProvider.showLocalSettings",
+  picgo: "settings.editor.imageUploadProvider.showPicGoSettings",
   s3: "settings.editor.imageUploadProvider.showS3Settings",
   webdav: "settings.editor.imageUploadProvider.showWebDavSettings"
 };
@@ -329,6 +337,13 @@ function availableImageUploadProvider(provider: ImageUploadProvider, s3ImageUplo
   return availableImageUploadProviderOptions(s3ImageUploadEnabled).some((option) => option.value === provider)
     ? provider
     : "local";
+}
+
+function imageUploadProviderGridClass(optionCount: number) {
+  if (optionCount >= 4) return "grid-cols-4";
+  if (optionCount === 3) return "grid-cols-3";
+
+  return "grid-cols-2";
 }
 
 const aiSelectionDisplayModeOptions: Array<{
@@ -1052,7 +1067,7 @@ function ImageUploadProviderControl({
   const visibleProvider = availableImageUploadProvider(provider, s3ImageUploadEnabled);
 
   return (
-    <SegmentedControl className={options.length === 3 ? "grid-cols-3" : "grid-cols-2"} label={translate("settings.editor.imageUploadProvider")}>
+    <SegmentedControl className={imageUploadProviderGridClass(options.length)} label={translate("settings.editor.imageUploadProvider")}>
       {options.map((option) => {
         const Icon = option.icon;
         const active = visibleProvider === option.value;
@@ -1088,7 +1103,7 @@ function ImageUploadProviderSettingsControl({
   const visibleProvider = availableImageUploadProvider(provider, s3ImageUploadEnabled);
 
   return (
-    <SegmentedControl className={options.length === 3 ? "grid-cols-3" : "grid-cols-2"} label={translate("settings.editor.imageUploadProviderSettings")}>
+    <SegmentedControl className={imageUploadProviderGridClass(options.length)} label={translate("settings.editor.imageUploadProviderSettings")}>
       {options.map((option) => {
         const Icon = option.icon;
         const active = visibleProvider === option.value;
@@ -1776,6 +1791,18 @@ export function StorageSettings({
       }
     });
   };
+  const updatePicGoImageUpload = (patch: Partial<typeof imageUpload.picgo>) => {
+    onUpdatePreferences({
+      ...preferences,
+      imageUpload: {
+        ...imageUpload,
+        picgo: {
+          ...imageUpload.picgo,
+          ...patch
+        }
+      }
+    });
+  };
   const updateS3ImageUpload = (patch: Partial<typeof imageUpload.s3>) => {
     onUpdatePreferences({
       ...preferences,
@@ -1906,6 +1933,36 @@ export function StorageSettings({
                 placeholder="https://cdn.example.com/images"
                 widthClassName="w-72"
                 onChange={(publicBaseUrl) => updateWebDavImageUpload({ publicBaseUrl })}
+              />
+            }
+          />
+        </>
+      ) : null}
+      {activeSettingsProvider === "picgo" ? (
+        <>
+          <SettingsRow
+            title={translate("settings.editor.picGoServerUrl")}
+            description={translate("settings.editor.picGoServerUrlDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.picGoServerUrl")}
+                value={imageUpload.picgo.serverUrl}
+                placeholder="http://127.0.0.1:36677/upload"
+                widthClassName="w-72"
+                onChange={(serverUrl) => updatePicGoImageUpload({ serverUrl })}
+              />
+            }
+          />
+          <SettingsRow
+            title={translate("settings.editor.picGoSecret")}
+            description={translate("settings.editor.picGoSecretDescription")}
+            action={
+              <SettingsTextInput
+                label={translate("settings.editor.picGoSecret")}
+                value={imageUpload.picgo.secret}
+                type="password"
+                widthClassName="w-56"
+                onChange={(secret) => updatePicGoImageUpload({ secret })}
               />
             }
           />

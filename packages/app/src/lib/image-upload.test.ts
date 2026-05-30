@@ -108,6 +108,51 @@ describe("save editor image", () => {
     expect(saveLocalImage).not.toHaveBeenCalled();
   });
 
+  it("uploads directly through a PicGo or PicList server", async () => {
+    const image = new File([new Uint8Array([1, 2, 3])], "Diagram.png", { type: "image/png" });
+    const saveLocalImage = vi.fn();
+    const uploadPicGoImage = vi.fn().mockResolvedValue({
+      alt: "Diagram",
+      src: "https://cdn.example.test/images/pasted-image.png"
+    });
+    const picgo = {
+      secret: "server-secret",
+      serverUrl: "http://127.0.0.1:36677/upload"
+    };
+
+    await expect(
+      saveEditorImage({
+        documentPath: null,
+        image,
+        preferences: {
+          ...defaultEditorPreferences,
+          imageUpload: {
+            ...defaultEditorPreferences.imageUpload,
+            provider: "picgo",
+            picgo
+          }
+        },
+        saveLocalImage,
+        uploadPicGoImage,
+        uploadWebDavImage: vi.fn()
+      })
+    ).resolves.toEqual({
+      image: {
+        alt: "Diagram",
+        src: "https://cdn.example.test/images/pasted-image.png"
+      },
+      refreshTree: false,
+      status: "saved"
+    });
+
+    expect(uploadPicGoImage).toHaveBeenCalledWith({
+      fileName: expect.stringMatching(/^pasted-image-\d+\.png$/u),
+      image,
+      settings: picgo
+    });
+    expect(saveLocalImage).not.toHaveBeenCalled();
+  });
+
   it("uploads directly to S3-compatible object storage", async () => {
     const image = new File([new Uint8Array([1, 2, 3])], "Object.png", { type: "image/png" });
     const saveLocalImage = vi.fn();
@@ -220,6 +265,31 @@ describe("save editor image", () => {
       })
     ).resolves.toEqual({
       reason: "webdav-not-configured",
+      status: "skipped"
+    });
+  });
+
+  it("skips PicGo or PicList server uploads until a server URL is configured", async () => {
+    const image = new File([new Uint8Array([1, 2, 3])], "Diagram.png", { type: "image/png" });
+
+    await expect(
+      saveEditorImage({
+        documentPath: null,
+        image,
+        preferences: {
+          ...defaultEditorPreferences,
+          imageUpload: {
+            ...defaultEditorPreferences.imageUpload,
+            provider: "picgo",
+            picgo: defaultEditorPreferences.imageUpload.picgo
+          }
+        },
+        saveLocalImage: vi.fn(),
+        uploadPicGoImage: vi.fn(),
+        uploadWebDavImage: vi.fn()
+      })
+    ).resolves.toEqual({
+      reason: "picgo-not-configured",
       status: "skipped"
     });
   });

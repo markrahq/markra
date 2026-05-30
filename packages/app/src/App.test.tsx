@@ -80,6 +80,10 @@ installAppTestHarness();
 
 const defaultImageUpload = {
   fileNamePattern: "pasted-image-{timestamp}",
+  picgo: {
+    secret: "",
+    serverUrl: ""
+  },
   provider: "local" as const,
   s3: {
     accessKeyId: "",

@@ -3,7 +3,11 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { fileNameFromPath } from "@markra/shared";
-import type { S3ImageUploadSettings, WebDavImageUploadSettings } from "@markra/app/runtime";
+import type {
+  PicGoImageUploadSettings,
+  S3ImageUploadSettings,
+  WebDavImageUploadSettings
+} from "@markra/app/runtime";
 
 type MarkdownFileResponse = {
   path: string;
@@ -141,6 +145,12 @@ export type UploadNativeWebDavImageInput = {
   fileName: string;
   image: File;
   settings: WebDavImageUploadSettings;
+};
+
+export type UploadNativePicGoImageInput = {
+  fileName: string;
+  image: File;
+  settings: PicGoImageUploadSettings;
 };
 
 export type UploadNativeS3ImageInput = {
@@ -766,6 +776,28 @@ export async function uploadNativeWebDavImage({
       serverUrl: settings.serverUrl,
       uploadPath: settings.uploadPath,
       username: settings.username
+    }
+  });
+
+  return {
+    alt: imageAltFromFileName(image.name),
+    src: uploadedImage.url
+  };
+}
+
+export async function uploadNativePicGoImage({
+  fileName,
+  image,
+  settings
+}: UploadNativePicGoImageInput): Promise<SavedNativeClipboardImage> {
+  const bytes = Array.from(new Uint8Array(await image.arrayBuffer()));
+  const uploadedImage = await invoke<RemoteImageUploadResponse>("upload_picgo_image", {
+    request: {
+      bytes,
+      fileName,
+      mimeType: image.type,
+      secret: settings.secret,
+      serverUrl: settings.serverUrl
     }
   });
 

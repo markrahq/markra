@@ -81,6 +81,7 @@ export const desktopRuntime = {
     savePandocFile: files.saveNativePandocFile,
     savePdfFile: files.saveNativePdfFile,
     takeOpenedMarkdownPaths: files.takeNativeOpenedMarkdownPaths,
+    uploadPicGoImage: files.uploadNativePicGoImage,
     uploadS3Image: files.uploadNativeS3Image,
     uploadWebDavImage: files.uploadNativeWebDavImage,
     watchMarkdownFile: files.watchNativeMarkdownFile,

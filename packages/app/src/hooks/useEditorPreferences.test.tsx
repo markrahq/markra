@@ -27,6 +27,10 @@ vi.mock("../lib/settings/app-settings", () => ({
     },
     imageUpload: {
       fileNamePattern: "pasted-image-{timestamp}",
+      picgo: {
+        secret: "",
+        serverUrl: ""
+      },
       provider: "local",
       s3: {
         accessKeyId: "",
@@ -108,6 +112,10 @@ describe("useEditorPreferences", () => {
       },
       imageUpload: {
         fileNamePattern: "pasted-image-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
         provider: "local",
         s3: {
           accessKeyId: "",
@@ -190,6 +198,10 @@ describe("useEditorPreferences", () => {
         },
         imageUpload: {
           fileNamePattern: "{name}-{timestamp}",
+          picgo: {
+            secret: "",
+            serverUrl: ""
+          },
           provider: "webdav",
           s3: {
             accessKeyId: "",

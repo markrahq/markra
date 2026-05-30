@@ -133,6 +133,7 @@ vi.mock("../lib/tauri", () => ({
   setNativeEditorWindowRestoreState: vi.fn(),
   showNativePandocSetup: vi.fn(),
   showNativeMarkdownFileTreeContextMenu: vi.fn(),
+  uploadNativePicGoImage: vi.fn(),
   uploadNativeS3Image: vi.fn(),
   uploadNativeWebDavImage: vi.fn(),
   watchNativeMarkdownFile: vi.fn(),
@@ -841,6 +842,10 @@ export function installAppTestHarness() {
       },
       imageUpload: {
         fileNamePattern: "pasted-image-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
         provider: "local",
         s3: {
           accessKeyId: "",

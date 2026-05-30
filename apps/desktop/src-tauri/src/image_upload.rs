@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use hmac::{Hmac, Mac};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
+use reqwest::multipart;
 use reqwest::{Client, Method, RequestBuilder, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -39,6 +40,16 @@ pub(crate) struct S3ImageUploadRequest {
     upload_path: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PicGoImageUploadRequest {
+    bytes: Vec<u8>,
+    file_name: String,
+    mime_type: String,
+    secret: String,
+    server_url: String,
+}
+
 #[derive(Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct UploadedImage {
@@ -63,6 +74,13 @@ pub(crate) async fn upload_s3_image(
     request: S3ImageUploadRequest,
 ) -> Result<UploadedImage, String> {
     execute_s3_image_upload(request).await
+}
+
+#[tauri::command]
+pub(crate) async fn upload_picgo_image(
+    request: PicGoImageUploadRequest,
+) -> Result<UploadedImage, String> {
+    execute_picgo_image_upload(request).await
 }
 
 async fn execute_webdav_image_upload(
@@ -119,6 +137,37 @@ async fn execute_webdav_image_upload(
     Ok(UploadedImage {
         url: targets.public_url,
     })
+}
+
+async fn execute_picgo_image_upload(
+    request: PicGoImageUploadRequest,
+) -> Result<UploadedImage, String> {
+    validate_image_bytes(&request.bytes)?;
+    let extension = uploaded_image_extension(&request.mime_type)?;
+    let file_name = uploaded_image_file_name(&request.file_name, extension)?;
+    let upload_url = picgo_upload_endpoint_url(&request.server_url, &request.secret)?;
+    let file_part = multipart::Part::bytes(request.bytes)
+        .file_name(file_name)
+        .mime_str(&request.mime_type)
+        .map_err(|error| error.to_string())?;
+    let form = multipart::Form::new().part("files", file_part);
+    let client = image_upload_http_client()?;
+    let response = apply_picgo_auth(client.post(upload_url), &request.secret)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|error| error.to_string())?;
+
+    if !response.status().is_success() {
+        return Err(format!(
+            "PicGo image upload failed: HTTP {}",
+            response.status().as_u16()
+        ));
+    }
+
+    let response_body = response.text().await.map_err(|error| error.to_string())?;
+
+    parse_picgo_upload_response(&response_body)
 }
 
 async fn execute_s3_image_upload(request: S3ImageUploadRequest) -> Result<UploadedImage, String> {
@@ -228,6 +277,17 @@ fn apply_basic_auth(builder: RequestBuilder, username: &str, password: &str) -> 
     builder.basic_auth(username.to_string(), Some(password.to_string()))
 }
 
+fn apply_picgo_auth(builder: RequestBuilder, secret: &str) -> RequestBuilder {
+    let secret = secret.trim();
+    if secret.is_empty() {
+        return builder;
+    }
+
+    builder
+        .bearer_auth(secret)
+        .header("X-PicGo-Secret", secret.to_string())
+}
+
 fn webdav_mkcol_method() -> Result<Method, String> {
     Method::from_bytes(b"MKCOL").map_err(|error| error.to_string())
 }
@@ -251,6 +311,25 @@ fn image_upload_url(base_url: &str, upload_path: &str, file_name: &str) -> Resul
     let segments = normalize_upload_path_segments(upload_path)?;
 
     remote_url_with_segments(base_url, &segments, file_name)
+}
+
+fn picgo_upload_endpoint_url(server_url: &str, secret: &str) -> Result<Url, String> {
+    let mut url = validated_upload_base_url(server_url)?;
+    let normalized_path = url.path().trim_end_matches('/').to_string();
+    if normalized_path.is_empty() {
+        url.set_path("/upload");
+    } else if !normalized_path.ends_with("/upload") {
+        url.set_path(&format!("{normalized_path}/upload"));
+    }
+
+    let secret = secret.trim();
+    if !secret.is_empty() {
+        let mut query = url.query_pairs_mut();
+        query.append_pair("secret", secret);
+        query.append_pair("key", secret);
+    }
+
+    Ok(url)
 }
 
 fn remote_url_with_segments(
@@ -395,6 +474,51 @@ fn uploaded_image_file_name(file_name: &str, extension: &str) -> Result<String, 
     Ok(format!("{stem}.{extension}"))
 }
 
+fn parse_picgo_upload_response(body: &str) -> Result<UploadedImage, String> {
+    let value: serde_json::Value = serde_json::from_str(body).map_err(|error| error.to_string())?;
+    if value.get("success").and_then(serde_json::Value::as_bool) == Some(false) {
+        return Err(picgo_upload_response_message(&value)
+            .unwrap_or_else(|| "PicGo image upload failed".to_string()));
+    }
+
+    let result = value
+        .get("result")
+        .ok_or_else(|| "PicGo image upload did not return an image URL".to_string())?;
+    let url = result
+        .as_array()
+        .and_then(|urls| {
+            urls.iter()
+                .filter_map(serde_json::Value::as_str)
+                .find(|url| !url.is_empty())
+        })
+        .or_else(|| result.as_str())
+        .ok_or_else(|| "PicGo image upload did not return an image URL".to_string())?;
+
+    validate_picgo_uploaded_url(url)?;
+
+    Ok(UploadedImage {
+        url: url.to_string(),
+    })
+}
+
+fn picgo_upload_response_message(value: &serde_json::Value) -> Option<String> {
+    ["message", "error"]
+        .iter()
+        .filter_map(|key| value.get(key).and_then(serde_json::Value::as_str))
+        .find(|message| !message.trim().is_empty())
+        .map(ToString::to_string)
+}
+
+fn validate_picgo_uploaded_url(value: &str) -> Result<(), String> {
+    let url = Url::parse(value)
+        .map_err(|_| "PicGo image upload returned an invalid image URL".to_string())?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return Err("PicGo image upload returned an unsupported image URL".to_string());
+    }
+
+    Ok(())
+}
+
 fn s3_authorization_header(
     upload_url: &Url,
     content_type: &str,
@@ -492,4 +616,35 @@ fn hex_lower(bytes: &[u8]) -> String {
     }
 
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_picgo_upload_response_urls() {
+        let uploaded = parse_picgo_upload_response(
+            r#"{"success":true,"result":["https://cdn.example.test/images/pasted-image.png"]}"#,
+        )
+        .expect("PicGo upload responses should parse");
+
+        assert_eq!(
+            uploaded,
+            UploadedImage {
+                url: "https://cdn.example.test/images/pasted-image.png".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn builds_picgo_upload_endpoint_with_auth_compatibility_params() {
+        let upload_url = picgo_upload_endpoint_url("http://127.0.0.1:36677", "server-secret")
+            .expect("PicGo endpoint should be built");
+
+        assert_eq!(
+            upload_url.as_str(),
+            "http://127.0.0.1:36677/upload?secret=server-secret&key=server-secret"
+        );
+    }
 }

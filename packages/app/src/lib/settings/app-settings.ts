@@ -75,7 +75,11 @@ export type TitlebarActionPreference = {
   id: TitlebarActionId;
   visible: boolean;
 };
-export type ImageUploadProvider = "local" | "s3" | "webdav";
+export type ImageUploadProvider = "local" | "picgo" | "s3" | "webdav";
+export type PicGoImageUploadSettings = {
+  secret: string;
+  serverUrl: string;
+};
 export type S3ImageUploadSettings = {
   accessKeyId: string;
   bucket: string;
@@ -94,6 +98,7 @@ export type WebDavImageUploadSettings = {
 };
 export type ImageUploadSettings = {
   fileNamePattern: string;
+  picgo: PicGoImageUploadSettings;
   provider: ImageUploadProvider;
   s3: S3ImageUploadSettings;
   webdav: WebDavImageUploadSettings;
@@ -212,6 +217,10 @@ export const defaultSplitVisualPanePercent = 50;
 
 export const defaultImageUploadSettings: ImageUploadSettings = {
   fileNamePattern: "pasted-image-{timestamp}",
+  picgo: {
+    secret: "",
+    serverUrl: ""
+  },
   provider: "local",
   s3: {
     accessKeyId: "",
@@ -917,10 +926,13 @@ export function normalizeImageUploadSettings(value: unknown): ImageUploadSetting
   if (typeof value !== "object" || value === null) return defaultImageUploadSettings;
 
   const settings = value as Partial<ImageUploadSettings>;
-  const provider = settings.provider === "webdav" || settings.provider === "s3" ? settings.provider : "local";
+  const provider = settings.provider === "webdav" || settings.provider === "s3" || settings.provider === "picgo"
+    ? settings.provider
+    : "local";
 
   return {
     fileNamePattern: normalizeImageUploadFileNamePattern(settings.fileNamePattern),
+    picgo: normalizePicGoImageUploadSettings(settings.picgo),
     provider,
     s3: normalizeS3ImageUploadSettings(settings.s3),
     webdav: normalizeWebDavImageUploadSettings(settings.webdav)
@@ -951,6 +963,17 @@ export function normalizeS3ImageUploadSettings(value: unknown): S3ImageUploadSet
     region: typeof settings.region === "string" ? settings.region.trim() : "",
     secretAccessKey: typeof settings.secretAccessKey === "string" ? settings.secretAccessKey : "",
     uploadPath: normalizeRemoteImageUploadPath(settings.uploadPath)
+  };
+}
+
+export function normalizePicGoImageUploadSettings(value: unknown): PicGoImageUploadSettings {
+  if (typeof value !== "object" || value === null) return defaultImageUploadSettings.picgo;
+
+  const settings = value as Partial<PicGoImageUploadSettings>;
+
+  return {
+    secret: typeof settings.secret === "string" ? settings.secret.trim() : "",
+    serverUrl: normalizeImageUploadUrl(settings.serverUrl)
   };
 }
 

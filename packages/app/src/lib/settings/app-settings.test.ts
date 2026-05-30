@@ -174,6 +174,10 @@ describe("app settings", () => {
       },
       imageUpload: {
         fileNamePattern: "pasted-image-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
         provider: "local",
         s3: {
           accessKeyId: "",
@@ -444,6 +448,10 @@ describe("app settings", () => {
       contentWidthPx: null,
       imageUpload: {
         fileNamePattern: "web-{name}-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
         provider: "webdav",
         s3: {
           accessKeyId: "",
@@ -677,6 +685,10 @@ describe("app settings", () => {
     }).imageUpload).toEqual({
       provider: "local",
       fileNamePattern: "pasted-image-{timestamp}",
+      picgo: {
+        secret: "",
+        serverUrl: ""
+      },
       s3: {
         accessKeyId: "",
         bucket: "",
@@ -714,6 +726,10 @@ describe("app settings", () => {
     }).imageUpload).toEqual({
       provider: "s3",
       fileNamePattern: "{name}-{random}",
+      picgo: {
+        secret: "",
+        serverUrl: ""
+      },
       s3: {
         accessKeyId: "access-key",
         bucket: "markra-images",
@@ -722,6 +738,42 @@ describe("app settings", () => {
         region: "us-east-1",
         secretAccessKey: "secret",
         uploadPath: "notes/screenshots"
+      },
+      webdav: {
+        password: "",
+        publicBaseUrl: "",
+        serverUrl: "",
+        uploadPath: "",
+        username: ""
+      }
+    });
+  });
+
+  it("normalizes PicGo and PicList server image upload settings", () => {
+    expect(normalizeEditorPreferences({
+      imageUpload: {
+        fileNamePattern: "{name}-{random}",
+        provider: "picgo",
+        picgo: {
+          secret: " server-secret ",
+          serverUrl: " http://127.0.0.1:36677/upload?ignored=true#docs "
+        }
+      }
+    }).imageUpload).toEqual({
+      provider: "picgo",
+      fileNamePattern: "{name}-{random}",
+      picgo: {
+        secret: "server-secret",
+        serverUrl: "http://127.0.0.1:36677/upload"
+      },
+      s3: {
+        accessKeyId: "",
+        bucket: "",
+        endpointUrl: "",
+        publicBaseUrl: "",
+        region: "",
+        secretAccessKey: "",
+        uploadPath: ""
       },
       webdav: {
         password: "",
@@ -754,6 +806,10 @@ describe("app settings", () => {
       },
       imageUpload: {
         fileNamePattern: "pasted-image-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
         provider: "local",
         s3: {
           accessKeyId: "",
@@ -807,6 +863,10 @@ describe("app settings", () => {
       },
       imageUpload: {
         fileNamePattern: "{name}-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
         provider: "webdav",
         s3: {
           accessKeyId: "",
@@ -868,6 +928,10 @@ describe("app settings", () => {
       },
       imageUpload: {
         fileNamePattern: "{name}-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
         provider: "webdav",
         s3: {
           accessKeyId: "",

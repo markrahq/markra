@@ -138,6 +138,10 @@ describe("settings events", () => {
       },
       imageUpload: {
         fileNamePattern: "{name}-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
         provider: "webdav",
         s3: {
           accessKeyId: "",

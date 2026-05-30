@@ -32,6 +32,7 @@ import {
   renameNativeMarkdownTreeFile,
   saveNativeMarkdownFile,
   writeNativeMarkdownTemplateFile,
+  uploadNativePicGoImage,
   uploadNativeS3Image,
   uploadNativeWebDavImage,
   watchNativeMarkdownFile,
@@ -794,6 +795,37 @@ describe("native file access", () => {
         serverUrl: "https://dav.example.com/images",
         uploadPath: "notes",
         username: "ada"
+      }
+    });
+  });
+
+  it("uploads a clipboard image through a PicGo or PicList server via Tauri", async () => {
+    const image = new File([new Uint8Array([4, 5, 6])], "Diagram.png", { type: "image/png" });
+    mockedInvoke.mockResolvedValue({
+      url: "https://cdn.example.test/images/pasted-image-123.png"
+    });
+
+    await expect(
+      uploadNativePicGoImage({
+        fileName: "custom-image.png",
+        image,
+        settings: {
+          secret: "server-secret",
+          serverUrl: "http://127.0.0.1:36677/upload"
+        }
+      })
+    ).resolves.toEqual({
+      alt: "Diagram",
+      src: "https://cdn.example.test/images/pasted-image-123.png"
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("upload_picgo_image", {
+      request: {
+        bytes: [4, 5, 6],
+        fileName: "custom-image.png",
+        mimeType: "image/png",
+        secret: "server-secret",
+        serverUrl: "http://127.0.0.1:36677/upload"
       }
     });
   });

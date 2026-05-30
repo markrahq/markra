@@ -140,6 +140,10 @@ describe("Markra AI workspace", () => {
       },
       imageUpload: {
         fileNamePattern: "pasted-image-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
         provider: "local",
         s3: {
           accessKeyId: "",

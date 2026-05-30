@@ -1183,6 +1183,8 @@ function WorkspaceApp() {
     if (result.status === "skipped") {
       const messageKey = result.reason === "s3-not-configured"
         ? "app.clipboardImageS3UploadNotConfigured"
+        : result.reason === "picgo-not-configured"
+          ? "app.clipboardImagePicGoUploadNotConfigured"
         : result.reason === "webdav-not-configured"
           ? "app.clipboardImageUploadNotConfigured"
           : "app.clipboardImageRequiresSavedDocument";

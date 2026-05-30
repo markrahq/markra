@@ -1,23 +1,31 @@
 import type {
   EditorPreferences,
+  PicGoImageUploadSettings,
   S3ImageUploadSettings,
   WebDavImageUploadSettings
 } from "./settings/app-settings";
 import {
   saveNativeClipboardImage,
+  uploadNativePicGoImage,
   uploadNativeS3Image,
   uploadNativeWebDavImage,
   type SavedNativeClipboardImage,
   type SaveNativeClipboardImageInput,
+  type UploadNativePicGoImageInput,
   type UploadNativeS3ImageInput,
   type UploadNativeWebDavImageInput
 } from "./tauri";
 
 type SaveLocalImage = (input: SaveNativeClipboardImageInput) => Promise<SavedNativeClipboardImage>;
+type UploadPicGoImage = (input: UploadNativePicGoImageInput) => Promise<SavedNativeClipboardImage>;
 type UploadS3Image = (input: UploadNativeS3ImageInput) => Promise<SavedNativeClipboardImage>;
 type UploadWebDavImage = (input: UploadNativeWebDavImageInput) => Promise<SavedNativeClipboardImage>;
 
-export type SaveEditorImageSkippedReason = "requires-saved-document" | "s3-not-configured" | "webdav-not-configured";
+export type SaveEditorImageSkippedReason =
+  | "picgo-not-configured"
+  | "requires-saved-document"
+  | "s3-not-configured"
+  | "webdav-not-configured";
 
 export type SaveEditorImageResult =
   | {
@@ -36,6 +44,7 @@ export type SaveEditorImageInput = {
   preferences: EditorPreferences;
   s3ImageUploadEnabled?: boolean;
   saveLocalImage?: SaveLocalImage;
+  uploadPicGoImage?: UploadPicGoImage;
   uploadS3Image?: UploadS3Image;
   uploadWebDavImage?: UploadWebDavImage;
 };
@@ -88,12 +97,17 @@ export function isWebDavImageUploadConfigured(settings: WebDavImageUploadSetting
   return settings.serverUrl.trim().length > 0;
 }
 
+export function isPicGoImageUploadConfigured(settings: PicGoImageUploadSettings) {
+  return settings.serverUrl.trim().length > 0;
+}
+
 export async function saveEditorImage({
   documentPath,
   image,
   preferences,
   s3ImageUploadEnabled = true,
   saveLocalImage = saveNativeClipboardImage,
+  uploadPicGoImage = uploadNativePicGoImage,
   uploadS3Image = uploadNativeS3Image,
   uploadWebDavImage = uploadNativeWebDavImage
 }: SaveEditorImageInput): Promise<SaveEditorImageResult> {
@@ -101,6 +115,22 @@ export async function saveEditorImage({
   const provider = preferences.imageUpload.provider === "s3" && !s3ImageUploadEnabled
     ? "local"
     : preferences.imageUpload.provider;
+
+  if (provider === "picgo") {
+    const settings = preferences.imageUpload.picgo;
+    if (!isPicGoImageUploadConfigured(settings)) {
+      return {
+        reason: "picgo-not-configured",
+        status: "skipped"
+      };
+    }
+
+    return {
+      image: await uploadPicGoImage({ fileName, image, settings }),
+      refreshTree: false,
+      status: "saved"
+    };
+  }
 
   if (provider === "s3") {
     const settings = preferences.imageUpload.s3;

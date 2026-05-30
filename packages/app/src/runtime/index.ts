@@ -33,6 +33,7 @@ import type {
   SaveNativeMarkdownFileInput,
   SaveNativePandocFileInput,
   SaveNativePdfFileInput,
+  UploadNativePicGoImageInput,
   UploadNativeS3ImageInput,
   UploadNativeWebDavImageInput
 } from "../lib/tauri/file";
@@ -153,6 +154,7 @@ export type AppFileRuntime = {
   savePandocFile: (input: SaveNativePandocFileInput) => Promise<SavedNativePandocFile | null>;
   savePdfFile: (input: SaveNativePdfFileInput) => Promise<SavedNativePdfFile | null>;
   takeOpenedMarkdownPaths: () => Promise<string[]>;
+  uploadPicGoImage: (input: UploadNativePicGoImageInput) => Promise<SavedNativeClipboardImage>;
   uploadS3Image: (input: UploadNativeS3ImageInput) => Promise<SavedNativeClipboardImage>;
   uploadWebDavImage: (input: UploadNativeWebDavImageInput) => Promise<SavedNativeClipboardImage>;
   watchMarkdownFile: (
@@ -311,6 +313,7 @@ function createDefaultFileRuntime(): AppFileRuntime {
     savePandocFile: async () => null,
     savePdfFile: async () => null,
     takeOpenedMarkdownPaths: async () => [],
+    uploadPicGoImage: () => unsupportedFeature("uploadPicGoImage"),
     uploadS3Image: () => unsupportedFeature("uploadS3Image"),
     uploadWebDavImage: () => unsupportedFeature("uploadWebDavImage"),
     watchMarkdownFile: async () => () => undefined,
@@ -403,6 +406,7 @@ export type {
   AppTheme,
   EditorPreferences,
   ExportSettings,
+  PicGoImageUploadSettings,
   S3ImageUploadSettings,
   WebDavImageUploadSettings,
   WebSearchSettings
@@ -432,6 +436,7 @@ export type {
   SaveNativeMarkdownFileInput,
   SaveNativePandocFileInput,
   SaveNativePdfFileInput,
+  UploadNativePicGoImageInput,
   UploadNativeS3ImageInput,
   UploadNativeWebDavImageInput
 } from "../lib/tauri/file";
