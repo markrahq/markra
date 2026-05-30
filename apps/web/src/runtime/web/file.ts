@@ -1182,6 +1182,9 @@ export function createWebFileRuntime(
     uploadS3Image: async () => {
       throw new Error("S3 uploads require a backend proxy in the web runtime.");
     },
+    uploadPicGoImage: async () => {
+      throw new Error("PicGo/PicList uploads require the desktop runtime.");
+    },
     async uploadWebDavImage(input) {
       const normalizedBaseUrl = input.settings.serverUrl.replace(/\/+$/, "");
       const uploadPath = input.settings.uploadPath.replace(/^\/+|\/+$/g, "");
