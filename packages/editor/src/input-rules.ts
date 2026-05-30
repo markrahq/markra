@@ -110,6 +110,105 @@ function getMarkByType(marks: readonly Mark[], markType: MarkType) {
   return marks.find((mark) => mark.type === markType);
 }
 
+function getManagedMarkTypes(specs: LiveMarkdownSpec[]) {
+  const markTypes: MarkType[] = [];
+
+  for (const spec of specs) {
+    for (const mark of spec.marks) {
+      if (!markTypes.includes(mark.markType)) {
+        markTypes.push(mark.markType);
+      }
+    }
+  }
+
+  return markTypes;
+}
+
+function hasManagedMark(marks: readonly Mark[] | null | undefined, markTypes: MarkType[]) {
+  return Boolean(marks?.some((mark) => markTypes.includes(mark.type)));
+}
+
+function selectionContainsManagedMark(state: EditorState, markTypes: MarkType[]) {
+  const { selection } = state;
+  if (selection.empty) return false;
+
+  let found = false;
+  state.doc.nodesBetween(selection.from, selection.to, (node) => {
+    if (found) return false;
+    if (!node.isText) return true;
+
+    found = hasManagedMark(node.marks, markTypes);
+    return !found;
+  });
+
+  return found;
+}
+
+function emptyTextblockSelection(state: EditorState) {
+  const { selection } = state;
+
+  return (
+    selection instanceof TextSelection &&
+    selection.empty &&
+    selection.$from.parent.isTextblock &&
+    selection.$from.parent.content.size === 0
+  );
+}
+
+function shouldClearManagedStoredMarks(
+  transactions: readonly { docChanged: boolean }[],
+  oldState: EditorState,
+  newState: EditorState,
+  markTypes: MarkType[]
+) {
+  if (!hasManagedMark(newState.storedMarks, markTypes)) return false;
+  if (!transactions.some((transaction) => transaction.docChanged)) return false;
+
+  if (selectionContainsManagedMark(oldState, markTypes)) return true;
+
+  return oldState.doc.content.size > newState.doc.content.size && emptyTextblockSelection(newState);
+}
+
+function clearManagedStoredMarks(state: EditorState, markTypes: MarkType[]) {
+  const storedMarks = state.storedMarks;
+  if (!storedMarks) return null;
+
+  const nextMarks = storedMarks.filter((mark) => !markTypes.includes(mark.type));
+  if (nextMarks.length === storedMarks.length) return null;
+
+  return state.tr.setStoredMarks(nextMarks);
+}
+
+function deleteTextAfterLiveMarkdownRange(
+  view: EditorView,
+  specs: LiveMarkdownSpec[],
+  markTypes: MarkType[]
+) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+
+  const { $from } = selection;
+  if (!$from.parent.isTextblock) return false;
+
+  const cursor = $from.parentOffset;
+  const range = getLiveMarkdownRanges($from.parent.textContent, specs).find(
+    (candidate) => candidate.to + 1 === cursor
+  );
+  if (!range) return false;
+
+  const from = $from.start() + range.to;
+  const storedMarks = view.state.storedMarks?.filter((mark) => !markTypes.includes(mark.type)) ?? [];
+  const transaction = view.state.tr.delete(from, from + 1);
+
+  view.dispatch(
+    transaction
+      .setSelection(TextSelection.create(transaction.doc, from))
+      .setStoredMarks(storedMarks)
+      .scrollIntoView()
+  );
+  return true;
+}
+
 function getMarkerFromFoldedMarks(marks: readonly Mark[], spec: LiveMarkdownSpec) {
   const strongMark = spec.marks.find((mark) => mark.kind === "strong");
   const emphasisMark = spec.marks.find((mark) => mark.kind === "emphasis");
@@ -387,8 +486,8 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       ]
     },
     {
-      markers: ["***", "___"],
-      pattern: /(?:\*\*\*|___)[^\n]*?(?:\*\*\*|___)/g,
+      markers: ["***"],
+      pattern: /\*\*\*[^\n]*?\*\*\*/g,
       marks: [
         {
           kind: "strong",
@@ -407,8 +506,41 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       ]
     },
     {
-      markers: ["**", "__"],
-      pattern: /(?:\*\*|__)[^\n]*?(?:\*\*|__)/g,
+      markers: ["___"],
+      pattern: /(?<![\p{L}\p{N}_])___(?!_)[^\n]*?(?<!_)___(?!_)(?![\p{L}\p{N}_])/gu,
+      marks: [
+        {
+          kind: "strong",
+          markType: strongSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker: marker[0]
+          })
+        },
+        {
+          kind: "emphasis",
+          markType: emphasisSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker: marker[0]
+          })
+        }
+      ]
+    },
+    {
+      markers: ["**"],
+      pattern: /\*\*[^\n]*?\*\*/g,
+      marks: [
+        {
+          kind: "strong",
+          markType: strongSchema.type(ctx),
+          getAttr: (marker) => ({
+            marker: marker[0]
+          })
+        }
+      ]
+    },
+    {
+      markers: ["__"],
+      pattern: /(?<![\p{L}\p{N}_])__(?!_)[^\n]*?(?<!_)__(?!_)(?![\p{L}\p{N}_])/gu,
       marks: [
         {
           kind: "strong",
@@ -454,7 +586,7 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
     },
     {
       markers: ["_"],
-      pattern: /(?<!_)_(?!_)[^_\n]*?(?<!_)_(?!_)/g,
+      pattern: /(?<![\p{L}\p{N}_])_(?!_)[^\n]*?(?<!_)_(?!_)(?![\p{L}\p{N}_])/gu,
       marks: [
         {
           kind: "emphasis",
@@ -466,9 +598,15 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       ]
     }
   ];
+  const managedMarkTypes = getManagedMarkTypes(specs);
 
   return new Plugin({
     key: liveMarkdownKey,
+    appendTransaction: (transactions, oldState, newState) => {
+      if (!shouldClearManagedStoredMarks(transactions, oldState, newState, managedMarkTypes)) return null;
+
+      return clearManagedStoredMarks(newState, managedMarkTypes);
+    },
     state: {
       init: (): LiveMarkdownPluginState => ({
         suppressActiveAt: null,
@@ -540,6 +678,14 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       },
       handleKeyDown: (view, event) => {
         const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
+
+        if (event.key === "Backspace" && !hasModifier) {
+          const handled = deleteTextAfterLiveMarkdownRange(view, specs, managedMarkTypes);
+          if (handled) {
+            event.preventDefault();
+            return true;
+          }
+        }
 
         if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !hasModifier) {
           const handled = moveCursorOverLiveMarkdownDelimiter(

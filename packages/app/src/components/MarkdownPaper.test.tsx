@@ -4341,6 +4341,26 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps intraword underscores in identifiers as plain text", async () => {
+    const { container, view } = await renderEditor("user_info_data user__meta__data");
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("user_info_data user__meta__data");
+    expect(container.querySelector(".ProseMirror .markra-live-mark-emphasis")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-live-mark-strong")).not.toBeInTheDocument();
+    expectHiddenMarkdownDelimiters(container, 0);
+
+    moveCursor(view, findTextPosition(view, "user__meta__data", "user__meta__data".length));
+    typeText(view, " mock_value_name mock__token__name");
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe(
+      "user_info_data user__meta__data mock_value_name mock__token__name"
+    );
+    expect(container.querySelector(".ProseMirror .markra-live-mark-emphasis")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-live-mark-strong")).not.toBeInTheDocument();
+    expectHiddenMarkdownDelimiters(container, 0);
+    await settleMarkdownListener();
+  });
+
   it("supports inline markdown formatting shortcuts", async () => {
     const strong = await renderEditor();
     typeText(strong.view, "bold");
@@ -4702,6 +4722,31 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps live closing delimiters visible after deleting adjacent plain text", async () => {
+    const cases = [
+      { markdown: "*a*a", marker: "*", kind: "emphasis" },
+      { markdown: "**a**a", marker: "**", kind: "strong" },
+      { markdown: "~~a~~a", marker: "~~", kind: "strikethrough" },
+      { markdown: "`a`a", marker: "`", kind: "inlineCode" }
+    ];
+
+    for (const { markdown, marker, kind } of cases) {
+      const { container, view } = await renderEditor();
+
+      typeText(view, markdown);
+
+      expectMarkdownDelimiters(container, 0);
+      expect(pressBackspace(view)).toBe(true);
+
+      expectLiveMark(container, kind, "a");
+      expectMarkdownDelimiterText(container, marker);
+      expect(container.querySelector(".ProseMirror p")?.textContent).toBe(markdown.slice(0, -1));
+      expect(view.state.selection.from).toBe(findLastTextBlockEndCursor(view));
+    }
+
+    await settleMarkdownListener();
+  });
+
   it("moves the cursor over live markdown delimiters as a single visible step", async () => {
     const { view } = await renderEditor();
 
@@ -4851,6 +4896,67 @@ describe("MarkdownPaper editing", () => {
 
     expect(strikethrough.container.querySelector(".ProseMirror del")).toHaveTextContent("2");
     expect(strikethrough.container.querySelector(".ProseMirror")?.textContent).toBe("2");
+    await settleMarkdownListener();
+  });
+
+  it("clears inline formatting after deleting finalized markdown marks", async () => {
+    const cases = [
+      { markdown: "_2_", selectors: ["em"] },
+      { markdown: "**2**", selectors: ["strong"] },
+      { markdown: "___2___", selectors: ["strong", "em"] },
+      { markdown: "~~2~~", selectors: ["del"] },
+      { markdown: "`2`", selectors: ["code"] }
+    ];
+
+    for (const { markdown, selectors } of cases) {
+      const { container, view } = await renderEditor();
+
+      typeText(view, markdown);
+      expect(pressEnter(view)).toBe(true);
+
+      for (const selector of selectors) {
+        expect(container.querySelector(`.ProseMirror ${selector}`)).toHaveTextContent("2");
+      }
+
+      selectText(view, 1, 2);
+      view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+      typeText(view, "plain");
+
+      for (const selector of selectors) {
+        expect(container.querySelector(`.ProseMirror ${selector}`)).not.toBeInTheDocument();
+      }
+
+      expect(container.querySelector(".ProseMirror")?.textContent).toBe("plain");
+    }
+
+    await settleMarkdownListener();
+  });
+
+  it("keeps inline formatting when editing inside remaining finalized marks", async () => {
+    const cases = [
+      { markdown: "_bold_", selector: "em" },
+      { markdown: "**bold**", selector: "strong" },
+      { markdown: "~~bold~~", selector: "del" },
+      { markdown: "`bold`", selector: "code" }
+    ];
+
+    for (const { markdown, selector } of cases) {
+      const { container, view } = await renderEditor();
+
+      typeText(view, markdown);
+      expect(pressEnter(view)).toBe(true);
+
+      selectText(view, findTextPosition(view, "ol"), findTextPosition(view, "ol", "ol".length));
+      view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+      typeText(view, "OO");
+
+      const markedText = Array.from(container.querySelectorAll(`.ProseMirror ${selector}`))
+        .map((node) => node.textContent ?? "")
+        .join("");
+      expect(markedText).toBe("bOOd");
+      expect(container.querySelector(".ProseMirror")?.textContent).toBe("bOOd");
+    }
+
     await settleMarkdownListener();
   });
 
