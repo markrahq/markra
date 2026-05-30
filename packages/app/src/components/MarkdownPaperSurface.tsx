@@ -31,6 +31,8 @@ import {
   markraSearchPlugin,
   markraSlashCommands,
   markraTableControlsPlugin,
+  markraTaskListPlugin,
+  markraTaskListSchema,
   normalizeMarkdownShortcuts,
   serializeLinkImageLiveMarkdown,
   type MarkdownShortcutMap,
@@ -236,7 +238,11 @@ function MilkdownEditorSurface({
               ...options.attributes,
               "aria-label": markdownDocumentLabel,
               "aria-readonly": readOnlyRef.current ? "true" : "false",
-              spellcheck: "true"
+              autocomplete: "off",
+              autocapitalize: "off",
+              autocorrect: "off",
+              spellcheck: "false",
+              writingsuggestions: "false"
             },
             editable: () => !readOnlyRef.current
           }));
@@ -264,6 +270,8 @@ function MilkdownEditorSurface({
         .use(markraCommonmark)
         .use(markraFrontmatterSchema)
         .use(markraGfm)
+        .use(markraTaskListSchema)
+        .use(markraTaskListPlugin)
         .use(markraCalloutSerializerPlugin);
 
       if (githubAlertsEnabled) {

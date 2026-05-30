@@ -665,6 +665,30 @@
     @apply wrap-break-word whitespace-pre-wrap;
   }
 
+  .markdown-paper .ProseMirror li[data-item-type="task"] {
+    @apply relative flex list-none items-start gap-2;
+  }
+
+  .markdown-paper .markra-task-list-checkbox {
+    @apply mt-1 h-4 w-4 shrink-0 cursor-pointer rounded-sm border border-(--border-strong) accent-(--accent);
+  }
+
+  .markdown-paper .markra-task-list-checkbox:disabled {
+    @apply cursor-not-allowed opacity-55;
+  }
+
+  .markdown-paper .markra-task-list-content {
+    @apply min-w-0 flex-1;
+  }
+
+  .markdown-paper .markra-task-list-content > p:first-child {
+    @apply mt-0;
+  }
+
+  .markdown-paper .markra-task-list-content > p:last-child {
+    @apply mb-0;
+  }
+
   .markdown-paper .ProseMirror-focused {
     @apply outline-none;
   }

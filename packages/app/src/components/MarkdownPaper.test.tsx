@@ -667,6 +667,17 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".markdown-paper")).toHaveAttribute("data-editor-theme", "light");
   });
 
+  it("disables browser writing suggestions on the visual editor surface", async () => {
+    const { container } = await renderEditor();
+    const editorSurface = container.querySelector(".ProseMirror");
+
+    expect(editorSurface).toHaveAttribute("autocomplete", "off");
+    expect(editorSurface).toHaveAttribute("autocorrect", "off");
+    expect(editorSurface).toHaveAttribute("autocapitalize", "off");
+    expect(editorSurface).toHaveAttribute("spellcheck", "false");
+    expect(editorSurface).toHaveAttribute("writingsuggestions", "false");
+  });
+
   it("blocks document-changing editor transactions while read-only", async () => {
     const onMarkdownChange = vi.fn();
     const { editor, view } = await renderEditor("Locked content", {
@@ -746,6 +757,38 @@ describe("MarkdownPaper editing", () => {
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toContain(source);
+  });
+
+  it("renders GFM task list items as clickable checkboxes", async () => {
+    const source = ["- [x] Finish mock draft", "- [ ] Review mock copy"].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    const checkboxes = Array.from(container.querySelectorAll<HTMLInputElement>('.ProseMirror input[type="checkbox"]'));
+
+    expect(checkboxes).toHaveLength(2);
+    expect(checkboxes[0]).toBeChecked();
+    expect(checkboxes[1]).not.toBeChecked();
+    expect(serializeMarkdown(view.state.doc)).toBe("* [x] Finish mock draft\n* [ ] Review mock copy\n");
+
+    fireEvent.click(checkboxes[1]);
+
+    expect(checkboxes[1]).toBeChecked();
+    expect(serializeMarkdown(view.state.doc)).toBe("* [x] Finish mock draft\n* [x] Review mock copy\n");
+  });
+
+  it("turns typed GFM task list syntax into a checkbox", async () => {
+    const { container, editor, view } = await renderEditor();
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "- [ ] a");
+
+    const checkbox = container.querySelector<HTMLInputElement>('.ProseMirror input[type="checkbox"]');
+
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).not.toBeChecked();
+    expect(container.querySelector(".ProseMirror li")).toHaveTextContent("a");
+    expect(serializeMarkdown(view.state.doc)).toContain("* [ ] a");
   });
 
   it.each([
