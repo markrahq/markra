@@ -17,6 +17,9 @@ import {
   markraCodeBlockPlugin,
   markraFrontmatterRemarkPlugin,
   markraFrontmatterSchema,
+  markraFootnoteDefinitionInputPlugin,
+  markraFootnotePreviewPlugin,
+  markraFootnoteReferenceInputRule,
   markraHeadingLevelPlugin,
   markraHeadingTogglePlugin,
   markraListTogglePlugin,
@@ -270,6 +273,8 @@ function MilkdownEditorSurface({
         .use(markraCommonmark)
         .use(markraFrontmatterSchema)
         .use(markraGfm)
+        .use(markraFootnoteReferenceInputRule)
+        .use(markraFootnoteDefinitionInputPlugin())
         .use(markraTaskListSchema)
         .use(markraTaskListPlugin)
         .use(markraCalloutSerializerPlugin);
@@ -288,6 +293,7 @@ function MilkdownEditorSurface({
         .use(markraAiSelectionHoldPlugin)
         .use(markraAiEditorPreviewPlugin)
         .use(markraSearchPlugin())
+        .use(markraFootnotePreviewPlugin())
         .use(markraBlockDragPlugin(blockDragLabels))
         .use(markraHeadingTogglePlugin(headingToggleLabels))
         .use(markraListTogglePlugin(listToggleLabels))

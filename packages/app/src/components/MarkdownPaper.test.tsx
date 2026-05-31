@@ -678,6 +678,503 @@ describe("MarkdownPaper editing", () => {
     expect(editorSurface).toHaveAttribute("writingsuggestions", "false");
   });
 
+  it("shows the matching footnote content while hovering a footnote reference", async () => {
+    const source = ["A sentence with a footnote[^preview].", "", "[^preview]: Synthetic footnote preview text."].join(
+      "\n"
+    );
+    const { container } = await renderEditor(source);
+    const reference = container.querySelector<HTMLElement>(
+      '.ProseMirror sup[data-type="footnote_reference"][data-label="preview"]'
+    );
+
+    expect(reference).toBeInTheDocument();
+
+    fireEvent.mouseEnter(reference!);
+
+    const preview = await screen.findByRole("tooltip");
+    expect(preview).toHaveTextContent("Synthetic footnote preview text.");
+
+    fireEvent.mouseLeave(reference!);
+
+    await waitFor(() => expect(screen.queryByRole("tooltip")).not.toBeInTheDocument());
+  });
+
+  it("keeps nested footnote definitions out of the parent reference preview", async () => {
+    const source = ["Only the first footnote is referenced[^1].", "", "[^1]: First preview text."].join("\n");
+    const { container, view } = await renderEditor(source);
+    const reference = container.querySelector<HTMLElement>(
+      '.ProseMirror sup[data-type="footnote_reference"][data-label="1"]'
+    );
+    const firstDefinition = view.state.doc.lastChild;
+    const paragraph = view.state.schema.nodes.paragraph;
+    const footnoteDefinition = view.state.schema.nodes.footnote_definition;
+
+    expect(reference).toBeInTheDocument();
+    expect(firstDefinition?.type.name).toBe("footnote_definition");
+    expect(paragraph).toBeDefined();
+    expect(footnoteDefinition).toBeDefined();
+
+    const nestedDefinition = footnoteDefinition!.create(
+      { label: "2" },
+      paragraph!.create(null, view.state.schema.text("Second preview text."))
+    );
+    view.dispatch(
+      view.state.tr.insert(view.state.doc.content.size - 2, nestedDefinition)
+    );
+
+    fireEvent.mouseEnter(reference!);
+
+    const preview = await screen.findByRole("tooltip");
+    expect(preview).toHaveTextContent("First preview text.");
+    expect(preview).not.toHaveTextContent("Second preview text.");
+  });
+
+  it("positions short footnote previews from their rendered width", async () => {
+    const source = ["A sentence with a footnote[^preview].", "", "[^preview]: Short preview."].join("\n");
+    const { container } = await renderEditor(source);
+    const reference = container.querySelector<HTMLElement>(
+      '.ProseMirror sup[data-type="footnote_reference"][data-label="preview"]'
+    );
+
+    expect(reference).toBeInTheDocument();
+
+    reference!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 116,
+          height: 16,
+          left: 240,
+          right: 252,
+          top: 100,
+          width: 12,
+          x: 240,
+          y: 100,
+          toJSON: () => ({})
+        }) as DOMRect
+    );
+    const rectSpy = vi
+      .spyOn(HTMLElement.prototype, "getBoundingClientRect")
+      .mockImplementation(function (this: HTMLElement) {
+        if (this.classList.contains("markra-footnote-preview")) {
+          return {
+            bottom: 44,
+            height: 44,
+            left: 0,
+            right: 148,
+            top: 0,
+            width: 148,
+            x: 0,
+            y: 0,
+            toJSON: () => ({})
+          } as DOMRect;
+        }
+
+        return {
+          bottom: 0,
+          height: 0,
+          left: 0,
+          right: 0,
+          top: 0,
+          width: 0,
+          x: 0,
+          y: 0,
+          toJSON: () => ({})
+        } as DOMRect;
+      });
+
+    try {
+      fireEvent.mouseEnter(reference!);
+
+      const preview = await screen.findByRole("tooltip");
+      expect(preview.style.left).toBe("172px");
+      expect(preview.style.top).toBe("124px");
+    } finally {
+      rectSpy.mockRestore();
+    }
+  });
+
+  it("keeps typed footnote references as markdown instead of escaped text", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", { onMarkdownChange });
+
+    typeText(view, "A typed footnote[^1]");
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+    const lastMarkdown = onMarkdownChange.mock.lastCall?.[0] ?? "";
+    expect(lastMarkdown).toContain("[^1]");
+    expect(lastMarkdown).not.toContain("\\[^1]");
+  });
+
+  it("keeps an existing footnote reference when another reference is typed after it", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "Synthetic references[^1][^2]");
+
+    await waitFor(() =>
+      expect(container.querySelectorAll('.ProseMirror sup[data-type="footnote_reference"]')).toHaveLength(2)
+    );
+    expect(
+      container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="1"]')
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="2"]')
+    ).toBeInTheDocument();
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("Synthetic references[^1][^2]");
+    expect(markdown).not.toContain("\\[^");
+  });
+
+  it("keeps an existing footnote reference when raw reference markdown is inserted after it", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "Synthetic references[^1]");
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+
+    insertTextDirectly(view, "[^2]");
+
+    await waitFor(() =>
+      expect(container.querySelectorAll('.ProseMirror sup[data-type="footnote_reference"]')).toHaveLength(2)
+    );
+    expect(
+      container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="1"]')
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="2"]')
+    ).toBeInTheDocument();
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("Synthetic references[^1][^2]");
+    expect(markdown).not.toContain("\\[^");
+  });
+
+  it("keeps typed footnote definitions as markdown instead of escaped text", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", { onMarkdownChange });
+
+    typeText(view, "[^1]: Synthetic typed definition.");
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror dl[data-type="footnote_definition"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+    const lastMarkdown = onMarkdownChange.mock.lastCall?.[0] ?? "";
+    expect(lastMarkdown).toContain("[^1]: Synthetic typed definition.");
+    expect(lastMarkdown).not.toContain("\\[^1]");
+  });
+
+  it("keeps full footnote definition input as markdown instead of escaped text", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", { onMarkdownChange });
+
+    expect(insertTextThroughInputHandler(view, "[^1]: asdfds")).toBe(true);
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror dl[data-type="footnote_definition"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+    const lastMarkdown = onMarkdownChange.mock.lastCall?.[0] ?? "";
+    expect(lastMarkdown).toContain("[^1]: asdfds");
+    expect(lastMarkdown).not.toContain("\\[^1]");
+  });
+
+  it("turns a typed footnote definition marker into a definition when the colon is typed", async () => {
+    const { container, view } = await renderEditor("");
+
+    typeText(view, "[^2]:");
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror dl[data-type="footnote_definition"][data-label="2"]')
+      ).toBeInTheDocument()
+    );
+    expect(
+      container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="2"]')
+    ).not.toBeInTheDocument();
+  });
+
+  it("serializes adjacent footnote definitions without continuation indentation", async () => {
+    const source = ["[^1]: First synthetic footnote.", "", "[^2]: Second synthetic footnote."].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+
+    expect(markdown).toContain("[^1]: First synthetic footnote.\n\n[^2]: Second synthetic footnote.");
+    expect(markdown).not.toContain("\n    [^2]:");
+  });
+
+  it("keeps text typed after an empty footnote definition marker unindented", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "[^1]: First synthetic footnote.");
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror dl[data-type="footnote_definition"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "[^2]:");
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror dl[data-type="footnote_definition"][data-label="2"]')
+      ).toBeInTheDocument()
+    );
+
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "Second synthetic footnote.");
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[^1]: First synthetic footnote.\n\n[^2]: Second synthetic footnote.");
+    expect(markdown).not.toContain("\n    [^2]:");
+    expect(markdown).not.toContain("\n    Second synthetic footnote.");
+  });
+
+  it("exits a footnote definition when pressing Enter after definition text", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "[^1]: First synthetic footnote.");
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror dl[data-type="footnote_definition"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "Second synthetic paragraph.");
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[^1]: First synthetic footnote.\n\nSecond synthetic paragraph.");
+    expect(markdown).not.toContain("\n    Second synthetic paragraph.");
+  });
+
+  it("normalizes pasted adjacent footnote definitions without continuation indentation", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    insertTextDirectly(view, "[^1]: First synthetic footnote.\n\n[^2]: Second synthetic footnote.");
+
+    await waitFor(() =>
+      expect(container.querySelectorAll('.ProseMirror dl[data-type="footnote_definition"]')).toHaveLength(2)
+    );
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[^1]: First synthetic footnote.\n\n[^2]: Second synthetic footnote.");
+    expect(markdown).not.toContain("\n    [^2]:");
+  });
+
+  it("keeps pasted multiline footnote definitions without dropping continuation text", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    insertTextDirectly(
+      view,
+      ["[^1]: First synthetic footnote.", "    Continued synthetic line.", "", "[^2]: Second synthetic footnote."].join(
+        "\n"
+      )
+    );
+
+    await waitFor(() =>
+      expect(container.querySelectorAll('.ProseMirror dl[data-type="footnote_definition"]')).toHaveLength(2)
+    );
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("First synthetic footnote.");
+    expect(markdown).toContain("Continued synthetic line.");
+    expect(markdown).toContain("[^2]: Second synthetic footnote.");
+    expect(markdown).not.toContain("\n    [^2]:");
+  });
+
+  it("normalizes pasted footnote definitions separated by a single newline", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    insertTextDirectly(view, "[^1]: First synthetic footnote.\n[^2]: Second synthetic footnote.");
+
+    await waitFor(() =>
+      expect(container.querySelectorAll('.ProseMirror dl[data-type="footnote_definition"]')).toHaveLength(2)
+    );
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[^1]: First synthetic footnote.\n\n[^2]: Second synthetic footnote.");
+    expect(markdown).not.toContain("[^1]: First synthetic footnote.\n    [^2]: Second synthetic footnote.");
+  });
+
+  it("serializes consecutively typed footnote definitions without continuation indentation", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "[^1]: First synthetic footnote.");
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror dl[data-type="footnote_definition"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+
+    expect(pressEnter(view)).toBe(true);
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "[^2]: Second synthetic footnote.");
+
+    await waitFor(() =>
+      expect(container.querySelectorAll('.ProseMirror dl[data-type="footnote_definition"]')).toHaveLength(2)
+    );
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[^1]: First synthetic footnote.\n\n[^2]: Second synthetic footnote.");
+    expect(markdown).not.toContain("\n    [^2]:");
+  });
+
+  it("lifts a typed footnote definition after one Enter out of the previous definition", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "[^1]: First synthetic footnote.");
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror dl[data-type="footnote_definition"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "[^2]: Second synthetic footnote.");
+
+    await waitFor(() =>
+      expect(container.querySelectorAll('.ProseMirror dl[data-type="footnote_definition"]')).toHaveLength(2)
+    );
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("[^1]: First synthetic footnote.\n\n[^2]: Second synthetic footnote.");
+    expect(markdown).not.toContain("\n    [^2]:");
+  });
+
+  it("normalizes pasted footnote markdown as footnotes instead of escaped text", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", { onMarkdownChange });
+
+    insertTextDirectly(view, "这是引用：[^1]\n\n[^1]: 这是脚注");
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror dl[data-type="footnote_definition"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+    const lastMarkdown = onMarkdownChange.mock.lastCall?.[0] ?? "";
+    expect(lastMarkdown).toContain("这是引用：[^1]");
+    expect(lastMarkdown).toContain("[^1]: 这是脚注");
+    expect(lastMarkdown).not.toContain("\\[^1]");
+  });
+
+  it("normalizes a sentence-ending footnote reference as markdown instead of escaped text", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", { onMarkdownChange });
+
+    insertTextDirectly(view, "这是引用[^1]\n\n[^1]: 这是脚注");
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+    const lastMarkdown = onMarkdownChange.mock.lastCall?.[0] ?? "";
+    expect(lastMarkdown).toContain("这是引用[^1]");
+    expect(lastMarkdown).not.toContain("这是引用\\[^1]");
+  });
+
+  it("normalizes a standalone sentence-ending footnote reference as markdown instead of escaped text", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", { onMarkdownChange });
+
+    insertTextDirectly(view, "这是引用[^1]");
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('.ProseMirror sup[data-type="footnote_reference"][data-label="1"]')
+      ).toBeInTheDocument()
+    );
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+    const lastMarkdown = onMarkdownChange.mock.lastCall?.[0] ?? "";
+    expect(lastMarkdown).toContain("这是引用[^1]");
+    expect(lastMarkdown).not.toContain("这是引用\\[^1]");
+  });
+
+  it("keeps typed footnote syntax inside inline code instead of converting it to a reference", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "Synthetic code `[^1]`");
+    expect(pressEnter(view)).toBe(true);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror code")).toHaveTextContent("[^1]"));
+    expect(container.querySelector('.ProseMirror sup[data-type="footnote_reference"]')).not.toBeInTheDocument();
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`[^1]`");
+  });
+
+  it("keeps pasted footnote syntax between inline code markers unescaped", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "``");
+    moveCursor(view, 2);
+    insertTextDirectly(view, "[^2]");
+    expect(pressEnter(view)).toBe(true);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror code")).toHaveTextContent("[^2]"));
+    expect(container.querySelector('.ProseMirror sup[data-type="footnote_reference"]')).not.toBeInTheDocument();
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`[^2]`");
+    expect(markdown).not.toContain("`\\[^2]`");
+  });
+
+  it("serializes pasted footnote syntax between live inline code markers unescaped", async () => {
+    const { editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "``");
+    moveCursor(view, 2);
+    view.pasteText("[^2]", new Event("paste") as ClipboardEvent);
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`[^2]`");
+    expect(markdown).not.toContain("\\`\\[^2]\\`");
+  });
+
+  it("keeps pasted footnote syntax inside fenced code instead of converting it to a reference", async () => {
+    const { container, view } = await renderEditor("");
+
+    insertTextDirectly(view, ["```", "[^1]", "```"].join("\n"));
+
+    await waitFor(() =>
+      expect(container.querySelector('.ProseMirror sup[data-type="footnote_reference"]')).not.toBeInTheDocument()
+    );
+  });
+
   it("blocks document-changing editor transactions while read-only", async () => {
     const onMarkdownChange = vi.fn();
     const { editor, view } = await renderEditor("Locked content", {
@@ -4748,6 +5245,29 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("places the folded closing delimiter after the cursor at the end of formatted text", async () => {
+    const { container, view } = await renderEditor("`sample`");
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("sample");
+    const codeEnd = findTextPosition(view, "sample", "sample".length);
+    const closingDelimiterDecorations: Array<{ from: number; to: number }> = [];
+    view.someProp("decorations", (decorations) => {
+      const value = typeof decorations === "function" ? decorations(view.state) : decorations;
+      value?.forEachSet((set) => {
+        closingDelimiterDecorations.push(
+          ...set.find(codeEnd, codeEnd, (spec: { side?: number }) => spec.side === 1)
+        );
+      });
+      return undefined;
+    });
+    expect(
+      closingDelimiterDecorations.some((decoration) => decoration.from === codeEnd && decoration.to === codeEnd)
+    ).toBe(true);
+    await settleMarkdownListener();
+  });
+
   it("hides folded markdown delimiters after the cursor moves to other text", async () => {
     const { container, view } = await renderEditor();
 
@@ -5056,6 +5576,95 @@ describe("MarkdownPaper editing", () => {
 
     expect(inlineCode.container.querySelector(".ProseMirror code")).toHaveTextContent("23");
     expect(inlineCode.container.querySelector(".ProseMirror")?.textContent).toBe("23");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed at the end of finalized inline code inside the code mark", async () => {
+    const { container, editor, view } = await renderEditor("`sample`");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, " text");
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("sample text");
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`sample text`");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed after confirming live inline code inside the code mark", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "``");
+    moveCursor(view, 2);
+    typeText(view, "sample");
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, " text");
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("sample text");
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`sample text`");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed after moving past the folded closing delimiter outside the code mark", async () => {
+    const { container, editor, view } = await renderEditor("`sample`");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    expect(pressArrowRight(view)).toBe(true);
+    const codeEnd = findTextPosition(view, "sample", "sample".length);
+    const exitedClosingDelimiterDecorations: Array<{ from: number; to: number }> = [];
+    view.someProp("decorations", (decorations) => {
+      const value = typeof decorations === "function" ? decorations(view.state) : decorations;
+      value?.forEachSet((set) => {
+        exitedClosingDelimiterDecorations.push(
+          ...set.find(codeEnd, codeEnd, (spec: { side?: number }) => spec.side === -1)
+        );
+      });
+      return undefined;
+    });
+    expect(
+      exitedClosingDelimiterDecorations.some((decoration) => decoration.from === codeEnd && decoration.to === codeEnd)
+    ).toBe(true);
+    expect(container.querySelector(".ProseMirror code")?.textContent).toBe("sample");
+    expect(pressArrowRight(view)).toBe(true);
+    const stableExitedClosingDelimiterDecorations: Array<{ from: number; to: number }> = [];
+    view.someProp("decorations", (decorations) => {
+      const value = typeof decorations === "function" ? decorations(view.state) : decorations;
+      value?.forEachSet((set) => {
+        stableExitedClosingDelimiterDecorations.push(
+          ...set.find(codeEnd, codeEnd, (spec: { side?: number }) => spec.side === -1)
+        );
+      });
+      return undefined;
+    });
+    expect(
+      stableExitedClosingDelimiterDecorations.some(
+        (decoration) => decoration.from === codeEnd && decoration.to === codeEnd
+      )
+    ).toBe(true);
+    expect(container.querySelector(".ProseMirror code")?.textContent).toBe("sample");
+    typeText(view, " text");
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("sample");
+    expect(container.querySelector(".ProseMirror code")).not.toHaveTextContent("sample text");
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`sample` text");
+    expect(markdown).not.toContain("`sample text`");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed at the start of finalized inline code inside the code mark", async () => {
+    const { container, editor, view } = await renderEditor("`sample`");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "sample"));
+    typeText(view, "pre");
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("presample");
+    expect(serializeMarkdown(view.state.doc)).toContain("`presample`");
     await settleMarkdownListener();
   });
 

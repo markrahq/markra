@@ -1942,6 +1942,32 @@
     display: none !important;
   }
 
+  .markdown-paper sup[data-type="footnote_reference"] {
+    color: var(--editor-link-color);
+    cursor: help;
+    font-weight: 650;
+    text-decoration: none;
+  }
+
+  .markdown-paper .markra-footnote-preview {
+    position: fixed;
+    z-index: 80;
+    max-width: min(20rem, calc(100vw - 1.5rem));
+    border: 1px solid var(--editor-border);
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--editor-paper-bg) 96%, transparent);
+    padding: 0.625rem 0.75rem;
+    color: var(--editor-text-primary);
+    font-family: var(--editor-font-family);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+    white-space: pre-wrap;
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
+  }
+
   .markdown-paper .markra-live-link-icon {
     @apply inline-block text-(--editor-link-color);
     margin-left: 0.18em;
@@ -2306,6 +2332,15 @@
   .markdown-paper .markra-live-mark-inlineCode {
     @apply rounded-[3px] border border-(--border-default) bg-(--bg-code) px-[0.28em] py-[0.12em] text-[0.88em] text-(--text-primary);
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  }
+
+  .markdown-paper code .markra-live-mark-inlineCode {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
   }
 
   .markdown-paper .markra-ai-preview-delete {
