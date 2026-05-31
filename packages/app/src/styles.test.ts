@@ -324,9 +324,14 @@ describe("editor stylesheet", () => {
     const preCodeStart = styles.indexOf(".markdown-paper pre code {");
     const preCodeEnd = styles.indexOf(".markdown-paper .markra-code-block");
     const preCodeStyles = styles.slice(preCodeStart, preCodeEnd);
+    const activeInlineCodeStart = styles.indexOf(".markdown-paper code .markra-live-mark-inlineCode {");
+    const activeInlineCodeEnd = styles.indexOf(".markdown-paper .markra-ai-preview-delete");
+    const activeInlineCodeStyles = styles.slice(activeInlineCodeStart, activeInlineCodeEnd);
 
     expect(inlineCodeStyles).toContain("color: oklch");
     expect(inlineCodeStyles).toContain("box-shadow");
+    expect(activeInlineCodeStyles).toContain("background: transparent");
+    expect(activeInlineCodeStyles).toContain("box-shadow: none");
     expect(preCodeStyles).toContain("color: inherit");
     expect(preCodeStyles).toContain("box-shadow: none");
     expect(styles).toContain(".markdown-paper .hljs-meta");

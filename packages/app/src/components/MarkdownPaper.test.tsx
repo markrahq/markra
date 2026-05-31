@@ -1121,6 +1121,60 @@ describe("MarkdownPaper editing", () => {
     expect(lastMarkdown).not.toContain("这是引用\\[^1]");
   });
 
+  it("keeps typed footnote syntax inside inline code instead of converting it to a reference", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "Synthetic code `[^1]`");
+    expect(pressEnter(view)).toBe(true);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror code")).toHaveTextContent("[^1]"));
+    expect(container.querySelector('.ProseMirror sup[data-type="footnote_reference"]')).not.toBeInTheDocument();
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`[^1]`");
+  });
+
+  it("keeps pasted footnote syntax between inline code markers unescaped", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "``");
+    moveCursor(view, 2);
+    insertTextDirectly(view, "[^2]");
+    expect(pressEnter(view)).toBe(true);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror code")).toHaveTextContent("[^2]"));
+    expect(container.querySelector('.ProseMirror sup[data-type="footnote_reference"]')).not.toBeInTheDocument();
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`[^2]`");
+    expect(markdown).not.toContain("`\\[^2]`");
+  });
+
+  it("serializes pasted footnote syntax between live inline code markers unescaped", async () => {
+    const { editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "``");
+    moveCursor(view, 2);
+    view.pasteText("[^2]", new Event("paste") as ClipboardEvent);
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`[^2]`");
+    expect(markdown).not.toContain("\\`\\[^2]\\`");
+  });
+
+  it("keeps pasted footnote syntax inside fenced code instead of converting it to a reference", async () => {
+    const { container, view } = await renderEditor("");
+
+    insertTextDirectly(view, ["```", "[^1]", "```"].join("\n"));
+
+    await waitFor(() =>
+      expect(container.querySelector('.ProseMirror sup[data-type="footnote_reference"]')).not.toBeInTheDocument()
+    );
+  });
+
   it("blocks document-changing editor transactions while read-only", async () => {
     const onMarkdownChange = vi.fn();
     const { editor, view } = await renderEditor("Locked content", {
@@ -5191,6 +5245,29 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("places the folded closing delimiter after the cursor at the end of formatted text", async () => {
+    const { container, view } = await renderEditor("`sample`");
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("sample");
+    const codeEnd = findTextPosition(view, "sample", "sample".length);
+    const closingDelimiterDecorations: Array<{ from: number; to: number }> = [];
+    view.someProp("decorations", (decorations) => {
+      const value = typeof decorations === "function" ? decorations(view.state) : decorations;
+      value?.forEachSet((set) => {
+        closingDelimiterDecorations.push(
+          ...set.find(codeEnd, codeEnd, (spec: { side?: number }) => spec.side === 1)
+        );
+      });
+      return undefined;
+    });
+    expect(
+      closingDelimiterDecorations.some((decoration) => decoration.from === codeEnd && decoration.to === codeEnd)
+    ).toBe(true);
+    await settleMarkdownListener();
+  });
+
   it("hides folded markdown delimiters after the cursor moves to other text", async () => {
     const { container, view } = await renderEditor();
 
@@ -5499,6 +5576,95 @@ describe("MarkdownPaper editing", () => {
 
     expect(inlineCode.container.querySelector(".ProseMirror code")).toHaveTextContent("23");
     expect(inlineCode.container.querySelector(".ProseMirror")?.textContent).toBe("23");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed at the end of finalized inline code inside the code mark", async () => {
+    const { container, editor, view } = await renderEditor("`sample`");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, " text");
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("sample text");
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`sample text`");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed after confirming live inline code inside the code mark", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "``");
+    moveCursor(view, 2);
+    typeText(view, "sample");
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, " text");
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("sample text");
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`sample text`");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed after moving past the folded closing delimiter outside the code mark", async () => {
+    const { container, editor, view } = await renderEditor("`sample`");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    expect(pressArrowRight(view)).toBe(true);
+    const codeEnd = findTextPosition(view, "sample", "sample".length);
+    const exitedClosingDelimiterDecorations: Array<{ from: number; to: number }> = [];
+    view.someProp("decorations", (decorations) => {
+      const value = typeof decorations === "function" ? decorations(view.state) : decorations;
+      value?.forEachSet((set) => {
+        exitedClosingDelimiterDecorations.push(
+          ...set.find(codeEnd, codeEnd, (spec: { side?: number }) => spec.side === -1)
+        );
+      });
+      return undefined;
+    });
+    expect(
+      exitedClosingDelimiterDecorations.some((decoration) => decoration.from === codeEnd && decoration.to === codeEnd)
+    ).toBe(true);
+    expect(container.querySelector(".ProseMirror code")?.textContent).toBe("sample");
+    expect(pressArrowRight(view)).toBe(true);
+    const stableExitedClosingDelimiterDecorations: Array<{ from: number; to: number }> = [];
+    view.someProp("decorations", (decorations) => {
+      const value = typeof decorations === "function" ? decorations(view.state) : decorations;
+      value?.forEachSet((set) => {
+        stableExitedClosingDelimiterDecorations.push(
+          ...set.find(codeEnd, codeEnd, (spec: { side?: number }) => spec.side === -1)
+        );
+      });
+      return undefined;
+    });
+    expect(
+      stableExitedClosingDelimiterDecorations.some(
+        (decoration) => decoration.from === codeEnd && decoration.to === codeEnd
+      )
+    ).toBe(true);
+    expect(container.querySelector(".ProseMirror code")?.textContent).toBe("sample");
+    typeText(view, " text");
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("sample");
+    expect(container.querySelector(".ProseMirror code")).not.toHaveTextContent("sample text");
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("`sample` text");
+    expect(markdown).not.toContain("`sample text`");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed at the start of finalized inline code inside the code mark", async () => {
+    const { container, editor, view } = await renderEditor("`sample`");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "sample"));
+    typeText(view, "pre");
+
+    expect(container.querySelector(".ProseMirror code")).toHaveTextContent("presample");
+    expect(serializeMarkdown(view.state.doc)).toContain("`presample`");
     await settleMarkdownListener();
   });
 

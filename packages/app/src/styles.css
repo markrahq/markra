@@ -2334,6 +2334,15 @@
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
   }
 
+  .markdown-paper code .markra-live-mark-inlineCode {
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
+    color: inherit;
+    font-size: inherit;
+  }
+
   .markdown-paper .markra-ai-preview-delete {
     @apply rounded-[3px] text-(--text-secondary) line-through decoration-red-500/50 decoration-1;
     background: color-mix(in srgb, oklch(63.7% 0.237 25.331) 7%, transparent);

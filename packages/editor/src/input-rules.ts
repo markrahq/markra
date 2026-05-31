@@ -52,9 +52,14 @@ type SuppressedLiveMarkdownRange = ActiveLiveMarkdownRange & {
   cursor: number;
 };
 
+type ExitedFoldedMarkdownRange = FoldedMarkdownRange & {
+  cursor: number;
+};
+
 type LiveMarkdownPluginState = {
   suppressActiveAt: number | null;
   activeFoldedRange: FoldedMarkdownRange | null;
+  exitedFoldedRange: ExitedFoldedMarkdownRange | null;
   suppressedLiveRange: SuppressedLiveMarkdownRange | null;
 };
 
@@ -179,6 +184,61 @@ function clearManagedStoredMarks(state: EditorState, markTypes: MarkType[]) {
   return state.tr.setStoredMarks(nextMarks);
 }
 
+function insertTextAfterExitedFoldedMarkdown(
+  view: EditorView,
+  text: string,
+  markTypes: MarkType[]
+) {
+  if (text.length === 0) return false;
+
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+
+  const pluginState = liveMarkdownKey.getState(view.state) as LiveMarkdownPluginState | undefined;
+  if (selection.from !== pluginState?.exitedFoldedRange?.cursor) return false;
+
+  const marks = selection.$from.marks().filter((mark) => !markTypes.includes(mark.type));
+  const insertedText = view.state.schema.text(text, marks);
+  const transaction = view.state.tr.replaceSelectionWith(insertedText, false).setStoredMarks(marks);
+
+  view.dispatch(transaction.scrollIntoView());
+  return true;
+}
+
+function moveCursorPastFoldedMarkdownDelimiter(
+  view: EditorView,
+  specs: LiveMarkdownSpec[],
+  direction: "left" | "right"
+) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+
+  const pluginState = liveMarkdownKey.getState(view.state) as LiveMarkdownPluginState | undefined;
+
+  if (direction === "right") {
+    const foldedRange =
+      pluginState?.activeFoldedRange ?? getFoldedMarkdownRangeAtCursor(view.state.doc, selection.from, specs);
+    if (!foldedRange || selection.from !== foldedRange.to) return false;
+
+    view.dispatch(
+      view.state.tr
+        .setMeta(liveMarkdownKey, { exitedFoldedRange: { ...foldedRange, cursor: selection.from } })
+        .scrollIntoView()
+    );
+    return true;
+  }
+
+  const exitedRange = pluginState?.exitedFoldedRange ?? null;
+  if (!exitedRange || selection.from !== exitedRange.cursor) return false;
+
+  view.dispatch(
+    view.state.tr
+      .setMeta(liveMarkdownKey, { activeFoldedRange: exitedRange, exitedFoldedRange: null })
+      .scrollIntoView()
+  );
+  return true;
+}
+
 function deleteTextAfterLiveMarkdownRange(
   view: EditorView,
   specs: LiveMarkdownSpec[],
@@ -276,7 +336,8 @@ function buildLiveMarkdownDecorations(
   doc: ProseNode,
   specs: LiveMarkdownSpec[],
   activeLiveRange: ActiveLiveMarkdownRange | null,
-  activeFoldedRange: FoldedMarkdownRange | null
+  activeFoldedRange: FoldedMarkdownRange | null,
+  exitedFoldedRange: ExitedFoldedMarkdownRange | null
 ) {
   const decorations: Decoration[] = [];
 
@@ -316,13 +377,18 @@ function buildLiveMarkdownDecorations(
     }
   });
 
-  if (activeFoldedRange) {
+  const foldedRange = activeFoldedRange ?? exitedFoldedRange;
+
+  if (foldedRange) {
     // Finalized marks use virtual markers so the user can re-enter an editable Markdown-like state.
     decorations.push(
-      Decoration.widget(activeFoldedRange.from, () => createDelimiterWidget(activeFoldedRange.marker), { side: -1 }),
-      Decoration.widget(activeFoldedRange.to, () => createDelimiterWidget(activeFoldedRange.marker), { side: -1 }),
-      Decoration.inline(activeFoldedRange.from, activeFoldedRange.to, {
-        class: ["markra-live-mark", ...activeFoldedRange.kinds.map((kind) => `markra-live-mark-${kind}`)].join(" ")
+      Decoration.widget(foldedRange.from, () => createDelimiterWidget(foldedRange.marker), { side: -1 }),
+      Decoration.widget(foldedRange.to, () => createDelimiterWidget(foldedRange.marker), {
+        side: exitedFoldedRange ? -1 : 1,
+        marks: exitedFoldedRange ? [] : undefined
+      }),
+      Decoration.inline(foldedRange.from, foldedRange.to, {
+        class: ["markra-live-mark", ...foldedRange.kinds.map((kind) => `markra-live-mark-${kind}`)].join(" ")
       })
     );
   }
@@ -611,15 +677,26 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       init: (): LiveMarkdownPluginState => ({
         suppressActiveAt: null,
         activeFoldedRange: null,
+        exitedFoldedRange: null,
         suppressedLiveRange: null
       }),
       apply: (tr, value, _oldState, newState): LiveMarkdownPluginState => {
         const meta = tr.getMeta(liveMarkdownKey) as Partial<LiveMarkdownPluginState> | undefined;
+        if (meta && "exitedFoldedRange" in meta) {
+          return {
+            suppressActiveAt: null,
+            activeFoldedRange: meta.activeFoldedRange ?? null,
+            exitedFoldedRange: meta.exitedFoldedRange ?? null,
+            suppressedLiveRange: null
+          };
+        }
+
         if (meta?.suppressedLiveRange) {
           // Preserve the folded view after an arrow-key collapse until the cursor leaves that edge.
           return {
             suppressActiveAt: null,
             activeFoldedRange: null,
+            exitedFoldedRange: null,
             suppressedLiveRange: meta.suppressedLiveRange
           };
         }
@@ -628,20 +705,24 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           return {
             suppressActiveAt: meta.suppressActiveAt,
             activeFoldedRange: null,
+            exitedFoldedRange: null,
             suppressedLiveRange: null
           };
         }
 
         if (tr.selectionSet) {
           const selection = newState.selection instanceof TextSelection ? newState.selection : null;
+          const exitedFoldedRange =
+            selection?.from === value.exitedFoldedRange?.cursor ? value.exitedFoldedRange : null;
           const activeFoldedRange =
-            selection?.empty && selection.from !== value.suppressActiveAt
+            selection?.empty && selection.from !== value.suppressActiveAt && !exitedFoldedRange
               ? getFoldedMarkdownRangeAtCursor(newState.doc, selection.from, specs)
               : null;
 
           return {
             suppressActiveAt: selection?.from === value.suppressActiveAt ? value.suppressActiveAt : null,
             activeFoldedRange,
+            exitedFoldedRange,
             suppressedLiveRange:
               selection?.from === value.suppressedLiveRange?.cursor ? value.suppressedLiveRange : null
           };
@@ -651,6 +732,7 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           return {
             suppressActiveAt: null,
             activeFoldedRange: null,
+            exitedFoldedRange: null,
             suppressedLiveRange: null
           };
         }
@@ -673,9 +755,11 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           state.doc,
           specs,
           activeLiveRange,
-          pluginState?.activeFoldedRange ?? null
+          pluginState?.activeFoldedRange ?? null,
+          pluginState?.exitedFoldedRange ?? null
         );
       },
+      handleTextInput: (view, _from, _to, text) => insertTextAfterExitedFoldedMarkdown(view, text, managedMarkTypes),
       handleKeyDown: (view, event) => {
         const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
 
@@ -688,13 +772,16 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
         }
 
         if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !hasModifier) {
-          const handled = moveCursorOverLiveMarkdownDelimiter(
+          const handledLiveRange = moveCursorOverLiveMarkdownDelimiter(
             view,
             specs,
             event.key === "ArrowLeft" ? "left" : "right"
           );
+          const handledFoldedRange =
+            handledLiveRange ||
+            moveCursorPastFoldedMarkdownDelimiter(view, specs, event.key === "ArrowLeft" ? "left" : "right");
 
-          if (handled) {
+          if (handledFoldedRange) {
             event.preventDefault();
             return true;
           }
