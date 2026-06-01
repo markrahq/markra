@@ -14,7 +14,12 @@ import { editorViewCtx } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "../components/MarkdownPaper";
-import { readSelectionFormattingActionsFromView, type SelectionFormattingAction } from "./selection-formatting";
+import {
+  readSelectionFormattingActionsFromView,
+  readSelectionFormattingStateFromView,
+  setSelectionHeadingLevelInView,
+  type SelectionFormattingAction
+} from "./selection-formatting";
 
 async function renderEditor(initialContent: string) {
   let editor: Editor | null = null;
@@ -61,6 +66,22 @@ function selectText(view: EditorView, text: string) {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, from + text.length)));
 }
 
+function findBlockEndPosition(view: EditorView, typeName: string, text: string) {
+  let position: number | null = null;
+
+  view.state.doc.descendants((node, nodePosition) => {
+    if (position !== null) return false;
+    if (node.type.name !== typeName || !node.textContent.includes(text)) return true;
+
+    position = nodePosition + node.nodeSize;
+    return false;
+  });
+
+  if (position === null) throw new Error(`Could not find ${typeName} block in editor: ${text}`);
+
+  return position;
+}
+
 describe("selection formatting", () => {
   it.each([
     ["bold", "bold text", "bold"],
@@ -88,5 +109,47 @@ describe("selection formatting", () => {
     selectText(view, selectedText);
 
     expect(readSelectionFormattingActionsFromView(view)).toContain(action satisfies SelectionFormattingAction);
+  });
+
+  it("reports the current heading level at the selection", async () => {
+    const { view } = await renderEditor("## Heading text");
+
+    selectText(view, "Heading text");
+
+    expect(readSelectionFormattingStateFromView(view)).toMatchObject({
+      headingLevel: 2
+    });
+  });
+
+  it("reports the current heading level when the selection ends at the heading boundary", async () => {
+    const { view } = await renderEditor("### Heading text\n\nParagraph text");
+    const from = findTextPosition(view, "Heading text");
+    const to = findBlockEndPosition(view, "heading", "Heading text");
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+
+    expect(readSelectionFormattingStateFromView(view)).toMatchObject({
+      headingLevel: 3
+    });
+  });
+
+  it("sets the selected heading level", async () => {
+    const { view } = await renderEditor("## Heading text");
+
+    selectText(view, "Heading text");
+
+    expect(setSelectionHeadingLevelInView(view, 3)).toBe(true);
+    expect(readSelectionFormattingStateFromView(view).headingLevel).toBe(3);
+  });
+
+  it("turns the selected paragraph into the chosen heading level", async () => {
+    const { view } = await renderEditor("Paragraph text");
+
+    selectText(view, "Paragraph text");
+
+    expect(readSelectionFormattingStateFromView(view).headingLevel).toBeNull();
+
+    expect(setSelectionHeadingLevelInView(view, 4)).toBe(true);
+    expect(readSelectionFormattingStateFromView(view).headingLevel).toBe(4);
   });
 });

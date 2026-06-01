@@ -567,6 +567,7 @@ export type I18nKey =
   | "menu.strikethrough"
   | "menu.inlineCode"
   | "menu.paragraph"
+  | "menu.headingLevel"
   | "menu.heading1"
   | "menu.heading2"
   | "menu.heading3"

@@ -556,6 +556,7 @@ const messages: LocaleMessages = {
   "menu.strikethrough": "取り消し線",
   "menu.inlineCode": "インラインコード",
   "menu.paragraph": "段落",
+  "menu.headingLevel": "見出しレベル",
   "menu.heading1": "見出し 1",
   "menu.heading2": "見出し 2",
   "menu.heading3": "見出し 3",

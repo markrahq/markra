@@ -79,6 +79,7 @@ import { saveEditorImage } from "./lib/image-upload";
 import { replaceMovedPath } from "./lib/path-move";
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
 import type {
+  SelectionHeadingLevel,
   SelectionFormattingAction,
   SelectionFormattingShortcutAction
 } from "./lib/selection-formatting";
@@ -305,6 +306,7 @@ function WorkspaceApp() {
   const [aiCommandOverlayInset, setAiCommandOverlayInset] = useState(0);
   const [aiSelectionToolbarAnchor, setAiSelectionToolbarAnchor] = useState<SelectionAnchor | null>(null);
   const [aiSelectionToolbarActiveActions, setAiSelectionToolbarActiveActions] = useState<SelectionFormattingAction[]>([]);
+  const [aiSelectionToolbarHeadingLevel, setAiSelectionToolbarHeadingLevel] = useState<SelectionHeadingLevel | null>(null);
   const [aiSelectionToolbarCopySucceeded, setAiSelectionToolbarCopySucceeded] = useState(false);
   const [aiContextMenuActionPending, setAiContextMenuActionPending] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("visual");
@@ -407,8 +409,15 @@ function WorkspaceApp() {
   const replaceEditorSearchMatch = editor.replaceSearchMatch;
   const revealEditorSearchMatch = editor.revealSearchMatch;
   const runEditorShortcut = editor.runEditorShortcut;
-  const getEditorSelectionFormattingActions = editor.getSelectionFormattingActions;
+  const getEditorSelectionFormattingState = editor.getSelectionFormattingState;
+  const setEditorSelectionHeadingLevel = editor.setSelectionHeadingLevel;
   const showEditorSearchMatches = editor.showSearchMatches;
+  const syncAiSelectionToolbarFormattingState = useCallback(() => {
+    const formattingState = getEditorSelectionFormattingState();
+
+    setAiSelectionToolbarActiveActions(formattingState.actions);
+    setAiSelectionToolbarHeadingLevel(formattingState.headingLevel);
+  }, [getEditorSelectionFormattingState]);
   const readCurrentMarkdownForDocument = useCallback((fallbackContent: string) => {
     if (sourceSurfaceActive) return fallbackContent;
 
@@ -931,6 +940,7 @@ function WorkspaceApp() {
     updateActiveAiSelection(selection);
     clearAiSelectionToolbarCopySuccess();
     setAiSelectionToolbarActiveActions([]);
+    setAiSelectionToolbarHeadingLevel(null);
 
     if (!aiFeatureEnabled) {
       setAiSelectionToolbarAnchor(null);
@@ -978,7 +988,7 @@ function WorkspaceApp() {
     }
 
     if (showSelectionToolbar) {
-      setAiSelectionToolbarActiveActions(getEditorSelectionFormattingActions());
+      syncAiSelectionToolbarFormattingState();
       setAiSelectionToolbarAnchor(selectionAnchorFromDomSelection(window.getSelection()));
     } else {
       aiCommand.openAiCommand(selection);
@@ -996,7 +1006,7 @@ function WorkspaceApp() {
     editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
     editorPreferences.preferences.showAiQuickInputOnSelection,
     editorPreferences.preferences.showAiSelectionToolbarOnSelection,
-    getEditorSelectionFormattingActions,
+    syncAiSelectionToolbarFormattingState,
     clearAiSelectionToolbarCopySuccess,
     readOnlyMode,
     updateActiveAiSelection
@@ -1935,12 +1945,24 @@ function WorkspaceApp() {
       altKey: Boolean(shortcut.altKey),
       shiftKey: Boolean(shortcut.shiftKey)
     });
-    setAiSelectionToolbarActiveActions(getEditorSelectionFormattingActions());
+    syncAiSelectionToolbarFormattingState();
   }, [
     editorPreferences.preferences.markdownShortcuts,
-    getEditorSelectionFormattingActions,
     handleRunEditorShortcut,
-    readOnlyMode
+    readOnlyMode,
+    syncAiSelectionToolbarFormattingState
+  ]);
+  const handleAiSelectionToolbarHeadingLevelAction = useCallback((level: SelectionHeadingLevel) => {
+    if (readOnlyMode) return;
+    if (!setEditorSelectionHeadingLevel(level)) return;
+
+    syncVisualMarkdownAfterEditorCommand();
+    syncAiSelectionToolbarFormattingState();
+  }, [
+    readOnlyMode,
+    setEditorSelectionHeadingLevel,
+    syncAiSelectionToolbarFormattingState,
+    syncVisualMarkdownAfterEditorCommand
   ]);
   const handleAiSelectionToolbarInsertLink = useCallback(() => {
     if (readOnlyMode) return;
@@ -3026,6 +3048,7 @@ function WorkspaceApp() {
         {aiFeatureEnabled ? (
           <AiSelectionToolbar
             activeFormattingActions={aiSelectionToolbarActiveActions}
+            activeHeadingLevel={aiSelectionToolbarHeadingLevel}
             anchor={aiSelectionToolbarAnchor}
             busy={aiCommand.submitting || aiContextMenuActionPending}
             copySucceeded={aiSelectionToolbarCopySucceeded}
@@ -3037,6 +3060,7 @@ function WorkspaceApp() {
             onOpenCommand={handleAiSelectionToolbarOpenCommand}
             onRunFormattingAction={handleAiSelectionToolbarFormattingAction}
             onRunAction={handleAiSelectionToolbarAction}
+            onSetHeadingLevel={handleAiSelectionToolbarHeadingLevelAction}
           />
         ) : null}
 

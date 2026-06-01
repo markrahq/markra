@@ -556,6 +556,7 @@ const messages: LocaleMessages = {
   "menu.strikethrough": "Tachado",
   "menu.inlineCode": "Código embutido",
   "menu.paragraph": "Parágrafo",
+  "menu.headingLevel": "Nível do título",
   "menu.heading1": "Título 1",
   "menu.heading2": "Título 2",
   "menu.heading3": "Título 3",

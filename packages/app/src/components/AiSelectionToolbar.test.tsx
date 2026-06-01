@@ -60,7 +60,6 @@ describe("AiSelectionToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Italic" }));
     fireEvent.click(screen.getByRole("button", { name: "Strikethrough" }));
     fireEvent.click(screen.getByRole("button", { name: "Inline Code" }));
-    fireEvent.click(screen.getByRole("button", { name: "Heading 1" }));
     fireEvent.click(screen.getByRole("button", { name: "Quote" }));
     fireEvent.click(screen.getByRole("button", { name: "Bullet List" }));
     fireEvent.click(screen.getByRole("button", { name: "Ordered List" }));
@@ -72,7 +71,6 @@ describe("AiSelectionToolbar", () => {
       "italic",
       "strikethrough",
       "inlineCode",
-      "heading1",
       "quote",
       "bulletList",
       "orderedList"
@@ -84,7 +82,8 @@ describe("AiSelectionToolbar", () => {
   it("marks active formatting tools as pressed", () => {
     render(
       <AiSelectionToolbar
-        activeFormattingActions={["bold", "heading1", "link"]}
+        activeFormattingActions={["bold", "link"]}
+        activeHeadingLevel={1}
         anchor={anchor}
         language="en"
         open
@@ -97,9 +96,103 @@ describe("AiSelectionToolbar", () => {
     );
 
     expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Heading 1" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Heading Level H1" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("combobox", { name: "Heading Level" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Link" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Italic" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("routes heading level choices from the toolbar", () => {
+    const onSetHeadingLevel = vi.fn();
+
+    render(
+      <AiSelectionToolbar
+        activeHeadingLevel={2}
+        anchor={anchor}
+        language="en"
+        open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
+        onRunAction={vi.fn()}
+        onSetHeadingLevel={onSetHeadingLevel}
+      />
+    );
+
+    const headingButton = screen.getByRole("button", { name: "Heading Level H2" });
+    expect(headingButton).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(headingButton);
+
+    expect(headingButton).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("menu", { name: "Heading Level" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "H1" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "H6" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "H3" }));
+
+    expect(onSetHeadingLevel).toHaveBeenCalledWith(3);
+  });
+
+  it("renders the heading level menu outside the scrollable toolbar shell", () => {
+    render(
+      <AiSelectionToolbar
+        activeHeadingLevel={2}
+        anchor={anchor}
+        language="en"
+        open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
+        onRunAction={vi.fn()}
+        onSetHeadingLevel={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Heading Level H2" }));
+
+    const headingMenu = screen.getByRole("menu", { name: "Heading Level" });
+
+    expect(headingMenu.closest(".overflow-x-auto")).toBeNull();
+    expect(headingMenu).toHaveClass("fixed");
+  });
+
+  it("keeps the heading level menu available outside headings", () => {
+    const { rerender } = render(
+      <AiSelectionToolbar
+        activeHeadingLevel={null}
+        anchor={anchor}
+        language="en"
+        open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
+        onRunAction={vi.fn()}
+        onSetHeadingLevel={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Heading Level" })).toBeEnabled();
+
+    rerender(
+      <AiSelectionToolbar
+        activeHeadingLevel={1}
+        anchor={anchor}
+        language="en"
+        open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
+        onRunAction={vi.fn()}
+        onSetHeadingLevel={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Heading Level H1" })).toBeEnabled();
   });
 
   it("shows the copy button success state in place", () => {

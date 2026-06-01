@@ -22,7 +22,13 @@ import {
 } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 import type { SearchRange } from "@markra/shared";
-import { readSelectionFormattingActionsFromView } from "../lib/selection-formatting";
+import {
+  readSelectionFormattingActionsFromView,
+  readSelectionFormattingStateFromView,
+  setSelectionHeadingLevelInView,
+  type SelectionHeadingLevel,
+  type SelectionFormattingState
+} from "../lib/selection-formatting";
 
 const fixedTitlebarHeight = 40;
 const outlineScrollTopMargin = 24;
@@ -355,6 +361,36 @@ export function useEditorController() {
       return readSelectionFormattingActionsFromView(view);
     } catch {
       return [];
+    }
+  }, []);
+
+  const getSelectionFormattingState = useCallback((): SelectionFormattingState => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) {
+        return {
+          actions: [],
+          headingLevel: null
+        };
+      }
+
+      return readSelectionFormattingStateFromView(view);
+    } catch {
+      return {
+        actions: [],
+        headingLevel: null
+      };
+    }
+  }, []);
+
+  const setSelectionHeadingLevel = useCallback((level: SelectionHeadingLevel) => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return false;
+
+      return setSelectionHeadingLevelInView(view, level);
+    } catch {
+      return false;
     }
   }, []);
 
@@ -759,6 +795,7 @@ export function useEditorController() {
     isCurrentMarkdownEquivalent,
     getSelection,
     getSelectionFormattingActions,
+    getSelectionFormattingState,
     getSectionAnchors,
     getTableAnchors,
     handleEditorReady,
@@ -773,6 +810,7 @@ export function useEditorController() {
     revealSearchMatch,
     runEditorShortcut,
     scrollAiSelectionAboveCommand,
+    setSelectionHeadingLevel,
     scrollToAiPreview,
     selectOutlineItem,
     showSearchMatches

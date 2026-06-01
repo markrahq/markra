@@ -556,6 +556,7 @@ const messages: BaseLocaleMessages = {
   "menu.strikethrough": "Strikethrough",
   "menu.inlineCode": "Inline Code",
   "menu.paragraph": "Paragraph",
+  "menu.headingLevel": "Heading Level",
   "menu.heading1": "Heading 1",
   "menu.heading2": "Heading 2",
   "menu.heading3": "Heading 3",
