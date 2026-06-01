@@ -4051,6 +4051,38 @@ describe("MarkdownPaper editing", () => {
     });
   });
 
+  it("waits until pointer text selection settles before notifying selected text", async () => {
+    const onTextSelectionChange = vi.fn();
+    const selectedDomSelection = {
+      isCollapsed: false,
+      toString: () => "Second sentence."
+    } as Selection;
+    const getSelectionSpy = vi.spyOn(document, "getSelection").mockReturnValue(selectedDomSelection);
+    const { view } = await renderEditor("First sentence. Second sentence.", { onTextSelectionChange });
+    const from = findTextPosition(view, "Second");
+    const to = from + "Second sentence.".length;
+
+    try {
+      fireEvent.mouseDown(screen.getByLabelText("Markdown editor"), { button: 0 });
+      selectText(view, from, to);
+
+      expect(onTextSelectionChange).not.toHaveBeenCalled();
+
+      fireEvent.mouseUp(screen.getByLabelText("Markdown editor"), { button: 0 });
+
+      await waitFor(() =>
+        expect(onTextSelectionChange).toHaveBeenCalledWith({
+          from,
+          source: "selection",
+          text: "Second sentence.",
+          to
+        })
+      );
+    } finally {
+      getSelectionSpy.mockRestore();
+    }
+  });
+
   it("does not notify code block selections as automatic AI selection changes", async () => {
     const onTextSelectionChange = vi.fn();
     const { view } = await renderEditor(["```ts", "const answer = 42;", "```"].join("\n"), {

@@ -16,7 +16,10 @@ describe("AiSelectionToolbar", () => {
         anchor={anchor}
         language="en"
         open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
         onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
         onRunAction={vi.fn()}
       />
     );
@@ -35,6 +38,89 @@ describe("AiSelectionToolbar", () => {
     expect(screen.getByRole("button", { name: "Translate" })).toBeInTheDocument();
   });
 
+  it("renders basic selection tools and routes them to editor commands", () => {
+    const onRunFormattingAction = vi.fn();
+    const onInsertLink = vi.fn();
+    const onCopySelection = vi.fn();
+
+    render(
+      <AiSelectionToolbar
+        anchor={anchor}
+        language="en"
+        open
+        onCopySelection={onCopySelection}
+        onInsertLink={onInsertLink}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={onRunFormattingAction}
+        onRunAction={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }));
+    fireEvent.click(screen.getByRole("button", { name: "Italic" }));
+    fireEvent.click(screen.getByRole("button", { name: "Strikethrough" }));
+    fireEvent.click(screen.getByRole("button", { name: "Inline Code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Heading 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Quote" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bullet List" }));
+    fireEvent.click(screen.getByRole("button", { name: "Ordered List" }));
+    fireEvent.click(screen.getByRole("button", { name: "Link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+
+    expect(onRunFormattingAction.mock.calls.map(([action]) => action)).toEqual([
+      "bold",
+      "italic",
+      "strikethrough",
+      "inlineCode",
+      "heading1",
+      "quote",
+      "bulletList",
+      "orderedList"
+    ]);
+    expect(onInsertLink).toHaveBeenCalledTimes(1);
+    expect(onCopySelection).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks active formatting tools as pressed", () => {
+    render(
+      <AiSelectionToolbar
+        activeFormattingActions={["bold", "heading1", "link"]}
+        anchor={anchor}
+        language="en"
+        open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
+        onRunAction={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Heading 1" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Link" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Italic" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("shows the copy button success state in place", () => {
+    render(
+      <AiSelectionToolbar
+        anchor={anchor}
+        copySucceeded
+        language="en"
+        open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
+        onRunAction={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Copied" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
+  });
+
   it("targets translation preset prompts to the selected app language", () => {
     const onRunAction = vi.fn();
 
@@ -43,7 +129,10 @@ describe("AiSelectionToolbar", () => {
         anchor={anchor}
         language="en"
         open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
         onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
         onRunAction={onRunAction}
       />
     );
@@ -68,7 +157,10 @@ describe("AiSelectionToolbar", () => {
           ...defaultAiQuickActionPrompts,
           polish: "Make the selected text clearer."
         }}
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
         onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
         onRunAction={onRunAction}
       />
     );
@@ -86,7 +178,10 @@ describe("AiSelectionToolbar", () => {
         anchor={anchor}
         language="en"
         open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
         onOpenCommand={onOpenCommand}
+        onRunFormattingAction={vi.fn()}
         onRunAction={vi.fn()}
       />
     );
@@ -102,7 +197,10 @@ describe("AiSelectionToolbar", () => {
         anchor={null}
         language="en"
         open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
         onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
         onRunAction={vi.fn()}
       />
     );

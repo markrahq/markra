@@ -233,12 +233,28 @@ export function markraTextSelectionObserverPlugin(
       });
     };
 
+    const targetIsInsideWritingSurface = (view: EditorView, target: EventTarget | null) => {
+      const targetElement =
+        target instanceof Element
+          ? target
+          : target instanceof Node
+            ? target.parentElement
+            : null;
+      const writingSurface = view.dom.closest(".paper-scroll");
+
+      return Boolean(targetElement && writingSurface?.contains(targetElement));
+    };
+
+    const hasDomSelectedText = (view: EditorView) => {
+      const domSelection = view.dom.ownerDocument.getSelection();
+
+      return Boolean(domSelection && !domSelection.isCollapsed && domSelection.toString().trim());
+    };
+
     const clearStaleSelectionAfterEditorClick = (view: EditorView) => {
       if (!lastSignature) return;
 
-      const domSelection = view.dom.ownerDocument.getSelection();
-      const hasDomSelectedText = Boolean(domSelection && !domSelection.isCollapsed && domSelection.toString().trim());
-      if (hasDomSelectedText) return;
+      if (hasDomSelectedText(view)) return;
 
       if (!view.state.selection.empty) {
         lastSignature = "";
@@ -252,32 +268,41 @@ export function markraTextSelectionObserverPlugin(
     return new Plugin({
       view(view) {
         const ownerDocument = view.dom.ownerDocument;
+        let pointerSelectionPending = false;
+        const handleMouseDown = (event: MouseEvent) => {
+          if (event.button !== 0) return;
+
+          pointerSelectionPending = targetIsInsideWritingSurface(view, event.target);
+        };
         const handleMouseUp = (event: MouseEvent) => {
           if (event.button !== 0) return;
 
-          const targetElement =
-            event.target instanceof Element
-              ? event.target
-              : event.target instanceof Node
-                ? event.target.parentElement
-                : null;
-          const writingSurface = view.dom.closest(".paper-scroll");
-          if (!targetElement || !writingSurface?.contains(targetElement)) return;
+          const selectionStartedInEditor = pointerSelectionPending;
+          pointerSelectionPending = false;
+          if (!targetIsInsideWritingSurface(view, event.target)) return;
 
           ownerDocument.defaultView?.setTimeout(() => {
+            if (selectionStartedInEditor && !view.state.selection.empty && hasDomSelectedText(view)) {
+              notifySelectionChange(view, { requireFocusForEmptySelection: false });
+              return;
+            }
+
             clearStaleSelectionAfterEditorClick(view);
           }, 0);
         };
 
+        ownerDocument.addEventListener("mousedown", handleMouseDown, true);
         ownerDocument.addEventListener("mouseup", handleMouseUp, true);
 
         return {
           destroy() {
+            ownerDocument.removeEventListener("mousedown", handleMouseDown, true);
             ownerDocument.removeEventListener("mouseup", handleMouseUp, true);
           },
           update(view, previousState) {
             const { selection } = view.state;
             if (selection.eq(previousState.selection)) return;
+            if (pointerSelectionPending) return;
             notifySelectionChange(view, { requireFocusForEmptySelection: true });
           }
         };

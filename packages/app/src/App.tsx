@@ -78,12 +78,18 @@ import type { EditorContentWidth } from "./lib/editor-width";
 import { saveEditorImage } from "./lib/image-upload";
 import { replaceMovedPath } from "./lib/path-move";
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
+import type {
+  SelectionFormattingAction,
+  SelectionFormattingShortcutAction
+} from "./lib/selection-formatting";
 import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
 import { aiAgentWebSearchAvailable, type AiDiffResult, type AiEditIntent, type AiSelectionContext } from "@markra/ai";
 import {
   AI_EDITOR_PREVIEW_APPLIED_EVENT,
   AI_EDITOR_PREVIEW_ACTION_EVENT,
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
+  markdownShortcutToKeyboardEventInit,
+  normalizeMarkdownShortcuts,
   type AiEditorPreviewAppliedDetail,
   type AiEditorPreviewActionDetail,
   type AiEditorPreviewRestoreDetail,
@@ -134,6 +140,7 @@ const aiAgentPanelMinWidth = 320;
 const aiAgentPanelMaxWidth = 760;
 const splitPaneKeyboardStepPercent = 5;
 const aiResultSignatureSeparator = "\u001f";
+const aiSelectionCopySuccessMs = 1600;
 const sideDocumentPaneKeyboardStepPercent = 5;
 const sideDocumentMainPanePercentMin = 35;
 const sideDocumentMainPanePercentMax = 70;
@@ -297,6 +304,8 @@ function WorkspaceApp() {
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
   const [aiCommandOverlayInset, setAiCommandOverlayInset] = useState(0);
   const [aiSelectionToolbarAnchor, setAiSelectionToolbarAnchor] = useState<SelectionAnchor | null>(null);
+  const [aiSelectionToolbarActiveActions, setAiSelectionToolbarActiveActions] = useState<SelectionFormattingAction[]>([]);
+  const [aiSelectionToolbarCopySucceeded, setAiSelectionToolbarCopySucceeded] = useState(false);
   const [aiContextMenuActionPending, setAiContextMenuActionPending] = useState(false);
   const [editorMode, setEditorMode] = useState<EditorMode>("visual");
   const [activeEditorSurface, setActiveEditorSurface] = useState<EditorSurface>("visual");
@@ -321,6 +330,7 @@ function WorkspaceApp() {
   const appliedAiPreviewKeysRef = useRef(new Set<string>());
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
   const aiContextMenuActionIdRef = useRef(0);
+  const aiSelectionCopySuccessTimerRef = useRef<number | null>(null);
   const exportRequestIdRef = useRef(0);
   const pendingEditorContentWidthPxRef = useRef<number | null>(null);
   const pendingSplitVisualPanePercentRef = useRef(defaultSplitVisualPanePercent);
@@ -352,6 +362,22 @@ function WorkspaceApp() {
     webSearchEnabled: false
   });
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
+  const clearAiSelectionToolbarCopySuccess = useCallback(() => {
+    if (aiSelectionCopySuccessTimerRef.current !== null) {
+      window.clearTimeout(aiSelectionCopySuccessTimerRef.current);
+      aiSelectionCopySuccessTimerRef.current = null;
+    }
+
+    setAiSelectionToolbarCopySucceeded(false);
+  }, []);
+  useEffect(() => {
+    return () => {
+      if (aiSelectionCopySuccessTimerRef.current !== null) {
+        window.clearTimeout(aiSelectionCopySuccessTimerRef.current);
+        aiSelectionCopySuccessTimerRef.current = null;
+      }
+    };
+  }, []);
   useEffect(() => {
     let cancelled = false;
 
@@ -381,6 +407,7 @@ function WorkspaceApp() {
   const replaceEditorSearchMatch = editor.replaceSearchMatch;
   const revealEditorSearchMatch = editor.revealSearchMatch;
   const runEditorShortcut = editor.runEditorShortcut;
+  const getEditorSelectionFormattingActions = editor.getSelectionFormattingActions;
   const showEditorSearchMatches = editor.showSearchMatches;
   const readCurrentMarkdownForDocument = useCallback((fallbackContent: string) => {
     if (sourceSurfaceActive) return fallbackContent;
@@ -902,6 +929,8 @@ function WorkspaceApp() {
   }, [activeAiAgentSessionId, aiAgentSessions, createInitializedAiAgentSession, openAiAgentPanel, selectWorkspaceSession]);
   const handleTextSelectionChange = useCallback((selection: AiSelectionContext | null) => {
     updateActiveAiSelection(selection);
+    clearAiSelectionToolbarCopySuccess();
+    setAiSelectionToolbarActiveActions([]);
 
     if (!aiFeatureEnabled) {
       setAiSelectionToolbarAnchor(null);
@@ -949,6 +978,7 @@ function WorkspaceApp() {
     }
 
     if (showSelectionToolbar) {
+      setAiSelectionToolbarActiveActions(getEditorSelectionFormattingActions());
       setAiSelectionToolbarAnchor(selectionAnchorFromDomSelection(window.getSelection()));
     } else {
       aiCommand.openAiCommand(selection);
@@ -966,6 +996,8 @@ function WorkspaceApp() {
     editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
     editorPreferences.preferences.showAiQuickInputOnSelection,
     editorPreferences.preferences.showAiSelectionToolbarOnSelection,
+    getEditorSelectionFormattingActions,
+    clearAiSelectionToolbarCopySuccess,
     readOnlyMode,
     updateActiveAiSelection
   ]);
@@ -1892,6 +1924,48 @@ function WorkspaceApp() {
     runEditorShortcut(...args);
     syncVisualMarkdownAfterEditorCommand();
   }, [readOnlyMode, runEditorShortcut, syncVisualMarkdownAfterEditorCommand]);
+  const handleAiSelectionToolbarFormattingAction = useCallback((action: SelectionFormattingShortcutAction) => {
+    if (readOnlyMode) return;
+
+    const normalizedShortcuts = normalizeMarkdownShortcuts(editorPreferences.preferences.markdownShortcuts);
+    const shortcut = markdownShortcutToKeyboardEventInit(normalizedShortcuts[action]);
+    if (!shortcut) return;
+
+    handleRunEditorShortcut(shortcut.key, {
+      altKey: Boolean(shortcut.altKey),
+      shiftKey: Boolean(shortcut.shiftKey)
+    });
+    setAiSelectionToolbarActiveActions(getEditorSelectionFormattingActions());
+  }, [
+    editorPreferences.preferences.markdownShortcuts,
+    getEditorSelectionFormattingActions,
+    handleRunEditorShortcut,
+    readOnlyMode
+  ]);
+  const handleAiSelectionToolbarInsertLink = useCallback(() => {
+    if (readOnlyMode) return;
+
+    setAiSelectionToolbarAnchor(null);
+    handleInsertMarkdownSnippet("[", "](https://)", "text");
+  }, [handleInsertMarkdownSnippet, readOnlyMode]);
+  const handleAiSelectionToolbarCopySelection = useCallback(() => {
+    const selectedText = activeAiSelection?.source === "selection" ? activeAiSelection.text : "";
+    if (!selectedText.trim() || !navigator.clipboard) return;
+
+    navigator.clipboard.writeText(selectedText)
+      .then(() => {
+        if (aiSelectionCopySuccessTimerRef.current !== null) {
+          window.clearTimeout(aiSelectionCopySuccessTimerRef.current);
+        }
+
+        setAiSelectionToolbarCopySucceeded(true);
+        aiSelectionCopySuccessTimerRef.current = window.setTimeout(() => {
+          aiSelectionCopySuccessTimerRef.current = null;
+          setAiSelectionToolbarCopySucceeded(false);
+        }, aiSelectionCopySuccessMs);
+      })
+      .catch(() => {});
+  }, [activeAiSelection]);
   const handleDocumentSearchOpen = useCallback(() => {
     if (!documentSearchAvailable) return;
 
@@ -2951,14 +3025,19 @@ function WorkspaceApp() {
 
         {aiFeatureEnabled ? (
           <AiSelectionToolbar
-          anchor={aiSelectionToolbarAnchor}
-          busy={aiCommand.submitting || aiContextMenuActionPending}
-          language={appLanguage.language}
-          open={aiSelectionToolbarVisible}
-          quickActionPrompts={editorPreferences.preferences.aiQuickActionPrompts}
-          onOpenCommand={handleAiSelectionToolbarOpenCommand}
-          onRunAction={handleAiSelectionToolbarAction}
-        />
+            activeFormattingActions={aiSelectionToolbarActiveActions}
+            anchor={aiSelectionToolbarAnchor}
+            busy={aiCommand.submitting || aiContextMenuActionPending}
+            copySucceeded={aiSelectionToolbarCopySucceeded}
+            language={appLanguage.language}
+            open={aiSelectionToolbarVisible}
+            quickActionPrompts={editorPreferences.preferences.aiQuickActionPrompts}
+            onCopySelection={handleAiSelectionToolbarCopySelection}
+            onInsertLink={handleAiSelectionToolbarInsertLink}
+            onOpenCommand={handleAiSelectionToolbarOpenCommand}
+            onRunFormattingAction={handleAiSelectionToolbarFormattingAction}
+            onRunAction={handleAiSelectionToolbarAction}
+          />
         ) : null}
 
         {aiFeatureEnabled ? (

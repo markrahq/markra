@@ -22,6 +22,7 @@ import {
 } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 import type { SearchRange } from "@markra/shared";
+import { readSelectionFormattingActionsFromView } from "../lib/selection-formatting";
 
 const fixedTitlebarHeight = 40;
 const outlineScrollTopMargin = 24;
@@ -343,6 +344,17 @@ export function useEditorController() {
       return readAiSelectionContextFromView(view);
     } catch {
       return null;
+    }
+  }, []);
+
+  const getSelectionFormattingActions = useCallback(() => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return [];
+
+      return readSelectionFormattingActionsFromView(view);
+    } catch {
+      return [];
     }
   }, []);
 
@@ -746,6 +758,7 @@ export function useEditorController() {
     getCurrentMarkdown,
     isCurrentMarkdownEquivalent,
     getSelection,
+    getSelectionFormattingActions,
     getSectionAnchors,
     getTableAnchors,
     handleEditorReady,
