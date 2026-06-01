@@ -171,8 +171,6 @@ vi.mock("../lib/settings/app-settings", () => ({
   splitVisualPanePercentMax: 75,
   defaultEditorPreferences: {
     aiQuickActionPrompts: testAiQuickActionPrompts,
-    aiSelectionDisplayMode: "command",
-    autoOpenAiOnSelection: true,
     autoUpdateEnabled: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -219,7 +217,9 @@ vi.mock("../lib/settings/app-settings", () => ({
       strikethrough: "Mod+Shift+X"
     },
     restoreWorkspaceOnStartup: true,
-    suggestAiPanelForComplexInlinePrompts: true,
+    showAiQuickInputOnSelection: true,
+    showAiSelectionToolbarOnSelection: false,
+    suggestAiPanelForComplexInlinePrompts: false,
     showDocumentTabs: true,
     splitVisualPanePercent: 50,
     titlebarActions: [
@@ -319,8 +319,6 @@ vi.mock("../lib/settings/app-settings", () => ({
   listStoredAiAgentSessions: vi.fn(),
   normalizeEditorPreferences: vi.fn((preferences) => ({
     aiQuickActionPrompts: testAiQuickActionPrompts,
-    aiSelectionDisplayMode: "command",
-    autoOpenAiOnSelection: true,
     autoUpdateEnabled: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -367,7 +365,9 @@ vi.mock("../lib/settings/app-settings", () => ({
       strikethrough: "Mod+Shift+X"
     },
     restoreWorkspaceOnStartup: true,
-    suggestAiPanelForComplexInlinePrompts: true,
+    showAiQuickInputOnSelection: true,
+    showAiSelectionToolbarOnSelection: false,
+    suggestAiPanelForComplexInlinePrompts: false,
     showDocumentTabs: true,
     splitVisualPanePercent: 50,
     titlebarActions: [
@@ -828,8 +828,6 @@ export function installAppTestHarness() {
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: testAiQuickActionPrompts,
-      aiSelectionDisplayMode: "command",
-      autoOpenAiOnSelection: true,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -868,7 +866,9 @@ export function installAppTestHarness() {
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
       restoreWorkspaceOnStartup: true,
-      suggestAiPanelForComplexInlinePrompts: true,
+      showAiQuickInputOnSelection: true,
+      showAiSelectionToolbarOnSelection: false,
+      suggestAiPanelForComplexInlinePrompts: false,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
       titlebarActions: [

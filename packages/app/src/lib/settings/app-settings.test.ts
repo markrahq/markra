@@ -155,13 +155,11 @@ describe("app settings", () => {
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 
-  it("loads enabled AI-on-selection as the default editor preference", async () => {
+  it("loads split AI-on-selection defaults with complex prompt suggestions off", async () => {
     store.get.mockResolvedValue(undefined);
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
-      aiSelectionDisplayMode: "command",
-      autoOpenAiOnSelection: true,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -200,7 +198,9 @@ describe("app settings", () => {
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
       restoreWorkspaceOnStartup: true,
-      suggestAiPanelForComplexInlinePrompts: true,
+      showAiQuickInputOnSelection: true,
+      showAiSelectionToolbarOnSelection: false,
+      suggestAiPanelForComplexInlinePrompts: false,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
       titlebarActions: [
@@ -393,8 +393,6 @@ describe("app settings", () => {
 
   it("normalizes partial editor preferences from older settings files", async () => {
     store.get.mockResolvedValue({
-      aiSelectionDisplayMode: "command",
-      autoOpenAiOnSelection: false,
       autoUpdateEnabled: true,
       bodyFontSize: 99,
       clipboardImageFolder: "media/screenshots",
@@ -433,13 +431,13 @@ describe("app settings", () => {
         }
       ],
       restoreWorkspaceOnStartup: false,
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true,
       showWordCount: false
     });
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
-      aiSelectionDisplayMode: "command",
-      autoOpenAiOnSelection: false,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "media/screenshots",
@@ -488,7 +486,9 @@ describe("app settings", () => {
         }
       ],
       restoreWorkspaceOnStartup: false,
-      suggestAiPanelForComplexInlinePrompts: true,
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true,
+      suggestAiPanelForComplexInlinePrompts: false,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
       titlebarActions: [
@@ -527,10 +527,30 @@ describe("app settings", () => {
     expect(normalizeEditorPreferences({ autoUpdateEnabled: "no" }).autoUpdateEnabled).toBe(true);
   });
 
-  it("falls back to the quick input for unknown AI selection display modes", () => {
+  it("migrates the old AI selection display mode into independent switches", () => {
     expect(normalizeEditorPreferences({
-      aiSelectionDisplayMode: "popup"
-    }).aiSelectionDisplayMode).toBe("command");
+      autoOpenAiOnSelection: true,
+      aiSelectionDisplayMode: "command"
+    })).toMatchObject({
+      showAiQuickInputOnSelection: true,
+      showAiSelectionToolbarOnSelection: false
+    });
+
+    expect(normalizeEditorPreferences({
+      autoOpenAiOnSelection: true,
+      aiSelectionDisplayMode: "toolbar"
+    })).toMatchObject({
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true
+    });
+
+    expect(normalizeEditorPreferences({
+      autoOpenAiOnSelection: false,
+      aiSelectionDisplayMode: "toolbar"
+    })).toMatchObject({
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: false
+    });
   });
 
   it("normalizes AI quick action prompt overrides", () => {
@@ -792,8 +812,6 @@ describe("app settings", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
-      aiSelectionDisplayMode: "command",
-      autoOpenAiOnSelection: true,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -832,7 +850,9 @@ describe("app settings", () => {
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
       restoreWorkspaceOnStartup: true,
-      suggestAiPanelForComplexInlinePrompts: true,
+      showAiQuickInputOnSelection: true,
+      showAiSelectionToolbarOnSelection: false,
+      suggestAiPanelForComplexInlinePrompts: false,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
       titlebarActions: [
@@ -849,8 +869,6 @@ describe("app settings", () => {
   it("persists editor preferences", async () => {
     await saveStoredEditorPreferences({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
-      aiSelectionDisplayMode: "command",
-      autoOpenAiOnSelection: false,
       autoUpdateEnabled: true,
       bodyFontSize: 18,
       clipboardImageFolder: "images",
@@ -899,6 +917,8 @@ describe("app settings", () => {
         }
       ],
       restoreWorkspaceOnStartup: false,
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true,
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       splitVisualPanePercent: 64,
@@ -914,8 +934,6 @@ describe("app settings", () => {
 
     expect(store.set).toHaveBeenCalledWith("editorPreferences", {
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
-      aiSelectionDisplayMode: "command",
-      autoOpenAiOnSelection: false,
       autoUpdateEnabled: true,
       bodyFontSize: 18,
       clipboardImageFolder: "images",
@@ -964,6 +982,8 @@ describe("app settings", () => {
         }
       ],
       restoreWorkspaceOnStartup: false,
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true,
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       splitVisualPanePercent: 64,

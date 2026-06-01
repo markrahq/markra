@@ -124,8 +124,6 @@ describe("settings events", () => {
 
     const preferences: EditorPreferences = {
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
-      aiSelectionDisplayMode: "command",
-      autoOpenAiOnSelection: false,
       autoUpdateEnabled: true,
       bodyFontSize: 18,
       clipboardImageFolder: "images",
@@ -164,6 +162,8 @@ describe("settings events", () => {
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
       restoreWorkspaceOnStartup: false,
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true,
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       splitVisualPanePercent: 64,
@@ -179,7 +179,15 @@ describe("settings events", () => {
 
     await notifyAppEditorPreferencesChanged(preferences);
     listener?.({ payload: { preferences } } as Parameters<NonNullable<typeof listener>>[0]);
-    listener?.({ payload: { preferences: { autoOpenAiOnSelection: "nope" } } } as Parameters<NonNullable<typeof listener>>[0]);
+    listener?.({
+      payload: {
+        preferences: {
+          closeAiCommandOnAgentPanelOpen: false,
+          showAiQuickInputOnSelection: "nope",
+          showAiSelectionToolbarOnSelection: true
+        }
+      }
+    } as Parameters<NonNullable<typeof listener>>[0]);
     cleanup();
 
     expect(mockedListen).toHaveBeenCalledWith("markra://editor-preferences-changed", expect.any(Function));

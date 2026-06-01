@@ -13,8 +13,6 @@ vi.mock("../lib/settings/app-settings", () => ({
       summarize: "",
       translate: ""
     },
-    aiSelectionDisplayMode: "command",
-    autoOpenAiOnSelection: true,
     autoUpdateEnabled: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -73,6 +71,8 @@ vi.mock("../lib/settings/app-settings", () => ({
     },
     markdownTemplates: [],
     restoreWorkspaceOnStartup: true,
+    showAiQuickInputOnSelection: true,
+    showAiSelectionToolbarOnSelection: false,
     showDocumentTabs: true,
     splitVisualPanePercent: 50,
     showWordCount: true
@@ -98,8 +98,6 @@ describe("useEditorPreferences", () => {
     let onPreferencesChanged: Parameters<typeof listenAppEditorPreferencesChanged>[0] | null = null;
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
-      aiSelectionDisplayMode: "command",
-      autoOpenAiOnSelection: true,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -159,6 +157,8 @@ describe("useEditorPreferences", () => {
       },
       markdownTemplates: [],
       restoreWorkspaceOnStartup: true,
+      showAiQuickInputOnSelection: true,
+      showAiSelectionToolbarOnSelection: false,
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
@@ -179,13 +179,11 @@ describe("useEditorPreferences", () => {
 
     expect(result.current.loading).toBe(true);
     await waitFor(() => expect(result.current.loading).toBe(false));
-    expect(result.current.preferences.autoOpenAiOnSelection).toBe(true);
+    expect(result.current.preferences.showAiQuickInputOnSelection).toBe(true);
 
     act(() => {
       onPreferencesChanged?.({
         aiQuickActionPrompts: defaultAiQuickActionPrompts,
-        aiSelectionDisplayMode: "command",
-        autoOpenAiOnSelection: false,
         autoUpdateEnabled: true,
         bodyFontSize: 18,
         clipboardImageFolder: "images",
@@ -245,6 +243,8 @@ describe("useEditorPreferences", () => {
         },
         markdownTemplates: [],
         restoreWorkspaceOnStartup: false,
+        showAiQuickInputOnSelection: false,
+        showAiSelectionToolbarOnSelection: true,
         suggestAiPanelForComplexInlinePrompts: true,
         showDocumentTabs: false,
         splitVisualPanePercent: 64,
@@ -258,8 +258,8 @@ describe("useEditorPreferences", () => {
       });
     });
 
-    expect(result.current.preferences.autoOpenAiOnSelection).toBe(false);
-    expect(result.current.preferences.aiSelectionDisplayMode).toBe("command");
+    expect(result.current.preferences.showAiQuickInputOnSelection).toBe(false);
+    expect(result.current.preferences.showAiSelectionToolbarOnSelection).toBe(true);
     expect(result.current.preferences.bodyFontSize).toBe(18);
     expect(result.current.preferences.closeAiCommandOnAgentPanelOpen).toBe(true);
     expect(result.current.preferences.contentWidth).toBe("wide");

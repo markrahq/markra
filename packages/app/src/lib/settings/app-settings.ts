@@ -46,6 +46,10 @@ const recentMarkdownFoldersKey = "recentMarkdownFolders";
 
 export type ResolvedAppTheme = "light" | "dark";
 export type AiSelectionDisplayMode = "command" | "toolbar";
+type LegacyEditorPreferences = {
+  aiSelectionDisplayMode?: AiSelectionDisplayMode;
+  autoOpenAiOnSelection?: boolean;
+};
 export const editorThemeOptions = [
   "light",
   "dark",
@@ -113,8 +117,6 @@ export type ExtendedSyntaxPreferences = {
 };
 export type EditorPreferences = {
   aiQuickActionPrompts: AiQuickActionPrompts;
-  aiSelectionDisplayMode: AiSelectionDisplayMode;
-  autoOpenAiOnSelection: boolean;
   autoUpdateEnabled: boolean;
   bodyFontSize: number;
   clipboardImageFolder: string;
@@ -127,6 +129,8 @@ export type EditorPreferences = {
   markdownShortcuts: MarkdownShortcutBindings;
   markdownTemplates: MarkdownTemplateEntry[];
   restoreWorkspaceOnStartup: boolean;
+  showAiQuickInputOnSelection: boolean;
+  showAiSelectionToolbarOnSelection: boolean;
   suggestAiPanelForComplexInlinePrompts: boolean;
   showDocumentTabs: boolean;
   splitVisualPanePercent: number;
@@ -247,8 +251,6 @@ export const defaultExtendedSyntaxPreferences: ExtendedSyntaxPreferences = {
 
 export const defaultEditorPreferences: EditorPreferences = {
   aiQuickActionPrompts: { ...defaultAiQuickActionPrompts },
-  aiSelectionDisplayMode: "command",
-  autoOpenAiOnSelection: true,
   autoUpdateEnabled: true,
   bodyFontSize: 16,
   clipboardImageFolder: "assets",
@@ -261,7 +263,9 @@ export const defaultEditorPreferences: EditorPreferences = {
   markdownShortcuts: defaultMarkdownShortcuts,
   markdownTemplates: [],
   restoreWorkspaceOnStartup: true,
-  suggestAiPanelForComplexInlinePrompts: true,
+  showAiQuickInputOnSelection: true,
+  showAiSelectionToolbarOnSelection: false,
+  suggestAiPanelForComplexInlinePrompts: false,
   showDocumentTabs: true,
   splitVisualPanePercent: defaultSplitVisualPanePercent,
   titlebarActions: [...defaultTitlebarActions],
@@ -298,7 +302,6 @@ export const recentMarkdownFoldersMaxLength = 5;
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
-const aiSelectionDisplayModeOptions: AiSelectionDisplayMode[] = ["command", "toolbar"];
 const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
 const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
 const exportPageSizeDimensions: Record<Exclude<PdfPageSize, "custom">, { heightMm: number; widthMm: number }> = {
@@ -754,6 +757,35 @@ export function normalizeAiAgentPreferences(value: unknown): AiAgentPreferences 
   };
 }
 
+function normalizeShowAiQuickInputOnSelection(preferences: Partial<EditorPreferences> & LegacyEditorPreferences) {
+  if (typeof preferences.showAiQuickInputOnSelection === "boolean") {
+    return preferences.showAiQuickInputOnSelection;
+  }
+
+  if (typeof preferences.autoOpenAiOnSelection === "boolean" && !preferences.autoOpenAiOnSelection) {
+    return false;
+  }
+
+  if (preferences.aiSelectionDisplayMode === "toolbar") return false;
+
+  return defaultEditorPreferences.showAiQuickInputOnSelection;
+}
+
+function normalizeShowAiSelectionToolbarOnSelection(preferences: Partial<EditorPreferences> & LegacyEditorPreferences) {
+  if (typeof preferences.showAiSelectionToolbarOnSelection === "boolean") {
+    return preferences.showAiSelectionToolbarOnSelection;
+  }
+
+  if (typeof preferences.autoOpenAiOnSelection === "boolean" && !preferences.autoOpenAiOnSelection) {
+    return false;
+  }
+
+  if (preferences.aiSelectionDisplayMode === "toolbar") return true;
+  if (preferences.aiSelectionDisplayMode === "command") return false;
+
+  return defaultEditorPreferences.showAiSelectionToolbarOnSelection;
+}
+
 export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   if (typeof value !== "object" || value === null) {
     return {
@@ -763,17 +795,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     };
   }
 
-  const preferences = value as Partial<EditorPreferences>;
+  const preferences = value as Partial<EditorPreferences> & LegacyEditorPreferences;
 
   return {
     aiQuickActionPrompts: normalizeAiQuickActionPrompts(preferences.aiQuickActionPrompts),
-    aiSelectionDisplayMode: aiSelectionDisplayModeOptions.includes(preferences.aiSelectionDisplayMode as AiSelectionDisplayMode)
-      ? preferences.aiSelectionDisplayMode as AiSelectionDisplayMode
-      : defaultEditorPreferences.aiSelectionDisplayMode,
-    autoOpenAiOnSelection:
-      typeof preferences.autoOpenAiOnSelection === "boolean"
-        ? preferences.autoOpenAiOnSelection
-        : defaultEditorPreferences.autoOpenAiOnSelection,
     autoUpdateEnabled:
       typeof preferences.autoUpdateEnabled === "boolean"
         ? preferences.autoUpdateEnabled
@@ -801,6 +826,8 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       typeof preferences.restoreWorkspaceOnStartup === "boolean"
         ? preferences.restoreWorkspaceOnStartup
         : defaultEditorPreferences.restoreWorkspaceOnStartup,
+    showAiQuickInputOnSelection: normalizeShowAiQuickInputOnSelection(preferences),
+    showAiSelectionToolbarOnSelection: normalizeShowAiSelectionToolbarOnSelection(preferences),
     suggestAiPanelForComplexInlinePrompts:
       typeof preferences.suggestAiPanelForComplexInlinePrompts === "boolean"
         ? preferences.suggestAiPanelForComplexInlinePrompts

@@ -940,32 +940,32 @@ function WorkspaceApp() {
       return;
     }
 
-    if (!editorPreferences.preferences.autoOpenAiOnSelection || aiCommand.open || aiCommand.submitting) {
+    const showQuickInput = editorPreferences.preferences.showAiQuickInputOnSelection;
+    const showSelectionToolbar = editorPreferences.preferences.showAiSelectionToolbarOnSelection;
+
+    if ((!showQuickInput && !showSelectionToolbar) || aiCommand.open || aiCommand.submitting) {
       setAiSelectionToolbarAnchor(null);
       return;
     }
 
-    if (editorPreferences.preferences.aiSelectionDisplayMode === "command") {
-      setAiSelectionToolbarAnchor(null);
+    if (showSelectionToolbar) {
+      setAiSelectionToolbarAnchor(selectionAnchorFromDomSelection(window.getSelection()));
+    } else {
       aiCommand.openAiCommand(selection);
       return;
     }
 
-    const toolbarAnchor = selectionAnchorFromDomSelection(window.getSelection());
-    if (!toolbarAnchor) {
+    if (showQuickInput) {
       aiCommand.openAiCommand(selection);
-      return;
     }
-
-    setAiSelectionToolbarAnchor(toolbarAnchor);
   }, [
     aiAgentOpen,
     aiCommand,
     aiFeatureEnabled,
     editor,
-    editorPreferences.preferences.aiSelectionDisplayMode,
-    editorPreferences.preferences.autoOpenAiOnSelection,
     editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
+    editorPreferences.preferences.showAiQuickInputOnSelection,
+    editorPreferences.preferences.showAiSelectionToolbarOnSelection,
     readOnlyMode,
     updateActiveAiSelection
   ]);
@@ -1084,14 +1084,14 @@ function WorkspaceApp() {
     Boolean(aiSelectionToolbarAnchor) &&
     activeAiSelection?.source === "selection" &&
     Boolean(activeAiSelection.text.trim()) &&
-    !aiCommandVisible &&
     !aiCommand.submitting &&
     !aiContextMenuActionPending &&
     !aiResult;
   const handleAiSelectionToolbarOpenCommand = useCallback(() => {
     setAiSelectionToolbarAnchor(null);
+    if (aiCommandVisible) return;
     handleAiCommandToggle();
-  }, [handleAiCommandToggle]);
+  }, [aiCommandVisible, handleAiCommandToggle]);
   const handleAiSelectionToolbarAction = useCallback((intent: AiQuickActionIntent, prompt: string) => {
     if (readOnlyMode) return;
 

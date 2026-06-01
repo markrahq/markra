@@ -704,46 +704,35 @@ describe("AiSettings", () => {
       />
     );
 
+    expect(screen.getByRole("switch", { name: "Show AI quick input" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: "Show floating toolbar" })).toHaveAttribute("aria-checked", "false");
     expect(
       screen.getByText(
         "Experimental. Suggest Markra AI for complex inline requests based on local input structure. Turn it off if the prompt feels too eager."
       )
     ).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("switch", { name: "Show AI quick input" }));
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      suggestAiPanelForComplexInlinePrompts: true,
+      showAiQuickInputOnSelection: false
+    });
+
+    fireEvent.click(screen.getByRole("switch", { name: "Show floating toolbar" }));
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      suggestAiPanelForComplexInlinePrompts: true,
+      showAiSelectionToolbarOnSelection: true
+    });
+
     fireEvent.click(screen.getByRole("switch", { name: "Suggest Markra AI for complex inline requests" }));
 
     expect(onUpdatePreferences).toHaveBeenCalledWith({
       ...defaultEditorPreferences,
       suggestAiPanelForComplexInlinePrompts: false
-    });
-  });
-
-  it("selects how AI appears after selecting text", () => {
-    const onUpdatePreferences = vi.fn();
-
-    render(
-      <AiSettings
-        language="en"
-        preferences={{
-          ...defaultEditorPreferences,
-          aiSelectionDisplayMode: "toolbar"
-        }}
-        translate={translate}
-        onUpdatePreferences={onUpdatePreferences}
-      />
-    );
-
-    const group = screen.getByRole("group", { name: "Selection AI display" });
-    const quickInputButton = within(group).getByRole("button", { name: "Use quick input" });
-    const toolbarButton = within(group).getByRole("button", { name: "Use selection toolbar" });
-
-    expect(toolbarButton).toHaveAttribute("aria-pressed", "true");
-
-    fireEvent.click(quickInputButton);
-
-    expect(onUpdatePreferences).toHaveBeenCalledWith({
-      ...defaultEditorPreferences,
-      aiSelectionDisplayMode: "command"
     });
   });
 

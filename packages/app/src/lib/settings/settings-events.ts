@@ -50,6 +50,21 @@ type AiSettingsChangedPayload = {
   settings: AiProviderSettings;
 };
 
+function isEditorPreferencesPayload(value: unknown) {
+  if (typeof value !== "object" || value === null) return false;
+
+  const preferences = value as Record<string, unknown>;
+  const hasCurrentSelectionPreferences =
+    typeof preferences.showAiQuickInputOnSelection === "boolean" &&
+    typeof preferences.showAiSelectionToolbarOnSelection === "boolean";
+  const hasLegacySelectionPreferences = typeof preferences.autoOpenAiOnSelection === "boolean";
+
+  return (
+    typeof preferences.closeAiCommandOnAgentPanelOpen === "boolean" &&
+    (hasCurrentSelectionPreferences || hasLegacySelectionPreferences)
+  );
+}
+
 export async function notifyAppThemeChanged(theme: AppTheme) {
   if (!getAppRuntime().events.isAvailable()) return;
 
@@ -110,14 +125,8 @@ export async function listenAppEditorPreferencesChanged(
   if (!getAppRuntime().events.isAvailable()) return () => {};
 
   return getAppRuntime().events.listen<EditorPreferencesChangedPayload>(editorPreferencesChangedEvent, (event) => {
-    const preferences = normalizeEditorPreferences(event.payload.preferences);
-    if (
-      typeof event.payload.preferences === "object" &&
-      event.payload.preferences !== null &&
-      preferences.autoOpenAiOnSelection === event.payload.preferences.autoOpenAiOnSelection &&
-      preferences.closeAiCommandOnAgentPanelOpen === event.payload.preferences.closeAiCommandOnAgentPanelOpen
-    ) {
-      onPreferencesChanged(preferences);
+    if (isEditorPreferencesPayload(event.payload.preferences)) {
+      onPreferencesChanged(normalizeEditorPreferences(event.payload.preferences));
     }
   });
 }
