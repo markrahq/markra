@@ -718,6 +718,42 @@ describe("MarkdownFileTreeDrawer", () => {
     }
   });
 
+  it("starts root create actions at the tree root when the current file is in the root folder", () => {
+    const createFile = vi.fn();
+    const createFolder = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onCreateFile={createFile}
+        onCreateFolder={createFolder}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New file" }));
+    const newFileInput = screen.getByRole("textbox", { name: "New file name" });
+    fireEvent.change(newFileInput, { target: { value: "Root note" } });
+    fireEvent.keyDown(newFileInput, { key: "Enter" });
+
+    expect(createFile).toHaveBeenCalledWith("Root note");
+
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New Folder" }));
+    const newFolderInput = screen.getByRole("textbox", { name: "New folder name" });
+    fireEvent.change(newFolderInput, { target: { value: "Inbox" } });
+    fireEvent.keyDown(newFolderInput, { key: "Enter" });
+
+    expect(createFolder).toHaveBeenCalledWith("Inbox");
+  });
+
   it("starts a markdown file from a custom template", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-21T09:30:00"));

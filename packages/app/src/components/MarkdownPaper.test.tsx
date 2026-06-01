@@ -3246,6 +3246,16 @@ describe("MarkdownPaper editing", () => {
     restoreLayout();
   });
 
+  it("loads template blank paragraphs from markdown blank lines", async () => {
+    const { editor, view } = await renderEditor("# Template\n\n\n\n## Next");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(view.state.doc.childCount).toBe(3);
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).content.size).toBe(0);
+    expect(serializeMarkdown(view.state.doc)).toBe("# Template\n\n\n\n## Next\n");
+  });
+
   it("saves blank list items without br tags", async () => {
     const onMarkdownChange = vi.fn();
     const { container, view } = await renderEditor("- First\n- Second", { onMarkdownChange });

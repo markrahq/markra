@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -580,6 +581,15 @@ export function MarkdownFileTreeDrawer({
   const folderExpansionAvailable = folderPaths.length > 0;
   const allFoldersExpanded = folderExpansionAvailable && folderPaths.every((folderPath) => expandedFolders.has(folderPath));
   const dragMoveAvailable = folderOpen && Boolean(onMoveFile);
+  const normalizeTreeCreateParentPath = useCallback((path: string | null | undefined) => {
+    const normalizedParentPath = normalizeCreateParentPath(path);
+    if (!normalizedParentPath) return null;
+
+    const normalizedRootPath = rootPath ? normalizeMovedPath(rootPath) : null;
+    if (normalizedRootPath && normalizeMovedPath(normalizedParentPath) === normalizedRootPath) return null;
+
+    return normalizedParentPath;
+  }, [rootPath]);
   const activeCreateParentPath = useMemo(() => {
     const normalizedRootPath = rootPath ? normalizeMovedPath(rootPath) : null;
     const currentParentPath = currentPath ? parentPathFromPath(currentPath) : null;
@@ -587,11 +597,11 @@ export function MarkdownFileTreeDrawer({
 
     const normalizedParentPath = normalizeMovedPath(currentParentPath);
     if (normalizedParentPath === normalizedRootPath || normalizedParentPath.startsWith(`${normalizedRootPath}/`)) {
-      return currentParentPath;
+      return normalizeTreeCreateParentPath(currentParentPath);
     }
 
     return null;
-  }, [currentPath, rootPath]);
+  }, [currentPath, normalizeTreeCreateParentPath, rootPath]);
   const recentFolderChoices = recentFolders.slice(0, 5);
   const recentFolderAreaVisible = recentFolderChoices.length > 0 && Boolean(onOpenRecentFolder);
   const filePanelVisible = folderOpen;
@@ -644,7 +654,7 @@ export function MarkdownFileTreeDrawer({
     setNewFolderName("");
     setRenamingPath(null);
     setRenameFileName("");
-    setCreatingParentPath(normalizeCreateParentPath(parentPath));
+    setCreatingParentPath(normalizeTreeCreateParentPath(parentPath));
     setCreatingTemplate(template);
     setCreatingTemplateStartedAt(template ? startedAt : null);
     setCreatingFile(true);
@@ -661,7 +671,7 @@ export function MarkdownFileTreeDrawer({
     setCreatingTemplateStartedAt(null);
     setRenamingPath(null);
     setRenameFileName("");
-    setCreatingParentPath(normalizeCreateParentPath(parentPath));
+    setCreatingParentPath(normalizeTreeCreateParentPath(parentPath));
     setCreatingFolder(true);
     setNewFolderName("");
     setCreateMenuOpen(false);

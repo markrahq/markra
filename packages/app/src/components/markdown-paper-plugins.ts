@@ -25,9 +25,15 @@ import { readAiSelectionContextFromView } from "../hooks/useEditorController";
 
 type MarkdownTreeNode = {
   children?: MarkdownTreeNode[];
+  position?: {
+    end?: { line?: number };
+    start?: { line?: number };
+  };
   type?: string;
   value?: unknown;
 };
+
+const blankParagraphContainerTypes = new Set(["blockquote", "listItem", "root"]);
 
 const markraBlockImageSchema = imageSchema.extendSchema((previous) => (ctx) => ({
   ...previous(ctx),
@@ -47,6 +53,49 @@ const markraBlockImageSchema = imageSchema.extendSchema((previous) => (ctx) => (
     }
   }
 }));
+
+function lineNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function blankParagraphCountBetween(previous: MarkdownTreeNode, next: MarkdownTreeNode) {
+  const previousEndLine = lineNumber(previous.position?.end?.line);
+  const nextStartLine = lineNumber(next.position?.start?.line);
+  if (previousEndLine === null || nextStartLine === null) return 0;
+
+  // One blank line is the ordinary Markdown block separator; extra pairs represent empty paragraphs.
+  const blankLines = nextStartLine - previousEndLine - 1;
+  return Math.max(0, Math.floor((blankLines - 1) / 2));
+}
+
+function blankParagraphNode(): MarkdownTreeNode {
+  return {
+    children: [],
+    type: "paragraph"
+  };
+}
+
+function preserveBlankParagraphs(node: MarkdownTreeNode) {
+  if (!Array.isArray(node.children)) return;
+
+  node.children.forEach(preserveBlankParagraphs);
+  if (!blankParagraphContainerTypes.has(node.type ?? "")) return;
+
+  const children: MarkdownTreeNode[] = [];
+  node.children.forEach((child, index) => {
+    const previous = node.children?.[index - 1];
+
+    if (previous) {
+      const count = blankParagraphCountBetween(previous, child);
+      for (let blankIndex = 0; blankIndex < count; blankIndex += 1) {
+        children.push(blankParagraphNode());
+      }
+    }
+
+    children.push(child);
+  });
+  node.children = children;
+}
 
 function trimParagraphEdgeWhitespace(children: MarkdownTreeNode[]) {
   const trimmed = [...children];
@@ -136,11 +185,16 @@ function liftImageParagraphs(node: MarkdownTreeNode) {
   node.children = children;
 }
 
+const markraBlankParagraphRemarkPlugin = $remark("markraBlankParagraphRemark", () => () => (tree: MarkdownTreeNode) => {
+  preserveBlankParagraphs(tree);
+});
+
 const markraBlockImageRemarkPlugin = $remark("markraBlockImageRemark", () => () => (tree: MarkdownTreeNode) => {
   liftImageParagraphs(tree);
 });
 
 export const markraCommonmark = [
+  markraBlankParagraphRemarkPlugin,
   markraBlockImageRemarkPlugin,
   commonmarkSchema,
   markraBlockImageSchema,
