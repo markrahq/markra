@@ -1,6 +1,6 @@
 {
   "name": "@markra/desktop",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "license": "AGPL-3.0-only",
   "private": true,
   "type": "module",
