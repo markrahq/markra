@@ -28,7 +28,7 @@ describe("web runtime", () => {
     expect(runtime.features.pandoc).toBe(false);
     expect(runtime.features.s3ImageUpload).toBe(false);
     expect(runtime.features.updater).toBe(false);
-    expect(runtime.platform.resolveDesktopPlatform()).toBe("linux");
+    expect(runtime.platform.resolveDesktopPlatform()).toBe("windows");
     await expect(runtime.updater.checkAppUpdate()).resolves.toBeNull();
   });
 });

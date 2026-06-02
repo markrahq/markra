@@ -340,6 +340,7 @@ describe("Markra workspace", () => {
   });
 
   it("places browser titlebar tabs over the editor area when runtime disables native window chrome", async () => {
+    mockedResolveDesktopPlatform.mockReturnValue("windows");
     configureAppRuntime({
       ...createDefaultAppRuntime(),
       features: {
@@ -349,6 +350,9 @@ describe("Markra workspace", () => {
         pandoc: true,
         s3ImageUpload: true,
         updater: true
+      },
+      platform: {
+        resolveDesktopPlatform: () => "windows"
       }
     });
     mockedGetStoredWorkspaceState.mockResolvedValue({
@@ -374,9 +378,11 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("complementary", { name: "Markdown file tree" })).toHaveAttribute("aria-hidden", "false");
     expect(screen.getByRole("tab", { name: /browser\.md/ })).toBeInTheDocument();
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "auto minmax(0, 1fr) auto",
+      gridTemplateColumns: "minmax(0,1fr) 164px",
       left: "289px"
     });
+    expect(container.querySelector(".windows-titlebar-actions")).toBeInTheDocument();
+    expect(container.querySelector(".titlebar-spacer")).not.toBeInTheDocument();
     expect(container.querySelector(".document-tabs-drag-spacer")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title-slot")?.getAttribute("style") ?? "").not.toContain("margin-left");
   });

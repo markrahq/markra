@@ -36,7 +36,7 @@ export function createWebRuntime(options: WebRuntimeOptions = {}): AppRuntime {
     files: createWebFileRuntime(settings, options),
     menu: createWebMenuRuntime(defaultRuntime.menu, options),
     platform: {
-      resolveDesktopPlatform: () => "linux"
+      resolveDesktopPlatform: () => "windows"
     },
     settings,
     webResource: createWebResourceRuntime(options),

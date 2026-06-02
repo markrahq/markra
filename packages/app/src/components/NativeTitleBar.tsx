@@ -476,11 +476,12 @@ export function NativeTitleBar({
     />
   ) : null;
 
-  if (nativeWindowChrome && platform === "windows") {
+  if (platform === "windows") {
     if (titleContent) {
+      const windowsTitlebarActionSlotWidth = titlebarSideSlotWidth + (aiAgentOpen ? aiAgentWidth : 0);
       const windowsTitlebarStyle: CSSProperties = {
         ...(markdownFilesOpen ? { left: markdownFilesWidth + 1 } : {}),
-        gridTemplateColumns: `minmax(0,1fr) ${titlebarSideSlotWidth}px`
+        gridTemplateColumns: `minmax(0,1fr) ${windowsTitlebarActionSlotWidth}px`
       };
 
       return (

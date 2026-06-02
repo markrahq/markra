@@ -133,6 +133,38 @@ describe("NativeTitleBar", () => {
     expect(titleSlot?.getAttribute("style") ?? "").not.toContain("transform");
   });
 
+  it("uses the Windows titlebar layout for web chrome when the runtime resolves Windows", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen
+        markdownFilesWidth={288}
+        nativeWindowChrome={false}
+        platform="windows"
+        theme="light"
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".native-titlebar")).toHaveStyle({
+      gridTemplateColumns: "minmax(0,1fr) 164px",
+      left: "289px"
+    });
+    expect(container.querySelector(".windows-titlebar-actions")).toBeInTheDocument();
+    expect(container.querySelector(".titlebar-spacer")).not.toBeInTheDocument();
+  });
+
   it("keeps macOS titlebar tabs clear of transformed actions before the AI panel", () => {
     const { container } = render(
       <NativeTitleBar
@@ -228,6 +260,35 @@ describe("NativeTitleBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
 
     expect(toggleSourceMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("reserves AI panel width for Windows titlebar tabs when file actions shift left", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen
+        aiAgentWidth={384}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        platform="windows"
+        theme="light"
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".native-titlebar")).toHaveStyle({
+      gridTemplateColumns: "minmax(0,1fr) 548px"
+    });
+    expect(container.querySelector(".windows-titlebar-actions")).toHaveStyle({ transform: "translateX(-384px)" });
   });
 
   it("keeps compact Windows file actions clear of the Markra AI panel", () => {
