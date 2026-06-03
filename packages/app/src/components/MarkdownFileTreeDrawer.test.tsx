@@ -1685,6 +1685,123 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(selectOutlineItem).toHaveBeenCalledWith({ level: 2, title: "Details" }, 1);
   });
 
+  it("collapses nested outline headings without affecting later siblings", () => {
+    const selectOutlineItem = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[
+          { level: 1, title: "Intro" },
+          { level: 2, title: "Setup" },
+          { level: 2, title: "Usage" },
+          { level: 3, title: "API" },
+          { level: 1, title: "Appendix" }
+        ]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={selectOutlineItem}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Intro" }));
+
+    expect(selectOutlineItem).toHaveBeenCalledWith({ level: 1, title: "Intro" }, 0);
+    selectOutlineItem.mockClear();
+    expect(screen.getByRole("button", { name: "Collapse heading: Intro" })).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse heading: Intro" }));
+
+    expect(screen.getByRole("button", { name: "Intro" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Expand heading: Intro" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "Setup" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Usage" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "API" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Appendix" })).toBeInTheDocument();
+    expect(selectOutlineItem).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand heading: Intro" }));
+
+    expect(screen.getByRole("button", { name: "Collapse heading: Intro" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "Setup" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Usage" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "API" })).toBeInTheDocument();
+  });
+
+  it("collapses and expands every collapsible outline heading from the outline controls", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[
+          { level: 1, title: "Intro" },
+          { level: 2, title: "Setup" },
+          { level: 2, title: "Usage" },
+          { level: 3, title: "API" },
+          { level: 1, title: "Appendix" }
+        ]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse outline headings" }));
+
+    expect(screen.getByRole("button", { name: "Intro" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Setup" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Usage" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "API" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Appendix" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand outline headings" }));
+
+    expect(screen.getByRole("button", { name: "Setup" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Usage" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "API" })).toBeInTheDocument();
+  });
+
+  it("filters outline headings by visible heading depth from the outline controls", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[
+          { level: 1, title: "Intro" },
+          { level: 2, title: "Setup" },
+          { level: 3, title: "API" },
+          { level: 4, title: "Params" },
+          { level: 2, title: "Usage" },
+          { level: 1, title: "Appendix" }
+        ]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Outline heading levels: All headings" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "H1-H2" }));
+
+    expect(screen.getByRole("button", { name: "Outline heading levels: H1-H2" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Intro" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Setup" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "API" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Params" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Usage" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Appendix" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Outline heading levels: H1-H2" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "All headings" }));
+
+    expect(screen.getByRole("button", { name: "API" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Params" })).toBeInTheDocument();
+  });
+
   it("keeps outline clicks from stealing focus before navigation runs", () => {
     render(
       <MarkdownFileTreeDrawer

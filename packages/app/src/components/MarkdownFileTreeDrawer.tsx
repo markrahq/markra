@@ -146,6 +146,14 @@ type FileTreeDropTargetProps = {
   id: UniqueIdentifier;
   targetParentPath: string | null;
 };
+type OutlineRenderItem = {
+  hasChildren: boolean;
+  index: number;
+  item: MarkdownOutlineItem;
+  key: string;
+};
+const outlineLevelFilters = ["all", 1, 2, 3] as const;
+type OutlineLevelFilter = typeof outlineLevelFilters[number];
 
 const emptyMarkdownTemplates: readonly MarkdownTemplate[] = [];
 const defaultFileTreeSort = {
@@ -474,6 +482,52 @@ function collectMarkdownFolderPaths(nodes: TreeNode[]) {
   return paths;
 }
 
+function outlineItemKey(item: MarkdownOutlineItem, index: number) {
+  return `${index}:${item.level}:${item.title}`;
+}
+
+function outlineItemHasVisibleChildren(
+  items: MarkdownOutlineItem[],
+  index: number,
+  maxLevel: number | null
+) {
+  const item = items[index];
+  if (!item) return false;
+
+  for (let nextIndex = index + 1; nextIndex < items.length; nextIndex += 1) {
+    const nextItem = items[nextIndex];
+    if (!nextItem || nextItem.level <= item.level) return false;
+    if (maxLevel === null || nextItem.level <= maxLevel) return true;
+  }
+
+  return false;
+}
+
+function buildOutlineRenderItems(items: MarkdownOutlineItem[], maxLevel: number | null) {
+  return items.flatMap((item, index): OutlineRenderItem[] => {
+    if (maxLevel !== null && item.level > maxLevel) return [];
+
+    return [{
+      hasChildren: outlineItemHasVisibleChildren(items, index, maxLevel),
+      index,
+      item,
+      key: outlineItemKey(item, index)
+    }];
+  });
+}
+
+function visibleOutlineRenderItems(items: OutlineRenderItem[], collapsedKeys: ReadonlySet<string>) {
+  let collapsedAncestorLevel: number | null = null;
+
+  return items.filter(({ item, key }) => {
+    const hiddenByAncestor = collapsedAncestorLevel !== null && item.level > collapsedAncestorLevel;
+    if (hiddenByAncestor) return false;
+
+    collapsedAncestorLevel = collapsedKeys.has(key) ? item.level : null;
+    return true;
+  });
+}
+
 function folderNodeAsFile(node: FolderNode): NativeMarkdownFolderFile {
   return {
     createdAt: node.createdAt,
@@ -548,11 +602,14 @@ export function MarkdownFileTreeDrawer({
   const [fileTreeSortMenuOpen, setFileTreeSortMenuOpen] = useState(false);
   const [fileTreeSortKey, setFileTreeSortKey] = useState<FileTreeSortKey>(defaultFileTreeSort.key);
   const [fileTreeSortDirection, setFileTreeSortDirection] = useState<FileTreeSortDirection>(defaultFileTreeSort.direction);
+  const [outlineLevelMenuOpen, setOutlineLevelMenuOpen] = useState(false);
+  const [outlineLevelFilter, setOutlineLevelFilter] = useState<OutlineLevelFilter>("all");
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameFileName, setRenameFileName] = useState("");
   const [dragOverTargetPath, setDragOverTargetPath] = useState<string | null>(null);
   const [activeDragFile, setActiveDragFile] = useState<NativeMarkdownFolderFile | null>(null);
+  const [collapsedOutlineKeys, setCollapsedOutlineKeys] = useState<Set<string>>(() => new Set());
   const fileTreeDndSensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -568,6 +625,12 @@ export function MarkdownFileTreeDrawer({
   const tree = useMemo(() => filterMarkdownFileTree(fullTree, searchQuery), [fullTree, searchQuery]);
   const folderPaths = useMemo(() => collectMarkdownFolderPaths(fullTree), [fullTree]);
   const availableMarkdownTemplates = useMemo(() => mergeMarkdownTemplates(customTemplates), [customTemplates]);
+  const outlineMaxLevel = outlineLevelFilter === "all" ? null : outlineLevelFilter;
+  const outlineRenderItems = useMemo(() => buildOutlineRenderItems(outlineItems, outlineMaxLevel), [outlineItems, outlineMaxLevel]);
+  const collapsibleOutlineKeys = useMemo(
+    () => outlineRenderItems.filter((item) => item.hasChildren).map((item) => item.key),
+    [outlineRenderItems]
+  );
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const drawerStateClass = open
     ? "translate-x-0 opacity-100"
@@ -584,6 +647,13 @@ export function MarkdownFileTreeDrawer({
   const folderActionsAvailable = fileCreationAvailable || folderCreationAvailable;
   const folderExpansionAvailable = folderPaths.length > 0;
   const allFoldersExpanded = folderExpansionAvailable && folderPaths.every((folderPath) => expandedFolders.has(folderPath));
+  const outlineExpansionAvailable = collapsibleOutlineKeys.length > 0;
+  const allOutlineItemsCollapsed = outlineExpansionAvailable &&
+    collapsibleOutlineKeys.every((outlineKey) => collapsedOutlineKeys.has(outlineKey));
+  const visibleOutlineItems = useMemo(
+    () => visibleOutlineRenderItems(outlineRenderItems, collapsedOutlineKeys),
+    [collapsedOutlineKeys, outlineRenderItems]
+  );
   const dragMoveAvailable = folderOpen && Boolean(onMoveFile);
   const normalizeTreeCreateParentPath = useCallback((path: string | null | undefined) => {
     const normalizedParentPath = normalizeCreateParentPath(path);
@@ -620,6 +690,15 @@ export function MarkdownFileTreeDrawer({
     };
   }, []);
 
+  useEffect(() => {
+    const validKeys = new Set(collapsibleOutlineKeys);
+
+    setCollapsedOutlineKeys((current) => {
+      const next = new Set(Array.from(current).filter((outlineKey) => validKeys.has(outlineKey)));
+      return next.size === current.size ? current : next;
+    });
+  }, [collapsibleOutlineKeys]);
+
   const toggleFolder = (relativePath: string) => {
     setExpandedFolders((current) => {
       const next = new Set(current);
@@ -639,6 +718,42 @@ export function MarkdownFileTreeDrawer({
       const currentAllFoldersExpanded = folderPaths.every((folderPath) => current.has(folderPath));
       return currentAllFoldersExpanded ? new Set() : new Set(folderPaths);
     });
+  };
+
+  const toggleCollapsedOutlineItem = (outlineKey: string) => {
+    setCollapsedOutlineKeys((current) => {
+      const next = new Set(current);
+      if (next.has(outlineKey)) {
+        next.delete(outlineKey);
+      } else {
+        next.add(outlineKey);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllOutlineItems = () => {
+    if (!outlineExpansionAvailable) return;
+
+    setCollapsedOutlineKeys((current) => {
+      const currentAllCollapsed = collapsibleOutlineKeys.every((outlineKey) => current.has(outlineKey));
+      return currentAllCollapsed ? new Set() : new Set(collapsibleOutlineKeys);
+    });
+  };
+
+  const outlineLevelFilterLabel = (filter: OutlineLevelFilter) => {
+    if (filter === "all") return label("app.outlineHeadingLevelsAll");
+    if (filter === 1) return "H1";
+    return `H1-H${filter}`;
+  };
+
+  const outlineLevelFilterCompactLabel = (filter: OutlineLevelFilter) => (
+    filter === "all" ? label("app.outlineHeadingLevelsAllShort") : outlineLevelFilterLabel(filter)
+  );
+
+  const selectOutlineLevelFilter = (filter: OutlineLevelFilter) => {
+    setOutlineLevelFilter(filter);
+    setOutlineLevelMenuOpen(false);
   };
 
   const selectFileTreeSortKey = (key: FileTreeSortKey) => {
@@ -1267,24 +1382,72 @@ export function MarkdownFileTreeDrawer({
   const renderOutline = () => (
     outlineItems.length > 0 ? (
       <ol className="m-0 list-none p-0" aria-label={label("app.documentOutline")}>
-        {outlineItems.map((item, index) => (
-          <li key={`${item.level}-${item.title}-${index}`}>
-            <button
-              className="h-8 w-full cursor-pointer truncate border-0 bg-transparent py-0 pr-3 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-              style={{ paddingLeft: `${12 + (item.level - 1) * 14}px` }}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => onSelectOutlineItem(item, index)}
-            >
-              {item.title}
-            </button>
-          </li>
-        ))}
+        {visibleOutlineItems.map(({ hasChildren, index, item, key }) => {
+          const collapsed = collapsedOutlineKeys.has(key);
+          const outlineIndent = 4 + (item.level - 1) * 14;
+
+          return (
+            <li key={key}>
+              <div
+                className="flex h-8 w-full items-center gap-0.5 py-0 pr-2 text-[13px] leading-none"
+                style={{ paddingLeft: `${outlineIndent}px` }}
+              >
+                {hasChildren ? (
+                  <IconButton
+                    className="rounded-sm"
+                    label={`${collapsed ? label("app.expandOutlineHeading") : label("app.collapseOutlineHeading")}: ${item.title}`}
+                    pressed={collapsed}
+                    size="icon-xs"
+                    aria-expanded={!collapsed}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => toggleCollapsedOutlineItem(key)}
+                  >
+                    {collapsed ? (
+                      <ChevronRight aria-hidden="true" size={13} />
+                    ) : (
+                      <ChevronDown aria-hidden="true" size={13} />
+                    )}
+                  </IconButton>
+                ) : (
+                  <span className="size-6 shrink-0" aria-hidden="true" />
+                )}
+                <button
+                  className="h-8 min-w-0 flex-1 cursor-pointer truncate border-0 bg-transparent px-1.5 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                  type="button"
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => onSelectOutlineItem(item, index)}
+                >
+                  {item.title}
+                </button>
+              </div>
+            </li>
+          );
+        })}
       </ol>
     ) : (
       <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">{label("app.noHeadings")}</p>
     )
   );
+
+  const renderOutlineLevelMenuItem = (filter: OutlineLevelFilter) => {
+    const itemLabel = outlineLevelFilterLabel(filter);
+
+    return (
+      <button
+        key={String(filter)}
+        className="flex h-7 w-full items-center gap-2 border-0 bg-transparent px-2.5 text-left text-[12px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-checked:text-(--text-heading)"
+        role="menuitemradio"
+        aria-checked={outlineLevelFilter === filter}
+        type="button"
+        onClick={() => selectOutlineLevelFilter(filter)}
+      >
+        <span className="flex w-3 justify-center" aria-hidden="true">
+          {outlineLevelFilter === filter ? <Check size={12} /> : null}
+        </span>
+        <span>{itemLabel}</span>
+      </button>
+    );
+  };
 
   const renderSortMenuItem = (key: FileTreeSortKey, itemLabel: string) => (
     <button
@@ -1715,11 +1878,61 @@ export function MarkdownFileTreeDrawer({
               <h3 className="m-0 min-w-0 flex-1 truncate text-[13px] leading-none font-[560] tracking-normal text-(--text-secondary)">
                 {label("app.outline")}
               </h3>
+              {outlineOpen && outlineItems.length > 0 ? (
+                <div className="relative">
+                  <button
+                    className="inline-flex h-7 min-w-10 cursor-pointer items-center justify-center gap-1 rounded-md border border-transparent bg-transparent px-1.5 text-[12px] leading-none font-[620] text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+                    type="button"
+                    aria-expanded={outlineLevelMenuOpen}
+                    aria-haspopup="menu"
+                    aria-label={`${label("app.outlineHeadingLevels")}: ${outlineLevelFilterLabel(outlineLevelFilter)}`}
+                    onClick={() => setOutlineLevelMenuOpen((open) => !open)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape") {
+                        event.preventDefault();
+                        setOutlineLevelMenuOpen(false);
+                      }
+                    }}
+                  >
+                    <span>{outlineLevelFilterCompactLabel(outlineLevelFilter)}</span>
+                    <ChevronDown aria-hidden="true" size={12} />
+                  </button>
+                  {outlineLevelMenuOpen ? (
+                    <div
+                      className="absolute top-8 right-0 z-40 min-w-32 rounded-md border border-(--border-default) bg-(--bg-primary) py-1 shadow-[0_12px_30px_color-mix(in_srgb,var(--text-heading)_14%,transparent)]"
+                      role="menu"
+                      aria-label={label("app.outlineHeadingLevels")}
+                    >
+                      {outlineLevelFilters.map(renderOutlineLevelMenuItem)}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {outlineOpen && outlineExpansionAvailable ? (
+                <IconButton
+                  className="rounded-md"
+                  label={allOutlineItemsCollapsed ? label("app.expandOutlineHeadings") : label("app.collapseOutlineHeadings")}
+                  pressed={allOutlineItemsCollapsed}
+                  onClick={toggleAllOutlineItems}
+                >
+                  {allOutlineItemsCollapsed ? (
+                    <ListChevronsUpDown aria-hidden="true" size={14} />
+                  ) : (
+                    <ListChevronsDownUp aria-hidden="true" size={14} />
+                  )}
+                </IconButton>
+              ) : null}
               <IconButton
                 className="rounded-md"
                 label={outlineOpen ? label("app.hideOutline") : label("app.showOutline")}
                 pressed={outlineOpen}
-                onClick={() => setOutlineOpen((open) => !open)}
+                onClick={() => {
+                  setOutlineOpen((open) => {
+                    const nextOpen = !open;
+                    if (!nextOpen) setOutlineLevelMenuOpen(false);
+                    return nextOpen;
+                  });
+                }}
               >
                 {outlineOpen ? (
                   <ChevronDown aria-hidden="true" size={14} />
