@@ -1,6 +1,7 @@
 import {
   shouldCloseAiCommandOnAgentPanelOpen,
-  shouldHideAiCommandForAiAgentPanel
+  shouldHideAiCommandForAiAgentPanel,
+  shouldHideSelectionToolbarForAiAgentPanel
 } from "./ai-agent-panel-visibility";
 
 describe("AI agent panel visibility", () => {
@@ -43,6 +44,13 @@ describe("AI agent panel visibility", () => {
 
     expect(shouldHideAiCommandForAiAgentPanel({
       aiAgentOpen: false,
+      closeAiCommandOnAgentPanelOpen: true
+    })).toBe(false);
+  });
+
+  it("keeps the selection toolbar independent from the inline AI command close preference", () => {
+    expect(shouldHideSelectionToolbarForAiAgentPanel({
+      aiAgentOpen: true,
       closeAiCommandOnAgentPanelOpen: true
     })).toBe(false);
   });

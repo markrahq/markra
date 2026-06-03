@@ -562,6 +562,7 @@ const messages: LocaleMessages = {
   "menu.italic": "Курсив",
   "menu.strikethrough": "Зачёркнутый",
   "menu.inlineCode": "Встроенный код",
+  "menu.highlight": "Выделить",
   "menu.paragraph": "Абзац",
   "menu.headingLevel": "Уровень заголовка",
   "menu.heading1": "Заголовок 1",

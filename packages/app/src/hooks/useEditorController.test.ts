@@ -1,4 +1,9 @@
-import { scrollElementToContainerTop, scrollElementsAboveContainerBottomInset } from "./useEditorController";
+import {
+  scrollElementToContainerTop,
+  scrollElementsAboveContainerBottomInset,
+  selectionAnchorFromEditorView
+} from "./useEditorController";
+import type { EditorView } from "@milkdown/kit/prose/view";
 
 function rect(overrides: Partial<DOMRect> = {}): DOMRect {
   return {
@@ -14,6 +19,10 @@ function rect(overrides: Partial<DOMRect> = {}): DOMRect {
     ...overrides
   };
 }
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("editor controller scrolling", () => {
   it("keeps outline jumps below the fixed titlebar", () => {
@@ -116,5 +125,42 @@ describe("editor controller scrolling", () => {
 
     expect(scrollElementsAboveContainerBottomInset([target], container, 200, 24)).toBe(false);
     expect(scrollTo).not.toHaveBeenCalled();
+  });
+});
+
+describe("editor controller selection anchor", () => {
+  it("reads the toolbar anchor from the editor selection when DOM focus moves elsewhere", () => {
+    const host = document.createElement("p");
+    const text = document.createTextNode("Selected text");
+    const range = document.createRange();
+
+    host.append(text);
+    vi.spyOn(document, "createRange").mockReturnValue(range);
+    vi.spyOn(range, "getClientRects").mockReturnValue([
+      rect({ bottom: 80, height: 20, left: 40, right: 120, top: 60, width: 80 }),
+      rect({ bottom: 104, height: 20, left: 40, right: 180, top: 84, width: 140 })
+    ] as unknown as DOMRectList);
+
+    const view = {
+      dom: host,
+      domAtPos: (position: number) => ({
+        node: text,
+        offset: position
+      }),
+      state: {
+        selection: {
+          empty: false,
+          from: 0,
+          to: 13
+        }
+      }
+    } as unknown as EditorView;
+
+    expect(selectionAnchorFromEditorView(view)).toEqual({
+      bottom: 104,
+      left: 40,
+      right: 180,
+      top: 60
+    });
   });
 });

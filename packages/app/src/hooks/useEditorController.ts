@@ -26,9 +26,11 @@ import {
   readSelectionFormattingActionsFromView,
   readSelectionFormattingStateFromView,
   setSelectionHeadingLevelInView,
+  toggleSelectionHighlightInView,
   type SelectionHeadingLevel,
   type SelectionFormattingState
 } from "../lib/selection-formatting";
+import { selectionAnchorFromRects, type SelectionAnchor } from "../lib/selection-anchor";
 
 const fixedTitlebarHeight = 40;
 const outlineScrollTopMargin = 24;
@@ -146,6 +148,23 @@ export function readAiSelectionContextFromView(view: EditorView): AiSelectionCon
     text: doc.textBetween(from, to, "\n"),
     to
   };
+}
+
+export function selectionAnchorFromEditorView(view: EditorView): SelectionAnchor | null {
+  const { selection } = view.state;
+  if (selection.empty) return null;
+
+  const range = view.dom.ownerDocument.createRange();
+  const from = view.domAtPos(selection.from);
+  const to = view.domAtPos(selection.to);
+
+  range.setStart(from.node, from.offset);
+  range.setEnd(to.node, to.offset);
+
+  const rectsAnchor = selectionAnchorFromRects(range.getClientRects());
+  if (rectsAnchor) return rectsAnchor;
+
+  return selectionAnchorFromRects([range.getBoundingClientRect()]);
 }
 
 export function readAiTableAnchorsFromView(view: EditorView): AiDocumentAnchor[] {
@@ -352,6 +371,16 @@ export function useEditorController() {
       return null;
     }
   }, []);
+  const getSelectionAnchor = useCallback((): SelectionAnchor | null => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return null;
+
+      return selectionAnchorFromEditorView(view);
+    } catch {
+      return null;
+    }
+  }, []);
 
   const getSelectionFormattingActions = useCallback(() => {
     try {
@@ -389,6 +418,17 @@ export function useEditorController() {
       if (!view) return false;
 
       return setSelectionHeadingLevelInView(view, level);
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const toggleSelectionHighlight = useCallback(() => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return false;
+
+      return toggleSelectionHighlightInView(view);
     } catch {
       return false;
     }
@@ -794,6 +834,7 @@ export function useEditorController() {
     getCurrentMarkdown,
     isCurrentMarkdownEquivalent,
     getSelection,
+    getSelectionAnchor,
     getSelectionFormattingActions,
     getSelectionFormattingState,
     getSectionAnchors,
@@ -813,6 +854,7 @@ export function useEditorController() {
     setSelectionHeadingLevel,
     scrollToAiPreview,
     selectOutlineItem,
-    showSearchMatches
+    showSearchMatches,
+    toggleSelectionHighlight
   };
 }

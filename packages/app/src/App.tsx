@@ -39,7 +39,8 @@ import { useAppTheme } from "./hooks/useAppTheme";
 import { useAiCommandUi } from "./hooks/useAiCommandUi";
 import {
   shouldCloseAiCommandOnAgentPanelOpen,
-  shouldHideAiCommandForAiAgentPanel
+  shouldHideAiCommandForAiAgentPanel,
+  shouldHideSelectionToolbarForAiAgentPanel
 } from "./hooks/ai-agent-panel-visibility";
 import { useAiAgentSessionList } from "./hooks/useAiAgentSessionList";
 import { useAiAgentSession } from "./hooks/useAiAgentSession";
@@ -50,6 +51,7 @@ import { useExportSettings } from "./hooks/useExportSettings";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
+import { useSelectionToolbarAnchorRefresh } from "./hooks/useSelectionToolbarAnchorRefresh";
 import { useSideBySideTabs } from "./hooks/useSideBySideTabs";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
 import { useDefaultContextMenuBlocker } from "./hooks/useDefaultContextMenuBlocker";
@@ -81,7 +83,7 @@ import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/sel
 import type {
   SelectionHeadingLevel,
   SelectionFormattingAction,
-  SelectionFormattingShortcutAction
+  SelectionFormattingToolbarAction
 } from "./lib/selection-formatting";
 import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
 import { aiAgentWebSearchAvailable, type AiDiffResult, type AiEditIntent, type AiSelectionContext } from "@markra/ai";
@@ -260,6 +262,16 @@ function aiCommandTextSelection(selection: AiSelectionContext | null | undefined
   return selection;
 }
 
+function selectionAnchorsEqual(left: SelectionAnchor | null, right: SelectionAnchor | null) {
+  if (left === right) return true;
+  if (!left || !right) return false;
+
+  return left.bottom === right.bottom
+    && left.left === right.left
+    && left.right === right.right
+    && left.top === right.top;
+}
+
 function replaceTextRange(content: string, range: SearchRange, replacement: string) {
   return `${content.slice(0, range.from)}${replacement}${content.slice(range.to)}`;
 }
@@ -315,6 +327,11 @@ function WorkspaceApp() {
   const [aiSelectionToolbarHeadingLevel, setAiSelectionToolbarHeadingLevel] = useState<SelectionHeadingLevel | null>(null);
   const [aiSelectionToolbarCopySucceeded, setAiSelectionToolbarCopySucceeded] = useState(false);
   const [aiContextMenuActionPending, setAiContextMenuActionPending] = useState(false);
+  const setAiSelectionToolbarAnchorIfChanged = useCallback((nextAnchor: SelectionAnchor | null) => {
+    setAiSelectionToolbarAnchor((currentAnchor) =>
+      selectionAnchorsEqual(currentAnchor, nextAnchor) ? currentAnchor : nextAnchor
+    );
+  }, []);
   const [editorMode, setEditorMode] = useState<EditorMode>("visual");
   const [activeEditorSurface, setActiveEditorSurface] = useState<EditorSurface>("visual");
   const [readOnlyMode, setReadOnlyMode] = useState(false);
@@ -415,9 +432,11 @@ function WorkspaceApp() {
   const replaceEditorSearchMatch = editor.replaceSearchMatch;
   const revealEditorSearchMatch = editor.revealSearchMatch;
   const runEditorShortcut = editor.runEditorShortcut;
+  const getEditorSelectionAnchor = editor.getSelectionAnchor;
   const getEditorSelectionFormattingState = editor.getSelectionFormattingState;
   const setEditorSelectionHeadingLevel = editor.setSelectionHeadingLevel;
   const showEditorSearchMatches = editor.showSearchMatches;
+  const toggleEditorSelectionHighlight = editor.toggleSelectionHighlight;
   const syncAiSelectionToolbarFormattingState = useCallback(() => {
     const formattingState = getEditorSelectionFormattingState();
 
@@ -850,6 +869,12 @@ function WorkspaceApp() {
     closeAiCommand();
     editor.clearAiSelection();
   }, [closeAiCommand, editor]);
+  const closeInlineAiCommandForAgentPanel = useCallback(() => {
+    aiContextMenuActionIdRef.current += 1;
+    setAiContextMenuActionPending(false);
+    closeAiCommand();
+    editor.clearAiSelection();
+  }, [closeAiCommand, editor]);
   const handleReadOnlyModeToggle = useCallback(() => {
     const nextReadOnlyMode = !readOnlyMode;
     setReadOnlyMode(nextReadOnlyMode);
@@ -867,9 +892,9 @@ function WorkspaceApp() {
   const setAiAgentPanelOpen = useCallback((nextOpen: boolean) => {
     if (!aiFeatureEnabled) return;
 
-    if (shouldCloseAiCommandForAiAgentOpen(nextOpen)) handleAiCommandClose();
+    if (shouldCloseAiCommandForAiAgentOpen(nextOpen)) closeInlineAiCommandForAgentPanel();
     setAiAgentOpen(nextOpen);
-  }, [aiFeatureEnabled, handleAiCommandClose, shouldCloseAiCommandForAiAgentOpen]);
+  }, [aiFeatureEnabled, closeInlineAiCommandForAgentPanel, shouldCloseAiCommandForAiAgentOpen]);
   const openAiAgentPanel = useCallback(() => {
     setAiAgentPanelOpen(true);
   }, [setAiAgentPanelOpen]);
@@ -976,32 +1001,49 @@ function WorkspaceApp() {
 
     editor.clearAiSelection();
 
-    if (shouldHideAiCommandForAiAgentPanel({
+    const hideInlineAiCommandForAgentPanel = shouldHideAiCommandForAiAgentPanel({
       aiAgentOpen,
       closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen
-    })) {
-      setAiSelectionToolbarAnchor(null);
+    });
+    const hideSelectionToolbarForAgentPanel = shouldHideSelectionToolbarForAiAgentPanel({
+      aiAgentOpen,
+      closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen
+    });
+
+    if (hideInlineAiCommandForAgentPanel) {
       aiCommand.closeAiCommand();
-      return;
+      if (hideSelectionToolbarForAgentPanel) {
+        setAiSelectionToolbarAnchor(null);
+        return;
+      }
     }
 
     const showQuickInput = editorPreferences.preferences.showAiQuickInputOnSelection;
     const showSelectionToolbar = editorPreferences.preferences.showAiSelectionToolbarOnSelection;
 
-    if ((!showQuickInput && !showSelectionToolbar) || aiCommand.open || aiCommand.submitting) {
+    if (
+      (!showQuickInput && !showSelectionToolbar)
+      || (aiCommand.open && !hideInlineAiCommandForAgentPanel)
+      || aiCommand.submitting
+    ) {
       setAiSelectionToolbarAnchor(null);
       return;
     }
 
     if (showSelectionToolbar) {
       syncAiSelectionToolbarFormattingState();
-      setAiSelectionToolbarAnchor(selectionAnchorFromDomSelection(window.getSelection()));
-    } else {
+      setAiSelectionToolbarAnchorIfChanged(
+        getEditorSelectionAnchor() ?? selectionAnchorFromDomSelection(window.getSelection())
+      );
+    } else if (!hideInlineAiCommandForAgentPanel) {
       aiCommand.openAiCommand(selection);
+      return;
+    } else {
+      setAiSelectionToolbarAnchor(null);
       return;
     }
 
-    if (showQuickInput) {
+    if (showQuickInput && !hideInlineAiCommandForAgentPanel) {
       aiCommand.openAiCommand(selection);
     }
   }, [
@@ -1012,9 +1054,11 @@ function WorkspaceApp() {
     editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
     editorPreferences.preferences.showAiQuickInputOnSelection,
     editorPreferences.preferences.showAiSelectionToolbarOnSelection,
+    getEditorSelectionAnchor,
     syncAiSelectionToolbarFormattingState,
     clearAiSelectionToolbarCopySuccess,
     readOnlyMode,
+    setAiSelectionToolbarAnchorIfChanged,
     updateActiveAiSelection
   ]);
   const getEditorSelection = editor.getSelection;
@@ -1135,6 +1179,66 @@ function WorkspaceApp() {
     !aiCommand.submitting &&
     !aiContextMenuActionPending &&
     !aiResult;
+  const aiSelectionToolbarLayoutSignature = useMemo(() => [
+    fileTreeOpen ? fileTreeWidth : "file-tree-closed",
+    fileTreeResizing ? "file-tree-resizing" : "file-tree-idle",
+    aiFeatureEnabled && aiAgentOpen ? aiAgentPanelWidth : "agent-closed",
+    aiAgentPanelResizing ? "agent-resizing" : "agent-idle",
+    sideDocumentOpen ? resolvedSideDocumentMainPanePercent : "side-document-closed",
+    splitMode ? resolvedSplitVisualPanePercent : "split-closed",
+    activeEditorSurface,
+    activeEditorContentWidth,
+    activeEditorContentWidthPx ?? "auto",
+    documentSearchOpen && documentSearchAvailable ? "search-open" : "search-closed",
+    documentSearchReplaceOpen ? "replace-open" : "replace-closed",
+    editorPreferences.preferences.showDocumentTabs ? "tabs-open" : "tabs-closed"
+  ].join(":"), [
+    activeEditorContentWidth,
+    activeEditorContentWidthPx,
+    activeEditorSurface,
+    aiAgentOpen,
+    aiAgentPanelResizing,
+    aiAgentPanelWidth,
+    aiFeatureEnabled,
+    documentSearchAvailable,
+    documentSearchOpen,
+    documentSearchReplaceOpen,
+    editorPreferences.preferences.showDocumentTabs,
+    fileTreeOpen,
+    fileTreeResizing,
+    fileTreeWidth,
+    resolvedSideDocumentMainPanePercent,
+    resolvedSplitVisualPanePercent,
+    sideDocumentOpen,
+    splitMode
+  ]);
+  const refreshAiSelectionToolbarAnchor = useCallback(() => {
+    if (!aiFeatureEnabled || sourceSurfaceActive || readOnlyMode) return;
+    if (activeAiSelection?.source !== "selection" || !activeAiSelection.text.trim()) return;
+    if (aiCommand.submitting || aiContextMenuActionPending || aiResult) return;
+
+    const nextAnchor = getEditorSelectionAnchor() ?? selectionAnchorFromDomSelection(window.getSelection());
+    if (!nextAnchor) return;
+
+    syncAiSelectionToolbarFormattingState();
+    setAiSelectionToolbarAnchorIfChanged(nextAnchor);
+  }, [
+    activeAiSelection,
+    aiCommand.submitting,
+    aiContextMenuActionPending,
+    aiFeatureEnabled,
+    aiResult,
+    getEditorSelectionAnchor,
+    readOnlyMode,
+    setAiSelectionToolbarAnchorIfChanged,
+    sourceSurfaceActive,
+    syncAiSelectionToolbarFormattingState
+  ]);
+  useSelectionToolbarAnchorRefresh({
+    active: aiSelectionToolbarVisible,
+    layoutSignature: aiSelectionToolbarLayoutSignature,
+    refresh: refreshAiSelectionToolbarAnchor
+  });
   const handleAiSelectionToolbarOpenCommand = useCallback(() => {
     setAiSelectionToolbarAnchor(null);
     if (aiCommandVisible) return;
@@ -1950,8 +2054,16 @@ function WorkspaceApp() {
     runEditorShortcut(...args);
     syncVisualMarkdownAfterEditorCommand();
   }, [readOnlyMode, runEditorShortcut, syncVisualMarkdownAfterEditorCommand]);
-  const handleAiSelectionToolbarFormattingAction = useCallback((action: SelectionFormattingShortcutAction) => {
+  const handleAiSelectionToolbarFormattingAction = useCallback((action: SelectionFormattingToolbarAction) => {
     if (readOnlyMode) return;
+
+    if (action === "highlight") {
+      if (!toggleEditorSelectionHighlight()) return;
+
+      syncVisualMarkdownAfterEditorCommand();
+      syncAiSelectionToolbarFormattingState();
+      return;
+    }
 
     const normalizedShortcuts = normalizeMarkdownShortcuts(editorPreferences.preferences.markdownShortcuts);
     const shortcut = markdownShortcutToKeyboardEventInit(normalizedShortcuts[action]);
@@ -1966,7 +2078,9 @@ function WorkspaceApp() {
     editorPreferences.preferences.markdownShortcuts,
     handleRunEditorShortcut,
     readOnlyMode,
-    syncAiSelectionToolbarFormattingState
+    syncAiSelectionToolbarFormattingState,
+    syncVisualMarkdownAfterEditorCommand,
+    toggleEditorSelectionHighlight
   ]);
   const handleAiSelectionToolbarHeadingLevelAction = useCallback((level: SelectionHeadingLevel) => {
     if (readOnlyMode) return;

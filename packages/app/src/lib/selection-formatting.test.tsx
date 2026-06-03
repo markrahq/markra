@@ -18,6 +18,7 @@ import {
   readSelectionFormattingActionsFromView,
   readSelectionFormattingStateFromView,
   setSelectionHeadingLevelInView,
+  toggleSelectionHighlightInView,
   type SelectionFormattingAction
 } from "./selection-formatting";
 
@@ -88,6 +89,7 @@ describe("selection formatting", () => {
     ["italic", "italic text", "italic"],
     ["strikethrough", "strike text", "strikethrough"],
     ["inline code", "code text", "inlineCode"],
+    ["highlight", "highlight text", "highlight"],
     ["link", "link text", "link"],
     ["heading", "Heading text", "heading1"],
     ["quote", "Quote text", "quote"],
@@ -96,6 +98,7 @@ describe("selection formatting", () => {
   ] as const)("detects %s formatting at the current selection", async (_label, selectedText, action) => {
     const { view } = await renderEditor([
       "**bold text** *italic text* ~~strike text~~ `code text` [link text](https://example.test)",
+      "==highlight text==",
       "",
       "# Heading text",
       "",
@@ -151,5 +154,25 @@ describe("selection formatting", () => {
 
     expect(setSelectionHeadingLevelInView(view, 4)).toBe(true);
     expect(readSelectionFormattingStateFromView(view).headingLevel).toBe(4);
+  });
+
+  it("wraps selected inline text in highlight markers", async () => {
+    const { view } = await renderEditor("Highlight this text");
+
+    selectText(view, "this");
+
+    expect(toggleSelectionHighlightInView(view)).toBe(true);
+    expect(view.state.doc.textContent).toBe("Highlight ==this== text");
+    expect(readSelectionFormattingActionsFromView(view)).toContain("highlight");
+  });
+
+  it("removes highlight markers around selected highlighted text", async () => {
+    const { view } = await renderEditor("Highlight ==this== text");
+
+    selectText(view, "this");
+
+    expect(toggleSelectionHighlightInView(view)).toBe(true);
+    expect(view.state.doc.textContent).toBe("Highlight this text");
+    expect(readSelectionFormattingActionsFromView(view)).not.toContain("highlight");
   });
 });

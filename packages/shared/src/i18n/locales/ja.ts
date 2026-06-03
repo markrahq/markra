@@ -562,6 +562,7 @@ const messages: LocaleMessages = {
   "menu.italic": "斜体",
   "menu.strikethrough": "取り消し線",
   "menu.inlineCode": "インラインコード",
+  "menu.highlight": "ハイライト",
   "menu.paragraph": "段落",
   "menu.headingLevel": "見出しレベル",
   "menu.heading1": "見出し 1",

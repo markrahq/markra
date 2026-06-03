@@ -13,6 +13,7 @@ import {
   Heading4,
   Heading5,
   Heading6,
+  Highlighter,
   Italic,
   Languages,
   Link,
@@ -40,7 +41,7 @@ import {
   selectionHeadingLevels,
   type SelectionHeadingLevel,
   type SelectionFormattingAction,
-  type SelectionFormattingShortcutAction
+  type SelectionFormattingToolbarAction
 } from "../lib/selection-formatting";
 
 type AiSelectionAction = {
@@ -49,7 +50,7 @@ type AiSelectionAction = {
 };
 
 type BasicSelectionAction = {
-  action: SelectionFormattingShortcutAction;
+  action: SelectionFormattingToolbarAction;
   icon: LucideIcon;
   labelKey: I18nKey;
 };
@@ -72,7 +73,7 @@ type AiSelectionToolbarProps = {
   onCopySelection: () => unknown;
   onInsertLink: () => unknown;
   onOpenCommand: () => unknown;
-  onRunFormattingAction: (action: SelectionFormattingShortcutAction) => unknown;
+  onRunFormattingAction: (action: SelectionFormattingToolbarAction) => unknown;
   onSetHeadingLevel?: (level: SelectionHeadingLevel) => unknown;
   onRunAction: (intent: AiQuickActionId, prompt: string) => unknown;
 };
@@ -122,6 +123,11 @@ const basicSelectionActions: BasicSelectionAction[] = [
     action: "inlineCode",
     icon: Code2,
     labelKey: "menu.inlineCode"
+  },
+  {
+    action: "highlight",
+    icon: Highlighter,
+    labelKey: "menu.highlight"
   },
   {
     action: "quote",
@@ -365,7 +371,7 @@ export function AiSelectionToolbar({
               >
                 <Icon aria-hidden="true" size={14} />
               </button>
-              {action.action === "inlineCode" ? (
+              {action.action === "highlight" ? (
                 <div className="relative inline-flex shrink-0">
                   <button
                     className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 ${

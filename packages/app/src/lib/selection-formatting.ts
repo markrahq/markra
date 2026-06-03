@@ -14,10 +14,23 @@ export const selectionFormattingShortcutActions = [
   "orderedList"
 ] as const;
 
+export const selectionFormattingToolbarActions = [
+  "bold",
+  "italic",
+  "strikethrough",
+  "inlineCode",
+  "highlight",
+  "heading1",
+  "quote",
+  "bulletList",
+  "orderedList"
+] as const;
+
 export const selectionHeadingLevels = [1, 2, 3, 4, 5, 6] as const;
 
 export type SelectionFormattingShortcutAction = typeof selectionFormattingShortcutActions[number];
-export type SelectionFormattingAction = SelectionFormattingShortcutAction | "link";
+export type SelectionFormattingToolbarAction = typeof selectionFormattingToolbarActions[number];
+export type SelectionFormattingAction = SelectionFormattingToolbarAction | "link";
 export type SelectionHeadingLevel = typeof selectionHeadingLevels[number];
 
 export type SelectionFormattingState = {
@@ -32,6 +45,46 @@ const markActionTypeNames = {
   link: "link",
   strikethrough: "strike_through"
 } as const satisfies Partial<Record<SelectionFormattingAction, string>>;
+const highlightMarker = "==";
+
+type HighlightRange = {
+  from: number;
+  to: number;
+  contentFrom: number;
+  contentTo: number;
+};
+
+type ActiveHighlightRange = HighlightRange & {
+  absoluteFrom: number;
+  absoluteTo: number;
+  absoluteContentFrom: number;
+  absoluteContentTo: number;
+};
+
+function getHighlightRanges(text: string) {
+  const ranges: HighlightRange[] = [];
+  const pattern = /==[^=\n][^\n]*?==/g;
+
+  for (const match of text.matchAll(pattern)) {
+    const from = match.index ?? 0;
+    const matchedText = match[0];
+    const to = from + matchedText.length;
+    if (text[from - 1] === "=" || text[to] === "=") continue;
+
+    const contentFrom = from + highlightMarker.length;
+    const contentTo = to - highlightMarker.length;
+    if (contentFrom >= contentTo) continue;
+
+    ranges.push({
+      from,
+      to,
+      contentFrom,
+      contentTo
+    });
+  }
+
+  return ranges;
+}
 
 function positionHasAncestor(
   position: ResolvedPos,
@@ -69,6 +122,32 @@ function selectionHasMark(state: EditorState, markName: string) {
   }
 
   return state.doc.rangeHasMark(state.selection.from, state.selection.to, markType);
+}
+
+function findActiveHighlightRange(state: EditorState): ActiveHighlightRange | null {
+  const { selection } = state;
+  if (!(selection instanceof TextSelection)) return null;
+  if (!selection.$from.sameParent(selection.$to) || !selection.$from.parent.isTextblock) return null;
+
+  const blockStart = selection.$from.start();
+  const selectionFrom = selection.from - blockStart;
+  const selectionTo = selection.to - blockStart;
+  const range = getHighlightRanges(selection.$from.parent.textContent).find((candidate) => {
+    if (selection.empty) {
+      return candidate.contentFrom <= selectionFrom && selectionFrom <= candidate.contentTo;
+    }
+
+    return candidate.from <= selectionFrom && selectionTo <= candidate.to;
+  });
+  if (!range) return null;
+
+  return {
+    ...range,
+    absoluteFrom: blockStart + range.from,
+    absoluteTo: blockStart + range.to,
+    absoluteContentFrom: blockStart + range.contentFrom,
+    absoluteContentTo: blockStart + range.contentTo
+  };
 }
 
 function normalizeHeadingLevel(value: unknown) {
@@ -134,6 +213,7 @@ export function readSelectionFormattingActionsFromView(view: EditorView): Select
     if (selectionHasMark(state, markName)) activeActions.push(action as SelectionFormattingAction);
   }
 
+  if (findActiveHighlightRange(state)) activeActions.push("highlight");
   if (selectionHasAncestor(state, "heading", { level: 1 })) activeActions.push("heading1");
   if (selectionHasAncestor(state, "blockquote")) activeActions.push("quote");
   if (selectionHasAncestor(state, "bullet_list")) activeActions.push("bulletList");
@@ -157,4 +237,42 @@ export function setSelectionHeadingLevelInView(view: EditorView, level: Selectio
   if (changed) view.focus();
 
   return changed;
+}
+
+export function toggleSelectionHighlightInView(view: EditorView) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || selection.empty) return false;
+  if (!selection.$from.sameParent(selection.$to) || !selection.$from.parent.isTextblock) return false;
+
+  const activeHighlightRange = findActiveHighlightRange(view.state);
+
+  if (activeHighlightRange) {
+    const transaction = view.state.tr
+      .delete(activeHighlightRange.absoluteContentTo, activeHighlightRange.absoluteTo)
+      .delete(activeHighlightRange.absoluteFrom, activeHighlightRange.absoluteContentFrom);
+    const nextFrom = transaction.mapping.map(selection.from, -1);
+    const nextTo = transaction.mapping.map(selection.to, 1);
+
+    view.dispatch(
+      transaction
+        .setSelection(TextSelection.create(transaction.doc, nextFrom, nextTo))
+        .scrollIntoView()
+    );
+    view.focus();
+    return true;
+  }
+
+  const transaction = view.state.tr
+    .insertText(highlightMarker, selection.to, selection.to)
+    .insertText(highlightMarker, selection.from, selection.from);
+  const nextFrom = transaction.mapping.map(selection.from, 1);
+  const nextTo = transaction.mapping.map(selection.to, -1);
+
+  view.dispatch(
+    transaction
+      .setSelection(TextSelection.create(transaction.doc, nextFrom, nextTo))
+      .scrollIntoView()
+  );
+  view.focus();
+  return true;
 }

@@ -562,6 +562,7 @@ const messages: LocaleMessages = {
   "menu.italic": "Kursiv",
   "menu.strikethrough": "Durchgestrichen",
   "menu.inlineCode": "Inline-Code",
+  "menu.highlight": "Hervorheben",
   "menu.paragraph": "Absatz",
   "menu.headingLevel": "Überschriftenebene",
   "menu.heading1": "Überschrift 1",

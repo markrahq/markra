@@ -23,3 +23,9 @@ export function shouldHideAiCommandForAiAgentPanel({
 }: ShouldHideAiCommandForAiAgentPanelInput) {
   return closeAiCommandOnAgentPanelOpen && aiAgentOpen;
 }
+
+export function shouldHideSelectionToolbarForAiAgentPanel(
+  _input: ShouldHideAiCommandForAiAgentPanelInput
+) {
+  return false;
+}

@@ -60,6 +60,7 @@ describe("AiSelectionToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Italic" }));
     fireEvent.click(screen.getByRole("button", { name: "Strikethrough" }));
     fireEvent.click(screen.getByRole("button", { name: "Inline Code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
     fireEvent.click(screen.getByRole("button", { name: "Quote" }));
     fireEvent.click(screen.getByRole("button", { name: "Bullet List" }));
     fireEvent.click(screen.getByRole("button", { name: "Ordered List" }));
@@ -71,6 +72,7 @@ describe("AiSelectionToolbar", () => {
       "italic",
       "strikethrough",
       "inlineCode",
+      "highlight",
       "quote",
       "bulletList",
       "orderedList"
@@ -82,7 +84,7 @@ describe("AiSelectionToolbar", () => {
   it("marks active formatting tools as pressed", () => {
     render(
       <AiSelectionToolbar
-        activeFormattingActions={["bold", "link"]}
+        activeFormattingActions={["bold", "highlight", "link"]}
         activeHeadingLevel={1}
         anchor={anchor}
         language="en"
@@ -96,6 +98,7 @@ describe("AiSelectionToolbar", () => {
     );
 
     expect(screen.getByRole("button", { name: "Bold" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "Highlight" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Heading Level H1" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("combobox", { name: "Heading Level" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Link" })).toHaveAttribute("aria-pressed", "true");

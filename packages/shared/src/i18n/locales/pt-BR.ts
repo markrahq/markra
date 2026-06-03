@@ -562,6 +562,7 @@ const messages: LocaleMessages = {
   "menu.italic": "Itálico",
   "menu.strikethrough": "Tachado",
   "menu.inlineCode": "Código embutido",
+  "menu.highlight": "Destacar",
   "menu.paragraph": "Parágrafo",
   "menu.headingLevel": "Nível do título",
   "menu.heading1": "Título 1",

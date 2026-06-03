@@ -573,6 +573,7 @@ export type I18nKey =
   | "menu.italic"
   | "menu.strikethrough"
   | "menu.inlineCode"
+  | "menu.highlight"
   | "menu.paragraph"
   | "menu.headingLevel"
   | "menu.heading1"
