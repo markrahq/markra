@@ -228,7 +228,9 @@ export type AppFeatureRuntime = {
 
 export type AppWindowRuntime = {
   closeWindow: () => Promise<unknown>;
+  exitApp: () => Promise<unknown>;
   listEditorWindowRestoreStates: () => Promise<NativeEditorWindowRestoreState[]>;
+  listenAppExitRequested: (onExitRequested: () => unknown | Promise<unknown>) => Promise<RuntimeCleanup>;
   listenSettingsWindowTarget: (onTarget: (target: NativeSettingsWindowTarget) => unknown) => Promise<RuntimeCleanup>;
   listenWindowCloseRequested: (
     onCloseRequested: (event: NativeWindowCloseRequestEvent) => unknown | Promise<unknown>
@@ -371,7 +373,9 @@ export function createDefaultAppRuntime(): AppRuntime {
     },
     window: {
       closeWindow: async () => undefined,
+      exitApp: async () => undefined,
       listEditorWindowRestoreStates: async () => [],
+      listenAppExitRequested: async () => () => undefined,
       listenSettingsWindowTarget: async () => () => undefined,
       listenWindowCloseRequested: async () => () => undefined,
       minimizeWindow: async () => undefined,

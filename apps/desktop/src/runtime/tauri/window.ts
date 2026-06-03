@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { exit } from "@tauri-apps/plugin-process";
 
 export type NativeSettingsWindowTarget = "exportPandocPath";
 
@@ -22,6 +23,7 @@ type NativeSettingsWindowTargetPayload = {
 };
 
 const nativeSettingsWindowTargetEvent = "markra://settings-window-target";
+const nativeAppExitRequestedEvent = "markra://app-exit-requested";
 
 function isNativeSettingsWindowTarget(value: unknown): value is NativeSettingsWindowTarget {
   return value === "exportPandocPath";
@@ -44,6 +46,15 @@ export async function listenNativeSettingsWindowTarget(onTarget: (target: Native
       onTarget(event.payload.target);
     }
   });
+}
+
+export async function listenNativeAppExitRequested(onExitRequested: () => unknown | Promise<unknown>) {
+  if (!("__TAURI_INTERNALS__" in window)) {
+    return () => {};
+  }
+
+  const { listen } = await import("@tauri-apps/api/event");
+  return listen(nativeAppExitRequestedEvent, () => onExitRequested());
 }
 
 export function openNativeExternalUrl(url: string) {
@@ -120,6 +131,15 @@ export async function listNativeEditorWindowRestoreStates() {
   }
 
   return normalizeNativeEditorWindowRestoreStates(await invoke("list_editor_window_restore_states"));
+}
+
+export async function exitNativeApp() {
+  if (!("__TAURI_INTERNALS__" in window)) {
+    window.close();
+    return;
+  }
+
+  await exit(0);
 }
 
 export async function listenNativeWindowCloseRequested(

@@ -9,6 +9,7 @@ import {
 } from "../lib/settings/app-settings";
 import { getMarkdownOutline, getWordCount } from "@markra/markdown";
 import {
+  exitNativeApp,
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
@@ -16,6 +17,7 @@ import {
   resolveNativeMarkdownPath,
   saveNativeMarkdownFile,
   setNativeEditorWindowRestoreState,
+  listenNativeAppExitRequested,
   listenNativeWindowCloseRequested,
   listenNativeOpenedMarkdownPaths,
   takeNativeOpenedMarkdownPaths,
@@ -996,6 +998,7 @@ export function useMarkdownDocument({
 
   useEffect(() => {
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      syncActiveDocumentFromEditor();
       const hasUnsavedChanges = tabsRef.current.some((tab) => hasDiscardableTabChanges(tab));
       if (!hasUnsavedChanges) return;
 
@@ -1007,7 +1010,7 @@ export function useMarkdownDocument({
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [hasDiscardableTabChanges]);
+  }, [hasDiscardableTabChanges, syncActiveDocumentFromEditor]);
 
   useEffect(() => {
     let active = true;
@@ -1017,6 +1020,29 @@ export function useMarkdownDocument({
       syncActiveDocumentFromEditor();
       const canDiscard = await confirmCanDiscardCurrentDocument();
       if (!canDiscard) event.preventDefault();
+    }).then((nextCleanup) => {
+      if (active) {
+        cleanup = nextCleanup;
+        return;
+      }
+
+      nextCleanup();
+    }).catch(() => {});
+
+    return () => {
+      active = false;
+      cleanup?.();
+    };
+  }, [confirmCanDiscardCurrentDocument, syncActiveDocumentFromEditor]);
+
+  useEffect(() => {
+    let active = true;
+    let cleanup: (() => unknown) | null = null;
+
+    listenNativeAppExitRequested(async () => {
+      syncActiveDocumentFromEditor();
+      const canDiscard = await confirmCanDiscardCurrentDocument();
+      if (canDiscard) await exitNativeApp();
     }).then((nextCleanup) => {
       if (active) {
         cleanup = nextCleanup;

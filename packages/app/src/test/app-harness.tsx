@@ -10,10 +10,13 @@ import {
   detectNativePandocPath,
   downloadNativeWebImage,
   closeNativeWindow,
+  exitNativeApp,
   openNativeMarkdownFolder,
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
+  listenNativeAppExitRequested,
+  listenNativeWindowCloseRequested,
   listenNativeOpenedMarkdownPaths,
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
@@ -145,6 +148,9 @@ vi.mock("../lib/tauri", () => ({
   installNativeEditorContextMenu: vi.fn(),
   openNativeExternalUrl: vi.fn(),
   closeNativeWindow: vi.fn(),
+  exitNativeApp: vi.fn(),
+  listenNativeAppExitRequested: vi.fn(),
+  listenNativeWindowCloseRequested: vi.fn(),
   openSettingsWindow: vi.fn(),
   setNativeWindowTitle: vi.fn()
 }));
@@ -521,6 +527,9 @@ export const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEdito
 export const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
 export const mockedOpenNativeExternalUrl = vi.mocked(openNativeExternalUrl);
 export const mockedCloseNativeWindow = vi.mocked(closeNativeWindow);
+export const mockedExitNativeApp = vi.mocked(exitNativeApp);
+export const mockedListenNativeAppExitRequested = vi.mocked(listenNativeAppExitRequested);
+export const mockedListenNativeWindowCloseRequested = vi.mocked(listenNativeWindowCloseRequested);
 export const mockedCheckNativeAppUpdate = vi.mocked(checkNativeAppUpdate);
 export const mockedResolveDesktopPlatform = vi.mocked(resolveDesktopPlatform);
 export const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
@@ -680,6 +689,9 @@ export function installAppTestHarness() {
     mockedInstallNativeEditorContextMenu.mockReset();
     mockedOpenNativeExternalUrl.mockReset();
     mockedCloseNativeWindow.mockReset();
+    mockedExitNativeApp.mockReset();
+    mockedListenNativeAppExitRequested.mockReset();
+    mockedListenNativeWindowCloseRequested.mockReset();
     mockedCheckNativeAppUpdate.mockReset();
     mockedResolveDesktopPlatform.mockReset();
     mockedOpenSettingsWindow.mockReset();
@@ -740,6 +752,9 @@ export function installAppTestHarness() {
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenNativeExternalUrl.mockResolvedValue(undefined);
     mockedCloseNativeWindow.mockResolvedValue(undefined);
+    mockedExitNativeApp.mockResolvedValue(undefined);
+    mockedListenNativeAppExitRequested.mockResolvedValue(() => {});
+    mockedListenNativeWindowCloseRequested.mockResolvedValue(() => {});
     mockedDownloadNativeWebImage.mockResolvedValue(new File([new Uint8Array([1, 2, 3])], "web-image.png", {
       type: "image/png"
     }));

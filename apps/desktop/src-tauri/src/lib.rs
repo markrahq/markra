@@ -1,4 +1,5 @@
 mod ai_http;
+mod app_exit;
 mod external_urls;
 mod image_upload;
 mod language;
@@ -12,6 +13,7 @@ mod window_state;
 mod windows;
 
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
+use app_exit::handle_app_exit_requested;
 use external_urls::open_external_url;
 use image_upload::{upload_picgo_image, upload_s3_image, upload_webdav_image};
 use markdown_files::{
@@ -145,11 +147,15 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building Markra")
-        .run(|app, event| {
+        .run(|app, event| match event {
+            tauri::RunEvent::ExitRequested { code, api, .. } => {
+                handle_app_exit_requested(app, code, api);
+            }
             #[cfg(any(target_os = "macos", target_os = "ios", target_os = "android"))]
-            if let tauri::RunEvent::Opened { urls } = event {
+            tauri::RunEvent::Opened { urls } => {
                 queue_opened_markdown_paths(app, opened_markdown_paths_from_urls(&urls));
             }
+            _ => {}
         });
 }
 

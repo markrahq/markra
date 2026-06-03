@@ -5,6 +5,8 @@ import {
   openNativeMarkdownPath,
   readNativeMarkdownFile,
   saveNativeMarkdownFile,
+  exitNativeApp,
+  listenNativeAppExitRequested,
   listenNativeWindowCloseRequested,
   setNativeEditorWindowRestoreState,
   watchNativeMarkdownFile
@@ -28,6 +30,8 @@ vi.mock("../lib/tauri", () => ({
   openNativeMarkdownPath: vi.fn(),
   readNativeMarkdownFile: vi.fn(),
   saveNativeMarkdownFile: vi.fn(),
+  exitNativeApp: vi.fn(),
+  listenNativeAppExitRequested: vi.fn(),
   listenNativeWindowCloseRequested: vi.fn(),
   setNativeEditorWindowRestoreState: vi.fn(),
   setNativeWindowTitle: vi.fn(),
@@ -42,6 +46,8 @@ const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFile
 const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
 const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
 const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
+const mockedExitNativeApp = vi.mocked(exitNativeApp);
+const mockedListenNativeAppExitRequested = vi.mocked(listenNativeAppExitRequested);
 const mockedListenNativeWindowCloseRequested = vi.mocked(listenNativeWindowCloseRequested);
 const mockedSetNativeEditorWindowRestoreState = vi.mocked(setNativeEditorWindowRestoreState);
 const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
@@ -56,6 +62,8 @@ describe("useMarkdownDocument", () => {
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
+    mockedExitNativeApp.mockReset();
+    mockedListenNativeAppExitRequested.mockReset();
     mockedListenNativeWindowCloseRequested.mockReset();
     mockedSetNativeEditorWindowRestoreState.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
@@ -77,6 +85,8 @@ describe("useMarkdownDocument", () => {
       name: "saved.md",
       path: "/mock-files/saved.md"
     });
+    mockedExitNativeApp.mockResolvedValue(undefined);
+    mockedListenNativeAppExitRequested.mockResolvedValue(() => {});
     mockedListenNativeWindowCloseRequested.mockResolvedValue(() => {});
     mockedSetNativeEditorWindowRestoreState.mockResolvedValue(undefined);
   });
@@ -616,6 +626,118 @@ describe("useMarkdownDocument", () => {
 
     expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({ name: "guide.md" }));
     expect(preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("prompts before web unload when the editor has unsaved markdown", () => {
+    const editorMarkdown = "# Scratch\n\nUnsaved web draft.";
+    renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: () => editorMarkdown,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    const event = new Event("beforeunload", { cancelable: true }) as BeforeUnloadEvent;
+    act(() => {
+      window.dispatchEvent(event);
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it("keeps the app open when native app exit discard is cancelled", async () => {
+    let appExitHandler: (() => unknown | Promise<unknown>) | null = null;
+    const confirmDiscardUnsavedChanges = vi.fn(() => false);
+    mockedListenNativeAppExitRequested.mockImplementation(async (handler) => {
+      appExitHandler = handler;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOriginal",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await waitFor(() => expect(mockedListenNativeAppExitRequested).toHaveBeenCalled());
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("# Guide\n\nDraft");
+    });
+
+    await act(async () => {
+      if (!appExitHandler) throw new Error("native app exit handler was not registered");
+      await appExitHandler();
+    });
+
+    expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({ name: "guide.md" }));
+    expect(mockedExitNativeApp).not.toHaveBeenCalled();
+  });
+
+  it("exits the app when native app exit discard is confirmed", async () => {
+    let appExitHandler: (() => unknown | Promise<unknown>) | null = null;
+    const confirmDiscardUnsavedChanges = vi.fn(() => true);
+    mockedListenNativeAppExitRequested.mockImplementation(async (handler) => {
+      appExitHandler = handler;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOriginal",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await waitFor(() => expect(mockedListenNativeAppExitRequested).toHaveBeenCalled());
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("# Guide\n\nDraft");
+    });
+
+    await act(async () => {
+      if (!appExitHandler) throw new Error("native app exit handler was not registered");
+      await appExitHandler();
+    });
+
+    expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({ name: "guide.md" }));
+    expect(mockedExitNativeApp).toHaveBeenCalledTimes(1);
   });
 
   it("closes a clean tab without prompting when the editor still exposes stale markdown", async () => {
