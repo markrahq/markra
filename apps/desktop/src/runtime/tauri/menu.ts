@@ -1,19 +1,18 @@
 import { listen } from "@tauri-apps/api/event";
-import {
-  Menu,
-  type MenuItemOptions,
-  type PredefinedMenuItemOptions,
-  type SubmenuOptions
-} from "@tauri-apps/api/menu";
 import { invoke } from "@tauri-apps/api/core";
-import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import {
-  defaultMarkdownShortcuts,
-  markdownShortcutToNativeAccelerator,
-  normalizeMarkdownShortcuts,
-  type MarkdownShortcutAction,
-  type MarkdownShortcutMap
-} from "@markra/editor";
+  createEditorContextMenuEntries,
+  createEditorContextMenuEntriesFromOptions,
+  createMarkdownFileTreeContextMenuEntries,
+  contextMenuPositionFromEvent,
+  currentContextMenuPosition,
+  nativeAcceleratorsForMarkdownShortcuts,
+  showContextMenu,
+  type ContextMenuEntry,
+  type ContextMenuIdPrefixes
+} from "@markra/app/runtime";
+import type { MarkdownShortcutMap } from "@markra/editor";
+import type { AppLanguage } from "@markra/shared";
 import type { NativeMarkdownFolderFile } from "./file";
 
 export type NativeMenuHandlers = Partial<Record<NativeMenuCommand, () => unknown | Promise<unknown>>>;
@@ -80,94 +79,10 @@ type NativeMenuCommandPayload = {
   command: NativeMenuCommand;
 };
 
-type NativeApplicationMenuAccelerators = Partial<Record<NativeMenuCommand, string>>;
-
-const nativeMarkdownShortcutCommands: Partial<Record<MarkdownShortcutAction, NativeMenuCommand>> = {
-  bold: "formatBold",
-  bulletList: "formatBulletList",
-  codeBlock: "formatCodeBlock",
-  heading1: "formatHeading1",
-  heading2: "formatHeading2",
-  heading3: "formatHeading3",
-  image: "insertImage",
-  inlineCode: "formatInlineCode",
-  italic: "formatItalic",
-  link: "insertLink",
-  orderedList: "formatOrderedList",
-  paragraph: "formatParagraph",
-  quote: "formatQuote",
-  strikethrough: "formatStrikethrough",
-  table: "insertTable",
-  toggleAiAgent: "toggleAiAgent",
-  toggleAiCommand: "toggleAiCommand",
-  toggleMarkdownFiles: "toggleMarkdownFiles",
-  toggleReadOnlyMode: "toggleReadOnlyMode",
-  toggleSourceMode: "toggleSourceMode"
-};
-
-function shortcutAccelerator(shortcuts: MarkdownShortcutMap | undefined, action: MarkdownShortcutAction): string | undefined {
-  const shortcut = normalizeMarkdownShortcuts(shortcuts ?? defaultMarkdownShortcuts)[action];
-
-  return markdownShortcutToNativeAccelerator(shortcut) ?? markdownShortcutToNativeAccelerator(defaultMarkdownShortcuts[action]) ?? undefined;
-}
-
-function nativeAcceleratorsForMarkdownShortcuts(shortcuts: MarkdownShortcutMap | undefined) {
-  const accelerators: NativeApplicationMenuAccelerators = {};
-
-  if (!shortcuts) return accelerators;
-
-  for (const [action, command] of Object.entries(nativeMarkdownShortcutCommands) as Array<[MarkdownShortcutAction, NativeMenuCommand]>) {
-    const accelerator = shortcutAccelerator(shortcuts, action);
-    if (accelerator && accelerator !== shortcutAccelerator(defaultMarkdownShortcuts, action)) {
-      accelerators[command] = accelerator;
-    }
-  }
-
-  return accelerators;
-}
-
 function runNativeMenuAction(handler: (() => unknown | Promise<unknown>) | undefined) {
   if (!handler) return;
 
   Promise.resolve(handler()).catch(() => {});
-}
-
-function customItem(
-  id: string,
-  text: string,
-  accelerator: string | undefined,
-  handler: (() => unknown | Promise<unknown>) | undefined,
-  enabled = true
-): MenuItemOptions {
-  return {
-    id,
-    text,
-    accelerator,
-    enabled,
-    action: enabled ? () => runNativeMenuAction(handler) : undefined
-  };
-}
-
-function separator(): PredefinedMenuItemOptions {
-  return {
-    item: "Separator"
-  };
-}
-
-function predefined(item: PredefinedMenuItemOptions["item"], text?: string): PredefinedMenuItemOptions {
-  return text ? { item, text } : { item };
-}
-
-function submenu(id: string, text: string, items: SubmenuOptions["items"]): SubmenuOptions {
-  return {
-    id,
-    items,
-    text
-  };
-}
-
-function menuLabel(language: AppLanguage, key: I18nKey) {
-  return t(language, key);
 }
 
 export async function listenNativeApplicationMenuCommands(handlers: NativeMenuHandlers) {
@@ -199,89 +114,8 @@ export function createNativeEditorContextMenuItems(
   handlers: NativeMenuHandlers,
   language: AppLanguage = "en",
   options: { aiCommandsAvailable?: boolean; markdownShortcuts?: MarkdownShortcutMap } = {}
-) {
-  const label = (key: I18nKey) => menuLabel(language, key);
-  const formatItems = [
-    customItem("markra:context:bold", label("menu.bold"), shortcutAccelerator(options.markdownShortcuts, "bold"), handlers.formatBold),
-    customItem("markra:context:italic", label("menu.italic"), shortcutAccelerator(options.markdownShortcuts, "italic"), handlers.formatItalic),
-    customItem(
-      "markra:context:strikethrough",
-      label("menu.strikethrough"),
-      shortcutAccelerator(options.markdownShortcuts, "strikethrough"),
-      handlers.formatStrikethrough
-    ),
-    customItem(
-      "markra:context:inline-code",
-      label("menu.inlineCode"),
-      shortcutAccelerator(options.markdownShortcuts, "inlineCode"),
-      handlers.formatInlineCode
-    ),
-    separator(),
-    customItem("markra:context:paragraph", label("menu.paragraph"), shortcutAccelerator(options.markdownShortcuts, "paragraph"), handlers.formatParagraph),
-    customItem("markra:context:heading-1", label("menu.heading1"), shortcutAccelerator(options.markdownShortcuts, "heading1"), handlers.formatHeading1),
-    customItem("markra:context:heading-2", label("menu.heading2"), shortcutAccelerator(options.markdownShortcuts, "heading2"), handlers.formatHeading2),
-    customItem("markra:context:heading-3", label("menu.heading3"), shortcutAccelerator(options.markdownShortcuts, "heading3"), handlers.formatHeading3),
-    separator(),
-    customItem(
-      "markra:context:bullet-list",
-      label("menu.bulletList"),
-      shortcutAccelerator(options.markdownShortcuts, "bulletList"),
-      handlers.formatBulletList
-    ),
-    customItem(
-      "markra:context:ordered-list",
-      label("menu.orderedList"),
-      shortcutAccelerator(options.markdownShortcuts, "orderedList"),
-      handlers.formatOrderedList
-    ),
-    customItem("markra:context:quote", label("menu.quote"), shortcutAccelerator(options.markdownShortcuts, "quote"), handlers.formatQuote),
-    customItem(
-      "markra:context:code-block",
-      label("menu.codeBlock"),
-      shortcutAccelerator(options.markdownShortcuts, "codeBlock"),
-      handlers.formatCodeBlock
-    )
-  ];
-  const items: Array<MenuItemOptions | PredefinedMenuItemOptions | SubmenuOptions> = [
-    predefined("Cut", label("menu.cut")),
-    predefined("Copy", label("menu.copy")),
-    predefined("Paste", label("menu.paste")),
-    predefined("SelectAll", label("menu.selectAll")),
-    separator(),
-    submenu("markra:context:format", label("menu.format"), formatItems),
-    separator(),
-    customItem("markra:context:link", label("menu.link"), shortcutAccelerator(options.markdownShortcuts, "link"), handlers.insertLink),
-    customItem("markra:context:image", label("menu.image"), shortcutAccelerator(options.markdownShortcuts, "image"), handlers.insertImage),
-    customItem("markra:context:table", label("menu.table"), shortcutAccelerator(options.markdownShortcuts, "table"), handlers.insertTable),
-    separator(),
-    submenu("markra:context:export", label("menu.export"), [
-      customItem("markra:context:export-pdf", label("menu.exportPdf"), "CmdOrCtrl+P", handlers.exportPdf),
-      customItem("markra:context:export-html", label("menu.exportHtml"), "CmdOrCtrl+Shift+E", handlers.exportHtml),
-      customItem("markra:context:export-docx", label("menu.exportDocx"), undefined, handlers.exportDocx),
-      customItem("markra:context:export-epub", label("menu.exportEpub"), undefined, handlers.exportEpub),
-      customItem("markra:context:export-latex", label("menu.exportLatex"), undefined, handlers.exportLatex)
-    ])
-  ];
-
-  if (options.aiCommandsAvailable) {
-    items.push(
-      separator(),
-      submenu("markra:context:ai", label("app.aiToolkit"), [
-        customItem("markra:context:ai-polish", label("app.aiPolish"), undefined, handlers.aiPolish),
-        customItem("markra:context:ai-rewrite", label("app.aiRewrite"), undefined, handlers.aiRewrite),
-        customItem(
-          "markra:context:ai-continue-writing",
-          label("app.aiContinueWriting"),
-          undefined,
-          handlers.aiContinueWriting
-        ),
-        customItem("markra:context:ai-summarize", label("app.aiSummarize"), undefined, handlers.aiSummarize),
-        customItem("markra:context:ai-translate", label("app.aiTranslate"), undefined, handlers.aiTranslate)
-      ])
-    );
-  }
-
-  return items;
+): ContextMenuEntry[] {
+  return createEditorContextMenuEntries(handlers, language, options, desktopContextMenuIdPrefixes);
 }
 
 export async function installNativeEditorContextMenu(
@@ -290,108 +124,41 @@ export async function installNativeEditorContextMenu(
   language: AppLanguage = "en",
   options: NativeEditorContextMenuOptions = {}
 ) {
+  let closeCurrentMenu: (() => unknown) | null = null;
   const handleContextMenu = (event: Event) => {
+    const documentTarget = resolveContextMenuDocument(event);
+    const mouseEvent = event instanceof MouseEvent ? event : null;
     const element = event.target instanceof Element ? event.target : null;
-    if (!element?.closest(".markdown-paper")) return;
+    if (!documentTarget || !mouseEvent || !element?.closest(".markdown-paper")) return;
 
     event.preventDefault();
-    showNativeEditorContextMenu(handlers, language, {
-      aiCommandsAvailable: readAiCommandsAvailable(options),
-      markdownShortcuts: options.markdownShortcuts
-    }).catch(() => {});
+    event.stopPropagation();
+    closeCurrentMenu?.();
+    closeCurrentMenu = showContextMenu(documentTarget, {
+      entries: createEditorContextMenuEntriesFromOptions(
+        handlers,
+        language,
+        options,
+        desktopContextMenuIdPrefixes
+      ),
+      position: contextMenuPositionFromEvent(mouseEvent)
+    });
   };
 
   target.addEventListener("contextmenu", handleContextMenu);
 
   return () => {
     target.removeEventListener("contextmenu", handleContextMenu);
+    closeCurrentMenu?.();
   };
-}
-
-async function showNativeEditorContextMenu(
-  handlers: NativeMenuHandlers,
-  language: AppLanguage,
-  options: { aiCommandsAvailable?: boolean; markdownShortcuts?: MarkdownShortcutMap }
-) {
-  const menu = await Menu.new({
-    items: createNativeEditorContextMenuItems(handlers, language, options)
-  });
-
-  await menu.popup();
-}
-
-function readAiCommandsAvailable(options: NativeEditorContextMenuOptions) {
-  try {
-    return Boolean(options.getAiCommandsAvailable?.());
-  } catch {
-    return false;
-  }
 }
 
 export function createNativeMarkdownFileTreeContextMenuItems(
   handlers: NativeMarkdownFileTreeContextMenuHandlers,
   language: AppLanguage = "en",
   file?: NativeMarkdownFolderFile
-) {
-  const label = (key: I18nKey) => menuLabel(language, key);
-  const fileIsFolder = file?.kind === "folder";
-  const fileIsAsset = file?.kind === "asset";
-  const templateItems = handlers.createFileFromTemplates?.map((template) =>
-    customItem(
-      `markra:file-tree:new-from-template:${template.id}`,
-      template.name,
-      undefined,
-      template.create
-    )
-  ) ?? [];
-  const items: Array<MenuItemOptions | PredefinedMenuItemOptions | SubmenuOptions> = [
-    customItem("markra:file-tree:new", label("app.newMarkdownFile"), undefined, handlers.createFile),
-    ...(templateItems.length > 0
-      ? [submenu("markra:file-tree:new-from-template", label("app.newMarkdownFileFromTemplate"), templateItems)]
-      : []),
-    customItem("markra:file-tree:new-folder", label("app.newMarkdownFolder"), undefined, handlers.createFolder)
-  ];
-
-  if (!file) return items;
-
-  if (fileIsFolder) {
-    items.push(
-      separator(),
-      customItem("markra:file-tree:delete", label("app.deleteMarkdownFolder"), undefined, () => handlers.deleteFile?.(file))
-    );
-
-    return items;
-  }
-
-  items.push(separator());
-  if (!fileIsAsset && handlers.openFileToSide) {
-    const canOpenFileToSide = handlers.canOpenFileToSide?.(file) ?? true;
-    items.push(
-      customItem(
-        "markra:file-tree:open-to-side",
-        label("app.openDocumentToSide"),
-        undefined,
-        canOpenFileToSide ? () => handlers.openFileToSide?.(file) : undefined,
-        canOpenFileToSide
-      )
-    );
-  }
-  if (!fileIsAsset && handlers.saveFileAsTemplate) {
-    items.push(
-      customItem(
-        "markra:file-tree:save-as-template",
-        label("app.saveMarkdownFileAsTemplate"),
-        undefined,
-        () => handlers.saveFileAsTemplate?.(file)
-      )
-    );
-  }
-  items.push(
-    customItem("markra:file-tree:rename", label("app.renameMarkdownFile"), undefined, () => handlers.renameFile?.(file)),
-    customItem("markra:file-tree:delete", label("app.deleteMarkdownFile"), undefined, () => handlers.deleteFile?.(file))
-  );
-
-  return items;
+): ContextMenuEntry[] {
+  return createMarkdownFileTreeContextMenuEntries(handlers, language, file, desktopContextMenuIdPrefixes);
 }
 
 export async function showNativeMarkdownFileTreeContextMenu(
@@ -399,9 +166,23 @@ export async function showNativeMarkdownFileTreeContextMenu(
   language: AppLanguage = "en",
   file?: NativeMarkdownFolderFile
 ) {
-  const menu = await Menu.new({
-    items: createNativeMarkdownFileTreeContextMenuItems(handlers, language, file)
-  });
+  const documentTarget = typeof document === "undefined" ? null : document;
+  if (!documentTarget) return;
 
-  await menu.popup();
+  showContextMenu(documentTarget, {
+    entries: createNativeMarkdownFileTreeContextMenuItems(handlers, language, file),
+    position: currentContextMenuPosition(documentTarget)
+  });
+}
+
+const desktopContextMenuIdPrefixes: ContextMenuIdPrefixes = {
+  editor: "markra:context",
+  fileTree: "markra:file-tree"
+};
+
+function resolveContextMenuDocument(event: Event) {
+  if (event.target instanceof Node) return event.target.ownerDocument;
+  if (typeof document !== "undefined") return document;
+
+  return null;
 }

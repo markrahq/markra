@@ -1,6 +1,7 @@
 import type { AppLanguage } from "@markra/shared";
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { DesktopPlatform } from "../lib/platform";
+import type { ContextMenuEntry } from "../components/ContextMenu";
 import type {
   NativeAiChatRequest,
   NativeAiHttpRequest,
@@ -175,12 +176,12 @@ export type AppMenuRuntime = {
     handlers: NativeMenuHandlers,
     language?: AppLanguage,
     options?: { aiCommandsAvailable?: boolean; markdownShortcuts?: MarkdownShortcutMap }
-  ) => unknown[];
+  ) => ContextMenuEntry[];
   createMarkdownFileTreeContextMenuItems: (
     handlers: NativeMarkdownFileTreeContextMenuHandlers,
     language?: AppLanguage,
     file?: NativeMarkdownFolderFile
-  ) => unknown[];
+  ) => ContextMenuEntry[];
   installApplicationMenu: (
     handlers: NativeMenuHandlers,
     language?: AppLanguage,
@@ -449,6 +450,28 @@ export type {
   UploadNativeS3ImageInput,
   UploadNativeWebDavImageInput
 } from "../lib/tauri/file";
+export type {
+  ContextMenuEntry,
+  ContextMenuPosition,
+  ContextMenuProps,
+  ShowContextMenuOptions
+} from "../components/ContextMenu";
+export {
+  closeActiveContextMenu,
+  contextMenuItem,
+  contextMenuPositionFromEvent,
+  contextMenuSeparator,
+  contextMenuSubmenu,
+  currentContextMenuPosition,
+  showContextMenu
+} from "../components/ContextMenu";
+export {
+  createEditorContextMenuEntries,
+  createEditorContextMenuEntriesFromOptions,
+  createMarkdownFileTreeContextMenuEntries,
+  nativeAcceleratorsForMarkdownShortcuts,
+  type ContextMenuIdPrefixes
+} from "./context-menu-items";
 export type {
   NativeEditorContextMenuOptions,
   NativeMarkdownFileTreeContextMenuHandlers,

@@ -8,9 +8,10 @@ import {
   type WheelEvent as ReactWheelEvent
 } from "react";
 import { Columns2, FileText, ImageIcon, Pencil, Plus, X } from "lucide-react";
-import { Button, IconButton, PopoverSurface } from "@markra/ui";
+import { IconButton } from "@markra/ui";
 import { t, type AppLanguage } from "@markra/shared";
 import type { MarkdownDocumentTab } from "../hooks/useMarkdownDocument";
+import { ContextMenu, type ContextMenuEntry } from "./ContextMenu";
 
 export type MarkdownTabsBarDocumentItem = Pick<MarkdownDocumentTab, "dirty" | "id" | "name"> & {
   displayKind?: "image" | "markdown";
@@ -74,7 +75,6 @@ export function MarkdownTabsBar({
   const [renameFileName, setRenameFileName] = useState("");
   const renameInputRef = useRef<HTMLInputElement | null>(null);
   const renameCancelledRef = useRef(false);
-  const contextMenuRef = useRef<HTMLDivElement | null>(null);
   const [contextMenu, setContextMenu] = useState<TabContextMenuState | null>(null);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
@@ -98,25 +98,6 @@ export function MarkdownTabsBar({
     renameInputRef.current.focus();
     renameInputRef.current.select();
   }, [renamingTabId]);
-
-  useEffect(() => {
-    if (!contextMenu) return;
-
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!contextMenuRef.current?.contains(event.target as Node)) setContextMenu(null);
-    };
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setContextMenu(null);
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [contextMenu]);
 
   useEffect(() => () => {
     pointerDragCleanupRef.current?.();
@@ -362,6 +343,65 @@ export function MarkdownTabsBar({
     setContextMenu(null);
     action();
   };
+  const contextMenuEntries: ContextMenuEntry[] = contextMenuTab ? [
+    ...(onRenameTab && contextMenuTab.path
+      ? [
+          {
+            icon: <Pencil aria-hidden="true" size={14} />,
+            id: "markra:tab:rename",
+            kind: "item" as const,
+            label: label("app.renameMarkdownFile"),
+            onSelect: () => runTabContextMenuAction(() => startRenamingTab(contextMenuTab))
+          }
+        ]
+      : []),
+    ...(onOpenTabToSide && contextMenuTab.path && contextMenuTab.displayKind !== "image"
+      ? [
+          {
+            disabled: !contextMenuTabCanOpenToSide,
+            icon: <Columns2 aria-hidden="true" size={14} />,
+            id: "markra:tab:open-to-side",
+            kind: "item" as const,
+            label: label("app.openDocumentToSide"),
+            onSelect: () => runTabContextMenuAction(() => onOpenTabToSide(contextMenuTab.id))
+          }
+        ]
+      : []),
+    ...(onCancelSideBySide && contextMenuTabIsSideBySide
+      ? [
+          {
+            icon: <Columns2 aria-hidden="true" size={14} />,
+            id: "markra:tab:cancel-side-by-side",
+            kind: "item" as const,
+            label: label("app.cancelSideBySideDocuments"),
+            onSelect: () => runTabContextMenuAction(() => onCancelSideBySide(contextMenuTab.id))
+          }
+        ]
+      : []),
+    {
+      icon: <X aria-hidden="true" size={14} />,
+      id: "markra:tab:close",
+      kind: "item",
+      label: label("app.closeDocumentTab"),
+      onSelect: () => runTabContextMenuAction(() => closeTabs([contextMenuTab.id]))
+    },
+    {
+      disabled: contextMenuOtherTabIds.length === 0,
+      icon: <X aria-hidden="true" size={14} />,
+      id: "markra:tab:close-other",
+      kind: "item",
+      label: label("app.closeOtherDocumentTabs"),
+      onSelect: () => runTabContextMenuAction(() => closeTabs(contextMenuOtherTabIds))
+    },
+    {
+      disabled: contextMenuRightTabIds.length === 0,
+      icon: <X aria-hidden="true" size={14} />,
+      id: "markra:tab:close-right",
+      kind: "item",
+      label: label("app.closeDocumentTabsToRight"),
+      onSelect: () => runTabContextMenuAction(() => closeTabs(contextMenuRightTabIds))
+    }
+  ] : [];
   const handlePreventNativeTabDrag = (event: ReactDragEvent) => {
     event.preventDefault();
   };
@@ -574,92 +614,15 @@ export function MarkdownTabsBar({
         </div>
       ) : null}
       {contextMenu && contextMenuTab ? (
-        <div
-          ref={contextMenuRef}
-          className="fixed z-50"
-          style={{
-            left: contextMenu.x,
-            top: contextMenu.y
+        <ContextMenu
+          ariaLabel={contextMenuTab.name || "Untitled.md"}
+          entries={contextMenuEntries}
+          position={{
+            x: contextMenu.x,
+            y: contextMenu.y
           }}
-        >
-          <PopoverSurface
-            className="grid w-52 gap-1 rounded-lg p-1 text-[12px] leading-5 font-[560]"
-            open
-            role="menu"
-            aria-label={contextMenuTab.name || "Untitled.md"}
-            onContextMenu={(event) => event.preventDefault()}
-          >
-            {onRenameTab && contextMenuTab.path ? (
-              <Button
-                className="w-full justify-start rounded-md text-left"
-                size="sm"
-                variant="ghost"
-                role="menuitem"
-                onClick={() => runTabContextMenuAction(() => startRenamingTab(contextMenuTab))}
-              >
-                <Pencil aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
-                <span className="truncate">{label("app.renameMarkdownFile")}</span>
-              </Button>
-            ) : null}
-            {onOpenTabToSide && contextMenuTab.path && contextMenuTab.displayKind !== "image" ? (
-              <Button
-                className="w-full justify-start rounded-md text-left"
-                disabled={!contextMenuTabCanOpenToSide}
-                size="sm"
-                variant="ghost"
-                role="menuitem"
-                onClick={() => runTabContextMenuAction(() => onOpenTabToSide(contextMenuTab.id))}
-              >
-                <Columns2 aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
-                <span className="truncate">{label("app.openDocumentToSide")}</span>
-              </Button>
-            ) : null}
-            {onCancelSideBySide && contextMenuTabIsSideBySide ? (
-              <Button
-                className="w-full justify-start rounded-md text-left"
-                size="sm"
-                variant="ghost"
-                role="menuitem"
-                onClick={() => runTabContextMenuAction(() => onCancelSideBySide(contextMenuTab.id))}
-              >
-                <Columns2 aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
-                <span className="truncate">{label("app.cancelSideBySideDocuments")}</span>
-              </Button>
-            ) : null}
-            <Button
-              className="w-full justify-start rounded-md text-left"
-              size="sm"
-              variant="ghost"
-              role="menuitem"
-              onClick={() => runTabContextMenuAction(() => closeTabs([contextMenuTab.id]))}
-            >
-              <X aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
-              <span className="truncate">{label("app.closeDocumentTab")}</span>
-            </Button>
-            <Button
-              className="w-full justify-start rounded-md text-left"
-              disabled={contextMenuOtherTabIds.length === 0}
-              size="sm"
-              variant="ghost"
-              role="menuitem"
-              onClick={() => runTabContextMenuAction(() => closeTabs(contextMenuOtherTabIds))}
-            >
-              <X aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
-              <span className="truncate">{label("app.closeOtherDocumentTabs")}</span>
-            </Button>
-            <Button
-              className="w-full justify-start rounded-md text-left"
-              disabled={contextMenuRightTabIds.length === 0}
-              size="sm"
-              variant="ghost"
-              role="menuitem"
-              onClick={() => runTabContextMenuAction(() => closeTabs(contextMenuRightTabIds))}
-            >
-              <X aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
-              <span className="truncate">{label("app.closeDocumentTabsToRight")}</span>
-            </Button>
-          </PopoverSurface>
-        </div>
+          onClose={() => setContextMenu(null)}
+        />
       ) : null}
     </section>
   );

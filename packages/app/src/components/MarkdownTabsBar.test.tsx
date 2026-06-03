@@ -524,6 +524,29 @@ describe("MarkdownTabsBar", () => {
     expect(onCloseTab).toHaveBeenCalledWith("tab-c");
   });
 
+  it("renders tab actions with the shared context menu component", () => {
+    render(
+      <MarkdownTabsBar
+        activeTabId="tab-a"
+        items={[
+          {
+            dirty: false,
+            id: "tab-a",
+            name: "Alpha.md",
+            path: "/synthetic/alpha.md"
+          }
+        ]}
+        onCloseTab={() => {}}
+        onNewTab={() => {}}
+        onSelectTab={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /Alpha\.md/ }));
+
+    expect(document.querySelector("[data-markra-context-menu]")).not.toBeNull();
+  });
+
   it("opens a markdown tab to the side from the tab actions menu", () => {
     const onOpenTabToSide = vi.fn();
 

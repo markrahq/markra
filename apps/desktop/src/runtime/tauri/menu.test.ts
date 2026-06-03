@@ -73,6 +73,28 @@ function findMenuItemById(items: TestMenuItem[], id: string): TestActionMenuItem
   return null;
 }
 
+function domMenu() {
+  return document.querySelector("[data-markra-context-menu]");
+}
+
+function domMenuItemById(id: string) {
+  const item = document.querySelector<HTMLButtonElement>(`[data-menu-item-id="${id}"]`);
+  if (!item) throw new Error(`Expected DOM menu item ${id}.`);
+
+  return item;
+}
+
+function queryDomMenuItemById(id: string) {
+  return document.querySelector<HTMLButtonElement>(`[data-menu-item-id="${id}"]`);
+}
+
+function domSubmenuById(id: string) {
+  const submenu = document.querySelector(`[data-menu-submenu-id="${id}"]`);
+  if (!submenu) throw new Error(`Expected DOM submenu ${id}.`);
+
+  return submenu;
+}
+
 async function flushNativeMenuPopup() {
   await Promise.resolve();
   await Promise.resolve();
@@ -177,7 +199,7 @@ describe("native menu", () => {
     expect(handlers.saveDocument).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a native context menu only inside the markdown paper", async () => {
+  it("shows a self-drawn context menu only inside the markdown paper", async () => {
     const target = document.createElement("main");
     const paper = document.createElement("article");
     const outside = document.createElement("button");
@@ -196,31 +218,72 @@ describe("native menu", () => {
 
     outside.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
 
+    expect(domMenu()).toBeNull();
+    expect(mockedMenuNew).not.toHaveBeenCalled();
     expect(popup).not.toHaveBeenCalled();
 
-    paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-    await flushNativeMenuPopup();
+    paper.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 16,
+      clientY: 24
+    }));
 
-    expect(mockedMenuNew).toHaveBeenCalledTimes(1);
-    expect(popup).toHaveBeenCalledTimes(1);
+    expect(mockedMenuNew).not.toHaveBeenCalled();
+    expect(popup).not.toHaveBeenCalled();
+    expect(domMenu()).not.toBeNull();
 
-    const table = menuItemById(latestMenuItems(), "markra:context:table");
-    expect(table).toMatchObject({
-      accelerator: "CmdOrCtrl+Alt+T",
-      text: "Table"
-    });
+    const table = domMenuItemById("markra:context:table");
+    expect(table.textContent).toContain("Table");
+    expect(table.textContent).toContain("Cmd/Ctrl+Alt+T");
 
-    table.action?.("markra:context:table");
+    table.click();
 
     expect(insertTable).toHaveBeenCalledTimes(1);
 
     cleanup();
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
 
-    expect(popup).toHaveBeenCalledTimes(1);
+    expect(domMenu()).toBeNull();
+    expect(popup).not.toHaveBeenCalled();
   });
 
-  it("shows customized markdown shortcuts in the native context menu", async () => {
+  it("shows a self-drawn editor context menu inside the markdown paper", async () => {
+    const bold = vi.fn();
+    document.body.innerHTML = "<main><article class=\"markdown-paper\"><p>Example note</p></article></main>";
+    const paragraph = document.querySelector("p");
+    if (!paragraph) throw new Error("Expected paragraph to be rendered.");
+
+    const cleanup = await installNativeEditorContextMenu(document, {
+      formatBold: bold
+    });
+
+    const event = new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true,
+      clientX: 32,
+      clientY: 48
+    });
+    paragraph.dispatchEvent(event);
+
+    const menu = document.querySelector<HTMLElement>("[data-markra-context-menu]");
+    const boldItem = document.querySelector<HTMLButtonElement>("[data-menu-item-id='markra:context:bold']");
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(mockedMenuNew).not.toHaveBeenCalled();
+    expect(menu).not.toBeNull();
+    expect(menu?.style.left).toBe("32px");
+    expect(menu?.style.top).toBe("48px");
+
+    boldItem?.click();
+
+    expect(bold).toHaveBeenCalledTimes(1);
+    expect(document.querySelector("[data-markra-context-menu]")).toBeNull();
+
+    cleanup();
+  });
+
+  it("shows customized markdown shortcuts in the self-drawn context menu", async () => {
     const target = document.createElement("main");
     const paper = document.createElement("article");
     paper.className = "markdown-paper";
@@ -235,12 +298,10 @@ describe("native menu", () => {
     });
 
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-    await flushNativeMenuPopup();
 
-    expect(menuItemById(latestMenuItems(), "markra:context:bold")).toMatchObject({
-      accelerator: "CmdOrCtrl+Alt+B",
-      text: "Bold"
-    });
+    const bold = domMenuItemById("markra:context:bold");
+    expect(bold.textContent).toContain("Bold");
+    expect(bold.textContent).toContain("Cmd/Ctrl+Alt+B");
   });
 
   it("shows customized insert shortcuts in native menus", async () => {
@@ -271,20 +332,12 @@ describe("native menu", () => {
     });
 
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-    await flushNativeMenuPopup();
-
-    expect(menuItemById(latestMenuItems(), "markra:context:link")).toMatchObject({
-      accelerator: "CmdOrCtrl+Alt+K",
-      text: "Link"
-    });
-    expect(menuItemById(latestMenuItems(), "markra:context:image")).toMatchObject({
-      accelerator: "CmdOrCtrl+Alt+I",
-      text: "Image"
-    });
-    expect(menuItemById(latestMenuItems(), "markra:context:table")).toMatchObject({
-      accelerator: "CmdOrCtrl+Shift+T",
-      text: "Table"
-    });
+    expect(domMenuItemById("markra:context:link").textContent).toContain("Link");
+    expect(domMenuItemById("markra:context:link").textContent).toContain("Cmd/Ctrl+Alt+K");
+    expect(domMenuItemById("markra:context:image").textContent).toContain("Image");
+    expect(domMenuItemById("markra:context:image").textContent).toContain("Cmd/Ctrl+Alt+I");
+    expect(domMenuItemById("markra:context:table").textContent).toContain("Table");
+    expect(domMenuItemById("markra:context:table").textContent).toContain("Cmd/Ctrl+Shift+T");
   });
 
   it("passes customized app shortcuts to the native application menu", async () => {
@@ -308,7 +361,7 @@ describe("native menu", () => {
     });
   });
 
-  it("groups richer editor formatting actions in the native context menu", async () => {
+  it("groups richer editor formatting actions in the self-drawn context menu", async () => {
     const target = document.createElement("main");
     const paper = document.createElement("article");
     const handlers: NativeMenuHandlers = {
@@ -333,35 +386,42 @@ describe("native menu", () => {
 
     await installNativeEditorContextMenu(target, handlers);
 
-    paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-    await flushNativeMenuPopup();
+    const openMenu = () => {
+      paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    };
 
-    const items = latestMenuItems();
+    openMenu();
 
-    expect(menuItemById(items, "markra:context:format")).toMatchObject({ text: "Format" });
-    expect(menuItemById(items, "markra:context:strikethrough")).toMatchObject({ text: "Strikethrough" });
-    expect(menuItemById(items, "markra:context:inline-code")).toMatchObject({ text: "Inline Code" });
-    expect(menuItemById(items, "markra:context:heading-2")).toMatchObject({ text: "Heading 2" });
-    expect(menuItemById(items, "markra:context:ordered-list")).toMatchObject({ text: "Ordered List" });
-    expect(menuItemById(items, "markra:context:quote")).toMatchObject({ text: "Quote" });
-    expect(menuItemById(items, "markra:context:code-block")).toMatchObject({ text: "Code Block" });
-    expect(menuItemById(items, "markra:context:image")).toMatchObject({ text: "Image" });
-    const exportMenu = menuItemById(items, "markra:context:export");
-    expect(exportMenu).toMatchObject({ text: "Export" });
-    expect(menuItemById(menuItemChildren(exportMenu), "markra:context:export-pdf")).toMatchObject({ text: "Export PDF" });
-    expect(menuItemById(menuItemChildren(exportMenu), "markra:context:export-html")).toMatchObject({ text: "Export HTML" });
-    expect(menuItemById(menuItemChildren(exportMenu), "markra:context:export-docx")).toMatchObject({ text: "Export DOCX" });
-    expect(menuItemById(menuItemChildren(exportMenu), "markra:context:export-epub")).toMatchObject({ text: "Export EPUB" });
-    expect(menuItemById(menuItemChildren(exportMenu), "markra:context:export-latex")).toMatchObject({ text: "Export LaTeX" });
+    expect(domMenuItemById("markra:context:format").textContent).toContain("Format");
+    expect(domMenuItemById("markra:context:strikethrough").textContent).toContain("Strikethrough");
+    expect(domMenuItemById("markra:context:inline-code").textContent).toContain("Inline Code");
+    expect(domMenuItemById("markra:context:heading-2").textContent).toContain("Heading 2");
+    expect(domMenuItemById("markra:context:ordered-list").textContent).toContain("Ordered List");
+    expect(domMenuItemById("markra:context:quote").textContent).toContain("Quote");
+    expect(domMenuItemById("markra:context:code-block").textContent).toContain("Code Block");
+    expect(domMenuItemById("markra:context:image").textContent).toContain("Image");
+    expect(domMenuItemById("markra:context:export").textContent).toContain("Export");
+    expect(domSubmenuById("markra:context:export").textContent).toContain("Export PDF");
+    expect(domSubmenuById("markra:context:export").textContent).toContain("Export HTML");
+    expect(domSubmenuById("markra:context:export").textContent).toContain("Export DOCX");
+    expect(domSubmenuById("markra:context:export").textContent).toContain("Export EPUB");
+    expect(domSubmenuById("markra:context:export").textContent).toContain("Export LaTeX");
 
-    menuItemById(items, "markra:context:strikethrough").action?.("markra:context:strikethrough");
-    menuItemById(items, "markra:context:code-block").action?.("markra:context:code-block");
-    menuItemById(items, "markra:context:image").action?.("markra:context:image");
-    menuItemById(items, "markra:context:export-pdf").action?.("markra:context:export-pdf");
-    menuItemById(items, "markra:context:export-html").action?.("markra:context:export-html");
-    menuItemById(items, "markra:context:export-docx").action?.("markra:context:export-docx");
-    menuItemById(items, "markra:context:export-epub").action?.("markra:context:export-epub");
-    menuItemById(items, "markra:context:export-latex").action?.("markra:context:export-latex");
+    domMenuItemById("markra:context:strikethrough").click();
+    openMenu();
+    domMenuItemById("markra:context:code-block").click();
+    openMenu();
+    domMenuItemById("markra:context:image").click();
+    openMenu();
+    domMenuItemById("markra:context:export-pdf").click();
+    openMenu();
+    domMenuItemById("markra:context:export-html").click();
+    openMenu();
+    domMenuItemById("markra:context:export-docx").click();
+    openMenu();
+    domMenuItemById("markra:context:export-epub").click();
+    openMenu();
+    domMenuItemById("markra:context:export-latex").click();
 
     expect(handlers.formatStrikethrough).toHaveBeenCalledTimes(1);
     expect(handlers.formatCodeBlock).toHaveBeenCalledTimes(1);
@@ -390,20 +450,15 @@ describe("native menu", () => {
     });
 
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-    await flushNativeMenuPopup();
 
-    expect(findMenuItemById(latestMenuItems(), "markra:context:ai")).toBeNull();
+    expect(queryDomMenuItemById("markra:context:ai")).toBeNull();
 
-    mockedMenuNew.mockClear();
     aiCommandsAvailable = true;
 
     paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
-    await flushNativeMenuPopup();
 
-    const items = latestMenuItems();
-    const aiMenu = menuItemById(items, "markra:context:ai");
-    expect(aiMenu).toMatchObject({ text: "AI toolkit" });
-    expect(aiMenu).not.toHaveProperty("icon");
+    const aiMenu = domMenuItemById("markra:context:ai");
+    expect(aiMenu.textContent).toContain("AI toolkit");
     const aiActionItems = [
       ["markra:context:ai-polish", "Polish"],
       ["markra:context:ai-rewrite", "Rewrite"],
@@ -413,20 +468,19 @@ describe("native menu", () => {
     ] as const;
 
     for (const [id, text] of aiActionItems) {
-      const item = menuItemById(items, id);
-
-      expect(item).toMatchObject({ text });
-      expect(item).not.toHaveProperty("icon");
+      expect(domMenuItemById(id).textContent).toContain(text);
     }
 
-    menuItemById(items, "markra:context:ai-polish").action?.("markra:context:ai-polish");
-    menuItemById(items, "markra:context:ai-translate").action?.("markra:context:ai-translate");
+    domMenuItemById("markra:context:ai-polish").click();
+    aiCommandsAvailable = true;
+    paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    domMenuItemById("markra:context:ai-translate").click();
 
     expect(aiPolish).toHaveBeenCalledTimes(1);
     expect(aiTranslate).toHaveBeenCalledTimes(1);
   });
 
-  it("shows native markdown file tree actions for a file target", async () => {
+  it("shows self-drawn markdown file tree actions for a file target", async () => {
     const createFile = vi.fn();
     const createFolder = vi.fn();
     const createDailyNote = vi.fn();
@@ -440,44 +494,44 @@ describe("native menu", () => {
       relativePath: "README.md"
     };
 
-    await showNativeMarkdownFileTreeContextMenu({
-      createFile,
-      createFileFromTemplates: [
-        { create: createDailyNote, id: "daily-note", name: "Daily note" }
-      ],
-      createFolder,
-      deleteFile,
-      openFileToSide,
-      renameFile,
-      saveFileAsTemplate
-    }, "en", file);
+    const showMenu = async () => {
+      await showNativeMarkdownFileTreeContextMenu({
+        createFile,
+        createFileFromTemplates: [
+          { create: createDailyNote, id: "daily-note", name: "Daily note" }
+        ],
+        createFolder,
+        deleteFile,
+        openFileToSide,
+        renameFile,
+        saveFileAsTemplate
+      }, "en", file);
+    };
 
-    const items = latestMenuItems();
-    const newFile = menuItemById(items, "markra:file-tree:new");
-    const templateMenu = menuItemById(items, "markra:file-tree:new-from-template");
-    const dailyNote = menuItemById(menuItemChildren(templateMenu), "markra:file-tree:new-from-template:daily-note");
-    const newFolder = menuItemById(items, "markra:file-tree:new-folder");
-    const openToSide = menuItemById(items, "markra:file-tree:open-to-side");
-    const saveAsTemplate = menuItemById(items, "markra:file-tree:save-as-template");
-    const rename = menuItemById(items, "markra:file-tree:rename");
-    const deleteItem = menuItemById(items, "markra:file-tree:delete");
+    await showMenu();
 
-    expect(newFile).toMatchObject({ text: "New file" });
-    expect(templateMenu).toMatchObject({ text: "New from template" });
-    expect(dailyNote).toMatchObject({ text: "Daily note" });
-    expect(newFolder).toMatchObject({ text: "New Folder" });
-    expect(openToSide).toMatchObject({ text: "Open to side" });
-    expect(saveAsTemplate).toMatchObject({ text: "Save as template" });
-    expect(rename).toMatchObject({ text: "Rename file" });
-    expect(deleteItem).toMatchObject({ text: "Delete file" });
+    expect(domMenuItemById("markra:file-tree:new").textContent).toContain("New file");
+    expect(domMenuItemById("markra:file-tree:new-from-template").textContent).toContain("New from template");
+    expect(domMenuItemById("markra:file-tree:new-from-template:daily-note").textContent).toContain("Daily note");
+    expect(domMenuItemById("markra:file-tree:new-folder").textContent).toContain("New Folder");
+    expect(domMenuItemById("markra:file-tree:open-to-side").textContent).toContain("Open to side");
+    expect(domMenuItemById("markra:file-tree:save-as-template").textContent).toContain("Save as template");
+    expect(domMenuItemById("markra:file-tree:rename").textContent).toContain("Rename file");
+    expect(domMenuItemById("markra:file-tree:delete").textContent).toContain("Delete file");
 
-    newFile.action?.("markra:file-tree:new");
-    dailyNote.action?.("markra:file-tree:new-from-template:daily-note");
-    newFolder.action?.("markra:file-tree:new-folder");
-    openToSide.action?.("markra:file-tree:open-to-side");
-    saveAsTemplate.action?.("markra:file-tree:save-as-template");
-    rename.action?.("markra:file-tree:rename");
-    deleteItem.action?.("markra:file-tree:delete");
+    domMenuItemById("markra:file-tree:new").click();
+    await showMenu();
+    domMenuItemById("markra:file-tree:new-from-template:daily-note").click();
+    await showMenu();
+    domMenuItemById("markra:file-tree:new-folder").click();
+    await showMenu();
+    domMenuItemById("markra:file-tree:open-to-side").click();
+    await showMenu();
+    domMenuItemById("markra:file-tree:save-as-template").click();
+    await showMenu();
+    domMenuItemById("markra:file-tree:rename").click();
+    await showMenu();
+    domMenuItemById("markra:file-tree:delete").click();
 
     expect(createFile).toHaveBeenCalledTimes(1);
     expect(createDailyNote).toHaveBeenCalledTimes(1);
@@ -486,10 +540,11 @@ describe("native menu", () => {
     expect(saveFileAsTemplate).toHaveBeenCalledWith(file);
     expect(renameFile).toHaveBeenCalledWith(file);
     expect(deleteFile).toHaveBeenCalledWith(file);
-    expect(popup).toHaveBeenCalledTimes(1);
+    expect(mockedMenuNew).not.toHaveBeenCalled();
+    expect(popup).not.toHaveBeenCalled();
   });
 
-  it("hides the native markdown file tree side-open action without a handler", async () => {
+  it("hides the markdown file tree side-open action without a handler", async () => {
     const file = {
       name: "README.md",
       path: "/vault/README.md",
@@ -503,10 +558,10 @@ describe("native menu", () => {
       renameFile: vi.fn()
     }, "en", file);
 
-    expect(findMenuItemById(latestMenuItems(), "markra:file-tree:open-to-side")).toBeNull();
+    expect(queryDomMenuItemById("markra:file-tree:open-to-side")).toBeNull();
   });
 
-  it("disables the native markdown file tree side-open action when unavailable for the target", async () => {
+  it("disables the markdown file tree side-open action when unavailable for the target", async () => {
     const openFileToSide = vi.fn();
     const file = {
       name: "README.md",
@@ -523,16 +578,17 @@ describe("native menu", () => {
       renameFile: vi.fn()
     }, "en", file);
 
-    const openToSide = menuItemById(latestMenuItems(), "markra:file-tree:open-to-side");
+    const openToSide = domMenuItemById("markra:file-tree:open-to-side");
 
-    expect(openToSide).toMatchObject({ text: "Open to side", enabled: false });
+    expect(openToSide.textContent).toContain("Open to side");
+    expect(openToSide).toBeDisabled();
 
-    openToSide.action?.("markra:file-tree:open-to-side");
+    openToSide.click();
 
     expect(openFileToSide).not.toHaveBeenCalled();
   });
 
-  it("shows a native markdown file tree delete action for a folder target", async () => {
+  it("shows a markdown file tree delete action for a folder target", async () => {
     const createFile = vi.fn();
     const createFolder = vi.fn();
     const renameFile = vi.fn();
@@ -551,17 +607,16 @@ describe("native menu", () => {
       renameFile
     }, "en", folder);
 
-    const items = latestMenuItems();
-    const deleteItem = menuItemById(items, "markra:file-tree:delete");
+    const deleteItem = domMenuItemById("markra:file-tree:delete");
 
-    expect(deleteItem).toMatchObject({ text: "Delete folder" });
-    expect(findMenuItemById(items, "markra:file-tree:rename")).toBeNull();
+    expect(deleteItem.textContent).toContain("Delete folder");
+    expect(queryDomMenuItemById("markra:file-tree:rename")).toBeNull();
 
-    deleteItem.action?.("markra:file-tree:delete");
+    deleteItem.click();
 
     expect(deleteFile).toHaveBeenCalledWith(folder);
     expect(renameFile).not.toHaveBeenCalled();
-    expect(popup).toHaveBeenCalledTimes(1);
+    expect(popup).not.toHaveBeenCalled();
   });
 
   it("only shows create actions for the markdown file tree root target", async () => {
@@ -572,11 +627,8 @@ describe("native menu", () => {
       renameFile: vi.fn()
     }, "en");
 
-    const items = latestMenuItems();
-
-    expect(items).toEqual([
-      expect.objectContaining({ id: "markra:file-tree:new", text: "New file" }),
-      expect.objectContaining({ id: "markra:file-tree:new-folder", text: "New Folder" })
-    ]);
+    expect(domMenuItemById("markra:file-tree:new").textContent).toContain("New file");
+    expect(domMenuItemById("markra:file-tree:new-folder").textContent).toContain("New Folder");
+    expect(queryDomMenuItemById("markra:file-tree:delete")).toBeNull();
   });
 });
