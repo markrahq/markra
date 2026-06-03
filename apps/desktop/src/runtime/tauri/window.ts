@@ -13,6 +13,10 @@ export type SetNativeEditorWindowRestoreStateInput = {
   openFilePaths: string[];
 };
 
+export type NativeWindowCloseRequestEvent = {
+  preventDefault: () => unknown;
+};
+
 type NativeSettingsWindowTargetPayload = {
   target?: unknown;
 };
@@ -116,6 +120,19 @@ export async function listNativeEditorWindowRestoreStates() {
   }
 
   return normalizeNativeEditorWindowRestoreStates(await invoke("list_editor_window_restore_states"));
+}
+
+export async function listenNativeWindowCloseRequested(
+  onCloseRequested: (event: NativeWindowCloseRequestEvent) => unknown | Promise<unknown>
+) {
+  const currentWindow = await getCurrentNativeWindow();
+  if (!currentWindow) return () => {};
+
+  return currentWindow.onCloseRequested(async (event) => {
+    await onCloseRequested({
+      preventDefault: () => event.preventDefault()
+    });
+  });
 }
 
 export async function closeNativeWindow() {

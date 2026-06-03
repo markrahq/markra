@@ -16,6 +16,7 @@ import {
   resolveNativeMarkdownPath,
   saveNativeMarkdownFile,
   setNativeEditorWindowRestoreState,
+  listenNativeWindowCloseRequested,
   listenNativeOpenedMarkdownPaths,
   takeNativeOpenedMarkdownPaths,
   watchNativeMarkdownFile,
@@ -1007,6 +1008,29 @@ export function useMarkdownDocument({
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [hasDiscardableTabChanges]);
+
+  useEffect(() => {
+    let active = true;
+    let cleanup: (() => unknown) | null = null;
+
+    listenNativeWindowCloseRequested(async (event) => {
+      syncActiveDocumentFromEditor();
+      const canDiscard = await confirmCanDiscardCurrentDocument();
+      if (!canDiscard) event.preventDefault();
+    }).then((nextCleanup) => {
+      if (active) {
+        cleanup = nextCleanup;
+        return;
+      }
+
+      nextCleanup();
+    }).catch(() => {});
+
+    return () => {
+      active = false;
+      cleanup?.();
+    };
+  }, [confirmCanDiscardCurrentDocument, syncActiveDocumentFromEditor]);
 
   useEffect(() => {
     const path = initialMarkdownFilePath();

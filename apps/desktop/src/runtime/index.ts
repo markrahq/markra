@@ -112,6 +112,7 @@ export const desktopRuntime = {
     closeWindow: windowRuntime.closeNativeWindow,
     listEditorWindowRestoreStates: windowRuntime.listNativeEditorWindowRestoreStates,
     listenSettingsWindowTarget: windowRuntime.listenNativeSettingsWindowTarget,
+    listenWindowCloseRequested: windowRuntime.listenNativeWindowCloseRequested,
     minimizeWindow: windowRuntime.minimizeNativeWindow,
     openExternalUrl: windowRuntime.openNativeExternalUrl,
     openSettingsWindow: windowRuntime.openSettingsWindow,

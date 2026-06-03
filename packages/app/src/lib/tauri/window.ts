@@ -13,12 +13,22 @@ export type SetNativeEditorWindowRestoreStateInput = {
   openFilePaths: string[];
 };
 
+export type NativeWindowCloseRequestEvent = {
+  preventDefault: () => unknown;
+};
+
 export function openSettingsWindow(target?: NativeSettingsWindowTarget) {
   return getAppRuntime().window.openSettingsWindow(target);
 }
 
 export function listenNativeSettingsWindowTarget(onTarget: (target: NativeSettingsWindowTarget) => unknown) {
   return getAppRuntime().window.listenSettingsWindowTarget(onTarget);
+}
+
+export function listenNativeWindowCloseRequested(
+  onCloseRequested: (event: NativeWindowCloseRequestEvent) => unknown | Promise<unknown>
+) {
+  return getAppRuntime().window.listenWindowCloseRequested(onCloseRequested);
 }
 
 export function openNativeExternalUrl(url: string) {
