@@ -4,7 +4,8 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent
 } from "react";
 import { Columns2, FileText, ImageIcon, Pencil, Plus, X } from "lucide-react";
 import { Button, IconButton, PopoverSurface } from "@markra/ui";
@@ -82,6 +83,7 @@ export function MarkdownTabsBar({
   const pointerDragCleanupRef = useRef<(() => unknown) | null>(null);
   const pointerEditorDropTargetRef = useRef<HTMLElement | null>(null);
   const suppressClickTabIdRef = useRef<string | null>(null);
+  const tabListRef = useRef<HTMLDivElement | null>(null);
 
   const setPageDocumentTabDragging = () => {
     document.documentElement.setAttribute("data-document-tab-dragging", "true");
@@ -124,9 +126,23 @@ export function MarkdownTabsBar({
 
   const tabItemGroups = items.map((item) => Array.isArray(item) ? item : [item]);
   const documentItems = tabItemGroups.flatMap((item) => item);
+  const documentTabIdsKey = documentItems.map((tab) => tab.id).join("\n");
   const sideGroupedTabIds = new Set(
     items.flatMap((item) => Array.isArray(item) ? item.slice(1).map((tab) => tab.id) : [])
   );
+
+  useEffect(() => {
+    if (!activeTabId) return;
+
+    const activeTabElement = Array.from(
+      tabListRef.current?.querySelectorAll<HTMLElement>("[data-document-tab-id]") ?? []
+    ).find((element) => element.dataset.documentTabId === activeTabId);
+
+    activeTabElement?.scrollIntoView?.({
+      block: "nearest",
+      inline: "nearest"
+    });
+  }, [activeTabId, documentTabIdsKey]);
 
   if (documentItems.length === 0) return null;
 
@@ -349,6 +365,19 @@ export function MarkdownTabsBar({
   const handlePreventNativeTabDrag = (event: ReactDragEvent) => {
     event.preventDefault();
   };
+  const handleTabsWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    const tabList = event.currentTarget;
+    if (Math.abs(event.deltaX) >= Math.abs(event.deltaY) || event.deltaY === 0) return;
+
+    const maxScrollLeft = tabList.scrollWidth - tabList.clientWidth;
+    if (maxScrollLeft <= 0) return;
+
+    const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, tabList.scrollLeft + event.deltaY));
+    if (nextScrollLeft === tabList.scrollLeft) return;
+
+    tabList.scrollLeft = nextScrollLeft;
+    event.preventDefault();
+  };
   const handleSelectTabClick = (tab: MarkdownTabsBarDocumentItem, selectTabId: string) => {
     if (suppressClickTabIdRef.current === tab.id) {
       suppressClickTabIdRef.current = null;
@@ -494,21 +523,31 @@ export function MarkdownTabsBar({
       aria-label={label("app.documentTabs")}
     >
       <div
-        className={`flex h-full min-w-0 gap-1 overflow-x-auto text-[12px] leading-5 font-[560] text-(--text-secondary) ${
+        className={`document-tabs-row flex h-full min-w-0 gap-1 text-[12px] leading-5 font-[560] text-(--text-secondary) ${
           titlebarPlacement ? "items-center px-1.5" : "items-end px-3"
         }`}
-        role="tablist"
-        aria-label={label("app.documentTabs")}
       >
-        {items.map((item, index) => Array.isArray(item) ? renderDocumentTabGroup(item, index) : renderDocumentTab(item))}
-        <IconButton
-          className={`${titlebarPlacement ? "" : "mb-1"} rounded-md opacity-70 hover:opacity-100 focus-visible:opacity-100`}
-          label={label("app.newDocumentTab")}
-          size="icon-xs"
-          onClick={onNewTab}
+        <div
+          ref={tabListRef}
+          className={`document-tabs-scroll flex h-full min-w-0 flex-[0_1_auto] gap-1 overflow-x-auto ${
+            titlebarPlacement ? "items-center" : "items-end"
+          }`}
+          role="tablist"
+          aria-label={label("app.documentTabs")}
+          onWheel={handleTabsWheel}
         >
-          <Plus aria-hidden="true" size={13} />
-        </IconButton>
+          {items.map((item, index) => Array.isArray(item) ? renderDocumentTabGroup(item, index) : renderDocumentTab(item))}
+        </div>
+        <div className="document-tabs-controls flex h-full shrink-0 items-center">
+          <IconButton
+            className={`${titlebarPlacement ? "" : "mb-1"} rounded-md opacity-70 hover:opacity-100 focus-visible:opacity-100`}
+            label={label("app.newDocumentTab")}
+            size="icon-xs"
+            onClick={onNewTab}
+          >
+            <Plus aria-hidden="true" size={13} />
+          </IconButton>
+        </div>
         {titlebarPlacement && nativeDragRegionEnabled ? (
           <span
             aria-hidden="true"

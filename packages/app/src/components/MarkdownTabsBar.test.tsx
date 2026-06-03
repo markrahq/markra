@@ -14,6 +14,13 @@ describe("MarkdownTabsBar", () => {
     return mock;
   }
 
+  const overflowItems = Array.from({ length: 8 }, (_, index) => ({
+    dirty: false,
+    id: `tab-${index + 1}`,
+    name: `Synthetic ${index + 1}.md`,
+    path: `/synthetic/doc-${index + 1}.md`
+  }));
+
   it("marks only titlebar tab empty space as a window drag region", () => {
     const { container } = render(
       <MarkdownTabsBar
@@ -37,6 +44,87 @@ describe("MarkdownTabsBar", () => {
     expect(container.querySelector(".document-tabs-titlebar")).not.toHaveAttribute("data-tauri-drag-region");
     expect(screen.getByRole("tab", { name: /Alpha\.md/ }).closest("[data-tauri-drag-region]")).toBeNull();
     expect(container.querySelector(".document-tabs-drag-spacer")).toHaveAttribute("data-tauri-drag-region");
+  });
+
+  it("keeps the new tab action outside the horizontally scrolling tablist", () => {
+    render(
+      <MarkdownTabsBar
+        activeTabId="tab-1"
+        items={overflowItems}
+        placement="titlebar"
+        onCloseTab={() => {}}
+        onNewTab={() => {}}
+        onSelectTab={() => {}}
+      />
+    );
+
+    const tablist = screen.getByRole("tablist", { name: "Open documents" });
+    const newTabButton = screen.getByRole("button", { name: "New tab" });
+
+    expect(tablist).not.toContainElement(newTabButton);
+    expect(newTabButton.closest(".document-tabs-controls")).toBeInTheDocument();
+  });
+
+  it("scrolls overflowing tabs horizontally with a vertical mouse wheel", () => {
+    render(
+      <MarkdownTabsBar
+        activeTabId="tab-1"
+        items={overflowItems}
+        placement="titlebar"
+        onCloseTab={() => {}}
+        onNewTab={() => {}}
+        onSelectTab={() => {}}
+      />
+    );
+
+    const tablist = screen.getByRole("tablist", { name: "Open documents" });
+    Object.defineProperty(tablist, "clientWidth", { configurable: true, value: 220 });
+    Object.defineProperty(tablist, "scrollWidth", { configurable: true, value: 960 });
+    tablist.scrollLeft = 0;
+
+    const wheelEvent = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 84
+    });
+
+    tablist.dispatchEvent(wheelEvent);
+
+    expect(tablist.scrollLeft).toBe(84);
+  });
+
+  it("keeps the active tab visible when selection changes", () => {
+    const { rerender } = render(
+      <MarkdownTabsBar
+        activeTabId="tab-1"
+        items={overflowItems}
+        placement="titlebar"
+        onCloseTab={() => {}}
+        onNewTab={() => {}}
+        onSelectTab={() => {}}
+      />
+    );
+
+    const scrollIntoView = vi.fn();
+    for (const element of document.querySelectorAll<HTMLElement>("[data-document-tab-id='tab-8']")) {
+      element.scrollIntoView = scrollIntoView;
+    }
+
+    rerender(
+      <MarkdownTabsBar
+        activeTabId="tab-8"
+        items={overflowItems}
+        placement="titlebar"
+        onCloseTab={() => {}}
+        onNewTab={() => {}}
+        onSelectTab={() => {}}
+      />
+    );
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "nearest",
+      inline: "nearest"
+    });
   });
 
   it("omits titlebar empty drag space when native drag regions are unavailable", () => {
