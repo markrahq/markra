@@ -89,6 +89,8 @@ describe("ContextMenu", () => {
     expect(disabledItem).toBeDisabled();
     expect(disabledSelect).not.toHaveBeenCalled();
     expect(submenuButton).toHaveAttribute("aria-haspopup", "menu");
+    expect(submenuButton.querySelector("svg")).not.toBeNull();
+    expect(submenuButton).not.toHaveTextContent(">");
     expect(document.querySelector("[data-menu-submenu-id='markra:test:submenu']")).toHaveAttribute("role", "menu");
 
     getMenuItemById("markra:test:child").click();

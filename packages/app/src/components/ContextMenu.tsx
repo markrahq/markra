@@ -5,6 +5,7 @@ import {
   type CSSProperties,
   type ReactNode
 } from "react";
+import { ChevronRight } from "lucide-react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
 
@@ -358,7 +359,12 @@ function ContextSubmenu({ entry, onClose, submenuAlignLeft }: ContextSubmenuProp
         }}
       >
         <span className="min-w-0 truncate">{entry.label}</span>
-        <span className="shrink-0 text-[13px] font-[620] text-(--text-secondary)" aria-hidden="true">&gt;</span>
+        <ChevronRight
+          aria-hidden="true"
+          className="shrink-0 text-(--text-secondary)"
+          size={14}
+          strokeWidth={2.25}
+        />
       </button>
       <div
         className={`absolute top-[-4px] hidden min-w-[216px] max-w-[min(280px,calc(100vw-16px))] rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 text-[13px] leading-5 font-[520] text-(--text-primary) shadow-[0_14px_36px_color-mix(in_srgb,var(--text-heading)_16%,transparent)] outline-none group-hover/context-menu-submenu:block group-focus-within/context-menu-submenu:block ${
