@@ -1402,6 +1402,41 @@ describe("Markra workspace", () => {
     expect(screen.queryByRole("button", { name: "docs/guide.md" })).not.toBeInTheDocument();
   });
 
+  it("keeps the web file tree usable for new unsaved files before a folder is opened", async () => {
+    configureAppRuntime({
+      ...createDefaultAppRuntime(),
+      features: {
+        ai: true,
+        export: true,
+        nativeWindowChrome: false,
+        pandoc: true,
+        s3ImageUpload: true,
+        updater: true
+      }
+    });
+
+    renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+
+    expect(screen.getByRole("tree", { name: "Markdown files" })).toBeInTheDocument();
+    fireEvent.contextMenu(screen.getByText("No Markdown files"));
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+    act(() => {
+      contextHandlers?.createFile?.();
+    });
+
+    const fileNameInput = screen.getByRole("textbox", { name: "New file name" });
+    fireEvent.change(fileNameInput, { target: { value: "Scratch.md" } });
+    fireEvent.keyDown(fileNameInput, { key: "Enter" });
+
+    expect(mockedCreateNativeMarkdownTreeFile).not.toHaveBeenCalled();
+    expect(screen.getByRole("tab", { name: /Scratch\.md/ })).toBeInTheDocument();
+    expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
+  });
+
   it("resizes the left markdown file tree from its right edge", async () => {
     mockOpenMarkdownFile({
       content: "# Native file\n\nOpened from disk.",

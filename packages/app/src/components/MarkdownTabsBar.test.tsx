@@ -14,6 +14,107 @@ describe("MarkdownTabsBar", () => {
     return mock;
   }
 
+  function renderOverflowingTabsBar() {
+    render(
+      <MarkdownTabsBar
+        activeTabId="tab-a"
+        items={[
+          {
+            dirty: false,
+            id: "tab-a",
+            name: "Alpha.md",
+            path: "/synthetic/alpha.md"
+          },
+          {
+            dirty: false,
+            id: "tab-b",
+            name: "Beta.md",
+            path: "/synthetic/beta.md"
+          },
+          {
+            dirty: false,
+            id: "tab-c",
+            name: "Gamma.md",
+            path: "/synthetic/gamma.md"
+          },
+          {
+            dirty: false,
+            id: "tab-d",
+            name: "Delta.md",
+            path: "/synthetic/delta.md"
+          }
+        ]}
+        onCloseTab={() => {}}
+        onNewTab={() => {}}
+        onSelectTab={() => {}}
+      />
+    );
+
+    const tabList = screen.getByRole("tablist", { name: "Open documents" }) as HTMLElement;
+    let scrollLeft = 0;
+
+    Object.defineProperty(tabList, "clientWidth", {
+      configurable: true,
+      value: 240
+    });
+    Object.defineProperty(tabList, "scrollWidth", {
+      configurable: true,
+      value: 720
+    });
+    Object.defineProperty(tabList, "scrollLeft", {
+      configurable: true,
+      get: () => scrollLeft,
+      set: (value) => {
+        scrollLeft = value;
+      }
+    });
+
+    return tabList;
+  }
+
+  it("scrolls overflowing document tabs horizontally from a vertical mouse wheel", () => {
+    const tabList = renderOverflowingTabsBar();
+    const wheelEvent = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaY: 160
+    });
+    const preventDefault = vi.spyOn(wheelEvent, "preventDefault");
+
+    fireEvent(tabList, wheelEvent);
+
+    expect(tabList.scrollLeft).toBe(160);
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not trap tab wheel events at scroll edges or during horizontal wheel input", () => {
+    const tabList = renderOverflowingTabsBar();
+    const edgeWheelEvent = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaY: -80
+    });
+    const preventEdgeDefault = vi.spyOn(edgeWheelEvent, "preventDefault");
+
+    fireEvent(tabList, edgeWheelEvent);
+
+    expect(tabList.scrollLeft).toBe(0);
+    expect(preventEdgeDefault).not.toHaveBeenCalled();
+
+    const horizontalWheelEvent = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 120,
+      deltaY: 10
+    });
+    const preventHorizontalDefault = vi.spyOn(horizontalWheelEvent, "preventDefault");
+
+    fireEvent(tabList, horizontalWheelEvent);
+
+    expect(tabList.scrollLeft).toBe(0);
+    expect(preventHorizontalDefault).not.toHaveBeenCalled();
+  });
+
   it("marks only titlebar tab empty space as a window drag region", () => {
     const { container } = render(
       <MarkdownTabsBar

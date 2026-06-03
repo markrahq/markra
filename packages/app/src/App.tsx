@@ -162,6 +162,12 @@ function createImageDocumentTab(file: NativeMarkdownFolderFile): ImageDocumentTa
   };
 }
 
+function unsavedMarkdownFileNameFromTreeInput(fileName: string) {
+  const trimmedName = fileName.trim();
+  if (!trimmedName) return "Untitled.md";
+  return /\.(?:md|markdown)$/iu.test(trimmedName) ? trimmedName : `${trimmedName}.md`;
+}
+
 function documentTabAsFolderFile(tab: MarkdownTabsBarDocumentItem): NativeMarkdownFolderFile | null {
   if (!tab.path) return null;
 
@@ -1519,6 +1525,16 @@ function WorkspaceApp() {
     contents?: string
   ) => {
     try {
+      if (!fileTree.sourcePath) {
+        captureActiveDocumentViewState();
+        setActiveImageFile(null);
+        await createBlankDocument({
+          content: contents ?? "",
+          name: unsavedMarkdownFileNameFromTreeInput(fileName)
+        });
+        return;
+      }
+
       const file = await createMarkdownTreeFile(fileName, parentPath, contents);
       if (file) {
         captureActiveDocumentViewState();
@@ -1528,7 +1544,7 @@ function WorkspaceApp() {
     } catch {
       // Native file errors are surfaced by the platform operation when possible.
     }
-  }, [captureActiveDocumentViewState, createMarkdownTreeFile, openTreeMarkdownFile]);
+  }, [captureActiveDocumentViewState, createBlankDocument, createMarkdownTreeFile, fileTree.sourcePath, openTreeMarkdownFile]);
   const handleQuickCreateMarkdownTreeFile = useCallback(() => {
     captureActiveDocumentViewState();
     setActiveImageFile(null);

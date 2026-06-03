@@ -4,7 +4,8 @@ import {
   useState,
   type DragEvent as ReactDragEvent,
   type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent
+  type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent
 } from "react";
 import { Columns2, FileText, ImageIcon, Pencil, Plus, X } from "lucide-react";
 import { Button, IconButton, PopoverSurface } from "@markra/ui";
@@ -349,6 +350,20 @@ export function MarkdownTabsBar({
   const handlePreventNativeTabDrag = (event: ReactDragEvent) => {
     event.preventDefault();
   };
+  const handleTabsWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    const tabList = event.currentTarget;
+    const maxScrollLeft = tabList.scrollWidth - tabList.clientWidth;
+
+    if (maxScrollLeft <= 0 || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
+
+    const wheelUnitMultiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? tabList.clientWidth : 1;
+    const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, tabList.scrollLeft + event.deltaY * wheelUnitMultiplier));
+
+    if (nextScrollLeft === tabList.scrollLeft) return;
+
+    tabList.scrollLeft = nextScrollLeft;
+    event.preventDefault();
+  };
   const handleSelectTabClick = (tab: MarkdownTabsBarDocumentItem, selectTabId: string) => {
     if (suppressClickTabIdRef.current === tab.id) {
       suppressClickTabIdRef.current = null;
@@ -499,6 +514,7 @@ export function MarkdownTabsBar({
         }`}
         role="tablist"
         aria-label={label("app.documentTabs")}
+        onWheel={handleTabsWheel}
       >
         {items.map((item, index) => Array.isArray(item) ? renderDocumentTabGroup(item, index) : renderDocumentTab(item))}
         <IconButton

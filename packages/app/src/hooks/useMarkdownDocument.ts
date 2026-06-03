@@ -54,6 +54,16 @@ export type MarkdownDocumentTab = DocumentState & {
   id: string;
 };
 
+type CreateBlankDocumentOptions = {
+  content?: string;
+  name?: string;
+};
+
+function blankDocumentName(name: string | null | undefined) {
+  const trimmedName = name?.trim();
+  return trimmedName ? trimmedName : "Untitled.md";
+}
+
 function createDocumentTab(document: DocumentState, id: string): MarkdownDocumentTab {
   return {
     ...document,
@@ -423,11 +433,11 @@ export function useMarkdownDocument({
     });
   }, [handleMarkdownChange]);
 
-  const resetToBlankDocument = useCallback(() => {
+  const resetToBlankDocument = useCallback((options: CreateBlankDocumentOptions = {}) => {
     const nextDocument = {
       path: null,
-      name: "Untitled.md",
-      content: "",
+      name: blankDocumentName(options.name),
+      content: options.content ?? "",
       dirty: true,
       open: true,
       revision: documentRef.current.revision + 1
@@ -451,20 +461,20 @@ export function useMarkdownDocument({
     return true;
   }, [createUntitledTabId, documentTabsEnabled, registerWindowRestoreState, setActiveDocument, setActiveTabState, syncActiveDocumentFromEditor]);
 
-  const createBlankDocument = useCallback(() => {
-    if (documentTabsEnabled) return Promise.resolve(resetToBlankDocument());
+  const createBlankDocument = useCallback((options: CreateBlankDocumentOptions = {}) => {
+    if (documentTabsEnabled) return Promise.resolve(resetToBlankDocument(options));
 
     const canDiscard = confirmCanDiscardCurrentDocument();
     if (typeof canDiscard === "boolean") {
       if (!canDiscard) return Promise.resolve(false);
 
-      return Promise.resolve(resetToBlankDocument());
+      return Promise.resolve(resetToBlankDocument(options));
     }
 
     return canDiscard.then((confirmed) => {
       if (!confirmed) return false;
 
-      return resetToBlankDocument();
+      return resetToBlankDocument(options);
     });
   }, [confirmCanDiscardCurrentDocument, documentTabsEnabled, resetToBlankDocument]);
 
