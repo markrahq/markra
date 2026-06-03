@@ -1040,6 +1040,33 @@ describe("app settings", () => {
           openFilePaths: ["/mock-files/vault/archive.md"]
         }
       ],
+      activeDraftId: "untitled:1",
+      draftTabs: [
+        {
+          content: "# Local draft\n\nStill unsaved.",
+          id: "untitled:1",
+          name: " Draft.md ",
+          path: null
+        },
+        {
+          content: "",
+          id: "file:/mock-files/vault/README.md",
+          name: "README.md",
+          path: " /mock-files/vault/README.md "
+        },
+        {
+          content: "# Duplicate",
+          id: "untitled:1",
+          name: "Duplicate.md",
+          path: null
+        },
+        {
+          content: "   ",
+          id: "untitled:blank",
+          name: "Blank.md",
+          path: null
+        }
+      ],
       sideBySideGroup: {
         primaryFilePath: "/mock-files/vault/README.md",
         sideFilePath: "/mock-files/vault/notes.md"
@@ -1064,6 +1091,21 @@ describe("app settings", () => {
             "/mock-files/vault/notes.md",
             "/mock-files/vault/README.md"
           ]
+        }
+      ],
+      activeDraftId: "untitled:1",
+      draftTabs: [
+        {
+          content: "# Local draft\n\nStill unsaved.",
+          id: "untitled:1",
+          name: "Draft.md",
+          path: null
+        },
+        {
+          content: "",
+          id: "file:/mock-files/vault/README.md",
+          name: "README.md",
+          path: "/mock-files/vault/README.md"
         }
       ],
       sideBySideGroup: {
@@ -1151,6 +1193,42 @@ describe("app settings", () => {
         "/mock-files/vault/README.md",
         "/mock-files/vault/notes.md"
       ],
+      openWindows: []
+    });
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears saved workspace draft tabs", async () => {
+    store.get.mockResolvedValue({
+      activeDraftId: "untitled:1",
+      aiAgentSessionId: "session-a",
+      draftTabs: [
+        {
+          content: "# Draft",
+          id: "untitled:1",
+          name: "Draft.md",
+          path: null
+        }
+      ],
+      filePath: null,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: []
+    });
+
+    await saveStoredWorkspaceState({
+      activeDraftId: null,
+      draftTabs: []
+    });
+
+    expect(store.set).toHaveBeenCalledWith("workspace", {
+      aiAgentSessionId: "session-a",
+      filePath: null,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: [],
       openWindows: []
     });
     expect(store.save).toHaveBeenCalledTimes(1);

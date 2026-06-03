@@ -5,6 +5,7 @@ import {
   createAiAgentSessionId,
   getStoredWorkspaceState,
   saveStoredWorkspaceState,
+  type StoredWorkspaceDraftTab,
   type StoredWorkspaceWindow
 } from "../lib/settings/app-settings";
 import { getMarkdownOutline, getWordCount } from "@markra/markdown";
@@ -85,6 +86,17 @@ function documentFromTab(tab: MarkdownDocumentTab): DocumentState {
   };
 }
 
+function documentFromDraftTab(draft: StoredWorkspaceDraftTab, revision: number): DocumentState {
+  return {
+    path: draft.path,
+    name: draft.name,
+    content: draft.content,
+    dirty: true,
+    open: true,
+    revision
+  };
+}
+
 function fileTabId(path: string) {
   return `file:${path}`;
 }
@@ -129,6 +141,33 @@ function activeFilePathFromTabs(tabs: readonly MarkdownDocumentTab[], activeTabI
 
 function isPristineUntitledDocument(document: DocumentState) {
   return document.open && document.path === null && document.content === "" && !document.dirty && document.revision === 0;
+}
+
+function draftTabFromDocumentTab(tab: MarkdownDocumentTab): StoredWorkspaceDraftTab | null {
+  if (!tab.open || !tab.dirty) return null;
+  if (tab.path === null && tab.content.trim().length === 0) return null;
+
+  return {
+    content: tab.content,
+    id: tab.id,
+    name: tab.name || (tab.path ? pathNameFromPath(tab.path) : "Untitled.md"),
+    path: tab.path
+  };
+}
+
+function draftWorkspacePatchFromTabs(tabs: readonly MarkdownDocumentTab[], activeTabId: string | null) {
+  const draftTabs = tabs.flatMap((tab) => {
+    const draft = draftTabFromDocumentTab(tab);
+    return draft ? [draft] : [];
+  });
+  const activeDraftId = activeTabId && draftTabs.some((draft) => draft.id === activeTabId)
+    ? activeTabId
+    : null;
+
+  return {
+    activeDraftId,
+    draftTabs
+  };
 }
 
 function normalizeComparableMarkdownHeadings(content: string) {
@@ -358,7 +397,12 @@ export function useMarkdownDocument({
         ? { ...current, content, dirty: false }
         : { ...current, content, dirty: true };
 
+    const currentActiveTabId = activeTabIdRef.current;
+    const nextTabs = currentActiveTabId
+      ? tabsRef.current.map((tab) => tab.id === currentActiveTabId ? createDocumentTab(nextDocument, tab.id) : tab)
+      : tabsRef.current;
     setActiveDocument(nextDocument);
+    persistWorkspaceState(draftWorkspacePatchFromTabs(nextTabs, currentActiveTabId));
     return nextDocument;
   }, [currentMarkdown, isActiveEditorMarkdownEquivalent, setActiveDocument]);
 
@@ -411,7 +455,12 @@ export function useMarkdownDocument({
         ? { ...current, content, dirty: false }
         : { ...current, content, dirty: true };
 
+    const currentActiveTabId = activeTabIdRef.current;
+    const nextTabs = currentActiveTabId
+      ? tabsRef.current.map((tab) => tab.id === currentActiveTabId ? createDocumentTab(nextDocument, tab.id) : tab)
+      : tabsRef.current;
     setActiveDocument(nextDocument);
+    persistWorkspaceState(draftWorkspacePatchFromTabs(nextTabs, currentActiveTabId));
   }, [editorReady, isActiveEditorMarkdownEquivalent, setActiveDocument]);
 
   const handleMarkdownTabChange = useCallback((tabId: string, content: string) => {
@@ -432,6 +481,7 @@ export function useMarkdownDocument({
       });
 
       tabsRef.current = nextTabs;
+      persistWorkspaceState(draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current));
       return nextTabs;
     });
   }, [handleMarkdownChange]);
@@ -453,13 +503,19 @@ export function useMarkdownDocument({
       setActiveTabState(nextTabs, tab.id);
       registerWindowRestoreState(activeFilePathFromTabs(nextTabs, tab.id), openFilePathsFromTabs(nextTabs));
       persistWorkspaceState({
+        ...draftWorkspacePatchFromTabs(nextTabs, tab.id),
         filePath: null,
         openFilePaths: openFilePathsFromTabs(nextTabs)
       });
     } else {
       setActiveDocument(nextDocument);
       registerWindowRestoreState(null, []);
-      persistWorkspaceState({ filePath: null, openFilePaths: [] });
+      const nextTabs = [createDocumentTab(nextDocument, activeTabIdRef.current ?? "untitled:0")];
+      persistWorkspaceState({
+        ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
+        filePath: null,
+        openFilePaths: []
+      });
     }
     return true;
   }, [createUntitledTabId, documentTabsEnabled, registerWindowRestoreState, setActiveDocument, setActiveTabState, syncActiveDocumentFromEditor]);
@@ -497,7 +553,14 @@ export function useMarkdownDocument({
     setDocument(nextDocument);
     documentRef.current = nextDocument;
     registerWindowRestoreState(null, []);
-    if (options.persistWorkspace !== false) persistWorkspaceState({ filePath: null, openFilePaths: [] });
+    if (options.persistWorkspace !== false) {
+      persistWorkspaceState({
+        activeDraftId: null,
+        draftTabs: [],
+        filePath: null,
+        openFilePaths: []
+      });
+    }
   }, [registerWindowRestoreState]);
 
   const applyNativeMarkdownFile = useCallback(
@@ -546,7 +609,11 @@ export function useMarkdownDocument({
 
       if (updateTreeRoot) onTreeRootFromFilePath(file.path);
       registerWindowRestoreState(file.path, nextOpenFilePaths);
+      const nextDraftTabs = documentTabsEnabled
+        ? tabsRef.current
+        : [createDocumentTab(nextDocument, activeTabIdRef.current ?? fileTabId(file.path))];
       persistWorkspaceState({
+        ...draftWorkspacePatchFromTabs(nextDraftTabs, activeTabIdRef.current),
         aiAgentSessionId: sessionId,
         filePath: file.path,
         openFilePaths: nextOpenFilePaths,
@@ -613,6 +680,7 @@ export function useMarkdownDocument({
       if (updateTreeRoot && activeFile) onTreeRootFromFilePath(activeFile.path);
       registerWindowRestoreState(activeFile?.path ?? null, files.map((file) => file.path));
       persistWorkspaceState({
+        ...draftWorkspacePatchFromTabs(tabsRef.current, activeTabIdRef.current),
         aiAgentSessionId: sessionId,
         filePath: activeFile?.path ?? null,
         openFilePaths: files.map((file) => file.path),
@@ -622,6 +690,43 @@ export function useMarkdownDocument({
     },
     [documentTabsEnabled, onTreeRootFromFilePath, registerWindowRestoreState, resolveWorkspaceSessionId, setActiveDocument, setActiveTabState]
   );
+
+  const restoreWorkspaceDraftTabs = useCallback((
+    draftTabs: readonly StoredWorkspaceDraftTab[] | undefined,
+    activeDraftId: string | null | undefined,
+    preferredSessionId?: string | null
+  ) => {
+    if (!draftTabs?.length) return false;
+
+    const draftDocumentTabs = draftTabs.map((draft, index) =>
+      createDocumentTab(documentFromDraftTab(draft, documentRef.current.revision + index + 1), draft.id)
+    );
+    const currentTabs = tabsRef.current.filter((tab) =>
+      !isPristineUntitledDocument(documentFromTab(tab)) &&
+      !draftDocumentTabs.some((draftTab) => draftTab.id === tab.id || (draftTab.path !== null && draftTab.path === tab.path))
+    );
+    const nextTabs = [...currentTabs, ...draftDocumentTabs];
+    const nextActiveTabId =
+      activeDraftId && nextTabs.some((tab) => tab.id === activeDraftId)
+        ? activeDraftId
+        : activeTabIdRef.current && nextTabs.some((tab) => tab.id === activeTabIdRef.current)
+          ? activeTabIdRef.current
+          : draftDocumentTabs.at(-1)?.id ?? nextTabs.at(-1)?.id ?? null;
+    const nextActiveFilePath = activeFilePathFromTabs(nextTabs, nextActiveTabId);
+    const sessionId = resolveWorkspaceSessionId(preferredSessionId ?? workspaceSessionIdRef.current);
+
+    setActiveTabState(nextTabs, nextActiveTabId);
+    registerWindowRestoreState(nextActiveFilePath, openFilePathsFromTabs(nextTabs));
+    persistWorkspaceState({
+      ...draftWorkspacePatchFromTabs(nextTabs, nextActiveTabId),
+      aiAgentSessionId: sessionId,
+      filePath: nextActiveFilePath,
+      openFilePaths: openFilePathsFromTabs(nextTabs)
+    });
+
+    if (nextActiveFilePath) onTreeRootFromFilePath(nextActiveFilePath);
+    return true;
+  }, [onTreeRootFromFilePath, registerWindowRestoreState, resolveWorkspaceSessionId, setActiveTabState]);
 
   const openMarkdownFile = useCallback(async (options: OpenMarkdownFileOptions = {}) => {
     const target = await openNativeMarkdownPath(
@@ -689,6 +794,7 @@ export function useMarkdownDocument({
         setTabs(nextTabs);
         registerWindowRestoreState(activeFilePathFromTabs(nextTabs, activeTabIdRef.current), openFilePathsFromTabs(nextTabs));
         persistWorkspaceState({
+          ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
           filePath: activeFilePathFromTabs(nextTabs, activeTabIdRef.current),
           openFilePaths: openFilePathsFromTabs(nextTabs)
         });
@@ -727,6 +833,7 @@ export function useMarkdownDocument({
     setTabs(nextTabs);
     registerWindowRestoreState(activeFilePathFromTabs(nextTabs, activeTabIdRef.current), openFilePathsFromTabs(nextTabs));
     persistWorkspaceState({
+      ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
       filePath: activeFilePathFromTabs(nextTabs, activeTabIdRef.current),
       openFilePaths: openFilePathsFromTabs(nextTabs)
     });
@@ -766,6 +873,7 @@ export function useMarkdownDocument({
     setTabs(nextTabs);
     registerWindowRestoreState(activeFilePathFromTabs(nextTabs, activeTabIdRef.current), openFilePathsFromTabs(nextTabs));
     persistWorkspaceState({
+      ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
       filePath: activeFilePathFromTabs(nextTabs, activeTabIdRef.current),
       openFilePaths: openFilePathsFromTabs(nextTabs)
     });
@@ -806,6 +914,7 @@ export function useMarkdownDocument({
     }
 
     persistWorkspaceState({
+      ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
       filePath: activeFilePathFromTabs(nextTabs, activeTabIdRef.current),
       openFilePaths: openFilePathsFromTabs(nextTabs)
     });
@@ -836,14 +945,16 @@ export function useMarkdownDocument({
       };
 
       setActiveDocument(nextDocument);
+      const nextTabs = documentTabsEnabled
+        ? tabsRef.current.map((tab) => tab.id === activeTabIdRef.current ? createDocumentTab(nextDocument, tab.id) : tab)
+        : [createDocumentTab(nextDocument, activeTabIdRef.current ?? fileTabId(savedFile.path))];
       const nextOpenFilePaths = documentTabsEnabled
-        ? openFilePathsFromTabs(tabsRef.current.map((tab) =>
-          tab.id === activeTabIdRef.current ? createDocumentTab(nextDocument, tab.id) : tab
-        ))
+        ? openFilePathsFromTabs(nextTabs)
         : [savedFile.path];
       if (saveAs || current.path === null) onTreeRootFromFilePath(savedFile.path);
       registerWindowRestoreState(savedFile.path, nextOpenFilePaths);
       persistWorkspaceState({
+        ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
         filePath: savedFile.path,
         openFilePaths: nextOpenFilePaths,
         ...(saveAs || current.path === null ? { folderName: null, folderPath: null } : {})
@@ -891,6 +1002,7 @@ export function useMarkdownDocument({
       if (saveAs || tab.path === null) onTreeRootFromFilePath(savedFile.path);
       registerWindowRestoreState(activeFilePathFromTabs(nextTabs, activeTabIdRef.current), openFilePathsFromTabs(nextTabs));
       persistWorkspaceState({
+        ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
         filePath: activeFilePathFromTabs(nextTabs, activeTabIdRef.current),
         openFilePaths: openFilePathsFromTabs(nextTabs),
         ...(saveAs || tab.path === null ? { folderName: null, folderPath: null } : {})
@@ -912,6 +1024,7 @@ export function useMarkdownDocument({
     setActiveTabState(tabsRef.current, tab.id);
     registerWindowRestoreState(tab.path, openFilePathsFromTabs(tabsRef.current));
     persistWorkspaceState({
+      ...draftWorkspacePatchFromTabs(tabsRef.current, tab.id),
       filePath: tab.path,
       openFilePaths: openFilePathsFromTabs(tabsRef.current)
     });
@@ -939,6 +1052,7 @@ export function useMarkdownDocument({
     setActiveTabState(nextTabs, nextActiveTab?.id ?? null);
     registerWindowRestoreState(nextActiveTab?.path ?? null, openFilePathsFromTabs(nextTabs));
     persistWorkspaceState({
+      ...draftWorkspacePatchFromTabs(nextTabs, nextActiveTab?.id ?? null),
       filePath: nextActiveTab?.path ?? null,
       openFilePaths: openFilePathsFromTabs(nextTabs)
     });
@@ -1206,6 +1320,16 @@ export function useMarkdownDocument({
             if (restoredFiles) restoredWorkspace = true;
           }
 
+          if (workspace.draftTabs?.length) {
+            const restoredDrafts = restoreWorkspaceDraftTabs(
+              workspace.draftTabs,
+              workspace.activeDraftId,
+              sessionId
+            );
+            if (!active) return;
+            if (restoredDrafts) restoredWorkspace = true;
+          }
+
           for (const path of additionalRestoreWindowFilePaths) {
             await openNativeMarkdownFileInNewWindow(path);
             if (!active) return;
@@ -1252,6 +1376,7 @@ export function useMarkdownDocument({
     onTreeRootFromFolderPath,
     preferencesReady,
     restoreNativeMarkdownFiles,
+    restoreWorkspaceDraftTabs,
     resolveWorkspaceSessionId,
     restoreWorkspaceOnStartup,
     setActiveDocument

@@ -151,7 +151,9 @@ export type ExportSettings = {
   pdfWidthMm: number;
 };
 export type StoredWorkspaceState = {
+  activeDraftId?: string | null;
   aiAgentSessionId: string | null;
+  draftTabs?: StoredWorkspaceDraftTab[];
   filePath: string | null;
   fileTreeOpen: boolean;
   folderName: string | null;
@@ -159,6 +161,12 @@ export type StoredWorkspaceState = {
   openFilePaths: string[];
   openWindows?: StoredWorkspaceWindow[];
   sideBySideGroup?: StoredWorkspaceSideBySideGroup | null;
+};
+export type StoredWorkspaceDraftTab = {
+  content: string;
+  id: string;
+  name: string;
+  path: string | null;
 };
 export type StoredWorkspaceWindow = {
   filePath: string | null;
@@ -1205,6 +1213,11 @@ export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
   const workspace = value as Partial<StoredWorkspaceState>;
   const openFilePaths = normalizeWorkspaceOpenFilePaths(workspace.openFilePaths);
   const openFilePathSet = new Set(openFilePaths);
+  const draftTabs = normalizeWorkspaceDraftTabs(workspace.draftTabs);
+  const activeDraftId = normalizeNullableString(workspace.activeDraftId);
+  const persistedActiveDraftId = activeDraftId && draftTabs.some((draft) => draft.id === activeDraftId)
+    ? activeDraftId
+    : null;
   const sideBySideGroup = normalizeWorkspaceSideBySideGroup(workspace.sideBySideGroup);
   const persistedSideBySideGroup =
     sideBySideGroup &&
@@ -1214,6 +1227,7 @@ export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
       : null;
 
   return {
+    ...(draftTabs.length > 0 ? { activeDraftId: persistedActiveDraftId, draftTabs } : {}),
     aiAgentSessionId: normalizeNullableString(workspace.aiAgentSessionId),
     filePath: normalizeNullableString(workspace.filePath),
     fileTreeOpen: typeof workspace.fileTreeOpen === "boolean" ? workspace.fileTreeOpen : false,
@@ -1223,6 +1237,41 @@ export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
     openWindows: normalizeWorkspaceWindows(workspace.openWindows),
     ...(persistedSideBySideGroup ? { sideBySideGroup: persistedSideBySideGroup } : {})
   };
+}
+
+function normalizeWorkspaceDraftTabs(value: unknown): StoredWorkspaceDraftTab[] {
+  if (!Array.isArray(value)) return [];
+
+  const seenIds = new Set<string>();
+  const draftTabs: StoredWorkspaceDraftTab[] = [];
+  const normalizeDraftString = (item: unknown) => {
+    if (typeof item !== "string") return null;
+
+    const trimmed = item.trim();
+    return trimmed ? trimmed : null;
+  };
+
+  value.forEach((item) => {
+    if (typeof item !== "object" || item === null) return;
+
+    const candidate = item as Partial<StoredWorkspaceDraftTab>;
+    const id = normalizeDraftString(candidate.id);
+    if (!id || seenIds.has(id) || typeof candidate.content !== "string") return;
+
+    const path = normalizeDraftString(candidate.path);
+    if (!path && candidate.content.trim().length === 0) return;
+
+    const name = normalizeDraftString(candidate.name) ?? (path ? pathNameFromPath(path) : "Untitled.md");
+    seenIds.add(id);
+    draftTabs.push({
+      content: candidate.content,
+      id,
+      name,
+      path
+    });
+  });
+
+  return draftTabs;
 }
 
 function normalizeWorkspaceOpenFilePaths(value: unknown) {

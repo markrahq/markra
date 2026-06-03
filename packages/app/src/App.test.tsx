@@ -1940,10 +1940,12 @@ describe("Markra workspace", () => {
     expect(screen.queryByText("Native file")).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "mock-files" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Markdown" })).toBeDisabled();
-    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith(expect.objectContaining({
+      activeDraftId: null,
+      draftTabs: [],
       filePath: null,
       openFilePaths: []
-    });
+    }));
   });
 
   it("previews an image asset from the current folder tree and returns to markdown files", async () => {
