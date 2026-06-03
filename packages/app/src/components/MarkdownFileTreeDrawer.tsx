@@ -579,7 +579,7 @@ export function MarkdownFileTreeDrawer({
   const showWindowsOpenFolderAction = platform === "windows" && onOpenFolder;
   const WindowsSidebarToggleIcon = open ? PanelLeft : PanelRight;
   const drawerTopPaddingClassName = platform === "windows" ? "pt-0" : "pt-10";
-  const fileCreationAvailable = folderOpen && Boolean(onCreateFile);
+  const fileCreationAvailable = Boolean(onCreateFile);
   const folderCreationAvailable = folderOpen && Boolean(onCreateFolder);
   const folderActionsAvailable = fileCreationAvailable || folderCreationAvailable;
   const folderExpansionAvailable = folderPaths.length > 0;
@@ -608,7 +608,7 @@ export function MarkdownFileTreeDrawer({
   }, [currentPath, normalizeTreeCreateParentPath, rootPath]);
   const recentFolderChoices = recentFolders.slice(0, 5);
   const recentFolderAreaVisible = recentFolderChoices.length > 0 && Boolean(onOpenRecentFolder);
-  const filePanelVisible = folderOpen;
+  const filePanelVisible = folderOpen || (open && fileCreationAvailable);
   const filePanelStyle = outlineOpen ? { flex: `0 1 ${100 - outlineHeightPercent}%` } : undefined;
   const outlinePanelStyle = outlineOpen ? { flex: `0 1 ${outlineHeightPercent}%` } : undefined;
   useEffect(() => {
@@ -1673,9 +1673,11 @@ export function MarkdownFileTreeDrawer({
                     {tree.length > 0 || creatingFile || creatingFolder ? (
                       renderNodes(tree)
                     ) : (
-                      <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">
-                        {label("app.noMarkdownFiles")}
-                      </p>
+                      <div className="min-h-full" role="tree" aria-label={label("app.markdownFiles")}>
+                        <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">
+                          {label("app.noMarkdownFiles")}
+                        </p>
+                      </div>
                     )}
                   </div>
                 )}

@@ -372,7 +372,9 @@ export function MarkdownTabsBar({
     const maxScrollLeft = tabList.scrollWidth - tabList.clientWidth;
     if (maxScrollLeft <= 0) return;
 
-    const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, tabList.scrollLeft + event.deltaY));
+    const wheelUnitMultiplier = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? tabList.clientWidth : 1;
+    const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, tabList.scrollLeft + event.deltaY * wheelUnitMultiplier));
+
     if (nextScrollLeft === tabList.scrollLeft) return;
 
     tabList.scrollLeft = nextScrollLeft;

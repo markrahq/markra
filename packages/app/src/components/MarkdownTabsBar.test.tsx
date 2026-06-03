@@ -21,6 +21,26 @@ describe("MarkdownTabsBar", () => {
     path: `/synthetic/doc-${index + 1}.md`
   }));
 
+  function mockScrollableTablist(tabList: HTMLElement, scrollLeftValue = 0) {
+    let scrollLeft = scrollLeftValue;
+
+    Object.defineProperty(tabList, "clientWidth", {
+      configurable: true,
+      value: 220
+    });
+    Object.defineProperty(tabList, "scrollWidth", {
+      configurable: true,
+      value: 960
+    });
+    Object.defineProperty(tabList, "scrollLeft", {
+      configurable: true,
+      get: () => scrollLeft,
+      set: (value) => {
+        scrollLeft = value;
+      }
+    });
+  }
+
   it("marks only titlebar tab empty space as a window drag region", () => {
     const { container } = render(
       <MarkdownTabsBar
@@ -78,19 +98,59 @@ describe("MarkdownTabsBar", () => {
     );
 
     const tablist = screen.getByRole("tablist", { name: "Open documents" });
-    Object.defineProperty(tablist, "clientWidth", { configurable: true, value: 220 });
-    Object.defineProperty(tablist, "scrollWidth", { configurable: true, value: 960 });
-    tablist.scrollLeft = 0;
+    mockScrollableTablist(tablist);
 
     const wheelEvent = new WheelEvent("wheel", {
       bubbles: true,
       cancelable: true,
       deltaY: 84
     });
+    const preventDefault = vi.spyOn(wheelEvent, "preventDefault");
 
     tablist.dispatchEvent(wheelEvent);
 
     expect(tablist.scrollLeft).toBe(84);
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not trap tab wheel events at scroll edges or during horizontal wheel input", () => {
+    render(
+      <MarkdownTabsBar
+        activeTabId="tab-1"
+        items={overflowItems}
+        placement="titlebar"
+        onCloseTab={() => {}}
+        onNewTab={() => {}}
+        onSelectTab={() => {}}
+      />
+    );
+
+    const tablist = screen.getByRole("tablist", { name: "Open documents" });
+    mockScrollableTablist(tablist);
+    const edgeWheelEvent = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaY: -80
+    });
+    const preventEdgeDefault = vi.spyOn(edgeWheelEvent, "preventDefault");
+
+    tablist.dispatchEvent(edgeWheelEvent);
+
+    expect(tablist.scrollLeft).toBe(0);
+    expect(preventEdgeDefault).not.toHaveBeenCalled();
+
+    const horizontalWheelEvent = new WheelEvent("wheel", {
+      bubbles: true,
+      cancelable: true,
+      deltaX: 120,
+      deltaY: 10
+    });
+    const preventHorizontalDefault = vi.spyOn(horizontalWheelEvent, "preventDefault");
+
+    tablist.dispatchEvent(horizontalWheelEvent);
+
+    expect(tablist.scrollLeft).toBe(0);
+    expect(preventHorizontalDefault).not.toHaveBeenCalled();
   });
 
   it("keeps the active tab visible when selection changes", () => {

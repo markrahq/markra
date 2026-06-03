@@ -305,8 +305,9 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(openFolder).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps create actions unavailable until a folder root is open", () => {
+  it("keeps folder creation unavailable until a folder root is open", () => {
     const createFile = vi.fn();
+    const createFolder = vi.fn();
     const { container } = render(
       <MarkdownFileTreeDrawer
         currentPath={null}
@@ -316,17 +317,23 @@ describe("MarkdownFileTreeDrawer", () => {
         outlineItems={[]}
         rootName="No folder"
         onCreateFile={createFile}
+        onCreateFolder={createFolder}
         onOpenFile={() => {}}
         onSelectOutlineItem={() => {}}
       />
     );
 
-    expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
-    expect(screen.queryByText("No folder")).not.toBeInTheDocument();
-    expect(container.querySelector(".file-tree-scroll")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
+    expect(screen.getByText("No folder")).toBeInTheDocument();
+    expect(container.querySelector(".file-tree-scroll")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+
+    expect(screen.getByRole("menuitem", { name: "New file" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "New Folder" })).not.toBeInTheDocument();
     expect(mockedShowNativeMarkdownFileTreeContextMenu).not.toHaveBeenCalled();
     expect(createFile).not.toHaveBeenCalled();
+    expect(createFolder).not.toHaveBeenCalled();
   });
 
   it("places open Windows sidebar controls inside a separated drawer footer", () => {
@@ -637,6 +644,46 @@ describe("MarkdownFileTreeDrawer", () => {
     fireEvent.keyDown(renameInput, { key: "Enter" });
 
     expect(renameFile).toHaveBeenCalledWith(markdownFiles[0], "Renamed.md");
+  });
+
+  it("keeps the empty file tree available for root file creation without an open folder", () => {
+    const createFile = vi.fn();
+    const createFolder = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath={null}
+        files={[]}
+        folderOpen={false}
+        open
+        outlineItems={[]}
+        rootName="No folder"
+        onCreateFile={createFile}
+        onCreateFolder={createFolder}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("tree", { name: "Markdown files" })).toBeInTheDocument();
+    expect(screen.getByText("No Markdown files")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New" })).toBeInTheDocument();
+
+    fireEvent.contextMenu(screen.getByText("No Markdown files"));
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+
+    expect(contextHandlers?.createFile).toEqual(expect.any(Function));
+    expect(contextHandlers?.createFolder).toBeUndefined();
+
+    act(() => {
+      contextHandlers?.createFile?.();
+    });
+    const newFileInput = screen.getByRole("textbox", { name: "New file name" });
+    fireEvent.change(newFileInput, { target: { value: "Scratch" } });
+    fireEvent.keyDown(newFileInput, { key: "Enter" });
+
+    expect(createFile).toHaveBeenCalledWith("Scratch");
+    expect(createFolder).not.toHaveBeenCalled();
   });
 
   it("starts a markdown file from a lightweight template", () => {
