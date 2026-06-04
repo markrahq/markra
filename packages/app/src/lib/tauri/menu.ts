@@ -1,9 +1,13 @@
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { AppLanguage } from "@markra/shared";
 import { getAppRuntime } from "../../runtime";
+import type { RecentMarkdownFile } from "../settings/app-settings";
 import type { NativeMarkdownFolderFile } from "./file";
 
-export type NativeMenuHandlers = Partial<Record<NativeMenuCommand, () => unknown | Promise<unknown>>>;
+export type NativeMenuHandlers = Partial<Record<NativeStaticMenuCommand, () => unknown | Promise<unknown>>> & {
+  clearRecentFiles?: () => unknown | Promise<unknown>;
+  openRecentFile?: (file: RecentMarkdownFile) => unknown | Promise<unknown>;
+};
 
 export type NativeMarkdownFileTreeContextMenuHandlers = {
   canOpenFileToSide?: (file: NativeMarkdownFolderFile) => boolean;
@@ -25,7 +29,7 @@ export type NativeEditorContextMenuOptions = {
   markdownShortcuts?: MarkdownShortcutMap;
 };
 
-export type NativeMenuCommand =
+export type NativeStaticMenuCommand =
   | "checkForUpdates"
   | "openDocument"
   | "openFolder"
@@ -64,6 +68,11 @@ export type NativeMenuCommand =
   | "toggleReadOnlyMode"
   | "toggleSourceMode";
 
+export type NativeMenuCommand =
+  | NativeStaticMenuCommand
+  | "clearRecentFiles"
+  | "openRecentFile";
+
 export function listenNativeApplicationMenuCommands(handlers: NativeMenuHandlers) {
   return getAppRuntime().menu.listenApplicationMenuCommands(handlers);
 }
@@ -71,9 +80,10 @@ export function listenNativeApplicationMenuCommands(handlers: NativeMenuHandlers
 export function installNativeApplicationMenu(
   handlers: NativeMenuHandlers,
   language: AppLanguage = "en",
-  markdownShortcuts?: MarkdownShortcutMap
+  markdownShortcuts?: MarkdownShortcutMap,
+  recentFiles?: readonly RecentMarkdownFile[]
 ) {
-  return getAppRuntime().menu.installApplicationMenu(handlers, language, markdownShortcuts);
+  return getAppRuntime().menu.installApplicationMenu(handlers, language, markdownShortcuts, recentFiles);
 }
 
 export function createNativeEditorContextMenuItems(

@@ -45,6 +45,7 @@ import type {
   NativeMarkdownFileTreeContextMenuHandlers,
   NativeMenuHandlers
 } from "../lib/tauri/menu";
+import type { RecentMarkdownFile } from "../lib/settings/app-settings";
 import type {
   NativeEditorWindowRestoreState,
   NativeSettingsWindowTarget,
@@ -189,7 +190,8 @@ export type AppMenuRuntime = {
   installApplicationMenu: (
     handlers: NativeMenuHandlers,
     language?: AppLanguage,
-    markdownShortcuts?: MarkdownShortcutMap
+    markdownShortcuts?: MarkdownShortcutMap,
+    recentFiles?: readonly RecentMarkdownFile[]
   ) => Promise<RuntimeCleanup>;
   installEditorContextMenu: (
     target: Pick<EventTarget, "addEventListener" | "removeEventListener">,
@@ -423,6 +425,7 @@ export type {
   EditorPreferences,
   ExportSettings,
   PicGoImageUploadSettings,
+  RecentMarkdownFile,
   S3ImageUploadSettings,
   WebDavImageUploadSettings,
   WebSearchSettings

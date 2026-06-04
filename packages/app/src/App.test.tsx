@@ -20,12 +20,14 @@ import {
   mockedDetectNativePandocPath,
   mockedCheckNativeAppUpdate,
   mockedCloseNativeWindow,
+  mockedClearStoredRecentMarkdownFiles,
   mockedDeleteNativeMarkdownTreeFile,
   mockedFetchAiProviderModels,
   mockedGetStoredCustomThemeCss,
   mockedGetStoredExportSettings,
   mockedGetStoredEditorPreferences,
   mockedGetStoredLanguage,
+  mockedGetStoredRecentMarkdownFiles,
   mockedGetStoredRecentMarkdownFolders,
   mockedGetStoredTheme,
   mockedGetStoredWorkspaceState,
@@ -65,6 +67,7 @@ import {
   mockedSaveStoredEditorPreferences,
   mockedSaveStoredExportSettings,
   mockedSaveStoredLanguage,
+  mockedSaveStoredRecentMarkdownFile,
   mockedSaveStoredRecentMarkdownFolder,
   mockedSaveStoredTheme,
   mockedSaveStoredWorkspaceState,
@@ -863,13 +866,17 @@ describe("Markra workspace", () => {
 
     renderApp();
 
-    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "en"));
+    await waitFor(() =>
+      expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "en", undefined, [])
+    );
 
     act(() => {
       onLanguageChanged?.("zh-CN");
     });
 
-    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "zh-CN"));
+    await waitFor(() =>
+      expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "zh-CN", undefined, [])
+    );
   });
 
   it("waits for the stored language before replacing the Rust startup menu", async () => {
@@ -890,7 +897,9 @@ describe("Markra workspace", () => {
       resolveLanguage?.("fr");
     });
 
-    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "fr"));
+    await waitFor(() =>
+      expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledWith(expect.any(Object), "fr", undefined, [])
+    );
   });
 
   it("renders an independent settings window route", async () => {
@@ -4412,6 +4421,67 @@ describe("Markra workspace", () => {
     );
 
     expect(screen.getByRole("tab", { name: /native-menu\.md/ })).toBeInTheDocument();
+  });
+
+  it("opens a recent markdown file from the native application menu", async () => {
+    const recentFile = {
+      name: "recent-menu.md",
+      path: "/mock-files/recent-menu.md"
+    };
+    mockedGetStoredRecentMarkdownFiles.mockResolvedValue([recentFile]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Recent menu\n\nOpened from the recent files menu.",
+      name: recentFile.name,
+      path: recentFile.path
+    });
+
+    renderApp();
+
+    await waitFor(() =>
+      expect(mockedInstallNativeApplicationMenu.mock.calls.some((call) =>
+        JSON.stringify(call[3]) === JSON.stringify([recentFile])
+      )).toBe(true)
+    );
+    const menuCall = mockedInstallNativeApplicationMenu.mock.calls.find((call) =>
+      JSON.stringify(call[3]) === JSON.stringify([recentFile])
+    );
+    const menuHandlers = menuCall?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.openRecentFile?.(recentFile);
+    });
+
+    expect(await screen.findByRole("heading", { name: "Recent menu" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /recent-menu\.md/ })).toBeInTheDocument();
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(recentFile.path);
+    expect(mockedSaveStoredRecentMarkdownFile).toHaveBeenCalledWith(recentFile);
+  });
+
+  it("clears recent markdown files from the native application menu", async () => {
+    const recentFile = {
+      name: "clearable.md",
+      path: "/mock-files/clearable.md"
+    };
+    mockedGetStoredRecentMarkdownFiles.mockResolvedValue([recentFile]);
+
+    renderApp();
+
+    await waitFor(() =>
+      expect(mockedInstallNativeApplicationMenu.mock.calls.some((call) =>
+        JSON.stringify(call[3]) === JSON.stringify([recentFile])
+      )).toBe(true)
+    );
+    const menuCall = mockedInstallNativeApplicationMenu.mock.calls.find((call) =>
+      JSON.stringify(call[3]) === JSON.stringify([recentFile])
+    );
+    const menuHandlers = menuCall?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.clearRecentFiles?.();
+    });
+
+    expect(mockedClearStoredRecentMarkdownFiles).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[3]).toEqual([]));
   });
 
   it("exports the current markdown document as standalone HTML from the native menu", async () => {

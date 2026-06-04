@@ -9,13 +9,17 @@ import {
   nativeAcceleratorsForMarkdownShortcuts,
   showContextMenu,
   type ContextMenuEntry,
-  type ContextMenuIdPrefixes
+  type ContextMenuIdPrefixes,
+  type RecentMarkdownFile
 } from "@markra/app/runtime";
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { AppLanguage } from "@markra/shared";
 import type { NativeMarkdownFolderFile } from "./file";
 
-export type NativeMenuHandlers = Partial<Record<NativeMenuCommand, () => unknown | Promise<unknown>>>;
+export type NativeMenuHandlers = Partial<Record<NativeStaticMenuCommand, () => unknown | Promise<unknown>>> & {
+  clearRecentFiles?: () => unknown | Promise<unknown>;
+  openRecentFile?: (file: RecentMarkdownFile) => unknown | Promise<unknown>;
+};
 
 export type NativeMarkdownFileTreeContextMenuHandlers = {
   canOpenFileToSide?: (file: NativeMarkdownFolderFile) => boolean;
@@ -37,7 +41,7 @@ export type NativeEditorContextMenuOptions = {
   markdownShortcuts?: MarkdownShortcutMap;
 };
 
-export type NativeMenuCommand =
+export type NativeStaticMenuCommand =
   | "checkForUpdates"
   | "openDocument"
   | "openFolder"
@@ -75,12 +79,25 @@ export type NativeMenuCommand =
   | "toggleAiCommand"
   | "toggleReadOnlyMode"
   | "toggleSourceMode";
+export type NativeMenuCommand =
+  | NativeStaticMenuCommand
+  | "clearRecentFiles"
+  | "openRecentFile";
 
 type NativeMenuCommandPayload = {
   command: NativeMenuCommand;
+  recentFile?: RecentMarkdownFile;
 };
 
-function runNativeMenuAction(handler: (() => unknown | Promise<unknown>) | undefined) {
+function runNativeMenuAction(payload: NativeMenuCommandPayload, handlers: NativeMenuHandlers) {
+  if (payload.command === "openRecentFile") {
+    if (!payload.recentFile) return;
+
+    Promise.resolve(handlers.openRecentFile?.(payload.recentFile)).catch(() => {});
+    return;
+  }
+
+  const handler = handlers[payload.command];
   if (!handler) return;
 
   Promise.resolve(handler()).catch(() => {});
@@ -88,27 +105,41 @@ function runNativeMenuAction(handler: (() => unknown | Promise<unknown>) | undef
 
 export async function listenNativeApplicationMenuCommands(handlers: NativeMenuHandlers) {
   return listen<NativeMenuCommandPayload>("markra://menu-command", (event) => {
-    runNativeMenuAction(handlers[event.payload.command]);
+    runNativeMenuAction(event.payload, handlers);
   });
 }
 
 export async function installNativeApplicationMenu(
   handlers: NativeMenuHandlers,
   language: AppLanguage = "en",
-  markdownShortcuts?: MarkdownShortcutMap
+  markdownShortcuts?: MarkdownShortcutMap,
+  recentFiles: readonly RecentMarkdownFile[] = []
 ) {
   const stopListening = await listenNativeApplicationMenuCommands(handlers);
 
   try {
     await invoke("install_application_menu", {
       accelerators: nativeAcceleratorsForMarkdownShortcuts(markdownShortcuts),
-      language
+      language,
+      recentFiles: normalizeRecentFilesForNativeMenu(recentFiles)
     });
   } catch {
     // Keep the Rust-installed startup menu working if runtime menu refresh is unavailable.
   }
 
   return stopListening;
+}
+
+function normalizeRecentFilesForNativeMenu(files: readonly RecentMarkdownFile[]): RecentMarkdownFile[] {
+  return files.flatMap((file) => {
+    const path = file.path.trim();
+    if (!path) return [];
+
+    return [{
+      name: file.name.trim() || path.split(/[\\/]/u).at(-1) || path,
+      path
+    }];
+  });
 }
 
 export function createNativeEditorContextMenuItems(

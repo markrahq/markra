@@ -9,13 +9,26 @@ use tauri::{
 pub(crate) const NATIVE_MENU_COMMAND_EVENT: &str = "markra://menu-command";
 
 const NEW_DOCUMENT_COMMAND: &str = "newDocument";
+const OPEN_RECENT_FILE_COMMAND: &str = "openRecentFile";
+const OPEN_RECENT_FILE_COMMAND_PREFIX: &str = "openRecentFile:";
+const CLEAR_RECENT_FILES_COMMAND: &str = "clearRecentFiles";
 const SETTINGS_WINDOW_COMMAND: &str = "openSettings";
 const CHECK_FOR_UPDATES_COMMAND: &str = "checkForUpdates";
 const MARKRA_GITHUB_URL: &str = "https://github.com/murongg/markra";
 
+#[derive(Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct NativeRecentFile {
+    pub(crate) name: String,
+    pub(crate) path: String,
+}
+
 #[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct NativeMenuCommand {
     pub(crate) command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) recent_file: Option<NativeRecentFile>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -28,13 +41,19 @@ enum NativeApplicationMenuProfile {
 struct NativeApplicationMenuConfig {
     accelerators: Option<HashMap<String, String>>,
     language: Option<AppLanguage>,
+    recent_files: Vec<NativeRecentFile>,
 }
 
 #[derive(Default)]
 pub(crate) struct NativeApplicationMenuState(Mutex<NativeApplicationMenuConfig>);
 
 impl NativeApplicationMenuState {
-    fn remember(&self, language: AppLanguage, accelerators: Option<HashMap<String, String>>) {
+    fn remember(
+        &self,
+        language: AppLanguage,
+        accelerators: Option<HashMap<String, String>>,
+        recent_files: Vec<NativeRecentFile>,
+    ) {
         let mut config = self
             .0
             .lock()
@@ -42,10 +61,18 @@ impl NativeApplicationMenuState {
         *config = NativeApplicationMenuConfig {
             accelerators,
             language: Some(language),
+            recent_files,
         };
     }
 
-    fn config(&self, identifier: &str) -> (AppLanguage, Option<HashMap<String, String>>) {
+    fn config(
+        &self,
+        identifier: &str,
+    ) -> (
+        AppLanguage,
+        Option<HashMap<String, String>>,
+        Vec<NativeRecentFile>,
+    ) {
         let config = self
             .0
             .lock()
@@ -57,6 +84,7 @@ impl NativeApplicationMenuState {
                 .language
                 .unwrap_or_else(|| resolve_startup_language(identifier)),
             config.accelerators,
+            config.recent_files,
         )
     }
 }
@@ -132,11 +160,10 @@ pub(crate) fn remember_native_menu_window_from_event<R: tauri::Runtime>(
     }
 }
 
-pub(crate) fn emit_native_menu_command<R: tauri::Runtime>(
+pub(crate) fn emit_native_menu_command_payload<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-    command: String,
+    payload: NativeMenuCommand,
 ) {
-    let payload = NativeMenuCommand { command };
     let target_label = app.state::<NativeMenuTargetState>().label();
 
     if let Some(window) = target_label.and_then(|label| app.get_webview_window(&label)) {
@@ -213,11 +240,55 @@ fn create_edit_submenu<R: tauri::Runtime>(
         .build()
 }
 
+fn create_open_recent_file_submenu<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    labels: crate::menu_labels::MenuLabels,
+    recent_files: &[NativeRecentFile],
+) -> tauri::Result<Submenu<R>> {
+    let mut builder =
+        SubmenuBuilder::with_id(app, "markra:file:open-recent", labels.open_recent_file);
+
+    if recent_files.is_empty() {
+        let empty =
+            MenuItemBuilder::with_id("markra:file:open-recent:empty", labels.no_recent_files)
+                .enabled(false)
+                .build(app)?;
+
+        return builder.item(&empty).build();
+    }
+
+    let mut items = Vec::new();
+    for (index, file) in recent_files.iter().enumerate() {
+        let label = if file.name.trim().is_empty() {
+            file.path.as_str()
+        } else {
+            file.name.as_str()
+        };
+        items.push(app_menu_item_without_accelerator(
+            app,
+            &format!("{OPEN_RECENT_FILE_COMMAND_PREFIX}{index}"),
+            label,
+        )?);
+    }
+
+    for item in &items {
+        builder = builder.item(item);
+    }
+
+    let clear = app_menu_item_without_accelerator(
+        app,
+        CLEAR_RECENT_FILES_COMMAND,
+        labels.clear_recent_files,
+    )?;
+
+    builder.separator().item(&clear).build()
+}
+
 pub(crate) fn create_application_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> tauri::Result<Menu<R>> {
     let language = resolve_startup_language(&app.config().identifier);
-    create_application_menu_for_language(app, language, None)
+    create_application_menu_for_language(app, language, None, &[])
 }
 
 fn create_settings_menu_for_language<R: tauri::Runtime>(
@@ -238,10 +309,11 @@ fn create_application_menu_for_profile<R: tauri::Runtime>(
     profile: NativeApplicationMenuProfile,
     language: AppLanguage,
     accelerators: Option<&HashMap<String, String>>,
+    recent_files: &[NativeRecentFile],
 ) -> tauri::Result<Menu<R>> {
     match profile {
         NativeApplicationMenuProfile::Editor => {
-            create_application_menu_for_language(app, language, accelerators)
+            create_application_menu_for_language(app, language, accelerators, recent_files)
         }
         NativeApplicationMenuProfile::Settings => create_settings_menu_for_language(app, language),
     }
@@ -255,6 +327,33 @@ fn current_native_application_menu_profile<R: tauri::Runtime>(
         .as_deref()
         .map(native_application_menu_profile_for_window_label)
         .unwrap_or(NativeApplicationMenuProfile::Editor)
+}
+
+pub(crate) fn native_menu_command_from_id<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    command: &str,
+) -> Option<NativeMenuCommand> {
+    if let Some(index) = recent_file_index_from_command(command) {
+        let (_, _, recent_files) = app
+            .state::<NativeApplicationMenuState>()
+            .config(&app.config().identifier);
+        return recent_files
+            .get(index)
+            .cloned()
+            .map(|recent_file| NativeMenuCommand {
+                command: OPEN_RECENT_FILE_COMMAND.to_string(),
+                recent_file: Some(recent_file),
+            });
+    }
+
+    if is_frontend_menu_command(command) {
+        return Some(NativeMenuCommand {
+            command: command.to_string(),
+            recent_file: None,
+        });
+    }
+
+    None
 }
 
 pub(crate) fn apply_native_application_menu_for_window_event<R: tauri::Runtime>(
@@ -275,10 +374,16 @@ fn apply_native_application_menu_for_window_label<R: tauri::Runtime>(
     #[cfg(target_os = "macos")]
     {
         let profile = native_application_menu_profile_for_window_label(label);
-        let (language, accelerators) = app
+        let (language, accelerators, recent_files) = app
             .state::<NativeApplicationMenuState>()
             .config(&app.config().identifier);
-        match create_application_menu_for_profile(app, profile, language, accelerators.as_ref()) {
+        match create_application_menu_for_profile(
+            app,
+            profile,
+            language,
+            accelerators.as_ref(),
+            &recent_files,
+        ) {
             Ok(menu) => {
                 let _ = app.set_menu(menu);
             }
@@ -298,6 +403,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     language: AppLanguage,
     accelerators: Option<&HashMap<String, String>>,
+    recent_files: &[NativeRecentFile],
 ) -> tauri::Result<Menu<R>> {
     let labels = crate::menu_labels::for_language(language);
 
@@ -308,6 +414,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         "CmdOrCtrl+N",
     )?;
     let open = app_menu_item(app, "openDocument", labels.open_document, "CmdOrCtrl+O")?;
+    let open_recent_files = create_open_recent_file_submenu(app, labels, recent_files)?;
     let open_folder = app_menu_item(app, "openFolder", labels.open_folder, "CmdOrCtrl+Shift+O")?;
     let close = app_menu_item(app, "closeDocument", labels.close_document, "CmdOrCtrl+W")?;
     let save = app_menu_item(app, "saveDocument", labels.save_document, "CmdOrCtrl+S")?;
@@ -456,7 +563,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
     let app_menu = create_markra_app_submenu(app, labels)?;
 
     let file_menu = SubmenuBuilder::with_id(app, "markra:file", labels.file)
-        .items(&[&new, &open, &open_folder, &close])
+        .items(&[&new, &open, &open_recent_files, &open_folder, &close])
         .separator()
         .items(&[&save, &save_as])
         .separator()
@@ -504,24 +611,70 @@ fn menu_accelerator(
         .unwrap_or_else(|| fallback.to_string())
 }
 
+fn recent_file_index_from_command(command: &str) -> Option<usize> {
+    command
+        .strip_prefix(OPEN_RECENT_FILE_COMMAND_PREFIX)?
+        .parse::<usize>()
+        .ok()
+}
+
+fn normalize_recent_files(files: Vec<NativeRecentFile>) -> Vec<NativeRecentFile> {
+    let mut seen_paths = std::collections::HashSet::new();
+    let mut normalized = Vec::new();
+
+    for file in files {
+        if normalized.len() >= 10 {
+            break;
+        }
+
+        let path = file.path.trim();
+        if path.is_empty() || !seen_paths.insert(path.to_string()) {
+            continue;
+        }
+
+        let name = file.name.trim();
+        normalized.push(NativeRecentFile {
+            name: if name.is_empty() {
+                path.rsplit(['/', '\\']).next().unwrap_or(path).to_string()
+            } else {
+                name.to_string()
+            },
+            path: path.to_string(),
+        });
+    }
+
+    normalized
+}
+
 #[tauri::command]
 pub(crate) fn install_application_menu(
     app: tauri::AppHandle,
     language: String,
     accelerators: Option<HashMap<String, String>>,
+    recent_files: Option<Vec<NativeRecentFile>>,
 ) -> Result<(), String> {
     let language = AppLanguage::from_code(&language)
         .ok_or_else(|| format!("Unsupported application menu language: {language}"))?;
-    app.state::<NativeApplicationMenuState>()
-        .remember(language, accelerators.clone());
+    let recent_files = normalize_recent_files(recent_files.unwrap_or_default());
+    app.state::<NativeApplicationMenuState>().remember(
+        language,
+        accelerators.clone(),
+        recent_files.clone(),
+    );
 
     #[cfg(target_os = "macos")]
     let profile = current_native_application_menu_profile(&app);
     #[cfg(not(target_os = "macos"))]
     let profile = NativeApplicationMenuProfile::Editor;
 
-    let menu = create_application_menu_for_profile(&app, profile, language, accelerators.as_ref())
-        .map_err(|error| error.to_string())?;
+    let menu = create_application_menu_for_profile(
+        &app,
+        profile,
+        language,
+        accelerators.as_ref(),
+        &recent_files,
+    )
+    .map_err(|error| error.to_string())?;
 
     app.set_menu(menu)
         .map(|_| {
@@ -539,9 +692,14 @@ pub(crate) fn is_native_settings_window_command(command: &str) -> bool {
 }
 
 pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
+    if recent_file_index_from_command(command).is_some() {
+        return true;
+    }
+
     matches!(
         command,
         CHECK_FOR_UPDATES_COMMAND
+            | CLEAR_RECENT_FILES_COMMAND
             | "openDocument"
             | "openFolder"
             | "closeDocument"
@@ -594,6 +752,8 @@ mod tests {
         assert!(!is_frontend_menu_command("newDocument"));
         assert!(is_frontend_menu_command("checkForUpdates"));
         assert!(is_frontend_menu_command("openDocument"));
+        assert!(is_frontend_menu_command("openRecentFile:0"));
+        assert!(is_frontend_menu_command("clearRecentFiles"));
         assert!(is_frontend_menu_command("openFolder"));
         assert!(is_frontend_menu_command("closeDocument"));
         assert!(is_frontend_menu_command("saveDocument"));

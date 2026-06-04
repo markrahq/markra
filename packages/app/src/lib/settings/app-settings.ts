@@ -42,6 +42,7 @@ const editorPreferencesKey = "editorPreferences";
 const exportSettingsKey = "exportSettings";
 const webSearchKey = "webSearch";
 const workspaceKey = "workspace";
+const recentMarkdownFilesKey = "recentMarkdownFiles";
 const recentMarkdownFoldersKey = "recentMarkdownFolders";
 
 export type ResolvedAppTheme = "light" | "dark";
@@ -185,6 +186,10 @@ export type RecentMarkdownFolder = {
   name: string;
   path: string;
 };
+export type RecentMarkdownFile = {
+  name: string;
+  path: string;
+};
 export type { AppLanguage };
 export type { EditorContentWidth };
 export type { WebSearchProviderId, WebSearchSettings };
@@ -311,6 +316,7 @@ export const defaultWebSearchSettings: WebSearchSettings = {
   providerId: "local-bing",
   searxngApiHost: ""
 };
+export const recentMarkdownFilesMaxLength = 10;
 export const recentMarkdownFoldersMaxLength = 5;
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
@@ -708,6 +714,45 @@ export async function saveStoredWorkspaceState(patch: Partial<StoredWorkspaceSta
   await store.save();
 }
 
+export async function getStoredRecentMarkdownFiles(): Promise<RecentMarkdownFile[]> {
+  const store = await loadSettingsStore();
+  const files = await store.get<RecentMarkdownFile[]>(recentMarkdownFilesKey);
+
+  return normalizeRecentMarkdownFiles(files);
+}
+
+export async function saveStoredRecentMarkdownFile(file: RecentMarkdownFile) {
+  const store = await loadSettingsStore();
+  const current = normalizeRecentMarkdownFiles(await store.get<RecentMarkdownFile[]>(recentMarkdownFilesKey));
+  const files = prependRecentMarkdownFile(current, file);
+
+  await store.set(recentMarkdownFilesKey, files);
+  await store.save();
+
+  return files;
+}
+
+export async function removeStoredRecentMarkdownFile(path: string) {
+  const normalizedPath = path.trim();
+  const store = await loadSettingsStore();
+  const current = normalizeRecentMarkdownFiles(await store.get<RecentMarkdownFile[]>(recentMarkdownFilesKey));
+  const files = normalizedPath
+    ? current.filter((file) => file.path !== normalizedPath)
+    : current;
+
+  await store.set(recentMarkdownFilesKey, files);
+  await store.save();
+
+  return files;
+}
+
+export async function clearStoredRecentMarkdownFiles() {
+  const store = await loadSettingsStore();
+
+  await store.delete(recentMarkdownFilesKey);
+  await store.save();
+}
+
 export async function getStoredRecentMarkdownFolders(): Promise<RecentMarkdownFolder[]> {
   const store = await loadSettingsStore();
   const folders = await store.get<RecentMarkdownFolder[]>(recentMarkdownFoldersKey);
@@ -883,6 +928,38 @@ export function normalizeSplitVisualPanePercent(value: unknown) {
   if (percent === null) return defaultSplitVisualPanePercent;
 
   return Math.round(percent);
+}
+
+export function normalizeRecentMarkdownFiles(value: unknown): RecentMarkdownFile[] {
+  if (!Array.isArray(value)) return [];
+
+  const seenPaths = new Set<string>();
+  const files: RecentMarkdownFile[] = [];
+
+  value.forEach((item) => {
+    if (files.length >= recentMarkdownFilesMaxLength) return;
+    if (typeof item !== "object" || item === null) return;
+
+    const candidate = item as Partial<RecentMarkdownFile>;
+    const path = typeof candidate.path === "string" ? candidate.path.trim() : "";
+    if (!path || seenPaths.has(path)) return;
+
+    const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
+    seenPaths.add(path);
+    files.push({
+      name: name || pathNameFromPath(path),
+      path
+    });
+  });
+
+  return files;
+}
+
+export function prependRecentMarkdownFile(
+  files: readonly RecentMarkdownFile[],
+  file: RecentMarkdownFile
+) {
+  return normalizeRecentMarkdownFiles([file, ...files]);
 }
 
 export function normalizeRecentMarkdownFolders(value: unknown): RecentMarkdownFolder[] {

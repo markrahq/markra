@@ -111,6 +111,7 @@ import {
   saveStoredAiAgentSessionTitle,
   saveStoredWorkspaceState,
   setStoredAiAgentSessionArchived,
+  type RecentMarkdownFile,
   type RecentMarkdownFolder,
   type StoredWorkspaceSideBySideGroup,
   type TitlebarActionPreference
@@ -523,6 +524,7 @@ function WorkspaceApp() {
     restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup
   });
   const {
+    clearRecentMarkdownFiles,
     clearOpenDocument,
     createBlankDocument,
     confirmCanDiscardCurrentDocument,
@@ -535,11 +537,13 @@ function WorkspaceApp() {
     handleMarkdownChange,
     handleMarkdownTabChange,
     openMarkdownFile,
+    openRecentMarkdownFile,
     openTreeMarkdownFileInBackground,
     openTreeMarkdownFile,
     outlineItems,
     replaceOpenDocumentFile,
     replaceMovedOpenDocumentFile,
+    recentFiles: recentMarkdownFiles,
     restoreDocumentContent,
     saveCurrentDocumentContent,
     saveCurrentDocument,
@@ -1861,6 +1865,11 @@ function WorkspaceApp() {
       pickerTitle: translate("app.openMarkdownOrFolder")
     });
   }, [captureActiveDocumentViewState, openMarkdownFile, translate]);
+  const handleOpenRecentMarkdownFile = useCallback(async (file: RecentMarkdownFile) => {
+    captureActiveDocumentViewState();
+    setActiveImageFile(null);
+    await openRecentMarkdownFile(file);
+  }, [captureActiveDocumentViewState, openRecentMarkdownFile]);
   const handleCloseCurrentFile = useCallback(async () => {
     captureActiveDocumentViewState();
 
@@ -2585,6 +2594,8 @@ function WorkspaceApp() {
     language: appLanguage.language,
     markdownShortcuts: editorPreferences.preferences.markdownShortcuts,
     openDocument: handleOpenMarkdownFile,
+    openRecentFile: handleOpenRecentMarkdownFile,
+    clearRecentFiles: clearRecentMarkdownFiles,
     openFolder: handleOpenMarkdownFolder,
     runAiQuickAction: aiFeatureEnabled ? handleAiContextMenuAction : undefined,
     runEditorShortcut: handleRunEditorShortcut,
@@ -2601,7 +2612,8 @@ function WorkspaceApp() {
   useNativeMarkdownDrop(handleDroppedMarkdownPath);
   useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null, {
     getAiCommandsAvailable: aiFeatureEnabled ? getAiContextMenuAvailable : () => false,
-    markdownShortcuts: editorPreferences.preferences.markdownShortcuts
+    markdownShortcuts: editorPreferences.preferences.markdownShortcuts,
+    recentFiles: recentMarkdownFiles
   });
   useApplicationShortcuts({
     closeDocument: handleCloseCurrentFile,

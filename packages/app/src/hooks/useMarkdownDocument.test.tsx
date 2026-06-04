@@ -12,15 +12,27 @@ import {
   watchNativeMarkdownFile
 } from "../lib/tauri";
 import {
+  clearStoredRecentMarkdownFiles,
   consumeWelcomeDocumentState,
+  getStoredRecentMarkdownFiles,
   getStoredWorkspaceState,
+  removeStoredRecentMarkdownFile,
+  saveStoredRecentMarkdownFile,
   saveStoredWorkspaceState
 } from "../lib/settings/app-settings";
 
 vi.mock("../lib/settings/app-settings", () => ({
+  clearStoredRecentMarkdownFiles: vi.fn(async () => {}),
   consumeWelcomeDocumentState: vi.fn(),
   createAiAgentSessionId: vi.fn(() => "session-test"),
+  getStoredRecentMarkdownFiles: vi.fn(),
   getStoredWorkspaceState: vi.fn(),
+  prependRecentMarkdownFile: vi.fn((files: Array<{ path: string }>, file: { path: string }) => [
+    file,
+    ...files.filter((item: { path: string }) => item.path !== file.path)
+  ].slice(0, 10)),
+  removeStoredRecentMarkdownFile: vi.fn(async () => []),
+  saveStoredRecentMarkdownFile: vi.fn(async () => []),
   saveStoredWorkspaceState: vi.fn(async () => {})
 }));
 
@@ -51,8 +63,12 @@ const mockedListenNativeAppExitRequested = vi.mocked(listenNativeAppExitRequeste
 const mockedListenNativeWindowCloseRequested = vi.mocked(listenNativeWindowCloseRequested);
 const mockedSetNativeEditorWindowRestoreState = vi.mocked(setNativeEditorWindowRestoreState);
 const mockedWatchNativeMarkdownFile = vi.mocked(watchNativeMarkdownFile);
+const mockedClearStoredRecentMarkdownFiles = vi.mocked(clearStoredRecentMarkdownFiles);
 const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
+const mockedGetStoredRecentMarkdownFiles = vi.mocked(getStoredRecentMarkdownFiles);
 const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
+const mockedRemoveStoredRecentMarkdownFile = vi.mocked(removeStoredRecentMarkdownFile);
+const mockedSaveStoredRecentMarkdownFile = vi.mocked(saveStoredRecentMarkdownFile);
 const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 
 describe("useMarkdownDocument", () => {
@@ -67,11 +83,17 @@ describe("useMarkdownDocument", () => {
     mockedListenNativeWindowCloseRequested.mockReset();
     mockedSetNativeEditorWindowRestoreState.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
+    mockedClearStoredRecentMarkdownFiles.mockReset();
     mockedConsumeWelcomeDocumentState.mockReset();
+    mockedGetStoredRecentMarkdownFiles.mockReset();
     mockedGetStoredWorkspaceState.mockReset();
+    mockedRemoveStoredRecentMarkdownFile.mockReset();
+    mockedSaveStoredRecentMarkdownFile.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
+    mockedClearStoredRecentMarkdownFiles.mockResolvedValue(undefined);
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockedGetStoredRecentMarkdownFiles.mockResolvedValue([]);
     mockedGetStoredWorkspaceState.mockResolvedValue({
       aiAgentSessionId: null,
       filePath: null,
@@ -80,6 +102,8 @@ describe("useMarkdownDocument", () => {
       folderPath: null,
       openFilePaths: []
     });
+    mockedRemoveStoredRecentMarkdownFile.mockResolvedValue([]);
+    mockedSaveStoredRecentMarkdownFile.mockResolvedValue([]);
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
     mockedSaveNativeMarkdownFile.mockResolvedValue({
       name: "saved.md",
