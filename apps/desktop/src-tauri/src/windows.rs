@@ -500,6 +500,7 @@ mod tests {
 
         for permission in [
             "core:window:allow-close",
+            "core:window:allow-destroy",
             "core:window:allow-minimize",
             "core:window:allow-toggle-maximize",
         ] {
