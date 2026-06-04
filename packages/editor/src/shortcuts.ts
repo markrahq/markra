@@ -13,7 +13,7 @@ import {
 import { strikethroughSchema } from "@milkdown/kit/preset/gfm";
 import { exitCode, lift, setBlockType, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
 import { redo, undo } from "@milkdown/kit/prose/history";
-import type { NodeType } from "@milkdown/kit/prose/model";
+import type { NodeType, ResolvedPos } from "@milkdown/kit/prose/model";
 import type { Command, Selection } from "@milkdown/kit/prose/state";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
@@ -99,6 +99,46 @@ function selectionIsEmptyTextBlock(selection: Selection) {
 
 function selectionIsEmptyBlockquote(selection: Selection, blockquote: NodeType) {
   return selectionIsEmptyTextBlock(selection) && selectionIsInsideNodeType(selection, blockquote);
+}
+
+function ancestorDepthOfNodeType($position: ResolvedPos, nodeType: NodeType) {
+  for (let depth = $position.depth; depth > 0; depth -= 1) {
+    if ($position.node(depth).type === nodeType) return depth;
+  }
+
+  return null;
+}
+
+function blockquoteExitDepth(selection: Selection, blockquote: NodeType) {
+  if (!(selection instanceof TextSelection) || !selection.empty) return null;
+  if (!selection.$from.parent.isTextblock) return null;
+  if (selection.$from.parentOffset !== selection.$from.parent.content.size) return null;
+
+  const blockquoteDepth = ancestorDepthOfNodeType(selection.$from, blockquote);
+  if (blockquoteDepth === null) return null;
+  if (selection.$from.after(selection.$from.depth) !== selection.$from.end(blockquoteDepth)) return null;
+
+  return blockquoteDepth;
+}
+
+function exitBlockquoteAtEnd(view: EditorView, blockquote: NodeType, paragraph: NodeType) {
+  const blockquoteDepth = blockquoteExitDepth(view.state.selection, blockquote);
+  if (blockquoteDepth === null) return false;
+
+  if (selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
+    return runCommand(view, lift);
+  }
+
+  const insertAt = view.state.selection.$from.after(blockquoteDepth);
+  const transaction = view.state.tr.insert(insertAt, paragraph.create());
+  view.dispatch(
+    transaction
+      .setSelection(TextSelection.create(transaction.doc, insertAt + 1))
+      .scrollIntoView()
+  );
+  view.focus();
+
+  return true;
 }
 
 function emptyTopLevelParagraphAfterTable(view: EditorView, paragraph: NodeType) {
@@ -236,10 +276,18 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
         const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
 
         // Support both Milkdown-style shortcuts and common document-editor aliases.
-        if (event.key === "Enter" && !hasModifier && selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
-          event.preventDefault();
-          view.focus();
-          return true;
+        if (event.key === "Enter" && !hasModifier && selectionIsInsideNodeType(view.state.selection, blockquote)) {
+          const handled = exitBlockquoteAtEnd(view, blockquote, paragraph);
+          if (handled) {
+            event.preventDefault();
+            return true;
+          }
+
+          if (selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
+            event.preventDefault();
+            view.focus();
+            return true;
+          }
         } else if (event.key === "Backspace" && !hasModifier && selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
           const handled = runCommand(view, lift);
           if (!handled) return false;

@@ -5130,15 +5130,46 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
-  it("keeps empty quote formatting when pressing Enter", async () => {
-    const { container, view } = await renderEditor("> ");
+  it("exits empty quote formatting when pressing Enter", async () => {
+    const { container, editor, view } = await renderEditor("> ");
     moveCursor(view, findFirstTextBlockCursor(view));
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
 
     expect(container.querySelector(".ProseMirror blockquote")).toBeInTheDocument();
     expect(pressEnter(view)).toBe(true);
 
-    expect(container.querySelector(".ProseMirror blockquote")).toBeInTheDocument();
-    expect(container.querySelector(".ProseMirror")?.textContent).toBe("");
+    expect(container.querySelector(".ProseMirror blockquote")).not.toBeInTheDocument();
+    expect(selectionHasAncestor(view, "blockquote")).toBe(false);
+    typeText(view, "Next");
+    expect(serializeMarkdown(view.state.doc)).toBe("Next\n");
+    await settleMarkdownListener();
+  });
+
+  it("exits quote formatting when pressing Enter at the quote end", async () => {
+    const { container, editor, view } = await renderEditor("> Quote");
+    moveCursor(view, findTextPosition(view, "Quote", "Quote".length));
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(container.querySelector(".ProseMirror blockquote")).toHaveTextContent("Quote");
+    expect(pressEnter(view)).toBe(true);
+
+    expect(selectionHasAncestor(view, "blockquote")).toBe(false);
+    typeText(view, "Next");
+    expect(serializeMarkdown(view.state.doc)).toBe("> Quote\n\nNext\n");
+    await settleMarkdownListener();
+  });
+
+  it("keeps the cursor inside quote formatting when pressing Shift+Enter", async () => {
+    const { container, view } = await renderEditor("> Quote");
+    moveCursor(view, findTextPosition(view, "Quote", "Quote".length));
+
+    expect(pressShortcut(view, "Enter", { shiftKey: true })).toBe(true);
+
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    typeText(view, "Next");
+    expect(container.querySelector(".ProseMirror blockquote br")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror blockquote")).toHaveTextContent("QuoteNext");
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
     await settleMarkdownListener();
   });
 
