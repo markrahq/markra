@@ -227,6 +227,7 @@ describe("app settings", () => {
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
+        { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -515,6 +516,7 @@ describe("app settings", () => {
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
+        { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -537,7 +539,8 @@ describe("app settings", () => {
       { id: "theme", visible: true },
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
-      { id: "splitMode", visible: true }
+      { id: "splitMode", visible: true },
+      { id: "history", visible: true }
     ]);
   });
 
@@ -632,6 +635,7 @@ describe("app settings", () => {
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
       { id: "splitMode", visible: true },
+      { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ] as const;
@@ -639,6 +643,7 @@ describe("app settings", () => {
     expect(reorderTitlebarActions(actions, "aiAgent", "save")).toEqual([
       { id: "sourceMode", visible: true },
       { id: "splitMode", visible: true },
+      { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "aiAgent", visible: true },
       { id: "theme", visible: true }
@@ -648,6 +653,7 @@ describe("app settings", () => {
       { id: "save", visible: true },
       { id: "sourceMode", visible: true },
       { id: "splitMode", visible: true },
+      { id: "history", visible: true },
       { id: "theme", visible: true }
     ]);
   });
@@ -879,6 +885,7 @@ describe("app settings", () => {
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
+        { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -947,7 +954,8 @@ describe("app settings", () => {
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
-        { id: "aiAgent", visible: true }
+        { id: "aiAgent", visible: true },
+        { id: "history", visible: true }
       ],
       showWordCount: false
     });
@@ -1012,7 +1020,8 @@ describe("app settings", () => {
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
-        { id: "aiAgent", visible: true }
+        { id: "aiAgent", visible: true },
+        { id: "history", visible: true }
       ],
       showWordCount: false
     });

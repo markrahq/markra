@@ -32,6 +32,7 @@ import {
   mockedInstallNativeApplicationMenu,
   mockedInstallNativeEditorContextMenu,
   mockedInstallNativeMarkdownFileDrop,
+  mockedListNativeMarkdownFileHistory,
   mockedListNativeMarkdownFilesForPath,
   mockedListenNativeOpenedMarkdownPaths,
   mockedListenAppEditorPreferencesChanged,
@@ -49,6 +50,7 @@ import {
   mockedOpenNativeExternalUrl,
   mockedOpenSettingsWindow,
   mockedReadNativeMarkdownFile,
+  mockedReadNativeMarkdownFileHistory,
   mockedRemoveStoredRecentMarkdownFolder,
   mockedResetWelcomeDocumentState,
   mockedRenameNativeMarkdownTreeFile,
@@ -227,6 +229,48 @@ describe("Markra workspace", () => {
     expect(shell).toHaveClass("bg-(--bg-primary)");
     expect(shell).toHaveClass("grid-rows-[minmax(0,1fr)]");
     expect(shell).toHaveClass("overscroll-none");
+  });
+
+  it("restores a selected history version into the current document", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Current\n\nSynthetic body.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([
+      {
+        id: "history-current",
+        createdAt: 1_700_000_001_000,
+        sizeBytes: 27
+      }
+    ]);
+    mockedReadNativeMarkdownFileHistory.mockResolvedValue({
+      id: "history-current",
+      contents: "# Earlier\n\nSynthetic body."
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Current")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show history" }));
+    expect(await screen.findByRole("region", { name: "History versions" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "History versions" })).not.toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("option"));
+
+    await waitFor(() => {
+      const editor = screen.getByLabelText("Markdown editor");
+      expect(within(editor).getByText("Earlier")).toBeInTheDocument();
+      expect(within(editor).queryByText("Current")).not.toBeInTheDocument();
+    });
+    expect(container.querySelector(".ProseMirror")?.textContent).toContain("Earlier");
+    expect(screen.getByRole("region", { name: "History versions" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
+    expect(mockedListNativeMarkdownFileHistory).toHaveBeenCalledWith(mockNativePath);
+    expect(mockedReadNativeMarkdownFileHistory).toHaveBeenCalledWith(mockNativePath, "history-current");
   });
 
   it("hides unavailable runtime feature surfaces", async () => {

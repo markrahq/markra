@@ -90,6 +90,7 @@ describe("useNativeMenuHandlers", () => {
     const checkForUpdates = vi.fn();
     const toggleAiAgent = vi.fn();
     const toggleAiCommand = vi.fn();
+    const toggleDocumentHistory = vi.fn();
     const toggleMarkdownFiles = vi.fn();
     const toggleReadOnlyMode = vi.fn();
     const toggleSourceMode = vi.fn();
@@ -100,6 +101,7 @@ describe("useNativeMenuHandlers", () => {
         closeDocument,
         toggleAiAgent,
         toggleAiCommand,
+        toggleDocumentHistory,
         toggleMarkdownFiles,
         toggleReadOnlyMode,
         toggleSourceMode
@@ -109,6 +111,7 @@ describe("useNativeMenuHandlers", () => {
     result.current.closeDocument?.();
     result.current.checkForUpdates?.();
     result.current.toggleMarkdownFiles?.();
+    result.current.toggleDocumentHistory?.();
     result.current.toggleAiAgent?.();
     result.current.toggleAiCommand?.();
     result.current.toggleSourceMode?.();
@@ -117,6 +120,7 @@ describe("useNativeMenuHandlers", () => {
     expect(closeDocument).toHaveBeenCalledTimes(1);
     expect(checkForUpdates).toHaveBeenCalledTimes(1);
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
+    expect(toggleDocumentHistory).toHaveBeenCalledTimes(1);
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
     expect(toggleAiCommand).toHaveBeenCalledTimes(1);
     expect(toggleReadOnlyMode).toHaveBeenCalledTimes(1);
@@ -165,6 +169,45 @@ describe("useApplicationShortcuts", () => {
     });
 
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes the configurable document history shortcut", () => {
+    const toggleDocumentHistory = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        markdownShortcuts: {
+          toggleDocumentHistory: "Mod+Alt+H"
+        },
+        toggleDocumentHistory
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      key: "h",
+      altKey: true,
+      metaKey: true
+    });
+
+    expect(toggleDocumentHistory).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes the default document history shortcut", () => {
+    const toggleDocumentHistory = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        toggleDocumentHistory
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      key: "h",
+      metaKey: true,
+      shiftKey: true
+    });
+
+    expect(toggleDocumentHistory).toHaveBeenCalledTimes(1);
   });
 
   it("routes the configurable inline AI command shortcut", () => {

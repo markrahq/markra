@@ -8,6 +8,7 @@ import {
   Eye,
   FileText,
   HardDrive,
+  History,
   Languages,
   Moon,
   PanelRight,
@@ -401,6 +402,11 @@ const titlebarActionOptions: Array<{
     labelKey: "app.switchToSplitMode"
   },
   {
+    icon: History,
+    id: "history",
+    labelKey: "app.showDocumentHistory"
+  },
+  {
     icon: Save,
     id: "save",
     labelKey: "app.saveMarkdown"
@@ -443,6 +449,7 @@ const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
   table: "menu.table",
   toggleAiAgent: "app.toggleAiAgent",
   toggleAiCommand: "app.aiCommandDialog",
+  toggleDocumentHistory: "app.documentHistory",
   toggleMarkdownFiles: "app.toggleMarkdownFiles",
   toggleReadOnlyMode: "app.toggleReadOnlyMode",
   toggleSourceMode: "app.switchToSourceMode"
@@ -461,7 +468,14 @@ const keyboardShortcutSections: Array<{
 }> = [
   {
     labelKey: "settings.editor.shortcutsGroupApp",
-    actions: ["toggleMarkdownFiles", "toggleAiAgent", "toggleAiCommand", "toggleSourceMode", "toggleReadOnlyMode"]
+    actions: [
+      "toggleMarkdownFiles",
+      "toggleDocumentHistory",
+      "toggleAiAgent",
+      "toggleAiCommand",
+      "toggleSourceMode",
+      "toggleReadOnlyMode"
+    ]
   },
   {
     labelKey: "settings.categories.editor",

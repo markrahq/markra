@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
-import { fileNameFromPath } from "@markra/shared";
+import { debug, fileNameFromPath } from "@markra/shared";
 import type {
   PicGoImageUploadSettings,
   S3ImageUploadSettings,
@@ -11,6 +11,17 @@ import type {
 
 type MarkdownFileResponse = {
   path: string;
+  contents: string;
+};
+
+type MarkdownFileHistoryEntryResponse = {
+  id: string;
+  createdAt: number;
+  sizeBytes: number;
+};
+
+type MarkdownFileHistoryFileResponse = {
+  id: string;
   contents: string;
 };
 
@@ -40,6 +51,17 @@ export type NativeMarkdownFile = {
   path: string;
   name: string;
   content: string;
+};
+
+export type NativeMarkdownFileHistoryEntry = {
+  id: string;
+  createdAt: number;
+  sizeBytes: number;
+};
+
+export type NativeMarkdownFileHistoryFile = {
+  id: string;
+  contents: string;
 };
 
 export type NativeMarkdownFolderFile = {
@@ -84,7 +106,9 @@ export type NativeMarkdownDroppedTarget =
     };
 
 export type SaveNativeMarkdownFileInput = {
+  historyCursorId?: string;
   path: string | null;
+  skipHistorySnapshot?: boolean;
   suggestedName: string;
   contents: string;
 };
@@ -310,15 +334,57 @@ export async function listenNativeOpenedMarkdownPaths(onPaths: (paths: string[])
 }
 
 export async function readNativeMarkdownFile(path: string): Promise<NativeMarkdownFile> {
+  debug(() => ["[markra-history] native read file start", {
+    path
+  }]);
   const file = await invoke<MarkdownFileResponse>("read_markdown_file", {
     path
   });
+  debug(() => ["[markra-history] native read file success", {
+    contentsChars: file.contents.length,
+    path: file.path
+  }]);
 
   return {
     path: file.path,
     name: fileNameFromPath(file.path),
     content: file.contents
   };
+}
+
+export async function listNativeMarkdownFileHistory(path: string): Promise<NativeMarkdownFileHistoryEntry[]> {
+  debug(() => ["[markra-history] native list history start", {
+    path
+  }]);
+  const entries = await invoke<MarkdownFileHistoryEntryResponse[]>("list_markdown_file_history", {
+    path
+  });
+  debug(() => ["[markra-history] native list history success", {
+    entryCount: entries.length,
+    firstEntryId: entries[0]?.id ?? null,
+    path
+  }]);
+  return entries;
+}
+
+export async function readNativeMarkdownFileHistory(
+  path: string,
+  id: string
+): Promise<NativeMarkdownFileHistoryFile> {
+  debug(() => ["[markra-history] native read history start", {
+    historyId: id,
+    path
+  }]);
+  const file = await invoke<MarkdownFileHistoryFileResponse>("read_markdown_file_history", {
+    id,
+    path
+  });
+  debug(() => ["[markra-history] native read history success", {
+    contentsChars: file.contents.length,
+    historyId: file.id,
+    path
+  }]);
+  return file;
 }
 
 export async function readNativeMarkdownTemplateFile(fileName: string): Promise<string> {
@@ -599,10 +665,18 @@ export async function openNativeMarkdownFolder(labels?: NativeMarkdownPickerLabe
 }
 
 export async function saveNativeMarkdownFile({
+  historyCursorId,
   path,
+  skipHistorySnapshot,
   suggestedName,
   contents
 }: SaveNativeMarkdownFileInput): Promise<SavedNativeMarkdownFile | null> {
+  debug(() => ["[markra-history] native save markdown start", {
+    contentsChars: contents.length,
+    path,
+    skipHistorySnapshot: skipHistorySnapshot === true,
+    suggestedName
+  }]);
   // Existing files save in place. Untitled documents first ask macOS for a target path.
   const targetPath =
     path ??
@@ -611,12 +685,34 @@ export async function saveNativeMarkdownFile({
       filters: markdownFilters
     }));
 
-  if (!targetPath) return null;
+  if (!targetPath) {
+    debug(() => ["[markra-history] native save markdown canceled", {
+      suggestedName
+    }]);
+    return null;
+  }
 
-  await invoke("write_markdown_file", {
+  const writeArgs: {
+    contents: string;
+    historyCursorId?: string;
+    path: string;
+    skipHistorySnapshot?: boolean;
+  } = {
     path: targetPath,
     contents
-  });
+  };
+  if (historyCursorId?.trim()) {
+    writeArgs.historyCursorId = historyCursorId;
+  }
+  if (skipHistorySnapshot === true) {
+    writeArgs.skipHistorySnapshot = true;
+  }
+
+  await invoke("write_markdown_file", writeArgs);
+  debug(() => ["[markra-history] native save markdown success", {
+    skipHistorySnapshot: skipHistorySnapshot === true,
+    targetPath
+  }]);
 
   return {
     path: targetPath,
@@ -839,8 +935,14 @@ export async function watchNativeMarkdownFile(
   onChange: NativeMarkdownFileChangeHandler,
   onTreeChange?: NativeMarkdownTreeChangeHandler
 ) {
+  debug(() => ["[markra-history] native watch subscribe", {
+    path
+  }]);
   const unlistenFile = await listen<MarkdownFileChangedPayload>(markdownFileChangedEvent, (event) => {
     if (event.payload.path !== path) return;
+    debug(() => ["[markra-history] native watch file event", {
+      path: event.payload.path
+    }]);
     onChange(event.payload.path);
   });
   let unlistenTree: (() => unknown) | null = null;
@@ -850,18 +952,32 @@ export async function watchNativeMarkdownFile(
       const rootPath = parentPathFromPath(path);
       unlistenTree = await listen<MarkdownTreeChangedPayload>(markdownTreeChangedEvent, (event) => {
         if (event.payload.rootPath !== rootPath) return;
+        debug(() => ["[markra-history] native watch tree event", {
+          path: event.payload.path,
+          rootPath: event.payload.rootPath
+        }]);
         onTreeChange(event.payload.path);
       });
     }
 
     await invoke("watch_markdown_file", { path });
+    debug(() => ["[markra-history] native watch ready", {
+      path
+    }]);
   } catch (error) {
+    debug(() => ["[markra-history] native watch failed", {
+      error: error instanceof Error ? error.message : String(error),
+      path
+    }]);
     unlistenFile();
     unlistenTree?.();
     throw error;
   }
 
   return () => {
+    debug(() => ["[markra-history] native watch unsubscribe", {
+      path
+    }]);
     unlistenFile();
     unlistenTree?.();
     invoke("unwatch_markdown_file", { path });

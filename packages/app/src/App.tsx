@@ -15,6 +15,7 @@ import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { AiAgentPanel } from "./components/AiAgentPanel";
 import { AiSelectionToolbar } from "./components/AiSelectionToolbar";
+import { DocumentHistoryDialog } from "./components/DocumentHistoryDialog";
 import { DocumentSearchBar } from "./components/DocumentSearchBar";
 import { ImagePreview } from "./components/ImagePreview";
 import {
@@ -343,6 +344,8 @@ function WorkspaceApp() {
   const [documentSearchActiveIndex, setDocumentSearchActiveIndex] = useState(0);
   const [documentSearchRevealRevision, setDocumentSearchRevealRevision] = useState(0);
   const [visualDocumentSearchMatches, setVisualDocumentSearchMatches] = useState<SearchRange[]>([]);
+  const [documentHistoryOpen, setDocumentHistoryOpen] = useState(false);
+  const [documentHistoryRefreshKey, setDocumentHistoryRefreshKey] = useState(0);
   const [splitVisualPanePercent, setSplitVisualPanePercent] = useState(defaultSplitVisualPanePercent);
   const [sideDocumentMainPanePercent, setSideDocumentMainPanePercent] = useState(defaultSideDocumentMainPanePercent);
   const [editorTabDropTargetActive, setEditorTabDropTargetActive] = useState(false);
@@ -537,6 +540,8 @@ function WorkspaceApp() {
     outlineItems,
     replaceOpenDocumentFile,
     replaceMovedOpenDocumentFile,
+    restoreDocumentContent,
+    saveCurrentDocumentContent,
     saveCurrentDocument,
     saveMarkdownTab,
     selectMarkdownTab,
@@ -547,6 +552,7 @@ function WorkspaceApp() {
   documentRevisionRef.current = document.revision;
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
   const hasOpenDocument = document.open;
+  const documentHistoryAvailable = hasOpenDocument && document.path !== null && !activeImageFile && !readOnlyMode;
   const documentSearchAvailable = hasOpenDocument && !activeImageFile;
   const documentSearchSurface: EditorSurface = sourceSurfaceActive ? "source" : "visual";
   const sourceDocumentSearchMatches = useMemo(
@@ -1914,6 +1920,62 @@ function WorkspaceApp() {
     updateActiveAiSelection
   ]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
+  const handleDocumentHistoryOpen = useCallback(() => {
+    if (!documentHistoryAvailable) return;
+
+    setDocumentHistoryOpen((current) => !current);
+  }, [documentHistoryAvailable]);
+  const handleDocumentHistoryRestore = useCallback((contents: string, historyId: string) => {
+    debug(() => ["[markra-history] app restore requested", {
+      contentsChars: contents.length,
+      currentDirty: document.dirty,
+      currentPath: document.path,
+      currentRevision: document.revision,
+      historyId
+    }]);
+
+    const restored = restoreDocumentContent(contents);
+    debug(() => ["[markra-history] app restore state result", {
+      restored
+    }]);
+    if (!restored) return;
+
+    const editorReplaced = replaceEditorMarkdown(contents);
+    debug(() => ["[markra-history] editor replace requested", {
+      editorReplaced
+    }]);
+    saveCurrentDocumentContent(contents, {
+      historyCursorId: historyId,
+      skipHistorySnapshot: true
+    })
+      .then((savedFile) => {
+        debug(() => ["[markra-history] save restored document success", {
+          savedPath: savedFile?.path ?? null
+        }]);
+      })
+      .catch((error: unknown) => {
+        debug(() => ["[markra-history] save restored document failed", {
+          error: error instanceof Error ? error.message : String(error)
+        }]);
+      });
+  }, [
+    document.dirty,
+    document.path,
+    document.revision,
+    replaceEditorMarkdown,
+    restoreDocumentContent,
+    saveCurrentDocumentContent
+  ]);
+  useEffect(() => {
+    if (documentHistoryAvailable) return;
+
+    setDocumentHistoryOpen(false);
+  }, [documentHistoryAvailable]);
+  const refreshOpenDocumentHistory = useCallback((savedPath: string | null) => {
+    if (!documentHistoryOpen || savedPath === null || savedPath !== document.path) return;
+
+    setDocumentHistoryRefreshKey((current) => current + 1);
+  }, [document.path, documentHistoryOpen]);
   const handleAiAgentToggle = useCallback(() => {
     toggleAiAgentPanel();
   }, [toggleAiAgentPanel]);
@@ -1942,11 +2004,13 @@ function WorkspaceApp() {
 
     const savedFile = await saveCurrentDocument(saveAs);
     if (savedFile && activeTabId) persistSideDocumentGroupSavedTabPath(activeTabId, savedFile.path);
+    if (savedFile) refreshOpenDocumentHistory(savedFile.path);
     return savedFile;
   }, [
     activeTabId,
     focusedSideDocumentTabId,
     persistSideDocumentGroupSavedTabPath,
+    refreshOpenDocumentHistory,
     saveCurrentDocument,
     saveMarkdownTab
   ]);
@@ -1979,18 +2043,18 @@ function WorkspaceApp() {
   const handleSideDocumentPaneFocus = useCallback(() => {
     setDocumentOperationTarget("side");
   }, []);
-  const handleVisualMarkdownChange = useCallback((content: string) => {
+  const handleVisualMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
     if (sourceToVisualSyncingRef.current) return;
     if (readOnlyMode) return;
 
     if (splitMode) setActiveEditorSurface("visual");
-    handleMarkdownChange(content);
+    handleMarkdownChange(content, options);
   }, [handleMarkdownChange, readOnlyMode, splitMode]);
-  const handleSourceMarkdownChange = useCallback((content: string) => {
+  const handleSourceMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
     if (readOnlyMode) return;
 
     if (splitMode) setActiveEditorSurface("source");
-    handleMarkdownChange(content);
+    handleMarkdownChange(content, options);
   }, [handleMarkdownChange, readOnlyMode, splitMode]);
   const syncSplitPaneScroll = useCallback((sourceSurface: EditorSurface, event: ReactUIEvent<HTMLElement>) => {
     if (!splitMode) return;
@@ -2034,8 +2098,10 @@ function WorkspaceApp() {
   const syncVisualMarkdownAfterEditorCommand = useCallback(() => {
     if (readOnlyMode || !splitMode) return;
 
-    handleVisualMarkdownChange(getEditorCurrentMarkdown(document.content));
-  }, [document.content, getEditorCurrentMarkdown, handleVisualMarkdownChange, readOnlyMode, splitMode]);
+    handleVisualMarkdownChange(getEditorCurrentMarkdown(document.content), {
+      documentRevision: document.revision
+    });
+  }, [document.content, document.revision, getEditorCurrentMarkdown, handleVisualMarkdownChange, readOnlyMode, splitMode]);
   const handleInsertMarkdownSnippet = useCallback((...args: Parameters<typeof insertEditorMarkdownSnippet>) => {
     if (readOnlyMode) return;
 
@@ -2526,6 +2592,7 @@ function WorkspaceApp() {
     saveDocumentAs,
     toggleAiAgent: aiFeatureEnabled ? handleAiAgentToggle : undefined,
     toggleAiCommand: aiFeatureEnabled ? handleAiCommandToggle : undefined,
+    toggleDocumentHistory: handleDocumentHistoryOpen,
     toggleMarkdownFiles: handleFileTreeToggle,
     toggleReadOnlyMode: handleReadOnlyModeToggle,
     toggleSourceMode: handleEditorModeToggle
@@ -2549,6 +2616,7 @@ function WorkspaceApp() {
     saveDocumentAs,
     toggleAiAgent: aiFeatureEnabled ? handleAiAgentToggle : undefined,
     toggleAiCommand: aiFeatureEnabled ? handleAiCommandToggle : undefined,
+    toggleDocumentHistory: handleDocumentHistoryOpen,
     toggleMarkdownFiles: handleFileTreeToggle,
     toggleReadOnlyMode: handleReadOnlyModeToggle,
     toggleSourceMode: handleEditorModeToggle
@@ -2831,6 +2899,7 @@ function WorkspaceApp() {
           markdownFilesWidth={fileTreeWidth}
           nativeWindowChrome={nativeWindowChromeEnabled}
           quickCreateMarkdownFileVisible={!fileTreeOpen}
+          historyDisabled={!documentHistoryAvailable}
           saveDisabled={!hasOpenDocument || Boolean(activeImageFile)}
           splitMode={splitMode}
           sourceMode={sourceMode}
@@ -2842,6 +2911,7 @@ function WorkspaceApp() {
           onOpenMarkdown={handleOpenMarkdownFile}
           onOpenMarkdownFolder={handleOpenMarkdownFolder}
           onSaveMarkdown={handleSaveDocument}
+          onShowDocumentHistory={handleDocumentHistoryOpen}
           onTitlebarActionsChange={handleTitlebarActionsChange}
           onToggleAiAgent={handleAiAgentToggle}
           onToggleMarkdownFiles={handleFileTreeToggle}
@@ -2849,6 +2919,16 @@ function WorkspaceApp() {
           onToggleSourceMode={handleEditorModeToggle}
           onToggleTheme={appTheme.toggleTheme}
         />
+
+        {documentHistoryOpen && document.path ? (
+          <DocumentHistoryDialog
+            documentPath={document.path}
+            language={appLanguage.language}
+            onClose={() => setDocumentHistoryOpen(false)}
+            onRestore={handleDocumentHistoryRestore}
+            refreshKey={documentHistoryRefreshKey}
+          />
+        ) : null}
 
         <span className="screen-reader-title sr-only">{titleDocumentName}</span>
 
@@ -2967,7 +3047,9 @@ function WorkspaceApp() {
                           lineHeight={editorPreferences.preferences.lineHeight}
                           markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
                           onEditorReady={handleVisualEditorReady}
-                          onMarkdownChange={handleVisualMarkdownChange}
+                          onMarkdownChange={(content) => handleVisualMarkdownChange(content, {
+                            documentRevision: document.revision
+                          })}
                           onContentWidthChange={handleEditorContentWidthChange}
                           onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                           onSaveClipboardImage={handleSaveClipboardImage}
@@ -3007,7 +3089,9 @@ function WorkspaceApp() {
                           extendedSyntax={editorPreferences.preferences.extendedSyntax}
                           language={appLanguage.language}
                           lineHeight={editorPreferences.preferences.lineHeight}
-                          onChange={handleSourceMarkdownChange}
+                          onChange={(content) => handleSourceMarkdownChange(content, {
+                            documentRevision: document.revision
+                          })}
                           onContentWidthChange={handleEditorContentWidthChange}
                           onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                           onScroll={handleSourcePaneScroll}
@@ -3029,7 +3113,9 @@ function WorkspaceApp() {
                       extendedSyntax={editorPreferences.preferences.extendedSyntax}
                       language={appLanguage.language}
                       lineHeight={editorPreferences.preferences.lineHeight}
-                      onChange={handleSourceMarkdownChange}
+                      onChange={(content) => handleSourceMarkdownChange(content, {
+                        documentRevision: document.revision
+                      })}
                       onContentWidthChange={handleEditorContentWidthChange}
                       onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                       onScroll={handleSourcePaneScroll}
@@ -3055,7 +3141,9 @@ function WorkspaceApp() {
                       lineHeight={editorPreferences.preferences.lineHeight}
                       markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
                       onEditorReady={handleVisualEditorReady}
-                      onMarkdownChange={handleVisualMarkdownChange}
+                      onMarkdownChange={(content) => handleVisualMarkdownChange(content, {
+                        documentRevision: document.revision
+                      })}
                       onContentWidthChange={handleEditorContentWidthChange}
                       onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                       onSaveClipboardImage={handleSaveClipboardImage}

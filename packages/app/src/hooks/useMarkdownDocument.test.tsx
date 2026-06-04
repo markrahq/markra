@@ -274,6 +274,295 @@ describe("useMarkdownDocument", () => {
     }));
   });
 
+  it("restores historical content into the active document as an unsaved edit", async () => {
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "# Guide\n\nCurrent",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    act(() => {
+      result.current.restoreDocumentContent("# Guide\n\nEarlier");
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "# Guide\n\nEarlier",
+      dirty: true,
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    expect(result.current.tabs).toContainEqual(expect.objectContaining({
+      content: "# Guide\n\nEarlier",
+      dirty: true,
+      name: "guide.md"
+    }));
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenLastCalledWith(expect.objectContaining({
+      draftTabs: [
+        expect.objectContaining({
+          content: "# Guide\n\nEarlier",
+          name: "guide.md",
+          path: "/mock-files/guide.md"
+        })
+      ]
+    }));
+  });
+
+  it("ignores stale editor changes emitted after restoring historical content", async () => {
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "# Guide\n\nCurrent",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    const staleEditorRevision = result.current.document.revision;
+
+    act(() => {
+      result.current.restoreDocumentContent("# Guide\n\nEarlier");
+    });
+    act(() => {
+      result.current.handleMarkdownChange("# Guide\n\nCurrent", {
+        documentRevision: staleEditorRevision
+      });
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "# Guide\n\nEarlier",
+      dirty: true,
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+  });
+
+  it("keeps restored history content when a delayed native watcher event reports disk contents", async () => {
+    let emitExternalChange: (path: string) => unknown | Promise<unknown> = () => {};
+    mockedWatchNativeMarkdownFile.mockImplementation(async (_path, onChange) => {
+      emitExternalChange = onChange;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile
+      .mockResolvedValueOnce({
+        content: "# Guide\n\nCurrent",
+        name: "guide.md",
+        path: "/mock-files/guide.md"
+      })
+      .mockResolvedValueOnce({
+        content: "# Guide\n\nCurrent",
+        name: "guide.md",
+        path: "/mock-files/guide.md"
+      });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+    await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenCalled());
+
+    act(() => {
+      result.current.restoreDocumentContent("# Guide\n\nEarlier");
+    });
+    await act(async () => {
+      await emitExternalChange("/mock-files/guide.md");
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "# Guide\n\nEarlier",
+      dirty: true,
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+  });
+
+  it("does not overwrite the active tab when restored history save resolves after switching tabs", async () => {
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === "/mock-files/guide.md") {
+        return {
+          content: "# Guide\n\nCurrent",
+          name: "guide.md",
+          path
+        };
+      }
+
+      return {
+        content: "# Notes\n\nCurrent",
+        name: "notes.md",
+        path
+      };
+    });
+    let resolveSave: (savedFile: { name: string; path: string }) => unknown = () => {};
+    mockedSaveNativeMarkdownFile.mockReturnValue(new Promise((resolve) => {
+      resolveSave = resolve;
+    }));
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "notes.md",
+        path: "/mock-files/notes.md",
+        relativePath: "notes.md"
+      });
+    });
+
+    const guideTab = result.current.tabs.find((tab) => tab.name === "guide.md");
+    const notesTab = result.current.tabs.find((tab) => tab.name === "notes.md");
+    expect(guideTab).toBeTruthy();
+    expect(notesTab).toBeTruthy();
+
+    act(() => {
+      result.current.selectMarkdownTab(guideTab!.id);
+    });
+    act(() => {
+      result.current.restoreDocumentContent("# Guide\n\nEarlier");
+    });
+    const savePromise = result.current.saveCurrentDocumentContent("# Guide\n\nEarlier", {
+      historyCursorId: "history-guide",
+      skipHistorySnapshot: true
+    });
+
+    act(() => {
+      result.current.selectMarkdownTab(notesTab!.id);
+    });
+    await act(async () => {
+      resolveSave({
+        name: "guide.md",
+        path: "/mock-files/guide.md"
+      });
+      await savePromise;
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "# Notes\n\nCurrent",
+      dirty: false,
+      name: "notes.md",
+      path: "/mock-files/notes.md"
+    });
+    expect(result.current.tabs.find((tab) => tab.id === guideTab!.id)).toMatchObject({
+      content: "# Guide\n\nEarlier",
+      dirty: false,
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+  });
+
+  it("keeps later edits dirty when restored history save resolves after more typing", async () => {
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "# Guide\n\nCurrent",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    let resolveSave: (savedFile: { name: string; path: string }) => unknown = () => {};
+    mockedSaveNativeMarkdownFile.mockReturnValue(new Promise((resolve) => {
+      resolveSave = resolve;
+    }));
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    act(() => {
+      result.current.restoreDocumentContent("# Guide\n\nEarlier");
+    });
+    const savePromise = result.current.saveCurrentDocumentContent("# Guide\n\nEarlier", {
+      historyCursorId: "history-guide",
+      skipHistorySnapshot: true
+    });
+    act(() => {
+      result.current.handleMarkdownChange("# Guide\n\nEarlier\n\nNew edit");
+    });
+    await act(async () => {
+      resolveSave({
+        name: "guide.md",
+        path: "/mock-files/guide.md"
+      });
+      await savePromise;
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "# Guide\n\nEarlier\n\nNew edit",
+      dirty: true,
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+  });
+
   it("opens folder files as tabs and keeps dirty tab content when switching", async () => {
     const confirmDiscardUnsavedChanges = vi.fn(() => true);
     mockedReadNativeMarkdownFile.mockImplementation(async (path) => {

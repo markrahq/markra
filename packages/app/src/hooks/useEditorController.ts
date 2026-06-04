@@ -21,7 +21,7 @@ import {
   type AiEditorPreviewLabels
 } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
-import type { SearchRange } from "@markra/shared";
+import { debug, type SearchRange } from "@markra/shared";
 import {
   readSelectionFormattingActionsFromView,
   readSelectionFormattingStateFromView,
@@ -335,7 +335,13 @@ export function useEditorController() {
   const replaceMarkdown = useCallback((markdown: string) => {
     try {
       const editor = editorRef.current;
-      if (!editor) return false;
+      if (!editor) {
+        debug(() => ["[markra-history] editor replace skipped", {
+          reason: "editor not ready",
+          requestedChars: markdown.length
+        }]);
+        return false;
+      }
 
       return editor.action((ctx) => {
         const view = ctx.get(editorViewCtx);
@@ -344,7 +350,14 @@ export function useEditorController() {
         const link = linkSchema.type(ctx);
         const image = imageSchema.type(ctx);
         const currentMarkdown = serializeLinkImageLiveMarkdown(view.state.doc, serializer, link, image);
-        if (comparableSerializedMarkdown(currentMarkdown) === comparableSerializedMarkdown(markdown)) return true;
+        if (comparableSerializedMarkdown(currentMarkdown) === comparableSerializedMarkdown(markdown)) {
+          debug(() => ["[markra-history] editor replace skipped", {
+            currentChars: currentMarkdown.length,
+            reason: "contents equivalent",
+            requestedChars: markdown.length
+          }]);
+          return true;
+        }
 
         const parsedDocument = parseMarkdown(markdown);
         const selectionPosition = Math.min(view.state.selection.from, parsedDocument.content.size);
@@ -354,9 +367,18 @@ export function useEditorController() {
 
         tr.setSelection(TextSelection.near(tr.doc.resolve(selectionPosition))).scrollIntoView();
         view.dispatch(tr);
+        debug(() => ["[markra-history] editor replace dispatched", {
+          currentChars: currentMarkdown.length,
+          requestedChars: markdown.length,
+          selectionPosition
+        }]);
         return true;
       });
-    } catch {
+    } catch (error: unknown) {
+      debug(() => ["[markra-history] editor replace failed", {
+        error: error instanceof Error ? error.message : String(error),
+        requestedChars: markdown.length
+      }]);
       return false;
     }
   }, []);

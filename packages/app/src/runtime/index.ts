@@ -16,6 +16,8 @@ import type {
   NativeMarkdownFile,
   NativeMarkdownFileChangeHandler,
   NativeMarkdownFileDropHandler,
+  NativeMarkdownFileHistoryEntry,
+  NativeMarkdownFileHistoryFile,
   NativeMarkdownFolder,
   NativeMarkdownFolderFile,
   NativeMarkdownImageFile,
@@ -130,6 +132,7 @@ export type AppFileRuntime = {
   listenOpenedMarkdownPaths: (
     onPaths: (paths: string[]) => unknown | Promise<unknown>
   ) => Promise<RuntimeCleanup>;
+  listMarkdownFileHistory: (path: string) => Promise<NativeMarkdownFileHistoryEntry[]>;
   listMarkdownFilesForPath: (path: string) => Promise<NativeMarkdownFolderFile[]>;
   moveMarkdownTreeFile: (
     rootPath: string,
@@ -142,6 +145,7 @@ export type AppFileRuntime = {
   openMarkdownFolderInNewWindow: (path: string) => Promise<unknown>;
   openMarkdownPath: (labels?: NativeMarkdownPickerLabels) => Promise<NativeMarkdownOpenTarget | null>;
   readMarkdownFile: (path: string) => Promise<NativeMarkdownFile>;
+  readMarkdownFileHistory: (path: string, id: string) => Promise<NativeMarkdownFileHistoryFile>;
   readMarkdownImageFile: (input: ReadNativeMarkdownImageInput) => Promise<NativeMarkdownImageFile>;
   readMarkdownTemplateFile: (fileName: string) => Promise<string>;
   renameMarkdownTreeFile: (
@@ -302,6 +306,7 @@ function createDefaultFileRuntime(): AppFileRuntime {
     downloadWebImage: () => unsupportedFeature("downloadWebImage"),
     installMarkdownFileDrop: async () => () => undefined,
     listenOpenedMarkdownPaths: async () => () => undefined,
+    listMarkdownFileHistory: async () => [],
     listMarkdownFilesForPath: async () => [],
     moveMarkdownTreeFile: () => unsupportedFeature("moveMarkdownTreeFile"),
     openMarkdownFile: async () => null,
@@ -310,6 +315,7 @@ function createDefaultFileRuntime(): AppFileRuntime {
     openMarkdownFolderInNewWindow: () => unsupportedFeature("openMarkdownFolderInNewWindow"),
     openMarkdownPath: async () => null,
     readMarkdownFile: () => unsupportedFeature("readMarkdownFile"),
+    readMarkdownFileHistory: () => unsupportedFeature("readMarkdownFileHistory"),
     readMarkdownImageFile: () => unsupportedFeature("readMarkdownImageFile"),
     readMarkdownTemplateFile: () => unsupportedFeature("readMarkdownTemplateFile"),
     renameMarkdownTreeFile: () => unsupportedFeature("renameMarkdownTreeFile"),

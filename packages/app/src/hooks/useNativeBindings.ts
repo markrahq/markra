@@ -42,6 +42,7 @@ type NativeMenuHandlerOptions = {
   saveDocumentAs: () => unknown | Promise<unknown>;
   toggleAiAgent?: () => unknown | Promise<unknown>;
   toggleAiCommand?: () => unknown | Promise<unknown>;
+  toggleDocumentHistory?: () => unknown | Promise<unknown>;
   toggleMarkdownFiles?: () => unknown | Promise<unknown>;
   toggleReadOnlyMode?: () => unknown | Promise<unknown>;
   toggleSourceMode?: () => unknown | Promise<unknown>;
@@ -60,6 +61,7 @@ type ApplicationShortcutOptions = {
   saveDocumentAs: () => unknown | Promise<unknown>;
   toggleAiAgent?: () => unknown | Promise<unknown>;
   toggleAiCommand?: () => unknown | Promise<unknown>;
+  toggleDocumentHistory?: () => unknown | Promise<unknown>;
   toggleMarkdownFiles?: () => unknown | Promise<unknown>;
   toggleReadOnlyMode?: () => unknown | Promise<unknown>;
   toggleSourceMode?: () => unknown | Promise<unknown>;
@@ -85,6 +87,7 @@ export function useNativeMenuHandlers({
   saveDocumentAs,
   toggleAiAgent,
   toggleAiCommand,
+  toggleDocumentHistory,
   toggleMarkdownFiles,
   toggleReadOnlyMode,
   toggleSourceMode
@@ -113,6 +116,7 @@ export function useNativeMenuHandlers({
     saveDocumentAs,
     toggleAiAgent,
     toggleAiCommand,
+    toggleDocumentHistory,
     toggleMarkdownFiles,
     toggleReadOnlyMode,
     toggleSourceMode
@@ -137,6 +141,7 @@ export function useNativeMenuHandlers({
     saveDocumentAs,
     toggleAiAgent,
     toggleAiCommand,
+    toggleDocumentHistory,
     toggleMarkdownFiles,
     toggleReadOnlyMode,
     toggleSourceMode
@@ -182,6 +187,9 @@ export function useNativeMenuHandlers({
       }
       if (toggleAiAgent) handlers.toggleAiAgent = () => latestOptionsRef.current.toggleAiAgent?.();
       if (toggleAiCommand) handlers.toggleAiCommand = () => latestOptionsRef.current.toggleAiCommand?.();
+      if (toggleDocumentHistory) {
+        handlers.toggleDocumentHistory = () => latestOptionsRef.current.toggleDocumentHistory?.();
+      }
       if (toggleMarkdownFiles) handlers.toggleMarkdownFiles = () => latestOptionsRef.current.toggleMarkdownFiles?.();
       if (toggleReadOnlyMode) handlers.toggleReadOnlyMode = () => latestOptionsRef.current.toggleReadOnlyMode?.();
       if (toggleSourceMode) handlers.toggleSourceMode = () => latestOptionsRef.current.toggleSourceMode?.();
@@ -314,6 +322,7 @@ export function useApplicationShortcuts({
   saveDocumentAs,
   toggleAiAgent,
   toggleAiCommand,
+  toggleDocumentHistory,
   toggleMarkdownFiles,
   toggleReadOnlyMode,
   toggleSourceMode
@@ -330,6 +339,7 @@ export function useApplicationShortcuts({
 
       const configurableActions: Array<[string, (() => unknown | Promise<unknown>) | undefined]> = [
         [normalizedMarkdownShortcuts.toggleMarkdownFiles, toggleMarkdownFiles],
+        [normalizedMarkdownShortcuts.toggleDocumentHistory, toggleDocumentHistory],
         [normalizedMarkdownShortcuts.toggleAiAgent, toggleAiAgent],
         [normalizedMarkdownShortcuts.toggleAiCommand, toggleAiCommand],
         [normalizedMarkdownShortcuts.toggleSourceMode, toggleSourceMode],
@@ -397,6 +407,7 @@ export function useApplicationShortcuts({
     saveDocumentAs,
     toggleAiAgent,
     toggleAiCommand,
+    toggleDocumentHistory,
     toggleMarkdownFiles,
     toggleReadOnlyMode,
     toggleSourceMode

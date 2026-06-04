@@ -378,6 +378,32 @@ describe("NativeTitleBar", () => {
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
   });
 
+  it("opens document history from a configurable titlebar action", () => {
+    const showHistory = vi.fn();
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[
+          { id: "history", visible: true }
+        ]}
+        onShowDocumentHistory={showHistory}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show history" }));
+
+    expect(showHistory).toHaveBeenCalledTimes(1);
+  });
+
   it("uses separate source and visual editor mode action buttons", () => {
     const toggleSourceMode = vi.fn();
     const visualModeCase = render(
@@ -464,7 +490,8 @@ describe("NativeTitleBar", () => {
       "Switch to dark theme",
       "Switch to split mode",
       "Toggle Markra AI",
-      "Switch to source mode"
+      "Switch to source mode",
+      "Show history"
     ]);
     expect(screen.getByRole("button", { name: "Open Markdown or Folder" }).closest(".titlebar-spacer")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save Markdown" })).not.toBeInTheDocument();
@@ -496,7 +523,7 @@ describe("NativeTitleBar", () => {
     );
 
     const aiButton = screen.getByRole("button", { name: "Toggle Markra AI" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "splitMode"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "splitMode", "history"]);
 
     fireEvent.mouseDown(aiButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
@@ -509,7 +536,8 @@ describe("NativeTitleBar", () => {
       { id: "save", visible: true },
       { id: "aiAgent", visible: true },
       { id: "theme", visible: true },
-      { id: "splitMode", visible: true }
+      { id: "splitMode", visible: true },
+      { id: "history", visible: true }
     ]);
   });
 
@@ -539,7 +567,7 @@ describe("NativeTitleBar", () => {
     );
 
     const saveButton = screen.getByRole("button", { name: "Save Markdown" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "splitMode"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "splitMode", "history"]);
 
     fireEvent.mouseDown(saveButton, { button: 0, clientX: 80, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 70, clientY: 10 });
@@ -552,7 +580,8 @@ describe("NativeTitleBar", () => {
       { id: "save", visible: true },
       { id: "sourceMode", visible: true },
       { id: "theme", visible: true },
-      { id: "splitMode", visible: true }
+      { id: "splitMode", visible: true },
+      { id: "history", visible: true }
     ]);
   });
 

@@ -78,7 +78,7 @@ export const appThemeOptions = ["system", ...editorThemeOptions] as const;
 export type AppTheme = typeof appThemeOptions[number];
 export type PdfMarginPreset = "custom" | "default" | "narrow" | "none" | "normal" | "wide";
 export type PdfPageSize = "a4" | "custom" | "default" | "letter";
-export type TitlebarActionId = "aiAgent" | "sourceMode" | "splitMode" | "save" | "theme";
+export type TitlebarActionId = "aiAgent" | "sourceMode" | "splitMode" | "history" | "save" | "theme";
 export type TitlebarActionPreference = {
   id: TitlebarActionId;
   visible: boolean;
@@ -224,6 +224,7 @@ export const defaultTitlebarActions: readonly TitlebarActionPreference[] = [
   { id: "aiAgent", visible: true },
   { id: "sourceMode", visible: true },
   { id: "splitMode", visible: true },
+  { id: "history", visible: true },
   { id: "save", visible: true },
   { id: "theme", visible: true }
 ];

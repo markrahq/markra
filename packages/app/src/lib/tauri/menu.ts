@@ -58,6 +58,7 @@ export type NativeMenuCommand =
   | "aiSummarize"
   | "aiTranslate"
   | "toggleMarkdownFiles"
+  | "toggleDocumentHistory"
   | "toggleAiAgent"
   | "toggleAiCommand"
   | "toggleReadOnlyMode"

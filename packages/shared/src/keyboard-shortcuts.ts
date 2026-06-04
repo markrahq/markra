@@ -5,6 +5,7 @@ type ShortcutModifiers = {
 
 export const keyboardShortcutActions = [
   "toggleMarkdownFiles",
+  "toggleDocumentHistory",
   "toggleAiAgent",
   "toggleAiCommand",
   "toggleSourceMode",
@@ -64,6 +65,7 @@ export const defaultKeyboardShortcuts: KeyboardShortcutBindings = {
   table: "Mod+Alt+T",
   toggleAiAgent: "Mod+Alt+J",
   toggleAiCommand: "Mod+Shift+J",
+  toggleDocumentHistory: "Mod+Shift+H",
   toggleMarkdownFiles: "Mod+Shift+M",
   toggleReadOnlyMode: "Mod+Alt+L",
   toggleSourceMode: "Mod+Alt+S"

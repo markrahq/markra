@@ -13,6 +13,7 @@ import {
   downloadNativeWebImage,
   installNativeMarkdownFileDrop,
   listenNativeOpenedMarkdownPaths,
+  listNativeMarkdownFileHistory,
   listNativeMarkdownFilesForPath,
   moveNativeMarkdownTreeFile,
   takeNativeOpenedMarkdownPaths,
@@ -22,6 +23,7 @@ import {
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
   readNativeMarkdownImageFile,
+  readNativeMarkdownFileHistory,
   readNativeMarkdownFile,
   readNativeMarkdownTemplateFile,
   resolveNativeMarkdownPath,
@@ -275,6 +277,51 @@ describe("native file access", () => {
     });
   });
 
+  it("lists and reads saved markdown history through native commands", async () => {
+    mockedInvoke
+      .mockResolvedValueOnce([
+        {
+          id: "history-2",
+          createdAt: 1_700_000_001_000,
+          sizeBytes: 32
+        },
+        {
+          id: "history-1",
+          createdAt: 1_700_000_000_000,
+          sizeBytes: 24
+        }
+      ])
+      .mockResolvedValueOnce({
+        id: "history-1",
+        contents: "# Previous\n\nSynthetic content."
+      });
+
+    await expect(listNativeMarkdownFileHistory(mockReadmePath)).resolves.toEqual([
+      {
+        id: "history-2",
+        createdAt: 1_700_000_001_000,
+        sizeBytes: 32
+      },
+      {
+        id: "history-1",
+        createdAt: 1_700_000_000_000,
+        sizeBytes: 24
+      }
+    ]);
+    await expect(readNativeMarkdownFileHistory(mockReadmePath, "history-1")).resolves.toEqual({
+      id: "history-1",
+      contents: "# Previous\n\nSynthetic content."
+    });
+
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "list_markdown_file_history", {
+      path: mockReadmePath
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "read_markdown_file_history", {
+      id: "history-1",
+      path: mockReadmePath
+    });
+  });
+
   it("reads, writes, and deletes markdown template files from the native template directory", async () => {
     mockedInvoke.mockResolvedValueOnce({
       contents: "# Template"
@@ -483,6 +530,31 @@ describe("native file access", () => {
     expect(mockedInvoke).toHaveBeenCalledWith("write_markdown_file", {
       path: mockDraftPath,
       contents: "# Draft"
+    });
+  });
+
+  it("can save an existing markdown file without creating a history snapshot", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await expect(
+      saveNativeMarkdownFile({
+        path: mockDraftPath,
+        suggestedName: "draft.md",
+        contents: "# Earlier",
+        historyCursorId: "history-older",
+        skipHistorySnapshot: true
+      })
+    ).resolves.toEqual({
+      path: mockDraftPath,
+      name: "draft.md"
+    });
+
+    expect(mockedSave).not.toHaveBeenCalled();
+    expect(mockedInvoke).toHaveBeenCalledWith("write_markdown_file", {
+      path: mockDraftPath,
+      contents: "# Earlier",
+      historyCursorId: "history-older",
+      skipHistorySnapshot: true
     });
   });
 

@@ -18,8 +18,10 @@ import {
   listenNativeAppExitRequested,
   listenNativeWindowCloseRequested,
   listenNativeOpenedMarkdownPaths,
+  listNativeMarkdownFileHistory,
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
+  readNativeMarkdownFileHistory,
   readNativeMarkdownTemplateFile,
   resolveNativeMarkdownPath,
   saveNativeHtmlFile,
@@ -119,8 +121,10 @@ vi.mock("../lib/tauri", () => ({
   openNativeMarkdownFileInNewWindow: vi.fn(),
   openNativeMarkdownPath: vi.fn(),
   listenNativeOpenedMarkdownPaths: vi.fn(),
+  listNativeMarkdownFileHistory: vi.fn(),
   readNativeMarkdownImageFile: vi.fn(),
   readNativeMarkdownFile: vi.fn(),
+  readNativeMarkdownFileHistory: vi.fn(),
   readNativeMarkdownTemplateFile: vi.fn(),
   requestNativeAiJson: vi.fn(),
   requestNativeChat: vi.fn(),
@@ -232,6 +236,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
       { id: "splitMode", visible: true },
+      { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ],
@@ -302,6 +307,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     { id: "aiAgent", visible: true },
     { id: "sourceMode", visible: true },
     { id: "splitMode", visible: true },
+    { id: "history", visible: true },
     { id: "save", visible: true },
     { id: "theme", visible: true }
   ],
@@ -397,6 +403,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
       { id: "splitMode", visible: true },
+      { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ],
@@ -523,6 +530,7 @@ export const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
 export const mockedListenNativeOpenedMarkdownPaths = vi.mocked(listenNativeOpenedMarkdownPaths);
 export const mockedReadNativeMarkdownImageFile = vi.mocked(readNativeMarkdownImageFile);
 export const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
+export const mockedReadNativeMarkdownFileHistory = vi.mocked(readNativeMarkdownFileHistory);
 export const mockedReadNativeMarkdownTemplateFile = vi.mocked(readNativeMarkdownTemplateFile);
 export const mockedResolveNativeMarkdownPath = vi.mocked(resolveNativeMarkdownPath);
 export const mockedSaveNativeHtmlFile = vi.mocked(saveNativeHtmlFile);
@@ -533,6 +541,7 @@ export const mockedSetNativeEditorWindowRestoreState = vi.mocked(setNativeEditor
 export const mockedShowNativePandocSetup = vi.mocked(showNativePandocSetup);
 export const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
 export const mockedInstallNativeMarkdownFileDrop = vi.mocked(installNativeMarkdownFileDrop);
+export const mockedListNativeMarkdownFileHistory = vi.mocked(listNativeMarkdownFileHistory);
 export const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
 export const mockedTakeNativeOpenedMarkdownPaths = vi.mocked(takeNativeOpenedMarkdownPaths);
 export const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
@@ -685,8 +694,10 @@ export function installAppTestHarness() {
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
     mockedOpenNativeMarkdownPath.mockReset();
     mockedListenNativeOpenedMarkdownPaths.mockReset();
+    mockedListNativeMarkdownFileHistory.mockReset();
     mockedReadNativeMarkdownImageFile.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
+    mockedReadNativeMarkdownFileHistory.mockReset();
     mockedReadNativeMarkdownTemplateFile.mockReset();
     mockedResolveNativeMarkdownPath.mockReset();
     mockedSaveNativeHtmlFile.mockReset();
@@ -697,6 +708,7 @@ export function installAppTestHarness() {
     mockedSaveNativeMarkdownFile.mockReset();
     mockedShowNativeMarkdownFileTreeContextMenu.mockReset();
     mockedSetNativeEditorWindowRestoreState.mockReset();
+    mockedListNativeMarkdownFileHistory.mockReset();
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedTakeNativeOpenedMarkdownPaths.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
@@ -761,6 +773,8 @@ export function installAppTestHarness() {
     document.getElementById("markra-custom-theme-style")?.remove();
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
     mockedWatchNativeMarkdownTree.mockResolvedValue(() => {});
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
+    mockedReadNativeMarkdownFileHistory.mockRejectedValue(new Error("markdown history file is not mocked"));
     mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
     mockedTakeNativeOpenedMarkdownPaths.mockResolvedValue([]);
     mockedInstallNativeMarkdownFileDrop.mockResolvedValue(() => {});
@@ -907,6 +921,7 @@ export function installAppTestHarness() {
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
+        { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],

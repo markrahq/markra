@@ -29,7 +29,7 @@ import {
 } from "../lib/tauri";
 import { normalizeMovedPath, replaceMovedPath } from "../lib/path-move";
 import { setNativeWindowTitle } from "../lib/tauri";
-import { pathNameFromPath, type DocumentState } from "@markra/shared";
+import { debug, pathNameFromPath, type DocumentState } from "@markra/shared";
 
 function isBlankEditorWindow() {
   return new URLSearchParams(window.location.search).has("blank");
@@ -61,6 +61,21 @@ export type MarkdownDocumentTab = DocumentState & {
 type CreateBlankDocumentOptions = {
   content?: string;
   name?: string;
+};
+
+type MarkdownChangeOptions = {
+  documentRevision?: number;
+};
+
+type SaveCurrentDocumentContentOptions = {
+  historyCursorId?: string;
+  skipHistorySnapshot?: boolean;
+};
+
+type ApplySavedCurrentDocumentOptions = {
+  retargetWorkspaceRoot?: boolean;
+  sourceContent?: string;
+  targetTabId?: string | null;
 };
 
 function blankDocumentName(name: string | null | undefined) {
@@ -444,10 +459,11 @@ export function useMarkdownDocument({
     hasDiscardableTabChanges
   ]);
 
-  const handleMarkdownChange = useCallback((content: string) => {
+  const handleMarkdownChange = useCallback((content: string, options: MarkdownChangeOptions = {}) => {
     if (!resolveEditorReady(editorReady)) return;
 
     const current = documentRef.current;
+    if (options.documentRevision !== undefined && options.documentRevision !== current.revision) return;
     if (!current.open || current.content === content) return;
     const editorContentEquivalent = isActiveEditorMarkdownEquivalent(current.content);
     const nextDocument =
@@ -463,9 +479,9 @@ export function useMarkdownDocument({
     persistWorkspaceState(draftWorkspacePatchFromTabs(nextTabs, currentActiveTabId));
   }, [editorReady, isActiveEditorMarkdownEquivalent, setActiveDocument]);
 
-  const handleMarkdownTabChange = useCallback((tabId: string, content: string) => {
+  const handleMarkdownTabChange = useCallback((tabId: string, content: string, options: MarkdownChangeOptions = {}) => {
     if (tabId === activeTabIdRef.current) {
-      handleMarkdownChange(content);
+      handleMarkdownChange(content, options);
       return;
     }
 
@@ -485,6 +501,39 @@ export function useMarkdownDocument({
       return nextTabs;
     });
   }, [handleMarkdownChange]);
+
+  const restoreDocumentContent = useCallback((content: string) => {
+    const current = documentRef.current;
+    if (!current.open) {
+      debug(() => ["[markra-history] document restore ignored", {
+        reason: "document closed"
+      }]);
+      return false;
+    }
+
+    const nextDocument = {
+      ...current,
+      content,
+      dirty: true,
+      revision: current.revision + 1
+    };
+    const currentActiveTabId = activeTabIdRef.current;
+    const nextTabs = currentActiveTabId
+      ? tabsRef.current.map((tab) => tab.id === currentActiveTabId ? createDocumentTab(nextDocument, tab.id) : tab)
+      : tabsRef.current;
+
+    setActiveDocument(nextDocument);
+    debug(() => ["[markra-history] document restore state updated", {
+      activeTabId: currentActiveTabId,
+      contentsChars: content.length,
+      dirty: nextDocument.dirty,
+      nextRevision: nextDocument.revision,
+      path: nextDocument.path,
+      previousRevision: current.revision
+    }]);
+    persistWorkspaceState(draftWorkspacePatchFromTabs(nextTabs, currentActiveTabId));
+    return true;
+  }, [setActiveDocument]);
 
   const resetToBlankDocument = useCallback((options: CreateBlankDocumentOptions = {}) => {
     const nextDocument = {
@@ -922,11 +971,61 @@ export function useMarkdownDocument({
     return true;
   }, [documentTabsEnabled, registerWindowRestoreState, setActiveDocument, setActiveTabState]);
 
+  const applySavedCurrentDocument = useCallback((
+    savedFile: { name: string; path: string },
+    contents: string,
+    options: ApplySavedCurrentDocumentOptions = {}
+  ) => {
+    const currentTabs = tabsRef.current;
+    const targetTabId = options.targetTabId ?? activeTabIdRef.current;
+    const targetTab = targetTabId
+      ? currentTabs.find((tab) => tab.id === targetTabId)
+      : null;
+    if (documentTabsEnabled && targetTabId && !targetTab) return;
+
+    const fallbackTabId = targetTabId ?? activeTabIdRef.current ?? fileTabId(savedFile.path);
+    const targetDocument = targetTab ? documentFromTab(targetTab) : documentRef.current;
+    const sourceContent = options.sourceContent ?? contents;
+    const contentChangedAfterSaveStarted =
+      targetDocument.content !== sourceContent && targetDocument.content !== contents;
+    const nextDocument = {
+      ...targetDocument,
+      path: savedFile.path,
+      name: savedFile.name,
+      content: contentChangedAfterSaveStarted ? targetDocument.content : contents,
+      dirty: contentChangedAfterSaveStarted ? true : false
+    };
+
+    const nextTabs = documentTabsEnabled
+      ? currentTabs.map((tab) => tab.id === fallbackTabId ? createDocumentTab(nextDocument, tab.id) : tab)
+      : [createDocumentTab(nextDocument, fallbackTabId)];
+    tabsRef.current = nextTabs;
+    setTabs(nextTabs);
+    if (fallbackTabId === activeTabIdRef.current) {
+      documentRef.current = nextDocument;
+      setDocument(nextDocument);
+    }
+
+    const nextOpenFilePaths = documentTabsEnabled
+      ? openFilePathsFromTabs(nextTabs)
+      : [savedFile.path];
+    const nextActiveFilePath = activeFilePathFromTabs(nextTabs, activeTabIdRef.current);
+    if (options.retargetWorkspaceRoot) onTreeRootFromFilePath(savedFile.path);
+    registerWindowRestoreState(nextActiveFilePath, nextOpenFilePaths);
+    persistWorkspaceState({
+      ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
+      filePath: nextActiveFilePath,
+      openFilePaths: nextOpenFilePaths,
+      ...(options.retargetWorkspaceRoot ? { folderName: null, folderPath: null } : {})
+    });
+  }, [documentTabsEnabled, onTreeRootFromFilePath, registerWindowRestoreState]);
+
   const saveCurrentDocument = useCallback(
     async (saveAs = false) => {
       const current = documentRef.current;
       if (!current.open) return null;
 
+      const targetTabId = activeTabIdRef.current;
       const contents = currentMarkdown();
       const savedFile = await saveNativeMarkdownFile({
         path: saveAs ? null : current.path,
@@ -936,32 +1035,73 @@ export function useMarkdownDocument({
 
       if (!savedFile) return null;
 
-      const nextDocument = {
-        ...documentRef.current,
-        path: savedFile.path,
-        name: savedFile.name,
-        content: contents,
-        dirty: false
-      };
-
-      setActiveDocument(nextDocument);
-      const nextTabs = documentTabsEnabled
-        ? tabsRef.current.map((tab) => tab.id === activeTabIdRef.current ? createDocumentTab(nextDocument, tab.id) : tab)
-        : [createDocumentTab(nextDocument, activeTabIdRef.current ?? fileTabId(savedFile.path))];
-      const nextOpenFilePaths = documentTabsEnabled
-        ? openFilePathsFromTabs(nextTabs)
-        : [savedFile.path];
-      if (saveAs || current.path === null) onTreeRootFromFilePath(savedFile.path);
-      registerWindowRestoreState(savedFile.path, nextOpenFilePaths);
-      persistWorkspaceState({
-        ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
-        filePath: savedFile.path,
-        openFilePaths: nextOpenFilePaths,
-        ...(saveAs || current.path === null ? { folderName: null, folderPath: null } : {})
+      applySavedCurrentDocument(savedFile, contents, {
+        retargetWorkspaceRoot: saveAs || current.path === null,
+        sourceContent: current.content,
+        targetTabId
       });
       return savedFile;
     },
-    [currentMarkdown, documentTabsEnabled, onTreeRootFromFilePath, registerWindowRestoreState, setActiveDocument]
+    [applySavedCurrentDocument, currentMarkdown]
+  );
+
+  const saveCurrentDocumentContent = useCallback(
+    async (contents: string, options: SaveCurrentDocumentContentOptions = {}) => {
+      const current = documentRef.current;
+      if (!current.open) {
+        debug(() => ["[markra-history] save restored document ignored", {
+          reason: "document closed"
+        }]);
+        return null;
+      }
+
+      const targetTabId = activeTabIdRef.current;
+      debug(() => ["[markra-history] save restored document start", {
+        contentsChars: contents.length,
+        currentDirty: current.dirty,
+        currentPath: current.path,
+        currentRevision: current.revision,
+        historyCursorId: options.historyCursorId ?? null,
+        skipHistorySnapshot: options.skipHistorySnapshot === true,
+        suggestedName: current.name || "Untitled.md"
+      }]);
+
+      let savedFile: Awaited<ReturnType<typeof saveNativeMarkdownFile>>;
+      try {
+        savedFile = await saveNativeMarkdownFile({
+          historyCursorId: options.historyCursorId,
+          path: current.path,
+          skipHistorySnapshot: options.skipHistorySnapshot,
+          suggestedName: current.name || "Untitled.md",
+          contents
+        });
+      } catch (error: unknown) {
+        debug(() => ["[markra-history] save restored document native error", {
+          currentPath: current.path,
+          error: error instanceof Error ? error.message : String(error)
+        }]);
+        throw error;
+      }
+
+      if (!savedFile) {
+        debug(() => ["[markra-history] save restored document canceled", {
+          currentPath: current.path
+        }]);
+        return null;
+      }
+
+      applySavedCurrentDocument(savedFile, contents, {
+        retargetWorkspaceRoot: current.path === null,
+        sourceContent: current.content,
+        targetTabId
+      });
+      debug(() => ["[markra-history] save restored document applied", {
+        contentsChars: contents.length,
+        savedPath: savedFile.path
+      }]);
+      return savedFile;
+    },
+    [applySavedCurrentDocument]
   );
 
   const saveMarkdownTab = useCallback(
@@ -1387,17 +1527,54 @@ export function useMarkdownDocument({
 
     let active = true;
     let unwatch: (() => unknown) | null = null;
+    const watchedDocumentPath = document.path;
+
+    debug(() => ["[markra-history] watcher start", {
+      path: watchedDocumentPath
+    }]);
 
     watchNativeMarkdownFile(document.path, async (changedPath) => {
       if (!active) return;
 
+      debug(() => ["[markra-history] watcher file event", {
+        changedPath
+      }]);
       // External edits rebuild the editor so the visible document mirrors disk.
       const file = await readNativeMarkdownFile(changedPath);
       const current = documentRef.current;
-      if (!active || current.path !== file.path || current.content === file.content) return;
+      if (!active || current.path !== file.path || current.dirty || current.content === file.content) {
+        debug(() => ["[markra-history] watcher file event ignored", {
+          active,
+          changedPath,
+          currentDirty: current.dirty,
+          currentPath: current.path,
+          diskPath: file.path,
+          reason: !active
+            ? "inactive"
+            : current.path !== file.path
+              ? "path mismatch"
+              : current.dirty
+                ? "current dirty"
+                : "contents unchanged"
+        }]);
+        return;
+      }
 
       const latest = documentRef.current;
-      if (latest.path !== file.path || latest.content === file.content) return;
+      if (latest.path !== file.path || latest.dirty || latest.content === file.content) {
+        debug(() => ["[markra-history] watcher latest event ignored", {
+          changedPath,
+          diskPath: file.path,
+          latestDirty: latest.dirty,
+          latestPath: latest.path,
+          reason: latest.path !== file.path
+            ? "path mismatch"
+            : latest.dirty
+              ? "latest dirty"
+              : "contents unchanged"
+        }]);
+        return;
+      }
 
       setActiveDocument({
         path: file.path,
@@ -1407,8 +1584,16 @@ export function useMarkdownDocument({
         open: true,
         revision: latest.revision + 1
       });
+      debug(() => ["[markra-history] watcher applied disk content", {
+        changedPath,
+        contentsChars: file.content.length,
+        nextRevision: latest.revision + 1
+      }]);
     }, (changedPath) => {
       if (!active) return;
+      debug(() => ["[markra-history] watcher tree event", {
+        changedPath
+      }]);
       onMarkdownTreeChange?.(changedPath);
     }).then((stopWatching) => {
       if (!active) {
@@ -1417,10 +1602,21 @@ export function useMarkdownDocument({
       }
 
       unwatch = stopWatching;
-    }).catch(() => {});
+      debug(() => ["[markra-history] watcher ready", {
+        path: watchedDocumentPath
+      }]);
+    }).catch((error: unknown) => {
+      debug(() => ["[markra-history] watcher failed", {
+        error: error instanceof Error ? error.message : String(error),
+        path: watchedDocumentPath
+      }]);
+    });
 
     return () => {
       active = false;
+      debug(() => ["[markra-history] watcher stop", {
+        path: watchedDocumentPath
+      }]);
       unwatch?.();
     };
   }, [document.path, onMarkdownTreeChange, setActiveDocument]);
@@ -1445,6 +1641,8 @@ export function useMarkdownDocument({
     outlineItems,
     replaceOpenDocumentFile,
     replaceMovedOpenDocumentFile,
+    restoreDocumentContent,
+    saveCurrentDocumentContent,
     saveCurrentDocument,
     saveMarkdownTab,
     selectMarkdownTab,

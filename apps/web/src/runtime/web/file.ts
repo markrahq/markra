@@ -933,6 +933,7 @@ export function createWebFileRuntime(
       };
     },
     listenOpenedMarkdownPaths: async () => () => undefined,
+    listMarkdownFileHistory: async () => [],
     async listMarkdownFilesForPath(path) {
       const parsedPath = parseWebHandlePath(path);
       if (parsedPath?.kind !== "folder") return [];
@@ -1026,6 +1027,7 @@ export function createWebFileRuntime(
         path
       };
     },
+    readMarkdownFileHistory: () => Promise.reject(new Error("Markdown history is unavailable in the web runtime.")),
     async readMarkdownImageFile(input) {
       const documentPath = parseWebHandlePath(input.documentPath);
       if (documentPath?.kind !== "folder") throw new Error("Current document is not a web folder file.");

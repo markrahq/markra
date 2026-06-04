@@ -4,6 +4,7 @@ import {
   Eye,
   FileText,
   FolderOpen,
+  History,
   ImageIcon,
   Moon,
   PanelLeft,
@@ -62,6 +63,7 @@ type NativeTitleBarProps = {
   nativeWindowChrome?: boolean;
   platform?: DesktopPlatform;
   quickCreateMarkdownFileVisible?: boolean;
+  historyDisabled?: boolean;
   saveDisabled?: boolean;
   splitMode?: boolean;
   sourceMode?: boolean;
@@ -73,6 +75,7 @@ type NativeTitleBarProps = {
   onOpenMarkdown: () => unknown;
   onOpenMarkdownFolder?: () => unknown;
   onSaveMarkdown: () => unknown;
+  onShowDocumentHistory?: () => unknown;
   onTitlebarActionsChange?: (actions: TitlebarActionPreference[]) => unknown;
   onToggleAiAgent: () => unknown;
   onToggleMarkdownFiles: () => unknown;
@@ -103,6 +106,7 @@ export function NativeTitleBar({
   nativeWindowChrome = true,
   platform = resolveDesktopPlatform(),
   quickCreateMarkdownFileVisible = false,
+  historyDisabled = false,
   saveDisabled = false,
   splitMode = false,
   sourceMode = false,
@@ -114,6 +118,7 @@ export function NativeTitleBar({
   onOpenMarkdown,
   onOpenMarkdownFolder,
   onSaveMarkdown,
+  onShowDocumentHistory,
   onTitlebarActionsChange,
   onToggleAiAgent,
   onToggleMarkdownFiles,
@@ -384,6 +389,25 @@ export function NativeTitleBar({
           {...sortable.actionListeners}
         >
           <Save aria-hidden="true" size={15} />
+        </IconButton>
+      );
+    }
+
+    if (id === "history") {
+      return (
+        <IconButton
+          className={mergeClassNames("disabled:opacity-35", sortable.actionClassName)}
+          disabled={historyDisabled || !onShowDocumentHistory}
+          label={label("app.showDocumentHistory")}
+          onClick={(event) => {
+            if (!onShowDocumentHistory) return;
+
+            handleTitlebarActionClick("history", event, onShowDocumentHistory);
+          }}
+          {...sortable.actionAttributes}
+          {...sortable.actionListeners}
+        >
+          <History aria-hidden="true" size={15} />
         </IconButton>
       );
     }

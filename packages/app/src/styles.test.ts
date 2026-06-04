@@ -459,6 +459,13 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".ai-command-inline-loading-text::after");
   });
 
+  it("includes the document history panel entrance animation", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain("@keyframes markra-history-panel-in");
+    expect(styles).toContain("translateY(-4px)");
+  });
+
   it("draws the running AI agent composer border with a pseudo element", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

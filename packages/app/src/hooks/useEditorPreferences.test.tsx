@@ -151,6 +151,7 @@ describe("useEditorPreferences", () => {
         table: "Mod+Alt+T",
         toggleAiAgent: "Mod+Alt+J",
         toggleAiCommand: "Mod+Shift+J",
+        toggleDocumentHistory: "Mod+Shift+H",
         toggleMarkdownFiles: "Mod+Shift+M",
         toggleReadOnlyMode: "Mod+Alt+L",
         toggleSourceMode: "Mod+Alt+S"
@@ -237,6 +238,7 @@ describe("useEditorPreferences", () => {
           table: "Mod+Alt+T",
           toggleAiAgent: "Mod+Alt+J",
           toggleAiCommand: "Mod+Shift+J",
+          toggleDocumentHistory: "Mod+Shift+H",
           toggleMarkdownFiles: "Mod+Shift+M",
           toggleReadOnlyMode: "Mod+Alt+L",
           toggleSourceMode: "Mod+Alt+S"

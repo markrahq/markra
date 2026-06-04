@@ -144,6 +144,7 @@ function MilkdownEditorSurface({
 }: MarkdownPaperSurfaceProps) {
   const initialContentRef = useRef(initialContent);
   const documentPathRef = useRef(documentPath);
+  const onMarkdownChangeRef = useRef(onMarkdownChange);
   const openExternalUrlRef = useRef(openExternalUrl);
   const onSaveClipboardImageRef = useRef(onSaveClipboardImage);
   const onSaveRemoteClipboardImageRef = useRef(onSaveRemoteClipboardImage);
@@ -210,6 +211,10 @@ function MilkdownEditorSurface({
   }, [documentPath]);
 
   useEffect(() => {
+    onMarkdownChangeRef.current = onMarkdownChange;
+  }, [onMarkdownChange]);
+
+  useEffect(() => {
     openExternalUrlRef.current = openExternalUrl;
   }, [openExternalUrl]);
 
@@ -252,7 +257,7 @@ function MilkdownEditorSurface({
           ctx.get(listenerCtx).updated((editorCtx, doc) => {
             try {
               const view = editorCtx.get(editorViewCtx);
-              onMarkdownChange(
+              onMarkdownChangeRef.current(
                 serializeLinkImageLiveMarkdown(
                   view.state.doc === doc ? doc : view.state.doc,
                   editorCtx.get(serializerCtx),
@@ -348,7 +353,6 @@ function MilkdownEditorSurface({
       language,
       markdownDocumentLabel,
       normalizedMarkdownShortcuts,
-      onMarkdownChange,
       resolveImageSrc,
       slashCommandLabels
     ]

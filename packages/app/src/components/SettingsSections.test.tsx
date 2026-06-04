@@ -1230,7 +1230,8 @@ describe("EditorSettings", () => {
         { id: "theme", visible: true },
         { id: "splitMode", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "aiAgent", visible: true }
+        { id: "aiAgent", visible: true },
+        { id: "history", visible: true }
       ]
     });
 
@@ -1253,7 +1254,8 @@ describe("EditorSettings", () => {
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
-        { id: "aiAgent", visible: true }
+        { id: "aiAgent", visible: true },
+        { id: "history", visible: true }
       ]
     });
 
@@ -1265,6 +1267,7 @@ describe("EditorSettings", () => {
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
         { id: "splitMode", visible: true },
+        { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ]
@@ -1295,6 +1298,7 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.queryByRole("heading", { name: "Insert" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markra AI shortcut" })).toHaveTextContent("⌘+⌥+J");
     expect(screen.getByRole("button", { name: "AI writing command shortcut" })).toHaveTextContent("⌘+⇧+J");
+    expect(screen.getByRole("button", { name: "History versions shortcut" })).toHaveTextContent("⌘+⇧+H");
     expect(screen.getByRole("button", { name: "Switch to source mode shortcut" })).toHaveTextContent("⌘+⌥+S");
     expect(screen.getByRole("button", { name: "Toggle read-only mode shortcut" })).toHaveTextContent("⌘+⌥+L");
     expect(screen.getByRole("button", { name: "Link shortcut" })).toHaveTextContent("⌘+K");
@@ -1369,6 +1373,7 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.getByRole("button", { name: "Bold shortcut" })).toHaveTextContent("Ctrl+B");
     expect(screen.getByRole("button", { name: "Toggle Markra AI shortcut" })).toHaveTextContent("Ctrl+Alt+J");
     expect(screen.getByRole("button", { name: "AI writing command shortcut" })).toHaveTextContent("Ctrl+Shift+J");
+    expect(screen.getByRole("button", { name: "History versions shortcut" })).toHaveTextContent("Ctrl+Shift+H");
     expect(screen.getByRole("button", { name: "Switch to source mode shortcut" })).toHaveTextContent("Ctrl+Alt+S");
     expect(screen.getByRole("button", { name: "Toggle read-only mode shortcut" })).toHaveTextContent("Ctrl+Alt+L");
     expect(screen.getByRole("button", { name: "Link shortcut" })).toHaveTextContent("Ctrl+K");
@@ -1402,6 +1407,37 @@ describe("KeyboardShortcutsSettings", () => {
       markdownShortcuts: {
         ...defaultMarkdownShortcuts,
         toggleAiAgent: "Mod+Alt+J"
+      }
+    });
+  });
+
+  it("records the document history shortcut from the keyboard shortcuts tab", () => {
+    const onUpdatePreferences = vi.fn();
+    const preferences: EditorPreferences = {
+      ...defaultEditorPreferences,
+      markdownShortcuts: defaultMarkdownShortcuts
+    };
+
+    render(
+      <KeyboardShortcutsSettings
+        preferences={preferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "History versions shortcut" }));
+    fireEvent.keyDown(window, {
+      key: "h",
+      altKey: true,
+      metaKey: true,
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...preferences,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        toggleDocumentHistory: "Mod+Alt+H"
       }
     });
   });

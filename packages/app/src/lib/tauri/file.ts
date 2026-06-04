@@ -11,6 +11,17 @@ export type NativeMarkdownFile = {
   content: string;
 };
 
+export type NativeMarkdownFileHistoryEntry = {
+  id: string;
+  createdAt: number;
+  sizeBytes: number;
+};
+
+export type NativeMarkdownFileHistoryFile = {
+  id: string;
+  contents: string;
+};
+
 export type NativeMarkdownFolderFile = {
   createdAt?: number;
   kind?: "asset" | "folder";
@@ -53,7 +64,9 @@ export type NativeMarkdownDroppedTarget =
     };
 
 export type SaveNativeMarkdownFileInput = {
+  historyCursorId?: string;
   path: string | null;
+  skipHistorySnapshot?: boolean;
   suggestedName: string;
   contents: string;
 };
@@ -163,6 +176,14 @@ export function listenNativeOpenedMarkdownPaths(onPaths: (paths: string[]) => un
 
 export function readNativeMarkdownFile(path: string) {
   return getAppRuntime().files.readMarkdownFile(path);
+}
+
+export function listNativeMarkdownFileHistory(path: string) {
+  return getAppRuntime().files.listMarkdownFileHistory(path);
+}
+
+export function readNativeMarkdownFileHistory(path: string, id: string) {
+  return getAppRuntime().files.readMarkdownFileHistory(path, id);
 }
 
 export function readNativeMarkdownTemplateFile(fileName: string) {
