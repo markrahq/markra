@@ -107,6 +107,10 @@ const themeLabelKeys: Record<AppTheme, I18nKey> = {
   light: "settings.theme.light",
   dark: "settings.theme.dark",
   github: "settings.theme.github",
+  "github-dark": "settings.theme.githubDark",
+  "one-dark": "settings.theme.oneDark",
+  "one-light": "settings.theme.oneLight",
+  "one-dark-pro": "settings.theme.oneDarkPro",
   gothic: "settings.theme.gothic",
   newsprint: "settings.theme.newsprint",
   night: "settings.theme.night",
@@ -173,6 +177,38 @@ const themePreviewSwatches: Record<AppTheme, ThemePreviewSwatch> = {
     muted: "#59636e",
     panel: "#f6f8fa",
     text: "#1f2328"
+  },
+  "github-dark": {
+    accent: "#2f81f7",
+    background: "#0d1117",
+    border: "#30363d",
+    muted: "#7d8590",
+    panel: "#161b22",
+    text: "#e6edf3"
+  },
+  "one-dark": {
+    accent: "#61afef",
+    background: "#282c34",
+    border: "#3b4048",
+    muted: "#5c6370",
+    panel: "#21252b",
+    text: "#abb2bf"
+  },
+  "one-light": {
+    accent: "#4078f2",
+    background: "#fafafa",
+    border: "#d7dae0",
+    muted: "#a0a1a7",
+    panel: "#f0f0f0",
+    text: "#383a42"
+  },
+  "one-dark-pro": {
+    accent: "#61afef",
+    background: "#282c34",
+    border: "#3e4451",
+    muted: "#7f848e",
+    panel: "#21252b",
+    text: "#abb2bf"
   },
   gothic: {
     accent: "#7f1d1d",

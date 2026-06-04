@@ -242,6 +242,10 @@ vi.mock("../lib/settings/app-settings", () => ({
     "light",
     "dark",
     "github",
+    "github-dark",
+    "one-dark",
+    "one-light",
+    "one-dark-pro",
     "gothic",
     "newsprint",
     "night",
@@ -261,6 +265,10 @@ vi.mock("../lib/settings/app-settings", () => ({
     "light",
     "dark",
     "github",
+    "github-dark",
+    "one-dark",
+    "one-light",
+    "one-dark-pro",
     "gothic",
     "newsprint",
     "night",
@@ -278,7 +286,16 @@ vi.mock("../lib/settings/app-settings", () => ({
   ],
   resolveAppAppearanceTheme: vi.fn((theme, systemTheme) => {
     const resolvedTheme = theme === "system" ? systemTheme : theme;
-    return ["dark", "night", "solarized-dark", "nord", "catppuccin-mocha"].includes(resolvedTheme) ? "dark" : "light";
+    return [
+      "dark",
+      "github-dark",
+      "night",
+      "one-dark",
+      "one-dark-pro",
+      "solarized-dark",
+      "nord",
+      "catppuccin-mocha"
+    ].includes(resolvedTheme) ? "dark" : "light";
   }),
   resolveAppEditorTheme: vi.fn((theme, systemTheme) => theme === "system" ? systemTheme : theme),
   defaultTitlebarActions: [

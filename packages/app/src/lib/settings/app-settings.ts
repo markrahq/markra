@@ -54,6 +54,10 @@ export const editorThemeOptions = [
   "light",
   "dark",
   "github",
+  "github-dark",
+  "one-dark",
+  "one-light",
+  "one-dark-pro",
   "gothic",
   "newsprint",
   "night",
@@ -371,7 +375,10 @@ export function resolveAppAppearanceTheme(theme: AppTheme, systemTheme: Resolved
   if (theme === "system") return systemTheme;
   if (
     theme === "dark" ||
+    theme === "github-dark" ||
     theme === "night" ||
+    theme === "one-dark" ||
+    theme === "one-dark-pro" ||
     theme === "solarized-dark" ||
     theme === "nord" ||
     theme === "catppuccin-mocha"

@@ -6,7 +6,16 @@ type RenderMermaidOptions = {
   theme?: MarkraMermaidTheme | string | null;
 };
 
-const darkMermaidThemeNames = new Set(["dark", "night", "solarized-dark", "nord", "catppuccin-mocha"]);
+const darkMermaidThemeNames = new Set([
+  "dark",
+  "github-dark",
+  "night",
+  "one-dark",
+  "one-dark-pro",
+  "solarized-dark",
+  "nord",
+  "catppuccin-mocha"
+]);
 
 let configuredTheme: MarkraMermaidTheme | null = null;
 let mermaidRenderer: Promise<MermaidRenderer> | null = null;

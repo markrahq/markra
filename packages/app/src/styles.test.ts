@@ -351,6 +351,10 @@ describe("editor stylesheet", () => {
 
     for (const theme of [
       "github",
+      "github-dark",
+      "one-dark",
+      "one-light",
+      "one-dark-pro",
       "gothic",
       "newsprint",
       "night",
@@ -375,6 +379,10 @@ describe("editor stylesheet", () => {
     expect(styles).not.toContain(".markdown-paper[data-editor-theme=\"night\"] .ProseMirror");
     expect(styles).toContain("[data-theme=\"newsprint\"]");
     expect(styles).toContain("[data-theme=\"night\"]");
+    expect(styles).toContain("[data-theme=\"github-dark\"]");
+    expect(styles).toContain("[data-theme=\"one-dark\"]");
+    expect(styles).toContain("[data-theme=\"one-light\"]");
+    expect(styles).toContain("[data-theme=\"one-dark-pro\"]");
     expect(styles).toContain("[data-theme=\"solarized-light\"]");
     expect(styles).toContain("[data-theme=\"solarized-dark\"]");
     expect(styles).toContain("[data-theme=\"catppuccin-mocha\"]");
@@ -408,6 +416,39 @@ describe("editor stylesheet", () => {
     expect(editorThemeStyles).toContain("--editor-hl-number: #0550ae;");
     expect(editorThemeStyles).toContain("--editor-hl-title: #8250df;");
     expect(editorThemeStyles).toContain("--editor-hl-type: #116329;");
+  });
+
+  it("keeps GitHub Dark and One themes aligned with their source palettes", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const githubDarkStart = styles.indexOf("[data-theme=\"github-dark\"] {");
+    const oneDarkStart = styles.indexOf("[data-theme=\"one-dark\"] {");
+    const oneLightStart = styles.indexOf("[data-theme=\"one-light\"] {");
+    const oneDarkProStart = styles.indexOf("[data-theme=\"one-dark-pro\"] {");
+    const gothicStart = styles.indexOf("[data-theme=\"gothic\"] {");
+
+    expect(githubDarkStart).toBeGreaterThanOrEqual(0);
+    expect(oneDarkStart).toBeGreaterThan(githubDarkStart);
+    expect(oneLightStart).toBeGreaterThan(oneDarkStart);
+    expect(oneDarkProStart).toBeGreaterThan(oneLightStart);
+    expect(gothicStart).toBeGreaterThan(oneDarkProStart);
+
+    const githubDarkStyles = styles.slice(githubDarkStart, oneDarkStart);
+    const oneDarkStyles = styles.slice(oneDarkStart, oneLightStart);
+    const oneLightStyles = styles.slice(oneLightStart, oneDarkProStart);
+    const oneDarkProStyles = styles.slice(oneDarkProStart, gothicStart);
+
+    expect(githubDarkStyles).toContain("--bg-primary: #0d1117;");
+    expect(githubDarkStyles).toContain("--text-primary: #e6edf3;");
+    expect(githubDarkStyles).toContain("--accent: #2f81f7;");
+    expect(oneDarkStyles).toContain("--bg-primary: #282c34;");
+    expect(oneDarkStyles).toContain("--text-primary: #abb2bf;");
+    expect(oneDarkStyles).toContain("--accent: #61afef;");
+    expect(oneLightStyles).toContain("--bg-primary: #fafafa;");
+    expect(oneLightStyles).toContain("--text-primary: #383a42;");
+    expect(oneLightStyles).toContain("--accent: #4078f2;");
+    expect(oneDarkProStyles).toContain("--bg-primary: #282c34;");
+    expect(oneDarkProStyles).toContain("--text-primary: #abb2bf;");
+    expect(oneDarkProStyles).toContain("--accent: #61afef;");
   });
 
   it("includes the inline AI loading shimmer used by compact quick actions", () => {

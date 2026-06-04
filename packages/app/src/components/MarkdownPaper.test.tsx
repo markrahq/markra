@@ -1560,6 +1560,21 @@ describe("MarkdownPaper editing", () => {
     expect(mermaidThemeFromElement(preview)).toBe("dark");
   });
 
+  it("uses a dark Mermaid theme for GitHub Dark and One dark palettes", () => {
+    const paper = document.createElement("article");
+    const preview = document.createElement("div");
+    paper.className = "markdown-paper";
+    paper.append(preview);
+
+    for (const theme of ["github-dark", "one-dark", "one-dark-pro"]) {
+      paper.setAttribute("data-editor-theme", theme);
+      expect(mermaidThemeFromElement(preview)).toBe("dark");
+    }
+
+    paper.setAttribute("data-editor-theme", "one-light");
+    expect(mermaidThemeFromElement(preview)).toBe("default");
+  });
+
   it("rerenders Mermaid diagrams when the editor theme changes", async () => {
     const source = ["```mermaid", "flowchart TD", "  A --> B", "```"].join("\n");
     const { container } = await renderEditor(source);

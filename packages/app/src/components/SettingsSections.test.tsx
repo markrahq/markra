@@ -101,6 +101,10 @@ describe("AppearanceSettings", () => {
     expect(screen.getByRole("option", { name: "System" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Dark" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Github" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "GitHub Dark" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "One Dark" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "One Light" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "One Dark Pro" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Sepia" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Solarized Light" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Solarized Dark" })).toBeInTheDocument();

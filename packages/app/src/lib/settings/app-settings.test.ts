@@ -1,8 +1,10 @@
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests, type RuntimeStore } from "../../runtime";
 import {
+  appThemeOptions,
   createAiAgentSessionId,
   consumeWelcomeDocumentState,
   deleteStoredAiAgentSession,
+  editorThemeOptions,
   getStoredAiAgentSession,
   getStoredAiAgentPreferences,
   initializeStoredAiAgentSession,
@@ -16,11 +18,13 @@ import {
   getStoredTheme,
   getStoredWebSearchSettings,
   getStoredWorkspaceState,
+  isAppTheme,
   normalizeRecentMarkdownFolders,
   normalizeEditorPreferences,
   normalizeWebSearchSettings,
   normalizeExportSettings,
   reorderTitlebarActions,
+  resolveAppAppearanceTheme,
   removeStoredRecentMarkdownFolder,
   resetWelcomeDocumentState,
   saveStoredAiAgentSession,
@@ -122,6 +126,22 @@ describe("app settings", () => {
 
     expect(store.set).toHaveBeenCalledWith("theme", "solarized-dark");
     expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("recognizes GitHub and One theme options", () => {
+    const requestedThemes = ["github-dark", "one-dark", "one-light", "one-dark-pro"];
+
+    expect(editorThemeOptions).toEqual(expect.arrayContaining(requestedThemes));
+    expect(appThemeOptions).toEqual(expect.arrayContaining(requestedThemes));
+
+    for (const theme of requestedThemes) {
+      expect(isAppTheme(theme)).toBe(true);
+    }
+
+    expect(resolveAppAppearanceTheme("github-dark" as Parameters<typeof resolveAppAppearanceTheme>[0], "light")).toBe("dark");
+    expect(resolveAppAppearanceTheme("one-dark" as Parameters<typeof resolveAppAppearanceTheme>[0], "light")).toBe("dark");
+    expect(resolveAppAppearanceTheme("one-light" as Parameters<typeof resolveAppAppearanceTheme>[0], "dark")).toBe("light");
+    expect(resolveAppAppearanceTheme("one-dark-pro" as Parameters<typeof resolveAppAppearanceTheme>[0], "light")).toBe("dark");
   });
 
   it("loads and persists custom theme CSS", async () => {
