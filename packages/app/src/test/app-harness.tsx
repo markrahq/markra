@@ -47,6 +47,7 @@ import { openNativeExternalUrl, openSettingsWindow } from "../lib/tauri";
 import { checkNativeAppUpdate } from "../lib/tauri/updater";
 import {
   createAiAgentSessionId,
+  clearStoredRecentMarkdownFiles,
   consumeWelcomeDocumentState,
   deleteStoredAiAgentSession,
   getStoredAiAgentPreferences,
@@ -57,6 +58,7 @@ import {
   getStoredEditorPreferences,
   getStoredExportSettings,
   getStoredLanguage,
+  getStoredRecentMarkdownFiles,
   getStoredRecentMarkdownFolders,
   getStoredTheme,
   getStoredWebSearchSettings,
@@ -64,6 +66,7 @@ import {
   initializeStoredAiAgentSession,
   listStoredAiAgentSessions,
   removeStoredRecentMarkdownFolder,
+  removeStoredRecentMarkdownFile,
   resetWelcomeDocumentState,
   saveStoredAiAgentPreferences,
   saveStoredAiAgentSession,
@@ -73,10 +76,12 @@ import {
   saveStoredEditorPreferences,
   saveStoredExportSettings,
   saveStoredLanguage,
+  saveStoredRecentMarkdownFile,
   saveStoredRecentMarkdownFolder,
   saveStoredTheme,
   saveStoredWorkspaceState,
   setStoredAiAgentSessionArchived,
+  type RecentMarkdownFile,
   type RecentMarkdownFolder
 } from "../lib/settings/app-settings";
 import {
@@ -340,6 +345,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   getStoredEditorPreferences: vi.fn(),
   getStoredExportSettings: vi.fn(),
   getStoredLanguage: vi.fn(),
+  getStoredRecentMarkdownFiles: vi.fn(),
   getStoredRecentMarkdownFolders: vi.fn(),
   getStoredTheme: vi.fn(),
   getStoredWebSearchSettings: vi.fn(),
@@ -463,8 +469,13 @@ vi.mock("../lib/settings/app-settings", () => ({
     ...settings
   })),
   normalizeCustomThemeCss: vi.fn((css) => typeof css === "string" ? css.slice(0, 50000) : ":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }"),
+  prependRecentMarkdownFile: vi.fn((files: RecentMarkdownFile[], file: RecentMarkdownFile) => [
+    file,
+    ...files.filter((item) => item.path !== file.path)
+  ].slice(0, 10)),
   resetWelcomeDocumentState: vi.fn(),
   removeStoredRecentMarkdownFolder: vi.fn(),
+  removeStoredRecentMarkdownFile: vi.fn(),
   saveStoredAiAgentPreferences: vi.fn(),
   saveStoredAiAgentSession: vi.fn(),
   saveStoredAiAgentSessionTitle: vi.fn(),
@@ -473,10 +484,12 @@ vi.mock("../lib/settings/app-settings", () => ({
   saveStoredEditorPreferences: vi.fn(),
   saveStoredExportSettings: vi.fn(),
   saveStoredLanguage: vi.fn(),
+  saveStoredRecentMarkdownFile: vi.fn(),
   saveStoredRecentMarkdownFolder: vi.fn(),
   saveStoredTheme: vi.fn(),
   saveStoredWorkspaceState: vi.fn(),
-  setStoredAiAgentSessionArchived: vi.fn()
+  setStoredAiAgentSessionArchived: vi.fn(),
+  clearStoredRecentMarkdownFiles: vi.fn()
 }));
 
 vi.mock("../lib/settings/settings-events", () => ({
@@ -569,12 +582,15 @@ export const mockedGetStoredCustomThemeCss = vi.mocked(getStoredCustomThemeCss);
 export const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPreferences);
 export const mockedGetStoredExportSettings = vi.mocked(getStoredExportSettings);
 export const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
+export const mockedGetStoredRecentMarkdownFiles = vi.mocked(getStoredRecentMarkdownFiles);
 export const mockedGetStoredRecentMarkdownFolders = vi.mocked(getStoredRecentMarkdownFolders);
 export const mockedGetStoredTheme = vi.mocked(getStoredTheme);
 export const mockedGetStoredWebSearchSettings = vi.mocked(getStoredWebSearchSettings);
 export const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
 export const mockedInitializeStoredAiAgentSession = vi.mocked(initializeStoredAiAgentSession);
 export const mockedListStoredAiAgentSessions = vi.mocked(listStoredAiAgentSessions);
+export const mockedClearStoredRecentMarkdownFiles = vi.mocked(clearStoredRecentMarkdownFiles);
+export const mockedRemoveStoredRecentMarkdownFile = vi.mocked(removeStoredRecentMarkdownFile);
 export const mockedRemoveStoredRecentMarkdownFolder = vi.mocked(removeStoredRecentMarkdownFolder);
 export const mockedResetWelcomeDocumentState = vi.mocked(resetWelcomeDocumentState);
 export const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession);
@@ -585,6 +601,7 @@ export const mockedSaveStoredCustomThemeCss = vi.mocked(saveStoredCustomThemeCss
 export const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences);
 export const mockedSaveStoredExportSettings = vi.mocked(saveStoredExportSettings);
 export const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
+export const mockedSaveStoredRecentMarkdownFile = vi.mocked(saveStoredRecentMarkdownFile);
 export const mockedSaveStoredRecentMarkdownFolder = vi.mocked(saveStoredRecentMarkdownFolder);
 export const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
 export const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
@@ -725,6 +742,7 @@ export function installAppTestHarness() {
     mockedResolveDesktopPlatform.mockReset();
     mockedOpenSettingsWindow.mockReset();
     mockedGetStoredLanguage.mockReset();
+    mockedGetStoredRecentMarkdownFiles.mockReset();
     mockedGetStoredRecentMarkdownFolders.mockReset();
     mockedGetStoredAiSettings.mockReset();
     mockedGetStoredAiAgentPreferences.mockReset();
@@ -737,6 +755,8 @@ export function installAppTestHarness() {
     mockedGetStoredWorkspaceState.mockReset();
     mockedInitializeStoredAiAgentSession.mockReset();
     mockedListStoredAiAgentSessions.mockReset();
+    mockedClearStoredRecentMarkdownFiles.mockReset();
+    mockedRemoveStoredRecentMarkdownFile.mockReset();
     mockedRemoveStoredRecentMarkdownFolder.mockReset();
     mockedResetWelcomeDocumentState.mockReset();
     mockedSaveStoredAiAgentPreferences.mockReset();
@@ -747,6 +767,7 @@ export function installAppTestHarness() {
     mockedSaveStoredEditorPreferences.mockReset();
     mockedSaveStoredExportSettings.mockReset();
     mockedSaveStoredLanguage.mockReset();
+    mockedSaveStoredRecentMarkdownFile.mockReset();
     mockedSaveStoredRecentMarkdownFolder.mockReset();
     mockedSaveStoredTheme.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
@@ -982,6 +1003,7 @@ export function installAppTestHarness() {
       ]
     });
     mockedGetStoredLanguage.mockResolvedValue("en");
+    mockedGetStoredRecentMarkdownFiles.mockResolvedValue([]);
     mockedGetStoredRecentMarkdownFolders.mockResolvedValue([]);
     mockedGetStoredCustomThemeCss.mockResolvedValue(":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }");
     mockedGetStoredTheme.mockResolvedValue("light");
@@ -997,12 +1019,15 @@ export function installAppTestHarness() {
     mockedSaveStoredAiAgentPreferences.mockResolvedValue(undefined);
     mockedInitializeStoredAiAgentSession.mockResolvedValue(undefined);
     mockedListStoredAiAgentSessions.mockResolvedValue([]);
+    mockedClearStoredRecentMarkdownFiles.mockResolvedValue(undefined);
+    mockedRemoveStoredRecentMarkdownFile.mockResolvedValue([]);
     mockedRemoveStoredRecentMarkdownFolder.mockResolvedValue([]);
     mockedDeleteStoredAiAgentSession.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentSession.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentSessionTitle.mockResolvedValue(undefined);
     mockedSaveStoredAiSettings.mockResolvedValue(undefined);
     mockedSaveStoredLanguage.mockResolvedValue(undefined);
+    mockedSaveStoredRecentMarkdownFile.mockResolvedValue([]);
     mockedSaveStoredRecentMarkdownFolder.mockResolvedValue([]);
     mockedSaveStoredTheme.mockResolvedValue(undefined);
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);

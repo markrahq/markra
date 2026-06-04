@@ -1,10 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { initialMarkdown } from "../constants/initial-markdown";
 import {
+  clearStoredRecentMarkdownFiles,
   consumeWelcomeDocumentState,
   createAiAgentSessionId,
+  getStoredRecentMarkdownFiles,
   getStoredWorkspaceState,
+  prependRecentMarkdownFile,
+  removeStoredRecentMarkdownFile,
+  saveStoredRecentMarkdownFile,
   saveStoredWorkspaceState,
+  type RecentMarkdownFile,
   type StoredWorkspaceDraftTab,
   type StoredWorkspaceWindow
 } from "../lib/settings/app-settings";
@@ -291,6 +297,7 @@ export function useMarkdownDocument({
   const [activeTabId, setActiveTabId] = useState<string | null>("untitled:0");
   const [workspaceSessionId, setWorkspaceSessionId] = useState<string | null>(null);
   const [nativeOpenedPathsReady, setNativeOpenedPathsReady] = useState(false);
+  const [recentFiles, setRecentFiles] = useState<RecentMarkdownFile[]>([]);
   const documentRef = useRef(document);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef<string | null>(activeTabId);
@@ -337,6 +344,31 @@ export function useMarkdownDocument({
   const createWorkspaceSession = useCallback(() => {
     return selectWorkspaceSession(createAiAgentSessionId());
   }, [selectWorkspaceSession]);
+
+  const rememberRecentMarkdownFile = useCallback((file: RecentMarkdownFile) => {
+    const path = file.path.trim();
+    if (!path) return;
+
+    const recentFile = {
+      name: file.name.trim() || pathNameFromPath(path),
+      path
+    };
+    setRecentFiles((current) => prependRecentMarkdownFile(current, recentFile));
+    saveStoredRecentMarkdownFile(recentFile).catch(() => {});
+  }, []);
+
+  const forgetRecentMarkdownFile = useCallback((path: string) => {
+    const normalizedPath = path.trim();
+    if (!normalizedPath) return;
+
+    setRecentFiles((current) => current.filter((file) => file.path !== normalizedPath));
+    removeStoredRecentMarkdownFile(normalizedPath).catch(() => {});
+  }, []);
+
+  const clearRecentMarkdownFiles = useCallback(() => {
+    setRecentFiles([]);
+    clearStoredRecentMarkdownFiles().catch(() => {});
+  }, []);
 
   const currentMarkdown = useCallback(() => {
     const current = documentRef.current;
@@ -657,6 +689,7 @@ export function useMarkdownDocument({
       }
 
       if (updateTreeRoot) onTreeRootFromFilePath(file.path);
+      rememberRecentMarkdownFile({ name: file.name, path: file.path });
       registerWindowRestoreState(file.path, nextOpenFilePaths);
       const nextDraftTabs = documentTabsEnabled
         ? tabsRef.current
@@ -669,7 +702,7 @@ export function useMarkdownDocument({
         ...(updateTreeRoot ? { folderName: null, folderPath: null } : {})
       });
     },
-    [documentTabsEnabled, onTreeRootFromFilePath, registerWindowRestoreState, resolveWorkspaceSessionId, setActiveDocument, setActiveTabState, syncActiveDocumentFromEditor]
+    [documentTabsEnabled, onTreeRootFromFilePath, registerWindowRestoreState, rememberRecentMarkdownFile, resolveWorkspaceSessionId, setActiveDocument, setActiveTabState, syncActiveDocumentFromEditor]
   );
 
   const loadNativeMarkdownPath = useCallback(
@@ -678,6 +711,27 @@ export function useMarkdownDocument({
       applyNativeMarkdownFile(file, updateTreeRoot, preferredSessionId);
     },
     [applyNativeMarkdownFile]
+  );
+
+  const openRecentMarkdownFile = useCallback(
+    async (file: RecentMarkdownFile) => {
+      const path = file.path.trim();
+      if (!path) return false;
+
+      try {
+        if (!documentTabsEnabled) {
+          const canDiscard = await confirmCanDiscardCurrentDocument();
+          if (!canDiscard) return false;
+        }
+
+        await loadNativeMarkdownPath(path);
+        return true;
+      } catch {
+        forgetRecentMarkdownFile(path);
+        return false;
+      }
+    },
+    [confirmCanDiscardCurrentDocument, documentTabsEnabled, forgetRecentMarkdownFile, loadNativeMarkdownPath]
   );
 
   const restoreNativeMarkdownFiles = useCallback(
@@ -1011,6 +1065,7 @@ export function useMarkdownDocument({
       : [savedFile.path];
     const nextActiveFilePath = activeFilePathFromTabs(nextTabs, activeTabIdRef.current);
     if (options.retargetWorkspaceRoot) onTreeRootFromFilePath(savedFile.path);
+    rememberRecentMarkdownFile(savedFile);
     registerWindowRestoreState(nextActiveFilePath, nextOpenFilePaths);
     persistWorkspaceState({
       ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
@@ -1018,7 +1073,7 @@ export function useMarkdownDocument({
       openFilePaths: nextOpenFilePaths,
       ...(options.retargetWorkspaceRoot ? { folderName: null, folderPath: null } : {})
     });
-  }, [documentTabsEnabled, onTreeRootFromFilePath, registerWindowRestoreState]);
+  }, [documentTabsEnabled, onTreeRootFromFilePath, registerWindowRestoreState, rememberRecentMarkdownFile]);
 
   const saveCurrentDocument = useCallback(
     async (saveAs = false) => {
@@ -1140,6 +1195,7 @@ export function useMarkdownDocument({
       }
 
       if (saveAs || tab.path === null) onTreeRootFromFilePath(savedFile.path);
+      rememberRecentMarkdownFile(savedFile);
       registerWindowRestoreState(activeFilePathFromTabs(nextTabs, activeTabIdRef.current), openFilePathsFromTabs(nextTabs));
       persistWorkspaceState({
         ...draftWorkspacePatchFromTabs(nextTabs, activeTabIdRef.current),
@@ -1149,7 +1205,7 @@ export function useMarkdownDocument({
       });
       return savedFile;
     },
-    [currentMarkdown, onTreeRootFromFilePath, registerWindowRestoreState, syncActiveDocumentFromEditor]
+    [currentMarkdown, onTreeRootFromFilePath, registerWindowRestoreState, rememberRecentMarkdownFile, syncActiveDocumentFromEditor]
   );
 
   const handleSaveClick = useCallback(() => {
@@ -1265,6 +1321,18 @@ export function useMarkdownDocument({
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [hasDiscardableTabChanges, syncActiveDocumentFromEditor]);
+
+  useEffect(() => {
+    let active = true;
+
+    getStoredRecentMarkdownFiles().then((files) => {
+      if (active) setRecentFiles(files);
+    }).catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -1622,6 +1690,7 @@ export function useMarkdownDocument({
   }, [document.path, onMarkdownTreeChange, setActiveDocument]);
 
   return {
+    clearRecentMarkdownFiles,
     clearOpenDocument,
     closeMarkdownTab,
     createBlankDocument,
@@ -1636,11 +1705,13 @@ export function useMarkdownDocument({
     handleMarkdownTabChange,
     handleSaveClick,
     openMarkdownFile,
+    openRecentMarkdownFile,
     openTreeMarkdownFileInBackground,
     openTreeMarkdownFile,
     outlineItems,
     replaceOpenDocumentFile,
     replaceMovedOpenDocumentFile,
+    recentFiles,
     restoreDocumentContent,
     saveCurrentDocumentContent,
     saveCurrentDocument,

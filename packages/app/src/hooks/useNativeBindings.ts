@@ -5,6 +5,7 @@ import {
   installNativeEditorContextMenu,
   type NativeMenuHandlers
 } from "../lib/tauri";
+import type { RecentMarkdownFile } from "../lib/settings/app-settings";
 import type { AiEditIntent } from "@markra/ai";
 import {
   defaultMarkdownShortcuts,
@@ -24,6 +25,7 @@ type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
 type NativeMenuHandlerOptions = {
   checkForUpdates?: () => unknown | Promise<unknown>;
+  clearRecentFiles?: () => unknown | Promise<unknown>;
   closeDocument?: () => unknown | Promise<unknown>;
   exportDocx?: () => unknown | Promise<unknown>;
   exportEpub?: () => unknown | Promise<unknown>;
@@ -36,6 +38,7 @@ type NativeMenuHandlerOptions = {
   markdownShortcuts?: MarkdownShortcutMap;
   openDocument: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
+  openRecentFile?: (file: RecentMarkdownFile) => unknown | Promise<unknown>;
   runAiQuickAction?: (intent: NativeAiQuickActionIntent, prompt: string) => unknown | Promise<unknown>;
   runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "shiftKey">) => unknown;
   saveDocument: () => unknown | Promise<unknown>;
@@ -67,8 +70,11 @@ type ApplicationShortcutOptions = {
   toggleSourceMode?: () => unknown | Promise<unknown>;
 };
 
+const emptyRecentMarkdownFiles: readonly RecentMarkdownFile[] = [];
+
 export function useNativeMenuHandlers({
   checkForUpdates,
+  clearRecentFiles,
   closeDocument,
   exportDocx,
   exportEpub,
@@ -81,6 +87,7 @@ export function useNativeMenuHandlers({
   markdownShortcuts,
   openDocument,
   openFolder,
+  openRecentFile,
   runAiQuickAction,
   runEditorShortcut,
   saveDocument,
@@ -98,6 +105,7 @@ export function useNativeMenuHandlers({
   );
   const latestOptionsRef = useRef({
     checkForUpdates,
+    clearRecentFiles,
     exportDocx,
     exportEpub,
     exportHtml,
@@ -110,6 +118,7 @@ export function useNativeMenuHandlers({
     normalizedMarkdownShortcuts,
     openDocument,
     openFolder,
+    openRecentFile,
     runAiQuickAction,
     runEditorShortcut,
     saveDocument,
@@ -123,6 +132,7 @@ export function useNativeMenuHandlers({
   });
   latestOptionsRef.current = {
     checkForUpdates,
+    clearRecentFiles,
     exportDocx,
     exportEpub,
     exportHtml,
@@ -135,6 +145,7 @@ export function useNativeMenuHandlers({
     normalizedMarkdownShortcuts,
     openDocument,
     openFolder,
+    openRecentFile,
     runAiQuickAction,
     runEditorShortcut,
     saveDocument,
@@ -171,6 +182,7 @@ export function useNativeMenuHandlers({
         insertTable: () => latestOptionsRef.current.insertMarkdownTable()
       };
 
+      if (clearRecentFiles) handlers.clearRecentFiles = () => latestOptionsRef.current.clearRecentFiles?.();
       if (checkForUpdates) handlers.checkForUpdates = () => latestOptionsRef.current.checkForUpdates?.();
       if (closeDocument) handlers.closeDocument = () => latestOptionsRef.current.closeDocument?.();
       if (exportPdf) handlers.exportPdf = () => latestOptionsRef.current.exportPdf?.();
@@ -185,6 +197,7 @@ export function useNativeMenuHandlers({
         handlers.aiSummarize = () => runLatestAiQuickAction("summarize");
         handlers.aiTranslate = () => runLatestAiQuickAction("translate");
       }
+      if (openRecentFile) handlers.openRecentFile = (file) => latestOptionsRef.current.openRecentFile?.(file);
       if (toggleAiAgent) handlers.toggleAiAgent = () => latestOptionsRef.current.toggleAiAgent?.();
       if (toggleAiCommand) handlers.toggleAiCommand = () => latestOptionsRef.current.toggleAiCommand?.();
       if (toggleDocumentHistory) {
@@ -253,11 +266,16 @@ export function useNativeMarkdownDrop(onDrop: (target: NativeMarkdownDroppedTarg
 export function useNativeMenus(
   handlers: NativeMenuHandlers,
   language: AppLanguage | null = "en",
-  options: { getAiCommandsAvailable?: () => boolean; markdownShortcuts?: MarkdownShortcutMap } = {}
+  options: {
+    getAiCommandsAvailable?: () => boolean;
+    markdownShortcuts?: MarkdownShortcutMap;
+    recentFiles?: readonly RecentMarkdownFile[];
+  } = {}
 ) {
   const markdownShortcuts = hasMarkdownShortcutOverrides(options.markdownShortcuts)
     ? options.markdownShortcuts
     : undefined;
+  const recentFiles = options.recentFiles ?? emptyRecentMarkdownFiles;
 
   useEffect(() => {
     if (!language) return;
@@ -265,9 +283,7 @@ export function useNativeMenus(
     let active = true;
     let cleanup: (() => unknown) | null = null;
 
-    const installMenu = markdownShortcuts
-      ? installNativeApplicationMenu(handlers, language, markdownShortcuts)
-      : installNativeApplicationMenu(handlers, language);
+    const installMenu = installNativeApplicationMenu(handlers, language, markdownShortcuts, recentFiles);
 
     installMenu.then((stopListening) => {
       if (!active) {
@@ -282,7 +298,7 @@ export function useNativeMenus(
       active = false;
       cleanup?.();
     };
-  }, [handlers, language, markdownShortcuts]);
+  }, [handlers, language, markdownShortcuts, recentFiles]);
 
   useEffect(() => {
     if (!language) return;

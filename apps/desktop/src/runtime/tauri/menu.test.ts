@@ -130,7 +130,13 @@ describe("native menu", () => {
   it("routes native application menu commands to the current app handlers", async () => {
     const handlers: NativeMenuHandlers = {
       openDocument: vi.fn(),
+      openRecentFile: vi.fn(),
+      clearRecentFiles: vi.fn(),
       saveDocument: vi.fn()
+    };
+    const recentFile = {
+      name: "recent.md",
+      path: "/mock-files/recent.md"
     };
 
     const stopListening = await listenNativeApplicationMenuCommands(handlers);
@@ -139,11 +145,15 @@ describe("native menu", () => {
     expect(mockedListen).toHaveBeenCalledWith("markra://menu-command", expect.any(Function));
 
     await listener?.({ payload: { command: "openDocument" } } as Parameters<NonNullable<typeof listener>>[0]);
+    await listener?.({ payload: { command: "openRecentFile", recentFile } } as Parameters<NonNullable<typeof listener>>[0]);
+    await listener?.({ payload: { command: "clearRecentFiles" } } as Parameters<NonNullable<typeof listener>>[0]);
     await listener?.({ payload: { command: "saveDocument" } } as Parameters<NonNullable<typeof listener>>[0]);
     await listener?.({ payload: { command: "unknown" } } as Parameters<NonNullable<typeof listener>>[0]);
     await listener?.({ payload: { command: "openFolder" } } as unknown as Parameters<NonNullable<typeof listener>>[0]);
 
     expect(handlers.openDocument).toHaveBeenCalledTimes(1);
+    expect(handlers.openRecentFile).toHaveBeenCalledWith(recentFile);
+    expect(handlers.clearRecentFiles).toHaveBeenCalledTimes(1);
     expect(handlers.saveDocument).toHaveBeenCalledTimes(1);
 
     stopListening();
@@ -155,17 +165,21 @@ describe("native menu", () => {
     const handlers: NativeMenuHandlers = {
       saveDocument: vi.fn()
     };
+    const recentFiles = [
+      { name: "recent.md", path: "/mock-files/recent.md" }
+    ];
 
     await installNativeApplicationMenu(handlers, "fr", {
       bold: "Mod+Alt+B"
-    });
+    }, recentFiles);
 
     expect(mockedListen).toHaveBeenCalledWith("markra://menu-command", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
       accelerators: {
         formatBold: "CmdOrCtrl+Alt+B"
       },
-      language: "fr"
+      language: "fr",
+      recentFiles
     });
     expect(mockedMenuNew).not.toHaveBeenCalled();
     expect(setAsAppMenu).not.toHaveBeenCalled();
@@ -320,7 +334,8 @@ describe("native menu", () => {
         insertLink: "CmdOrCtrl+Alt+K",
         insertTable: "CmdOrCtrl+Shift+T"
       },
-      language: "en"
+      language: "en",
+      recentFiles: []
     });
 
     await installNativeEditorContextMenu(target, {}, "en", {
@@ -357,7 +372,8 @@ describe("native menu", () => {
         toggleReadOnlyMode: "CmdOrCtrl+Alt+R",
         toggleSourceMode: "CmdOrCtrl+Alt+U"
       },
-      language: "en"
+      language: "en",
+      recentFiles: []
     });
   });
 

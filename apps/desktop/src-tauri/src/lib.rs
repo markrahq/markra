@@ -27,8 +27,8 @@ use markdown_files::{
 };
 use menu::{
     apply_native_application_menu_for_window_event, create_application_menu,
-    emit_native_menu_command, install_application_menu, is_frontend_menu_command,
-    is_native_new_window_command, is_native_settings_window_command,
+    emit_native_menu_command_payload, install_application_menu, is_native_new_window_command,
+    is_native_settings_window_command, native_menu_command_from_id,
     remember_native_menu_webview_window, remember_native_menu_window_from_event,
     NativeApplicationMenuState, NativeMenuTargetState,
 };
@@ -102,11 +102,11 @@ pub fn run() {
                 return;
             }
 
-            if !is_frontend_menu_command(command) {
+            let Some(payload) = native_menu_command_from_id(app, command) else {
                 return;
-            }
+            };
 
-            emit_native_menu_command(app, command.to_string());
+            emit_native_menu_command_payload(app, payload);
         })
         .invoke_handler(tauri::generate_handler![
             list_markdown_files_for_path,
