@@ -5,6 +5,7 @@ mod history;
 mod image;
 mod open;
 mod path;
+mod search;
 mod template;
 mod tree;
 mod types;
@@ -20,6 +21,7 @@ pub(crate) use open::{
     resolve_markdown_path,
 };
 pub(crate) use path::markdown_open_path_for_path;
+pub(crate) use search::search_markdown_files_for_path;
 pub(crate) use template::{
     delete_markdown_template_file, read_markdown_template_file, write_markdown_template_file,
 };

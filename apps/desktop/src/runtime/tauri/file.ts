@@ -6,7 +6,9 @@ import { debug, fileNameFromPath } from "@markra/shared";
 import type {
   PicGoImageUploadSettings,
   S3ImageUploadSettings,
-  WebDavImageUploadSettings
+  WebDavImageUploadSettings,
+  WorkspaceSearchRequest,
+  WorkspaceSearchResponse
 } from "@markra/app/runtime";
 
 type MarkdownFileResponse = {
@@ -46,6 +48,14 @@ type MarkdownOpenPathResponse =
       kind: "folder";
       path: string;
     };
+
+type MarkdownWorkspaceSearchResultResponse = Omit<WorkspaceSearchResponse["results"][number], "file"> & {
+  file: MarkdownFolderFileResponse;
+};
+
+type MarkdownWorkspaceSearchResponse = Omit<WorkspaceSearchResponse, "results"> & {
+  results: MarkdownWorkspaceSearchResultResponse[];
+};
 
 export type NativeMarkdownFile = {
   path: string;
@@ -442,6 +452,33 @@ export async function listNativeMarkdownFilesForPath(path: string): Promise<Nati
   });
 
   return files.map(markdownFolderFileFromResponse);
+}
+
+export async function searchNativeMarkdownFilesForPath({
+  caseSensitive,
+  currentDocument,
+  maxMatches,
+  maxMatchesPerFile,
+  path,
+  query
+}: WorkspaceSearchRequest): Promise<WorkspaceSearchResponse> {
+  const search = await invoke<MarkdownWorkspaceSearchResponse>("search_markdown_files_for_path", {
+    caseSensitive: caseSensitive === true,
+    currentDocumentContent: currentDocument?.content,
+    currentDocumentPath: currentDocument?.path,
+    maxMatches,
+    maxMatchesPerFile,
+    path,
+    query
+  });
+
+  return {
+    ...search,
+    results: search.results.map((result) => ({
+      ...result,
+      file: markdownFolderFileFromResponse(result.file)
+    }))
+  };
 }
 
 function markdownFolderFileFromResponse(file: MarkdownFolderFileResponse): NativeMarkdownFolderFile {

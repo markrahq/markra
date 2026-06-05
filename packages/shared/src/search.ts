@@ -5,12 +5,16 @@ export type SearchRange = {
 
 type SearchOptions = {
   caseSensitive?: boolean;
+  maxMatches?: number;
 };
 
 export function findSearchRanges(text: string, query: string, options: SearchOptions = {}): SearchRange[] {
   if (!query) return [];
 
   const ranges: SearchRange[] = [];
+  const maxMatches = Math.max(0, options.maxMatches ?? Number.POSITIVE_INFINITY);
+  if (maxMatches === 0) return ranges;
+
   const needle = options.caseSensitive ? query : query.toLocaleLowerCase();
   let from = 0;
 
@@ -25,6 +29,7 @@ export function findSearchRanges(text: string, query: string, options: SearchOpt
         from,
         to: from + query.length
       });
+      if (ranges.length >= maxMatches) return ranges;
       from += Math.max(1, query.length);
       continue;
     }

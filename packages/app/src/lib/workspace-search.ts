@@ -17,7 +17,20 @@ export type WorkspaceSearchResult = {
 export type WorkspaceSearchResponse = {
   results: WorkspaceSearchResult[];
   searchedFileCount: number;
+  truncated: boolean;
   unreadableFileCount: number;
+};
+
+export type WorkspaceSearchRequest = {
+  caseSensitive?: boolean;
+  currentDocument?: {
+    content: string;
+    path: string;
+  } | null;
+  maxMatches?: number;
+  maxMatchesPerFile?: number;
+  path: string;
+  query: string;
 };
 
 type WorkspaceSearchReadResult = {
@@ -32,8 +45,6 @@ type WorkspaceSearchOptions = {
   readFile: (path: string) => Promise<WorkspaceSearchReadResult>;
 };
 
-const defaultMaxMatches = 80;
-const defaultMaxMatchesPerFile = 8;
 const snippetMaxLength = 96;
 
 export function isWorkspaceSearchableFile(file: WorkspaceSearchFile) {
@@ -47,13 +58,14 @@ export async function searchWorkspaceFiles(
 ): Promise<WorkspaceSearchResponse> {
   const normalizedQuery = query.trim();
   const searchableFiles = files.filter(isWorkspaceSearchableFile);
-  const maxMatches = Math.max(0, options.maxMatches ?? defaultMaxMatches);
-  const maxMatchesPerFile = Math.max(0, options.maxMatchesPerFile ?? defaultMaxMatchesPerFile);
+  const maxMatches = options.maxMatches === undefined ? undefined : Math.max(0, options.maxMatches);
+  const maxMatchesPerFile = options.maxMatchesPerFile === undefined ? undefined : Math.max(0, options.maxMatchesPerFile);
 
   if (!normalizedQuery || maxMatches === 0 || maxMatchesPerFile === 0) {
     return {
       results: [],
       searchedFileCount: searchableFiles.length,
+      truncated: false,
       unreadableFileCount: 0
     };
   }
@@ -65,7 +77,7 @@ export async function searchWorkspaceFiles(
 
         return {
           file,
-          matches: findWorkspaceSearchResults(file, read.content, normalizedQuery, {
+          ...findWorkspaceSearchResults(file, read.content, normalizedQuery, {
             caseSensitive: options.caseSensitive,
             maxMatchesPerFile
           }),
@@ -75,6 +87,7 @@ export async function searchWorkspaceFiles(
         return {
           file,
           matches: [] as WorkspaceSearchResult[],
+          truncated: false,
           unreadable: true
         };
       }
@@ -83,19 +96,22 @@ export async function searchWorkspaceFiles(
 
   const results: WorkspaceSearchResult[] = [];
   const unreadableFileCount = searched.filter((item) => item.unreadable).length;
+  const collectedMatchCount = searched.reduce((count, item) => count + item.matches.length, 0);
+  const truncatedByFileLimit = searched.some((item) => item.truncated);
 
   for (const item of searched) {
     for (const match of item.matches) {
-      if (results.length >= maxMatches) break;
+      if (maxMatches !== undefined && results.length >= maxMatches) break;
       results.push(match);
     }
 
-    if (results.length >= maxMatches) break;
+    if (maxMatches !== undefined && results.length >= maxMatches) break;
   }
 
   return {
     results,
     searchedFileCount: searchableFiles.length,
+    truncated: truncatedByFileLimit || (maxMatches !== undefined && collectedMatchCount > maxMatches),
     unreadableFileCount
   };
 }
@@ -104,13 +120,17 @@ function findWorkspaceSearchResults(
   file: WorkspaceSearchFile,
   content: string,
   query: string,
-  options: { caseSensitive?: boolean; maxMatchesPerFile: number }
+  options: { caseSensitive?: boolean; maxMatchesPerFile?: number }
 ) {
+  const searchLimit = options.maxMatchesPerFile === undefined ? undefined : options.maxMatchesPerFile + 1;
   const ranges = findSearchRanges(content, query, {
-    caseSensitive: options.caseSensitive
-  }).slice(0, options.maxMatchesPerFile);
+    caseSensitive: options.caseSensitive,
+    maxMatches: searchLimit
+  });
+  const truncated = options.maxMatchesPerFile !== undefined && ranges.length > options.maxMatchesPerFile;
 
-  return ranges.map((range, matchIndex) => {
+  const visibleRanges = options.maxMatchesPerFile === undefined ? ranges : ranges.slice(0, options.maxMatchesPerFile);
+  const results = visibleRanges.map((range, matchIndex) => {
     const line = lineForSearchRange(content, range);
 
     return {
@@ -124,6 +144,11 @@ function findWorkspaceSearchResults(
       snippet: workspaceSearchSnippet(line.text, line.columnNumber, range.to - range.from)
     } satisfies WorkspaceSearchResult;
   });
+
+  return {
+    matches: results,
+    truncated
+  };
 }
 
 function lineForSearchRange(content: string, range: SearchRange) {

@@ -134,6 +134,7 @@ import {
   saveNativeHtmlFile,
   saveNativePandocFile,
   saveNativePdfFile,
+  searchNativeMarkdownFilesForPath,
   showNativePandocSetup,
   writeNativeMarkdownTemplateFile,
   type NativeMarkdownFolderFile,
@@ -156,9 +157,11 @@ const sideDocumentPaneKeyboardStepPercent = 5;
 const sideDocumentMainPanePercentMin = 35;
 const sideDocumentMainPanePercentMax = 70;
 const defaultSideDocumentMainPanePercent = 50;
+export const globalSearchDebounceMs = 180;
 const emptyWorkspaceSearchResponse: WorkspaceSearchResponse = {
   results: [],
   searchedFileCount: 0,
+  truncated: false,
   unreadableFileCount: 0
 };
 
@@ -509,6 +512,7 @@ function WorkspaceApp() {
     resizing: fileTreeResizing,
     resize: resizeFileTree,
     endResize: endFileTreeResize,
+    sourcePath: fileTreeSourcePath,
     rootNameForDocument,
     setRootFromMarkdownFilePath,
     startResize: startFileTreeResize,
@@ -1833,6 +1837,9 @@ function WorkspaceApp() {
   }, []);
   const handleGlobalSearchClose = useCallback(() => {
     setGlobalSearchOpen(false);
+    setGlobalSearchQuery("");
+    setGlobalSearchLoading(false);
+    setGlobalSearchResponse(emptyWorkspaceSearchResponse);
   }, []);
   const handleGlobalSearchQueryChange = useCallback((query: string) => {
     setGlobalSearchQuery(query);
@@ -1853,51 +1860,114 @@ function WorkspaceApp() {
   }, [documentSearchOpen, globalSearchCaseSensitive, globalSearchQuery, handleOpenTreeFile]);
   useEffect(() => {
     const query = globalSearchQuery.trim();
-    if (!globalSearchOpen || !query) {
+    const fileTreeSearchableFileCount = fileTreeFiles.filter((file) =>
+      file.kind !== "asset" && file.kind !== "folder"
+    ).length;
+
+    if (!globalSearchOpen) {
       setGlobalSearchLoading(false);
       setGlobalSearchResponse({
         ...emptyWorkspaceSearchResponse,
-        searchedFileCount: fileTreeFiles.filter((file) => file.kind !== "asset" && file.kind !== "folder").length
+        searchedFileCount: fileTreeSearchableFileCount
       });
       return;
+    }
+
+    if (!query) {
+      let active = true;
+
+      setGlobalSearchLoading(false);
+      setGlobalSearchResponse({
+        ...emptyWorkspaceSearchResponse,
+        searchedFileCount: fileTreeSearchableFileCount
+      });
+
+      const loadNativeFileCount = async () => {
+        if (!fileTreeSourcePath) return null;
+
+        return searchNativeMarkdownFilesForPath({
+          caseSensitive: globalSearchCaseSensitive,
+          currentDocument: null,
+          path: fileTreeSourcePath,
+          query: ""
+        }).catch(() => null);
+      };
+
+      loadNativeFileCount().then((response) => {
+        if (!active || !response) return;
+
+        setGlobalSearchResponse({
+          ...emptyWorkspaceSearchResponse,
+          searchedFileCount: response.searchedFileCount,
+          truncated: response.truncated,
+          unreadableFileCount: response.unreadableFileCount
+        });
+      });
+
+      return () => {
+        active = false;
+      };
     }
 
     let active = true;
     setGlobalSearchLoading(true);
 
-    searchWorkspaceFiles(fileTreeFiles, query, {
-      caseSensitive: globalSearchCaseSensitive,
-      readFile: async (path) => {
-        if (!activeImageFile && document.path === path) {
+    const runGlobalSearch = async () => {
+      const nativeResponse = fileTreeSourcePath
+        ? await searchNativeMarkdownFilesForPath({
+            caseSensitive: globalSearchCaseSensitive,
+            currentDocument: !activeImageFile && document.path
+              ? {
+                  content: document.content,
+                  path: document.path
+                }
+              : null,
+            path: fileTreeSourcePath,
+            query
+          }).catch(() => null)
+        : null;
+      if (nativeResponse) return nativeResponse;
+
+      return searchWorkspaceFiles(fileTreeFiles, query, {
+        caseSensitive: globalSearchCaseSensitive,
+        readFile: async (path) => {
+          if (!activeImageFile && document.path === path) {
+            return {
+              content: document.content,
+              path
+            };
+          }
+
+          const file = await readNativeMarkdownFile(path);
+
           return {
-            content: document.content,
-            path
+            content: file.content,
+            path: file.path
           };
         }
+      });
+    };
 
-        const file = await readNativeMarkdownFile(path);
-
-        return {
-          content: file.content,
-          path: file.path
-        };
-      }
-    }).then((response) => {
-      if (active) setGlobalSearchResponse(response);
-    }).catch(() => {
-      if (active) setGlobalSearchResponse(emptyWorkspaceSearchResponse);
-    }).finally(() => {
-      if (active) setGlobalSearchLoading(false);
-    });
+    const searchTimeout = window.setTimeout(() => {
+      runGlobalSearch().then((response) => {
+        if (active) setGlobalSearchResponse(response);
+      }).catch(() => {
+        if (active) setGlobalSearchResponse(emptyWorkspaceSearchResponse);
+      }).finally(() => {
+        if (active) setGlobalSearchLoading(false);
+      });
+    }, globalSearchDebounceMs);
 
     return () => {
       active = false;
+      window.clearTimeout(searchTimeout);
     };
   }, [
     activeImageFile,
     document.content,
     document.path,
     fileTreeFiles,
+    fileTreeSourcePath,
     globalSearchCaseSensitive,
     globalSearchOpen,
     globalSearchQuery
@@ -3099,6 +3169,7 @@ function WorkspaceApp() {
                   query={globalSearchQuery}
                   results={globalSearchResponse.results}
                   searchedFileCount={globalSearchResponse.searchedFileCount}
+                  truncated={globalSearchResponse.truncated}
                   unreadableFileCount={globalSearchResponse.unreadableFileCount}
                   onCaseSensitiveChange={handleGlobalSearchCaseSensitiveChange}
                   onClose={handleGlobalSearchClose}

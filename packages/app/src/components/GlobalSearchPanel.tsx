@@ -10,6 +10,7 @@ type GlobalSearchPanelProps = {
   query: string;
   results: readonly WorkspaceSearchResult[];
   searchedFileCount: number;
+  truncated: boolean;
   unreadableFileCount: number;
   onCaseSensitiveChange: (caseSensitive: boolean) => unknown;
   onClose: () => unknown;
@@ -31,6 +32,7 @@ const labels: Record<string, {
   placeholder: string;
   results: string;
   resultCount: (count: number) => string;
+  truncatedResultCount: (count: number) => string;
   searchWorkspace: string;
   showMoreMatches: (count: number) => string;
   unreadable: (count: number) => string;
@@ -49,6 +51,7 @@ const labels: Record<string, {
     placeholder: "Search files",
     results: "Search results",
     resultCount: (count) => `${count} result${count === 1 ? "" : "s"}`,
+    truncatedResultCount: (count) => `First ${count} results`,
     searchWorkspace: "Search workspace",
     showMoreMatches: (count) => `show ${count} more match${count === 1 ? "" : "es"}`,
     unreadable: (count) => `${count} unreadable`
@@ -67,6 +70,7 @@ const labels: Record<string, {
     placeholder: "搜索文件内容",
     results: "搜索结果",
     resultCount: (count) => `${count} 个结果`,
+    truncatedResultCount: (count) => `前 ${count} 个结果`,
     searchWorkspace: "全局搜索",
     showMoreMatches: (count) => `显示另外 ${count} 个匹配`,
     unreadable: (count) => `${count} 个文件不可读`
@@ -85,6 +89,7 @@ const labels: Record<string, {
     placeholder: "搜尋檔案內容",
     results: "搜尋結果",
     resultCount: (count) => `${count} 個結果`,
+    truncatedResultCount: (count) => `前 ${count} 個結果`,
     searchWorkspace: "全域搜尋",
     showMoreMatches: (count) => `顯示另外 ${count} 個相符項目`,
     unreadable: (count) => `${count} 個檔案無法讀取`
@@ -97,6 +102,9 @@ type GlobalSearchResultGroup = {
 };
 
 const collapsedGroupPreviewCount = 4;
+const initialRenderedGroupCount = 20;
+const renderedGroupBatchSize = 20;
+const renderedGroupBatchDelayMs = 16;
 
 function globalSearchLabels(language: AppLanguage) {
   return labels[language] ?? labels.en;
@@ -166,6 +174,7 @@ export function GlobalSearchPanel({
   query,
   results,
   searchedFileCount,
+  truncated,
   unreadableFileCount,
   onCaseSensitiveChange,
   onClose,
@@ -176,14 +185,57 @@ export function GlobalSearchPanel({
   const label = globalSearchLabels(language);
   const [collapsedFilePaths, setCollapsedFilePaths] = useState<Set<string>>(() => new Set());
   const [expandedPreviewFilePaths, setExpandedPreviewFilePaths] = useState<Set<string>>(() => new Set());
+  const [renderedGroupState, setRenderedGroupState] = useState(() => ({
+    count: initialRenderedGroupCount,
+    results
+  }));
   const resultGroups = useMemo(() => groupSearchResultsByFile(results), [results]);
+  const renderedGroupCount = renderedGroupState.results === results
+    ? renderedGroupState.count
+    : initialRenderedGroupCount;
+  const visibleResultGroups = resultGroups.slice(0, renderedGroupCount);
   const showNoResults = query.trim().length > 0 && !loading && results.length === 0;
-  const statusText = loading ? label.loading : label.resultCount(results.length);
+  const statusText = loading
+    ? label.loading
+    : truncated
+      ? label.truncatedResultCount(results.length)
+      : label.resultCount(results.length);
 
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
+
+  useEffect(() => {
+    setRenderedGroupState({
+      count: initialRenderedGroupCount,
+      results
+    });
+  }, [results]);
+
+  useEffect(() => {
+    if (renderedGroupCount >= resultGroups.length) return;
+
+    const timer = window.setTimeout(() => {
+      setRenderedGroupState((current) => {
+        if (current.results !== results) {
+          return {
+            count: initialRenderedGroupCount,
+            results
+          };
+        }
+
+        return {
+          count: Math.min(current.count + renderedGroupBatchSize, resultGroups.length),
+          results
+        };
+      });
+    }, renderedGroupBatchDelayMs);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [renderedGroupCount, resultGroups.length, results]);
 
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Escape") return;
@@ -264,7 +316,7 @@ export function GlobalSearchPanel({
             role="list"
             aria-label={label.results}
           >
-            {resultGroups.map((group) => {
+            {visibleResultGroups.map((group) => {
               const collapsed = collapsedFilePaths.has(group.file.path);
               const previewExpanded = expandedPreviewFilePaths.has(group.file.path);
               const visibleResults = previewExpanded

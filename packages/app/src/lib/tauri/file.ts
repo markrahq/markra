@@ -4,6 +4,7 @@ import type {
   WebDavImageUploadSettings
 } from "../settings/app-settings";
 import { getAppRuntime } from "../../runtime";
+import type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../workspace-search";
 
 export type NativeMarkdownFile = {
   path: string;
@@ -176,6 +177,15 @@ export function listenNativeOpenedMarkdownPaths(onPaths: (paths: string[]) => un
 
 export function readNativeMarkdownFile(path: string) {
   return getAppRuntime().files.readMarkdownFile(path);
+}
+
+export async function searchNativeMarkdownFilesForPath(
+  request: WorkspaceSearchRequest
+): Promise<WorkspaceSearchResponse | null> {
+  const searchMarkdownFiles = getAppRuntime().files.searchMarkdownFiles;
+  if (!searchMarkdownFiles) return null;
+
+  return searchMarkdownFiles(request);
 }
 
 export function listNativeMarkdownFileHistory(path: string) {
