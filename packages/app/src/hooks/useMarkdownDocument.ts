@@ -14,7 +14,7 @@ import {
   type StoredWorkspaceDraftTab,
   type StoredWorkspaceWindow
 } from "../lib/settings/app-settings";
-import { getMarkdownOutline, getWordCount } from "@markra/markdown";
+import { getMarkdownOutline, getWordCount, type MarkdownOutlineItem } from "@markra/markdown";
 import {
   exitNativeApp,
   openNativeMarkdownFolderInNewWindow,
@@ -34,6 +34,11 @@ import {
   type NativeMarkdownFolderFile
 } from "../lib/tauri";
 import { shouldBlockLargeMarkdownVisual } from "../lib/large-markdown";
+import { scheduleMarkdownSummaryIdle, shouldDeferMarkdownSummary } from "../lib/markdown-summary";
+import {
+  measureAppPerformance,
+  measureAppPerformanceAsync
+} from "../lib/performance-marks";
 import { normalizeMovedPath, replaceMovedPath } from "../lib/path-move";
 import { setNativeWindowTitle } from "../lib/tauri";
 import { debug, pathNameFromPath, type DocumentState } from "@markra/shared";
@@ -84,6 +89,35 @@ type ApplySavedCurrentDocumentOptions = {
   sourceContent?: string;
   targetTabId?: string | null;
 };
+
+type MarkdownDocumentSummary = {
+  key: string;
+  outlineItems: MarkdownOutlineItem[];
+  wordCount: number;
+};
+
+const emptyMarkdownDocumentSummary: Omit<MarkdownDocumentSummary, "key"> = {
+  outlineItems: [],
+  wordCount: 0
+};
+
+function markdownDocumentSummaryKey(document: DocumentState) {
+  return [
+    document.revision,
+    document.content.length,
+    document.sizeBytes ?? "unknown-size"
+  ].join(":");
+}
+
+function calculateMarkdownDocumentSummary(
+  content: string,
+  detail: Record<string, unknown>
+): Omit<MarkdownDocumentSummary, "key"> {
+  return measureAppPerformance("markdown-summary", () => ({
+    outlineItems: getMarkdownOutline(content),
+    wordCount: getWordCount(content)
+  }), detail);
+}
 
 function blankDocumentName(name: string | null | undefined) {
   const trimmedName = name?.trim();
@@ -300,6 +334,7 @@ export function useMarkdownDocument({
   const [workspaceSessionId, setWorkspaceSessionId] = useState<string | null>(null);
   const [nativeOpenedPathsReady, setNativeOpenedPathsReady] = useState(false);
   const [recentFiles, setRecentFiles] = useState<RecentMarkdownFile[]>([]);
+  const [deferredMarkdownSummary, setDeferredMarkdownSummary] = useState<MarkdownDocumentSummary | null>(null);
   const documentRef = useRef(document);
   const tabsRef = useRef(tabs);
   const activeTabIdRef = useRef<string | null>(activeTabId);
@@ -311,14 +346,82 @@ export function useMarkdownDocument({
     () => shouldBlockLargeMarkdownVisual(document.content, { sizeBytes: document.sizeBytes }),
     [document.content, document.sizeBytes]
   );
-  const outlineItems = useMemo(
-    () => largeDocumentSummariesBlocked ? [] : getMarkdownOutline(document.content),
-    [document.content, largeDocumentSummariesBlocked]
+  const markdownSummaryDeferred = useMemo(
+    () =>
+      !largeDocumentSummariesBlocked &&
+      shouldDeferMarkdownSummary(document.content, { sizeBytes: document.sizeBytes }),
+    [document.content, document.sizeBytes, largeDocumentSummariesBlocked]
   );
-  const wordCount = useMemo(
-    () => largeDocumentSummariesBlocked ? 0 : getWordCount(document.content),
-    [document.content, largeDocumentSummariesBlocked]
+  const markdownSummaryKey = useMemo(() => markdownDocumentSummaryKey(document), [
+    document.content.length,
+    document.revision,
+    document.sizeBytes
+  ]);
+  const immediateMarkdownSummary = useMemo(
+    () =>
+      largeDocumentSummariesBlocked || markdownSummaryDeferred
+        ? emptyMarkdownDocumentSummary
+        : calculateMarkdownDocumentSummary(document.content, {
+          chars: document.content.length,
+          deferred: false,
+          name: document.name,
+          path: document.path,
+          sizeBytes: document.sizeBytes ?? null
+        }),
+    [
+      document.content,
+      document.name,
+      document.path,
+      document.sizeBytes,
+      largeDocumentSummariesBlocked,
+      markdownSummaryDeferred
+    ]
   );
+  const currentDeferredMarkdownSummary =
+    deferredMarkdownSummary?.key === markdownSummaryKey ? deferredMarkdownSummary : null;
+  const outlineItems = markdownSummaryDeferred
+    ? currentDeferredMarkdownSummary?.outlineItems ?? emptyMarkdownDocumentSummary.outlineItems
+    : immediateMarkdownSummary.outlineItems;
+  const wordCount = markdownSummaryDeferred
+    ? currentDeferredMarkdownSummary?.wordCount ?? emptyMarkdownDocumentSummary.wordCount
+    : immediateMarkdownSummary.wordCount;
+
+  useEffect(() => {
+    if (!markdownSummaryDeferred) return;
+
+    let active = true;
+    const summaryContent = document.content;
+    const summaryKey = markdownSummaryKey;
+    const cancel = scheduleMarkdownSummaryIdle(() => {
+      if (!active) return;
+
+      const summary = calculateMarkdownDocumentSummary(summaryContent, {
+        chars: summaryContent.length,
+        deferred: true,
+        name: document.name,
+        path: document.path,
+        sizeBytes: document.sizeBytes ?? null
+      });
+      if (!active) return;
+
+      setDeferredMarkdownSummary({
+        key: summaryKey,
+        ...summary
+      });
+    });
+
+    return () => {
+      active = false;
+      cancel();
+    };
+  }, [
+    document.content,
+    document.name,
+    document.path,
+    document.sizeBytes,
+    markdownSummaryDeferred,
+    markdownSummaryKey
+  ]);
 
   useEffect(() => {
     documentRef.current = document;
@@ -656,63 +759,79 @@ export function useMarkdownDocument({
     }
   }, [registerWindowRestoreState]);
 
+  const readMarkdownFileWithPerformance = useCallback(
+    (path: string, reason: string) =>
+      measureAppPerformanceAsync("markdown-file-read", () => readNativeMarkdownFile(path), {
+        path,
+        reason
+      }),
+    []
+  );
+
   const applyNativeMarkdownFile = useCallback(
     (file: NativeMarkdownFile, updateTreeRoot = true, preferredSessionId?: string | null) => {
-      const sessionId = updateTreeRoot
-        ? resolveWorkspaceSessionId(preferredSessionId)
-        : resolveWorkspaceSessionId(preferredSessionId ?? workspaceSessionIdRef.current);
-      const nextDocument = {
-        path: file.path,
-        name: file.name,
-        content: file.content,
-        sizeBytes: file.sizeBytes,
-        dirty: false,
-        open: true,
-        revision: documentRef.current.revision + 1
-      };
+      return measureAppPerformance("markdown-document-apply", () => {
+        const sessionId = updateTreeRoot
+          ? resolveWorkspaceSessionId(preferredSessionId)
+          : resolveWorkspaceSessionId(preferredSessionId ?? workspaceSessionIdRef.current);
+        const nextDocument = {
+          path: file.path,
+          name: file.name,
+          content: file.content,
+          sizeBytes: file.sizeBytes,
+          dirty: false,
+          open: true,
+          revision: documentRef.current.revision + 1
+        };
 
-      let nextOpenFilePaths = [file.path];
+        let nextOpenFilePaths = [file.path];
 
-      if (documentTabsEnabled) {
-        syncActiveDocumentFromEditor();
-        const currentTabs = tabsRef.current;
-        const existingTab = currentTabs.find((tab) => tab.path === file.path);
-        let nextTabs: MarkdownDocumentTab[];
-        let nextActiveTabId: string;
+        if (documentTabsEnabled) {
+          syncActiveDocumentFromEditor();
+          const currentTabs = tabsRef.current;
+          const existingTab = currentTabs.find((tab) => tab.path === file.path);
+          let nextTabs: MarkdownDocumentTab[];
+          let nextActiveTabId: string;
 
-        if (existingTab) {
-          nextTabs = currentTabs;
-          nextActiveTabId = existingTab.id;
+          if (existingTab) {
+            nextTabs = currentTabs;
+            nextActiveTabId = existingTab.id;
+          } else {
+            const activeTabIsPristine = currentTabs.some((tab) =>
+              tab.id === activeTabIdRef.current && isPristineUntitledDocument(documentFromTab(tab))
+            );
+            const nextTabId = activeTabIsPristine && activeTabIdRef.current ? activeTabIdRef.current : fileTabId(file.path);
+            const nextTab = createDocumentTab(nextDocument, nextTabId);
+            nextTabs = activeTabIsPristine
+              ? currentTabs.map((tab) => tab.id === activeTabIdRef.current ? nextTab : tab)
+              : [...currentTabs, nextTab];
+            nextActiveTabId = nextTab.id;
+          }
+
+          setActiveTabState(nextTabs, nextActiveTabId);
+          nextOpenFilePaths = openFilePathsFromTabs(nextTabs);
         } else {
-          const activeTabIsPristine = currentTabs.some((tab) =>
-            tab.id === activeTabIdRef.current && isPristineUntitledDocument(documentFromTab(tab))
-          );
-          const nextTabId = activeTabIsPristine && activeTabIdRef.current ? activeTabIdRef.current : fileTabId(file.path);
-          const nextTab = createDocumentTab(nextDocument, nextTabId);
-          nextTabs = activeTabIsPristine
-            ? currentTabs.map((tab) => tab.id === activeTabIdRef.current ? nextTab : tab)
-            : [...currentTabs, nextTab];
-          nextActiveTabId = nextTab.id;
+          setActiveDocument(nextDocument);
         }
 
-        setActiveTabState(nextTabs, nextActiveTabId);
-        nextOpenFilePaths = openFilePathsFromTabs(nextTabs);
-      } else {
-        setActiveDocument(nextDocument);
-      }
-
-      if (updateTreeRoot) onTreeRootFromFilePath(file.path);
-      rememberRecentMarkdownFile({ name: file.name, path: file.path });
-      registerWindowRestoreState(file.path, nextOpenFilePaths);
-      const nextDraftTabs = documentTabsEnabled
-        ? tabsRef.current
-        : [createDocumentTab(nextDocument, activeTabIdRef.current ?? fileTabId(file.path))];
-      persistWorkspaceState({
-        ...draftWorkspacePatchFromTabs(nextDraftTabs, activeTabIdRef.current),
-        aiAgentSessionId: sessionId,
-        filePath: file.path,
-        openFilePaths: nextOpenFilePaths,
-        ...(updateTreeRoot ? { folderName: null, folderPath: null } : {})
+        if (updateTreeRoot) onTreeRootFromFilePath(file.path);
+        rememberRecentMarkdownFile({ name: file.name, path: file.path });
+        registerWindowRestoreState(file.path, nextOpenFilePaths);
+        const nextDraftTabs = documentTabsEnabled
+          ? tabsRef.current
+          : [createDocumentTab(nextDocument, activeTabIdRef.current ?? fileTabId(file.path))];
+        persistWorkspaceState({
+          ...draftWorkspacePatchFromTabs(nextDraftTabs, activeTabIdRef.current),
+          aiAgentSessionId: sessionId,
+          filePath: file.path,
+          openFilePaths: nextOpenFilePaths,
+          ...(updateTreeRoot ? { folderName: null, folderPath: null } : {})
+        });
+      }, {
+        name: file.name,
+        path: file.path,
+        sizeBytes: file.sizeBytes ?? null,
+        updateTreeRoot
       });
     },
     [documentTabsEnabled, onTreeRootFromFilePath, registerWindowRestoreState, rememberRecentMarkdownFile, resolveWorkspaceSessionId, setActiveDocument, setActiveTabState, syncActiveDocumentFromEditor]
@@ -720,10 +839,10 @@ export function useMarkdownDocument({
 
   const loadNativeMarkdownPath = useCallback(
     async (path: string, updateTreeRoot = true, preferredSessionId?: string | null) => {
-      const file = await readNativeMarkdownFile(path);
+      const file = await readMarkdownFileWithPerformance(path, "load-path");
       applyNativeMarkdownFile(file, updateTreeRoot, preferredSessionId);
     },
-    [applyNativeMarkdownFile]
+    [applyNativeMarkdownFile, readMarkdownFileWithPerformance]
   );
 
   const openRecentMarkdownFile = useCallback(
@@ -753,7 +872,7 @@ export function useMarkdownDocument({
 
       for (const path of paths) {
         try {
-          files.push(await readNativeMarkdownFile(path));
+          files.push(await readMarkdownFileWithPerformance(path, "restore-workspace"));
         } catch {
           // Missing or moved files should not block restoring the rest of the workspace.
         }
@@ -806,7 +925,7 @@ export function useMarkdownDocument({
       });
       return true;
     },
-    [documentTabsEnabled, onTreeRootFromFilePath, registerWindowRestoreState, resolveWorkspaceSessionId, setActiveDocument, setActiveTabState]
+    [documentTabsEnabled, onTreeRootFromFilePath, readMarkdownFileWithPerformance, registerWindowRestoreState, resolveWorkspaceSessionId, setActiveDocument, setActiveTabState]
   );
 
   const restoreWorkspaceDraftTabs = useCallback((
@@ -889,7 +1008,7 @@ export function useMarkdownDocument({
   const openTreeMarkdownFileInBackground = useCallback(
     async (file: NativeMarkdownFolderFile) => {
       try {
-        const nativeFile = await readNativeMarkdownFile(file.path);
+        const nativeFile = await readMarkdownFileWithPerformance(file.path, "background-tab");
         const nextDocument = {
           path: nativeFile.path,
           name: nativeFile.name,
@@ -923,7 +1042,7 @@ export function useMarkdownDocument({
         return null;
       }
     },
-    [registerWindowRestoreState, syncActiveDocumentFromEditor]
+    [readMarkdownFileWithPerformance, registerWindowRestoreState, syncActiveDocumentFromEditor]
   );
 
   const replaceOpenDocumentFile = useCallback((previousPath: string, file: NativeMarkdownFolderFile) => {
@@ -1402,7 +1521,7 @@ export function useMarkdownDocument({
 
     let active = true;
 
-    readNativeMarkdownFile(path).then((file) => {
+    readMarkdownFileWithPerformance(path, "initial-path").then((file) => {
       if (!active) return;
       applyNativeMarkdownFile(file);
     }).catch(() => {});
@@ -1410,7 +1529,7 @@ export function useMarkdownDocument({
     return () => {
       active = false;
     };
-  }, [applyNativeMarkdownFile]);
+  }, [applyNativeMarkdownFile, readMarkdownFileWithPerformance]);
 
   useEffect(() => {
     const folderPath = initialMarkdownFolderPath();
@@ -1624,7 +1743,7 @@ export function useMarkdownDocument({
         changedPath
       }]);
       // External edits rebuild the editor so the visible document mirrors disk.
-      const file = await readNativeMarkdownFile(changedPath);
+      const file = await readMarkdownFileWithPerformance(changedPath, "watcher");
       const current = documentRef.current;
       if (!active || current.path !== file.path || current.dirty || current.content === file.content) {
         debug(() => ["[markra-history] watcher file event ignored", {
@@ -1704,7 +1823,7 @@ export function useMarkdownDocument({
       }]);
       unwatch?.();
     };
-  }, [document.path, onMarkdownTreeChange, setActiveDocument]);
+  }, [document.path, onMarkdownTreeChange, readMarkdownFileWithPerformance, setActiveDocument]);
 
   return {
     clearRecentMarkdownFiles,

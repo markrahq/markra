@@ -30,5 +30,8 @@ describe("large markdown visual limit", () => {
     expect(shouldBlockLargeMarkdownVisual("x".repeat(largeMarkdownVisualLimitChars - 1), {
       sizeBytes: largeMarkdownVisualLimitBytes - 1
     })).toBe(false);
+    expect(shouldBlockLargeMarkdownVisual("x".repeat(largeMarkdownVisualLimitChars), {
+      sizeBytes: largeMarkdownVisualLimitBytes - 1
+    })).toBe(false);
   });
 });

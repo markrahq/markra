@@ -24,7 +24,7 @@ export function shouldBlockLargeMarkdownVisual(
   metadata: LargeMarkdownVisualMetadata = {}
 ) {
   if (metadata.sizeBytes !== undefined && metadata.sizeBytes !== null) {
-    if (metadata.sizeBytes >= largeMarkdownVisualLimitBytes) return true;
+    return metadata.sizeBytes >= largeMarkdownVisualLimitBytes;
   }
 
   return content.length >= largeMarkdownVisualLimitChars ||

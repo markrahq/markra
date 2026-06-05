@@ -82,6 +82,7 @@ import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
 import type { EditorContentWidth } from "./lib/editor-width";
 import { saveEditorImage } from "./lib/image-upload";
 import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
+import { markAppPerformance } from "./lib/performance-marks";
 import { replaceMovedPath } from "./lib/path-move";
 import { resolveDesktopPlatform } from "./lib/platform";
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
@@ -409,6 +410,11 @@ function WorkspaceApp() {
   const lastDocumentSearchRevealRevisionRef = useRef(0);
   const documentRevisionRef = useRef(0);
   const visualEditorReadyRevisionRef = useRef<number | null>(null);
+  const visualEditorReadyDetailRef = useRef({
+    chars: 0,
+    path: null as string | null,
+    sizeBytes: null as number | null
+  });
   const largeMarkdownVisualBlockedRef = useRef(false);
   const sourceScrollRef = useRef<HTMLElement | null>(null);
   const visualScrollRef = useRef<HTMLElement | null>(null);
@@ -508,6 +514,10 @@ function WorkspaceApp() {
     const [readyEditor] = args;
     handleMilkdownEditorReady(...args);
     if (readyEditor) {
+      markAppPerformance("markdown-visual-ready", {
+        ...visualEditorReadyDetailRef.current,
+        revision: documentRevisionRef.current
+      });
       visualEditorReadyRevisionRef.current = documentRevisionRef.current;
       setVisualEditorReadySequence((current) => current + 1);
     } else if (visualEditorReadyRevisionRef.current === documentRevisionRef.current) {
@@ -597,6 +607,11 @@ function WorkspaceApp() {
     wordCount
   } = markdownDocument;
   documentRevisionRef.current = document.revision;
+  visualEditorReadyDetailRef.current = {
+    chars: document.content.length,
+    path: document.path,
+    sizeBytes: document.sizeBytes ?? null
+  };
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
   const hasOpenDocument = document.open;
   const largeMarkdownVisualBlocked =
