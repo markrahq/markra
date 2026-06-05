@@ -1,7 +1,9 @@
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct MarkdownFile {
     pub(crate) path: String,
     pub(crate) contents: String,
+    pub(crate) size_bytes: u64,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize, serde::Serialize)]

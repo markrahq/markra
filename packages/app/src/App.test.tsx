@@ -3841,6 +3841,89 @@ describe("Markra workspace", () => {
     expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "milkdown");
   });
 
+  it("shows a large-file notice instead of rendering oversized markdown in visual mode", async () => {
+    const largeContent = `# Oversized file\n\n${"Synthetic paragraph. ".repeat(110_000)}`;
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-large-visual-limit",
+      filePath: mockNativePath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: [mockNativePath]
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: largeContent,
+      name: "oversized.md",
+      path: mockNativePath
+    });
+
+    const { container } = renderApp();
+
+    expect(await screen.findByText("This file is too large to render in visual mode.")).toBeInTheDocument();
+    expect(screen.getByText("Open it in source mode to keep editing without rendering the full document.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open in source mode" })).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Markdown source" })).not.toBeInTheDocument();
+  });
+
+  it("uses native file size metadata to block visual rendering before content thresholds", async () => {
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-large-size-limit",
+      filePath: mockNativePath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: [mockNativePath]
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# File with large native size\n\nSynthetic body.",
+      name: "large-size.md",
+      path: mockNativePath,
+      sizeBytes: 1_000_001
+    });
+
+    const { container } = renderApp();
+
+    expect(await screen.findByText("This file is too large to render in visual mode.")).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "File with large native size" })).not.toBeInTheDocument();
+  });
+
+  it("opens oversized markdown in source mode and returns to the visual notice", async () => {
+    const largeContent = `# Oversized source\n\n${"Synthetic paragraph. ".repeat(110_000)}`;
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-large-source-limit",
+      filePath: mockNativePath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: [mockNativePath]
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: largeContent,
+      name: "oversized.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open in source mode" }));
+
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    expect(sourceEditor).toHaveValue(largeContent);
+
+    fireEvent.change(sourceEditor, {
+      target: {
+        value: `${largeContent}\n\nEdited in source mode.`
+      }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to visual mode" }));
+
+    expect(await screen.findByText("This file is too large to render in visual mode.")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Oversized source" })).not.toBeInTheDocument();
+  });
+
   it("keeps a restored workspace file in source mode without rerunning startup restore", async () => {
     const restoredContent = "# Restored source\n\nBack from the saved workspace.";
     mockedGetStoredWorkspaceState.mockResolvedValue({

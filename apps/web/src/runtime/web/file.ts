@@ -428,7 +428,8 @@ export function createWebFileRuntime(
     return {
       content: await file.text(),
       name: file.name || handle.name,
-      path: await registerFileHandle(handle)
+      path: await registerFileHandle(handle),
+      sizeBytes: file.size
     };
   }
 
@@ -1024,7 +1025,8 @@ export function createWebFileRuntime(
       return {
         content: await file.text(),
         name: file.name,
-        path
+        path,
+        sizeBytes: file.size
       };
     },
     readMarkdownFileHistory: () => Promise.reject(new Error("Markdown history is unavailable in the web runtime.")),

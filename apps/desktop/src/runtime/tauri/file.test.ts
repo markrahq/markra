@@ -263,13 +263,15 @@ describe("native file access", () => {
   it("reads the current markdown file without opening a dialog", async () => {
     mockedInvoke.mockResolvedValue({
       path: mockReadmePath,
-      contents: "# External"
+      contents: "# External",
+      sizeBytes: 10
     });
 
     await expect(readNativeMarkdownFile(mockReadmePath)).resolves.toEqual({
       path: mockReadmePath,
       name: "readme.md",
-      content: "# External"
+      content: "# External",
+      sizeBytes: 10
     });
 
     expect(mockedInvoke).toHaveBeenCalledWith("read_markdown_file", {

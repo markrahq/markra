@@ -21,6 +21,13 @@ import {
   saveStoredWorkspaceState
 } from "../lib/settings/app-settings";
 
+const markdownHelperMocks = vi.hoisted(() => ({
+  getMarkdownOutline: vi.fn(() => []),
+  getWordCount: vi.fn(() => 0)
+}));
+
+vi.mock("@markra/markdown", () => markdownHelperMocks);
+
 vi.mock("../lib/settings/app-settings", () => ({
   clearStoredRecentMarkdownFiles: vi.fn(async () => {}),
   consumeWelcomeDocumentState: vi.fn(),
@@ -90,6 +97,10 @@ describe("useMarkdownDocument", () => {
     mockedRemoveStoredRecentMarkdownFile.mockReset();
     mockedSaveStoredRecentMarkdownFile.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
+    markdownHelperMocks.getMarkdownOutline.mockReset();
+    markdownHelperMocks.getMarkdownOutline.mockReturnValue([]);
+    markdownHelperMocks.getWordCount.mockReset();
+    markdownHelperMocks.getWordCount.mockReturnValue(0);
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
     mockedClearStoredRecentMarkdownFiles.mockResolvedValue(undefined);
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
@@ -296,6 +307,43 @@ describe("useMarkdownDocument", () => {
       dirty: false,
       name: "guide.md"
     }));
+  });
+
+  it("uses native file size metadata to skip expensive large document summaries", async () => {
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "# Big file\n\nSynthetic content.",
+      name: "big.md",
+      path: "/mock-files/big.md",
+      sizeBytes: 1_000_001
+    } as Awaited<ReturnType<typeof readNativeMarkdownFile>>);
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+    markdownHelperMocks.getMarkdownOutline.mockClear();
+    markdownHelperMocks.getWordCount.mockClear();
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "big.md",
+        path: "/mock-files/big.md",
+        relativePath: "big.md"
+      });
+    });
+
+    expect(result.current.document).toMatchObject({
+      name: "big.md",
+      sizeBytes: 1_000_001
+    });
+    expect(result.current.outlineItems).toEqual([]);
+    expect(result.current.wordCount).toBe(0);
+    expect(markdownHelperMocks.getMarkdownOutline).not.toHaveBeenCalled();
+    expect(markdownHelperMocks.getWordCount).not.toHaveBeenCalled();
   });
 
   it("restores historical content into the active document as an unsaved edit", async () => {

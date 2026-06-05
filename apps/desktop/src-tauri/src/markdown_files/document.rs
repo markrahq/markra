@@ -14,12 +14,19 @@ pub(crate) fn read_markdown_file(
     path: String,
 ) -> Result<MarkdownFile, String> {
     let path_buf = PathBuf::from(&path);
+    let size_bytes = fs::metadata(&path_buf)
+        .map_err(|error| error.to_string())?
+        .len();
     let contents = fs::read_to_string(&path_buf).map_err(|error| error.to_string())?;
     if let Some(parent) = path_buf.parent() {
         allow_asset_directory(&app, parent)?;
     }
 
-    Ok(MarkdownFile { path, contents })
+    Ok(MarkdownFile {
+        path,
+        contents,
+        size_bytes,
+    })
 }
 
 #[tauri::command]

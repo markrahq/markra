@@ -10,6 +10,7 @@ export type NativeMarkdownFile = {
   path: string;
   name: string;
   content: string;
+  sizeBytes?: number;
 };
 
 export type NativeMarkdownFileHistoryEntry = {

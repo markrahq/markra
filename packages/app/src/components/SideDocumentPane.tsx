@@ -3,6 +3,8 @@ import type { MarkdownShortcutMap } from "@markra/editor";
 import type { EditorContentWidth } from "../lib/editor-width";
 import type { EditorTheme, ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
 import type { MarkdownDocumentLinkFile } from "../lib/document-links";
+import { shouldBlockLargeMarkdownVisual } from "../lib/large-markdown";
+import { LargeMarkdownNotice } from "./LargeMarkdownNotice";
 import { MarkdownPaper } from "./MarkdownPaper";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 
@@ -23,6 +25,7 @@ type SideDocumentPaneProps = {
   readOnly?: boolean;
   resolveImageSrc?: (src: string) => string;
   revision: number;
+  sizeBytes?: number;
   workspaceFiles?: MarkdownDocumentLinkFile[];
   onChange: (content: string) => unknown;
   onContentWidthChange?: (width: number) => unknown;
@@ -51,6 +54,7 @@ export function SideDocumentPane({
   readOnly = false,
   resolveImageSrc,
   revision,
+  sizeBytes,
   workspaceFiles,
   onChange,
   onContentWidthChange,
@@ -58,6 +62,7 @@ export function SideDocumentPane({
   onFocus
 }: SideDocumentPaneProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
+  const visualBlocked = mode === "visual" && shouldBlockLargeMarkdownVisual(content, { sizeBytes });
 
   return (
     <section
@@ -80,6 +85,8 @@ export function SideDocumentPane({
           readOnly={readOnly}
           topInset="titlebar"
         />
+      ) : visualBlocked ? (
+        <LargeMarkdownNotice language={language} />
       ) : (
         <MarkdownPaper
           autoFocus={false}

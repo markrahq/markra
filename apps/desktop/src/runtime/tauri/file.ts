@@ -14,6 +14,7 @@ import type {
 type MarkdownFileResponse = {
   path: string;
   contents: string;
+  sizeBytes: number;
 };
 
 type MarkdownFileHistoryEntryResponse = {
@@ -61,6 +62,7 @@ export type NativeMarkdownFile = {
   path: string;
   name: string;
   content: string;
+  sizeBytes: number;
 };
 
 export type NativeMarkdownFileHistoryEntry = {
@@ -352,13 +354,15 @@ export async function readNativeMarkdownFile(path: string): Promise<NativeMarkdo
   });
   debug(() => ["[markra-history] native read file success", {
     contentsChars: file.contents.length,
-    path: file.path
+    path: file.path,
+    sizeBytes: file.sizeBytes
   }]);
 
   return {
     path: file.path,
     name: fileNameFromPath(file.path),
-    content: file.contents
+    content: file.contents,
+    sizeBytes: file.sizeBytes
   };
 }
 

@@ -33,6 +33,7 @@ import {
   type NativeMarkdownFile,
   type NativeMarkdownFolderFile
 } from "../lib/tauri";
+import { shouldBlockLargeMarkdownVisual } from "../lib/large-markdown";
 import { normalizeMovedPath, replaceMovedPath } from "../lib/path-move";
 import { setNativeWindowTitle } from "../lib/tauri";
 import { debug, pathNameFromPath, type DocumentState } from "@markra/shared";
@@ -101,6 +102,7 @@ function documentFromTab(tab: MarkdownDocumentTab): DocumentState {
     path: tab.path,
     name: tab.name,
     content: tab.content,
+    sizeBytes: tab.sizeBytes,
     dirty: tab.dirty,
     open: tab.open,
     revision: tab.revision
@@ -305,8 +307,18 @@ export function useMarkdownDocument({
   const workspaceSessionIdRef = useRef<string | null>(null);
   const openedFromNativeRef = useRef(false);
   const startupWorkspaceRestoreAttemptedRef = useRef(false);
-  const outlineItems = useMemo(() => getMarkdownOutline(document.content), [document.content]);
-  const wordCount = useMemo(() => getWordCount(document.content), [document.content]);
+  const largeDocumentSummariesBlocked = useMemo(
+    () => shouldBlockLargeMarkdownVisual(document.content, { sizeBytes: document.sizeBytes }),
+    [document.content, document.sizeBytes]
+  );
+  const outlineItems = useMemo(
+    () => largeDocumentSummariesBlocked ? [] : getMarkdownOutline(document.content),
+    [document.content, largeDocumentSummariesBlocked]
+  );
+  const wordCount = useMemo(
+    () => largeDocumentSummariesBlocked ? 0 : getWordCount(document.content),
+    [document.content, largeDocumentSummariesBlocked]
+  );
 
   useEffect(() => {
     documentRef.current = document;
@@ -653,6 +665,7 @@ export function useMarkdownDocument({
         path: file.path,
         name: file.name,
         content: file.content,
+        sizeBytes: file.sizeBytes,
         dirty: false,
         open: true,
         revision: documentRef.current.revision + 1
@@ -762,6 +775,7 @@ export function useMarkdownDocument({
             path: file.path,
             name: file.name,
             content: file.content,
+            sizeBytes: file.sizeBytes,
             dirty: false,
             open: true,
             revision: documentRef.current.revision + 1
@@ -774,6 +788,7 @@ export function useMarkdownDocument({
           path: activeFile.path,
           name: activeFile.name,
           content: activeFile.content,
+          sizeBytes: activeFile.sizeBytes,
           dirty: false,
           open: true,
           revision: documentRef.current.revision + 1
@@ -879,6 +894,7 @@ export function useMarkdownDocument({
           path: nativeFile.path,
           name: nativeFile.name,
           content: nativeFile.content,
+          sizeBytes: nativeFile.sizeBytes,
           dirty: false,
           open: true,
           revision: documentRef.current.revision + 1
@@ -1648,6 +1664,7 @@ export function useMarkdownDocument({
         path: file.path,
         name: file.name,
         content: file.content,
+        sizeBytes: file.sizeBytes,
         dirty: false,
         open: true,
         revision: latest.revision + 1
