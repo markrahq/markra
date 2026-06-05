@@ -156,11 +156,11 @@ describe("GlobalSearchPanel", () => {
     expect(screen.getByText("First 1 results")).toBeInTheDocument();
   });
 
-  it("renders large result groups in batches", async () => {
+  it("virtualizes large result groups instead of rendering every group", async () => {
     vi.useFakeTimers();
 
     try {
-      const manyResults = Array.from({ length: 25 }, (_, index) => ({
+      const manyResults = Array.from({ length: 80 }, (_, index) => ({
         ...result,
         file: {
           name: `note-${index}.md`,
@@ -177,7 +177,7 @@ describe("GlobalSearchPanel", () => {
           loading={false}
           query="alpha"
           results={manyResults}
-          searchedFileCount={25}
+          searchedFileCount={80}
           truncated={false}
           unreadableFileCount={0}
           onCaseSensitiveChange={() => {}}
@@ -188,13 +188,13 @@ describe("GlobalSearchPanel", () => {
       );
 
       expect(screen.getByText("note-0.md")).toBeInTheDocument();
-      expect(screen.queryByText("note-24.md")).not.toBeInTheDocument();
 
       await act(async () => {
-        vi.runOnlyPendingTimers();
+        vi.runAllTimers();
       });
 
-      expect(screen.getByText("note-24.md")).toBeInTheDocument();
+      expect(screen.queryByText("note-79.md")).not.toBeInTheDocument();
+      expect(screen.getAllByRole("group", { name: /search results$/u }).length).toBeLessThan(40);
     } finally {
       vi.useRealTimers();
     }
