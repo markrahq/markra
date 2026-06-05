@@ -1,3 +1,5 @@
+#[cfg(test)]
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -19,6 +21,10 @@ const WORKSPACE_SEARCH_SNIPPET_MAX_LENGTH: usize = 96;
 const WORKSPACE_SEARCH_INDEX_FORMAT_VERSION: u32 = 1;
 
 static WORKSPACE_SEARCH_INDEX_CACHE: OnceLock<Mutex<WorkspaceSearchIndexCache>> = OnceLock::new();
+#[cfg(test)]
+thread_local! {
+    static WORKSPACE_SEARCH_RANGE_SCAN_COUNT: Cell<usize> = const { Cell::new(0) };
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -564,13 +570,26 @@ fn refresh_workspace_search_index_files_with_persistence(
         .into_iter()
         .map(|file| (file.file.path.clone(), file))
         .collect::<HashMap<_, _>>();
-    let mut persisted_files = persistence_path
-        .and_then(|path| load_persisted_workspace_search_index(path, persistence_root).ok())
-        .unwrap_or_default();
+    let mut persistence_dirty = persistence_path.is_some_and(|path| !path.exists());
+    let mut persisted_files = match persistence_path {
+        Some(path) => match load_persisted_workspace_search_index(path, persistence_root) {
+            Ok(files) => files,
+            Err(_) => {
+                persistence_dirty = true;
+                HashMap::new()
+            }
+        },
+        None => HashMap::new(),
+    };
     let mut indexed_files = Vec::with_capacity(files.len());
 
     for file in files {
+        let cached_file = cached_files.remove(&file.path);
+        let persisted_file = persisted_files.remove(&file.path);
         let Ok(signature) = signature_for_file(&file) else {
+            if cached_file.is_some() || persisted_file.is_some() {
+                persistence_dirty = true;
+            }
             indexed_files.push(WorkspaceSearchIndexedFile {
                 file,
                 signature: None,
@@ -579,12 +598,15 @@ fn refresh_workspace_search_index_files_with_persistence(
             continue;
         };
 
-        let cached_file = cached_files
-            .remove(&file.path)
-            .or_else(|| persisted_files.remove(&file.path));
         if let Some(cached_file) = cached_file.filter(|cached_file| {
             cached_file.signature.as_ref() == Some(&signature) && cached_file.content.is_some()
         }) {
+            if !persisted_file.as_ref().is_some_and(|persisted_file| {
+                persisted_file.signature.as_ref() == Some(&signature)
+                    && persisted_file.content.is_some()
+            }) {
+                persistence_dirty = true;
+            }
             indexed_files.push(WorkspaceSearchIndexedFile {
                 file,
                 signature: Some(signature),
@@ -593,6 +615,19 @@ fn refresh_workspace_search_index_files_with_persistence(
             continue;
         }
 
+        if let Some(persisted_file) = persisted_file.filter(|persisted_file| {
+            persisted_file.signature.as_ref() == Some(&signature)
+                && persisted_file.content.is_some()
+        }) {
+            indexed_files.push(WorkspaceSearchIndexedFile {
+                file,
+                signature: Some(signature),
+                content: persisted_file.content,
+            });
+            continue;
+        }
+
+        persistence_dirty = true;
         let content = read_file(&file)
             .ok()
             .map(WorkspaceSearchIndexedContent::new)
@@ -604,8 +639,12 @@ fn refresh_workspace_search_index_files_with_persistence(
         });
     }
 
+    if !persisted_files.is_empty() {
+        persistence_dirty = true;
+    }
+
     index.files = indexed_files;
-    if let Some(persistence_path) = persistence_path {
+    if let Some(persistence_path) = persistence_path.filter(|_| persistence_dirty) {
         save_persisted_workspace_search_index(persistence_path, persistence_root, index)?;
     }
 
@@ -643,6 +682,9 @@ fn markdown_search_ranges(
     matcher: &WorkspaceSearchTextMatcher,
     max_matches: Option<usize>,
 ) -> Vec<MarkdownSearchRange> {
+    #[cfg(test)]
+    WORKSPACE_SEARCH_RANGE_SCAN_COUNT.with(|count| count.set(count.get() + 1));
+
     if max_matches == Some(0) {
         return Vec::new();
     }
@@ -910,36 +952,6 @@ fn workspace_search_group_file_state(
     }
 }
 
-fn workspace_search_group_matches(
-    file: &MarkdownFolderFile,
-    content: &str,
-    ascii_lowercase_content: Option<&str>,
-    group: &WorkspaceSearchQueryGroup,
-) -> bool {
-    group
-        .include
-        .iter()
-        .all(|term| workspace_search_term_matches(file, content, ascii_lowercase_content, term))
-        && !group
-            .exclude
-            .iter()
-            .any(|term| workspace_search_term_matches(file, content, ascii_lowercase_content, term))
-}
-
-fn workspace_search_term_matches(
-    file: &MarkdownFolderFile,
-    content: &str,
-    ascii_lowercase_content: Option<&str>,
-    term: &WorkspaceSearchQueryTerm,
-) -> bool {
-    if term.scope == WorkspaceSearchScope::Content {
-        return !markdown_search_ranges(content, ascii_lowercase_content, &term.matcher, Some(1))
-            .is_empty();
-    }
-
-    workspace_search_term_matches_file(file, term)
-}
-
 fn workspace_search_term_matches_file(
     file: &MarkdownFolderFile,
     term: &WorkspaceSearchQueryTerm,
@@ -1006,7 +1018,33 @@ fn workspace_search_matched_ranges(
     let mut seen_content_ranges = HashSet::new();
 
     for group in &query_plan.groups {
-        if !workspace_search_group_matches(file, content, ascii_lowercase_content, group) {
+        if !group
+            .include
+            .iter()
+            .filter(|term| term.scope != WorkspaceSearchScope::Content)
+            .all(|term| workspace_search_term_matches_file(file, term))
+        {
+            continue;
+        }
+
+        if group
+            .exclude
+            .iter()
+            .filter(|term| term.scope != WorkspaceSearchScope::Content)
+            .any(|term| workspace_search_term_matches_file(file, term))
+        {
+            continue;
+        }
+
+        if group
+            .exclude
+            .iter()
+            .filter(|term| term.scope == WorkspaceSearchScope::Content)
+            .any(|term| {
+                !markdown_search_ranges(content, ascii_lowercase_content, &term.matcher, Some(1))
+                    .is_empty()
+            })
+        {
             continue;
         }
 
@@ -1020,18 +1058,40 @@ fn workspace_search_matched_ranges(
             continue;
         }
 
+        let mut group_ranges = Vec::new();
+        let mut group_seen_content_ranges = HashSet::new();
+        let mut group_matches_all_content_terms = true;
         for term in content_terms {
-            for range in
-                markdown_search_ranges(content, ascii_lowercase_content, &term.matcher, max_matches)
-            {
-                if !seen_content_ranges.insert((range.from, range.to)) {
+            let term_ranges = markdown_search_ranges(
+                content,
+                ascii_lowercase_content,
+                &term.matcher,
+                max_matches,
+            );
+            if term_ranges.is_empty() {
+                group_matches_all_content_terms = false;
+                break;
+            }
+
+            for range in term_ranges {
+                if !group_seen_content_ranges.insert((range.from, range.to)) {
                     continue;
                 }
 
-                ranges.push(WorkspaceSearchMatchedRange {
+                group_ranges.push(WorkspaceSearchMatchedRange {
                     field_text: None,
                     range,
                 });
+            }
+        }
+
+        if group_matches_all_content_terms {
+            for range in group_ranges {
+                if !seen_content_ranges.insert((range.range.from, range.range.to)) {
+                    continue;
+                }
+
+                ranges.push(range);
             }
         }
     }
@@ -1811,6 +1871,32 @@ mod tests {
     }
 
     #[test]
+    fn collects_simple_content_query_matches_with_one_content_scan() {
+        let file = MarkdownFolderFile {
+            created_at: None,
+            kind: MarkdownFolderEntryKind::File,
+            modified_at: None,
+            path: "/synthetic/note.md".to_string(),
+            relative_path: "note.md".to_string(),
+        };
+        let query_plan =
+            plan_workspace_search_query("alpha", false).expect("query should be planned");
+
+        WORKSPACE_SEARCH_RANGE_SCAN_COUNT.with(|count| count.set(0));
+        let (results, truncated) = markdown_workspace_search_results(
+            &file,
+            "alpha\nbeta\nalpha",
+            Some("alpha\nbeta\nalpha"),
+            &query_plan,
+            None,
+        );
+
+        assert_eq!(results.len(), 2);
+        assert_eq!(truncated, false);
+        WORKSPACE_SEARCH_RANGE_SCAN_COUNT.with(|count| assert_eq!(count.get(), 1));
+    }
+
+    #[test]
     fn persists_workspace_search_index_between_index_instances() {
         let root = std::env::temp_dir().join(format!(
             "markra-workspace-search-persist-test-{}",
@@ -1908,6 +1994,80 @@ mod tests {
                 .map(|content| content.text.as_str()),
             Some("Beta from disk")
         );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_persisted_workspace_search_save_when_index_is_unchanged() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = std::env::temp_dir().join(format!(
+            "markra-workspace-search-persist-skip-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let index_path = root.join("search-cache").join("index.json");
+        let first = MarkdownFolderFile {
+            created_at: None,
+            kind: MarkdownFolderEntryKind::File,
+            modified_at: Some(1),
+            path: "/synthetic/first.md".to_string(),
+            relative_path: "first.md".to_string(),
+        };
+        let signature = WorkspaceSearchFileSignature {
+            modified_at: Some(1),
+            size_bytes: 10,
+        };
+        let mut first_index = WorkspaceSearchIndex::default();
+
+        refresh_workspace_search_index_files_with_persistence(
+            &mut first_index,
+            vec![first.clone()],
+            Some(&index_path),
+            "synthetic-root",
+            |_| Ok(signature.clone()),
+            |_| Ok("Alpha from disk".to_string()),
+        )
+        .expect("index should refresh and persist");
+
+        let index_directory = index_path
+            .parent()
+            .expect("index path should have a parent")
+            .to_path_buf();
+        let mut readonly_permissions = fs::metadata(&index_directory)
+            .expect("index directory metadata should be readable")
+            .permissions();
+        readonly_permissions.set_mode(0o500);
+        fs::set_permissions(&index_directory, readonly_permissions)
+            .expect("index directory should become read-only");
+
+        let mut restarted_index = WorkspaceSearchIndex::default();
+        let mut read_count = 0;
+        let refresh = refresh_workspace_search_index_files_with_persistence(
+            &mut restarted_index,
+            vec![first],
+            Some(&index_path),
+            "synthetic-root",
+            |_| Ok(signature.clone()),
+            |_| {
+                read_count += 1;
+                Ok("Should not be read".to_string())
+            },
+        );
+
+        let mut writable_permissions = fs::metadata(&index_directory)
+            .expect("index directory metadata should still be readable")
+            .permissions();
+        writable_permissions.set_mode(0o700);
+        fs::set_permissions(&index_directory, writable_permissions)
+            .expect("index directory should become writable again");
+
+        refresh.expect("unchanged persisted index should not be rewritten");
+        assert_eq!(read_count, 0);
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }
