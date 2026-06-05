@@ -80,6 +80,72 @@ describe("workspace search", () => {
     ]);
   });
 
+  it("filters by file path operators before matching content", async () => {
+    const search = await searchWorkspaceFiles(workspaceFiles, "path:release alpha -draft", {
+      maxMatches: 10,
+      maxMatchesPerFile: 5,
+      readFile: async (path) => ({
+        content: path.endsWith("guide.md")
+          ? "alpha guide"
+          : "alpha release note",
+        path
+      })
+    });
+
+    expect(search.results.map((result) => result.file.relativePath)).toEqual(["release.md"]);
+  });
+
+  it("returns file-only matches when the query has no content term", async () => {
+    const search = await searchWorkspaceFiles(workspaceFiles, "file:guide", {
+      maxMatches: 10,
+      maxMatchesPerFile: 5,
+      readFile: async (path) => ({
+        content: path.endsWith("guide.md") ? "# Guide title" : "# Release title",
+        path
+      })
+    });
+
+    expect(search.results.map((result) => ({
+      lineNumber: result.lineNumber,
+      lineText: result.lineText,
+      relativePath: result.file.relativePath,
+      snippet: result.snippet
+    }))).toEqual([
+      {
+        lineNumber: 1,
+        lineText: "guide.md",
+        relativePath: "guide.md",
+        snippet: "guide.md"
+      }
+    ]);
+  });
+
+  it("combines OR groups", async () => {
+    const search = await searchWorkspaceFiles(workspaceFiles, "file:guide OR file:release", {
+      maxMatches: 10,
+      maxMatchesPerFile: 5,
+      readFile: async (path) => ({
+        content: path.endsWith("guide.md") ? "# Guide title" : "# Release title",
+        path
+      })
+    });
+
+    expect(search.results.map((result) => result.file.relativePath)).toEqual(["guide.md", "release.md"]);
+  });
+
+  it("searches unknown colon tokens as plain content", async () => {
+    const search = await searchWorkspaceFiles([workspaceFiles[0]], "https://example.test", {
+      maxMatches: 10,
+      maxMatchesPerFile: 5,
+      readFile: async (path) => ({
+        content: "visit https://example.test/docs",
+        path
+      })
+    });
+
+    expect(search.results.map((result) => result.lineText)).toEqual(["visit https://example.test/docs"]);
+  });
+
   it("centers snippets around late matches before the line is visually truncated", async () => {
     const lateMatchLine = [
       "opening segment with unrelated setup",

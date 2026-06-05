@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -20,7 +20,7 @@ const WORKSPACE_SEARCH_INDEX_FORMAT_VERSION: u32 = 1;
 
 static WORKSPACE_SEARCH_INDEX_CACHE: OnceLock<Mutex<WorkspaceSearchIndexCache>> = OnceLock::new();
 
-#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct MarkdownSearchRange {
     pub(crate) from: usize,
@@ -98,11 +98,41 @@ enum WorkspaceSearchMatchStrategy {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct WorkspaceSearchQueryPlan {
+struct WorkspaceSearchTextMatcher {
     query: String,
     strategy: WorkspaceSearchMatchStrategy,
     normalized_query: Option<String>,
     query_char_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WorkspaceSearchScope {
+    Content,
+    File,
+    Path,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WorkspaceSearchQueryTerm {
+    matcher: WorkspaceSearchTextMatcher,
+    scope: WorkspaceSearchScope,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct WorkspaceSearchQueryGroup {
+    exclude: Vec<WorkspaceSearchQueryTerm>,
+    include: Vec<WorkspaceSearchQueryTerm>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WorkspaceSearchQueryPlan {
+    groups: Vec<WorkspaceSearchQueryGroup>,
+    query: String,
+}
+
+struct WorkspaceSearchParsedToken {
+    excluded: bool,
+    term: WorkspaceSearchQueryTerm,
 }
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -140,6 +170,150 @@ fn plan_workspace_search_query(
         return None;
     }
 
+    let tokens = tokenize_workspace_search_query(query);
+    let mut groups = Vec::new();
+    let mut current_group = WorkspaceSearchQueryGroup::default();
+
+    for token in tokens {
+        if token == "OR" {
+            push_workspace_search_query_group(&mut groups, &mut current_group);
+            continue;
+        }
+
+        let Some(parsed_token) = parse_workspace_search_token(&token, case_sensitive) else {
+            continue;
+        };
+
+        if parsed_token.excluded {
+            current_group.exclude.push(parsed_token.term);
+        } else {
+            current_group.include.push(parsed_token.term);
+        }
+    }
+
+    push_workspace_search_query_group(&mut groups, &mut current_group);
+    if groups.is_empty() {
+        return None;
+    }
+
+    Some(WorkspaceSearchQueryPlan {
+        groups,
+        query: query.to_string(),
+    })
+}
+
+fn push_workspace_search_query_group(
+    groups: &mut Vec<WorkspaceSearchQueryGroup>,
+    current_group: &mut WorkspaceSearchQueryGroup,
+) {
+    if current_group.include.is_empty() && current_group.exclude.is_empty() {
+        return;
+    }
+
+    groups.push(std::mem::take(current_group));
+}
+
+fn tokenize_workspace_search_query(query: &str) -> Vec<String> {
+    let mut tokens = Vec::new();
+    let mut current = String::new();
+    let mut quote = None;
+    let mut escaped = false;
+
+    for character in query.chars() {
+        if escaped {
+            current.push(character);
+            escaped = false;
+            continue;
+        }
+
+        if character == '\\' {
+            escaped = true;
+            continue;
+        }
+
+        if let Some(quote_character) = quote {
+            if character == quote_character {
+                quote = None;
+            } else {
+                current.push(character);
+            }
+            continue;
+        }
+
+        if character == '"' || character == '\'' {
+            quote = Some(character);
+            continue;
+        }
+
+        if character.is_whitespace() {
+            if !current.is_empty() {
+                tokens.push(current);
+                current = String::new();
+            }
+            continue;
+        }
+
+        current.push(character);
+    }
+
+    if escaped {
+        current.push('\\');
+    }
+    if !current.is_empty() {
+        tokens.push(current);
+    }
+
+    tokens
+}
+
+fn parse_workspace_search_token(
+    token: &str,
+    default_case_sensitive: bool,
+) -> Option<WorkspaceSearchParsedToken> {
+    let (excluded, token) = token
+        .strip_prefix('-')
+        .map_or((false, token), |stripped| (true, stripped));
+    if token.is_empty() {
+        return None;
+    }
+
+    let split_operator = token
+        .split_once(':')
+        .map(|(operator, value)| (operator.to_lowercase(), value));
+    let (scope, case_sensitive, value) = match split_operator.as_ref() {
+        Some((operator, value)) if operator == "file" => {
+            (WorkspaceSearchScope::File, default_case_sensitive, *value)
+        }
+        Some((operator, value)) if operator == "path" => {
+            (WorkspaceSearchScope::Path, default_case_sensitive, *value)
+        }
+        Some((operator, value)) if operator == "content" => (
+            WorkspaceSearchScope::Content,
+            default_case_sensitive,
+            *value,
+        ),
+        Some((operator, value)) if operator == "match-case" => {
+            (WorkspaceSearchScope::Content, true, *value)
+        }
+        Some((operator, value)) if operator == "ignore-case" => {
+            (WorkspaceSearchScope::Content, false, *value)
+        }
+        _ => (WorkspaceSearchScope::Content, default_case_sensitive, token),
+    };
+    if value.is_empty() {
+        return None;
+    }
+
+    Some(WorkspaceSearchParsedToken {
+        excluded,
+        term: WorkspaceSearchQueryTerm {
+            matcher: workspace_search_text_matcher(value, case_sensitive),
+            scope,
+        },
+    })
+}
+
+fn workspace_search_text_matcher(query: &str, case_sensitive: bool) -> WorkspaceSearchTextMatcher {
     let strategy = if case_sensitive {
         WorkspaceSearchMatchStrategy::Exact
     } else if query.is_ascii() {
@@ -153,12 +327,12 @@ fn plan_workspace_search_query(
         WorkspaceSearchMatchStrategy::UnicodeCaseInsensitive => Some(query.to_lowercase()),
     };
 
-    Some(WorkspaceSearchQueryPlan {
+    WorkspaceSearchTextMatcher {
         query: query.to_string(),
         strategy,
         normalized_query,
         query_char_count: query.chars().count(),
-    })
+    }
 }
 
 fn workspace_search_hash_hex(input: impl AsRef<[u8]>) -> String {
@@ -466,28 +640,28 @@ fn indexed_workspace_files_for_search(
 fn markdown_search_ranges(
     text: &str,
     ascii_lowercase_text: Option<&str>,
-    query_plan: &WorkspaceSearchQueryPlan,
+    matcher: &WorkspaceSearchTextMatcher,
     max_matches: Option<usize>,
 ) -> Vec<MarkdownSearchRange> {
     if max_matches == Some(0) {
         return Vec::new();
     }
 
-    match query_plan.strategy {
+    match matcher.strategy {
         WorkspaceSearchMatchStrategy::Exact => {
-            markdown_search_ranges_exact(text, &query_plan.query, max_matches)
+            markdown_search_ranges_exact(text, &matcher.query, max_matches)
         }
         WorkspaceSearchMatchStrategy::AsciiCaseInsensitive => {
-            let normalized_query = query_plan
+            let normalized_query = matcher
                 .normalized_query
                 .as_deref()
-                .unwrap_or(&query_plan.query);
+                .unwrap_or(&matcher.query);
 
             if let Some(normalized_text) = ascii_lowercase_text {
                 return markdown_search_ranges_ascii_case_insensitive_normalized(
                     normalized_text,
                     normalized_query,
-                    query_plan.query.len(),
+                    matcher.query.len(),
                     max_matches,
                 );
             }
@@ -496,7 +670,7 @@ fn markdown_search_ranges(
                 return markdown_search_ranges_ascii_case_insensitive(
                     text,
                     normalized_query,
-                    query_plan.query.len(),
+                    matcher.query.len(),
                     max_matches,
                 );
             }
@@ -504,20 +678,20 @@ fn markdown_search_ranges(
             markdown_search_ranges_unicode_case_insensitive(
                 text,
                 normalized_query,
-                query_plan.query_char_count,
+                matcher.query_char_count,
                 max_matches,
             )
         }
         WorkspaceSearchMatchStrategy::UnicodeCaseInsensitive => {
-            let normalized_query = query_plan
+            let normalized_query = matcher
                 .normalized_query
                 .as_deref()
-                .unwrap_or(&query_plan.query);
+                .unwrap_or(&matcher.query);
 
             markdown_search_ranges_unicode_case_insensitive(
                 text,
                 normalized_query,
-                query_plan.query_char_count,
+                matcher.query_char_count,
                 max_matches,
             )
         }
@@ -661,6 +835,215 @@ fn markdown_search_snippet(line_text: &str, column_number: usize, match_length: 
     )
 }
 
+struct WorkspaceSearchMatchedRange {
+    field_text: Option<String>,
+    range: MarkdownSearchRange,
+}
+
+enum WorkspaceSearchGroupFileState {
+    FileOnly,
+    NeedsContent,
+    NoMatch,
+}
+
+enum WorkspaceSearchFilePlanState<'a> {
+    FileOnly(&'a WorkspaceSearchQueryGroup),
+    NeedsContent,
+    NoMatch,
+}
+
+fn workspace_search_file_plan_state<'a>(
+    file: &MarkdownFolderFile,
+    query_plan: &'a WorkspaceSearchQueryPlan,
+) -> WorkspaceSearchFilePlanState<'a> {
+    let mut needs_content = false;
+
+    for group in &query_plan.groups {
+        match workspace_search_group_file_state(file, group) {
+            WorkspaceSearchGroupFileState::FileOnly => {
+                return WorkspaceSearchFilePlanState::FileOnly(group);
+            }
+            WorkspaceSearchGroupFileState::NeedsContent => needs_content = true,
+            WorkspaceSearchGroupFileState::NoMatch => {}
+        }
+    }
+
+    if needs_content {
+        WorkspaceSearchFilePlanState::NeedsContent
+    } else {
+        WorkspaceSearchFilePlanState::NoMatch
+    }
+}
+
+fn workspace_search_group_file_state(
+    file: &MarkdownFolderFile,
+    group: &WorkspaceSearchQueryGroup,
+) -> WorkspaceSearchGroupFileState {
+    if !group
+        .include
+        .iter()
+        .filter(|term| term.scope != WorkspaceSearchScope::Content)
+        .all(|term| workspace_search_term_matches_file(file, term))
+    {
+        return WorkspaceSearchGroupFileState::NoMatch;
+    }
+
+    if group
+        .exclude
+        .iter()
+        .filter(|term| term.scope != WorkspaceSearchScope::Content)
+        .any(|term| workspace_search_term_matches_file(file, term))
+    {
+        return WorkspaceSearchGroupFileState::NoMatch;
+    }
+
+    let needs_content = group
+        .include
+        .iter()
+        .chain(group.exclude.iter())
+        .any(|term| term.scope == WorkspaceSearchScope::Content);
+
+    if needs_content {
+        WorkspaceSearchGroupFileState::NeedsContent
+    } else {
+        WorkspaceSearchGroupFileState::FileOnly
+    }
+}
+
+fn workspace_search_group_matches(
+    file: &MarkdownFolderFile,
+    content: &str,
+    ascii_lowercase_content: Option<&str>,
+    group: &WorkspaceSearchQueryGroup,
+) -> bool {
+    group
+        .include
+        .iter()
+        .all(|term| workspace_search_term_matches(file, content, ascii_lowercase_content, term))
+        && !group
+            .exclude
+            .iter()
+            .any(|term| workspace_search_term_matches(file, content, ascii_lowercase_content, term))
+}
+
+fn workspace_search_term_matches(
+    file: &MarkdownFolderFile,
+    content: &str,
+    ascii_lowercase_content: Option<&str>,
+    term: &WorkspaceSearchQueryTerm,
+) -> bool {
+    if term.scope == WorkspaceSearchScope::Content {
+        return !markdown_search_ranges(content, ascii_lowercase_content, &term.matcher, Some(1))
+            .is_empty();
+    }
+
+    workspace_search_term_matches_file(file, term)
+}
+
+fn workspace_search_term_matches_file(
+    file: &MarkdownFolderFile,
+    term: &WorkspaceSearchQueryTerm,
+) -> bool {
+    !markdown_search_ranges(
+        &workspace_search_file_field_value(file, term.scope),
+        None,
+        &term.matcher,
+        Some(1),
+    )
+    .is_empty()
+}
+
+fn workspace_search_file_field_value(
+    file: &MarkdownFolderFile,
+    scope: WorkspaceSearchScope,
+) -> String {
+    if scope == WorkspaceSearchScope::File {
+        return Path::new(&file.relative_path)
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .unwrap_or_else(|| file.relative_path.clone());
+    }
+
+    file.relative_path.clone()
+}
+
+fn workspace_search_file_only_matched_range(
+    file: &MarkdownFolderFile,
+    group: &WorkspaceSearchQueryGroup,
+) -> WorkspaceSearchMatchedRange {
+    let term = group
+        .include
+        .iter()
+        .find(|term| term.scope != WorkspaceSearchScope::Content);
+    let field_text = term
+        .map(|term| workspace_search_file_field_value(file, term.scope))
+        .unwrap_or_else(|| file.relative_path.clone());
+    let range = term
+        .and_then(|term| {
+            markdown_search_ranges(&field_text, None, &term.matcher, Some(1))
+                .into_iter()
+                .next()
+        })
+        .unwrap_or_else(|| MarkdownSearchRange {
+            from: 0,
+            to: field_text.len(),
+        });
+
+    WorkspaceSearchMatchedRange {
+        field_text: Some(field_text),
+        range,
+    }
+}
+
+fn workspace_search_matched_ranges(
+    file: &MarkdownFolderFile,
+    content: &str,
+    ascii_lowercase_content: Option<&str>,
+    query_plan: &WorkspaceSearchQueryPlan,
+    max_matches: Option<usize>,
+) -> Vec<WorkspaceSearchMatchedRange> {
+    let mut ranges = Vec::new();
+    let mut seen_content_ranges = HashSet::new();
+
+    for group in &query_plan.groups {
+        if !workspace_search_group_matches(file, content, ascii_lowercase_content, group) {
+            continue;
+        }
+
+        let content_terms = group
+            .include
+            .iter()
+            .filter(|term| term.scope == WorkspaceSearchScope::Content)
+            .collect::<Vec<_>>();
+        if content_terms.is_empty() {
+            ranges.push(workspace_search_file_only_matched_range(file, group));
+            continue;
+        }
+
+        for term in content_terms {
+            for range in
+                markdown_search_ranges(content, ascii_lowercase_content, &term.matcher, max_matches)
+            {
+                if !seen_content_ranges.insert((range.from, range.to)) {
+                    continue;
+                }
+
+                ranges.push(WorkspaceSearchMatchedRange {
+                    field_text: None,
+                    range,
+                });
+            }
+        }
+    }
+
+    ranges.sort_by_key(|matched_range| (matched_range.range.from, matched_range.range.to));
+    if let Some(max_matches) = max_matches {
+        ranges.truncate(max_matches);
+    }
+
+    ranges
+}
+
 fn markdown_workspace_search_results(
     file: &MarkdownFolderFile,
     content: &str,
@@ -669,8 +1052,13 @@ fn markdown_workspace_search_results(
     max_matches_per_file: Option<usize>,
 ) -> (Vec<MarkdownWorkspaceSearchResult>, bool) {
     let search_limit = max_matches_per_file.map(|limit| limit.saturating_add(1));
-    let mut ranges =
-        markdown_search_ranges(content, ascii_lowercase_content, query_plan, search_limit);
+    let mut ranges = workspace_search_matched_ranges(
+        file,
+        content,
+        ascii_lowercase_content,
+        query_plan,
+        search_limit,
+    );
     let truncated = max_matches_per_file.is_some_and(|limit| ranges.len() > limit);
     if let Some(max_matches_per_file) = max_matches_per_file {
         ranges.truncate(max_matches_per_file);
@@ -679,18 +1067,22 @@ fn markdown_workspace_search_results(
     let results = ranges
         .into_iter()
         .enumerate()
-        .map(|(match_index, range)| {
-            let (line_number, column_number, line_text) = markdown_search_line(content, &range);
-            let match_length = content[range.from..range.to].chars().count();
+        .map(|(match_index, matched_range)| {
+            let source_text = matched_range.field_text.as_deref().unwrap_or(content);
+            let (line_number, column_number, line_text) =
+                markdown_search_line(source_text, &matched_range.range);
+            let match_length = source_text[matched_range.range.from..matched_range.range.to]
+                .chars()
+                .count();
 
             MarkdownWorkspaceSearchResult {
                 column_number,
                 file: file.clone(),
-                id: format!("{}:{}", file.path, range.from),
+                id: format!("{}:{}", file.path, matched_range.range.from),
                 line_number,
                 snippet: markdown_search_snippet(&line_text, column_number, match_length),
                 line_text,
-                matched_range: range,
+                matched_range: matched_range.range,
                 match_index,
             }
         })
@@ -725,6 +1117,46 @@ fn search_markdown_workspace_file(
     current_document_content: Option<&str>,
     max_matches_per_file: Option<usize>,
 ) -> MarkdownWorkspaceFileSearchResult {
+    match workspace_search_file_plan_state(&indexed_file.file, query_plan) {
+        WorkspaceSearchFilePlanState::NoMatch => {
+            return MarkdownWorkspaceFileSearchResult {
+                file_index,
+                matches: Vec::new(),
+                truncated: false,
+                unreadable: false,
+            };
+        }
+        WorkspaceSearchFilePlanState::FileOnly(group) => {
+            let matched_range = workspace_search_file_only_matched_range(&indexed_file.file, group);
+            let source_text = matched_range
+                .field_text
+                .as_deref()
+                .unwrap_or(&indexed_file.file.relative_path);
+            let (line_number, column_number, line_text) =
+                markdown_search_line(source_text, &matched_range.range);
+            let match_length = source_text[matched_range.range.from..matched_range.range.to]
+                .chars()
+                .count();
+
+            return MarkdownWorkspaceFileSearchResult {
+                file_index,
+                matches: vec![MarkdownWorkspaceSearchResult {
+                    column_number,
+                    file: indexed_file.file.clone(),
+                    id: format!("{}:{}", indexed_file.file.path, matched_range.range.from),
+                    line_number,
+                    snippet: markdown_search_snippet(&line_text, column_number, match_length),
+                    line_text,
+                    matched_range: matched_range.range,
+                    match_index: 0,
+                }],
+                truncated: false,
+                unreadable: false,
+            };
+        }
+        WorkspaceSearchFilePlanState::NeedsContent => {}
+    }
+
     let (content, ascii_lowercase_content) = match (current_document_path, current_document_content)
     {
         (Some(path), Some(content)) if path == indexed_file.file.path => (content, None),
@@ -1057,6 +1489,126 @@ mod tests {
     }
 
     #[test]
+    fn searches_workspace_files_with_field_filters_and_exclusions() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-workspace-search-query-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let docs = root.join("docs");
+
+        fs::create_dir_all(&docs).expect("docs folder should be created");
+        fs::write(root.join("guide.md"), "alpha guide").expect("guide file should be created");
+        fs::write(docs.join("release.md"), "alpha release note")
+            .expect("release file should be created");
+        fs::write(docs.join("draft.md"), "alpha draft note").expect("draft file should be created");
+
+        let search = search_markdown_files_for_path_blocking(
+            root.to_string_lossy().to_string(),
+            "path:docs alpha -draft".to_string(),
+            false,
+            None,
+            None,
+            Some(10),
+            Some(5),
+        )
+        .expect("workspace search should complete");
+
+        assert_eq!(
+            search
+                .results
+                .iter()
+                .map(|result| result.file.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["docs/release.md"]
+        );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn searches_workspace_files_with_file_only_query_terms() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-workspace-search-file-query-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        fs::write(root.join("guide.md"), "# Guide title").expect("guide file should be created");
+        fs::write(root.join("release.md"), "# Release title")
+            .expect("release file should be created");
+
+        let search = search_markdown_files_for_path_blocking(
+            root.to_string_lossy().to_string(),
+            "file:guide OR file:release".to_string(),
+            false,
+            None,
+            None,
+            Some(10),
+            Some(5),
+        )
+        .expect("workspace search should complete");
+
+        assert_eq!(
+            search
+                .results
+                .iter()
+                .map(|result| (
+                    result.file.relative_path.as_str(),
+                    result.line_number,
+                    result.line_text.as_str(),
+                    result.snippet.as_str()
+                ))
+                .collect::<Vec<_>>(),
+            vec![
+                ("guide.md", 1, "guide.md", "guide.md"),
+                ("release.md", 1, "release.md", "release.md")
+            ]
+        );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn searches_unknown_colon_tokens_as_plain_content() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-workspace-search-colon-query-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+
+        fs::create_dir_all(&root).expect("test folder should be created");
+        fs::write(root.join("guide.md"), "visit https://example.test/docs")
+            .expect("guide file should be created");
+
+        let search = search_markdown_files_for_path_blocking(
+            root.to_string_lossy().to_string(),
+            "https://example.test".to_string(),
+            false,
+            None,
+            None,
+            Some(10),
+            Some(5),
+        )
+        .expect("workspace search should complete");
+
+        assert_eq!(search.results.len(), 1);
+        assert_eq!(
+            search.results[0].line_text,
+            "visit https://example.test/docs"
+        );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
     fn limits_workspace_search_worker_count() {
         assert_eq!(workspace_search_worker_count(0, 8), 0);
         assert_eq!(workspace_search_worker_count(1, 8), 1);
@@ -1165,28 +1717,95 @@ mod tests {
         let exact = plan_workspace_search_query(" Alpha ", true)
             .expect("case-sensitive query should be planned");
         assert_eq!(exact.query, "Alpha");
-        assert_eq!(exact.strategy, WorkspaceSearchMatchStrategy::Exact);
-        assert_eq!(exact.normalized_query.as_deref(), None);
-        assert_eq!(exact.query_char_count, 5);
+        assert_eq!(exact.groups.len(), 1);
+        assert_eq!(exact.groups[0].include.len(), 1);
+        assert_eq!(
+            exact.groups[0].include[0].scope,
+            WorkspaceSearchScope::Content
+        );
+        assert_eq!(exact.groups[0].include[0].matcher.query, "Alpha");
+        assert_eq!(
+            exact.groups[0].include[0].matcher.strategy,
+            WorkspaceSearchMatchStrategy::Exact
+        );
+        assert_eq!(
+            exact.groups[0].include[0]
+                .matcher
+                .normalized_query
+                .as_deref(),
+            None
+        );
+        assert_eq!(exact.groups[0].include[0].matcher.query_char_count, 5);
 
         let ascii =
             plan_workspace_search_query(" Alpha ", false).expect("ASCII query should be planned");
         assert_eq!(ascii.query, "Alpha");
         assert_eq!(
-            ascii.strategy,
+            ascii.groups[0].include[0].matcher.strategy,
             WorkspaceSearchMatchStrategy::AsciiCaseInsensitive
         );
-        assert_eq!(ascii.normalized_query.as_deref(), Some("alpha"));
-        assert_eq!(ascii.query_char_count, 5);
+        assert_eq!(
+            ascii.groups[0].include[0]
+                .matcher
+                .normalized_query
+                .as_deref(),
+            Some("alpha")
+        );
+        assert_eq!(ascii.groups[0].include[0].matcher.query_char_count, 5);
 
         let unicode =
             plan_workspace_search_query(" Älpha ", false).expect("Unicode query should be planned");
         assert_eq!(
-            unicode.strategy,
+            unicode.groups[0].include[0].matcher.strategy,
             WorkspaceSearchMatchStrategy::UnicodeCaseInsensitive
         );
-        assert_eq!(unicode.normalized_query.as_deref(), Some("älpha"));
-        assert_eq!(unicode.query_char_count, 5);
+        assert_eq!(
+            unicode.groups[0].include[0]
+                .matcher
+                .normalized_query
+                .as_deref(),
+            Some("älpha")
+        );
+        assert_eq!(unicode.groups[0].include[0].matcher.query_char_count, 5);
+
+        let structured = plan_workspace_search_query(
+            "file:guide path:docs content:Alpha -draft OR match-case:Beta",
+            false,
+        )
+        .expect("structured query should be planned");
+        assert_eq!(structured.groups.len(), 2);
+        assert_eq!(
+            structured.groups[0]
+                .include
+                .iter()
+                .map(|term| (term.scope, term.matcher.query.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                (WorkspaceSearchScope::File, "guide"),
+                (WorkspaceSearchScope::Path, "docs"),
+                (WorkspaceSearchScope::Content, "Alpha"),
+            ]
+        );
+        assert_eq!(
+            structured.groups[0].exclude[0].scope,
+            WorkspaceSearchScope::Content
+        );
+        assert_eq!(structured.groups[0].exclude[0].matcher.query, "draft");
+        assert_eq!(
+            structured.groups[1].include[0].matcher.strategy,
+            WorkspaceSearchMatchStrategy::Exact
+        );
+
+        let unknown_operator = plan_workspace_search_query("https://example.test", false)
+            .expect("unknown operator-looking query should be planned");
+        assert_eq!(
+            unknown_operator.groups[0].include[0].matcher.query,
+            "https://example.test"
+        );
+        assert_eq!(
+            unknown_operator.groups[0].include[0].scope,
+            WorkspaceSearchScope::Content
+        );
 
         assert!(plan_workspace_search_query("   ", false).is_none());
     }

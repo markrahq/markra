@@ -1,4 +1,8 @@
-import { findSearchRanges } from "./search";
+import {
+  describeWorkspaceSearchQuery,
+  findSearchRanges,
+  parseWorkspaceSearchQuery
+} from "./search";
 
 describe("document search", () => {
   it("matches punctuation exactly without width normalization", () => {
@@ -30,6 +34,65 @@ describe("document search", () => {
     expect(findSearchRanges("alpha beta alpha gamma alpha", "alpha", { maxMatches: 2 })).toEqual([
       { from: 0, to: 5 },
       { from: 11, to: 16 }
+    ]);
+  });
+});
+
+describe("workspace search query", () => {
+  it("parses Obsidian-style field filters and exclusions", () => {
+    const plan = parseWorkspaceSearchQuery("file:guide path:docs content:Alpha -draft", {
+      caseSensitive: false
+    });
+
+    expect(plan?.groups).toEqual([
+      {
+        include: [
+          { caseSensitive: false, query: "guide", scope: "file" },
+          { caseSensitive: false, query: "docs", scope: "path" },
+          { caseSensitive: false, query: "Alpha", scope: "content" }
+        ],
+        exclude: [
+          { caseSensitive: false, query: "draft", scope: "content" }
+        ]
+      }
+    ]);
+  });
+
+  it("supports OR groups and inline case operators", () => {
+    const plan = parseWorkspaceSearchQuery("match-case:Alpha OR ignore-case:beta", {
+      caseSensitive: false
+    });
+
+    expect(plan?.groups).toEqual([
+      {
+        include: [{ caseSensitive: true, query: "Alpha", scope: "content" }],
+        exclude: []
+      },
+      {
+        include: [{ caseSensitive: false, query: "beta", scope: "content" }],
+        exclude: []
+      }
+    ]);
+  });
+
+  it("keeps unknown colon tokens as content terms", () => {
+    const plan = parseWorkspaceSearchQuery("https://example.test", {
+      caseSensitive: false
+    });
+
+    expect(plan?.groups[0]?.include).toEqual([
+      { caseSensitive: false, query: "https://example.test", scope: "content" }
+    ]);
+  });
+
+  it("describes the parsed query without hardcoded UI copy", () => {
+    expect(describeWorkspaceSearchQuery("file:guide -draft OR path:docs", {
+      caseSensitive: false
+    })).toEqual([
+      { kind: "include", query: "guide", scope: "file" },
+      { kind: "exclude", query: "draft", scope: "content" },
+      { kind: "or" },
+      { kind: "include", query: "docs", scope: "path" }
     ]);
   });
 });
