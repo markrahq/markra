@@ -81,6 +81,10 @@ fn normalize_markdown_tree_rename_file_name(
     file_name: &str,
     source_path: &Path,
 ) -> Result<String, String> {
+    if source_path.is_dir() {
+        return normalize_markdown_tree_folder_name(file_name);
+    }
+
     let trimmed_name = normalize_markdown_tree_single_file_name(file_name)?;
     let candidate = Path::new(&trimmed_name);
     let normalized_name = if candidate.extension().is_some() {
@@ -139,22 +143,6 @@ fn canonical_markdown_tree_root(root_path: &Path) -> Result<PathBuf, String> {
     markdown_tree_root_for_path(root_path)?
         .canonicalize()
         .map_err(|error| error.to_string())
-}
-
-fn canonical_markdown_tree_file(root: &Path, path: &Path) -> Result<PathBuf, String> {
-    let canonical_path = path.canonicalize().map_err(|error| error.to_string())?;
-
-    canonical_path
-        .strip_prefix(root)
-        .map_err(|_| "File is outside the current Markdown folder".to_string())?;
-
-    if !canonical_path.is_file()
-        || !(is_markdown_tree_file(&canonical_path) || is_markdown_tree_asset_file(&canonical_path))
-    {
-        return Err("Path is not a Markdown file or supported image asset".to_string());
-    }
-
-    Ok(canonical_path)
 }
 
 fn canonical_markdown_tree_entry(root: &Path, path: &Path) -> Result<PathBuf, String> {
@@ -331,7 +319,7 @@ pub(crate) fn rename_markdown_tree_file(
 ) -> Result<MarkdownFolderFile, String> {
     let root_path = PathBuf::from(root_path);
     let root = canonical_markdown_tree_root(&root_path)?;
-    let source_path = canonical_markdown_tree_file(&root, &PathBuf::from(path))?;
+    let source_path = canonical_movable_markdown_tree_entry(&root, &PathBuf::from(path))?;
     let normalized_file_name = normalize_markdown_tree_rename_file_name(&file_name, &source_path)?;
     let parent = source_path
         .parent()
@@ -346,7 +334,7 @@ pub(crate) fn rename_markdown_tree_file(
 
     fs::rename(&source_path, &target_path).map_err(|error| error.to_string())?;
 
-    markdown_folder_file(&root, &target_path, markdown_tree_file_kind(&target_path)?)
+    markdown_folder_file(&root, &target_path, markdown_tree_entry_kind(&target_path)?)
 }
 
 #[tauri::command]
@@ -664,6 +652,43 @@ mod tests {
             .expect("image asset should be deleted");
 
         assert!(!assets.join("renamed-image.png").exists());
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn renames_markdown_tree_folders_inside_the_root() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-tree-folder-rename-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let docs = root.join("docs");
+
+        fs::create_dir_all(&docs).expect("source folder should be created");
+        fs::write(docs.join("readme.md"), "# Readme")
+            .expect("nested markdown file should be created");
+        let canonical_root = root
+            .canonicalize()
+            .expect("test folder should have a canonical path");
+
+        let renamed = rename_markdown_tree_file(
+            root.to_string_lossy().to_string(),
+            docs.to_string_lossy().to_string(),
+            "notes".to_string(),
+        )
+        .expect("markdown folder should be renamed");
+
+        assert_markdown_folder_file(
+            &renamed,
+            MarkdownFolderEntryKind::Folder,
+            &canonical_root.join("notes"),
+            "notes",
+        );
+        assert!(!docs.exists());
+        assert!(root.join("notes").join("readme.md").exists());
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }

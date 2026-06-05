@@ -292,6 +292,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFolder": "Nova pasta",
   "app.newMarkdownFolderName": "Novo nome da pasta",
   "app.renameMarkdownFile": "Renomear arquivo",
+  "app.renameMarkdownFolder": "Renomear pasta",
   "app.deleteMarkdownFile": "Excluir arquivo",
   "app.confirmDeleteMarkdownFile": "Excluir este arquivo?",
   "app.cancelDeleteMarkdownFile": "Cancelar",

@@ -443,6 +443,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFolder": "新建文件夹",
   "app.newMarkdownFolderName": "新文件夹名",
   "app.renameMarkdownFile": "重命名文件",
+  "app.renameMarkdownFolder": "重命名文件夹",
   "app.deleteMarkdownFile": "删除文件",
   "app.confirmDeleteMarkdownFile": "确定删除这个文件吗？",
   "app.cancelDeleteMarkdownFile": "取消",

@@ -256,8 +256,6 @@ export function ContextMenu({ ariaLabel, entries, onClose, position }: ContextMe
 
     setMenuStyle({
       left: positioned.left,
-      maxHeight: positioned.maxHeight,
-      overflowY: "auto",
       top: positioned.top
     });
     setSubmenuAlignLeft(positioned.left + width + contextSubmenuWidth > viewportWidth - contextMenuViewportMargin);

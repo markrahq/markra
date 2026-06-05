@@ -806,9 +806,11 @@ export function MarkdownFileTreeDrawer({
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameFileName, setRenameFileName] = useState("");
+  const renamingPathRef = useRef<string | null>(null);
   const [dragOverTargetPath, setDragOverTargetPath] = useState<string | null>(null);
   const [activeDragFile, setActiveDragFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [collapsedOutlineKeys, setCollapsedOutlineKeys] = useState<Set<string>>(() => new Set());
+  renamingPathRef.current = renamingPath;
   const fileTreeDndSensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -1189,9 +1191,14 @@ export function MarkdownFileTreeDrawer({
       return;
     }
 
-    onRenameFile?.(file, normalizedName);
-    setRenamingPath(null);
-    setRenameFileName("");
+    Promise.resolve(onRenameFile?.(file, normalizedName))
+      .catch(() => {})
+      .then(() => {
+        if (renamingPathRef.current !== file.path) return;
+
+        setRenamingPath(null);
+        setRenameFileName("");
+      });
   };
 
   const cancelFileTreeInputs = () => {
@@ -1583,6 +1590,49 @@ export function MarkdownFileTreeDrawer({
     )
   );
 
+  const renderRenameRowContent = (
+    file: NativeMarkdownFolderFile,
+    depth: number,
+    mode: FileTreeRowRenderMode
+  ) => {
+    const folder = file.kind === "folder";
+    const FileIcon = folder ? Folder : file.kind === "asset" ? ImageIcon : FileText;
+    const rowIndentClass = fileTreeRowIndentClass(mode);
+    const rowBranchClass = mode === "nested" ? rowBranchClassForDepth(depth) : "";
+    const rowIndentStyle = fileTreeRowIndentStyle(depth, mode);
+
+    return (
+      <div
+        className={`relative grid h-8 w-full items-center py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${folder ? "grid-cols-[13px_16px_minmax(0,1fr)] gap-1" : "grid-cols-[17px_minmax(0,1fr)] gap-1.5"} ${rowIndentClass} ${rowBranchClass}`}
+        style={rowIndentStyle}
+      >
+        {folder ? <span aria-hidden="true" /> : null}
+        <FileIcon aria-hidden="true" className="shrink-0" size={folder ? 16 : 15} />
+        <input
+          aria-label={folder ? label("app.renameMarkdownFolder") : label("app.renameMarkdownFile")}
+          autoFocus
+          className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
+          type="text"
+          value={renameFileName}
+          onChange={(event) => setRenameFileName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitRenameFile(file);
+              return;
+            }
+
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setRenamingPath(null);
+              setRenameFileName("");
+            }
+          }}
+        />
+      </div>
+    );
+  };
+
   const renderFolderRowContent = (
     node: FolderNode,
     depth: number,
@@ -1590,6 +1640,7 @@ export function MarkdownFileTreeDrawer({
     mode: FileTreeRowRenderMode
   ) => {
     const folderFile = folderNodeAsFile(node);
+    const renaming = renamingPath === folderFile.path;
     const dropTarget = dragOverTargetPath === dragTargetKey(node.path);
     const folderRowStateClassName = dropTarget
       ? fileTreeDropTargetClassName
@@ -1597,6 +1648,8 @@ export function MarkdownFileTreeDrawer({
     const rowIndentClass = fileTreeRowIndentClass(mode);
     const rowBranchClass = mode === "nested" ? rowBranchClassForDepth(depth) : "";
     const rowIndentStyle = fileTreeRowIndentStyle(depth, mode);
+
+    if (renaming) return renderRenameRowContent(folderFile, depth, mode);
 
     return (
       <FileTreeDropTarget
@@ -1645,37 +1698,7 @@ export function MarkdownFileTreeDrawer({
     const rowBranchClass = mode === "nested" ? rowBranchClassForDepth(depth) : "";
     const rowIndentStyle = fileTreeRowIndentStyle(depth, mode);
 
-    if (renaming) {
-      return (
-        <div
-          className={`relative grid h-8 w-full grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${rowIndentClass} ${rowBranchClass}`}
-          style={rowIndentStyle}
-        >
-          <FileIcon aria-hidden="true" className="shrink-0" size={15} />
-          <input
-            aria-label={label("app.renameMarkdownFile")}
-            autoFocus
-            className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
-            type="text"
-            value={renameFileName}
-            onChange={(event) => setRenameFileName(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                commitRenameFile(node.file);
-                return;
-              }
-
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setRenamingPath(null);
-                setRenameFileName("");
-              }
-            }}
-          />
-        </div>
-      );
-    }
+    if (renaming) return renderRenameRowContent(node.file, depth, mode);
 
     return (
       <FileTreeDragSource disabled={!dragMoveAvailable} file={node.file}>

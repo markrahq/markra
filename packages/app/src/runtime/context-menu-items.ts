@@ -229,6 +229,7 @@ export function createMarkdownFileTreeContextMenuEntries(
   if (fileIsFolder) {
     entries.push(
       contextMenuSeparator(),
+      contextMenuItem(fileTreeId("rename"), label("app.renameMarkdownFolder"), undefined, () => handlers.renameFile?.(file), !handlers.renameFile),
       contextMenuItem(fileTreeId("delete"), label("app.deleteMarkdownFolder"), undefined, () => handlers.deleteFile?.(file), !handlers.deleteFile)
     );
 
