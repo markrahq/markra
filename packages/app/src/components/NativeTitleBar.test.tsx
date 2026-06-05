@@ -288,14 +288,17 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".native-titlebar")).not.toHaveAttribute("data-tauri-drag-region");
     expect(container.querySelector(".document-actions")).not.toHaveAttribute("data-tauri-drag-region");
     expect(container.querySelector(".native-title-slot")).not.toHaveAttribute("data-tauri-drag-region");
-    expect(container.querySelector(".windows-titlebar-actions")).toHaveStyle({ transform: "translateX(-384px)" });
+    expect(container.querySelector(".native-titlebar")).toHaveStyle({
+      gridTemplateColumns: "minmax(0,1fr) 164px 384px"
+    });
+    expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
 
     fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
 
     expect(toggleSourceMode).toHaveBeenCalledTimes(1);
   });
 
-  it("reserves AI panel width for Windows titlebar tabs when file actions shift left", () => {
+  it("reserves AI panel width as a separate Windows titlebar column so action hitboxes stay narrow", () => {
     const { container } = render(
       <NativeTitleBar
         aiAgentOpen
@@ -319,9 +322,9 @@ describe("NativeTitleBar", () => {
     );
 
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "minmax(0,1fr) 548px"
+      gridTemplateColumns: "minmax(0,1fr) 164px 384px"
     });
-    expect(container.querySelector(".windows-titlebar-actions")).toHaveStyle({ transform: "translateX(-384px)" });
+    expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
   });
 
   it("keeps compact Windows file actions clear of the Markra AI panel", () => {

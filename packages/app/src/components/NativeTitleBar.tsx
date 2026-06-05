@@ -517,10 +517,11 @@ export function NativeTitleBar({
 
   if (platform === "windows") {
     if (titleContent) {
-      const windowsTitlebarActionSlotWidth = titlebarSideSlotWidth + (aiAgentOpen ? aiAgentWidth : 0);
       const windowsTitlebarStyle: CSSProperties = {
         ...(markdownFilesOpen ? { left: markdownFilesWidth + 1 } : {}),
-        gridTemplateColumns: `minmax(0,1fr) ${windowsTitlebarActionSlotWidth}px`
+        gridTemplateColumns: aiAgentOpen
+          ? `minmax(0,1fr) ${titlebarSideSlotWidth}px ${aiAgentWidth}px`
+          : `minmax(0,1fr) ${titlebarSideSlotWidth}px`
       };
 
       return (
@@ -532,7 +533,6 @@ export function NativeTitleBar({
           {renderTitleContent("native-title-slot min-w-0 h-10 pr-3 pl-4")}
           <div
             className={`windows-titlebar-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-40 ${windowsTitlebarActionsTransitionClassName} hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none`}
-            style={windowsTitlebarActionsStyle}
           >
             {renderDocumentActions("document-actions relative flex h-10 items-center justify-end gap-0.5")}
           </div>
