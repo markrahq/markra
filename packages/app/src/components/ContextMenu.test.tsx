@@ -118,6 +118,41 @@ describe("ContextMenu", () => {
     expect(getMenu()).toBeNull();
   });
 
+  it("limits the main menu height when opened near the viewport bottom", () => {
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(300);
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(400);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.hasAttribute("data-markra-context-menu")) return 500;
+
+      return 28;
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.hasAttribute("data-markra-context-menu")) return 216;
+
+      return 32;
+    });
+
+    showContextMenu(document, {
+      entries: Array.from({ length: 24 }, (_, index) => ({
+        id: `markra:test:item-${index + 1}`,
+        kind: "item" as const,
+        label: `Item ${index + 1}`,
+        onSelect: vi.fn()
+      })),
+      position: {
+        x: 120,
+        y: 260
+      }
+    });
+
+    const menu = getMenu() as HTMLElement | null;
+
+    expect(menu).not.toBeNull();
+    expect(menu?.style.top).toBe("8px");
+    expect(menu?.style.maxHeight).toBe("252px");
+    expect(menu?.style.overflowY).toBe("auto");
+  });
+
   it("keeps submenus inside the viewport when their anchor is near the bottom", () => {
     vi.spyOn(window, "innerHeight", "get").mockReturnValue(220);
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {

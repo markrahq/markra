@@ -2059,54 +2059,54 @@
     @apply block rounded-[1px] border border-current;
   }
 
-  .markdown-paper .markra-table-size-popover {
-    @apply absolute top-7 left-0 z-30 rounded-lg border border-(--border-default) p-3;
+  .markra-table-size-popover {
+    @apply fixed z-70 rounded-lg border border-(--border-default) p-3;
     background: color-mix(in srgb, var(--bg-primary) 98%, var(--bg-secondary));
     box-shadow:
       0 18px 40px rgba(0, 0, 0, 0.16),
       0 2px 8px rgba(0, 0, 0, 0.08);
   }
 
-  .markdown-paper .markra-table-size-grid {
+  .markra-table-size-grid {
     @apply grid gap-1;
     grid-template-columns: repeat(8, 0.875rem);
   }
 
-  .markdown-paper .markra-table-size-cell {
+  .markra-table-size-cell {
     @apply size-3.5 rounded-[2px] border border-(--border-default) p-0 transition-[background-color,border-color] duration-100 ease-out;
     background: var(--bg-secondary);
   }
 
-  .markdown-paper .markra-table-size-cell:hover,
-  .markdown-paper .markra-table-size-cell:focus-visible {
+  .markra-table-size-cell:hover,
+  .markra-table-size-cell:focus-visible {
     @apply outline-none;
     border-color: var(--text-secondary);
   }
 
-  .markdown-paper .markra-table-size-cell-active {
+  .markra-table-size-cell-active {
     background: color-mix(in srgb, var(--text-secondary) 46%, var(--bg-secondary));
     border-color: color-mix(in srgb, var(--text-secondary) 66%, var(--border-default));
   }
 
-  .markdown-paper .markra-table-size-footer {
+  .markra-table-size-footer {
     @apply mt-3 flex items-center justify-center gap-2 border-t border-(--border-default) pt-3;
   }
 
-  .markdown-paper .markra-table-size-input {
+  .markra-table-size-input {
     @apply h-7 w-10 rounded-sm border border-(--border-default) bg-(--bg-primary) px-1 text-center text-sm leading-none text-(--text-primary) outline-none focus-visible:border-(--border-strong);
   }
 
-  .markdown-paper .markra-table-size-input::-webkit-outer-spin-button,
-  .markdown-paper .markra-table-size-input::-webkit-inner-spin-button {
+  .markra-table-size-input::-webkit-outer-spin-button,
+  .markra-table-size-input::-webkit-inner-spin-button {
     margin: 0;
     appearance: none;
   }
 
-  .markdown-paper .markra-table-size-input[type="number"] {
+  .markra-table-size-input[type="number"] {
     appearance: textfield;
   }
 
-  .markdown-paper .markra-table-size-separator {
+  .markra-table-size-separator {
     @apply text-sm text-(--text-secondary);
   }
 

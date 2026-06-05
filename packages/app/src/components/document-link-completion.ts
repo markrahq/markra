@@ -1,6 +1,7 @@
 import { Plugin, PluginKey, type EditorState } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
+import { popoverPosition } from "@markra/shared";
 import {
   documentLinkCompletionFiles,
   markdownDocumentLinkHrefForFile,
@@ -126,10 +127,28 @@ function renderMenuOption(ownerDocument: Document, file: MarkdownDocumentLinkFil
 function positionMenu(view: EditorView, active: ActiveCompletion, menu: HTMLElement) {
   try {
     const coords = view.coordsAtPos(active.to);
-    menu.style.left = `${Math.max(8, coords.left)}px`;
-    menu.style.top = `${coords.bottom + 8}px`;
+    const ownerWindow = view.dom.ownerDocument.defaultView ?? window;
+    const position = popoverPosition(
+      coords,
+      {
+        height: menu.offsetHeight || 280,
+        width: menu.offsetWidth || 240
+      },
+      {
+        height: ownerWindow.innerHeight,
+        width: ownerWindow.innerWidth
+      },
+      { gap: 8, margin: 8 }
+    );
+
+    menu.style.left = `${position.left}px`;
+    menu.style.maxHeight = `${position.maxHeight}px`;
+    menu.style.overflowY = "auto";
+    menu.style.top = `${position.top}px`;
   } catch {
     menu.style.left = "8px";
+    menu.style.maxHeight = "";
+    menu.style.overflowY = "";
     menu.style.top = "8px";
   }
 }
@@ -240,13 +259,25 @@ export function markraDocumentLinkCompletionPlugin(options: DocumentLinkCompleti
           insertDocumentLink(view, active, file, options);
         };
 
+        const handleDocumentPointerDown = (event: PointerEvent) => {
+          const active = completionKey.getState(view.state)?.active ?? null;
+          if (!active) return;
+
+          const target = event.target instanceof Node ? event.target : null;
+          if (target && menu.contains(target)) return;
+
+          view.dispatch(view.state.tr.setMeta(completionKey, { type: "close" } satisfies CompletionMeta));
+        };
+
         menu.addEventListener("mousedown", handleMouseDown);
+        ownerDocument.addEventListener("pointerdown", handleDocumentPointerDown, true);
         ownerDocument.body.append(menu);
         update(view);
 
         return {
           destroy() {
             menu.removeEventListener("mousedown", handleMouseDown);
+            ownerDocument.removeEventListener("pointerdown", handleDocumentPointerDown, true);
             menu.remove();
           },
           update

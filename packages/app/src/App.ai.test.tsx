@@ -539,7 +539,7 @@ describe("Markra AI workspace", () => {
     const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
 
     fireEvent.click(within(agentPanel).getByRole("button", { name: "Sessions" }));
-    fireEvent.click(await within(agentPanel).findByRole("menuitemradio", { name: /DeepSeek session/ }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: /DeepSeek session/ }));
 
     await waitFor(() =>
       expect(mockedSaveStoredAiSettings).toHaveBeenCalledWith(
@@ -619,7 +619,7 @@ describe("Markra AI workspace", () => {
     expect(webSearch).toHaveAttribute("aria-pressed", "true");
 
     fireEvent.click(within(agentPanel).getByRole("button", { name: "Sessions" }));
-    fireEvent.click(await within(agentPanel).findByRole("menuitem", { name: "New session" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "New session" }));
 
     await waitFor(() => expect(mockedInitializeStoredAiAgentSession).toHaveBeenCalledWith("session-new", null, {
       agentModelId: "gpt-5.5",

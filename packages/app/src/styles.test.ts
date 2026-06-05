@@ -120,11 +120,11 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .markra-table-align-controls");
     expect(styles).toContain(".markdown-paper .markra-table-size-controls");
     expect(styles).toContain(".markdown-paper .markra-table-size-button[aria-expanded=\"true\"]");
-    expect(styles).toContain(".markdown-paper .markra-table-size-popover");
-    expect(styles).toContain(".markdown-paper .markra-table-size-grid");
+    expect(styles).toContain(".markra-table-size-popover");
+    expect(styles).toContain(".markra-table-size-grid");
     expect(styles).toContain("grid-template-columns: repeat(8, 0.875rem)");
-    expect(styles).toContain(".markdown-paper .markra-table-size-cell-active");
-    expect(styles).toContain(".markdown-paper .markra-table-size-input");
+    expect(styles).toContain(".markra-table-size-cell-active");
+    expect(styles).toContain(".markra-table-size-input");
     expect(styles).toContain(".markdown-paper .markra-table-align-button[aria-pressed=\"true\"]");
     expect(styles).toContain(".markdown-paper .markra-table-align-icon-left");
     expect(styles).toContain(".markdown-paper .markra-table-align-icon-center");

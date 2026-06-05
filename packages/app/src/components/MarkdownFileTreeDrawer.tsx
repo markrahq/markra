@@ -594,6 +594,9 @@ export function MarkdownFileTreeDrawer({
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const outlineResizeCleanupRef = useRef<(() => unknown) | null>(null);
   const fileTreeBodyRef = useRef<HTMLDivElement | null>(null);
+  const fileTreeSortMenuRef = useRef<HTMLDivElement | null>(null);
+  const createMenuRef = useRef<HTMLDivElement | null>(null);
+  const outlineLevelMenuRef = useRef<HTMLDivElement | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
   const [hoveredRecentFolderPath, setHoveredRecentFolderPath] = useState<string | null>(null);
   const [focusedRecentFolderActionPath, setFocusedRecentFolderActionPath] = useState<string | null>(null);
@@ -712,6 +715,33 @@ export function MarkdownFileTreeDrawer({
       outlineResizeCleanupRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!fileTreeSortMenuOpen && !createMenuOpen && !outlineLevelMenuOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      const openMenuRoots = [
+        fileTreeSortMenuOpen ? fileTreeSortMenuRef.current : null,
+        createMenuOpen ? createMenuRef.current : null,
+        outlineLevelMenuOpen ? outlineLevelMenuRef.current : null
+      ];
+
+      if (openMenuRoots.some((root) => root?.contains(target))) return;
+
+      setFileTreeSortMenuOpen(false);
+      setCreateMenuOpen(false);
+      setOutlineLevelMenuOpen(false);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [createMenuOpen, fileTreeSortMenuOpen, outlineLevelMenuOpen]);
 
   useEffect(() => {
     const validKeys = new Set(collapsibleOutlineKeys);
@@ -1786,7 +1816,7 @@ export function MarkdownFileTreeDrawer({
                       <Search aria-hidden="true" size={14} />
                     </IconButton>
                   ) : null}
-                  <div className="relative">
+                  <div className="relative" ref={fileTreeSortMenuRef}>
                     <IconButton
                       className="rounded-md"
                       label={label("app.sortMarkdownFiles")}
@@ -1845,7 +1875,7 @@ export function MarkdownFileTreeDrawer({
                   </IconButton>
                 ) : null}
                 {folderActionsAvailable ? (
-                  <div className="relative">
+                  <div className="relative" ref={createMenuRef}>
                     <IconButton
                       className="rounded-md"
                       label={label("app.newMarkdownItem")}
@@ -1976,7 +2006,7 @@ export function MarkdownFileTreeDrawer({
                     </>
                   ) : null}
                   {outlinePanelOpen && outlineItems.length > 0 ? (
-                    <div className="relative">
+                    <div className="relative" ref={outlineLevelMenuRef}>
                       <button
                         className="markdown-file-tree-outline-filter inline-flex h-6 min-w-9 cursor-pointer items-center justify-center gap-1 rounded-sm border border-transparent bg-transparent px-1.5 text-[12px] leading-none font-[560] text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
                         type="button"

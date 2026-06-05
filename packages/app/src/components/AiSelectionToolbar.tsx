@@ -36,6 +36,7 @@ import {
   type AiQuickActionId,
   type AiQuickActionPrompts
 } from "../lib/ai-actions";
+import { anchoredPopoverStyle } from "../lib/anchored-popover";
 import type { SelectionAnchor } from "../lib/selection-anchor";
 import {
   selectionHeadingLevels,
@@ -183,16 +184,15 @@ export function AiSelectionToolbar({
   const headingLevelMenuRef = useRef<HTMLDivElement | null>(null);
 
   const positionHeadingLevelMenu = (button: HTMLButtonElement) => {
-    const buttonRect = button.getBoundingClientRect();
-    const menuWidthPx = 112;
-    const viewportPaddingPx = 8;
-    const maxLeft = Math.max(viewportPaddingPx, window.innerWidth - menuWidthPx - viewportPaddingPx);
-    const left = Math.min(Math.max(buttonRect.left, viewportPaddingPx), maxLeft);
-
-    setHeadingLevelMenuStyle({
-      left: `${Math.round(left)}px`,
-      top: `${Math.round(buttonRect.bottom + 4)}px`
-    });
+    setHeadingLevelMenuStyle(
+      anchoredPopoverStyle(button, headingLevelMenuRef.current, {
+        fallbackSize: {
+          height: 76,
+          width: 112
+        },
+        gap: 4
+      })
+    );
   };
 
   useEffect(() => {

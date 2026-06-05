@@ -5,6 +5,7 @@ export * from "./keyboard-shortcuts.ts";
 export * from "./markdown-callout.ts";
 export * from "./number.ts";
 export * from "./path.ts";
+export * from "./popover.ts";
 export * from "./record.ts";
 export * from "./runtime.ts";
 export * from "./search.ts";

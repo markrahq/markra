@@ -3685,6 +3685,45 @@ describe("MarkdownPaper editing", () => {
     );
   });
 
+  it("renders the table size picker outside the table wrapper", async () => {
+    const initialTable = ["| Field | Value |", "| --- | --- |", "| Name | Markra |"].join("\n");
+    await renderEditor(initialTable);
+    const restoreInnerHeight = window.innerHeight;
+    const restoreInnerWidth = window.innerWidth;
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 640 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 800 });
+
+    const sizeButton = screen.getByRole("button", { name: "Adjust table" });
+    vi.spyOn(sizeButton, "getBoundingClientRect").mockReturnValue({
+      bottom: 72,
+      height: 24,
+      left: 48,
+      right: 72,
+      top: 48,
+      width: 24,
+      x: 48,
+      y: 48,
+      toJSON: () => ({})
+    });
+
+    fireEvent.mouseDown(sizeButton);
+
+    const popover = document.querySelector<HTMLElement>(".markra-table-size-popover");
+    expect(popover).not.toBeNull();
+    expect(popover?.parentElement).toBe(document.body);
+    expect(popover).toHaveStyle({
+      left: "48px",
+      maxHeight: "552px",
+      overflowY: "auto",
+      position: "fixed",
+      top: "80px"
+    });
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: restoreInnerHeight });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: restoreInnerWidth });
+  });
+
   it("renders AI replacement comparison inside the editor", async () => {
     const { container, view } = await renderEditor("Original text");
     const from = findTextPosition(view, "Original");
@@ -6745,6 +6784,106 @@ describe("MarkdownPaper editing", () => {
     await waitFor(() => expect(screen.queryByRole("listbox", { name: "Slash commands" })).not.toBeInTheDocument());
     expect(container.querySelector(".ProseMirror")?.textContent).toBe("/");
     await settleMarkdownListener();
+  });
+
+  it("closes the slash command menu after clicking outside it", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "/");
+
+    expect(await screen.findByRole("listbox", { name: "Slash commands" })).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    await waitFor(() => expect(screen.queryByRole("listbox", { name: "Slash commands" })).not.toBeInTheDocument());
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("/");
+    await settleMarkdownListener();
+  });
+
+  it("keeps the slash command menu inside the viewport when opened near the bottom", async () => {
+    const { view } = await renderEditor();
+    const innerHeight = vi.spyOn(window, "innerHeight", "get").mockReturnValue(640);
+    const innerWidth = vi.spyOn(window, "innerWidth", "get").mockReturnValue(800);
+    const offsetHeight = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(700);
+    const offsetWidth = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(240);
+    const coordsAtPos = vi.spyOn(view, "coordsAtPos").mockReturnValue({
+      bottom: 578,
+      left: 120,
+      right: 140,
+      top: 560
+    });
+
+    try {
+      typeText(view, "/");
+
+      const menu = await screen.findByRole("listbox", { name: "Slash commands" });
+
+      expect(Number.parseFloat(menu.style.top)).toBeLessThan(560);
+      expect(menu.style.maxHeight).toBe("544px");
+      expect(menu.style.overflowY).toBe("auto");
+    } finally {
+      coordsAtPos.mockRestore();
+      offsetWidth.mockRestore();
+      offsetHeight.mockRestore();
+      innerWidth.mockRestore();
+      innerHeight.mockRestore();
+    }
+  });
+
+  it("closes the document link completion menu after clicking outside it", async () => {
+    const { container, view } = await renderEditor("", {
+      documentPath: "/vault/current.md",
+      workspaceFiles: [
+        { name: "guide.md", path: "/vault/guide.md", relativePath: "guide.md" },
+        { name: "notes.md", path: "/vault/notes.md", relativePath: "notes.md" }
+      ]
+    });
+
+    typeText(view, "[[guide");
+
+    expect(await screen.findByRole("listbox", { name: "Document links" })).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    await waitFor(() => expect(screen.queryByRole("listbox", { name: "Document links" })).not.toBeInTheDocument());
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("[[guide");
+    await settleMarkdownListener();
+  });
+
+  it("keeps the document link completion menu inside the viewport when opened near the bottom", async () => {
+    const { view } = await renderEditor("", {
+      documentPath: "/vault/current.md",
+      workspaceFiles: [
+        { name: "guide.md", path: "/vault/guide.md", relativePath: "guide.md" },
+        { name: "guide-two.md", path: "/vault/guide-two.md", relativePath: "guide-two.md" }
+      ]
+    });
+    const innerHeight = vi.spyOn(window, "innerHeight", "get").mockReturnValue(640);
+    const innerWidth = vi.spyOn(window, "innerWidth", "get").mockReturnValue(800);
+    const offsetHeight = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(700);
+    const offsetWidth = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(240);
+    const coordsAtPos = vi.spyOn(view, "coordsAtPos").mockReturnValue({
+      bottom: 578,
+      left: 120,
+      right: 140,
+      top: 560
+    });
+
+    try {
+      typeText(view, "[[guide");
+
+      const menu = await screen.findByRole("listbox", { name: "Document links" });
+
+      expect(Number.parseFloat(menu.style.top)).toBeLessThan(560);
+      expect(menu.style.maxHeight).toBe("544px");
+      expect(menu.style.overflowY).toBe("auto");
+    } finally {
+      coordsAtPos.mockRestore();
+      offsetWidth.mockRestore();
+      offsetHeight.mockRestore();
+      innerWidth.mockRestore();
+      innerHeight.mockRestore();
+    }
   });
 
   it("filters slash commands and inserts a code block from the keyboard", async () => {

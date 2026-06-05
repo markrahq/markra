@@ -19,7 +19,7 @@ import { Plugin, PluginKey, TextSelection, type Command, type EditorState, type 
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { wrapInList } from "@milkdown/kit/prose/schema-list";
 import { $prose } from "@milkdown/kit/utils";
-import { markdownCalloutMarkerForType, type MarkdownCalloutType } from "@markra/shared";
+import { markdownCalloutMarkerForType, popoverPosition, type MarkdownCalloutType } from "@markra/shared";
 
 export type SlashCommandId =
   | "paragraph"
@@ -432,16 +432,28 @@ function runSelectedSlashCommand(view: EditorView, commands: SlashCommandSpec[])
 function positionMenu(menu: HTMLElement, view: EditorView, range: SlashCommandRange) {
   try {
     const coords = view.coordsAtPos(range.to);
-    const margin = 10;
-    const width = menu.offsetWidth || 240;
-    const height = menu.offsetHeight || 220;
-    const left = Math.min(Math.max(coords.left, margin), Math.max(window.innerWidth - width - margin, margin));
-    const top = Math.min(coords.bottom + 8, Math.max(window.innerHeight - height - margin, margin));
+    const ownerWindow = view.dom.ownerDocument.defaultView ?? window;
+    const position = popoverPosition(
+      coords,
+      {
+        height: menu.offsetHeight || 220,
+        width: menu.offsetWidth || 240
+      },
+      {
+        height: ownerWindow.innerHeight,
+        width: ownerWindow.innerWidth
+      },
+      { gap: 8, margin: 8 }
+    );
 
-    menu.style.left = `${left}px`;
-    menu.style.top = `${top}px`;
+    menu.style.left = `${position.left}px`;
+    menu.style.maxHeight = `${position.maxHeight}px`;
+    menu.style.overflowY = "auto";
+    menu.style.top = `${position.top}px`;
   } catch {
     menu.style.left = "12px";
+    menu.style.maxHeight = "";
+    menu.style.overflowY = "";
     menu.style.top = "12px";
   }
 }
@@ -455,6 +467,7 @@ function elementFromEventTarget(target: EventTarget | null) {
 
 class SlashCommandMenuView {
   private readonly menu: HTMLDivElement;
+  private readonly ownerDocument: Document;
   private view: EditorView;
 
   constructor(
@@ -463,7 +476,8 @@ class SlashCommandMenuView {
     private readonly labels: SlashCommandLabels
   ) {
     this.view = view;
-    this.menu = view.dom.ownerDocument.createElement("div");
+    this.ownerDocument = view.dom.ownerDocument;
+    this.menu = this.ownerDocument.createElement("div");
     this.menu.className = "markra-slash-menu";
     this.menu.setAttribute("aria-label", labels.menu);
     this.menu.setAttribute("role", "listbox");
@@ -471,6 +485,7 @@ class SlashCommandMenuView {
     this.menu.addEventListener("mousedown", this.handleMouseDown);
     this.menu.addEventListener("click", this.handleClick);
     this.menu.addEventListener("mouseover", this.handleMouseOver);
+    this.ownerDocument.addEventListener("pointerdown", this.handleDocumentPointerDown, true);
   }
 
   update(view: EditorView) {
@@ -492,6 +507,7 @@ class SlashCommandMenuView {
     this.menu.removeEventListener("mousedown", this.handleMouseDown);
     this.menu.removeEventListener("click", this.handleClick);
     this.menu.removeEventListener("mouseover", this.handleMouseOver);
+    this.ownerDocument.removeEventListener("pointerdown", this.handleDocumentPointerDown, true);
     this.detach();
   }
 
@@ -566,6 +582,16 @@ class SlashCommandMenuView {
     if (event.button !== 0) return;
 
     this.runCommandFromMouseEvent(event);
+  };
+
+  private readonly handleDocumentPointerDown = (event: PointerEvent) => {
+    const state = slashCommandsKey.getState(this.view.state);
+    if (!state?.active) return;
+
+    const target = elementFromEventTarget(event.target);
+    if (target && this.menu.contains(target)) return;
+
+    closeSlashCommandMenu(this.view);
   };
 
   private runCommandFromMouseEvent(event: MouseEvent) {

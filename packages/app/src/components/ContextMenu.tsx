@@ -8,6 +8,7 @@ import {
 import { ChevronRight } from "lucide-react";
 import { createRoot, type Root } from "react-dom/client";
 import { flushSync } from "react-dom";
+import { popoverPosition } from "@markra/shared";
 
 export type ContextMenuEntry = ContextMenuItem | ContextMenuSeparator | ContextMenuSubmenu;
 
@@ -232,14 +233,34 @@ export function ContextMenu({ ariaLabel, entries, onClose, position }: ContextMe
     const viewportHeight = windowTarget?.innerHeight ?? 768;
     const width = menu.offsetWidth || defaultContextMenuWidth;
     const height = menu.offsetHeight || defaultContextMenuHeight;
-    const left = Math.max(contextMenuViewportMargin, Math.min(position.x, viewportWidth - width - contextMenuViewportMargin));
-    const top = Math.max(contextMenuViewportMargin, Math.min(position.y, viewportHeight - height - contextMenuViewportMargin));
+    const positioned = popoverPosition(
+      {
+        bottom: position.y,
+        left: position.x,
+        right: position.x,
+        top: position.y
+      },
+      {
+        height,
+        width
+      },
+      {
+        height: viewportHeight,
+        width: viewportWidth
+      },
+      {
+        gap: 0,
+        margin: contextMenuViewportMargin
+      }
+    );
 
     setMenuStyle({
-      left,
-      top
+      left: positioned.left,
+      maxHeight: positioned.maxHeight,
+      overflowY: "auto",
+      top: positioned.top
     });
-    setSubmenuAlignLeft(left + width + contextSubmenuWidth > viewportWidth - contextMenuViewportMargin);
+    setSubmenuAlignLeft(positioned.left + width + contextSubmenuWidth > viewportWidth - contextMenuViewportMargin);
   }, [position.x, position.y]);
 
   useLayoutEffect(() => {

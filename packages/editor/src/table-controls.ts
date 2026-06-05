@@ -2,6 +2,7 @@ import { $prose } from "@milkdown/kit/utils";
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import { Plugin, TextSelection, type Transaction } from "@milkdown/kit/prose/state";
 import type { EditorView, ViewMutationRecord } from "@milkdown/kit/prose/view";
+import { popoverPosition } from "@markra/shared";
 import { addColumnAfter, addRowAfter, deleteColumn, deleteRow, TableMap } from "prosemirror-tables";
 
 type TableControlLabels = {
@@ -38,6 +39,7 @@ const defaultTableControlLabels: TableControlLabels = {
 const tableAlignments: TableAlignment[] = ["left", "center", "right"];
 const tableSizePickerColumns = 8;
 const tableSizePickerRows = 10;
+const tableSizePopoverFallbackSize = { height: 248, width: 184 };
 
 function controlTargetFromEvent(event: Event) {
   return event.target instanceof Node ? event.target : null;
@@ -215,7 +217,7 @@ class MarkraTableNodeView {
     this.dom.addEventListener("mousemove", this.handleMouseMove);
     this.dom.addEventListener("mouseleave", this.hideDeleteControls);
     this.table.append(this.contentDOM);
-    this.sizeControls.append(this.sizeButton, this.sizePopover);
+    this.sizeControls.append(this.sizeButton);
     this.alignControls.append(this.sizeControls, ...this.alignButtons);
     this.dom.append(
       this.alignControls,
@@ -233,6 +235,7 @@ class MarkraTableNodeView {
 
     this.node = nextNode;
     this.updateAlignmentButtons();
+    if (!this.sizePopover.hidden) this.positionSizePopover();
     return true;
   }
 
@@ -242,6 +245,7 @@ class MarkraTableNodeView {
       target &&
         (this.addColumnButton.contains(target) ||
           this.sizeControls.contains(target) ||
+          this.sizePopover.contains(target) ||
           this.alignControls.contains(target) ||
           this.addRowButton.contains(target) ||
           this.deleteColumnButton.contains(target) ||
@@ -255,6 +259,7 @@ class MarkraTableNodeView {
       target instanceof Node &&
       (this.addColumnButton.contains(target) ||
         this.sizeControls.contains(target) ||
+        this.sizePopover.contains(target) ||
         this.alignControls.contains(target) ||
         this.addRowButton.contains(target) ||
         this.deleteColumnButton.contains(target) ||
@@ -266,6 +271,8 @@ class MarkraTableNodeView {
     this.dom.removeEventListener("mousemove", this.handleMouseMove);
     this.dom.removeEventListener("mouseleave", this.hideDeleteControls);
     this.view.dom.ownerDocument.removeEventListener("mousedown", this.handleDocumentMouseDown, true);
+    this.removeSizePopoverLayoutListeners();
+    this.sizePopover.remove();
     this.sizeButton.removeEventListener("mousedown", this.handleSizeButtonMouseDown);
     for (const cell of this.sizeCells) {
       cell.removeEventListener("mouseenter", this.handleSizeCellMouseEnter);
@@ -351,9 +358,13 @@ class MarkraTableNodeView {
 
   private readonly handleDocumentMouseDown = (event: MouseEvent) => {
     const target = controlTargetFromEvent(event);
-    if (target && this.sizeControls.contains(target)) return;
+    if (target && (this.sizeControls.contains(target) || this.sizePopover.contains(target))) return;
 
     this.hideSizePopover();
+  };
+
+  private readonly handleSizePopoverLayoutChange = () => {
+    if (!this.sizePopover.hidden) this.positionSizePopover();
   };
 
   private readonly handleSizeCellMouseEnter = (event: MouseEvent) => {
@@ -439,19 +450,57 @@ class MarkraTableNodeView {
 
   private showSizePopover() {
     const map = TableMap.get(this.node);
+    this.view.dom.ownerDocument.body.append(this.sizePopover);
     this.sizePopover.hidden = false;
     this.sizeButton.ariaExpanded = "true";
+    this.positionSizePopover();
     this.updatePendingSize({
       columns: Math.min(map.width, tableSizePickerColumns),
       rows: Math.min(map.height, tableSizePickerRows)
     });
     this.view.dom.ownerDocument.addEventListener("mousedown", this.handleDocumentMouseDown, true);
+    this.addSizePopoverLayoutListeners();
   }
 
   private hideSizePopover() {
     this.sizePopover.hidden = true;
     this.sizeButton.ariaExpanded = "false";
+    this.sizePopover.remove();
     this.view.dom.ownerDocument.removeEventListener("mousedown", this.handleDocumentMouseDown, true);
+    this.removeSizePopoverLayoutListeners();
+  }
+
+  private positionSizePopover() {
+    const windowTarget = this.view.dom.ownerDocument.defaultView;
+    const position = popoverPosition(
+      this.sizeButton.getBoundingClientRect(),
+      {
+        height: this.sizePopover.offsetHeight || tableSizePopoverFallbackSize.height,
+        width: this.sizePopover.offsetWidth || tableSizePopoverFallbackSize.width
+      },
+      {
+        height: windowTarget?.innerHeight ?? 768,
+        width: windowTarget?.innerWidth ?? 1024
+      }
+    );
+
+    this.sizePopover.style.left = `${position.left}px`;
+    this.sizePopover.style.maxHeight = `${position.maxHeight}px`;
+    this.sizePopover.style.overflowY = "auto";
+    this.sizePopover.style.position = "fixed";
+    this.sizePopover.style.top = `${position.top}px`;
+  }
+
+  private addSizePopoverLayoutListeners() {
+    const windowTarget = this.view.dom.ownerDocument.defaultView;
+    windowTarget?.addEventListener("resize", this.handleSizePopoverLayoutChange);
+    windowTarget?.addEventListener("scroll", this.handleSizePopoverLayoutChange, true);
+  }
+
+  private removeSizePopoverLayoutListeners() {
+    const windowTarget = this.view.dom.ownerDocument.defaultView;
+    windowTarget?.removeEventListener("resize", this.handleSizePopoverLayoutChange);
+    windowTarget?.removeEventListener("scroll", this.handleSizePopoverLayoutChange, true);
   }
 
   private sizeFromTarget(target: EventTarget | null): TableSize {

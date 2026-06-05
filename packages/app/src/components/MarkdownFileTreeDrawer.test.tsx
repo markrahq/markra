@@ -627,6 +627,46 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(treeRows()).toEqual(["alpha", "zeta", "zed.md", "alpha.md"]);
   });
 
+  it("closes sidebar option menus after clicking outside them", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[
+          { level: 1, title: "Intro" },
+          { level: 2, title: "Setup" }
+        ]}
+        rootName="Obsidian Vault"
+        onCreateFile={() => {}}
+        onCreateFolder={() => {}}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sort files" }));
+    expect(screen.getByRole("menu", { name: "Sort files" })).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(screen.queryByRole("menu", { name: "Sort files" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    expect(screen.getByRole("menu", { name: "New" })).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(screen.queryByRole("menu", { name: "New" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Outline heading levels: All headings" }));
+    expect(screen.getByRole("menu", { name: "Outline heading levels" })).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(screen.queryByRole("menu", { name: "Outline heading levels" })).not.toBeInTheDocument();
+  });
+
   it("opens image assets from the file tree and supports renaming them", () => {
     const openFile = vi.fn();
     const renameFile = vi.fn();

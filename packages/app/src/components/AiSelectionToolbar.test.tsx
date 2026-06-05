@@ -162,6 +162,54 @@ describe("AiSelectionToolbar", () => {
     expect(headingMenu).toHaveClass("fixed");
   });
 
+  it("keeps the heading level menu inside the viewport near the bottom edge", () => {
+    const originalInnerHeight = window.innerHeight;
+    const originalInnerWidth = window.innerWidth;
+
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 640 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 800 });
+
+    try {
+      render(
+        <AiSelectionToolbar
+          activeHeadingLevel={2}
+          anchor={anchor}
+          language="en"
+          open
+          onCopySelection={vi.fn()}
+          onInsertLink={vi.fn()}
+          onOpenCommand={vi.fn()}
+          onRunFormattingAction={vi.fn()}
+          onRunAction={vi.fn()}
+          onSetHeadingLevel={vi.fn()}
+        />
+      );
+
+      const headingButton = screen.getByRole("button", { name: "Heading Level H2" });
+      vi.spyOn(headingButton, "getBoundingClientRect").mockReturnValue({
+        bottom: 628,
+        height: 32,
+        left: 120,
+        right: 152,
+        top: 596,
+        width: 32,
+        x: 120,
+        y: 596,
+        toJSON: () => ({})
+      });
+
+      fireEvent.click(headingButton);
+
+      const headingMenu = screen.getByRole("menu", { name: "Heading Level" });
+      expect(Number.parseInt(headingMenu.style.top, 10)).toBeLessThan(596);
+      expect(headingMenu.style.maxHeight).toBe("584px");
+      expect(headingMenu.style.overflowY).toBe("auto");
+    } finally {
+      Object.defineProperty(window, "innerHeight", { configurable: true, value: originalInnerHeight });
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
+    }
+  });
+
   it("keeps the heading level menu available outside headings", () => {
     const { rerender } = render(
       <AiSelectionToolbar
