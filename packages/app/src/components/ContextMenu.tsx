@@ -58,6 +58,11 @@ const defaultContextMenuWidth = 216;
 const defaultContextMenuHeight = 320;
 const contextMenuViewportMargin = 8;
 const contextSubmenuWidth = 216;
+const contextSubmenuGap = 8;
+const contextSubmenuPreferredTop = -4;
+const contextMenuRowHeight = 28;
+const contextMenuSeparatorHeight = 9;
+const contextMenuPaddingHeight = 8;
 
 let activeContextMenuCleanup: (() => unknown) | null = null;
 
@@ -177,6 +182,35 @@ export function showContextMenu(documentTarget: Document, options: ShowContextMe
 export function closeActiveContextMenu() {
   activeContextMenuCleanup?.();
   activeContextMenuCleanup = null;
+}
+
+function estimateContextMenuEntriesHeight(entries: ContextMenuEntry[]) {
+  return entries.reduce((height, entry) => {
+    if (entry.kind === "separator") return height + contextMenuSeparatorHeight;
+
+    return height + contextMenuRowHeight;
+  }, contextMenuPaddingHeight);
+}
+
+function contextSubmenuTop(anchorTop: number, submenuHeight: number, viewportHeight: number) {
+  const minTop = contextMenuViewportMargin - anchorTop;
+  const maxTop = viewportHeight - contextMenuViewportMargin - submenuHeight - anchorTop;
+  if (maxTop < minTop) return minTop;
+
+  return Math.max(minTop, Math.min(contextSubmenuPreferredTop, maxTop));
+}
+
+function contextSubmenuHorizontalStyle(submenuAlignLeft: boolean): CSSProperties {
+  const offset = `calc(100% + ${contextSubmenuGap}px)`;
+
+  return submenuAlignLeft ? { right: offset } : { left: offset };
+}
+
+function contextSubmenuBridgeStyle(submenuAlignLeft: boolean): CSSProperties {
+  return {
+    ...(submenuAlignLeft ? { right: "100%" } : { left: "100%" }),
+    width: `${contextSubmenuGap}px`
+  };
 }
 
 export function ContextMenu({ ariaLabel, entries, onClose, position }: ContextMenuProps) {
@@ -341,11 +375,31 @@ type ContextSubmenuProps = {
 };
 
 function ContextSubmenu({ entry, onClose, submenuAlignLeft }: ContextSubmenuProps) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const submenuRef = useRef<HTMLDivElement | null>(null);
+  const [submenuTop, setSubmenuTop] = useState(contextSubmenuPreferredTop);
   const disabled = Boolean(entry.disabled);
+
+  useLayoutEffect(() => {
+    const button = buttonRef.current;
+    const submenu = submenuRef.current;
+    if (!button || !submenu) return;
+
+    const windowTarget = button.ownerDocument.defaultView;
+    const viewportHeight = windowTarget?.innerHeight ?? 768;
+    const submenuHeight = submenu.offsetHeight || estimateContextMenuEntriesHeight(entry.entries);
+
+    setSubmenuTop(contextSubmenuTop(
+      button.getBoundingClientRect().top,
+      submenuHeight,
+      viewportHeight
+    ));
+  }, [entry.entries]);
 
   return (
     <div className="group/context-menu-submenu relative">
       <button
+        ref={buttonRef}
         className="flex h-7 w-full items-center justify-between gap-4 rounded-md border-0 bg-transparent px-2 text-left font-inherit text-(--text-primary) outline-none transition-[background-color,color,opacity] duration-150 ease-out enabled:cursor-pointer enabled:hover:bg-(--bg-hover) enabled:hover:text-(--text-heading) enabled:focus-visible:bg-(--bg-hover) enabled:focus-visible:text-(--text-heading) disabled:opacity-45"
         aria-haspopup="menu"
         data-menu-item-id={entry.id}
@@ -367,11 +421,20 @@ function ContextSubmenu({ entry, onClose, submenuAlignLeft }: ContextSubmenuProp
         />
       </button>
       <div
-        className={`absolute top-[-4px] hidden min-w-[216px] max-w-[min(280px,calc(100vw-16px))] rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 text-[13px] leading-5 font-[520] text-(--text-primary) shadow-[0_14px_36px_color-mix(in_srgb,var(--text-heading)_16%,transparent)] outline-none group-hover/context-menu-submenu:block group-focus-within/context-menu-submenu:block ${
-          submenuAlignLeft ? "right-[calc(100%-4px)]" : "left-[calc(100%-4px)]"
-        }`}
+        aria-hidden="true"
+        className="absolute top-0 bottom-0"
+        data-menu-submenu-bridge-id={entry.id}
+        style={contextSubmenuBridgeStyle(submenuAlignLeft)}
+      />
+      <div
+        ref={submenuRef}
+        className="invisible pointer-events-none absolute max-h-[calc(100vh-16px)] min-w-[216px] max-w-[min(280px,calc(100vw-16px))] overflow-y-auto rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 text-[13px] leading-5 font-[520] text-(--text-primary) opacity-0 shadow-[0_14px_36px_color-mix(in_srgb,var(--text-heading)_16%,transparent)] outline-none group-hover/context-menu-submenu:visible group-hover/context-menu-submenu:pointer-events-auto group-hover/context-menu-submenu:opacity-100 group-focus-within/context-menu-submenu:visible group-focus-within/context-menu-submenu:pointer-events-auto group-focus-within/context-menu-submenu:opacity-100"
         data-menu-submenu-id={entry.id}
         role="menu"
+        style={{
+          top: submenuTop,
+          ...contextSubmenuHorizontalStyle(submenuAlignLeft)
+        }}
       >
         <ContextMenuEntries entries={entry.entries} submenuAlignLeft={submenuAlignLeft} onClose={onClose} />
       </div>

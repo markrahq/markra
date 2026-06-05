@@ -11,6 +11,20 @@ function getMenuItemById(id: string) {
   return item;
 }
 
+function testRect(rect: Partial<DOMRect>): DOMRect {
+  return {
+    bottom: rect.bottom ?? 0,
+    height: rect.height ?? 0,
+    left: rect.left ?? 0,
+    right: rect.right ?? 0,
+    top: rect.top ?? 0,
+    width: rect.width ?? 0,
+    x: rect.x ?? rect.left ?? 0,
+    y: rect.y ?? rect.top ?? 0,
+    toJSON: () => ({})
+  };
+}
+
 describe("ContextMenu", () => {
   afterEach(() => {
     document.body.innerHTML = "";
@@ -91,11 +105,86 @@ describe("ContextMenu", () => {
     expect(submenuButton).toHaveAttribute("aria-haspopup", "menu");
     expect(submenuButton.querySelector("svg")).not.toBeNull();
     expect(submenuButton).not.toHaveTextContent(">");
-    expect(document.querySelector("[data-menu-submenu-id='markra:test:submenu']")).toHaveAttribute("role", "menu");
+    const submenu = document.querySelector<HTMLElement>("[data-menu-submenu-id='markra:test:submenu']");
+    const submenuBridge = document.querySelector<HTMLElement>("[data-menu-submenu-bridge-id='markra:test:submenu']");
+
+    expect(submenu).toHaveAttribute("role", "menu");
+    expect(submenu?.style.left).toBe("calc(100% + 8px)");
+    expect(submenuBridge?.style.width).toBe("8px");
 
     getMenuItemById("markra:test:child").click();
 
     expect(childSelect).toHaveBeenCalledTimes(1);
     expect(getMenu()).toBeNull();
+  });
+
+  it("keeps submenus inside the viewport when their anchor is near the bottom", () => {
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(220);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+      if (this.hasAttribute("data-menu-submenu-id")) return 120;
+      if (this.hasAttribute("data-markra-context-menu")) return 180;
+
+      return 28;
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute("data-menu-item-id") === "markra:test:submenu") {
+        return testRect({
+          bottom: 198,
+          height: 28,
+          left: 8,
+          right: 224,
+          top: 170,
+          width: 216
+        });
+      }
+
+      return testRect({
+        bottom: 36,
+        height: 28,
+        left: 8,
+        right: 224,
+        top: 8,
+        width: 216
+      });
+    });
+
+    showContextMenu(document, {
+      entries: [
+        {
+          entries: [
+            {
+              id: "markra:test:child-1",
+              kind: "item",
+              label: "Child 1",
+              onSelect: vi.fn()
+            },
+            {
+              id: "markra:test:child-2",
+              kind: "item",
+              label: "Child 2",
+              onSelect: vi.fn()
+            },
+            {
+              id: "markra:test:child-3",
+              kind: "item",
+              label: "Child 3",
+              onSelect: vi.fn()
+            }
+          ],
+          id: "markra:test:submenu",
+          kind: "submenu",
+          label: "More"
+        }
+      ],
+      position: {
+        x: 8,
+        y: 8
+      }
+    });
+
+    const submenu = document.querySelector<HTMLElement>("[data-menu-submenu-id='markra:test:submenu']");
+
+    expect(submenu).not.toBeNull();
+    expect(submenu?.style.top).toBe("-78px");
   });
 });
