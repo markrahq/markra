@@ -292,6 +292,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFolder": "폴더 만들기",
   "app.newMarkdownFolderName": "새 폴더 이름",
   "app.renameMarkdownFile": "파일 이름 변경",
+  "app.renameMarkdownFolder": "폴더 이름 변경",
   "app.deleteMarkdownFile": "파일 삭제",
   "app.confirmDeleteMarkdownFile": "이 파일을 삭제할까요?",
   "app.cancelDeleteMarkdownFile": "취소",

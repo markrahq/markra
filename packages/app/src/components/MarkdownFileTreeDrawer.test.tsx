@@ -802,6 +802,86 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(renameFile).toHaveBeenCalledWith(markdownFiles[0], "Renamed.md");
   });
 
+  it("keeps the rename input visible until an async rename finishes", async () => {
+    let finishRename: (() => void) | null = null;
+    const renameFile = vi.fn(() => new Promise<void>((resolve) => {
+      finishRename = resolve;
+    }));
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onRenameFile={renameFile}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    act(() => {
+      contextHandlers?.renameFile?.(markdownFiles[0]);
+    });
+
+    const renameInput = screen.getByRole("textbox", { name: "Rename file" });
+    fireEvent.change(renameInput, { target: { value: "Renamed.md" } });
+    fireEvent.keyDown(renameInput, { key: "Enter" });
+
+    expect(renameFile).toHaveBeenCalledWith(markdownFiles[0], "Renamed.md");
+    expect(screen.getByRole("textbox", { name: "Rename file" })).toHaveValue("Renamed.md");
+    expect(screen.queryByRole("button", { name: "Untitled.md" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      finishRename?.();
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByRole("textbox", { name: "Rename file" })).not.toBeInTheDocument();
+  });
+
+  it("supports renaming folders from the file tree context menu", () => {
+    const renameFile = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onRenameFile={renameFile}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const folderButton = screen.getByRole("button", { name: "deploy" });
+    fireEvent.contextMenu(folderButton);
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    const folder = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[2];
+
+    act(() => {
+      if (folder) contextHandlers?.renameFile?.(folder);
+    });
+
+    const renameInput = screen.getByRole("textbox", { name: "Rename folder" });
+    fireEvent.change(renameInput, { target: { value: "renamed-deploy" } });
+    fireEvent.keyDown(renameInput, { key: "Enter" });
+
+    expect(renameFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "folder",
+        path: "/vault/deploy"
+      }),
+      "renamed-deploy"
+    );
+  });
+
   it("keeps the empty file tree available for root file creation without an open folder", () => {
     const createFile = vi.fn();
     const createFolder = vi.fn();

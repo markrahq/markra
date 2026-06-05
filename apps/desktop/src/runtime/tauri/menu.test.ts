@@ -604,7 +604,7 @@ describe("native menu", () => {
     expect(openFileToSide).not.toHaveBeenCalled();
   });
 
-  it("shows a markdown file tree delete action for a folder target", async () => {
+  it("shows markdown file tree rename and delete actions for a folder target", async () => {
     const createFile = vi.fn();
     const createFolder = vi.fn();
     const renameFile = vi.fn();
@@ -623,15 +623,22 @@ describe("native menu", () => {
       renameFile
     }, "en", folder);
 
-    const deleteItem = domMenuItemById("markra:file-tree:delete");
+    const renameItem = domMenuItemById("markra:file-tree:rename");
 
-    expect(deleteItem.textContent).toContain("Delete folder");
-    expect(queryDomMenuItemById("markra:file-tree:rename")).toBeNull();
+    expect(renameItem.textContent).toContain("Rename folder");
+    expect(domMenuItemById("markra:file-tree:delete").textContent).toContain("Delete folder");
 
-    deleteItem.click();
+    renameItem.click();
+    await showNativeMarkdownFileTreeContextMenu({
+      createFile,
+      createFolder,
+      deleteFile,
+      renameFile
+    }, "en", folder);
+    domMenuItemById("markra:file-tree:delete").click();
 
     expect(deleteFile).toHaveBeenCalledWith(folder);
-    expect(renameFile).not.toHaveBeenCalled();
+    expect(renameFile).toHaveBeenCalledWith(folder);
     expect(popup).not.toHaveBeenCalled();
   });
 

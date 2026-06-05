@@ -300,6 +300,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFolder": "新增資料夾",
   "app.newMarkdownFolderName": "新資料夾名稱",
   "app.renameMarkdownFile": "重新命名檔案",
+  "app.renameMarkdownFolder": "重新命名資料夾",
   "app.deleteMarkdownFile": "刪除檔案",
   "app.confirmDeleteMarkdownFile": "確定要刪除此檔案嗎？",
   "app.cancelDeleteMarkdownFile": "取消",

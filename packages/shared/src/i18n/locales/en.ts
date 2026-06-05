@@ -443,6 +443,7 @@ const messages: BaseLocaleMessages = {
   "app.newMarkdownFolder": "New Folder",
   "app.newMarkdownFolderName": "New folder name",
   "app.renameMarkdownFile": "Rename file",
+  "app.renameMarkdownFolder": "Rename folder",
   "app.deleteMarkdownFile": "Delete file",
   "app.confirmDeleteMarkdownFile": "Delete this file?",
   "app.cancelDeleteMarkdownFile": "Cancel",

@@ -454,6 +454,7 @@ export type I18nKey =
   | "app.newMarkdownFolder"
   | "app.newMarkdownFolderName"
   | "app.renameMarkdownFile"
+  | "app.renameMarkdownFolder"
   | "app.deleteMarkdownFile"
   | "app.confirmDeleteMarkdownFile"
   | "app.cancelDeleteMarkdownFile"

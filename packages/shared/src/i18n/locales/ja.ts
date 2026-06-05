@@ -300,6 +300,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFolder": "フォルダを作成",
   "app.newMarkdownFolderName": "新しいフォルダ名",
   "app.renameMarkdownFile": "ファイル名を変更",
+  "app.renameMarkdownFolder": "フォルダ名を変更",
   "app.deleteMarkdownFile": "ファイルを削除",
   "app.confirmDeleteMarkdownFile": "このファイルを削除しますか？",
   "app.cancelDeleteMarkdownFile": "キャンセル",
