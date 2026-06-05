@@ -5,6 +5,9 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::UNIX_EPOCH;
 
+use sha2::{Digest, Sha256};
+use tauri::Manager;
+
 use super::path::{
     is_markdown_open_file, markdown_folder_file, markdown_tree_root_for_path,
     should_skip_markdown_tree_directory,
@@ -13,6 +16,7 @@ use super::types::{MarkdownFolderEntryKind, MarkdownFolderFile};
 
 const WORKSPACE_SEARCH_MAX_WORKERS: usize = 8;
 const WORKSPACE_SEARCH_SNIPPET_MAX_LENGTH: usize = 96;
+const WORKSPACE_SEARCH_INDEX_FORMAT_VERSION: u32 = 1;
 
 static WORKSPACE_SEARCH_INDEX_CACHE: OnceLock<Mutex<WorkspaceSearchIndexCache>> = OnceLock::new();
 
@@ -84,6 +88,203 @@ struct WorkspaceSearchIndex {
 #[derive(Default)]
 struct WorkspaceSearchIndexCache {
     indexes: HashMap<PathBuf, WorkspaceSearchIndex>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum WorkspaceSearchMatchStrategy {
+    Exact,
+    AsciiCaseInsensitive,
+    UnicodeCaseInsensitive,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct WorkspaceSearchQueryPlan {
+    query: String,
+    strategy: WorkspaceSearchMatchStrategy,
+    normalized_query: Option<String>,
+    query_char_count: usize,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedWorkspaceSearchIndex {
+    version: u32,
+    root: String,
+    files: Vec<PersistedWorkspaceSearchIndexedFile>,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedWorkspaceSearchIndexedFile {
+    created_at: Option<u64>,
+    modified_at: Option<u64>,
+    path: String,
+    relative_path: String,
+    signature: PersistedWorkspaceSearchFileSignature,
+    text: String,
+}
+
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PersistedWorkspaceSearchFileSignature {
+    modified_at: Option<String>,
+    size_bytes: u64,
+}
+
+fn plan_workspace_search_query(
+    query: &str,
+    case_sensitive: bool,
+) -> Option<WorkspaceSearchQueryPlan> {
+    let query = query.trim();
+    if query.is_empty() {
+        return None;
+    }
+
+    let strategy = if case_sensitive {
+        WorkspaceSearchMatchStrategy::Exact
+    } else if query.is_ascii() {
+        WorkspaceSearchMatchStrategy::AsciiCaseInsensitive
+    } else {
+        WorkspaceSearchMatchStrategy::UnicodeCaseInsensitive
+    };
+    let normalized_query = match strategy {
+        WorkspaceSearchMatchStrategy::Exact => None,
+        WorkspaceSearchMatchStrategy::AsciiCaseInsensitive => Some(query.to_ascii_lowercase()),
+        WorkspaceSearchMatchStrategy::UnicodeCaseInsensitive => Some(query.to_lowercase()),
+    };
+
+    Some(WorkspaceSearchQueryPlan {
+        query: query.to_string(),
+        strategy,
+        normalized_query,
+        query_char_count: query.chars().count(),
+    })
+}
+
+fn workspace_search_hash_hex(input: impl AsRef<[u8]>) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(input);
+    format!("{:x}", hasher.finalize())
+}
+
+fn workspace_search_index_store_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|path| path.join("workspace-search-indexes"))
+        .map_err(|error| error.to_string())
+}
+
+fn workspace_search_index_path(index_store_root: &Path, root: &Path) -> PathBuf {
+    let root_key = root.to_string_lossy();
+
+    index_store_root.join(format!(
+        "{}.json",
+        workspace_search_hash_hex(root_key.as_bytes())
+    ))
+}
+
+fn persisted_signature_from_signature(
+    signature: &WorkspaceSearchFileSignature,
+) -> PersistedWorkspaceSearchFileSignature {
+    PersistedWorkspaceSearchFileSignature {
+        modified_at: signature.modified_at.map(|value| value.to_string()),
+        size_bytes: signature.size_bytes,
+    }
+}
+
+fn signature_from_persisted_signature(
+    signature: &PersistedWorkspaceSearchFileSignature,
+) -> Option<WorkspaceSearchFileSignature> {
+    Some(WorkspaceSearchFileSignature {
+        modified_at: signature
+            .modified_at
+            .as_deref()
+            .map(str::parse::<u128>)
+            .transpose()
+            .ok()?,
+        size_bytes: signature.size_bytes,
+    })
+}
+
+fn load_persisted_workspace_search_index(
+    index_path: &Path,
+    root: &str,
+) -> Result<HashMap<String, WorkspaceSearchIndexedFile>, String> {
+    if !index_path.exists() {
+        return Ok(HashMap::new());
+    }
+
+    let persisted = serde_json::from_str::<PersistedWorkspaceSearchIndex>(
+        &fs::read_to_string(index_path).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+
+    if persisted.version != WORKSPACE_SEARCH_INDEX_FORMAT_VERSION || persisted.root != root {
+        return Ok(HashMap::new());
+    }
+
+    Ok(persisted
+        .files
+        .into_iter()
+        .filter_map(|file| {
+            let signature = signature_from_persisted_signature(&file.signature)?;
+            Some((
+                file.path.clone(),
+                WorkspaceSearchIndexedFile {
+                    file: MarkdownFolderFile {
+                        created_at: file.created_at,
+                        kind: MarkdownFolderEntryKind::File,
+                        modified_at: file.modified_at,
+                        path: file.path,
+                        relative_path: file.relative_path,
+                    },
+                    signature: Some(signature),
+                    content: Some(Arc::new(WorkspaceSearchIndexedContent::new(file.text))),
+                },
+            ))
+        })
+        .collect())
+}
+
+fn save_persisted_workspace_search_index(
+    index_path: &Path,
+    root: &str,
+    index: &WorkspaceSearchIndex,
+) -> Result<(), String> {
+    let files = index
+        .files
+        .iter()
+        .filter_map(|file| {
+            let signature = file.signature.as_ref()?;
+            let content = file.content.as_ref()?;
+
+            Some(PersistedWorkspaceSearchIndexedFile {
+                created_at: file.file.created_at,
+                modified_at: file.file.modified_at,
+                path: file.file.path.clone(),
+                relative_path: file.file.relative_path.clone(),
+                signature: persisted_signature_from_signature(signature),
+                text: content.text.clone(),
+            })
+        })
+        .collect();
+    let persisted = PersistedWorkspaceSearchIndex {
+        version: WORKSPACE_SEARCH_INDEX_FORMAT_VERSION,
+        root: root.to_string(),
+        files,
+    };
+    let parent = index_path
+        .parent()
+        .ok_or_else(|| "Workspace search index path is invalid".to_string())?;
+    let temp_path = index_path.with_extension("json.tmp");
+
+    fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    fs::write(
+        &temp_path,
+        serde_json::to_vec(&persisted).map_err(|error| error.to_string())?,
+    )
+    .map_err(|error| error.to_string())?;
+    fs::rename(&temp_path, index_path).map_err(|error| error.to_string())
 }
 
 fn collect_markdown_workspace_files(root: &Path) -> Result<Vec<MarkdownFolderFile>, String> {
@@ -162,6 +363,24 @@ fn read_workspace_search_file(file: &MarkdownFolderFile) -> Result<String, Strin
 fn refresh_workspace_search_index_files(
     index: &mut WorkspaceSearchIndex,
     files: Vec<MarkdownFolderFile>,
+    signature_for_file: impl FnMut(&MarkdownFolderFile) -> Result<WorkspaceSearchFileSignature, String>,
+    read_file: impl FnMut(&MarkdownFolderFile) -> Result<String, String>,
+) -> Result<(), String> {
+    refresh_workspace_search_index_files_with_persistence(
+        index,
+        files,
+        None,
+        "",
+        signature_for_file,
+        read_file,
+    )
+}
+
+fn refresh_workspace_search_index_files_with_persistence(
+    index: &mut WorkspaceSearchIndex,
+    files: Vec<MarkdownFolderFile>,
+    persistence_path: Option<&Path>,
+    persistence_root: &str,
     mut signature_for_file: impl FnMut(
         &MarkdownFolderFile,
     ) -> Result<WorkspaceSearchFileSignature, String>,
@@ -171,6 +390,9 @@ fn refresh_workspace_search_index_files(
         .into_iter()
         .map(|file| (file.file.path.clone(), file))
         .collect::<HashMap<_, _>>();
+    let mut persisted_files = persistence_path
+        .and_then(|path| load_persisted_workspace_search_index(path, persistence_root).ok())
+        .unwrap_or_default();
     let mut indexed_files = Vec::with_capacity(files.len());
 
     for file in files {
@@ -183,7 +405,9 @@ fn refresh_workspace_search_index_files(
             continue;
         };
 
-        let cached_file = cached_files.remove(&file.path);
+        let cached_file = cached_files
+            .remove(&file.path)
+            .or_else(|| persisted_files.remove(&file.path));
         if let Some(cached_file) = cached_file.filter(|cached_file| {
             cached_file.signature.as_ref() == Some(&signature) && cached_file.content.is_some()
         }) {
@@ -207,6 +431,9 @@ fn refresh_workspace_search_index_files(
     }
 
     index.files = indexed_files;
+    if let Some(persistence_path) = persistence_path {
+        save_persisted_workspace_search_index(persistence_path, persistence_root, index)?;
+    }
 
     Ok(())
 }
@@ -214,15 +441,21 @@ fn refresh_workspace_search_index_files(
 fn indexed_workspace_files_for_search(
     root: &Path,
     files: Vec<MarkdownFolderFile>,
+    index_store_root: Option<&Path>,
 ) -> Result<Vec<WorkspaceSearchIndexedFile>, String> {
     let cache = WORKSPACE_SEARCH_INDEX_CACHE
         .get_or_init(|| Mutex::new(WorkspaceSearchIndexCache::default()));
     let mut cache = cache.lock().map_err(|error| error.to_string())?;
     let index = cache.indexes.entry(root.to_path_buf()).or_default();
+    let persistence_path = index_store_root
+        .map(|index_store_root| workspace_search_index_path(index_store_root, root));
+    let persistence_root = root.to_string_lossy().to_string();
 
-    refresh_workspace_search_index_files(
+    refresh_workspace_search_index_files_with_persistence(
         index,
         files,
+        persistence_path.as_deref(),
+        &persistence_root,
         workspace_search_file_signature,
         read_workspace_search_file,
     )?;
@@ -233,33 +466,62 @@ fn indexed_workspace_files_for_search(
 fn markdown_search_ranges(
     text: &str,
     ascii_lowercase_text: Option<&str>,
-    query: &str,
-    case_sensitive: bool,
+    query_plan: &WorkspaceSearchQueryPlan,
     max_matches: Option<usize>,
 ) -> Vec<MarkdownSearchRange> {
-    if query.is_empty() || max_matches == Some(0) {
+    if max_matches == Some(0) {
         return Vec::new();
     }
 
-    if case_sensitive {
-        return markdown_search_ranges_exact(text, query, max_matches);
-    }
+    match query_plan.strategy {
+        WorkspaceSearchMatchStrategy::Exact => {
+            markdown_search_ranges_exact(text, &query_plan.query, max_matches)
+        }
+        WorkspaceSearchMatchStrategy::AsciiCaseInsensitive => {
+            let normalized_query = query_plan
+                .normalized_query
+                .as_deref()
+                .unwrap_or(&query_plan.query);
 
-    if query.is_ascii() {
-        if let Some(normalized_text) = ascii_lowercase_text {
-            return markdown_search_ranges_ascii_case_insensitive_normalized(
-                normalized_text,
-                query,
+            if let Some(normalized_text) = ascii_lowercase_text {
+                return markdown_search_ranges_ascii_case_insensitive_normalized(
+                    normalized_text,
+                    normalized_query,
+                    query_plan.query.len(),
+                    max_matches,
+                );
+            }
+
+            if text.is_ascii() {
+                return markdown_search_ranges_ascii_case_insensitive(
+                    text,
+                    normalized_query,
+                    query_plan.query.len(),
+                    max_matches,
+                );
+            }
+
+            markdown_search_ranges_unicode_case_insensitive(
+                text,
+                normalized_query,
+                query_plan.query_char_count,
                 max_matches,
-            );
+            )
+        }
+        WorkspaceSearchMatchStrategy::UnicodeCaseInsensitive => {
+            let normalized_query = query_plan
+                .normalized_query
+                .as_deref()
+                .unwrap_or(&query_plan.query);
+
+            markdown_search_ranges_unicode_case_insensitive(
+                text,
+                normalized_query,
+                query_plan.query_char_count,
+                max_matches,
+            )
         }
     }
-
-    if text.is_ascii() && query.is_ascii() {
-        return markdown_search_ranges_ascii_case_insensitive(text, query, max_matches);
-    }
-
-    markdown_search_ranges_unicode_case_insensitive(text, query, max_matches)
 }
 
 fn markdown_search_ranges_exact(
@@ -278,42 +540,46 @@ fn markdown_search_ranges_exact(
 
 fn markdown_search_ranges_ascii_case_insensitive(
     text: &str,
-    query: &str,
+    normalized_query: &str,
+    query_length: usize,
     max_matches: Option<usize>,
 ) -> Vec<MarkdownSearchRange> {
     let normalized_text = text.to_ascii_lowercase();
 
-    markdown_search_ranges_ascii_case_insensitive_normalized(&normalized_text, query, max_matches)
+    markdown_search_ranges_ascii_case_insensitive_normalized(
+        &normalized_text,
+        normalized_query,
+        query_length,
+        max_matches,
+    )
 }
 
 fn markdown_search_ranges_ascii_case_insensitive_normalized(
     normalized_text: &str,
-    query: &str,
+    normalized_query: &str,
+    query_length: usize,
     max_matches: Option<usize>,
 ) -> Vec<MarkdownSearchRange> {
-    let normalized_query = query.to_ascii_lowercase();
-
     normalized_text
-        .match_indices(&normalized_query)
+        .match_indices(normalized_query)
         .take(max_matches.unwrap_or(usize::MAX))
         .map(|(from, _)| MarkdownSearchRange {
             from,
-            to: from + query.len(),
+            to: from + query_length,
         })
         .collect()
 }
 
 fn markdown_search_ranges_unicode_case_insensitive(
     text: &str,
-    query: &str,
+    normalized_query: &str,
+    query_char_count: usize,
     max_matches: Option<usize>,
 ) -> Vec<MarkdownSearchRange> {
-    let query_char_count = query.chars().count();
     if query_char_count == 0 {
         return Vec::new();
     }
 
-    let needle = query.to_lowercase();
     let char_starts = text
         .char_indices()
         .map(|(index, _)| index)
@@ -331,7 +597,7 @@ fn markdown_search_ranges_unicode_case_insensitive(
         let to = char_starts[char_index + query_char_count];
         let candidate = &text[from..to];
 
-        if candidate.to_lowercase() == needle {
+        if candidate.to_lowercase() == normalized_query {
             ranges.push(MarkdownSearchRange { from, to });
             if max_matches.is_some_and(|limit| ranges.len() >= limit) {
                 break;
@@ -399,18 +665,12 @@ fn markdown_workspace_search_results(
     file: &MarkdownFolderFile,
     content: &str,
     ascii_lowercase_content: Option<&str>,
-    query: &str,
-    case_sensitive: bool,
+    query_plan: &WorkspaceSearchQueryPlan,
     max_matches_per_file: Option<usize>,
 ) -> (Vec<MarkdownWorkspaceSearchResult>, bool) {
     let search_limit = max_matches_per_file.map(|limit| limit.saturating_add(1));
-    let mut ranges = markdown_search_ranges(
-        content,
-        ascii_lowercase_content,
-        query,
-        case_sensitive,
-        search_limit,
-    );
+    let mut ranges =
+        markdown_search_ranges(content, ascii_lowercase_content, query_plan, search_limit);
     let truncated = max_matches_per_file.is_some_and(|limit| ranges.len() > limit);
     if let Some(max_matches_per_file) = max_matches_per_file {
         ranges.truncate(max_matches_per_file);
@@ -460,8 +720,7 @@ fn workspace_search_worker_count(file_count: usize, available_parallelism: usize
 fn search_markdown_workspace_file(
     file_index: usize,
     indexed_file: &WorkspaceSearchIndexedFile,
-    query: &str,
-    case_sensitive: bool,
+    query_plan: &WorkspaceSearchQueryPlan,
     current_document_path: Option<&str>,
     current_document_content: Option<&str>,
     max_matches_per_file: Option<usize>,
@@ -488,8 +747,7 @@ fn search_markdown_workspace_file(
         &indexed_file.file,
         content,
         ascii_lowercase_content,
-        query,
-        case_sensitive,
+        query_plan,
         max_matches_per_file,
     );
 
@@ -503,8 +761,7 @@ fn search_markdown_workspace_file(
 
 fn search_markdown_workspace_files(
     files: &[WorkspaceSearchIndexedFile],
-    query: &str,
-    case_sensitive: bool,
+    query_plan: &WorkspaceSearchQueryPlan,
     current_document_path: Option<&str>,
     current_document_content: Option<&str>,
     max_matches_per_file: Option<usize>,
@@ -520,8 +777,7 @@ fn search_markdown_workspace_files(
                 search_markdown_workspace_file(
                     file_index,
                     file,
-                    query,
-                    case_sensitive,
+                    query_plan,
                     current_document_path,
                     current_document_content,
                     max_matches_per_file,
@@ -545,8 +801,7 @@ fn search_markdown_workspace_files(
                         search_markdown_workspace_file(
                             start_index + offset,
                             file,
-                            query,
-                            case_sensitive,
+                            query_plan,
                             current_document_path,
                             current_document_content,
                             max_matches_per_file,
@@ -581,13 +836,35 @@ fn search_markdown_files_for_path_blocking(
     max_matches: Option<usize>,
     max_matches_per_file: Option<usize>,
 ) -> Result<MarkdownWorkspaceSearchResponse, String> {
-    let normalized_query = query.trim();
+    search_markdown_files_for_path_blocking_with_index_store(
+        path,
+        query,
+        case_sensitive,
+        current_document_path,
+        current_document_content,
+        max_matches,
+        max_matches_per_file,
+        None,
+    )
+}
+
+fn search_markdown_files_for_path_blocking_with_index_store(
+    path: String,
+    query: String,
+    case_sensitive: bool,
+    current_document_path: Option<String>,
+    current_document_content: Option<String>,
+    max_matches: Option<usize>,
+    max_matches_per_file: Option<usize>,
+    index_store_root: Option<PathBuf>,
+) -> Result<MarkdownWorkspaceSearchResponse, String> {
+    let query_plan = plan_workspace_search_query(&query, case_sensitive);
     let source_path = PathBuf::from(path);
     let root = markdown_tree_root_for_path(&source_path)?
         .canonicalize()
         .map_err(|error| error.to_string())?;
     let files = collect_markdown_workspace_files(&root)?;
-    if normalized_query.is_empty() || max_matches == Some(0) || max_matches_per_file == Some(0) {
+    if query_plan.is_none() || max_matches == Some(0) || max_matches_per_file == Some(0) {
         return Ok(MarkdownWorkspaceSearchResponse {
             results: Vec::new(),
             searched_file_count: files.len(),
@@ -596,15 +873,16 @@ fn search_markdown_files_for_path_blocking(
         });
     }
 
+    let query_plan = query_plan.expect("query plan should exist after empty query guard");
     let searched_file_count = files.len();
-    let indexed_files = indexed_workspace_files_for_search(&root, files)?;
+    let indexed_files =
+        indexed_workspace_files_for_search(&root, files, index_store_root.as_deref())?;
     let mut results = Vec::new();
     let mut unreadable_file_count = 0;
     let mut truncated = false;
     let file_results = search_markdown_workspace_files(
         &indexed_files,
-        normalized_query,
-        case_sensitive,
+        &query_plan,
         current_document_path.as_deref(),
         current_document_content.as_deref(),
         max_matches_per_file,
@@ -646,6 +924,7 @@ fn search_markdown_files_for_path_blocking(
 
 #[tauri::command]
 pub(crate) async fn search_markdown_files_for_path(
+    app: tauri::AppHandle,
     path: String,
     query: String,
     case_sensitive: bool,
@@ -654,8 +933,10 @@ pub(crate) async fn search_markdown_files_for_path(
     max_matches: Option<usize>,
     max_matches_per_file: Option<usize>,
 ) -> Result<MarkdownWorkspaceSearchResponse, String> {
+    let index_store_root = workspace_search_index_store_root(&app).ok();
+
     tauri::async_runtime::spawn_blocking(move || {
-        search_markdown_files_for_path_blocking(
+        search_markdown_files_for_path_blocking_with_index_store(
             path,
             query,
             case_sensitive,
@@ -663,6 +944,7 @@ pub(crate) async fn search_markdown_files_for_path(
             current_document_content,
             max_matches,
             max_matches_per_file,
+            index_store_root,
         )
     })
     .await
@@ -876,6 +1158,139 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![Some("first.md Gamma"), Some("second.md Alpha")]
         );
+    }
+
+    #[test]
+    fn plans_workspace_search_query_once() {
+        let exact = plan_workspace_search_query(" Alpha ", true)
+            .expect("case-sensitive query should be planned");
+        assert_eq!(exact.query, "Alpha");
+        assert_eq!(exact.strategy, WorkspaceSearchMatchStrategy::Exact);
+        assert_eq!(exact.normalized_query.as_deref(), None);
+        assert_eq!(exact.query_char_count, 5);
+
+        let ascii =
+            plan_workspace_search_query(" Alpha ", false).expect("ASCII query should be planned");
+        assert_eq!(ascii.query, "Alpha");
+        assert_eq!(
+            ascii.strategy,
+            WorkspaceSearchMatchStrategy::AsciiCaseInsensitive
+        );
+        assert_eq!(ascii.normalized_query.as_deref(), Some("alpha"));
+        assert_eq!(ascii.query_char_count, 5);
+
+        let unicode =
+            plan_workspace_search_query(" Älpha ", false).expect("Unicode query should be planned");
+        assert_eq!(
+            unicode.strategy,
+            WorkspaceSearchMatchStrategy::UnicodeCaseInsensitive
+        );
+        assert_eq!(unicode.normalized_query.as_deref(), Some("älpha"));
+        assert_eq!(unicode.query_char_count, 5);
+
+        assert!(plan_workspace_search_query("   ", false).is_none());
+    }
+
+    #[test]
+    fn persists_workspace_search_index_between_index_instances() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-workspace-search-persist-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let store = root.join("search-cache");
+        let index_path = store.join("index.json");
+        let first = MarkdownFolderFile {
+            created_at: None,
+            kind: MarkdownFolderEntryKind::File,
+            modified_at: Some(1),
+            path: "/synthetic/first.md".to_string(),
+            relative_path: "first.md".to_string(),
+        };
+        let signature = WorkspaceSearchFileSignature {
+            modified_at: Some(1),
+            size_bytes: 10,
+        };
+        let mut first_index = WorkspaceSearchIndex::default();
+        let mut first_read_count = 0;
+
+        refresh_workspace_search_index_files_with_persistence(
+            &mut first_index,
+            vec![first.clone()],
+            Some(&index_path),
+            "synthetic-root",
+            |_| Ok(signature.clone()),
+            |_| {
+                first_read_count += 1;
+                Ok("Alpha from disk".to_string())
+            },
+        )
+        .expect("index should refresh and persist");
+
+        assert_eq!(first_read_count, 1);
+        assert!(index_path.exists());
+
+        let mut restarted_index = WorkspaceSearchIndex::default();
+        let mut restarted_read_count = 0;
+        refresh_workspace_search_index_files_with_persistence(
+            &mut restarted_index,
+            vec![first],
+            Some(&index_path),
+            "synthetic-root",
+            |_| Ok(signature.clone()),
+            |_| {
+                restarted_read_count += 1;
+                Ok("Should not be read".to_string())
+            },
+        )
+        .expect("persisted index should refresh");
+
+        assert_eq!(restarted_read_count, 0);
+        assert_eq!(
+            restarted_index.files[0]
+                .content
+                .as_ref()
+                .map(|content| content.text.as_str()),
+            Some("Alpha from disk")
+        );
+
+        let changed_signature = WorkspaceSearchFileSignature {
+            modified_at: Some(2),
+            size_bytes: 11,
+        };
+        let mut changed_index = WorkspaceSearchIndex::default();
+        let mut changed_read_count = 0;
+        refresh_workspace_search_index_files_with_persistence(
+            &mut changed_index,
+            vec![MarkdownFolderFile {
+                created_at: None,
+                kind: MarkdownFolderEntryKind::File,
+                modified_at: Some(2),
+                path: "/synthetic/first.md".to_string(),
+                relative_path: "first.md".to_string(),
+            }],
+            Some(&index_path),
+            "synthetic-root",
+            |_| Ok(changed_signature.clone()),
+            |_| {
+                changed_read_count += 1;
+                Ok("Beta from disk".to_string())
+            },
+        )
+        .expect("changed persisted index should refresh");
+
+        assert_eq!(changed_read_count, 1);
+        assert_eq!(
+            changed_index.files[0]
+                .content
+                .as_ref()
+                .map(|content| content.text.as_str()),
+            Some("Beta from disk")
+        );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
     }
 
     #[test]
