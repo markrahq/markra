@@ -119,4 +119,18 @@ describe("workspace search", () => {
     expect(search.results).toHaveLength(1);
     expect(search.unreadableFileCount).toBe(1);
   });
+
+  it("marks results as truncated when the per-file match limit omits matches", async () => {
+    const search = await searchWorkspaceFiles([workspaceFiles[0]], "alpha", {
+      maxMatches: 10,
+      maxMatchesPerFile: 1,
+      readFile: async (path) => ({
+        content: "alpha\nalpha",
+        path
+      })
+    });
+
+    expect(search.results).toHaveLength(1);
+    expect(search.truncated).toBe(true);
+  });
 });

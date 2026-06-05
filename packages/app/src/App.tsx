@@ -134,6 +134,7 @@ import {
   saveNativeHtmlFile,
   saveNativePandocFile,
   saveNativePdfFile,
+  searchNativeMarkdownFilesForPath,
   showNativePandocSetup,
   writeNativeMarkdownTemplateFile,
   type NativeMarkdownFolderFile,
@@ -156,9 +157,13 @@ const sideDocumentPaneKeyboardStepPercent = 5;
 const sideDocumentMainPanePercentMin = 35;
 const sideDocumentMainPanePercentMax = 70;
 const defaultSideDocumentMainPanePercent = 50;
+export const globalSearchDebounceMs = 180;
+const globalSearchMaxMatches = 500;
+const globalSearchMaxMatchesPerFile = 50;
 const emptyWorkspaceSearchResponse: WorkspaceSearchResponse = {
   results: [],
   searchedFileCount: 0,
+  truncated: false,
   unreadableFileCount: 0
 };
 
@@ -509,6 +514,7 @@ function WorkspaceApp() {
     resizing: fileTreeResizing,
     resize: resizeFileTree,
     endResize: endFileTreeResize,
+    sourcePath: fileTreeSourcePath,
     rootNameForDocument,
     setRootFromMarkdownFilePath,
     startResize: startFileTreeResize,
@@ -1833,6 +1839,9 @@ function WorkspaceApp() {
   }, []);
   const handleGlobalSearchClose = useCallback(() => {
     setGlobalSearchOpen(false);
+    setGlobalSearchQuery("");
+    setGlobalSearchLoading(false);
+    setGlobalSearchResponse(emptyWorkspaceSearchResponse);
   }, []);
   const handleGlobalSearchQueryChange = useCallback((query: string) => {
     setGlobalSearchQuery(query);
@@ -1865,39 +1874,66 @@ function WorkspaceApp() {
     let active = true;
     setGlobalSearchLoading(true);
 
-    searchWorkspaceFiles(fileTreeFiles, query, {
-      caseSensitive: globalSearchCaseSensitive,
-      readFile: async (path) => {
-        if (!activeImageFile && document.path === path) {
+    const runGlobalSearch = async () => {
+      const nativeResponse = fileTreeSourcePath
+        ? await searchNativeMarkdownFilesForPath({
+            caseSensitive: globalSearchCaseSensitive,
+            currentDocument: !activeImageFile && document.path
+              ? {
+                  content: document.content,
+                  path: document.path
+                }
+              : null,
+            maxMatches: globalSearchMaxMatches,
+            maxMatchesPerFile: globalSearchMaxMatchesPerFile,
+            path: fileTreeSourcePath,
+            query
+          }).catch(() => null)
+        : null;
+      if (nativeResponse) return nativeResponse;
+
+      return searchWorkspaceFiles(fileTreeFiles, query, {
+        caseSensitive: globalSearchCaseSensitive,
+        maxMatches: globalSearchMaxMatches,
+        maxMatchesPerFile: globalSearchMaxMatchesPerFile,
+        readFile: async (path) => {
+          if (!activeImageFile && document.path === path) {
+            return {
+              content: document.content,
+              path
+            };
+          }
+
+          const file = await readNativeMarkdownFile(path);
+
           return {
-            content: document.content,
-            path
+            content: file.content,
+            path: file.path
           };
         }
+      });
+    };
 
-        const file = await readNativeMarkdownFile(path);
-
-        return {
-          content: file.content,
-          path: file.path
-        };
-      }
-    }).then((response) => {
-      if (active) setGlobalSearchResponse(response);
-    }).catch(() => {
-      if (active) setGlobalSearchResponse(emptyWorkspaceSearchResponse);
-    }).finally(() => {
-      if (active) setGlobalSearchLoading(false);
-    });
+    const searchTimeout = window.setTimeout(() => {
+      runGlobalSearch().then((response) => {
+        if (active) setGlobalSearchResponse(response);
+      }).catch(() => {
+        if (active) setGlobalSearchResponse(emptyWorkspaceSearchResponse);
+      }).finally(() => {
+        if (active) setGlobalSearchLoading(false);
+      });
+    }, globalSearchDebounceMs);
 
     return () => {
       active = false;
+      window.clearTimeout(searchTimeout);
     };
   }, [
     activeImageFile,
     document.content,
     document.path,
     fileTreeFiles,
+    fileTreeSourcePath,
     globalSearchCaseSensitive,
     globalSearchOpen,
     globalSearchQuery
@@ -3099,6 +3135,7 @@ function WorkspaceApp() {
                   query={globalSearchQuery}
                   results={globalSearchResponse.results}
                   searchedFileCount={globalSearchResponse.searchedFileCount}
+                  truncated={globalSearchResponse.truncated}
                   unreadableFileCount={globalSearchResponse.unreadableFileCount}
                   onCaseSensitiveChange={handleGlobalSearchCaseSensitiveChange}
                   onClose={handleGlobalSearchClose}

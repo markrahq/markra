@@ -25,4 +25,11 @@ describe("document search", () => {
   it("keeps original offsets when case folding changes string length", () => {
     expect(findSearchRanges("İ, exact", ",")).toEqual([{ from: 1, to: 2 }]);
   });
+
+  it("stops collecting ranges once the match limit is reached", () => {
+    expect(findSearchRanges("alpha beta alpha gamma alpha", "alpha", { maxMatches: 2 })).toEqual([
+      { from: 0, to: 5 },
+      { from: 11, to: 16 }
+    ]);
+  });
 });

@@ -61,6 +61,7 @@ import {
   mockedSaveNativeMarkdownFile,
   mockedSaveNativePandocFile,
   mockedSaveNativePdfFile,
+  mockedSearchNativeMarkdownFilesForPath,
   mockedShowNativePandocSetup,
   mockedSaveStoredCustomThemeCss,
   mockedSaveStoredAiSettings,
@@ -4031,6 +4032,93 @@ describe("Markra workspace", () => {
     expect(searchInput).toHaveAttribute("autocorrect", "off");
     expect(searchInput).toHaveAttribute("spellcheck", "false");
     expect(container.querySelector(".editor-content-slot")).toHaveAttribute("data-document-search-open", "true");
+  });
+
+  it("uses native workspace search when the desktop runtime provides it", async () => {
+    const guidePath = "/mock-files/vault/guide.md";
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      name: "vault",
+      path: mockFolderPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "guide.md" }
+    ]);
+    mockedSearchNativeMarkdownFilesForPath.mockResolvedValue({
+      results: [
+        {
+          columnNumber: 3,
+          file: { name: "guide.md", path: guidePath, relativePath: "guide.md" },
+          id: `${guidePath}:2`,
+          lineNumber: 1,
+          lineText: "# Alpha guide",
+          match: { from: 2, to: 7 },
+          matchIndex: 0,
+          snippet: "# Alpha guide"
+        }
+      ],
+      searchedFileCount: 1,
+      truncated: false,
+      unreadableFileCount: 0
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("button", { name: "guide.md" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search workspace" }), {
+      target: { value: "alpha" }
+    });
+
+    await waitFor(() =>
+      expect(mockedSearchNativeMarkdownFilesForPath).toHaveBeenCalledWith(expect.objectContaining({
+        caseSensitive: false,
+        maxMatches: 500,
+        maxMatchesPerFile: 50,
+        path: mockFolderPath,
+        query: "alpha"
+      }))
+    );
+    expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalledWith(guidePath);
+    expect(await screen.findByRole("button", { name: "Open guide.md line 1" })).toBeInTheDocument();
+  });
+
+  it("clears workspace search after closing with Escape", async () => {
+    const guidePath = "/mock-files/vault/guide.md";
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      name: "vault",
+      path: mockFolderPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "guide.md" }
+    ]);
+    mockedSearchNativeMarkdownFilesForPath.mockResolvedValue({
+      results: [],
+      searchedFileCount: 1,
+      truncated: false,
+      unreadableFileCount: 0
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("button", { name: "guide.md" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search workspace" }), {
+      target: { value: "alpha" }
+    });
+    await waitFor(() => expect(mockedSearchNativeMarkdownFilesForPath).toHaveBeenCalledTimes(1));
+
+    fireEvent.keyDown(screen.getByRole("searchbox", { name: "Search workspace" }), { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Search workspace" })).not.toBeInTheDocument();
+
+    mockedSearchNativeMarkdownFilesForPath.mockClear();
+    fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true });
+
+    expect(screen.getByRole("searchbox", { name: "Search workspace" })).toHaveValue("");
+    expect(mockedSearchNativeMarkdownFilesForPath).not.toHaveBeenCalled();
   });
 
   it("does not open document search after opening a workspace search result", async () => {

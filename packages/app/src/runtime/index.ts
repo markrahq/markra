@@ -54,6 +54,9 @@ import type {
 } from "../lib/tauri/window";
 import type { NativePandocSetupAction } from "../lib/tauri/dialog";
 import type { NativeWebResourceRequest, NativeWebResourceResponse } from "../lib/tauri/web-resource";
+import type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../lib/workspace-search";
+
+export type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../lib/workspace-search";
 
 export type RuntimeCleanup = () => unknown;
 
@@ -160,6 +163,7 @@ export type AppFileRuntime = {
   saveMarkdownFile: (input: SaveNativeMarkdownFileInput) => Promise<SavedNativeMarkdownFile | null>;
   savePandocFile: (input: SaveNativePandocFileInput) => Promise<SavedNativePandocFile | null>;
   savePdfFile: (input: SaveNativePdfFileInput) => Promise<SavedNativePdfFile | null>;
+  searchMarkdownFiles?: (request: WorkspaceSearchRequest) => Promise<WorkspaceSearchResponse>;
   takeOpenedMarkdownPaths: () => Promise<string[]>;
   uploadPicGoImage: (input: UploadNativePicGoImageInput) => Promise<SavedNativeClipboardImage>;
   uploadS3Image: (input: UploadNativeS3ImageInput) => Promise<SavedNativeClipboardImage>;

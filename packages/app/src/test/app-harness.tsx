@@ -28,6 +28,7 @@ import {
   saveNativeMarkdownFile,
   saveNativePandocFile,
   saveNativePdfFile,
+  searchNativeMarkdownFilesForPath,
   setNativeEditorWindowRestoreState,
   showNativePandocSetup,
   showNativeMarkdownFileTreeContextMenu,
@@ -142,6 +143,7 @@ vi.mock("../lib/tauri", () => ({
   saveNativeMarkdownFile: vi.fn(),
   saveNativePandocFile: vi.fn(),
   saveNativePdfFile: vi.fn(),
+  searchNativeMarkdownFilesForPath: vi.fn(),
   setNativeEditorWindowRestoreState: vi.fn(),
   showNativePandocSetup: vi.fn(),
   showNativeMarkdownFileTreeContextMenu: vi.fn(),
@@ -550,6 +552,7 @@ export const mockedSaveNativeHtmlFile = vi.mocked(saveNativeHtmlFile);
 export const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
 export const mockedSaveNativePandocFile = vi.mocked(saveNativePandocFile);
 export const mockedSaveNativePdfFile = vi.mocked(saveNativePdfFile);
+export const mockedSearchNativeMarkdownFilesForPath = vi.mocked(searchNativeMarkdownFilesForPath);
 export const mockedSetNativeEditorWindowRestoreState = vi.mocked(setNativeEditorWindowRestoreState);
 export const mockedShowNativePandocSetup = vi.mocked(showNativePandocSetup);
 export const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
@@ -720,6 +723,7 @@ export function installAppTestHarness() {
     mockedSaveNativeHtmlFile.mockReset();
     mockedSaveNativePandocFile.mockReset();
     mockedSaveNativePdfFile.mockReset();
+    mockedSearchNativeMarkdownFilesForPath.mockReset();
     mockedShowNativePandocSetup.mockReset();
     mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
@@ -797,6 +801,7 @@ export function installAppTestHarness() {
     mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
     mockedReadNativeMarkdownFileHistory.mockRejectedValue(new Error("markdown history file is not mocked"));
     mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
+    mockedSearchNativeMarkdownFilesForPath.mockResolvedValue(null);
     mockedTakeNativeOpenedMarkdownPaths.mockResolvedValue([]);
     mockedInstallNativeMarkdownFileDrop.mockResolvedValue(() => {});
     mockedListenNativeOpenedMarkdownPaths.mockResolvedValue(() => {});
