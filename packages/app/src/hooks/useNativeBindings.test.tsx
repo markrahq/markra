@@ -305,6 +305,25 @@ describe("useApplicationShortcuts", () => {
     expect(openDocumentSearch).toHaveBeenCalledTimes(1);
   });
 
+  it("intercepts the workspace search shortcut", () => {
+    const openWorkspaceSearch = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        openWorkspaceSearch
+      })
+    );
+
+    const handled = fireEvent.keyDown(window, {
+      key: "f",
+      metaKey: true,
+      shiftKey: true
+    });
+
+    expect(handled).toBe(false);
+    expect(openWorkspaceSearch).toHaveBeenCalledTimes(1);
+  });
+
   it("opens replace from the document search shortcut with Alt", () => {
     const openDocumentReplace = vi.fn();
     renderHook(() =>

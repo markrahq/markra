@@ -2093,7 +2093,7 @@ describe("Markra workspace", () => {
   });
 
   it("switches between unmodified folder files without asking to discard changes", async () => {
-    const guidePath = "/mock-files/vault/docs/guide.md";
+    const guidePath = "/mock-files/vault/guide.md";
     const notesPath = "/mock-files/vault/docs/notes.md";
     mockedOpenNativeMarkdownPath.mockResolvedValue({
       kind: "folder",
@@ -4031,6 +4031,36 @@ describe("Markra workspace", () => {
     expect(searchInput).toHaveAttribute("autocorrect", "off");
     expect(searchInput).toHaveAttribute("spellcheck", "false");
     expect(container.querySelector(".editor-content-slot")).toHaveAttribute("data-document-search-open", "true");
+  });
+
+  it("does not open document search after opening a workspace search result", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      name: "vault",
+      path: mockFolderPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "guide.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nSynthetic alpha note.",
+      name: "guide.md",
+      path: guidePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("button", { name: "guide.md" })).toBeInTheDocument();
+
+    expect(fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true })).toBe(false);
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search workspace" }), {
+      target: { value: "alpha" }
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Open guide.md line 3" }));
+
+    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    expect(screen.queryByRole("search", { name: "Find in document" })).not.toBeInTheDocument();
   });
 
   it("does not open the AI command when visual document search focuses a match", async () => {

@@ -59,6 +59,7 @@ type ApplicationShortcutOptions = {
   openDocument: () => unknown | Promise<unknown>;
   openDocumentReplace?: () => unknown | Promise<unknown>;
   openDocumentSearch?: () => unknown | Promise<unknown>;
+  openWorkspaceSearch?: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
@@ -333,6 +334,7 @@ export function useApplicationShortcuts({
   openDocument,
   openDocumentReplace,
   openDocumentSearch,
+  openWorkspaceSearch,
   openFolder,
   saveDocument,
   saveDocumentAs,
@@ -372,7 +374,11 @@ export function useApplicationShortcuts({
       }
 
       const key = event.key.toLowerCase();
-      if (key === "f" && !event.shiftKey) {
+      if (key === "f" && event.shiftKey && !event.altKey && openWorkspaceSearch) {
+        event.preventDefault();
+        event.stopPropagation();
+        openWorkspaceSearch();
+      } else if (key === "f" && !event.shiftKey) {
         event.preventDefault();
         event.stopPropagation();
         if (event.altKey) {
@@ -418,6 +424,7 @@ export function useApplicationShortcuts({
     openDocument,
     openDocumentReplace,
     openDocumentSearch,
+    openWorkspaceSearch,
     openFolder,
     saveDocument,
     saveDocumentAs,

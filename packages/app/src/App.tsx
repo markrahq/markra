@@ -17,6 +17,7 @@ import { AiAgentPanel } from "./components/AiAgentPanel";
 import { AiSelectionToolbar } from "./components/AiSelectionToolbar";
 import { DocumentHistoryDialog } from "./components/DocumentHistoryDialog";
 import { DocumentSearchBar } from "./components/DocumentSearchBar";
+import { GlobalSearchPanel } from "./components/GlobalSearchPanel";
 import { ImagePreview } from "./components/ImagePreview";
 import {
   MarkdownExportDocument,
@@ -81,6 +82,11 @@ import type { EditorContentWidth } from "./lib/editor-width";
 import { saveEditorImage } from "./lib/image-upload";
 import { replaceMovedPath } from "./lib/path-move";
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
+import {
+  searchWorkspaceFiles,
+  type WorkspaceSearchResponse,
+  type WorkspaceSearchResult
+} from "./lib/workspace-search";
 import type {
   SelectionHeadingLevel,
   SelectionFormattingAction,
@@ -150,6 +156,11 @@ const sideDocumentPaneKeyboardStepPercent = 5;
 const sideDocumentMainPanePercentMin = 35;
 const sideDocumentMainPanePercentMax = 70;
 const defaultSideDocumentMainPanePercent = 50;
+const emptyWorkspaceSearchResponse: WorkspaceSearchResponse = {
+  results: [],
+  searchedFileCount: 0,
+  unreadableFileCount: 0
+};
 
 type ImageDocumentTab = NativeMarkdownFolderFile & {
   id: string;
@@ -345,6 +356,11 @@ function WorkspaceApp() {
   const [documentSearchActiveIndex, setDocumentSearchActiveIndex] = useState(0);
   const [documentSearchRevealRevision, setDocumentSearchRevealRevision] = useState(0);
   const [visualDocumentSearchMatches, setVisualDocumentSearchMatches] = useState<SearchRange[]>([]);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [globalSearchCaseSensitive, setGlobalSearchCaseSensitive] = useState(false);
+  const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
+  const [globalSearchResponse, setGlobalSearchResponse] = useState<WorkspaceSearchResponse>(emptyWorkspaceSearchResponse);
   const [documentHistoryOpen, setDocumentHistoryOpen] = useState(false);
   const [documentHistoryRefreshKey, setDocumentHistoryRefreshKey] = useState(0);
   const [splitVisualPanePercent, setSplitVisualPanePercent] = useState(defaultSplitVisualPanePercent);
@@ -1812,6 +1828,80 @@ function WorkspaceApp() {
     setActiveImageFile(null);
     await openTreeMarkdownFile(file);
   }, [captureActiveDocumentViewState, openImageTab, openTreeMarkdownFile]);
+  const handleGlobalSearchOpen = useCallback(() => {
+    setGlobalSearchOpen(true);
+  }, []);
+  const handleGlobalSearchClose = useCallback(() => {
+    setGlobalSearchOpen(false);
+  }, []);
+  const handleGlobalSearchQueryChange = useCallback((query: string) => {
+    setGlobalSearchQuery(query);
+  }, []);
+  const handleGlobalSearchCaseSensitiveChange = useCallback((caseSensitive: boolean) => {
+    setGlobalSearchCaseSensitive(caseSensitive);
+  }, []);
+  const handleGlobalSearchResultOpen = useCallback(async (result: WorkspaceSearchResult) => {
+    setGlobalSearchOpen(false);
+    await handleOpenTreeFile(result.file);
+    if (!documentSearchOpen) return;
+
+    setDocumentSearchQuery(globalSearchQuery.trim());
+    setDocumentSearchCaseSensitive(globalSearchCaseSensitive);
+    setDocumentSearchReplaceOpen(false);
+    setDocumentSearchActiveIndex(result.matchIndex);
+    setDocumentSearchRevealRevision((current) => current + 1);
+  }, [documentSearchOpen, globalSearchCaseSensitive, globalSearchQuery, handleOpenTreeFile]);
+  useEffect(() => {
+    const query = globalSearchQuery.trim();
+    if (!globalSearchOpen || !query) {
+      setGlobalSearchLoading(false);
+      setGlobalSearchResponse({
+        ...emptyWorkspaceSearchResponse,
+        searchedFileCount: fileTreeFiles.filter((file) => file.kind !== "asset" && file.kind !== "folder").length
+      });
+      return;
+    }
+
+    let active = true;
+    setGlobalSearchLoading(true);
+
+    searchWorkspaceFiles(fileTreeFiles, query, {
+      caseSensitive: globalSearchCaseSensitive,
+      readFile: async (path) => {
+        if (!activeImageFile && document.path === path) {
+          return {
+            content: document.content,
+            path
+          };
+        }
+
+        const file = await readNativeMarkdownFile(path);
+
+        return {
+          content: file.content,
+          path: file.path
+        };
+      }
+    }).then((response) => {
+      if (active) setGlobalSearchResponse(response);
+    }).catch(() => {
+      if (active) setGlobalSearchResponse(emptyWorkspaceSearchResponse);
+    }).finally(() => {
+      if (active) setGlobalSearchLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [
+    activeImageFile,
+    document.content,
+    document.path,
+    fileTreeFiles,
+    globalSearchCaseSensitive,
+    globalSearchOpen,
+    globalSearchQuery
+  ]);
   const handleOpenTreeFileToSide = useCallback(async (file: NativeMarkdownFolderFile) => {
     captureActiveDocumentViewState();
 
@@ -2623,6 +2713,7 @@ function WorkspaceApp() {
     openDocument: handleOpenMarkdownFile,
     openDocumentReplace: handleDocumentReplaceOpen,
     openDocumentSearch: handleDocumentSearchOpen,
+    openWorkspaceSearch: handleGlobalSearchOpen,
     openFolder: handleOpenMarkdownFolder,
     saveDocument: handleSaveDocument,
     saveDocumentAs,
@@ -3000,6 +3091,21 @@ function WorkspaceApp() {
               onDragOver={handleEditorContentDragOver}
               onDrop={handleEditorContentDrop}
             >
+              {globalSearchOpen ? (
+                <GlobalSearchPanel
+                  caseSensitive={globalSearchCaseSensitive}
+                  language={appLanguage.language}
+                  loading={globalSearchLoading}
+                  query={globalSearchQuery}
+                  results={globalSearchResponse.results}
+                  searchedFileCount={globalSearchResponse.searchedFileCount}
+                  unreadableFileCount={globalSearchResponse.unreadableFileCount}
+                  onCaseSensitiveChange={handleGlobalSearchCaseSensitiveChange}
+                  onClose={handleGlobalSearchClose}
+                  onOpenResult={handleGlobalSearchResultOpen}
+                  onQueryChange={handleGlobalSearchQueryChange}
+                />
+              ) : null}
               {documentSearchOpen && documentSearchAvailable ? (
                 <DocumentSearchBar
                   activeIndex={normalizedDocumentSearchActiveIndex}
