@@ -415,7 +415,7 @@ fn export_pandoc_file_with_runner(
 
         args.extend([
             "--from".to_string(),
-            "gfm+tex_math_dollars+tex_math_single_backslash".to_string(),
+            "gfm+tex_math_dollars".to_string(),
             "--to".to_string(),
             format.pandoc_writer().to_string(),
             "--output".to_string(),
@@ -702,8 +702,7 @@ mod tests {
                 assert!(args.contains(&"--metadata".to_string()));
                 assert!(args.contains(&"title=Draft Notes".to_string()));
                 assert!(args.windows(2).any(|window| {
-                    window[0] == "--from"
-                        && window[1] == "gfm+tex_math_dollars+tex_math_single_backslash"
+                    window[0] == "--from" && window[1] == "gfm+tex_math_dollars"
                 }));
                 assert!(args
                     .windows(2)
