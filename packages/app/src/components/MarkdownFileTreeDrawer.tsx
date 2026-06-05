@@ -4,11 +4,13 @@ import {
   useMemo,
   useRef,
   useState,
+  type Key,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
-  type SyntheticEvent
+  type SyntheticEvent,
+  type UIEvent as ReactUIEvent
 } from "react";
 import {
   DndContext,
@@ -153,6 +155,28 @@ type OutlineRenderItem = {
   item: MarkdownOutlineItem;
   key: string;
 };
+type FileTreeCreateRowKind = "file" | "folder";
+type FileTreeRenderItem =
+  | {
+    createType: FileTreeCreateRowKind;
+    depth: number;
+    key: string;
+    type: "create";
+  }
+  | {
+    depth: number;
+    expanded?: boolean;
+    key: string;
+    node: TreeNode;
+    type: "node";
+  };
+type VirtualFileTreeRow = {
+  index: number;
+  key: Key;
+  size: number;
+  start: number;
+};
+type FileTreeRowRenderMode = "nested" | "virtual";
 type SidebarPanel = "files" | "outline";
 const outlineLevelFilters = ["all", 1, 2, 3] as const;
 type OutlineLevelFilter = typeof outlineLevelFilters[number];
@@ -546,6 +570,10 @@ const minOutlineHeightPercent = 24;
 const maxOutlineHeightPercent = 72;
 const outlineResizeKeyboardStepPercent = 5;
 const outlineResizeFallbackHeight = 320;
+const fileTreeRowHeight = 32;
+const fileTreeVirtualizationThreshold = 200;
+const fileTreeVirtualOverscanCount = 10;
+const fallbackFileTreeViewportHeight = 320;
 const fileTreeContextRowSelectionClassName = "select-none [-webkit-user-select:none]";
 const fileTreeDropTargetClassName = "bg-(--bg-active) text-(--text-heading)";
 const fileTreeDropListTargetClassName = "rounded-sm bg-(--bg-active)";
@@ -555,6 +583,159 @@ const sidebarPanelTabInactiveClassName = "text-(--text-secondary) hover:text-(--
 
 function sidebarPanelTabClassName(selected: boolean) {
   return `${sidebarPanelTabBaseClassName} ${selected ? sidebarPanelTabActiveClassName : sidebarPanelTabInactiveClassName}`;
+}
+
+function creatingAtFileTreeParentPath(
+  parentPath: string | null | undefined,
+  depth: number,
+  creatingParentPath: string | null
+) {
+  const normalizedParentPath = normalizeCreateParentPath(parentPath);
+  if (!normalizedParentPath && depth > 0) return false;
+  return normalizedParentPath === creatingParentPath;
+}
+
+function appendFileTreeCreateRows(
+  rows: FileTreeRenderItem[],
+  parentPath: string | null | undefined,
+  depth: number,
+  creatingFile: boolean,
+  creatingFolder: boolean,
+  creatingParentPath: string | null
+) {
+  if ((!creatingFile && !creatingFolder) || !creatingAtFileTreeParentPath(parentPath, depth, creatingParentPath)) {
+    return;
+  }
+
+  const parentKey = normalizeCreateParentPath(parentPath) ?? "__root__";
+  if (creatingFile) {
+    rows.push({
+      createType: "file",
+      depth,
+      key: `create:file:${parentKey}:${depth}`,
+      type: "create"
+    });
+  }
+
+  if (creatingFolder) {
+    rows.push({
+      createType: "folder",
+      depth,
+      key: `create:folder:${parentKey}:${depth}`,
+      type: "create"
+    });
+  }
+}
+
+function folderExpandedForFileTreeRows(
+  node: FolderNode,
+  depth: number,
+  expandedFolders: ReadonlySet<string>,
+  searchActive: boolean,
+  creatingFile: boolean,
+  creatingFolder: boolean,
+  creatingParentPath: string | null
+) {
+  return searchActive ||
+    expandedFolders.has(node.relativePath) ||
+    ((creatingFile || creatingFolder) &&
+      creatingAtFileTreeParentPath(node.path, depth + 1, creatingParentPath));
+}
+
+function buildVisibleFileTreeRows(
+  nodes: TreeNode[],
+  expandedFolders: ReadonlySet<string>,
+  searchQuery: string,
+  creatingFile: boolean,
+  creatingFolder: boolean,
+  creatingParentPath: string | null,
+  depth = 0,
+  parentPath: string | null = null,
+  rows: FileTreeRenderItem[] = []
+) {
+  const searchActive = searchQuery.trim().length > 0;
+
+  appendFileTreeCreateRows(rows, parentPath, depth, creatingFile, creatingFolder, creatingParentPath);
+
+  nodes.forEach((node) => {
+    if (node.type === "folder") {
+      const expanded = folderExpandedForFileTreeRows(
+        node,
+        depth,
+        expandedFolders,
+        searchActive,
+        creatingFile,
+        creatingFolder,
+        creatingParentPath
+      );
+
+      rows.push({
+        depth,
+        expanded,
+        key: `folder:${node.relativePath}`,
+        node,
+        type: "node"
+      });
+
+      if (expanded) {
+        buildVisibleFileTreeRows(
+          node.children,
+          expandedFolders,
+          searchQuery,
+          creatingFile,
+          creatingFolder,
+          creatingParentPath,
+          depth + 1,
+          node.path,
+          rows
+        );
+      }
+      return;
+    }
+
+    rows.push({
+      depth,
+      key: `file:${node.file.path}`,
+      node,
+      type: "node"
+    });
+  });
+
+  return rows;
+}
+
+function virtualFileTreeRowsForOffset(
+  rows: readonly FileTreeRenderItem[],
+  getFileTreeRowKey: (index: number) => Key,
+  scrollOffset: number,
+  viewportHeight: number
+) {
+  const visibleRowCount = Math.ceil(viewportHeight / fileTreeRowHeight);
+  const renderedRowCount = visibleRowCount + fileTreeVirtualOverscanCount * 2;
+  const rawStartIndex = Math.max(0, Math.floor(scrollOffset / fileTreeRowHeight) - fileTreeVirtualOverscanCount);
+  const maxStartIndex = Math.max(0, rows.length - renderedRowCount);
+  const startIndex = Math.min(rawStartIndex, maxStartIndex);
+  const endIndex = Math.min(rows.length, startIndex + renderedRowCount);
+  const virtualRows: VirtualFileTreeRow[] = [];
+
+  for (let index = startIndex; index < endIndex; index += 1) {
+    virtualRows.push({
+      index,
+      key: getFileTreeRowKey(index),
+      size: fileTreeRowHeight,
+      start: index * fileTreeRowHeight
+    });
+  }
+
+  return virtualRows;
+}
+
+function fileTreeRowIndentStyle(depth: number, mode: FileTreeRowRenderMode) {
+  return mode === "virtual" ? { paddingLeft: `${32 + depth * 20}px` } : undefined;
+}
+
+function fileTreeRowIndentClass(mode: FileTreeRowRenderMode) {
+  return mode === "virtual" ? "" : "pl-8";
 }
 
 export function MarkdownFileTreeDrawer({
@@ -594,9 +775,13 @@ export function MarkdownFileTreeDrawer({
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const outlineResizeCleanupRef = useRef<(() => unknown) | null>(null);
   const fileTreeBodyRef = useRef<HTMLDivElement | null>(null);
+  const fileTreeScrollNodeRef = useRef<HTMLDivElement | null>(null);
   const fileTreeSortMenuRef = useRef<HTMLDivElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const outlineLevelMenuRef = useRef<HTMLDivElement | null>(null);
+  const [fileTreeScrollElement, setFileTreeScrollElement] = useState<HTMLDivElement | null>(null);
+  const [fileTreeScrollOffset, setFileTreeScrollOffset] = useState(0);
+  const [fileTreeViewportHeight, setFileTreeViewportHeight] = useState(fallbackFileTreeViewportHeight);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
   const [hoveredRecentFolderPath, setHoveredRecentFolderPath] = useState<string | null>(null);
   const [focusedRecentFolderActionPath, setFocusedRecentFolderActionPath] = useState<string | null>(null);
@@ -637,6 +822,54 @@ export function MarkdownFileTreeDrawer({
   );
   const fullTree = useMemo(() => buildMarkdownFileTree(files, rootPath, fileTreeSort), [files, rootPath, fileTreeSort]);
   const tree = useMemo(() => filterMarkdownFileTree(fullTree, searchQuery), [fullTree, searchQuery]);
+  const visibleFileTreeRows = useMemo(
+    () => buildVisibleFileTreeRows(
+      tree,
+      expandedFolders,
+      searchQuery,
+      creatingFile,
+      creatingFolder,
+      creatingParentPath
+    ),
+    [creatingFile, creatingFolder, creatingParentPath, expandedFolders, searchQuery, tree]
+  );
+  const virtualFileTreeEnabled = visibleFileTreeRows.length > fileTreeVirtualizationThreshold;
+  const getFileTreeRowKey = useCallback(
+    (index: number) => visibleFileTreeRows[index]?.key ?? index,
+    [visibleFileTreeRows]
+  );
+  const virtualFileTreeRows = useMemo(
+    () => virtualFileTreeRowsForOffset(
+      visibleFileTreeRows,
+      getFileTreeRowKey,
+      fileTreeScrollOffset,
+      fileTreeViewportHeight
+    ),
+    [fileTreeScrollOffset, fileTreeViewportHeight, getFileTreeRowKey, visibleFileTreeRows]
+  );
+  const virtualFileTreeHeight = visibleFileTreeRows.length * fileTreeRowHeight;
+  const setFileTreeScrollRef = useCallback((element: HTMLDivElement | null) => {
+    fileTreeScrollNodeRef.current = element;
+    if (!element) return undefined;
+
+    setFileTreeScrollElement((current) => current === element ? current : element);
+    return undefined;
+  }, []);
+  const measureFileTreeViewport = useCallback(() => {
+    if (!fileTreeScrollElement) return;
+
+    const rectHeight = fileTreeScrollElement.getBoundingClientRect().height;
+    const nextHeight = Math.max(
+      fileTreeRowHeight,
+      fileTreeScrollElement.clientHeight || rectHeight || fallbackFileTreeViewportHeight
+    );
+
+    setFileTreeViewportHeight((current) => current === nextHeight ? current : nextHeight);
+  }, [fileTreeScrollElement]);
+  const handleFileTreeScroll = useCallback((event: ReactUIEvent<HTMLDivElement>) => {
+    const nextOffset = Math.max(0, event.currentTarget.scrollTop);
+    setFileTreeScrollOffset((current) => current === nextOffset ? current : nextOffset);
+  }, []);
   const folderPaths = useMemo(() => collectMarkdownFolderPaths(fullTree), [fullTree]);
   const availableMarkdownTemplates = useMemo(() => mergeMarkdownTemplates(customTemplates), [customTemplates]);
   const outlineMaxLevel = outlineLevelFilter === "all" ? null : outlineLevelFilter;
@@ -715,6 +948,35 @@ export function MarkdownFileTreeDrawer({
       outlineResizeCleanupRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (filePanelVisible) return;
+
+    fileTreeScrollNodeRef.current = null;
+    setFileTreeScrollElement(null);
+    setFileTreeScrollOffset(0);
+  }, [filePanelVisible]);
+
+  useEffect(() => {
+    if (!fileTreeScrollElement) return;
+
+    measureFileTreeViewport();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measureFileTreeViewport);
+
+      return () => {
+        window.removeEventListener("resize", measureFileTreeViewport);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(measureFileTreeViewport);
+    resizeObserver.observe(fileTreeScrollElement);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [fileTreeScrollElement, measureFileTreeViewport]);
 
   useEffect(() => {
     if (!fileTreeSortMenuOpen && !createMenuOpen && !outlineLevelMenuOpen) return;
@@ -953,9 +1215,7 @@ export function MarkdownFileTreeDrawer({
   };
 
   const creatingAtParentPath = (parentPath: string | null | undefined, depth = 0) => {
-    const normalizedParentPath = normalizeCreateParentPath(parentPath);
-    if (!normalizedParentPath && depth > 0) return false;
-    return normalizedParentPath === creatingParentPath;
+    return creatingAtFileTreeParentPath(parentPath, depth, creatingParentPath);
   };
 
   const targetFolderPathForFile = (file: NativeMarkdownFolderFile | undefined) => {
@@ -1213,83 +1473,243 @@ export function MarkdownFileTreeDrawer({
       : "before:absolute before:left-[-1px] before:top-1/2 before:h-px before:w-6 before:bg-(--border-default)"
   );
 
+  const renderCreateRowContent = (createType: FileTreeCreateRowKind, depth: number, mode: FileTreeRowRenderMode) => {
+    const rowIndentClass = fileTreeRowIndentClass(mode);
+    const rowBranchClass = mode === "nested" ? rowBranchClassForDepth(depth) : "";
+    const rowIndentStyle = fileTreeRowIndentStyle(depth, mode);
+
+    if (createType === "file") {
+      return (
+        <div
+          className={`relative grid h-8 ${creatingTemplate ? "grid-cols-[17px_minmax(0,1fr)_auto]" : "grid-cols-[17px_minmax(0,1fr)]"} items-center gap-1.5 py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${rowIndentClass} ${rowBranchClass}`}
+          style={rowIndentStyle}
+        >
+          <FileText aria-hidden="true" className="shrink-0" size={15} />
+          <input
+            aria-label={label("app.newMarkdownFileName")}
+            autoFocus
+            className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
+            type="text"
+            value={newFileName}
+            placeholder="Untitled.md"
+            onChange={(event) => setNewFileName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitCreateFile();
+                return;
+              }
+
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setCreatingFile(false);
+                setNewFileName("");
+                setCreatingParentPath(null);
+                setCreatingTemplate(null);
+                setCreatingTemplateStartedAt(null);
+              }
+            }}
+          />
+          {creatingTemplate ? (
+            <span className="max-w-24 truncate rounded-sm bg-(--bg-active) px-1.5 text-[11px] leading-5 text-(--text-secondary)">
+              {creatingTemplate.name}
+            </span>
+          ) : null}
+        </div>
+      );
+    }
+
+    return (
+      <div
+        className={`relative grid h-8 grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${rowIndentClass} ${rowBranchClass}`}
+        style={rowIndentStyle}
+      >
+        <Folder aria-hidden="true" className="shrink-0" size={15} />
+        <input
+          aria-label={label("app.newMarkdownFolderName")}
+          autoFocus
+          className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
+          type="text"
+          value={newFolderName}
+          placeholder={label("app.newMarkdownFolder")}
+          onChange={(event) => setNewFolderName(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitCreateFolder();
+              return;
+            }
+
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setCreatingFolder(false);
+              setNewFolderName("");
+              setCreatingParentPath(null);
+            }
+          }}
+        />
+      </div>
+    );
+  };
+
   const renderCreateRows = (parentPath: string | null | undefined, depth: number) => {
     if ((!creatingFile && !creatingFolder) || !creatingAtParentPath(parentPath, depth)) return null;
-
-    const rowIndentClass = "pl-8";
-    const rowBranchClass = rowBranchClassForDepth(depth);
 
     return (
       <>
         {creatingFile ? (
           <li key="__creating-file">
-            <div className={`relative grid h-8 ${creatingTemplate ? "grid-cols-[17px_minmax(0,1fr)_auto]" : "grid-cols-[17px_minmax(0,1fr)]"} items-center gap-1.5 py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${rowIndentClass} ${rowBranchClass}`}>
-              <FileText aria-hidden="true" className="shrink-0" size={15} />
-              <input
-                aria-label={label("app.newMarkdownFileName")}
-                autoFocus
-                className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
-                type="text"
-                value={newFileName}
-                placeholder="Untitled.md"
-                onChange={(event) => setNewFileName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    commitCreateFile();
-                    return;
-                  }
-
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    setCreatingFile(false);
-                    setNewFileName("");
-                    setCreatingParentPath(null);
-                    setCreatingTemplate(null);
-                    setCreatingTemplateStartedAt(null);
-                  }
-                }}
-              />
-              {creatingTemplate ? (
-                <span className="max-w-24 truncate rounded-sm bg-(--bg-active) px-1.5 text-[11px] leading-5 text-(--text-secondary)">
-                  {creatingTemplate.name}
-                </span>
-              ) : null}
-            </div>
+            {renderCreateRowContent("file", depth, "nested")}
           </li>
         ) : null}
         {creatingFolder ? (
           <li key="__creating-folder">
-            <div className={`relative grid h-8 grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${rowIndentClass} ${rowBranchClass}`}>
-              <Folder aria-hidden="true" className="shrink-0" size={15} />
-              <input
-                aria-label={label("app.newMarkdownFolderName")}
-                autoFocus
-                className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
-                type="text"
-                value={newFolderName}
-                placeholder={label("app.newMarkdownFolder")}
-                onChange={(event) => setNewFolderName(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    commitCreateFolder();
-                    return;
-                  }
-
-                  if (event.key === "Escape") {
-                    event.preventDefault();
-                    setCreatingFolder(false);
-                    setNewFolderName("");
-                    setCreatingParentPath(null);
-                  }
-                }}
-              />
-            </div>
+            {renderCreateRowContent("folder", depth, "nested")}
           </li>
         ) : null}
       </>
     );
+  };
+
+  const folderExpandedForRender = (node: FolderNode, depth: number) => (
+    folderExpandedForFileTreeRows(
+      node,
+      depth,
+      expandedFolders,
+      searchQuery.trim().length > 0,
+      creatingFile,
+      creatingFolder,
+      creatingParentPath
+    )
+  );
+
+  const renderFolderRowContent = (
+    node: FolderNode,
+    depth: number,
+    expanded: boolean,
+    mode: FileTreeRowRenderMode
+  ) => {
+    const folderFile = folderNodeAsFile(node);
+    const dropTarget = dragOverTargetPath === dragTargetKey(node.path);
+    const folderRowStateClassName = dropTarget
+      ? fileTreeDropTargetClassName
+      : "bg-transparent hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)";
+    const rowIndentClass = fileTreeRowIndentClass(mode);
+    const rowBranchClass = mode === "nested" ? rowBranchClassForDepth(depth) : "";
+    const rowIndentStyle = fileTreeRowIndentStyle(depth, mode);
+
+    return (
+      <FileTreeDropTarget
+        disabled={!dragMoveAvailable || !node.path}
+        id={fileTreeFolderDropId(node.path)}
+        targetParentPath={node.path}
+      >
+        {(dropTargetProps) => (
+          <FileTreeDragSource disabled={!dragMoveAvailable} file={folderFile}>
+            {(dragSource) => (
+              <button
+                ref={combineNodeRefs<HTMLButtonElement>(
+                  dropTargetProps.setNodeRef,
+                  dragSource.setNodeRef
+                )}
+                className={`relative flex h-8 w-full cursor-pointer touch-none items-center gap-1 border-0 py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) focus-visible:outline-none ${folderRowStateClassName} ${dragSource.isDragging ? "opacity-70" : ""} ${fileTreeContextRowSelectionClassName} ${rowIndentClass} ${rowBranchClass}`}
+                style={rowIndentStyle}
+                type="button"
+                aria-expanded={expanded}
+                onContextMenu={(event) => openContextMenu(event, folderFile, node.path)}
+                onClick={() => toggleFolder(node.relativePath)}
+                {...dragSource.attributes}
+                {...dragSource.listeners}
+              >
+                {expanded ? (
+                  <ChevronDown aria-hidden="true" className="shrink-0" size={13} />
+                ) : (
+                  <ChevronRight aria-hidden="true" className="shrink-0" size={13} />
+                )}
+                <Folder aria-hidden="true" className="shrink-0" size={16} />
+                <span className="min-w-0 truncate">{node.name}</span>
+              </button>
+            )}
+          </FileTreeDragSource>
+        )}
+      </FileTreeDropTarget>
+    );
+  };
+
+  const renderFileRowContent = (node: FileNode, depth: number, mode: FileTreeRowRenderMode) => {
+    const active = node.file.path === currentPath;
+    const renaming = renamingPath === node.file.path;
+    const asset = node.file.kind === "asset";
+    const FileIcon = asset ? ImageIcon : FileText;
+    const rowIndentClass = fileTreeRowIndentClass(mode);
+    const rowBranchClass = mode === "nested" ? rowBranchClassForDepth(depth) : "";
+    const rowIndentStyle = fileTreeRowIndentStyle(depth, mode);
+
+    if (renaming) {
+      return (
+        <div
+          className={`relative grid h-8 w-full grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${rowIndentClass} ${rowBranchClass}`}
+          style={rowIndentStyle}
+        >
+          <FileIcon aria-hidden="true" className="shrink-0" size={15} />
+          <input
+            aria-label={label("app.renameMarkdownFile")}
+            autoFocus
+            className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
+            type="text"
+            value={renameFileName}
+            onChange={(event) => setRenameFileName(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commitRenameFile(node.file);
+                return;
+              }
+
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setRenamingPath(null);
+                setRenameFileName("");
+              }
+            }}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <FileTreeDragSource disabled={!dragMoveAvailable} file={node.file}>
+        {(dragSource) => (
+          <button
+            ref={dragSource.setNodeRef}
+            className={`relative grid h-8 w-full cursor-pointer touch-none grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) ${dragSource.isDragging ? "opacity-70" : ""} ${fileTreeContextRowSelectionClassName} ${rowIndentClass} ${rowBranchClass}`}
+            style={rowIndentStyle}
+            type="button"
+            aria-current={active ? "page" : undefined}
+            aria-label={node.relativePath}
+            title={node.file.path}
+            onContextMenu={(event) => openContextMenu(event, node.file)}
+            onClick={() => {
+              onOpenFile(node.file);
+            }}
+            {...dragSource.attributes}
+            {...dragSource.listeners}
+          >
+            <FileIcon aria-hidden="true" className="shrink-0" size={15} />
+            <span className="min-w-0 truncate">{node.name}</span>
+          </button>
+        )}
+      </FileTreeDragSource>
+    );
+  };
+
+  const renderFileTreeRowContent = (row: FileTreeRenderItem, mode: FileTreeRowRenderMode) => {
+    if (row.type === "create") return renderCreateRowContent(row.createType, row.depth, mode);
+    if (row.node.type === "folder") {
+      return renderFolderRowContent(row.node, row.depth, row.expanded ?? false, mode);
+    }
+
+    return renderFileRowContent(row.node, row.depth, mode);
   };
 
   const renderNodes = (
@@ -1306,121 +1726,25 @@ export function MarkdownFileTreeDrawer({
         role={depth === 0 ? "tree" : "group"}
         aria-label={treeLabel}
       >
-      {renderCreateRows(parentPath, depth)}
-      {nodes.map((node) => {
-        const rowIndentClass = "pl-8";
-        const rowBranchClass = rowBranchClassForDepth(depth);
+        {renderCreateRows(parentPath, depth)}
+        {nodes.map((node) => {
+          if (node.type === "folder") {
+            const expanded = folderExpandedForRender(node, depth);
 
-        if (node.type === "folder") {
-          const expanded = searchQuery.trim().length > 0 ||
-            expandedFolders.has(node.relativePath) ||
-            ((creatingFile || creatingFolder) && creatingAtParentPath(node.path, depth + 1));
-          const folderFile = folderNodeAsFile(node);
-          const dropTarget = dragOverTargetPath === dragTargetKey(node.path);
-          const folderRowStateClassName = dropTarget
-            ? fileTreeDropTargetClassName
-            : "bg-transparent hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)";
+            return (
+              <li key={node.relativePath}>
+                {renderFolderRowContent(node, depth, expanded, "nested")}
+                {expanded ? renderNodes(node.children, depth + 1, `${node.name} children`, node.path) : null}
+              </li>
+            );
+          }
 
           return (
-            <li key={node.relativePath}>
-              <FileTreeDropTarget
-                disabled={!dragMoveAvailable || !node.path}
-                id={fileTreeFolderDropId(node.path)}
-                targetParentPath={node.path}
-              >
-                {(dropTargetProps) => (
-                  <FileTreeDragSource disabled={!dragMoveAvailable} file={folderFile}>
-                    {(dragSource) => (
-                      <button
-                        ref={combineNodeRefs<HTMLButtonElement>(
-                          dropTargetProps.setNodeRef,
-                          dragSource.setNodeRef
-                        )}
-                        className={`relative flex h-8 w-full cursor-pointer touch-none items-center gap-1 border-0 py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) focus-visible:outline-none ${folderRowStateClassName} ${dragSource.isDragging ? "opacity-70" : ""} ${fileTreeContextRowSelectionClassName} ${rowIndentClass} ${rowBranchClass}`}
-                        type="button"
-                        aria-expanded={expanded}
-                        onContextMenu={(event) => openContextMenu(event, folderFile, node.path)}
-                        onClick={() => toggleFolder(node.relativePath)}
-                        {...dragSource.attributes}
-                        {...dragSource.listeners}
-                      >
-                        {expanded ? (
-                          <ChevronDown aria-hidden="true" className="shrink-0" size={13} />
-                        ) : (
-                          <ChevronRight aria-hidden="true" className="shrink-0" size={13} />
-                        )}
-                        <Folder aria-hidden="true" className="shrink-0" size={16} />
-                        <span className="min-w-0 truncate">{node.name}</span>
-                      </button>
-                    )}
-                  </FileTreeDragSource>
-                )}
-              </FileTreeDropTarget>
-              {expanded ? renderNodes(node.children, depth + 1, `${node.name} children`, node.path) : null}
+            <li key={node.file.path}>
+              {renderFileRowContent(node, depth, "nested")}
             </li>
           );
-        }
-
-        const active = node.file.path === currentPath;
-        const renaming = renamingPath === node.file.path;
-        const asset = node.file.kind === "asset";
-        const FileIcon = asset ? ImageIcon : FileText;
-
-        return (
-          <li key={node.file.path}>
-            {renaming ? (
-              <div
-                className={`relative grid h-8 w-full grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 py-0 pr-2 text-[13px] leading-none text-(--text-secondary) ${rowIndentClass} ${rowBranchClass}`}
-              >
-                <FileIcon aria-hidden="true" className="shrink-0" size={15} />
-                <input
-                  aria-label={label("app.renameMarkdownFile")}
-                  autoFocus
-                  className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-none text-(--text-primary) outline-none"
-                  type="text"
-                  value={renameFileName}
-                  onChange={(event) => setRenameFileName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      commitRenameFile(node.file);
-                      return;
-                    }
-
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      setRenamingPath(null);
-                      setRenameFileName("");
-                    }
-                  }}
-                />
-              </div>
-            ) : (
-              <FileTreeDragSource disabled={!dragMoveAvailable} file={node.file}>
-                {(dragSource) => (
-                  <button
-                    ref={dragSource.setNodeRef}
-                    className={`relative grid h-8 w-full cursor-pointer touch-none grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) ${dragSource.isDragging ? "opacity-70" : ""} ${fileTreeContextRowSelectionClassName} ${rowIndentClass} ${rowBranchClass}`}
-                    type="button"
-                    aria-current={active ? "page" : undefined}
-                    aria-label={node.relativePath}
-                    title={node.file.path}
-                    onContextMenu={(event) => openContextMenu(event, node.file)}
-                    onClick={() => {
-                      onOpenFile(node.file);
-                    }}
-                    {...dragSource.attributes}
-                    {...dragSource.listeners}
-                  >
-                    <FileIcon aria-hidden="true" className="shrink-0" size={15} />
-                    <span className="min-w-0 truncate">{node.name}</span>
-                  </button>
-                )}
-              </FileTreeDragSource>
-            )}
-          </li>
-        );
-      })}
+        })}
       </ol>
     );
 
@@ -1436,6 +1760,34 @@ export function MarkdownFileTreeDrawer({
       </FileTreeDropTarget>
     );
   };
+
+  const renderVirtualFileTreeRows = () => (
+    <ol
+      className="relative m-0 list-none p-0"
+      role="tree"
+      aria-label={label("app.markdownFiles")}
+      style={{ height: `${virtualFileTreeHeight}px` }}
+    >
+      {virtualFileTreeRows.map((virtualRow) => {
+        const row = visibleFileTreeRows[virtualRow.index];
+        if (!row) return null;
+
+        return (
+          <li
+            className="absolute left-0 top-0 w-full"
+            data-index={virtualRow.index}
+            key={virtualRow.key}
+            style={{
+              height: `${virtualRow.size}px`,
+              transform: `translateY(${virtualRow.start}px)`
+            }}
+          >
+            {renderFileTreeRowContent(row, "virtual")}
+          </li>
+        );
+      })}
+    </ol>
+  );
 
   const renderOutline = () => (
     outlineItems.length > 0 ? (
@@ -1949,13 +2301,14 @@ export function MarkdownFileTreeDrawer({
               >
                 {(rootDropTarget) => (
                   <div
-                    ref={rootDropTarget.setNodeRef}
+                    ref={combineNodeRefs<HTMLDivElement>(rootDropTarget.setNodeRef, setFileTreeScrollRef)}
                     className={`file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4 ${dragOverTargetPath === dragTargetKey(null) ? fileTreeDropTargetClassName : ""}`}
+                    onScroll={handleFileTreeScroll}
                     onMouseDown={cancelFileTreeInputsFromBlankArea}
                     onContextMenu={(event) => openContextMenu(event)}
                   >
                     {tree.length > 0 || creatingFile || creatingFolder ? (
-                      renderNodes(tree)
+                      virtualFileTreeEnabled ? renderVirtualFileTreeRows() : renderNodes(tree)
                     ) : (
                       <div className="min-h-full" role="tree" aria-label={label("app.markdownFiles")}>
                         <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">

@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MarkdownFileTreeDrawer } from "./MarkdownFileTreeDrawer";
 import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 
@@ -559,6 +559,51 @@ describe("MarkdownFileTreeDrawer", () => {
 
     expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: "deploy/deploy.md" })).not.toBeInTheDocument();
+  });
+
+  it("windows large expanded folder contents instead of mounting every file row", async () => {
+    const manyNotes = Array.from({ length: 600 }, (_, index) => {
+      const noteNumber = String(index).padStart(3, "0");
+
+      return {
+        name: `note-${noteNumber}.md`,
+        path: `/vault/notes/note-${noteNumber}.md`,
+        relativePath: `notes/note-${noteNumber}.md`
+      };
+    });
+    const notesFolder = { kind: "folder" as const, name: "notes", path: "/vault/notes", relativePath: "notes" };
+    const renderDrawer = (files: typeof manyNotes) => (
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/notes/note-000.md"
+        files={[notesFolder, ...files]}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+    const { container, rerender } = render(renderDrawer(manyNotes));
+
+    fireEvent.click(screen.getByRole("button", { name: "notes" }));
+
+    expect(screen.getByRole("button", { name: "notes/note-000.md" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "notes/note-599.md" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^notes\/note-/ }).length).toBeLessThan(80);
+
+    const scroll = container.querySelector(".file-tree-scroll") as HTMLElement;
+    scroll.scrollTop = 590 * 32;
+    fireEvent.scroll(scroll);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "notes/note-599.md" })).toBeInTheDocument();
+    });
+
+    rerender(renderDrawer(manyNotes.slice(0, 300)));
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "notes/note-299.md" })).toBeInTheDocument();
+    });
   });
 
   it("sorts file tree entries by name, modified time, and created time", () => {
