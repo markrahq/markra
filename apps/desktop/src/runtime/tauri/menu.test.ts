@@ -249,7 +249,7 @@ describe("native menu", () => {
 
     const table = domMenuItemById("markra:context:table");
     expect(table.textContent).toContain("Table");
-    expect(table.textContent).toContain("Cmd/Ctrl+Alt+T");
+    expect(table.textContent).toContain("Cmd/Ctrl+Shift+Alt+T");
 
     table.click();
 
@@ -360,6 +360,7 @@ describe("native menu", () => {
       openQuickOpen: "Mod+Alt+P",
       toggleAiAgent: "Mod+Shift+Y",
       toggleAiCommand: "Mod+Alt+J",
+      toggleAllFolds: "Mod+Shift+Alt+F",
       toggleMarkdownFiles: "Mod+Alt+M",
       toggleReadOnlyMode: "Mod+Alt+R",
       toggleSourceMode: "Mod+Alt+U"
@@ -370,6 +371,7 @@ describe("native menu", () => {
         openQuickOpen: "CmdOrCtrl+Alt+P",
         toggleAiAgent: "CmdOrCtrl+Shift+Y",
         toggleAiCommand: "CmdOrCtrl+Alt+J",
+        toggleAllFolds: "CmdOrCtrl+Shift+Alt+F",
         toggleMarkdownFiles: "CmdOrCtrl+Alt+M",
         toggleReadOnlyMode: "CmdOrCtrl+Alt+R",
         toggleSourceMode: "CmdOrCtrl+Alt+U"

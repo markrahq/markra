@@ -37,6 +37,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     toggle_file_list: "切換檔案列表",
     toggle_markra_ai: "切換 Markra AI",
     ai_writing_command: "AI 寫作命令",
+    toggle_all_folds: "摺疊/展開全部",
     toggle_read_only_mode: "切換唯讀模式",
     toggle_source_mode: "切換原始碼模式",
     bold: "粗體",

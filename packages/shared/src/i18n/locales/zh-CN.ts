@@ -481,6 +481,7 @@ const messages: LocaleMessages = {
   "editor.expandSection": "展开章节",
   "editor.collapseListItem": "折叠列表项",
   "editor.expandListItem": "展开列表项",
+  "editor.toggleAllFolds": "折叠/展开全部",
   "editor.htmlSource": "HTML 源码",
   "editor.htmlSourceApply": "应用 HTML 源码",
   "editor.table.addColumnRight": "在右侧新增列",

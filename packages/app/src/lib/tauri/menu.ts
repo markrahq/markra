@@ -66,6 +66,7 @@ export type NativeStaticMenuCommand =
   | "toggleDocumentHistory"
   | "toggleAiAgent"
   | "toggleAiCommand"
+  | "toggleAllFolds"
   | "toggleReadOnlyMode"
   | "toggleSourceMode";
 

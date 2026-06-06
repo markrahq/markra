@@ -37,6 +37,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     toggle_file_list: "Dateiliste umschalten",
     toggle_markra_ai: "Markra AI umschalten",
     ai_writing_command: "KI-Schreibbefehl",
+    toggle_all_folds: "Alles ein-/ausklappen",
     toggle_read_only_mode: "Schreibschutz umschalten",
     toggle_source_mode: "Quellmodus umschalten",
     bold: "Fett",

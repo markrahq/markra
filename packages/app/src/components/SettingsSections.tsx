@@ -464,6 +464,7 @@ const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
   table: "menu.table",
   toggleAiAgent: "app.toggleAiAgent",
   toggleAiCommand: "app.aiCommandDialog",
+  toggleAllFolds: "editor.toggleAllFolds",
   toggleDocumentHistory: "app.documentHistory",
   toggleMarkdownFiles: "app.toggleMarkdownFiles",
   toggleReadOnlyMode: "app.toggleReadOnlyMode",
@@ -510,7 +511,8 @@ const keyboardShortcutSections: Array<{
       "codeBlock",
       "link",
       "image",
-      "table"
+      "table",
+      "toggleAllFolds"
     ]
   }
 ];

@@ -85,6 +85,26 @@ describe("useNativeMenuHandlers", () => {
     });
   });
 
+  it("routes the native all-folds command through the configured editor shortcut", () => {
+    const runEditorShortcut = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        markdownShortcuts: {
+          toggleAllFolds: "Mod+Shift+Alt+F"
+        },
+        runEditorShortcut
+      })
+    );
+
+    result.current.toggleAllFolds?.();
+
+    expect(runEditorShortcut).toHaveBeenCalledWith("F", {
+      altKey: true,
+      shiftKey: true
+    });
+  });
+
   it("routes native application commands to app toggles", () => {
     const closeDocument = vi.fn();
     const checkForUpdates = vi.fn();

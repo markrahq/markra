@@ -330,6 +330,7 @@ const messages: LocaleMessages = {
   "editor.expandSection": "Déplier la section",
   "editor.collapseListItem": "Replier l’élément de liste",
   "editor.expandListItem": "Déplier l’élément de liste",
+  "editor.toggleAllFolds": "Tout replier/déplier",
   "editor.htmlSource": "Source HTML",
   "editor.htmlSourceApply": "Appliquer la source HTML",
   "editor.table.addColumnRight": "Ajouter une colonne à droite",

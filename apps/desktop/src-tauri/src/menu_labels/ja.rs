@@ -37,6 +37,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     toggle_file_list: "ファイルリストを切り替え",
     toggle_markra_ai: "Markra AI を切り替え",
     ai_writing_command: "AI ライティングコマンド",
+    toggle_all_folds: "すべて折りたたみ/展開",
     toggle_read_only_mode: "読み取り専用モードを切り替え",
     toggle_source_mode: "ソースモードを切り替え",
     bold: "太字",

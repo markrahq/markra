@@ -52,6 +52,7 @@ const nativeMarkdownShortcutCommands: Partial<Record<MarkdownShortcutAction, Nat
   table: "insertTable",
   toggleAiAgent: "toggleAiAgent",
   toggleAiCommand: "toggleAiCommand",
+  toggleAllFolds: "toggleAllFolds",
   toggleDocumentHistory: "toggleDocumentHistory",
   toggleMarkdownFiles: "toggleMarkdownFiles",
   toggleReadOnlyMode: "toggleReadOnlyMode",

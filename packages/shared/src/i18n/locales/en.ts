@@ -481,6 +481,7 @@ const messages: BaseLocaleMessages = {
   "editor.expandSection": "Expand section",
   "editor.collapseListItem": "Collapse list item",
   "editor.expandListItem": "Expand list item",
+  "editor.toggleAllFolds": "Toggle all folds",
   "editor.htmlSource": "HTML source",
   "editor.htmlSourceApply": "Apply HTML source",
   "editor.table.addColumnRight": "Add column to the right",

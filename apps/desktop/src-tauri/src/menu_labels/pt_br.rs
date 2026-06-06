@@ -37,6 +37,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     toggle_file_list: "Alternar lista de arquivos",
     toggle_markra_ai: "Alternar Markra AI",
     ai_writing_command: "Comando de escrita com IA",
+    toggle_all_folds: "Recolher/expandir tudo",
     toggle_read_only_mode: "Alternar modo somente leitura",
     toggle_source_mode: "Alternar modo fonte",
     bold: "Negrito",

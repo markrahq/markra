@@ -25,7 +25,8 @@ export const keyboardShortcutActions = [
   "codeBlock",
   "link",
   "image",
-  "table"
+  "table",
+  "toggleAllFolds"
 ] as const;
 
 export const markdownFormattingShortcutActions = [
@@ -64,9 +65,10 @@ export const defaultKeyboardShortcuts: KeyboardShortcutBindings = {
   openQuickOpen: "Mod+P",
   quote: "Mod+Shift+B",
   strikethrough: "Mod+Shift+X",
-  table: "Mod+Alt+T",
+  table: "Mod+Shift+Alt+T",
   toggleAiAgent: "Mod+Alt+J",
   toggleAiCommand: "Mod+Shift+J",
+  toggleAllFolds: "Mod+Alt+T",
   toggleDocumentHistory: "Mod+Shift+H",
   toggleMarkdownFiles: "Mod+Shift+M",
   toggleReadOnlyMode: "Mod+Alt+L",
@@ -74,6 +76,7 @@ export const defaultKeyboardShortcuts: KeyboardShortcutBindings = {
 };
 
 const previousDefaultKeyboardShortcuts: Partial<KeyboardShortcutBindings> = {
+  table: "Mod+Alt+T",
   toggleAiAgent: "Mod+Shift+A",
   toggleSourceMode: "Mod+Alt+V"
 };

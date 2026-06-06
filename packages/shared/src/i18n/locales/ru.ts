@@ -330,6 +330,7 @@ const messages: LocaleMessages = {
   "editor.expandSection": "Развернуть раздел",
   "editor.collapseListItem": "Свернуть пункт списка",
   "editor.expandListItem": "Развернуть пункт списка",
+  "editor.toggleAllFolds": "Свернуть/развернуть всё",
   "editor.htmlSource": "HTML-исходник",
   "editor.htmlSourceApply": "Применить HTML-исходник",
   "editor.table.addColumnRight": "Добавить столбец справа",
