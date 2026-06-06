@@ -187,7 +187,8 @@ export function useNativeMenuHandlers({
         formatCodeBlock: () => runMarkdownShortcut("codeBlock"),
         insertLink: () => latestOptionsRef.current.insertMarkdownSnippet("[", "](https://)", "text"),
         insertImage: () => latestOptionsRef.current.insertMarkdownSnippet("![", "](https://)", "alt"),
-        insertTable: () => latestOptionsRef.current.insertMarkdownTable()
+        insertTable: () => latestOptionsRef.current.insertMarkdownTable(),
+        toggleAllFolds: () => runMarkdownShortcut("toggleAllFolds")
       };
 
       if (clearRecentFiles) handlers.clearRecentFiles = () => latestOptionsRef.current.clearRecentFiles?.();

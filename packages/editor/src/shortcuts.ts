@@ -38,6 +38,7 @@ import {
   type MarkdownFormattingShortcutAction,
   type ParsedKeyboardShortcut
 } from "@markra/shared";
+import { toggleAllFoldableBlocks } from "./fold-toggle.ts";
 import { finalizeActiveLiveMarkdown, markraLiveMarkdownSpecs } from "./input-rules.ts";
 
 export const markdownShortcutActions = keyboardShortcutActions;
@@ -337,6 +338,17 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
           command = undo;
         } else if (matchesKeyboardShortcut(event, "z", { shift: true }) || matchesKeyboardShortcut(event, "y")) {
           command = redo;
+        } else if (matchesKeyboardShortcutEvent(event, shortcuts.toggleAllFolds)) {
+          const handled = toggleAllFoldableBlocks(view, {
+            bulletList,
+            heading,
+            listItem,
+            orderedList
+          });
+          if (!handled) return false;
+
+          event.preventDefault();
+          return true;
         } else {
           const action = markdownFormattingShortcutActions.find((candidate) =>
             matchesKeyboardShortcutEvent(event, shortcuts[candidate])

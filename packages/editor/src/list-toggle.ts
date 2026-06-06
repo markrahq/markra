@@ -20,6 +20,9 @@ type CollapsedListState = {
 type ListToggleMeta = {
   from: number;
   type: "toggle";
+} | {
+  collapsed: boolean;
+  type: "set-all";
 };
 
 type ListRange = {
@@ -231,49 +234,106 @@ function buildListToggleDecorations(
   return DecorationSet.create(doc, decorations);
 }
 
-export function markraListTogglePlugin(labels?: Partial<ListToggleLabels>) {
+export function listItemCollapseInfo(
+  state: EditorState,
+  listItem: NodeType,
+  bulletList: NodeType,
+  orderedList: NodeType
+) {
+  const items = collectCollapsibleListItems(state.doc, listItem, bulletList, orderedList);
+  const itemByStart = new Set(items.map((item) => item.from));
+  const pluginState = listToggleKey.getState(state) ?? emptyCollapsedListState;
+  const collapsed = normalizeCollapsedPositions(state, listItem, pluginState.collapsed)
+    .filter((position) => itemByStart.has(position));
+
+  return {
+    collapsedCount: collapsed.length,
+    totalCount: items.length
+  };
+}
+
+export function setAllListItemsCollapsed(
+  view: EditorView,
+  listItem: NodeType,
+  bulletList: NodeType,
+  orderedList: NodeType,
+  collapsed: boolean
+) {
+  const info = listItemCollapseInfo(view.state, listItem, bulletList, orderedList);
+  if (info.totalCount === 0) return false;
+
+  view.dispatch(
+    view.state.tr.setMeta(listToggleKey, {
+      collapsed,
+      type: "set-all"
+    } satisfies ListToggleMeta)
+  );
+  view.focus();
+
+  return true;
+}
+
+export function createListTogglePlugin(
+  listItem: NodeType,
+  bulletList: NodeType,
+  orderedList: NodeType,
+  labels?: Partial<ListToggleLabels>
+) {
   const resolvedLabels = normalizeListToggleLabels(labels);
 
-  return $prose((ctx) => {
-    const bulletList = bulletListSchema.type(ctx);
-    const listItem = listItemSchema.type(ctx);
-    const orderedList = orderedListSchema.type(ctx);
+  return new Plugin<CollapsedListState>({
+    key: listToggleKey,
+    state: {
+      init: () => emptyCollapsedListState,
+      apply(transaction, value, _oldState, newState) {
+        const meta = transaction.getMeta(listToggleKey) as ListToggleMeta | undefined;
+        const mappedCollapsed = transaction.docChanged
+          ? mapCollapsedPositions(transaction, newState, listItem, value.collapsed)
+          : value.collapsed;
 
-    return new Plugin<CollapsedListState>({
-      key: listToggleKey,
-      state: {
-        init: () => emptyCollapsedListState,
-        apply(transaction, value, _oldState, newState) {
-          const meta = transaction.getMeta(listToggleKey) as ListToggleMeta | undefined;
-          const mappedCollapsed = transaction.docChanged
-            ? mapCollapsedPositions(transaction, newState, listItem, value.collapsed)
-            : value.collapsed;
+        if (!meta) {
+          return mappedCollapsed === value.collapsed ? value : { collapsed: mappedCollapsed };
+        }
 
-          if (meta?.type !== "toggle") {
-            return mappedCollapsed === value.collapsed ? value : { collapsed: mappedCollapsed };
-          }
-
-          const listItemFrom = findListItemStartAtPosition(newState, listItem, meta.from);
-          if (listItemFrom === null) return { collapsed: mappedCollapsed };
-
+        if (meta.type === "set-all") {
           return {
-            collapsed: toggleCollapsedPosition(mappedCollapsed, listItemFrom)
+            collapsed: meta.collapsed
+              ? collectCollapsibleListItems(newState.doc, listItem, bulletList, orderedList).map((item) => item.from)
+              : []
           };
         }
-      },
-      props: {
-        decorations: (state) => {
-          const pluginState = listToggleKey.getState(state) ?? emptyCollapsedListState;
-          return buildListToggleDecorations(
-            state.doc,
-            pluginState.collapsed,
-            listItem,
-            bulletList,
-            orderedList,
-            resolvedLabels
-          );
-        }
+
+        const listItemFrom = findListItemStartAtPosition(newState, listItem, meta.from);
+        if (listItemFrom === null) return { collapsed: mappedCollapsed };
+
+        return {
+          collapsed: toggleCollapsedPosition(mappedCollapsed, listItemFrom)
+        };
       }
-    });
+    },
+    props: {
+      decorations: (state) => {
+        const pluginState = listToggleKey.getState(state) ?? emptyCollapsedListState;
+        return buildListToggleDecorations(
+          state.doc,
+          pluginState.collapsed,
+          listItem,
+          bulletList,
+          orderedList,
+          resolvedLabels
+        );
+      }
+    }
   });
+}
+
+export function markraListTogglePlugin(labels?: Partial<ListToggleLabels>) {
+  return $prose((ctx) =>
+    createListTogglePlugin(
+      listItemSchema.type(ctx),
+      bulletListSchema.type(ctx),
+      orderedListSchema.type(ctx),
+      labels
+    )
+  );
 }

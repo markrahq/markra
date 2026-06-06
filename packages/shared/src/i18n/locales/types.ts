@@ -492,6 +492,7 @@ export type I18nKey =
   | "editor.expandSection"
   | "editor.collapseListItem"
   | "editor.expandListItem"
+  | "editor.toggleAllFolds"
   | "editor.htmlSource"
   | "editor.htmlSourceApply"
   | "editor.table.addColumnRight"

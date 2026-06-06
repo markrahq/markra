@@ -37,6 +37,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     toggle_file_list: "Показать или скрыть список файлов",
     toggle_markra_ai: "Показать или скрыть Markra AI",
     ai_writing_command: "Команда письма ИИ",
+    toggle_all_folds: "Свернуть/развернуть всё",
     toggle_read_only_mode: "Переключить режим только для чтения",
     toggle_source_mode: "Переключить режим исходника",
     bold: "Жирный",

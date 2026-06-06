@@ -533,7 +533,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         app,
         "insertTable",
         labels.table,
-        &menu_accelerator(accelerators, "insertTable", "CmdOrCtrl+Alt+T"),
+        &menu_accelerator(accelerators, "insertTable", "CmdOrCtrl+Shift+Alt+T"),
     )?;
     let toggle_file_list = app_menu_item(
         app,
@@ -552,6 +552,12 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         "toggleAiCommand",
         labels.ai_writing_command,
         &menu_accelerator(accelerators, "toggleAiCommand", "CmdOrCtrl+Shift+J"),
+    )?;
+    let toggle_all_folds = app_menu_item(
+        app,
+        "toggleAllFolds",
+        labels.toggle_all_folds,
+        &menu_accelerator(accelerators, "toggleAllFolds", "CmdOrCtrl+Alt+T"),
     )?;
     let toggle_read_only_mode = app_menu_item(
         app,
@@ -602,6 +608,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
             &toggle_file_list,
             &toggle_markra_ai,
             &ai_writing_command,
+            &toggle_all_folds,
             &toggle_read_only_mode,
             &toggle_source_mode,
         ])
@@ -742,6 +749,7 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
             | "toggleMarkdownFiles"
             | "toggleAiAgent"
             | "toggleAiCommand"
+            | "toggleAllFolds"
             | "toggleReadOnlyMode"
             | "toggleSourceMode"
     )
@@ -783,6 +791,7 @@ mod tests {
         assert!(is_frontend_menu_command("toggleMarkdownFiles"));
         assert!(is_frontend_menu_command("toggleAiAgent"));
         assert!(is_frontend_menu_command("toggleAiCommand"));
+        assert!(is_frontend_menu_command("toggleAllFolds"));
         assert!(is_frontend_menu_command("toggleReadOnlyMode"));
         assert!(is_frontend_menu_command("toggleSourceMode"));
         assert!(!is_frontend_menu_command("markra:file"));

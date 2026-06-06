@@ -330,6 +330,7 @@ const messages: LocaleMessages = {
   "editor.expandSection": "섹션 펼치기",
   "editor.collapseListItem": "목록 항목 접기",
   "editor.expandListItem": "목록 항목 펼치기",
+  "editor.toggleAllFolds": "모두 접기/펼치기",
   "editor.htmlSource": "HTML 소스",
   "editor.htmlSourceApply": "HTML 소스 적용",
   "editor.table.addColumnRight": "오른쪽에 열 추가",

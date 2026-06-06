@@ -29,6 +29,21 @@ describe("keyboard shortcuts", () => {
     }).openQuickOpen).toBe("Mod+Alt+P");
   });
 
+  it("includes all folds as a configurable editor shortcut", () => {
+    expect(keyboardShortcutActions).toContain("toggleAllFolds");
+    expect(defaultKeyboardShortcuts.toggleAllFolds).toBe("Mod+Alt+T");
+    expect(normalizeKeyboardShortcuts({
+      toggleAllFolds: "Mod+Shift+Alt+F"
+    }).toggleAllFolds).toBe("Mod+Shift+Alt+F");
+  });
+
+  it("migrates the previous table shortcut away from all folds", () => {
+    expect(defaultKeyboardShortcuts.table).toBe("Mod+Shift+Alt+T");
+    expect(normalizeKeyboardShortcuts({
+      table: "Mod+Alt+T"
+    }).table).toBe("Mod+Shift+Alt+T");
+  });
+
   it("reserves Mod+H for the document replace shortcut", () => {
     expect(normalizeKeyboardShortcuts({
       toggleDocumentHistory: "Mod+H"

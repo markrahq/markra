@@ -12,7 +12,9 @@
     "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json --noEmit"
+    "build": "tsc -p tsconfig.build.json --noEmit",
+    "test": "vitest run --environment jsdom --globals",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
     "@markra/ai": "workspace:*",
