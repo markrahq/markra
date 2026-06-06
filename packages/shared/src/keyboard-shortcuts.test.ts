@@ -21,6 +21,14 @@ describe("keyboard shortcuts", () => {
     }).toggleDocumentHistory).toBe("Mod+Alt+H");
   });
 
+  it("includes quick open as a configurable application shortcut", () => {
+    expect(keyboardShortcutActions).toContain("openQuickOpen");
+    expect(defaultKeyboardShortcuts.openQuickOpen).toBe("Mod+P");
+    expect(normalizeKeyboardShortcuts({
+      openQuickOpen: "Mod+Alt+P"
+    }).openQuickOpen).toBe("Mod+Alt+P");
+  });
+
   it("reserves Mod+H for the document replace shortcut", () => {
     expect(normalizeKeyboardShortcuts({
       toggleDocumentHistory: "Mod+H"

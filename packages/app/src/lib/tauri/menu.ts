@@ -33,6 +33,7 @@ export type NativeStaticMenuCommand =
   | "checkForUpdates"
   | "openDocument"
   | "openFolder"
+  | "openQuickOpen"
   | "closeDocument"
   | "saveDocument"
   | "saveDocumentAs"

@@ -24,6 +24,7 @@ pub(crate) struct MenuLabels {
     pub(crate) no_recent_files: &'static str,
     pub(crate) clear_recent_files: &'static str,
     pub(crate) open_folder: &'static str,
+    pub(crate) quick_open: &'static str,
     pub(crate) close_document: &'static str,
     pub(crate) save_document: &'static str,
     pub(crate) save_document_as: &'static str,

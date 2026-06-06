@@ -11,6 +11,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     no_recent_files: "最近使ったファイルはありません",
     clear_recent_files: "最近使ったファイルを消去",
     open_folder: "フォルダを開く...",
+    quick_open: "クイックオープン...",
     close_document: "ファイルを閉じる",
     save_document: "保存",
     save_document_as: "別名で保存...",

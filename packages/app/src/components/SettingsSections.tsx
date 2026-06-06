@@ -456,6 +456,7 @@ const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
   inlineCode: "menu.inlineCode",
   italic: "menu.italic",
   link: "menu.link",
+  openQuickOpen: "app.quickOpen",
   orderedList: "menu.orderedList",
   paragraph: "menu.paragraph",
   quote: "menu.quote",
@@ -483,6 +484,7 @@ const keyboardShortcutSections: Array<{
   {
     labelKey: "settings.editor.shortcutsGroupApp",
     actions: [
+      "openQuickOpen",
       "toggleMarkdownFiles",
       "toggleDocumentHistory",
       "toggleAiAgent",

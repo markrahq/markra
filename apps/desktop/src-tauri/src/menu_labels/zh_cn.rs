@@ -11,6 +11,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     no_recent_files: "没有最近文件",
     clear_recent_files: "清除最近文件",
     open_folder: "打开文件夹...",
+    quick_open: "快速打开...",
     close_document: "关闭文件",
     save_document: "保存",
     save_document_as: "另存为...",

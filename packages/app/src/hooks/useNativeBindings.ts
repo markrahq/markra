@@ -39,6 +39,7 @@ type NativeMenuHandlerOptions = {
   markdownShortcuts?: MarkdownShortcutMap;
   openDocument: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
+  openQuickOpen?: () => unknown | Promise<unknown>;
   openRecentFile?: (file: RecentMarkdownFile) => unknown | Promise<unknown>;
   runAiQuickAction?: (intent: NativeAiQuickActionIntent, prompt: string) => unknown | Promise<unknown>;
   runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "shiftKey">) => unknown;
@@ -62,6 +63,7 @@ type ApplicationShortcutOptions = {
   openDocumentSearch?: () => unknown | Promise<unknown>;
   openWorkspaceSearch?: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
+  openQuickOpen?: () => unknown | Promise<unknown>;
   platform?: DesktopPlatform;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
@@ -90,6 +92,7 @@ export function useNativeMenuHandlers({
   markdownShortcuts,
   openDocument,
   openFolder,
+  openQuickOpen,
   openRecentFile,
   runAiQuickAction,
   runEditorShortcut,
@@ -121,6 +124,7 @@ export function useNativeMenuHandlers({
     normalizedMarkdownShortcuts,
     openDocument,
     openFolder,
+    openQuickOpen,
     openRecentFile,
     runAiQuickAction,
     runEditorShortcut,
@@ -148,6 +152,7 @@ export function useNativeMenuHandlers({
     normalizedMarkdownShortcuts,
     openDocument,
     openFolder,
+    openQuickOpen,
     openRecentFile,
     runAiQuickAction,
     runEditorShortcut,
@@ -201,6 +206,7 @@ export function useNativeMenuHandlers({
         handlers.aiTranslate = () => runLatestAiQuickAction("translate");
       }
       if (openRecentFile) handlers.openRecentFile = (file) => latestOptionsRef.current.openRecentFile?.(file);
+      if (openQuickOpen) handlers.openQuickOpen = () => latestOptionsRef.current.openQuickOpen?.();
       if (toggleAiAgent) handlers.toggleAiAgent = () => latestOptionsRef.current.toggleAiAgent?.();
       if (toggleAiCommand) handlers.toggleAiCommand = () => latestOptionsRef.current.toggleAiCommand?.();
       if (toggleDocumentHistory) {
@@ -338,6 +344,7 @@ export function useApplicationShortcuts({
   openDocumentSearch,
   openWorkspaceSearch,
   openFolder,
+  openQuickOpen,
   platform = resolveDesktopPlatform(),
   saveDocument,
   saveDocumentAs,
@@ -359,6 +366,7 @@ export function useApplicationShortcuts({
       if (event.defaultPrevented || !isModKey) return;
 
       const configurableActions: Array<[string, (() => unknown | Promise<unknown>) | undefined]> = [
+        [normalizedMarkdownShortcuts.openQuickOpen, openQuickOpen],
         [normalizedMarkdownShortcuts.toggleMarkdownFiles, toggleMarkdownFiles],
         [normalizedMarkdownShortcuts.toggleDocumentHistory, toggleDocumentHistory],
         [normalizedMarkdownShortcuts.toggleAiAgent, toggleAiAgent],
@@ -398,6 +406,10 @@ export function useApplicationShortcuts({
         event.stopPropagation();
         openDocumentReplace();
       } else if (event.altKey) {
+        if (key === "p" && !event.shiftKey && exportPdf) {
+          event.preventDefault();
+          exportPdf();
+        }
         return;
       } else if (key === "s" && event.shiftKey) {
         event.preventDefault();
@@ -437,6 +449,7 @@ export function useApplicationShortcuts({
     openDocumentSearch,
     openWorkspaceSearch,
     openFolder,
+    openQuickOpen,
     platform,
     saveDocument,
     saveDocumentAs,

@@ -35,6 +35,7 @@ import {
 } from "./components/MarkdownTabsBar";
 import { NativeTitleBar } from "./components/NativeTitleBar";
 import { QuietStatus } from "./components/QuietStatus";
+import { QuickOpenPanel } from "./components/QuickOpenPanel";
 import { SideDocumentPane } from "./components/SideDocumentPane";
 import { SettingsWindow } from "./components/SettingsWindow";
 import { useAppLanguage } from "./hooks/useAppLanguage";
@@ -387,6 +388,7 @@ function WorkspaceApp() {
   const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
   const [globalSearchResponse, setGlobalSearchResponse] = useState<WorkspaceSearchResponse>(emptyWorkspaceSearchResponse);
   const [globalSearchRecentQueries, setGlobalSearchRecentQueries] = useState<string[]>([]);
+  const [quickOpenOpen, setQuickOpenOpen] = useState(false);
   const [documentHistoryOpen, setDocumentHistoryOpen] = useState(false);
   const [documentHistoryRefreshKey, setDocumentHistoryRefreshKey] = useState(0);
   const [splitVisualPanePercent, setSplitVisualPanePercent] = useState(defaultSplitVisualPanePercent);
@@ -1876,7 +1878,16 @@ function WorkspaceApp() {
     setActiveImageFile(null);
     await openTreeMarkdownFile(file);
   }, [captureActiveDocumentViewState, openImageTab, openTreeMarkdownFile]);
+  const handleQuickOpenOpen = useCallback(() => {
+    setGlobalSearchOpen(false);
+    setDocumentSearchOpen(false);
+    setQuickOpenOpen(true);
+  }, []);
+  const handleQuickOpenClose = useCallback(() => {
+    setQuickOpenOpen(false);
+  }, []);
   const handleGlobalSearchOpen = useCallback(() => {
+    setQuickOpenOpen(false);
     setGlobalSearchOpen(true);
   }, []);
   const handleGlobalSearchClose = useCallback(() => {
@@ -2066,6 +2077,19 @@ function WorkspaceApp() {
     splitMode,
     updateActiveAiSelection
   ]);
+  const handleQuickOpenFileOpen = useCallback(async (
+    file: NativeMarkdownFolderFile,
+    options: { toSide: boolean }
+  ) => {
+    setQuickOpenOpen(false);
+
+    if (options.toSide) {
+      await handleOpenTreeFileToSide(file);
+      return;
+    }
+
+    await handleOpenTreeFile(file);
+  }, [handleOpenTreeFile, handleOpenTreeFileToSide]);
   const handleOpenMarkdownFile = useCallback(async () => {
     captureActiveDocumentViewState();
     setActiveImageFile(null);
@@ -2805,6 +2829,7 @@ function WorkspaceApp() {
     openRecentFile: handleOpenRecentMarkdownFile,
     clearRecentFiles: clearRecentMarkdownFiles,
     openFolder: handleOpenMarkdownFolder,
+    openQuickOpen: handleQuickOpenOpen,
     runAiQuickAction: aiFeatureEnabled ? handleAiContextMenuAction : undefined,
     runEditorShortcut: handleRunEditorShortcut,
     saveDocument: handleSaveDocument,
@@ -2833,6 +2858,7 @@ function WorkspaceApp() {
     openDocumentSearch: handleDocumentSearchOpen,
     openWorkspaceSearch: handleGlobalSearchOpen,
     openFolder: handleOpenMarkdownFolder,
+    openQuickOpen: handleQuickOpenOpen,
     platform: desktopPlatform,
     saveDocument: handleSaveDocument,
     saveDocumentAs,
@@ -2843,6 +2869,14 @@ function WorkspaceApp() {
     toggleReadOnlyMode: handleReadOnlyModeToggle,
     toggleSourceMode: handleEditorModeToggle
   });
+
+  const quickOpenFilePaths = useMemo(
+    () => [
+      ...documentTabs.flatMap((tab) => tab.path ? [tab.path] : []),
+      ...imageTabs.map((tab) => tab.path)
+    ],
+    [documentTabs, imageTabs]
+  );
 
   useEffect(() => {
     const handlePreviewAction = (event: Event) => {
@@ -3226,6 +3260,16 @@ function WorkspaceApp() {
                   onOpenResult={handleGlobalSearchResultOpen}
                   onQueryChange={handleGlobalSearchQueryChange}
                   onRecentQuerySelect={handleGlobalSearchRecentQuerySelect}
+                />
+              ) : null}
+              {quickOpenOpen ? (
+                <QuickOpenPanel
+                  currentPath={activeImageFile?.path ?? (hasOpenDocument ? document.path : null)}
+                  files={fileTreeFiles}
+                  language={appLanguage.language}
+                  openFilePaths={quickOpenFilePaths}
+                  onClose={handleQuickOpenClose}
+                  onOpenFile={handleQuickOpenFileOpen}
                 />
               ) : null}
               {documentSearchOpen && documentSearchAvailable ? (

@@ -324,6 +324,45 @@ describe("useApplicationShortcuts", () => {
     expect(openWorkspaceSearch).toHaveBeenCalledTimes(1);
   });
 
+  it("opens quick open from Mod+P instead of exporting PDF", () => {
+    const exportPdf = vi.fn();
+    const openQuickOpen = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        exportPdf,
+        openQuickOpen
+      })
+    );
+
+    const handled = fireEvent.keyDown(window, {
+      key: "p",
+      metaKey: true
+    });
+
+    expect(handled).toBe(false);
+    expect(openQuickOpen).toHaveBeenCalledTimes(1);
+    expect(exportPdf).not.toHaveBeenCalled();
+  });
+
+  it("exports PDF from Mod+Alt+P", () => {
+    const exportPdf = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        exportPdf
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      altKey: true,
+      key: "p",
+      metaKey: true
+    });
+
+    expect(exportPdf).toHaveBeenCalledTimes(1);
+  });
+
   it("opens replace from the document search shortcut with Alt", () => {
     const openDocumentReplace = vi.fn();
     renderHook(() =>

@@ -416,6 +416,12 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
     let open = app_menu_item(app, "openDocument", labels.open_document, "CmdOrCtrl+O")?;
     let open_recent_files = create_open_recent_file_submenu(app, labels, recent_files)?;
     let open_folder = app_menu_item(app, "openFolder", labels.open_folder, "CmdOrCtrl+Shift+O")?;
+    let quick_open = app_menu_item(
+        app,
+        "openQuickOpen",
+        labels.quick_open,
+        &menu_accelerator(accelerators, "openQuickOpen", "CmdOrCtrl+P"),
+    )?;
     let close = app_menu_item(app, "closeDocument", labels.close_document, "CmdOrCtrl+W")?;
     let save = app_menu_item(app, "saveDocument", labels.save_document, "CmdOrCtrl+S")?;
     let save_as = app_menu_item(
@@ -424,7 +430,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         labels.save_document_as,
         "CmdOrCtrl+Shift+S",
     )?;
-    let export_pdf = app_menu_item(app, "exportPdf", labels.export_pdf, "CmdOrCtrl+P")?;
+    let export_pdf = app_menu_item(app, "exportPdf", labels.export_pdf, "CmdOrCtrl+Alt+P")?;
     let export_html = app_menu_item(app, "exportHtml", labels.export_html, "CmdOrCtrl+Shift+E")?;
     let export_docx = app_menu_item_without_accelerator(app, "exportDocx", labels.export_docx)?;
     let export_epub = app_menu_item_without_accelerator(app, "exportEpub", labels.export_epub)?;
@@ -563,7 +569,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
     let app_menu = create_markra_app_submenu(app, labels)?;
 
     let file_menu = SubmenuBuilder::with_id(app, "markra:file", labels.file)
-        .items(&[&new, &open, &open_recent_files, &open_folder, &close])
+        .items(&[&new, &open, &open_recent_files, &open_folder, &quick_open, &close])
         .separator()
         .items(&[&save, &save_as])
         .separator()
@@ -702,6 +708,7 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
             | CLEAR_RECENT_FILES_COMMAND
             | "openDocument"
             | "openFolder"
+            | "openQuickOpen"
             | "closeDocument"
             | "saveDocument"
             | "saveDocumentAs"
@@ -755,6 +762,7 @@ mod tests {
         assert!(is_frontend_menu_command("openRecentFile:0"));
         assert!(is_frontend_menu_command("clearRecentFiles"));
         assert!(is_frontend_menu_command("openFolder"));
+        assert!(is_frontend_menu_command("openQuickOpen"));
         assert!(is_frontend_menu_command("closeDocument"));
         assert!(is_frontend_menu_command("saveDocument"));
         assert!(is_frontend_menu_command("exportPdf"));

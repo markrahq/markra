@@ -4,6 +4,7 @@ type ShortcutModifiers = {
 };
 
 export const keyboardShortcutActions = [
+  "openQuickOpen",
   "toggleMarkdownFiles",
   "toggleDocumentHistory",
   "toggleAiAgent",
@@ -60,6 +61,7 @@ export const defaultKeyboardShortcuts: KeyboardShortcutBindings = {
   link: "Mod+K",
   orderedList: "Mod+Shift+7",
   paragraph: "Mod+Alt+0",
+  openQuickOpen: "Mod+P",
   quote: "Mod+Shift+B",
   strikethrough: "Mod+Shift+X",
   table: "Mod+Alt+T",

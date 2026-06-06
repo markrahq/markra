@@ -11,6 +11,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     no_recent_files: "최근 파일 없음",
     clear_recent_files: "최근 파일 지우기",
     open_folder: "폴더 열기...",
+    quick_open: "빠른 열기...",
     close_document: "파일 닫기",
     save_document: "저장",
     save_document_as: "다른 이름으로 저장...",

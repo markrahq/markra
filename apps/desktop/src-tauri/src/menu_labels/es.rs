@@ -11,6 +11,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     no_recent_files: "No hay archivos recientes",
     clear_recent_files: "Borrar archivos recientes",
     open_folder: "Abrir carpeta...",
+    quick_open: "Apertura rapida...",
     close_document: "Cerrar archivo",
     save_document: "Guardar",
     save_document_as: "Guardar como...",

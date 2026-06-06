@@ -44,6 +44,7 @@ const nativeMarkdownShortcutCommands: Partial<Record<MarkdownShortcutAction, Nat
   inlineCode: "formatInlineCode",
   italic: "formatItalic",
   link: "insertLink",
+  openQuickOpen: "openQuickOpen",
   orderedList: "formatOrderedList",
   paragraph: "formatParagraph",
   quote: "formatQuote",
@@ -143,7 +144,7 @@ export function createEditorContextMenuEntries(
     contextMenuItem(editorId("code-block"), label("menu.codeBlock"), shortcutAccelerator(options.markdownShortcuts, "codeBlock"), handlers.formatCodeBlock)
   ];
   const exportMenu = contextMenuSubmenu(editorId("export"), label("menu.export"), [
-    contextMenuItem(editorId("export-pdf"), label("menu.exportPdf"), "CmdOrCtrl+P", handlers.exportPdf),
+    contextMenuItem(editorId("export-pdf"), label("menu.exportPdf"), "CmdOrCtrl+Alt+P", handlers.exportPdf),
     contextMenuItem(editorId("export-html"), label("menu.exportHtml"), "CmdOrCtrl+Shift+E", handlers.exportHtml),
     contextMenuItem(editorId("export-docx"), label("menu.exportDocx"), undefined, handlers.exportDocx),
     contextMenuItem(editorId("export-epub"), label("menu.exportEpub"), undefined, handlers.exportEpub),
