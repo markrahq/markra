@@ -4,12 +4,14 @@ import {
   createAiAgentSessionId,
   clearStoredRecentMarkdownFiles,
   consumeWelcomeDocumentState,
+  defaultBackupSettings,
   deleteStoredAiAgentSession,
   editorThemeOptions,
   getStoredAiAgentSession,
   getStoredAiAgentPreferences,
   initializeStoredAiAgentSession,
   getStoredAiSettings,
+  getStoredBackupSettings,
   getStoredCustomThemeCss,
   listStoredAiAgentSessions,
   getStoredEditorPreferences,
@@ -23,6 +25,7 @@ import {
   isAppTheme,
   normalizeRecentMarkdownFiles,
   normalizeRecentMarkdownFolders,
+  normalizeBackupSettings,
   normalizeEditorPreferences,
   normalizeWebSearchSettings,
   normalizeExportSettings,
@@ -36,6 +39,7 @@ import {
   saveStoredAiAgentSessionTitle,
   saveStoredAiSettings,
   saveStoredCustomThemeCss,
+  saveStoredBackupSettings,
   saveStoredEditorPreferences,
   saveStoredExportSettings,
   saveStoredLanguage,
@@ -255,6 +259,35 @@ describe("app settings", () => {
     });
 
     expect(store.get).toHaveBeenCalledWith("webSearch");
+  });
+
+  it("loads backup settings with local backup disabled by default", async () => {
+    store.get.mockResolvedValue(undefined);
+
+    await expect(getStoredBackupSettings()).resolves.toEqual(defaultBackupSettings);
+
+    expect(store.get).toHaveBeenCalledWith("backupSettings");
+  });
+
+  it("normalizes and persists backup settings", async () => {
+    const settings = normalizeBackupSettings({
+      backupOnExit: true,
+      intervalMinutes: 8.4,
+      lastBackupAt: 1_700_000_000_000,
+      targetPath: " /mock-backups "
+    });
+
+    expect(settings).toEqual({
+      backupOnExit: true,
+      intervalMinutes: 8,
+      lastBackupAt: 1_700_000_000_000,
+      targetPath: "/mock-backups"
+    });
+
+    await saveStoredBackupSettings(settings);
+
+    expect(store.set).toHaveBeenCalledWith("backupSettings", settings);
+    expect(store.save).toHaveBeenCalledTimes(1);
   });
 
   it("loads the default export settings", async () => {

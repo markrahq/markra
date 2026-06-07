@@ -7,6 +7,7 @@ import {
   Download,
   Eye,
   FileText,
+  FolderOpen,
   HardDrive,
   History,
   Languages,
@@ -57,9 +58,11 @@ import {
 import {
   defaultTitlebarActions,
   appThemeOptions,
+  defaultBackupSettings,
   defaultCustomThemeCss,
   reorderTitlebarActions,
   type AppTheme,
+  type BackupSettings as BackupSettingsValue,
   type EditorPreferences,
   type ExportSettings as ExportSettingsValue,
   type ImageUploadProvider,
@@ -1051,16 +1054,19 @@ function applyExportMarginPreset(settings: ExportSettingsValue, preset: PdfMargi
 
 function SettingsButton({
   children,
+  disabled = false,
   label,
   onClick
 }: {
   children: ReactNode;
+  disabled?: boolean;
   label: string;
   onClick: () => unknown;
 }) {
   return (
     <Button
       className="gap-1.5"
+      disabled={disabled}
       size="sm"
       aria-label={label}
       onClick={onClick}
@@ -1860,7 +1866,6 @@ export function StorageSettings({
       }
     });
   };
-
   return (
     <SettingsSection label={translate("settings.categories.storage")}>
       <SettingsRow
@@ -2107,6 +2112,110 @@ export function StorageSettings({
           />
         </>
       ) : null}
+    </SettingsSection>
+  );
+}
+
+export function BackupSettings({
+  backupRunning = false,
+  onChooseTargetPath = () => {},
+  onRunBackup = () => {},
+  onUpdateSettings = () => {},
+  settings = defaultBackupSettings,
+  translate
+}: {
+  backupRunning?: boolean;
+  onChooseTargetPath?: () => unknown;
+  onRunBackup?: () => unknown;
+  onUpdateSettings?: (settings: BackupSettingsValue) => unknown;
+  settings?: BackupSettingsValue;
+  translate: Translate;
+}) {
+  const lastBackupLabel = settings.lastBackupAt === null
+    ? translate("settings.backup.never")
+    : new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }).format(new Date(settings.lastBackupAt));
+
+  return (
+    <SettingsSection label={translate("settings.categories.backup")}>
+      <SettingsRow
+        title={translate("settings.backup.targetPath")}
+        description={translate("settings.backup.targetPathDescription")}
+        action={
+          <div className="flex items-center gap-2">
+            <SettingsTextInput
+              label={translate("settings.backup.targetPath")}
+              value={settings.targetPath}
+              placeholder="/Users/example/markra-backups"
+              widthClassName="w-72"
+              onChange={(targetPath) =>
+                onUpdateSettings({
+                  ...settings,
+                  targetPath
+                })
+              }
+            />
+            <SettingsButton
+              label={translate("settings.backup.targetPickerTitle")}
+              onClick={onChooseTargetPath}
+            >
+              <FolderOpen aria-hidden="true" size={13} />
+              {translate("settings.backup.chooseTargetPath")}
+            </SettingsButton>
+          </div>
+        }
+      />
+      <SettingsRow
+        title={translate("settings.backup.backupOnExit")}
+        description={translate("settings.backup.backupOnExitDescription")}
+        action={
+          <SettingsSwitch
+            checked={settings.backupOnExit}
+            label={translate("settings.backup.backupOnExit")}
+            onChange={() =>
+              onUpdateSettings({
+                ...settings,
+                backupOnExit: !settings.backupOnExit
+              })
+            }
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.backup.intervalMinutes")}
+        description={translate("settings.backup.intervalMinutesDescription")}
+        action={
+          <SettingsNumberInput
+            label={translate("settings.backup.intervalMinutes")}
+            min={0}
+            max={1440}
+            unit={translate("settings.backup.intervalUnit")}
+            value={settings.intervalMinutes}
+            onChange={(intervalMinutes) =>
+              onUpdateSettings({
+                ...settings,
+                intervalMinutes
+              })
+            }
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.backup.lastBackup")}
+        description={lastBackupLabel}
+        action={
+          <SettingsButton
+            disabled={backupRunning}
+            label={translate("settings.backup.run")}
+            onClick={onRunBackup}
+          >
+            <RefreshCw aria-hidden="true" size={13} />
+            {translate("settings.backup.run")}
+          </SettingsButton>
+        }
+      />
     </SettingsSection>
   );
 }

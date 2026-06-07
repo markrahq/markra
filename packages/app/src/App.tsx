@@ -58,6 +58,7 @@ import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
 import { useSelectionToolbarAnchorRefresh } from "./hooks/useSelectionToolbarAnchorRefresh";
 import { useSideBySideTabs } from "./hooks/useSideBySideTabs";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
+import { useBackupSettings } from "./hooks/useBackupSettings";
 import { useDefaultContextMenuBlocker } from "./hooks/useDefaultContextMenuBlocker";
 import { useWebSearchSettings } from "./hooks/useWebSearchSettings";
 import {
@@ -77,6 +78,7 @@ import {
   type SearchRange
 } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
+import { runMarkdownBackup } from "./lib/backup";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
@@ -127,7 +129,10 @@ import {
   type StoredWorkspaceSideBySideGroup,
   type TitlebarActionPreference
 } from "./lib/settings/app-settings";
-import { notifyAppEditorPreferencesChanged } from "./lib/settings/settings-events";
+import {
+  notifyAppBackupSettingsChanged,
+  notifyAppEditorPreferencesChanged
+} from "./lib/settings/settings-events";
 import { getAppRuntime } from "./runtime";
 import {
   confirmNativeMarkdownFileDelete,
@@ -346,6 +351,7 @@ function WorkspaceApp() {
   const appTheme = useAppTheme();
   const appLanguage = useAppLanguage();
   const aiSettings = useAiSettings();
+  const backupSettings = useBackupSettings();
   const editorPreferences = useEditorPreferences();
   const exportSettings = useExportSettings();
   const webSearchSettings = useWebSearchSettings();
@@ -383,6 +389,8 @@ function WorkspaceApp() {
   const [documentSearchRevealRevision, setDocumentSearchRevealRevision] = useState(0);
   const [visualDocumentSearchMatches, setVisualDocumentSearchMatches] = useState<SearchRange[]>([]);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const backupRunningRef = useRef(false);
+  const backupSourcePathRef = useRef<string | null>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [globalSearchCaseSensitive, setGlobalSearchCaseSensitive] = useState(false);
   const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
@@ -565,7 +573,61 @@ function WorkspaceApp() {
       okLabel: translate("app.confirmDiscardUnsavedMarkdownDocumentAction")
     });
   }, [translate]);
+  const runWorkspaceBackup = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (backupRunningRef.current || backupSettings.loading) return null;
+
+    backupRunningRef.current = true;
+    try {
+      const result = await runMarkdownBackup({
+        settings: backupSettings.settings,
+        sourcePath: backupSourcePathRef.current
+      });
+
+      if (result.status === "backed-up") {
+        await notifyAppBackupSettingsChanged(result.settings);
+        if (!silent) {
+          showAppToast({
+            id: "backup",
+            message: translate("settings.backup.completed"),
+            status: "success"
+          });
+        }
+      } else if (!silent) {
+        showAppToast({
+          id: "backup",
+          message: translate(
+            result.reason === "missing-source"
+              ? "settings.backup.missingSource"
+              : "settings.backup.missingTarget"
+          ),
+          status: "error"
+        });
+      }
+
+      return result;
+    } catch (error) {
+      debug(() => ["[markra-backup] backup failed", {
+        error: error instanceof Error ? error.message : String(error)
+      }]);
+      if (!silent) {
+        showAppToast({
+          id: "backup",
+          message: translate("settings.backup.failed"),
+          status: "error"
+        });
+      }
+      return null;
+    } finally {
+      backupRunningRef.current = false;
+    }
+  }, [backupSettings.loading, backupSettings.settings, translate]);
+  const beforeNativeAppExitBackup = useCallback(async () => {
+    if (!backupSettings.settings.backupOnExit) return;
+
+    await runWorkspaceBackup({ silent: true });
+  }, [backupSettings.settings.backupOnExit, runWorkspaceBackup]);
   const markdownDocument = useMarkdownDocument({
+    beforeNativeAppExit: beforeNativeAppExitBackup,
     confirmDiscardUnsavedChanges,
     documentTabsEnabled: editorPreferences.preferences.showDocumentTabs,
     editorReady: isDocumentEditorReady,
@@ -615,6 +677,33 @@ function WorkspaceApp() {
     sizeBytes: document.sizeBytes ?? null
   };
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
+  backupSourcePathRef.current = fileTreeSourcePath ?? document.path;
+  const backupStatusLabel = useMemo(() => {
+    if (backupSettings.settings.lastBackupAt === null) return null;
+
+    return `${translate("settings.backup.lastBackup")} ${new Intl.DateTimeFormat(undefined, {
+      timeStyle: "short"
+    }).format(new Date(backupSettings.settings.lastBackupAt))}`;
+  }, [backupSettings.settings.lastBackupAt, translate]);
+  useEffect(() => {
+    if (backupSettings.loading) return;
+    if (backupSettings.settings.intervalMinutes <= 0) return;
+    if (!backupSettings.settings.targetPath.trim()) return;
+
+    const intervalMs = backupSettings.settings.intervalMinutes * 60 * 1000;
+    const intervalId = window.setInterval(() => {
+      runWorkspaceBackup({ silent: true }).catch(() => {});
+    }, intervalMs);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [
+    backupSettings.loading,
+    backupSettings.settings.intervalMinutes,
+    backupSettings.settings.targetPath,
+    runWorkspaceBackup
+  ]);
   const hasOpenDocument = document.open;
   const largeMarkdownVisualBlocked =
     hasOpenDocument && !activeImageFile && shouldBlockLargeMarkdownVisual(document.content, {
@@ -3459,6 +3548,7 @@ function WorkspaceApp() {
                     )
                   )}
                   <QuietStatus
+                    backupLabel={backupStatusLabel}
                     dirty={document.dirty}
                     language={appLanguage.language}
                     readOnly={readOnlyMode}

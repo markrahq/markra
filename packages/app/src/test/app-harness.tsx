@@ -51,6 +51,7 @@ import {
   clearStoredRecentMarkdownFiles,
   consumeWelcomeDocumentState,
   deleteStoredAiAgentSession,
+  getStoredBackupSettings,
   getStoredAiAgentPreferences,
   getStoredAiAgentSession,
   getStoredAiAgentSessionSummary,
@@ -73,6 +74,7 @@ import {
   saveStoredAiAgentSession,
   saveStoredAiAgentSessionTitle,
   saveStoredAiSettings,
+  saveStoredBackupSettings,
   saveStoredCustomThemeCss,
   saveStoredEditorPreferences,
   saveStoredExportSettings,
@@ -82,11 +84,13 @@ import {
   saveStoredTheme,
   saveStoredWorkspaceState,
   setStoredAiAgentSessionArchived,
+  normalizeBackupSettings,
   type RecentMarkdownFile,
   type RecentMarkdownFolder
 } from "../lib/settings/app-settings";
 import {
   listenAppAiSettingsChanged,
+  listenAppBackupSettingsChanged,
   listenAppCustomThemeCssChanged,
   listenAppEditorPreferencesChanged,
   listenAppExportSettingsChanged,
@@ -94,6 +98,7 @@ import {
   listenAppThemeChanged,
   listenAppWebSearchSettingsChanged,
   notifyAppAiSettingsChanged,
+  notifyAppBackupSettingsChanged,
   notifyAppCustomThemeCssChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
@@ -183,6 +188,12 @@ vi.mock("../lib/settings/app-settings", () => ({
   createAiAgentSessionId: vi.fn(),
   consumeWelcomeDocumentState: vi.fn(),
   deleteStoredAiAgentSession: vi.fn(),
+  defaultBackupSettings: {
+    backupOnExit: false,
+    intervalMinutes: 0,
+    lastBackupAt: null,
+    targetPath: ""
+  },
   defaultSplitVisualPanePercent: 50,
   splitVisualPanePercentMin: 25,
   splitVisualPanePercentMax: 75,
@@ -342,6 +353,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   getStoredAiAgentSession: vi.fn(),
   getStoredAiAgentSessionSummary: vi.fn(),
   getStoredAiAgentPreferences: vi.fn(),
+  getStoredBackupSettings: vi.fn(),
   getStoredAiSettings: vi.fn(),
   getStoredCustomThemeCss: vi.fn(),
   getStoredEditorPreferences: vi.fn(),
@@ -470,6 +482,13 @@ vi.mock("../lib/settings/app-settings", () => ({
     searxngApiHost: "",
     ...settings
   })),
+  normalizeBackupSettings: vi.fn((settings) => ({
+    backupOnExit: false,
+    intervalMinutes: 0,
+    lastBackupAt: null,
+    targetPath: "",
+    ...(typeof settings === "object" && settings !== null ? settings : {})
+  })),
   normalizeCustomThemeCss: vi.fn((css) => typeof css === "string" ? css.slice(0, 50000) : ":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }"),
   prependRecentMarkdownFile: vi.fn((files: RecentMarkdownFile[], file: RecentMarkdownFile) => [
     file,
@@ -482,6 +501,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   saveStoredAiAgentSession: vi.fn(),
   saveStoredAiAgentSessionTitle: vi.fn(),
   saveStoredAiSettings: vi.fn(),
+  saveStoredBackupSettings: vi.fn(),
   saveStoredCustomThemeCss: vi.fn(),
   saveStoredEditorPreferences: vi.fn(),
   saveStoredExportSettings: vi.fn(),
@@ -496,6 +516,7 @@ vi.mock("../lib/settings/app-settings", () => ({
 
 vi.mock("../lib/settings/settings-events", () => ({
   listenAppAiSettingsChanged: vi.fn(),
+  listenAppBackupSettingsChanged: vi.fn(),
   listenAppCustomThemeCssChanged: vi.fn(),
   listenAppEditorPreferencesChanged: vi.fn(),
   listenAppExportSettingsChanged: vi.fn(),
@@ -503,6 +524,7 @@ vi.mock("../lib/settings/settings-events", () => ({
   listenAppThemeChanged: vi.fn(),
   listenAppWebSearchSettingsChanged: vi.fn(),
   notifyAppAiSettingsChanged: vi.fn(),
+  notifyAppBackupSettingsChanged: vi.fn(),
   notifyAppCustomThemeCssChanged: vi.fn(),
   notifyAppEditorPreferencesChanged: vi.fn(),
   notifyAppExportSettingsChanged: vi.fn(),
@@ -577,6 +599,7 @@ export const mockedResolveDesktopPlatform = vi.mocked(resolveDesktopPlatform);
 export const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 export const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
 export const mockedDeleteStoredAiAgentSession = vi.mocked(deleteStoredAiAgentSession);
+export const mockedGetStoredBackupSettings = vi.mocked(getStoredBackupSettings);
 export const mockedGetStoredAiAgentPreferences = vi.mocked(getStoredAiAgentPreferences);
 export const mockedGetStoredAiAgentSession = vi.mocked(getStoredAiAgentSession);
 export const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSummary);
@@ -600,6 +623,7 @@ export const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession
 export const mockedSaveStoredAiAgentPreferences = vi.mocked(saveStoredAiAgentPreferences);
 export const mockedSaveStoredAiAgentSessionTitle = vi.mocked(saveStoredAiAgentSessionTitle);
 export const mockedSaveStoredAiSettings = vi.mocked(saveStoredAiSettings);
+export const mockedSaveStoredBackupSettings = vi.mocked(saveStoredBackupSettings);
 export const mockedSaveStoredCustomThemeCss = vi.mocked(saveStoredCustomThemeCss);
 export const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPreferences);
 export const mockedSaveStoredExportSettings = vi.mocked(saveStoredExportSettings);
@@ -609,7 +633,9 @@ export const mockedSaveStoredRecentMarkdownFolder = vi.mocked(saveStoredRecentMa
 export const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
 export const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 export const mockedSetStoredAiAgentSessionArchived = vi.mocked(setStoredAiAgentSessionArchived);
+export const mockedNormalizeBackupSettings = vi.mocked(normalizeBackupSettings);
 export const mockedListenAppAiSettingsChanged = vi.mocked(listenAppAiSettingsChanged);
+export const mockedListenAppBackupSettingsChanged = vi.mocked(listenAppBackupSettingsChanged);
 export const mockedListenAppCustomThemeCssChanged = vi.mocked(listenAppCustomThemeCssChanged);
 export const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
 export const mockedListenAppExportSettingsChanged = vi.mocked(listenAppExportSettingsChanged);
@@ -617,6 +643,7 @@ export const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged
 export const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
 export const mockedListenAppWebSearchSettingsChanged = vi.mocked(listenAppWebSearchSettingsChanged);
 export const mockedNotifyAppAiSettingsChanged = vi.mocked(notifyAppAiSettingsChanged);
+export const mockedNotifyAppBackupSettingsChanged = vi.mocked(notifyAppBackupSettingsChanged);
 export const mockedNotifyAppCustomThemeCssChanged = vi.mocked(notifyAppCustomThemeCssChanged);
 export const mockedNotifyAppEditorPreferencesChanged = vi.mocked(notifyAppEditorPreferencesChanged);
 export const mockedNotifyAppExportSettingsChanged = vi.mocked(notifyAppExportSettingsChanged);
@@ -748,6 +775,7 @@ export function installAppTestHarness() {
     mockedGetStoredLanguage.mockReset();
     mockedGetStoredRecentMarkdownFiles.mockReset();
     mockedGetStoredRecentMarkdownFolders.mockReset();
+    mockedGetStoredBackupSettings.mockReset();
     mockedGetStoredAiSettings.mockReset();
     mockedGetStoredAiAgentPreferences.mockReset();
     mockedGetStoredAiAgentSession.mockReset();
@@ -763,10 +791,12 @@ export function installAppTestHarness() {
     mockedRemoveStoredRecentMarkdownFile.mockReset();
     mockedRemoveStoredRecentMarkdownFolder.mockReset();
     mockedResetWelcomeDocumentState.mockReset();
+    mockedNormalizeBackupSettings.mockReset();
     mockedSaveStoredAiAgentPreferences.mockReset();
     mockedSaveStoredAiAgentSession.mockReset();
     mockedSaveStoredAiAgentSessionTitle.mockReset();
     mockedSaveStoredAiSettings.mockReset();
+    mockedSaveStoredBackupSettings.mockReset();
     mockedSaveStoredCustomThemeCss.mockReset();
     mockedSaveStoredEditorPreferences.mockReset();
     mockedSaveStoredExportSettings.mockReset();
@@ -779,12 +809,14 @@ export function installAppTestHarness() {
     mockedListenAppAiSettingsChanged.mockReset();
     mockedListenAppCustomThemeCssChanged.mockReset();
     mockedListenAppEditorPreferencesChanged.mockReset();
+    mockedListenAppBackupSettingsChanged.mockReset();
     mockedListenAppExportSettingsChanged.mockReset();
     mockedListenAppLanguageChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
     mockedNotifyAppAiSettingsChanged.mockReset();
     mockedNotifyAppCustomThemeCssChanged.mockReset();
     mockedNotifyAppEditorPreferencesChanged.mockReset();
+    mockedNotifyAppBackupSettingsChanged.mockReset();
     mockedNotifyAppExportSettingsChanged.mockReset();
     mockedNotifyAppLanguageChanged.mockReset();
     mockedNotifyAppThemeChanged.mockReset();
@@ -850,6 +882,7 @@ export function installAppTestHarness() {
     mockedShowNativeMarkdownFileTreeContextMenu.mockResolvedValue(undefined);
     mockedSetNativeEditorWindowRestoreState.mockResolvedValue(undefined);
     mockedListenAppAiSettingsChanged.mockResolvedValue(() => {});
+    mockedListenAppBackupSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppCustomThemeCssChanged.mockResolvedValue(() => {});
     mockedListenAppEditorPreferencesChanged.mockResolvedValue(() => {});
     mockedListenAppExportSettingsChanged.mockResolvedValue(() => {});
@@ -1010,6 +1043,12 @@ export function installAppTestHarness() {
     mockedGetStoredLanguage.mockResolvedValue("en");
     mockedGetStoredRecentMarkdownFiles.mockResolvedValue([]);
     mockedGetStoredRecentMarkdownFolders.mockResolvedValue([]);
+    mockedGetStoredBackupSettings.mockResolvedValue({
+      backupOnExit: false,
+      intervalMinutes: 0,
+      lastBackupAt: null,
+      targetPath: ""
+    });
     mockedGetStoredCustomThemeCss.mockResolvedValue(":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }");
     mockedGetStoredTheme.mockResolvedValue("light");
     mockedGetStoredWorkspaceState.mockResolvedValue({
@@ -1021,6 +1060,14 @@ export function installAppTestHarness() {
       openFilePaths: []
     });
     mockedResetWelcomeDocumentState.mockResolvedValue(undefined);
+    mockedNormalizeBackupSettings.mockImplementation((settings) => ({
+      backupOnExit: false,
+      intervalMinutes: 0,
+      lastBackupAt: null,
+      targetPath: "",
+      ...(typeof settings === "object" && settings !== null ? settings : {})
+    }));
+    mockedSaveStoredBackupSettings.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentPreferences.mockResolvedValue(undefined);
     mockedInitializeStoredAiAgentSession.mockResolvedValue(undefined);
     mockedListStoredAiAgentSessions.mockResolvedValue([]);

@@ -286,6 +286,7 @@ function isDeletedDocumentPath(documentPath: string, deletedPath: string) {
 }
 
 type UseMarkdownDocumentOptions = {
+  beforeNativeAppExit?: () => unknown | Promise<unknown>;
   confirmDiscardUnsavedChanges?: (document: DocumentState) => boolean | Promise<boolean>;
   documentTabsEnabled?: boolean;
   editorReady?: boolean | (() => boolean);
@@ -316,6 +317,7 @@ function resolveEditorReady(editorReady: boolean | (() => boolean)) {
 }
 
 export function useMarkdownDocument({
+  beforeNativeAppExit,
   confirmDiscardUnsavedChanges,
   documentTabsEnabled = false,
   editorReady = true,
@@ -1499,7 +1501,10 @@ export function useMarkdownDocument({
     listenNativeAppExitRequested(async () => {
       syncActiveDocumentFromEditor();
       const canDiscard = await confirmCanDiscardCurrentDocument();
-      if (canDiscard) await exitNativeApp();
+      if (canDiscard) {
+        await beforeNativeAppExit?.();
+        await exitNativeApp();
+      }
     }).then((nextCleanup) => {
       if (active) {
         cleanup = nextCleanup;
@@ -1513,7 +1518,7 @@ export function useMarkdownDocument({
       active = false;
       cleanup?.();
     };
-  }, [confirmCanDiscardCurrentDocument, syncActiveDocumentFromEditor]);
+  }, [beforeNativeAppExit, confirmCanDiscardCurrentDocument, syncActiveDocumentFromEditor]);
 
   useEffect(() => {
     const path = initialMarkdownFilePath();

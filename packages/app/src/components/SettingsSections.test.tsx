@@ -4,13 +4,16 @@ import { defaultMarkdownShortcuts } from "@markra/editor";
 import { t } from "@markra/shared";
 import {
   defaultCustomThemeCss,
+  defaultBackupSettings,
   defaultEditorPreferences,
+  type BackupSettings as BackupSettingsValue,
   type EditorPreferences
 } from "../lib/settings/app-settings";
 import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../lib/ai-actions";
 import {
   AiSettings,
   AppearanceSettings,
+  BackupSettings,
   EditorSettings,
   GeneralSettings,
   KeyboardShortcutsSettings,
@@ -928,6 +931,8 @@ describe("StorageSettings", () => {
     expect(screen.queryByRole("button", { name: "Use WebDAV storage" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Use PicGo/PicList server" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Use S3-compatible storage" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Backup target" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Back up now" })).not.toBeInTheDocument();
 
     const settingsTypeRow = screen.getByText("Settings type").closest(".settings-row") as HTMLElement | null;
     expect(settingsTypeRow).not.toBeNull();
@@ -1115,6 +1120,79 @@ describe("StorageSettings", () => {
     expect(within(settingsType).getByRole("button", { name: "Show PicGo/PicList settings" })).toBeInTheDocument();
     expect(within(settingsType).queryByRole("button", { name: "Show S3-compatible settings" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "S3 endpoint URL" })).not.toBeInTheDocument();
+  });
+});
+
+describe("BackupSettings", () => {
+  it("updates local backup settings from a dedicated settings panel", () => {
+    const onRunBackup = vi.fn();
+    const onUpdateSettings = vi.fn();
+    const onChooseTargetPath = vi.fn();
+    const settings: BackupSettingsValue = {
+      ...defaultBackupSettings,
+      intervalMinutes: 30,
+      targetPath: "/mock-backups"
+    };
+
+    render(
+      <BackupSettings
+        backupRunning={false}
+        settings={settings}
+        translate={translate}
+        onRunBackup={onRunBackup}
+        onChooseTargetPath={onChooseTargetPath}
+        onUpdateSettings={onUpdateSettings}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Backups" })).toBeInTheDocument();
+    expect(screen.getByText("Never")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Backup target" }), {
+      target: { value: "/mock-backups/daily" }
+    });
+    expect(onUpdateSettings).toHaveBeenCalledWith({
+      ...settings,
+      targetPath: "/mock-backups/daily"
+    });
+
+    fireEvent.click(screen.getByRole("switch", { name: "Back up on exit" }));
+    expect(onUpdateSettings).toHaveBeenCalledWith({
+      ...settings,
+      backupOnExit: true
+    });
+
+    expect(screen.queryByRole("switch", { name: "Mirror sync target" })).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Automatic backup interval" }), {
+      target: { value: "15" }
+    });
+    expect(onUpdateSettings).toHaveBeenCalledWith({
+      ...settings,
+      intervalMinutes: 15
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Back up now" }));
+
+    expect(onRunBackup).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose backup target folder" }));
+
+    expect(onChooseTargetPath).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables manual backup while a backup is running", () => {
+    render(
+      <BackupSettings
+        backupRunning={true}
+        settings={defaultBackupSettings}
+        translate={translate}
+        onRunBackup={vi.fn()}
+        onUpdateSettings={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Back up now" })).toBeDisabled();
   });
 });
 

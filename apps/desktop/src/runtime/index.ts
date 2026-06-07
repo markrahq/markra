@@ -53,6 +53,7 @@ export const desktopRuntime = {
     updater: true
   },
   files: {
+    backupMarkdownFolder: files.backupNativeMarkdownFolder,
     confirmMarkdownFileDelete: files.confirmNativeMarkdownFileDelete,
     confirmUnsavedMarkdownDocumentDiscard: files.confirmNativeUnsavedMarkdownDocumentDiscard,
     createMarkdownTreeFile: files.createNativeMarkdownTreeFile,

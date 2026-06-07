@@ -287,6 +287,17 @@ describe("web file runtime", () => {
     await expect(runtime.files.readMarkdownTemplateFile("standup.md")).resolves.toBe("");
   });
 
+  it("rejects local folder backups in the web runtime", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB
+    });
+
+    await expect(runtime.files.backupMarkdownFolder({
+      sourcePath: "web-folder://source",
+      targetPath: "/mock-backups"
+    })).rejects.toThrow("Local folder backups require the desktop runtime.");
+  });
+
   it("downloads Markdown and rendered HTML exports when no writable file handle is available", async () => {
     const downloads: WebDownloadFile[] = [];
     const runtime = createWebRuntime({

@@ -11,6 +11,7 @@ import type {
 import type { NativeAppUpdate } from "../lib/tauri/updater";
 import type {
   CreateNativeMarkdownTreeFileOptions,
+  BackupNativeMarkdownFolderInput,
   DownloadNativeWebImageInput,
   NativeMarkdownDroppedTarget,
   NativeMarkdownFile,
@@ -22,6 +23,7 @@ import type {
   NativeMarkdownFolderFile,
   NativeMarkdownImageFile,
   NativeMarkdownOpenTarget,
+  NativeMarkdownBackupSummary,
   NativeMarkdownPickerLabels,
   NativeMarkdownTreeChangeHandler,
   NativePandocExportFormat,
@@ -118,6 +120,7 @@ export type AppFileRuntime = {
     fileName: string,
     labels: { cancelLabel: string; message: string; okLabel: string }
   ) => Promise<boolean>;
+  backupMarkdownFolder: (input: BackupNativeMarkdownFolderInput) => Promise<NativeMarkdownBackupSummary>;
   createMarkdownTreeFile: (
     rootPath: string,
     fileName: string,
@@ -304,6 +307,7 @@ function createDefaultFileRuntime(): AppFileRuntime {
   return {
     confirmMarkdownFileDelete: async () => false,
     confirmUnsavedMarkdownDocumentDiscard: async () => false,
+    backupMarkdownFolder: () => unsupportedFeature("backupMarkdownFolder"),
     createMarkdownTreeFile: () => unsupportedFeature("createMarkdownTreeFile"),
     createMarkdownTreeFolder: () => unsupportedFeature("createMarkdownTreeFolder"),
     deleteMarkdownTemplateFile: () => unsupportedFeature("deleteMarkdownTemplateFile"),

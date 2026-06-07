@@ -43,6 +43,14 @@ describe("SettingsShell", () => {
     expect(onCategoryChange).toHaveBeenCalledWith("storage");
   });
 
+  it("shows backups as its own settings category", () => {
+    const onCategoryChange = renderSettingsSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Backups" }));
+
+    expect(onCategoryChange).toHaveBeenCalledWith("backup");
+  });
+
   it("shows templates as its own settings category", () => {
     const onCategoryChange = renderSettingsSidebar();
 
@@ -79,6 +87,16 @@ describe("SettingsShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Storage" })).toBeInTheDocument();
+  });
+
+  it("uses the backups category title for the active panel", () => {
+    render(
+      <SettingsContent activeCategory="backup" translate={translate}>
+        <div />
+      </SettingsContent>
+    );
+
+    expect(screen.getByRole("heading", { name: "Backups" })).toBeInTheDocument();
   });
 
   it("uses the templates category title for the active panel", () => {

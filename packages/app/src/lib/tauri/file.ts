@@ -143,6 +143,20 @@ export type UploadNativeS3ImageInput = {
   settings: S3ImageUploadSettings;
 };
 
+export type BackupNativeMarkdownFolderInput = {
+  sourcePath: string;
+  targetPath: string;
+};
+
+export type NativeMarkdownBackupSummary = {
+  bytesCopied: number;
+  copiedFiles: number;
+  deletedFiles: number;
+  deletedFolders: number;
+  scannedFiles: number;
+  skippedFiles: number;
+};
+
 export type NativeMarkdownPickerLabels = {
   title: string;
 };
@@ -317,6 +331,10 @@ export function uploadNativePicGoImage(input: UploadNativePicGoImageInput) {
 
 export function uploadNativeS3Image(input: UploadNativeS3ImageInput) {
   return getAppRuntime().files.uploadS3Image(input);
+}
+
+export function backupNativeMarkdownFolder(input: BackupNativeMarkdownFolderInput) {
+  return getAppRuntime().files.backupMarkdownFolder(input);
 }
 
 export function watchNativeMarkdownFile(

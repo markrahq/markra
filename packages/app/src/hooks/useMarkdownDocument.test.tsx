@@ -1156,6 +1156,46 @@ describe("useMarkdownDocument", () => {
     expect(mockedExitNativeApp).toHaveBeenCalledTimes(1);
   });
 
+  it("waits for native app exit work before exiting the app", async () => {
+    let appExitHandler: (() => unknown | Promise<unknown>) | null = null;
+    let finishBeforeExit: (() => unknown) | null = null;
+    const beforeNativeAppExit = vi.fn(() => new Promise<undefined>((resolve) => {
+      finishBeforeExit = () => resolve(undefined);
+    }));
+    mockedListenNativeAppExitRequested.mockImplementation(async (handler) => {
+      appExitHandler = handler;
+      return () => {};
+    });
+
+    renderHook(() =>
+      useMarkdownDocument({
+        beforeNativeAppExit,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await waitFor(() => expect(mockedListenNativeAppExitRequested).toHaveBeenCalled());
+
+    const registeredAppExitHandler = appExitHandler as (() => unknown | Promise<unknown>) | null;
+    if (!registeredAppExitHandler) throw new Error("native app exit handler was not registered");
+    const exitPromise = registeredAppExitHandler();
+
+    await waitFor(() => expect(beforeNativeAppExit).toHaveBeenCalledTimes(1));
+    expect(mockedExitNativeApp).not.toHaveBeenCalled();
+
+    await act(async () => {
+      if (!finishBeforeExit) throw new Error("native app exit work was not started");
+      finishBeforeExit();
+      await exitPromise;
+    });
+
+    expect(mockedExitNativeApp).toHaveBeenCalledTimes(1);
+  });
+
   it("closes a clean tab without prompting when the editor still exposes stale markdown", async () => {
     const editorMarkdown = "# Previous file";
     const confirmDiscardUnsavedChanges = vi.fn(() => false);

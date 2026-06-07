@@ -1,5 +1,6 @@
 mod ai_http;
 mod app_exit;
+mod backup;
 mod external_urls;
 mod image_upload;
 mod language;
@@ -14,6 +15,7 @@ mod windows;
 
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
 use app_exit::handle_app_exit_requested;
+use backup::backup_markdown_folder;
 use external_urls::open_external_url;
 use image_upload::{upload_picgo_image, upload_s3_image, upload_webdav_image};
 use markdown_files::{
@@ -137,6 +139,7 @@ pub fn run() {
             request_native_chat,
             request_native_chat_stream,
             request_web_resource,
+            backup_markdown_folder,
             download_web_image,
             upload_picgo_image,
             upload_s3_image,

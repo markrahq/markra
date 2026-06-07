@@ -3,17 +3,19 @@ import { defaultAiQuickActionPrompts } from "../ai-actions";
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests } from "../../runtime";
 import {
   listenAppCustomThemeCssChanged,
+  listenAppBackupSettingsChanged,
   listenAppEditorPreferencesChanged,
   listenAppExportSettingsChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
   notifyAppCustomThemeCssChanged,
+  notifyAppBackupSettingsChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
   notifyAppLanguageChanged,
   notifyAppThemeChanged
 } from "./settings-events";
-import type { EditorPreferences } from "./app-settings";
+import type { BackupSettings, EditorPreferences } from "./app-settings";
 
 const mockedEmit = vi.fn();
 const mockedListen = vi.fn();
@@ -234,4 +236,32 @@ describe("settings events", () => {
     expect(onSettingsChanged).toHaveBeenCalledWith(settings);
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
+
+  it("emits and listens for backup setting changes inside Tauri", async () => {
+    const unlisten = vi.fn();
+    const onSettingsChanged = vi.fn();
+    const settings: BackupSettings = {
+      backupOnExit: true,
+      intervalMinutes: 15,
+      lastBackupAt: 1_700_000_000_000,
+      targetPath: "/mock-backups"
+    };
+    eventsAvailable = true;
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppBackupSettingsChanged(onSettingsChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await notifyAppBackupSettingsChanged(settings);
+    listener?.({ payload: { settings } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://backup-settings-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://backup-settings-changed", {
+      settings
+    });
+    expect(onSettingsChanged).toHaveBeenCalledWith(settings);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
 });

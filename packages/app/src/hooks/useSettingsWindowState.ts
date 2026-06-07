@@ -8,22 +8,28 @@ import {
 import { t, type I18nKey } from "@markra/shared";
 import {
   getStoredAiSettings,
+  getStoredBackupSettings,
   getStoredEditorPreferences,
   getStoredExportSettings,
   getStoredWebSearchSettings,
+  getStoredWorkspaceState,
+  defaultBackupSettings,
   defaultEditorPreferences,
   defaultExportSettings,
   defaultWebSearchSettings,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
+  saveStoredBackupSettings,
   saveStoredEditorPreferences,
   saveStoredExportSettings,
   saveStoredWebSearchSettings,
+  normalizeBackupSettings,
   normalizeExportSettings,
   normalizeWebSearchSettings,
   type AiProviderConfig,
   type AiProviderModel,
   type AiProviderSettings,
+  type BackupSettings,
   type EditorPreferences,
   type ExportSettings,
   type WebSearchSettings
@@ -31,13 +37,16 @@ import {
 import {
   listenAppEditorPreferencesChanged,
   notifyAppAiSettingsChanged,
+  notifyAppBackupSettingsChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
   notifyAppWebSearchSettingsChanged
 } from "../lib/settings/settings-events";
+import { runMarkdownBackup } from "../lib/backup";
 import {
   detectNativePandocPath,
   deleteNativeMarkdownTemplateFile,
+  openNativeMarkdownFolder,
   readNativeMarkdownTemplateFile,
   requestNativeAiJson,
   writeNativeMarkdownTemplateFile
@@ -61,6 +70,7 @@ export type SettingsCategory =
   | "providers"
   | "web"
   | "storage"
+  | "backup"
   | "appearance"
   | "editor"
   | "templates"
@@ -95,6 +105,9 @@ export function useSettingsWindowState() {
   );
   const [aiSettings, setAiSettings] = useState<AiProviderSettings>(() => createDefaultAiSettings());
   const [aiSettingsSaved, setAiSettingsSaved] = useState(false);
+  const [backupSettings, setBackupSettings] = useState<BackupSettings>(defaultBackupSettings);
+  const [backupRunning, setBackupRunning] = useState(false);
+  const [backupSourcePath, setBackupSourcePath] = useState<string | null>(null);
   const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
   const [markdownTemplates, setMarkdownTemplates] = useState<MarkdownTemplate[]>([]);
   const [exportSettings, setExportSettings] = useState<ExportSettings>(defaultExportSettings);
@@ -173,6 +186,33 @@ export function useSettingsWindowState() {
     getStoredWebSearchSettings().then((settings) => {
       if (!cancelled) setWebSearchSettings(settings);
     }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getStoredBackupSettings().then((settings) => {
+      if (!cancelled) setBackupSettings(settings);
+    }).catch(() => {
+      if (!cancelled) setBackupSettings(defaultBackupSettings);
+    });
+
+    getStoredWorkspaceState().then((workspace) => {
+      if (cancelled) return;
+
+      setBackupSourcePath(
+        workspace.folderPath ??
+        workspace.filePath ??
+        workspace.openFilePaths[0] ??
+        null
+      );
+    }).catch(() => {
+      if (!cancelled) setBackupSourcePath(null);
+    });
 
     return () => {
       cancelled = true;
@@ -375,12 +415,79 @@ export function useSettingsWindowState() {
       .catch(() => {});
   }, []);
 
+  const handleUpdateBackupSettings = useCallback((settings: BackupSettings) => {
+    const normalizedSettings = normalizeBackupSettings(settings);
+    setBackupSettings(normalizedSettings);
+    saveStoredBackupSettings(normalizedSettings)
+      .then(() => notifyAppBackupSettingsChanged(normalizedSettings))
+      .catch(() => {});
+  }, []);
+
+  const handleChooseBackupTargetPath = useCallback(() => {
+    openNativeMarkdownFolder({
+      title: translate("settings.backup.targetPickerTitle")
+    }).then((folder) => {
+      if (!folder) return;
+
+      handleUpdateBackupSettings({
+        ...backupSettings,
+        targetPath: folder.path
+      });
+    }).catch(() => {});
+  }, [backupSettings, handleUpdateBackupSettings, translate]);
+
+  const handleRunBackup = useCallback(() => {
+    if (backupRunning) return;
+
+    setBackupRunning(true);
+    showAppToast({
+      id: "backup",
+      message: translate("settings.backup.running"),
+      status: "loading"
+    });
+    runMarkdownBackup({
+      settings: backupSettings,
+      sourcePath: backupSourcePath
+    }).then((result) => {
+      if (result.status === "skipped") {
+        showAppToast({
+          id: "backup",
+          message: translate(
+            result.reason === "missing-source"
+              ? "settings.backup.missingSource"
+              : "settings.backup.missingTarget"
+          ),
+          status: "error"
+        });
+        return;
+      }
+
+      setBackupSettings(result.settings);
+      notifyAppBackupSettingsChanged(result.settings).catch(() => {});
+      showAppToast({
+        id: "backup",
+        message: translate("settings.backup.completed"),
+        status: "success"
+      });
+    }).catch(() => {
+      showAppToast({
+        id: "backup",
+        message: translate("settings.backup.failed"),
+        status: "error"
+      });
+    }).finally(() => {
+      setBackupRunning(false);
+    });
+  }, [backupRunning, backupSettings, backupSourcePath, translate]);
+
   return {
     activeCategory,
     aiSettings,
     aiSettingsSaved,
     appLanguage,
     appTheme,
+    backupRunning,
+    backupSettings,
     editorPreferences,
     exportSettings,
     handleAddAiProvider,
@@ -388,10 +495,13 @@ export function useSettingsWindowState() {
     handleResetWelcomeDocument,
     handleSaveAiSettings,
     handleTestAiProvider,
+    handleChooseBackupTargetPath,
     handleCreateMarkdownTemplate: handleSaveMarkdownTemplate,
     handleDeleteMarkdownTemplate,
     handleUpdateMarkdownTemplate: handleSaveMarkdownTemplate,
     handleUpdateAiSettings,
+    handleRunBackup,
+    handleUpdateBackupSettings,
     handleUpdateEditorPreferences,
     handleUpdateExportSettings,
     handleDetectPandocPath,

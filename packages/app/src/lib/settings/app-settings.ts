@@ -41,6 +41,7 @@ const aiAgentPreferencesKey = "aiAgentPreferences";
 const editorPreferencesKey = "editorPreferences";
 const exportSettingsKey = "exportSettings";
 const webSearchKey = "webSearch";
+const backupSettingsKey = "backupSettings";
 const workspaceKey = "workspace";
 const recentMarkdownFilesKey = "recentMarkdownFiles";
 const recentMarkdownFoldersKey = "recentMarkdownFolders";
@@ -156,6 +157,12 @@ export type ExportSettings = {
   pdfPageBreakOnH1: boolean;
   pdfPageSize: PdfPageSize;
   pdfWidthMm: number;
+};
+export type BackupSettings = {
+  backupOnExit: boolean;
+  intervalMinutes: number;
+  lastBackupAt: number | null;
+  targetPath: string;
 };
 export type StoredWorkspaceState = {
   activeDraftId?: string | null;
@@ -319,11 +326,19 @@ export const defaultWebSearchSettings: WebSearchSettings = {
   providerId: "local-bing",
   searxngApiHost: ""
 };
+export const defaultBackupSettings: BackupSettings = {
+  backupOnExit: false,
+  intervalMinutes: 0,
+  lastBackupAt: null,
+  targetPath: ""
+};
 export const recentMarkdownFilesMaxLength = 10;
 export const recentMarkdownFoldersMaxLength = 5;
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
+const backupIntervalMinutesMin = 0;
+const backupIntervalMinutesMax = 24 * 60;
 const sidebarLayoutModeOptions: readonly SidebarLayoutMode[] = ["stacked", "tabs"];
 const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
 const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
@@ -699,6 +714,20 @@ export async function saveStoredWebSearchSettings(settings: WebSearchSettings) {
   const store = await loadSettingsStore();
 
   await store.set(webSearchKey, normalizeWebSearchSettings(settings));
+  await store.save();
+}
+
+export async function getStoredBackupSettings(): Promise<BackupSettings> {
+  const store = await loadSettingsStore();
+  const settings = await store.get<Partial<BackupSettings>>(backupSettingsKey);
+
+  return normalizeBackupSettings(settings);
+}
+
+export async function saveStoredBackupSettings(settings: BackupSettings) {
+  const store = await loadSettingsStore();
+
+  await store.set(backupSettingsKey, normalizeBackupSettings(settings));
   await store.save();
 }
 
@@ -1267,6 +1296,30 @@ export function normalizeWebSearchSettings(value: unknown): WebSearchSettings {
     }),
     providerId: settings.providerId === "searxng" ? "searxng" : defaultWebSearchSettings.providerId,
     searxngApiHost: normalizeWebSearchApiHost(settings.searxngApiHost)
+  };
+}
+
+export function normalizeBackupSettings(value: unknown): BackupSettings {
+  if (typeof value !== "object" || value === null) return { ...defaultBackupSettings };
+
+  const settings = value as Partial<BackupSettings>;
+  const intervalMinutes = clampNumber(
+    settings.intervalMinutes,
+    backupIntervalMinutesMin,
+    backupIntervalMinutesMax
+  );
+  const lastBackupAt = clampNumber(settings.lastBackupAt, 0, Number.MAX_SAFE_INTEGER);
+
+  return {
+    backupOnExit:
+      typeof settings.backupOnExit === "boolean"
+        ? settings.backupOnExit
+        : defaultBackupSettings.backupOnExit,
+    intervalMinutes: intervalMinutes === null
+      ? defaultBackupSettings.intervalMinutes
+      : Math.round(intervalMinutes),
+    lastBackupAt: lastBackupAt === null ? null : Math.round(lastBackupAt),
+    targetPath: normalizeNullableString(settings.targetPath)?.trim() ?? defaultBackupSettings.targetPath
   };
 }
 

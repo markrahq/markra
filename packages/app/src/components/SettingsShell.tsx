@@ -1,4 +1,5 @@
 import {
+  Archive,
   Download,
   Globe2,
   HardDrive,
@@ -50,6 +51,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: HardDrive,
     id: "storage",
     labelKey: "settings.categories.storage"
+  },
+  {
+    icon: Archive,
+    id: "backup",
+    labelKey: "settings.categories.backup"
   },
   {
     icon: Palette,

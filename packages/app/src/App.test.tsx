@@ -29,6 +29,7 @@ import {
   mockedGetStoredLanguage,
   mockedGetStoredRecentMarkdownFiles,
   mockedGetStoredRecentMarkdownFolders,
+  mockedGetStoredBackupSettings,
   mockedGetStoredTheme,
   mockedGetStoredWorkspaceState,
   mockedInstallNativeApplicationMenu,
@@ -41,6 +42,7 @@ import {
   mockedListenAppLanguageChanged,
   mockedListenAppThemeChanged,
   mockedNotifyAppEditorPreferencesChanged,
+  mockedNotifyAppBackupSettingsChanged,
   mockedNotifyAppCustomThemeCssChanged,
   mockedNotifyAppExportSettingsChanged,
   mockedNotifyAppLanguageChanged,
@@ -65,6 +67,7 @@ import {
   mockedShowNativePandocSetup,
   mockedSaveStoredCustomThemeCss,
   mockedSaveStoredAiSettings,
+  mockedSaveStoredBackupSettings,
   mockedSaveStoredEditorPreferences,
   mockedSaveStoredExportSettings,
   mockedSaveStoredLanguage,
@@ -933,11 +936,21 @@ describe("Markra workspace", () => {
     expect(screen.getByText(`Markra ${desktopPackage.version}`)).toBeInTheDocument();
     expect(screen.getByText(`Markra v${desktopPackage.version}`)).toBeInTheDocument();
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
-    expect(categoryButtons).toHaveLength(10);
+    expect(categoryButtons.map((button) => button.textContent)).toEqual([
+      "General",
+      "AI",
+      "Providers",
+      "Web",
+      "Storage",
+      "Backups",
+      "Appearance",
+      "Editor",
+      "Templates",
+      "Keyboard shortcuts",
+      "Export"
+    ]);
     expect(categoryButtons[0]).toHaveAttribute("aria-current", "page");
     expect(categoryButtons[1]).not.toHaveAttribute("aria-current");
-    expect(categoryButtons[7]).toHaveTextContent("Templates");
-    expect(categoryButtons[8]).toHaveTextContent("Keyboard shortcuts");
     const languageSelect = container.querySelector("select");
     expect(languageSelect).toHaveValue("en");
     expect(container.querySelector('[role="group"]')).not.toBeInTheDocument();
@@ -950,8 +963,9 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedSaveStoredLanguage).toHaveBeenCalledWith("fr"));
     await waitFor(() => expect(mockedNotifyAppLanguageChanged).toHaveBeenCalledWith("fr"));
 
-    fireEvent.click(categoryButtons[5]);
-    expect(categoryButtons[5]).toHaveAttribute("aria-current", "page");
+    const appearanceCategoryButton = screen.getByRole("button", { name: "Apparence" });
+    fireEvent.click(appearanceCategoryButton);
+    expect(appearanceCategoryButton).toHaveAttribute("aria-current", "page");
     const themeSelect = screen.getByRole("combobox");
     expect(themeSelect).toHaveValue("light");
     expect(screen.getByRole("option", { name: "Night" })).toBeInTheDocument();
@@ -972,8 +986,9 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedSaveStoredCustomThemeCss).toHaveBeenCalledWith(":root[data-theme=\"custom\"] { --accent: #0969da; }"));
     await waitFor(() => expect(mockedNotifyAppCustomThemeCssChanged).toHaveBeenCalledWith(":root[data-theme=\"custom\"] { --accent: #0969da; }"));
 
-    fireEvent.click(categoryButtons[7]);
-    expect(categoryButtons[7]).toHaveAttribute("aria-current", "page");
+    const templatesCategoryButton = screen.getByRole("button", { name: "Modèles" });
+    fireEvent.click(templatesCategoryButton);
+    expect(templatesCategoryButton).toHaveAttribute("aria-current", "page");
     expect(await screen.findByRole("heading", { level: 2, name: "Modèles" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Ajouter un modèle" })).toBeInTheDocument();
   });
@@ -993,6 +1008,46 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
     expect(container.querySelector(".markdown-paper")).not.toBeInTheDocument();
+  });
+
+  it("chooses the backup target folder from the settings window route", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockedGetStoredBackupSettings.mockResolvedValue({
+      backupOnExit: false,
+      intervalMinutes: 0,
+      lastBackupAt: null,
+      targetPath: ""
+    });
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      name: "mock-backups",
+      path: "/mock-backups"
+    });
+    window.history.pushState({}, "", "/?settings=1");
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Backups" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Choose backup target folder" }));
+
+    await waitFor(() =>
+      expect(mockedOpenNativeMarkdownFolder).toHaveBeenCalledWith({
+        title: "Choose backup target folder"
+      })
+    );
+    await waitFor(() =>
+      expect(mockedSaveStoredBackupSettings).toHaveBeenCalledWith({
+        backupOnExit: false,
+        intervalMinutes: 0,
+        lastBackupAt: null,
+        targetPath: "/mock-backups"
+      })
+    );
+    expect(mockedNotifyAppBackupSettingsChanged).toHaveBeenCalledWith({
+      backupOnExit: false,
+      intervalMinutes: 0,
+      lastBackupAt: null,
+      targetPath: "/mock-backups"
+    });
   });
 
   it("shows a close button in the web settings window", async () => {

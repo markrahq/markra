@@ -3,6 +3,7 @@ import { AiProviderSettingsPanel } from "./AiProviderSettingsPanel";
 import {
   AiSettings,
   AppearanceSettings,
+  BackupSettings,
   EditorSettings,
   ExportSettings,
   GeneralSettings,
@@ -30,6 +31,8 @@ export function SettingsWindow() {
     aiSettingsSaved,
     appLanguage,
     appTheme,
+    backupRunning,
+    backupSettings,
     editorPreferences,
     exportSettings,
     handleAddAiProvider,
@@ -37,10 +40,13 @@ export function SettingsWindow() {
     handleCreateMarkdownTemplate,
     handleDeleteMarkdownTemplate,
     handleResetWelcomeDocument,
+    handleRunBackup,
     handleSaveAiSettings,
     handleTestAiProvider,
+    handleChooseBackupTargetPath,
     handleDetectPandocPath,
     handleUpdateAiSettings,
+    handleUpdateBackupSettings,
     handleUpdateEditorPreferences,
     handleUpdateMarkdownTemplate,
     handleUpdateExportSettings,
@@ -149,6 +155,16 @@ export function SettingsWindow() {
               s3ImageUploadEnabled={appFeatures.s3ImageUpload}
               translate={translate}
               onUpdatePreferences={handleUpdateEditorPreferences}
+            />
+          ) : null}
+          {activeSettingsCategory === "backup" ? (
+            <BackupSettings
+              backupRunning={backupRunning}
+              settings={backupSettings}
+              translate={translate}
+              onChooseTargetPath={handleChooseBackupTargetPath}
+              onRunBackup={handleRunBackup}
+              onUpdateSettings={handleUpdateBackupSettings}
             />
           ) : null}
           {activeSettingsCategory === "appearance" ? (

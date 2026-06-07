@@ -27,6 +27,7 @@ import {
   readNativeMarkdownFile,
   readNativeMarkdownTemplateFile,
   resolveNativeMarkdownPath,
+  backupNativeMarkdownFolder,
   saveNativeClipboardImage,
   saveNativeHtmlFile,
   saveNativePandocFile,
@@ -942,6 +943,34 @@ describe("native file access", () => {
         secretAccessKey: "secret",
         uploadPath: "notes"
       }
+    });
+  });
+
+  it("backs up the selected markdown folder through Tauri", async () => {
+    mockedInvoke.mockResolvedValue({
+      bytesCopied: 12,
+      copiedFiles: 2,
+      deletedFiles: 0,
+      deletedFolders: 0,
+      scannedFiles: 3,
+      skippedFiles: 1
+    });
+
+    await expect(backupNativeMarkdownFolder({
+      sourcePath: mockFolderPath,
+      targetPath: "/mock-files/backups"
+    })).resolves.toEqual({
+      bytesCopied: 12,
+      copiedFiles: 2,
+      deletedFiles: 0,
+      deletedFolders: 0,
+      scannedFiles: 3,
+      skippedFiles: 1
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("backup_markdown_folder", {
+      sourcePath: mockFolderPath,
+      targetPath: "/mock-files/backups"
     });
   });
 

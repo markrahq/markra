@@ -839,6 +839,9 @@ export function createWebFileRuntime(
   }
 
   return {
+    backupMarkdownFolder: async () => {
+      throw new Error("Local folder backups require the desktop runtime.");
+    },
     confirmMarkdownFileDelete: async (_fileName, labels) => confirm(labels.message),
     confirmUnsavedMarkdownDocumentDiscard: async (_fileName, labels) => confirm(labels.message),
     async createMarkdownTreeFile(rootPath, fileName, optionsOrParentPath = null) {

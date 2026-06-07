@@ -1,6 +1,7 @@
 import { t, type AppLanguage } from "@markra/shared";
 
 type QuietStatusProps = {
+  backupLabel?: string | null;
   dirty: boolean;
   language?: AppLanguage;
   readOnly?: boolean;
@@ -8,7 +9,14 @@ type QuietStatusProps = {
   wordCount: number;
 };
 
-export function QuietStatus({ dirty, language = "en", readOnly = false, showWordCount = true, wordCount }: QuietStatusProps) {
+export function QuietStatus({
+  backupLabel = null,
+  dirty,
+  language = "en",
+  readOnly = false,
+  showWordCount = true,
+  wordCount
+}: QuietStatusProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
 
   return (
@@ -21,6 +29,7 @@ export function QuietStatus({ dirty, language = "en", readOnly = false, showWord
           {wordCount} {label("app.words")}
         </span>
       ) : null}
+      {backupLabel ? <span>{backupLabel}</span> : null}
       {readOnly ? <span>{label("app.readOnly")}</span> : null}
       <span>{dirty ? label("app.unsaved") : label("app.saved")}</span>
     </footer>

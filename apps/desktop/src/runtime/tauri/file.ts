@@ -195,6 +195,20 @@ export type UploadNativeS3ImageInput = {
   settings: S3ImageUploadSettings;
 };
 
+export type BackupNativeMarkdownFolderInput = {
+  sourcePath: string;
+  targetPath: string;
+};
+
+export type NativeMarkdownBackupSummary = {
+  bytesCopied: number;
+  copiedFiles: number;
+  deletedFiles: number;
+  deletedFolders: number;
+  scannedFiles: number;
+  skippedFiles: number;
+};
+
 export type NativeMarkdownPickerLabels = {
   title: string;
 };
@@ -242,6 +256,8 @@ type WebImageDownloadResponse = {
 type RemoteImageUploadResponse = {
   url: string;
 };
+
+type NativeMarkdownBackupResponse = NativeMarkdownBackupSummary;
 
 type MarkdownImageFileResponse = {
   bytes: number[];
@@ -969,6 +985,16 @@ export async function uploadNativeS3Image({
     alt: imageAltFromFileName(image.name),
     src: uploadedImage.url
   };
+}
+
+export async function backupNativeMarkdownFolder({
+  sourcePath,
+  targetPath
+}: BackupNativeMarkdownFolderInput): Promise<NativeMarkdownBackupSummary> {
+  return invoke<NativeMarkdownBackupResponse>("backup_markdown_folder", {
+    sourcePath,
+    targetPath
+  });
 }
 
 export async function watchNativeMarkdownFile(
