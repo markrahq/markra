@@ -6,7 +6,9 @@ import { debug, fileNameFromPath } from "@markra/shared";
 import type {
   PicGoImageUploadSettings,
   S3ImageUploadSettings,
+  SyncNativeMarkdownFolderInput,
   WebDavImageUploadSettings,
+  NativeMarkdownSyncSummary,
   WorkspaceSearchRequest,
   WorkspaceSearchResponse
 } from "@markra/app/runtime";
@@ -208,6 +210,8 @@ export type NativeMarkdownBackupSummary = {
   scannedFiles: number;
   skippedFiles: number;
 };
+
+type NativeMarkdownSyncResponse = NativeMarkdownSyncSummary;
 
 export type NativeMarkdownPickerLabels = {
   title: string;
@@ -994,6 +998,26 @@ export async function backupNativeMarkdownFolder({
   return invoke<NativeMarkdownBackupResponse>("backup_markdown_folder", {
     sourcePath,
     targetPath
+  });
+}
+
+export async function syncNativeMarkdownFolder({
+  provider,
+  sourcePath,
+  webdav
+}: SyncNativeMarkdownFolderInput): Promise<NativeMarkdownSyncSummary> {
+  if (provider !== "webdav") {
+    throw new Error("Only WebDAV sync is supported.");
+  }
+
+  return invoke<NativeMarkdownSyncResponse>("sync_webdav_markdown_folder", {
+    request: {
+      password: webdav.password,
+      remotePath: webdav.remotePath,
+      serverUrl: webdav.serverUrl,
+      sourcePath,
+      username: webdav.username
+    }
   });
 }
 

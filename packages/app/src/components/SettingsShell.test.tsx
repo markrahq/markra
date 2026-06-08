@@ -51,6 +51,14 @@ describe("SettingsShell", () => {
     expect(onCategoryChange).toHaveBeenCalledWith("backup");
   });
 
+  it("shows sync as its own settings category", () => {
+    const onCategoryChange = renderSettingsSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Sync" }));
+
+    expect(onCategoryChange).toHaveBeenCalledWith("sync");
+  });
+
   it("shows templates as its own settings category", () => {
     const onCategoryChange = renderSettingsSidebar();
 
@@ -97,6 +105,16 @@ describe("SettingsShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Backups" })).toBeInTheDocument();
+  });
+
+  it("uses the sync category title for the active panel", () => {
+    render(
+      <SettingsContent activeCategory="sync" translate={translate}>
+        <div />
+      </SettingsContent>
+    );
+
+    expect(screen.getByRole("heading", { name: "Sync" })).toBeInTheDocument();
   });
 
   it("uses the templates category title for the active panel", () => {

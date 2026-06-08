@@ -1,7 +1,8 @@
 import type {
   PicGoImageUploadSettings,
   S3ImageUploadSettings,
-  WebDavImageUploadSettings
+  WebDavImageUploadSettings,
+  WebDavSyncSettings
 } from "../settings/app-settings";
 import { getAppRuntime } from "../../runtime";
 import type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../workspace-search";
@@ -148,6 +149,12 @@ export type BackupNativeMarkdownFolderInput = {
   targetPath: string;
 };
 
+export type SyncNativeMarkdownFolderInput = {
+  provider: "webdav";
+  sourcePath: string;
+  webdav: WebDavSyncSettings;
+};
+
 export type NativeMarkdownBackupSummary = {
   bytesCopied: number;
   copiedFiles: number;
@@ -155,6 +162,16 @@ export type NativeMarkdownBackupSummary = {
   deletedFolders: number;
   scannedFiles: number;
   skippedFiles: number;
+};
+
+export type NativeMarkdownSyncSummary = {
+  bytesDownloaded: number;
+  bytesUploaded: number;
+  conflictFiles: number;
+  downloadedFiles: number;
+  scannedFiles: number;
+  skippedFiles: number;
+  uploadedFiles: number;
 };
 
 export type NativeMarkdownPickerLabels = {
@@ -335,6 +352,10 @@ export function uploadNativeS3Image(input: UploadNativeS3ImageInput) {
 
 export function backupNativeMarkdownFolder(input: BackupNativeMarkdownFolderInput) {
   return getAppRuntime().files.backupMarkdownFolder(input);
+}
+
+export function syncNativeMarkdownFolder(input: SyncNativeMarkdownFolderInput) {
+  return getAppRuntime().files.syncMarkdownFolder(input);
 }
 
 export function watchNativeMarkdownFile(

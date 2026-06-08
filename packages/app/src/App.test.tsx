@@ -30,6 +30,7 @@ import {
   mockedGetStoredRecentMarkdownFiles,
   mockedGetStoredRecentMarkdownFolders,
   mockedGetStoredBackupSettings,
+  mockedGetStoredSyncSettings,
   mockedGetStoredTheme,
   mockedGetStoredWorkspaceState,
   mockedInstallNativeApplicationMenu,
@@ -43,6 +44,7 @@ import {
   mockedListenAppThemeChanged,
   mockedNotifyAppEditorPreferencesChanged,
   mockedNotifyAppBackupSettingsChanged,
+  mockedNotifyAppSyncSettingsChanged,
   mockedNotifyAppCustomThemeCssChanged,
   mockedNotifyAppExportSettingsChanged,
   mockedNotifyAppLanguageChanged,
@@ -65,6 +67,7 @@ import {
   mockedSaveNativePdfFile,
   mockedSearchNativeMarkdownFilesForPath,
   mockedShowNativePandocSetup,
+  mockedSyncNativeMarkdownFolder,
   mockedSaveStoredCustomThemeCss,
   mockedSaveStoredAiSettings,
   mockedSaveStoredBackupSettings,
@@ -943,6 +946,7 @@ describe("Markra workspace", () => {
       "Web",
       "Storage",
       "Backups",
+      "Sync",
       "Appearance",
       "Editor",
       "Templates",
@@ -4673,6 +4677,162 @@ describe("Markra workspace", () => {
         })
       )
     );
+  });
+
+  it("runs remote sync after saving when sync on save is enabled", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      files: {
+        ...runtime.files,
+        syncMarkdownFolder: mockedSyncNativeMarkdownFolder
+      }
+    });
+    mockedGetStoredSyncSettings.mockResolvedValue({
+      autoSyncOnSave: true,
+      enabled: true,
+      intervalMinutes: 0,
+      lastSyncAt: null,
+      provider: "webdav",
+      remotePath: "markra"
+    });
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      imageUpload: {
+        ...defaultImageUpload,
+        provider: "webdav",
+        webdav: {
+          ...defaultImageUpload.webdav,
+          password: "secret",
+          serverUrl: "https://webdav.example.test/dav",
+          username: "mock-user"
+        }
+      }
+    }));
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Native file")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+    fireEvent.change(await screen.findByRole("textbox", { name: "Markdown source" }), {
+      target: {
+        value: "# Source save\n\nSynced after save."
+      }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save Markdown" }));
+
+    await waitFor(() => expect(mockedSaveNativeMarkdownFile).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mockedSyncNativeMarkdownFolder).toHaveBeenCalledWith({
+        provider: "webdav",
+        sourcePath: mockNativePath,
+        webdav: {
+          password: "secret",
+          remotePath: "markra",
+          serverUrl: "https://webdav.example.test/dav",
+          username: "mock-user"
+        }
+      })
+    );
+    expect(mockedNotifyAppSyncSettingsChanged).toHaveBeenCalledWith(expect.objectContaining({
+      enabled: true,
+      lastSyncAt: expect.any(Number),
+      provider: "webdav",
+      remotePath: "markra"
+    }));
+  });
+
+  it("schedules automatic remote sync when an interval is configured", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      features: {
+        ...runtime.features,
+        updater: false
+      },
+      files: {
+        ...runtime.files,
+        syncMarkdownFolder: mockedSyncNativeMarkdownFolder
+      }
+    });
+    mockedGetStoredSyncSettings.mockResolvedValue({
+      autoSyncOnSave: false,
+      enabled: true,
+      intervalMinutes: 5,
+      lastSyncAt: null,
+      provider: "webdav",
+      remotePath: "markra"
+    });
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      imageUpload: {
+        ...defaultImageUpload,
+        provider: "webdav",
+        webdav: {
+          ...defaultImageUpload.webdav,
+          password: "secret",
+          serverUrl: "https://webdav.example.test/dav",
+          username: "mock-user"
+        }
+      }
+    }));
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
+      filePath: mockNativePath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: []
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Native file\n\nRestored from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    let syncInterval: (() => unknown) | null = null;
+    const setIntervalSpy = vi.spyOn(window, "setInterval").mockImplementation(((handler: TimerHandler, timeout?: number) => {
+      if (timeout === 5 * 60 * 1000) syncInterval = handler as () => unknown;
+
+      return 42;
+    }) as typeof window.setInterval);
+    const clearIntervalSpy = vi.spyOn(window, "clearInterval").mockImplementation(() => {});
+
+    try {
+      renderApp();
+
+      await waitFor(() => expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 5 * 60 * 1000));
+      expect(await screen.findByText("Restored from disk.")).toBeInTheDocument();
+      expect(syncInterval).not.toBeNull();
+
+      await act(async () => {
+        await syncInterval?.();
+      });
+
+      await waitFor(() =>
+        expect(mockedSyncNativeMarkdownFolder).toHaveBeenCalledWith(expect.objectContaining({
+          provider: "webdav",
+          sourcePath: mockNativePath,
+          webdav: {
+            password: "secret",
+            remotePath: "markra",
+            serverUrl: "https://webdav.example.test/dav",
+            username: "mock-user"
+          }
+        }))
+      );
+    } finally {
+      clearIntervalSpy.mockRestore();
+      setIntervalSpy.mockRestore();
+    }
   });
 
   it("saves expanded link source as markdown instead of escaped text", async () => {

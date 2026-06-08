@@ -42,6 +42,7 @@ const editorPreferencesKey = "editorPreferences";
 const exportSettingsKey = "exportSettings";
 const webSearchKey = "webSearch";
 const backupSettingsKey = "backupSettings";
+const syncSettingsKey = "syncSettings";
 const workspaceKey = "workspace";
 const recentMarkdownFilesKey = "recentMarkdownFiles";
 const recentMarkdownFoldersKey = "recentMarkdownFolders";
@@ -163,6 +164,21 @@ export type BackupSettings = {
   intervalMinutes: number;
   lastBackupAt: number | null;
   targetPath: string;
+};
+export type SyncProvider = "webdav";
+export type WebDavSyncSettings = {
+  password: string;
+  remotePath: string;
+  serverUrl: string;
+  username: string;
+};
+export type SyncSettings = {
+  autoSyncOnSave: boolean;
+  enabled: boolean;
+  intervalMinutes: number;
+  lastSyncAt: number | null;
+  provider: SyncProvider;
+  remotePath: string;
 };
 export type StoredWorkspaceState = {
   activeDraftId?: string | null;
@@ -332,6 +348,14 @@ export const defaultBackupSettings: BackupSettings = {
   lastBackupAt: null,
   targetPath: ""
 };
+export const defaultSyncSettings: SyncSettings = {
+  autoSyncOnSave: false,
+  enabled: false,
+  intervalMinutes: 0,
+  lastSyncAt: null,
+  provider: "webdav",
+  remotePath: ""
+};
 export const recentMarkdownFilesMaxLength = 10;
 export const recentMarkdownFoldersMaxLength = 5;
 
@@ -339,6 +363,8 @@ const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
 const backupIntervalMinutesMin = 0;
 const backupIntervalMinutesMax = 24 * 60;
+const syncIntervalMinutesMin = 0;
+const syncIntervalMinutesMax = 24 * 60;
 const sidebarLayoutModeOptions: readonly SidebarLayoutMode[] = ["stacked", "tabs"];
 const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
 const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
@@ -728,6 +754,20 @@ export async function saveStoredBackupSettings(settings: BackupSettings) {
   const store = await loadSettingsStore();
 
   await store.set(backupSettingsKey, normalizeBackupSettings(settings));
+  await store.save();
+}
+
+export async function getStoredSyncSettings(): Promise<SyncSettings> {
+  const store = await loadSettingsStore();
+  const settings = await store.get<Partial<SyncSettings>>(syncSettingsKey);
+
+  return normalizeSyncSettings(settings);
+}
+
+export async function saveStoredSyncSettings(settings: SyncSettings) {
+  const store = await loadSettingsStore();
+
+  await store.set(syncSettingsKey, normalizeSyncSettings(settings));
   await store.save();
 }
 
@@ -1320,6 +1360,41 @@ export function normalizeBackupSettings(value: unknown): BackupSettings {
       : Math.round(intervalMinutes),
     lastBackupAt: lastBackupAt === null ? null : Math.round(lastBackupAt),
     targetPath: normalizeNullableString(settings.targetPath)?.trim() ?? defaultBackupSettings.targetPath
+  };
+}
+
+export function normalizeSyncSettings(value: unknown): SyncSettings {
+  if (typeof value !== "object" || value === null) return { ...defaultSyncSettings };
+
+  const settings = value as Partial<SyncSettings> & { webdav?: Partial<WebDavSyncSettings> };
+  const legacyWebDav = typeof settings.webdav === "object" && settings.webdav !== null
+    ? settings.webdav
+    : {};
+  const intervalMinutes = clampNumber(
+    settings.intervalMinutes,
+    syncIntervalMinutesMin,
+    syncIntervalMinutesMax
+  );
+  const lastSyncAt = clampNumber(settings.lastSyncAt, 0, Number.MAX_SAFE_INTEGER);
+
+  return {
+    autoSyncOnSave:
+      typeof settings.autoSyncOnSave === "boolean"
+        ? settings.autoSyncOnSave
+        : defaultSyncSettings.autoSyncOnSave,
+    enabled:
+      typeof settings.enabled === "boolean"
+        ? settings.enabled
+        : defaultSyncSettings.enabled,
+    intervalMinutes: intervalMinutes === null
+      ? defaultSyncSettings.intervalMinutes
+      : Math.round(intervalMinutes),
+    lastSyncAt: lastSyncAt === null ? null : Math.round(lastSyncAt),
+    provider: settings.provider === "webdav" ? "webdav" : defaultSyncSettings.provider,
+    remotePath:
+      normalizeNullableString(settings.remotePath)?.trim()
+      ?? normalizeNullableString(legacyWebDav.remotePath)?.trim()
+      ?? defaultSyncSettings.remotePath
   };
 }
 

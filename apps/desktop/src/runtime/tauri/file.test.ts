@@ -28,6 +28,7 @@ import {
   readNativeMarkdownTemplateFile,
   resolveNativeMarkdownPath,
   backupNativeMarkdownFolder,
+  syncNativeMarkdownFolder,
   saveNativeClipboardImage,
   saveNativeHtmlFile,
   saveNativePandocFile,
@@ -971,6 +972,47 @@ describe("native file access", () => {
     expect(mockedInvoke).toHaveBeenCalledWith("backup_markdown_folder", {
       sourcePath: mockFolderPath,
       targetPath: "/mock-files/backups"
+    });
+  });
+
+  it("syncs the selected markdown folder to WebDAV through Tauri", async () => {
+    mockedInvoke.mockResolvedValue({
+      bytesDownloaded: 8,
+      bytesUploaded: 12,
+      conflictFiles: 1,
+      downloadedFiles: 1,
+      scannedFiles: 3,
+      skippedFiles: 1,
+      uploadedFiles: 1
+    });
+
+    await expect(syncNativeMarkdownFolder({
+      provider: "webdav",
+      sourcePath: mockFolderPath,
+      webdav: {
+        password: "secret",
+        remotePath: "notes",
+        serverUrl: "https://dav.example.test/remote.php/dav/files/ada/",
+        username: "ada"
+      }
+    })).resolves.toEqual({
+      bytesDownloaded: 8,
+      bytesUploaded: 12,
+      conflictFiles: 1,
+      downloadedFiles: 1,
+      scannedFiles: 3,
+      skippedFiles: 1,
+      uploadedFiles: 1
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("sync_webdav_markdown_folder", {
+      request: {
+        password: "secret",
+        remotePath: "notes",
+        serverUrl: "https://dav.example.test/remote.php/dav/files/ada/",
+        sourcePath: mockFolderPath,
+        username: "ada"
+      }
     });
   });
 

@@ -8,6 +8,7 @@ import {
   ExportSettings,
   GeneralSettings,
   KeyboardShortcutsSettings,
+  SyncSettings,
   StorageSettings,
   TemplatesSettings,
   WebSearchSettings
@@ -41,12 +42,14 @@ export function SettingsWindow() {
     handleDeleteMarkdownTemplate,
     handleResetWelcomeDocument,
     handleRunBackup,
+    handleRunSync,
     handleSaveAiSettings,
     handleTestAiProvider,
     handleChooseBackupTargetPath,
     handleDetectPandocPath,
     handleUpdateAiSettings,
     handleUpdateBackupSettings,
+    handleUpdateSyncSettings,
     handleUpdateEditorPreferences,
     handleUpdateMarkdownTemplate,
     handleUpdateExportSettings,
@@ -56,6 +59,8 @@ export function SettingsWindow() {
     setActiveCategory,
     setSelectedAiProviderId,
     settingsFocusTarget,
+    syncRunning,
+    syncSettings,
     clearSettingsFocusTarget,
     translate,
     webSearchSettings,
@@ -165,6 +170,15 @@ export function SettingsWindow() {
               onChooseTargetPath={handleChooseBackupTargetPath}
               onRunBackup={handleRunBackup}
               onUpdateSettings={handleUpdateBackupSettings}
+            />
+          ) : null}
+          {activeSettingsCategory === "sync" ? (
+            <SyncSettings
+              settings={syncSettings}
+              syncRunning={syncRunning}
+              translate={translate}
+              onRunSync={handleRunSync}
+              onUpdateSettings={handleUpdateSyncSettings}
             />
           ) : null}
           {activeSettingsCategory === "appearance" ? (

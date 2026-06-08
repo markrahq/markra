@@ -8,6 +8,7 @@ mod markdown_files;
 mod menu;
 mod menu_labels;
 mod opened_files;
+mod remote_sync;
 mod watcher;
 mod web_http;
 mod window_state;
@@ -39,6 +40,7 @@ use opened_files::{
     opened_markdown_paths_from_args, opened_markdown_paths_from_urls, queue_opened_markdown_paths,
     take_opened_markdown_paths, OpenedMarkdownPathsState,
 };
+use remote_sync::sync_webdav_markdown_folder;
 use tauri::Manager;
 use watcher::{
     unwatch_markdown_file, unwatch_markdown_tree, watch_markdown_file, watch_markdown_tree,
@@ -140,6 +142,7 @@ pub fn run() {
             request_native_chat_stream,
             request_web_resource,
             backup_markdown_folder,
+            sync_webdav_markdown_folder,
             download_web_image,
             upload_picgo_image,
             upload_s3_image,

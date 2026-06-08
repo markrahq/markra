@@ -5,6 +5,7 @@ import {
   clearStoredRecentMarkdownFiles,
   consumeWelcomeDocumentState,
   defaultBackupSettings,
+  defaultSyncSettings,
   deleteStoredAiAgentSession,
   editorThemeOptions,
   getStoredAiAgentSession,
@@ -21,6 +22,7 @@ import {
   getStoredRecentMarkdownFolders,
   getStoredTheme,
   getStoredWebSearchSettings,
+  getStoredSyncSettings,
   getStoredWorkspaceState,
   isAppTheme,
   normalizeRecentMarkdownFiles,
@@ -29,6 +31,7 @@ import {
   normalizeEditorPreferences,
   normalizeWebSearchSettings,
   normalizeExportSettings,
+  normalizeSyncSettings,
   reorderTitlebarActions,
   resolveAppAppearanceTheme,
   removeStoredRecentMarkdownFile,
@@ -47,6 +50,7 @@ import {
   saveStoredRecentMarkdownFolder,
   saveStoredTheme,
   saveStoredWebSearchSettings,
+  saveStoredSyncSettings,
   saveStoredWorkspaceState,
   setStoredAiAgentSessionArchived,
   type AiProviderSettings
@@ -288,6 +292,55 @@ describe("app settings", () => {
 
     expect(store.set).toHaveBeenCalledWith("backupSettings", settings);
     expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads remote sync settings disabled by default", async () => {
+    store.get.mockResolvedValue(undefined);
+
+    await expect(getStoredSyncSettings()).resolves.toEqual(defaultSyncSettings);
+
+    expect(store.get).toHaveBeenCalledWith("syncSettings");
+  });
+
+  it("normalizes and persists WebDAV sync settings", async () => {
+    const settings = normalizeSyncSettings({
+      autoSyncOnSave: true,
+      enabled: true,
+      intervalMinutes: 12.8,
+      lastSyncAt: 1_700_000_000_000,
+      provider: "webdav",
+      remotePath: " /notes "
+    });
+
+    expect(settings).toEqual({
+      autoSyncOnSave: true,
+      enabled: true,
+      intervalMinutes: 13,
+      lastSyncAt: 1_700_000_000_000,
+      provider: "webdav",
+      remotePath: "/notes"
+    });
+
+    await saveStoredSyncSettings(settings);
+
+    expect(store.set).toHaveBeenCalledWith("syncSettings", settings);
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("migrates the remote sync folder from legacy nested WebDAV settings", () => {
+    expect(normalizeSyncSettings({
+      enabled: true,
+      webdav: {
+        password: "secret",
+        remotePath: " markra ",
+        serverUrl: "https://dav.example.test/",
+        username: "ada"
+      }
+    })).toEqual({
+      ...defaultSyncSettings,
+      enabled: true,
+      remotePath: "markra"
+    });
   });
 
   it("loads the default export settings", async () => {

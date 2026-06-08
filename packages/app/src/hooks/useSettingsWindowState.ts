@@ -9,21 +9,25 @@ import { t, type I18nKey } from "@markra/shared";
 import {
   getStoredAiSettings,
   getStoredBackupSettings,
+  getStoredSyncSettings,
   getStoredEditorPreferences,
   getStoredExportSettings,
   getStoredWebSearchSettings,
   getStoredWorkspaceState,
   defaultBackupSettings,
+  defaultSyncSettings,
   defaultEditorPreferences,
   defaultExportSettings,
   defaultWebSearchSettings,
   resetWelcomeDocumentState,
   saveStoredAiSettings,
   saveStoredBackupSettings,
+  saveStoredSyncSettings,
   saveStoredEditorPreferences,
   saveStoredExportSettings,
   saveStoredWebSearchSettings,
   normalizeBackupSettings,
+  normalizeSyncSettings,
   normalizeExportSettings,
   normalizeWebSearchSettings,
   type AiProviderConfig,
@@ -32,7 +36,8 @@ import {
   type BackupSettings,
   type EditorPreferences,
   type ExportSettings,
-  type WebSearchSettings
+  type WebSearchSettings,
+  type SyncSettings
 } from "../lib/settings/app-settings";
 import {
   listenAppEditorPreferencesChanged,
@@ -40,9 +45,11 @@ import {
   notifyAppBackupSettingsChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
-  notifyAppWebSearchSettingsChanged
+  notifyAppWebSearchSettingsChanged,
+  notifyAppSyncSettingsChanged
 } from "../lib/settings/settings-events";
 import { runMarkdownBackup } from "../lib/backup";
+import { runMarkdownSync } from "../lib/sync";
 import {
   detectNativePandocPath,
   deleteNativeMarkdownTemplateFile,
@@ -71,6 +78,7 @@ export type SettingsCategory =
   | "web"
   | "storage"
   | "backup"
+  | "sync"
   | "appearance"
   | "editor"
   | "templates"
@@ -108,6 +116,9 @@ export function useSettingsWindowState() {
   const [backupSettings, setBackupSettings] = useState<BackupSettings>(defaultBackupSettings);
   const [backupRunning, setBackupRunning] = useState(false);
   const [backupSourcePath, setBackupSourcePath] = useState<string | null>(null);
+  const [syncSettings, setSyncSettings] = useState<SyncSettings>(defaultSyncSettings);
+  const [syncRunning, setSyncRunning] = useState(false);
+  const [syncSourcePath, setSyncSourcePath] = useState<string | null>(null);
   const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
   const [markdownTemplates, setMarkdownTemplates] = useState<MarkdownTemplate[]>([]);
   const [exportSettings, setExportSettings] = useState<ExportSettings>(defaultExportSettings);
@@ -201,17 +212,25 @@ export function useSettingsWindowState() {
       if (!cancelled) setBackupSettings(defaultBackupSettings);
     });
 
+    getStoredSyncSettings().then((settings) => {
+      if (!cancelled) setSyncSettings(settings);
+    }).catch(() => {
+      if (!cancelled) setSyncSettings(defaultSyncSettings);
+    });
+
     getStoredWorkspaceState().then((workspace) => {
       if (cancelled) return;
 
-      setBackupSourcePath(
+      const sourcePath =
         workspace.folderPath ??
         workspace.filePath ??
         workspace.openFilePaths[0] ??
-        null
-      );
+        null;
+      setBackupSourcePath(sourcePath);
+      setSyncSourcePath(sourcePath);
     }).catch(() => {
       if (!cancelled) setBackupSourcePath(null);
+      if (!cancelled) setSyncSourcePath(null);
     });
 
     return () => {
@@ -423,6 +442,14 @@ export function useSettingsWindowState() {
       .catch(() => {});
   }, []);
 
+  const handleUpdateSyncSettings = useCallback((settings: SyncSettings) => {
+    const normalizedSettings = normalizeSyncSettings(settings);
+    setSyncSettings(normalizedSettings);
+    saveStoredSyncSettings(normalizedSettings)
+      .then(() => notifyAppSyncSettingsChanged(normalizedSettings))
+      .catch(() => {});
+  }, []);
+
   const handleChooseBackupTargetPath = useCallback(() => {
     openNativeMarkdownFolder({
       title: translate("settings.backup.targetPickerTitle")
@@ -480,6 +507,51 @@ export function useSettingsWindowState() {
     });
   }, [backupRunning, backupSettings, backupSourcePath, translate]);
 
+  const handleRunSync = useCallback(() => {
+    if (syncRunning) return;
+
+    setSyncRunning(true);
+    showAppToast({
+      id: "sync",
+      message: translate("settings.sync.running"),
+      status: "loading"
+    });
+    runMarkdownSync({
+      settings: syncSettings,
+      sourcePath: syncSourcePath,
+      storageWebDavSettings: editorPreferences.imageUpload.webdav
+    }).then((result) => {
+      if (result.status === "skipped") {
+        showAppToast({
+          id: "sync",
+          message: translate(
+            result.reason === "missing-source"
+              ? "settings.sync.missingSource"
+              : "settings.sync.missingWebDav"
+          ),
+          status: "error"
+        });
+        return;
+      }
+
+      setSyncSettings(result.settings);
+      notifyAppSyncSettingsChanged(result.settings).catch(() => {});
+      showAppToast({
+        id: "sync",
+        message: translate("settings.sync.completed"),
+        status: "success"
+      });
+    }).catch(() => {
+      showAppToast({
+        id: "sync",
+        message: translate("settings.sync.failed"),
+        status: "error"
+      });
+    }).finally(() => {
+      setSyncRunning(false);
+    });
+  }, [editorPreferences.imageUpload.webdav, syncRunning, syncSettings, syncSourcePath, translate]);
+
   return {
     activeCategory,
     aiSettings,
@@ -501,7 +573,9 @@ export function useSettingsWindowState() {
     handleUpdateMarkdownTemplate: handleSaveMarkdownTemplate,
     handleUpdateAiSettings,
     handleRunBackup,
+    handleRunSync,
     handleUpdateBackupSettings,
+    handleUpdateSyncSettings,
     handleUpdateEditorPreferences,
     handleUpdateExportSettings,
     handleDetectPandocPath,
@@ -511,6 +585,8 @@ export function useSettingsWindowState() {
     setSelectedAiProviderId,
     markdownTemplates,
     settingsFocusTarget,
+    syncRunning,
+    syncSettings,
     clearSettingsFocusTarget,
     translate,
     webSearchSettings,

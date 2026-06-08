@@ -24,6 +24,7 @@ import type {
   NativeMarkdownImageFile,
   NativeMarkdownOpenTarget,
   NativeMarkdownBackupSummary,
+  NativeMarkdownSyncSummary,
   NativeMarkdownPickerLabels,
   NativeMarkdownTreeChangeHandler,
   NativePandocExportFormat,
@@ -38,6 +39,7 @@ import type {
   SaveNativeMarkdownFileInput,
   SaveNativePandocFileInput,
   SaveNativePdfFileInput,
+  SyncNativeMarkdownFolderInput,
   UploadNativePicGoImageInput,
   UploadNativeS3ImageInput,
   UploadNativeWebDavImageInput
@@ -167,6 +169,7 @@ export type AppFileRuntime = {
   savePandocFile: (input: SaveNativePandocFileInput) => Promise<SavedNativePandocFile | null>;
   savePdfFile: (input: SaveNativePdfFileInput) => Promise<SavedNativePdfFile | null>;
   searchMarkdownFiles?: (request: WorkspaceSearchRequest) => Promise<WorkspaceSearchResponse>;
+  syncMarkdownFolder: (input: SyncNativeMarkdownFolderInput) => Promise<NativeMarkdownSyncSummary>;
   takeOpenedMarkdownPaths: () => Promise<string[]>;
   uploadPicGoImage: (input: UploadNativePicGoImageInput) => Promise<SavedNativeClipboardImage>;
   uploadS3Image: (input: UploadNativeS3ImageInput) => Promise<SavedNativeClipboardImage>;
@@ -335,6 +338,7 @@ function createDefaultFileRuntime(): AppFileRuntime {
     saveMarkdownFile: async () => null,
     savePandocFile: async () => null,
     savePdfFile: async () => null,
+    syncMarkdownFolder: () => unsupportedFeature("syncMarkdownFolder"),
     takeOpenedMarkdownPaths: async () => [],
     uploadPicGoImage: () => unsupportedFeature("uploadPicGoImage"),
     uploadS3Image: () => unsupportedFeature("uploadS3Image"),
@@ -435,7 +439,9 @@ export type {
   PicGoImageUploadSettings,
   RecentMarkdownFile,
   S3ImageUploadSettings,
+  SyncSettings,
   WebDavImageUploadSettings,
+  WebDavSyncSettings,
   WebSearchSettings
 } from "../lib/settings/app-settings";
 export type {
@@ -449,6 +455,7 @@ export type {
   NativeMarkdownFolderFile,
   NativeMarkdownImageFile,
   NativeMarkdownOpenTarget,
+  NativeMarkdownSyncSummary,
   NativeMarkdownPickerLabels,
   NativeMarkdownTreeChangeHandler,
   NativePandocExportFormat,
@@ -463,6 +470,7 @@ export type {
   SaveNativeMarkdownFileInput,
   SaveNativePandocFileInput,
   SaveNativePdfFileInput,
+  SyncNativeMarkdownFolderInput,
   UploadNativePicGoImageInput,
   UploadNativeS3ImageInput,
   UploadNativeWebDavImageInput

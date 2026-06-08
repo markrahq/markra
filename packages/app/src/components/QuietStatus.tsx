@@ -6,6 +6,7 @@ type QuietStatusProps = {
   language?: AppLanguage;
   readOnly?: boolean;
   showWordCount?: boolean;
+  syncLabel?: string | null;
   wordCount: number;
 };
 
@@ -15,6 +16,7 @@ export function QuietStatus({
   language = "en",
   readOnly = false,
   showWordCount = true,
+  syncLabel = null,
   wordCount
 }: QuietStatusProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
@@ -30,6 +32,7 @@ export function QuietStatus({
         </span>
       ) : null}
       {backupLabel ? <span>{backupLabel}</span> : null}
+      {syncLabel ? <span>{syncLabel}</span> : null}
       {readOnly ? <span>{label("app.readOnly")}</span> : null}
       <span>{dirty ? label("app.unsaved") : label("app.saved")}</span>
     </footer>

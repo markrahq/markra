@@ -5,12 +5,14 @@ import {
   normalizeCustomThemeCss,
   normalizeEditorPreferences,
   normalizeExportSettings,
+  normalizeSyncSettings,
   normalizeWebSearchSettings,
   type AiProviderSettings,
   type AppTheme,
   type BackupSettings,
   type EditorPreferences,
   type ExportSettings,
+  type SyncSettings,
   type WebSearchSettings
 } from "./app-settings";
 import { isAppLanguage, type AppLanguage } from "@markra/shared";
@@ -23,6 +25,7 @@ const editorPreferencesChangedEvent = "markra://editor-preferences-changed";
 const exportSettingsChangedEvent = "markra://export-settings-changed";
 const webSearchSettingsChangedEvent = "markra://web-search-settings-changed";
 const backupSettingsChangedEvent = "markra://backup-settings-changed";
+const syncSettingsChangedEvent = "markra://sync-settings-changed";
 const aiSettingsChangedEvent = "markra://ai-settings-changed";
 
 type ThemeChangedPayload = {
@@ -51,6 +54,10 @@ type WebSearchSettingsChangedPayload = {
 
 type BackupSettingsChangedPayload = {
   settings: BackupSettings;
+};
+
+type SyncSettingsChangedPayload = {
+  settings: SyncSettings;
 };
 
 type AiSettingsChangedPayload = {
@@ -183,6 +190,22 @@ export async function listenAppBackupSettingsChanged(
 
   return getAppRuntime().events.listen<BackupSettingsChangedPayload>(backupSettingsChangedEvent, (event) => {
     onSettingsChanged(normalizeBackupSettings(event.payload.settings));
+  });
+}
+
+export async function notifyAppSyncSettingsChanged(settings: SyncSettings) {
+  if (!getAppRuntime().events.isAvailable()) return;
+
+  await getAppRuntime().events.emit(syncSettingsChangedEvent, { settings });
+}
+
+export async function listenAppSyncSettingsChanged(
+  onSettingsChanged: (settings: SyncSettings) => unknown
+) {
+  if (!getAppRuntime().events.isAvailable()) return () => {};
+
+  return getAppRuntime().events.listen<SyncSettingsChangedPayload>(syncSettingsChangedEvent, (event) => {
+    onSettingsChanged(normalizeSyncSettings(event.payload.settings));
   });
 }
 

@@ -60,6 +60,7 @@ import { useSideBySideTabs } from "./hooks/useSideBySideTabs";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
 import { useBackupSettings } from "./hooks/useBackupSettings";
 import { useDefaultContextMenuBlocker } from "./hooks/useDefaultContextMenuBlocker";
+import { useSyncSettings } from "./hooks/useSyncSettings";
 import { useWebSearchSettings } from "./hooks/useWebSearchSettings";
 import {
   useApplicationShortcuts,
@@ -79,6 +80,7 @@ import {
 } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { runMarkdownBackup } from "./lib/backup";
+import { runMarkdownSync } from "./lib/sync";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
@@ -131,7 +133,8 @@ import {
 } from "./lib/settings/app-settings";
 import {
   notifyAppBackupSettingsChanged,
-  notifyAppEditorPreferencesChanged
+  notifyAppEditorPreferencesChanged,
+  notifyAppSyncSettingsChanged
 } from "./lib/settings/settings-events";
 import { getAppRuntime } from "./runtime";
 import {
@@ -352,6 +355,7 @@ function WorkspaceApp() {
   const appLanguage = useAppLanguage();
   const aiSettings = useAiSettings();
   const backupSettings = useBackupSettings();
+  const syncSettings = useSyncSettings();
   const editorPreferences = useEditorPreferences();
   const exportSettings = useExportSettings();
   const webSearchSettings = useWebSearchSettings();
@@ -391,6 +395,8 @@ function WorkspaceApp() {
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const backupRunningRef = useRef(false);
   const backupSourcePathRef = useRef<string | null>(null);
+  const syncRunningRef = useRef(false);
+  const syncSourcePathRef = useRef<string | null>(null);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [globalSearchCaseSensitive, setGlobalSearchCaseSensitive] = useState(false);
   const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
@@ -621,6 +627,67 @@ function WorkspaceApp() {
       backupRunningRef.current = false;
     }
   }, [backupSettings.loading, backupSettings.settings, translate]);
+  const runWorkspaceSync = useCallback(async ({
+    silent = false,
+    sourcePath = syncSourcePathRef.current
+  }: {
+    silent?: boolean;
+    sourcePath?: string | null;
+  } = {}) => {
+    if (syncRunningRef.current || syncSettings.loading || editorPreferences.loading) return null;
+
+    syncRunningRef.current = true;
+    try {
+      const result = await runMarkdownSync({
+        settings: syncSettings.settings,
+        sourcePath,
+        storageWebDavSettings: editorPreferences.preferences.imageUpload.webdav
+      });
+
+      if (result.status === "synced") {
+        await notifyAppSyncSettingsChanged(result.settings);
+        if (!silent) {
+          showAppToast({
+            id: "sync",
+            message: translate("settings.sync.completed"),
+            status: "success"
+          });
+        }
+      } else if (!silent) {
+        showAppToast({
+          id: "sync",
+          message: translate(
+            result.reason === "missing-source"
+              ? "settings.sync.missingSource"
+              : "settings.sync.missingWebDav"
+          ),
+          status: "error"
+        });
+      }
+
+      return result;
+    } catch (error) {
+      debug(() => ["[markra-sync] sync failed", {
+        error: error instanceof Error ? error.message : String(error)
+      }]);
+      if (!silent) {
+        showAppToast({
+          id: "sync",
+          message: translate("settings.sync.failed"),
+          status: "error"
+        });
+      }
+      return null;
+    } finally {
+      syncRunningRef.current = false;
+    }
+  }, [
+    editorPreferences.loading,
+    editorPreferences.preferences.imageUpload.webdav,
+    syncSettings.loading,
+    syncSettings.settings,
+    translate
+  ]);
   const beforeNativeAppExitBackup = useCallback(async () => {
     if (!backupSettings.settings.backupOnExit) return;
 
@@ -678,6 +745,7 @@ function WorkspaceApp() {
   };
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
   backupSourcePathRef.current = fileTreeSourcePath ?? document.path;
+  syncSourcePathRef.current = fileTreeSourcePath ?? document.path;
   const backupStatusLabel = useMemo(() => {
     if (backupSettings.settings.lastBackupAt === null) return null;
 
@@ -685,6 +753,13 @@ function WorkspaceApp() {
       timeStyle: "short"
     }).format(new Date(backupSettings.settings.lastBackupAt))}`;
   }, [backupSettings.settings.lastBackupAt, translate]);
+  const syncStatusLabel = useMemo(() => {
+    if (syncSettings.settings.lastSyncAt === null) return null;
+
+    return `${translate("settings.sync.lastSync")} ${new Intl.DateTimeFormat(undefined, {
+      timeStyle: "short"
+    }).format(new Date(syncSettings.settings.lastSyncAt))}`;
+  }, [syncSettings.settings.lastSyncAt, translate]);
   useEffect(() => {
     if (backupSettings.loading) return;
     if (backupSettings.settings.intervalMinutes <= 0) return;
@@ -703,6 +778,31 @@ function WorkspaceApp() {
     backupSettings.settings.intervalMinutes,
     backupSettings.settings.targetPath,
     runWorkspaceBackup
+  ]);
+  useEffect(() => {
+    if (syncSettings.loading) return;
+    if (editorPreferences.loading) return;
+    if (!syncSettings.settings.enabled) return;
+    if (syncSettings.settings.intervalMinutes <= 0) return;
+    if (!editorPreferences.preferences.imageUpload.webdav.serverUrl.trim()) return;
+    if (!syncSettings.settings.remotePath.trim()) return;
+
+    const intervalMs = syncSettings.settings.intervalMinutes * 60 * 1000;
+    const intervalId = window.setInterval(() => {
+      runWorkspaceSync({ silent: true }).catch(() => {});
+    }, intervalMs);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [
+    runWorkspaceSync,
+    editorPreferences.loading,
+    editorPreferences.preferences.imageUpload.webdav.serverUrl,
+    syncSettings.loading,
+    syncSettings.settings.enabled,
+    syncSettings.settings.intervalMinutes,
+    syncSettings.settings.remotePath
   ]);
   const hasOpenDocument = document.open;
   const largeMarkdownVisualBlocked =
@@ -2329,20 +2429,28 @@ function WorkspaceApp() {
     if (focusedSideDocumentTabId) {
       const savedFile = await saveMarkdownTab(focusedSideDocumentTabId, saveAs);
       if (savedFile) persistSideDocumentGroupSavedTabPath(focusedSideDocumentTabId, savedFile.path);
+      if (savedFile && syncSettings.settings.autoSyncOnSave) {
+        runWorkspaceSync({ silent: true, sourcePath: savedFile.path }).catch(() => {});
+      }
       return savedFile;
     }
 
     const savedFile = await saveCurrentDocument(saveAs);
     if (savedFile && activeTabId) persistSideDocumentGroupSavedTabPath(activeTabId, savedFile.path);
     if (savedFile) refreshOpenDocumentHistory(savedFile.path);
+    if (savedFile && syncSettings.settings.autoSyncOnSave) {
+      runWorkspaceSync({ silent: true, sourcePath: savedFile.path }).catch(() => {});
+    }
     return savedFile;
   }, [
     activeTabId,
     focusedSideDocumentTabId,
     persistSideDocumentGroupSavedTabPath,
     refreshOpenDocumentHistory,
+    runWorkspaceSync,
     saveCurrentDocument,
-    saveMarkdownTab
+    saveMarkdownTab,
+    syncSettings.settings.autoSyncOnSave
   ]);
   const handleSaveDocument = useCallback(() => saveDocument(false), [saveDocument]);
   const saveDocumentAs = useCallback(() => saveDocument(true), [saveDocument]);
@@ -3553,6 +3661,7 @@ function WorkspaceApp() {
                     language={appLanguage.language}
                     readOnly={readOnlyMode}
                     showWordCount={editorPreferences.preferences.showWordCount}
+                    syncLabel={syncStatusLabel}
                     wordCount={wordCount}
                   />
                   </div>

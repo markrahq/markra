@@ -8,14 +8,16 @@ import {
   listenAppExportSettingsChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
+  listenAppSyncSettingsChanged,
   notifyAppCustomThemeCssChanged,
   notifyAppBackupSettingsChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
   notifyAppLanguageChanged,
+  notifyAppSyncSettingsChanged,
   notifyAppThemeChanged
 } from "./settings-events";
-import type { BackupSettings, EditorPreferences } from "./app-settings";
+import type { BackupSettings, EditorPreferences, SyncSettings } from "./app-settings";
 
 const mockedEmit = vi.fn();
 const mockedListen = vi.fn();
@@ -258,6 +260,35 @@ describe("settings events", () => {
 
     expect(mockedListen).toHaveBeenCalledWith("markra://backup-settings-changed", expect.any(Function));
     expect(mockedEmit).toHaveBeenCalledWith("markra://backup-settings-changed", {
+      settings
+    });
+    expect(onSettingsChanged).toHaveBeenCalledWith(settings);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits and listens for sync setting changes inside Tauri", async () => {
+    const unlisten = vi.fn();
+    const onSettingsChanged = vi.fn();
+    const settings: SyncSettings = {
+      autoSyncOnSave: true,
+      enabled: true,
+      intervalMinutes: 20,
+      lastSyncAt: 1_700_000_000_000,
+      provider: "webdav",
+      remotePath: "notes"
+    };
+    eventsAvailable = true;
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppSyncSettingsChanged(onSettingsChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await notifyAppSyncSettingsChanged(settings);
+    listener?.({ payload: { settings } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://sync-settings-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://sync-settings-changed", {
       settings
     });
     expect(onSettingsChanged).toHaveBeenCalledWith(settings);

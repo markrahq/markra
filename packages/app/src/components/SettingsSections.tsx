@@ -59,6 +59,7 @@ import {
   defaultTitlebarActions,
   appThemeOptions,
   defaultBackupSettings,
+  defaultSyncSettings,
   defaultCustomThemeCss,
   reorderTitlebarActions,
   type AppTheme,
@@ -69,6 +70,7 @@ import {
   type PdfMarginPreset,
   type PdfPageSize,
   type SidebarLayoutMode,
+  type SyncSettings as SyncSettingsValue,
   type TitlebarActionId,
   type TitlebarActionPreference,
   type WebSearchProviderId,
@@ -559,7 +561,15 @@ function formatShortcutForPlatform(shortcut: string, platform: DesktopPlatform) 
   ].filter((part): part is string => Boolean(part)).join("+");
 }
 
-function SettingsSection({ children, label }: { children: ReactNode; label: string }) {
+function SettingsSection({
+  children,
+  intro,
+  label
+}: {
+  children: ReactNode;
+  intro?: ReactNode;
+  label: string;
+}) {
   const sectionId = `settings-section-${label.replace(/\s+/g, "-")}`;
   const hasMultipleRows = Children.count(children) > 1;
 
@@ -571,6 +581,7 @@ function SettingsSection({ children, label }: { children: ReactNode; label: stri
       >
         {label}
       </h3>
+      {intro ? <div className="mb-3">{intro}</div> : null}
       <div className={hasMultipleRows ? "settings-list-group divide-y divide-(--border-default)" : "settings-list-group"}>
         {children}
       </div>
@@ -596,6 +607,32 @@ function SettingsRow({
         ) : null}
       </div>
       {action ? <div className="flex shrink-0 items-center justify-end">{action}</div> : null}
+    </div>
+  );
+}
+
+function SettingsCallout({
+  description,
+  icon: Icon,
+  title
+}: {
+  description: string;
+  icon: LucideIcon;
+  title: string;
+}) {
+  return (
+    <div
+      className="settings-callout flex items-start gap-2.5 rounded-md bg-(--bg-secondary) px-3 py-3"
+      role="note"
+      aria-label={title}
+    >
+      <span className="mt-0.5 flex size-5 shrink-0 items-center justify-center text-(--text-secondary)" aria-hidden="true">
+        <Icon size={14} />
+      </span>
+      <div className="min-w-0">
+        <p className="m-0 text-[12px] leading-5 font-[700] tracking-normal text-(--text-heading)">{title}</p>
+        <p className="m-0 max-w-[72ch] text-[12px] leading-4.5 font-[450] text-(--text-secondary)">{description}</p>
+      </div>
     </div>
   );
 }
@@ -2139,7 +2176,16 @@ export function BackupSettings({
     }).format(new Date(settings.lastBackupAt));
 
   return (
-    <SettingsSection label={translate("settings.categories.backup")}>
+    <SettingsSection
+      label={translate("settings.categories.backup")}
+      intro={
+        <SettingsCallout
+          title={translate("settings.backup.summaryTitle")}
+          description={translate("settings.backup.summaryDescription")}
+          icon={HardDrive}
+        />
+      }
+    >
       <SettingsRow
         title={translate("settings.backup.targetPath")}
         description={translate("settings.backup.targetPathDescription")}
@@ -2213,6 +2259,136 @@ export function BackupSettings({
           >
             <RefreshCw aria-hidden="true" size={13} />
             {translate("settings.backup.run")}
+          </SettingsButton>
+        }
+      />
+    </SettingsSection>
+  );
+}
+
+export function SyncSettings({
+  onRunSync = () => {},
+  onUpdateSettings = () => {},
+  settings = defaultSyncSettings,
+  syncRunning = false,
+  translate
+}: {
+  onRunSync?: () => unknown;
+  onUpdateSettings?: (settings: SyncSettingsValue) => unknown;
+  settings?: SyncSettingsValue;
+  syncRunning?: boolean;
+  translate: Translate;
+}) {
+  const lastSyncLabel = settings.lastSyncAt === null
+    ? translate("settings.sync.never")
+    : new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short"
+    }).format(new Date(settings.lastSyncAt));
+
+  return (
+    <SettingsSection
+      label={translate("settings.categories.sync")}
+      intro={
+        <SettingsCallout
+          title={translate("settings.sync.summaryTitle")}
+          description={translate("settings.sync.summaryDescription")}
+          icon={Cloud}
+        />
+      }
+    >
+      <SettingsRow
+        title={translate("settings.sync.enabled")}
+        description={translate("settings.sync.enabledDescription")}
+        action={
+          <SettingsSwitch
+            checked={settings.enabled}
+            label={translate("settings.sync.enabled")}
+            onChange={() =>
+              onUpdateSettings({
+                ...settings,
+                enabled: !settings.enabled
+              })
+            }
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.sync.provider")}
+        description={translate("settings.sync.providerDescription")}
+        action={
+          <SettingsSelect
+            label={translate("settings.sync.provider")}
+            options={[{ label: "WebDAV", value: "webdav" }]}
+            value={settings.provider}
+            onChange={() => onUpdateSettings({ ...settings, provider: "webdav" })}
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.sync.remotePath")}
+        description={translate("settings.sync.remotePathDescription")}
+        action={
+          <SettingsTextInput
+            label={translate("settings.sync.remotePath")}
+            value={settings.remotePath}
+            placeholder="markra"
+            widthClassName="w-56"
+            onChange={(remotePath) =>
+              onUpdateSettings({
+                ...settings,
+                remotePath
+              })
+            }
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.sync.autoSyncOnSave")}
+        description={translate("settings.sync.autoSyncOnSaveDescription")}
+        action={
+          <SettingsSwitch
+            checked={settings.autoSyncOnSave}
+            label={translate("settings.sync.autoSyncOnSave")}
+            onChange={() =>
+              onUpdateSettings({
+                ...settings,
+                autoSyncOnSave: !settings.autoSyncOnSave
+              })
+            }
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.sync.intervalMinutes")}
+        description={translate("settings.sync.intervalMinutesDescription")}
+        action={
+          <SettingsNumberInput
+            label={translate("settings.sync.intervalMinutes")}
+            min={0}
+            max={1440}
+            unit={translate("settings.sync.intervalUnit")}
+            value={settings.intervalMinutes}
+            onChange={(intervalMinutes) =>
+              onUpdateSettings({
+                ...settings,
+                intervalMinutes
+              })
+            }
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.sync.lastSync")}
+        description={lastSyncLabel}
+        action={
+          <SettingsButton
+            disabled={syncRunning}
+            label={translate("settings.sync.run")}
+            onClick={onRunSync}
+          >
+            <RefreshCw aria-hidden="true" size={13} />
+            {translate("settings.sync.run")}
           </SettingsButton>
         }
       />
