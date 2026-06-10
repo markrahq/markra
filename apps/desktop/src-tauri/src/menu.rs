@@ -232,12 +232,7 @@ fn create_edit_submenu<R: tauri::Runtime>(
     labels: crate::menu_labels::MenuLabels,
 ) -> tauri::Result<Submenu<R>> {
     let undo = app_menu_item(app, EDIT_UNDO_COMMAND, labels.undo, "CmdOrCtrl+Z")?;
-    let redo = app_menu_item(
-        app,
-        EDIT_REDO_COMMAND,
-        labels.redo,
-        "CmdOrCtrl+Shift+Z",
-    )?;
+    let redo = app_menu_item(app, EDIT_REDO_COMMAND, labels.redo, "CmdOrCtrl+Shift+Z")?;
 
     SubmenuBuilder::with_id(app, "markra:edit", labels.edit)
         .items(&[&undo, &redo])
