@@ -5222,6 +5222,90 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("lifts only the current list item with Shift+Tab", async () => {
+    const source = ["- Parent", "  - First child", "  - Second child", "- After"].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "First child"));
+
+    expect(pressShortcut(view, "Tab", { shiftKey: true })).toBe(true);
+
+    const topLevelItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > ul > li"));
+    const nestedItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > ul > li > ul > li"));
+    expect(topLevelItems).toHaveLength(4);
+    expect(topLevelItems[0]).toHaveTextContent("Parent");
+    expect(topLevelItems[1]).toHaveTextContent("First child");
+    expect(topLevelItems[2]).toHaveTextContent("Second child");
+    expect(topLevelItems[3]).toHaveTextContent("After");
+    expect(nestedItems).toHaveLength(0);
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown.split("\n").filter((line) => line.length > 0)).toEqual([
+      "- Parent",
+      "- First child",
+      "- Second child",
+      "- After"
+    ]);
+    expect(markdown).not.toContain("- First child\n  - Second child");
+  });
+
+  it("lifts only the active list continuation line with Shift+Tab", async () => {
+    const source = [
+      "- s",
+      "  - sa",
+      "  - sd",
+      "    - sad",
+      "    - sad",
+      "    - First detail",
+      "      Second detail"
+    ].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Second detail"));
+
+    expect(pressShortcut(view, "Tab", { shiftKey: true })).toBe(true);
+
+    const markdown = serializeMarkdown(view.state.doc);
+    const lines = markdown.split("\n").filter((line) => line.length > 0);
+    expect(lines).toContain("    - First detail");
+    expect(lines).toContain("  - Second detail");
+    expect(lines).not.toContain("  - First detail");
+    expect(lines).not.toContain("    Second detail");
+  });
+
+  it("keeps list continuation Shift+Tab undoable as one step", async () => {
+    const source = [
+      "- s",
+      "  - sa",
+      "  - sd",
+      "    - sad",
+      "    - sad",
+      "    - First detail",
+      "      Second detail"
+    ].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Second detail"));
+    expect(pressShortcut(view, "Tab", { shiftKey: true })).toBe(true);
+    expect(serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0)).toContain(
+      "  - Second detail"
+    );
+
+    expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
+    let lines = serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0);
+    expect(lines).toContain("    - First detail");
+    expect(lines).toContain("      Second detail");
+    expect(lines).not.toContain("  - Second detail");
+
+    expect(pressShortcut(view, "z", { metaKey: true, shiftKey: true })).toBe(true);
+    lines = serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0);
+    expect(lines).toContain("    - First detail");
+    expect(lines).toContain("  - Second detail");
+  });
+
   it("exits a terminal code block so text can be added below it", async () => {
     const source = ["## Pull image", "", "```", "sudo docker pull image", "```"].join("\n");
     const { editor, view } = await renderEditor(source);

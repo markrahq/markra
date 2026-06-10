@@ -30,7 +30,6 @@ import {
   matchesKeyboardShortcut,
   matchesKeyboardShortcutEvent,
   normalizeKeyboardShortcuts,
-  parseMarkdownCalloutMarker,
   parseKeyboardShortcut,
   isKeyboardShortcutModKey,
   type KeyboardShortcutAction,
@@ -75,26 +74,6 @@ function selectionIsInsideNodeType(
   return positions.every(($pos) => {
     for (let depth = $pos.depth; depth > 0; depth -= 1) {
       if ($pos.node(depth).type === nodeType) return true;
-    }
-
-    return false;
-  });
-}
-
-function blockquoteHasCalloutMarker(node: ProseNode) {
-  const firstChild = node.firstChild;
-  if (!firstChild?.isTextblock) return false;
-
-  return parseMarkdownCalloutMarker(firstChild.textContent) !== null;
-}
-
-function selectionIsInsideCallout(selection: Selection, blockquote: NodeType) {
-  const positions = [selection.$from, selection.$to];
-
-  return positions.every(($pos) => {
-    for (let depth = $pos.depth; depth > 0; depth -= 1) {
-      const node = $pos.node(depth);
-      if (node.type === blockquote && blockquoteHasCalloutMarker(node)) return true;
     }
 
     return false;
@@ -345,22 +324,18 @@ function splitCurrentListItemLineBreak(view: EditorView, listItem: NodeType) {
   return true;
 }
 
-function liftCalloutListItem(listItem: NodeType, blockquote: NodeType): Command {
+function liftCurrentListItem(listItem: NodeType): Command {
   return (state, dispatch, view) => {
-    const isCalloutListItem = selectionIsInsideCallout(state.selection, blockquote);
     if (
-      isCalloutListItem &&
       dispatch &&
       view &&
       (splitCurrentListItemLineBreak(view, listItem) || splitCurrentListItemContinuationBlock(view, listItem))
     ) {
-      const handled = liftCalloutListItem(listItem, blockquote)(view.state, view.dispatch, view);
+      const handled = liftCurrentListItem(listItem)(view.state, view.dispatch, view);
       return handled || true;
     }
 
-    const shouldSplitLiftedChildren =
-      isCalloutListItem &&
-      liftCreatesChildListFromFollowingSiblings(state.selection, listItem);
+    const shouldSplitLiftedChildren = liftCreatesChildListFromFollowingSiblings(state.selection, listItem);
 
     if (!shouldSplitLiftedChildren || !dispatch || !view) {
       return liftListItem(listItem)(state, dispatch, view);
@@ -616,7 +591,7 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
           if (selectionIsInsideNodeType(view.state.selection, listItem)) {
             const handled = runCommand(
               view,
-              event.shiftKey ? liftCalloutListItem(listItem, blockquote) : sinkListItem(listItem)
+              event.shiftKey ? liftCurrentListItem(listItem) : sinkListItem(listItem)
             );
             if (!handled) view.focus();
 
