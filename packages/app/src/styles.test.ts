@@ -85,6 +85,15 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .markra-list-collapsed-content");
   });
 
+  it("uses distinct unordered list markers for nested editor lists", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain(".markdown-paper ul ul {");
+    expect(styles).toContain("list-style-type: circle;");
+    expect(styles).toContain(".markdown-paper ul ul ul {");
+    expect(styles).toContain("list-style-type: square;");
+  });
+
   it("shows a quiet inline level list control for the active rendered heading", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const labelStart = styles.indexOf(".markdown-paper .markra-heading-level-control {");

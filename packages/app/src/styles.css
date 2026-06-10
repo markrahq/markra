@@ -1881,6 +1881,14 @@
     color: var(--editor-text-primary);
   }
 
+  .markdown-paper ul ul {
+    list-style-type: circle;
+  }
+
+  .markdown-paper ul ul ul {
+    list-style-type: square;
+  }
+
   .markdown-paper ol {
     @apply mt-3 mb-6 list-decimal pl-[1.4em] marker:text-(--text-secondary);
     color: var(--editor-text-primary);
