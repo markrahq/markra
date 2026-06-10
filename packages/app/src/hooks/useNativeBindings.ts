@@ -173,6 +173,8 @@ export function useNativeMenuHandlers({
         openFolder: () => latestOptionsRef.current.openFolder(),
         saveDocument: () => latestOptionsRef.current.saveDocument(),
         saveDocumentAs: () => latestOptionsRef.current.saveDocumentAs(),
+        editUndo: () => latestOptionsRef.current.runEditorShortcut("z"),
+        editRedo: () => latestOptionsRef.current.runEditorShortcut("z", { shiftKey: true }),
         formatBold: () => runMarkdownShortcut("bold"),
         formatItalic: () => runMarkdownShortcut("italic"),
         formatStrikethrough: () => runMarkdownShortcut("strikethrough"),

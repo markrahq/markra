@@ -14,6 +14,8 @@ const OPEN_RECENT_FILE_COMMAND_PREFIX: &str = "openRecentFile:";
 const CLEAR_RECENT_FILES_COMMAND: &str = "clearRecentFiles";
 const SETTINGS_WINDOW_COMMAND: &str = "openSettings";
 const CHECK_FOR_UPDATES_COMMAND: &str = "checkForUpdates";
+const EDIT_UNDO_COMMAND: &str = "editUndo";
+const EDIT_REDO_COMMAND: &str = "editRedo";
 const MARKRA_GITHUB_URL: &str = "https://github.com/murongg/markra";
 
 #[derive(Clone, serde::Deserialize, serde::Serialize)]
@@ -229,9 +231,16 @@ fn create_edit_submenu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     labels: crate::menu_labels::MenuLabels,
 ) -> tauri::Result<Submenu<R>> {
+    let undo = app_menu_item(app, EDIT_UNDO_COMMAND, labels.undo, "CmdOrCtrl+Z")?;
+    let redo = app_menu_item(
+        app,
+        EDIT_REDO_COMMAND,
+        labels.redo,
+        "CmdOrCtrl+Shift+Z",
+    )?;
+
     SubmenuBuilder::with_id(app, "markra:edit", labels.edit)
-        .undo_with_text(labels.undo)
-        .redo_with_text(labels.redo)
+        .items(&[&undo, &redo])
         .separator()
         .cut_with_text(labels.cut)
         .copy_with_text(labels.copy)
@@ -720,6 +729,8 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
         command,
         CHECK_FOR_UPDATES_COMMAND
             | CLEAR_RECENT_FILES_COMMAND
+            | EDIT_UNDO_COMMAND
+            | EDIT_REDO_COMMAND
             | "openDocument"
             | "openFolder"
             | "openQuickOpen"
@@ -776,6 +787,8 @@ mod tests {
         assert!(is_frontend_menu_command("openDocument"));
         assert!(is_frontend_menu_command("openRecentFile:0"));
         assert!(is_frontend_menu_command("clearRecentFiles"));
+        assert!(is_frontend_menu_command("editUndo"));
+        assert!(is_frontend_menu_command("editRedo"));
         assert!(is_frontend_menu_command("openFolder"));
         assert!(is_frontend_menu_command("openQuickOpen"));
         assert!(is_frontend_menu_command("closeDocument"));

@@ -85,6 +85,24 @@ describe("useNativeMenuHandlers", () => {
     });
   });
 
+  it("routes native edit history commands through editor shortcuts", () => {
+    const runEditorShortcut = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        runEditorShortcut
+      })
+    );
+
+    result.current.editUndo?.();
+    result.current.editRedo?.();
+
+    expect(runEditorShortcut).toHaveBeenNthCalledWith(1, "z");
+    expect(runEditorShortcut).toHaveBeenNthCalledWith(2, "z", {
+      shiftKey: true
+    });
+  });
+
   it("routes the native all-folds command through the configured editor shortcut", () => {
     const runEditorShortcut = vi.fn();
     const { result } = renderHook(() =>

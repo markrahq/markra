@@ -31,6 +31,8 @@ export type NativeEditorContextMenuOptions = {
 
 export type NativeStaticMenuCommand =
   | "checkForUpdates"
+  | "editUndo"
+  | "editRedo"
   | "openDocument"
   | "openFolder"
   | "openQuickOpen"
