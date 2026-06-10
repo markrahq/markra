@@ -6473,6 +6473,64 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("> - First\n> - Second");
   });
 
+  it("lifts only the current callout list item with Shift+Tab", async () => {
+    const source = [
+      "> [!NOTE]",
+      ">",
+      "> - Parent",
+      ">   - First child",
+      ">   - Second child",
+      "> - After"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "First child"));
+
+    expect(pressShortcut(view, "Tab", { shiftKey: true })).toBe(true);
+
+    const topLevelItems = Array.from(
+      container.querySelectorAll<HTMLElement>(".ProseMirror blockquote.markra-callout > ul > li")
+    );
+    const nestedItems = Array.from(container.querySelectorAll<HTMLElement>(
+      ".ProseMirror blockquote.markra-callout > ul > li > ul > li"
+    ));
+    expect(topLevelItems).toHaveLength(4);
+    expect(topLevelItems[0]).toHaveTextContent("Parent");
+    expect(topLevelItems[1]).toHaveTextContent("First child");
+    expect(topLevelItems[2]).toHaveTextContent("Second child");
+    expect(topLevelItems[3]).toHaveTextContent("After");
+    expect(nestedItems).toHaveLength(0);
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("> - Parent\n> - First child\n> - Second child\n> - After");
+    expect(markdown).not.toContain("> - First child\n>   - Second child");
+  });
+
+  it("lifts only the active callout continuation paragraph with Shift+Tab", async () => {
+    const source = [
+      "> [!NOTE]",
+      ">",
+      "> - s",
+      ">   - sa",
+      ">   - sd",
+      ">     - sad",
+      ">     - sad",
+      ">     - First detail",
+      ">       Second detail"
+    ].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Second detail"));
+
+    expect(pressShortcut(view, "Tab", { shiftKey: true })).toBe(true);
+
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain(">     - First detail\n>   - Second detail");
+    expect(markdown).not.toContain(">   - First detail\n>     Second detail");
+  });
+
   it("continues typed list items inside callouts on Enter", async () => {
     const { container, editor, view } = await renderEditor("> [!WARNING]\n>");
 
