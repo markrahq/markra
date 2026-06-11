@@ -1454,6 +1454,7 @@ describe("useMarkdownDocument", () => {
         "/mock-files/deleted-notes",
         "notes",
         "session-missing-folder",
+        true,
         true
       )
     );
@@ -1573,10 +1574,55 @@ describe("useMarkdownDocument", () => {
     });
     expect(result.current.tabs.map((tab) => tab.path)).toEqual([guidePath, notesPath]);
     expect(result.current.activeTabId).toBe(`file:${notesPath}`);
-    expect(onTreeRootFromFolderPath).toHaveBeenCalledWith("/mock-files/vault", "vault", "session-tabs", false);
+    expect(onTreeRootFromFolderPath).toHaveBeenCalledWith("/mock-files/vault", "vault", "session-tabs", false, true);
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(notesPath);
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+  });
+
+  it("keeps the saved folder root when restoring tabs with the file tree collapsed", async () => {
+    const guidePath = "/mock-files/vault/docs/guide.md";
+    const onTreeRootFromFilePath = vi.fn();
+    const onTreeRootFromFolderPath = vi.fn(async () => ({ name: "vault", path: "/mock-files/vault" }));
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-collapsed-tree",
+      filePath: guidePath,
+      fileTreeOpen: false,
+      folderName: "vault",
+      folderPath: "/mock-files/vault",
+      openFilePaths: [guidePath]
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide",
+      name: "guide.md",
+      path: guidePath
+    });
+
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath,
+        onTreeRootFromFolderPath,
+        preferencesReady: true,
+        restoreWorkspaceOnStartup: true
+      })
+    );
+
+    await waitFor(() => expect(result.current.document.name).toBe("guide.md"));
+
+    expect(onTreeRootFromFolderPath).toHaveBeenCalledWith(
+      "/mock-files/vault",
+      "vault",
+      "session-collapsed-tree",
+      false,
+      false
+    );
+    expect(onTreeRootFromFilePath).not.toHaveBeenCalled();
+    expect(mockedSaveStoredWorkspaceState).not.toHaveBeenCalledWith(expect.objectContaining({
+      folderName: null,
+      folderPath: null
+    }));
   });
 
   it("restores dirty draft tabs from the last workspace", async () => {

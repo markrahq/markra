@@ -112,7 +112,8 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     path: string,
     name = pathNameFromPath(path),
     preferredSessionId?: string | null,
-    clearFilePath = true
+    clearFilePath = true,
+    openTree = true
   ) => {
     const folderName = name || pathNameFromPath(path);
     const sessionId = preferredSessionId?.trim() ? preferredSessionId : createAiAgentSessionId();
@@ -135,7 +136,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
 
     setSourcePath(path);
     setRootName(folderName);
-    setOpen(true);
+    setOpen(openTree);
     loadedSourcePathRef.current = path;
     setFiles(nextFiles);
     rememberFolder({ name: folderName, path });
@@ -144,7 +145,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     persistWorkspaceState({
       aiAgentSessionId: sessionId,
       ...(clearFilePath ? { filePath: null, openFilePaths: [] } : {}),
-      fileTreeOpen: true,
+      fileTreeOpen: openTree,
       folderName,
       folderPath: path
     });

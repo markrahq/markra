@@ -81,6 +81,12 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
       </button>
       <button
         type="button"
+        onClick={() => tree.openFolderPath("/vault", "vault", "session-restored", false, false)}
+      >
+        Restore collapsed folder
+      </button>
+      <button
+        type="button"
         onClick={() => tree.removeRecentFolder?.({ name: "notes", path: "/recent/notes" })}
       >
         Remove recent folder
@@ -305,6 +311,26 @@ describe("useMarkdownFileTree", () => {
     expect(mockedSaveStoredRecentMarkdownFolder).toHaveBeenCalledWith({
       name: "notes",
       path: "/recent/notes"
+    });
+  });
+
+  it("restores a markdown folder root without reopening a collapsed tree", async () => {
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { path: "/vault/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" }
+    ]);
+
+    render(<FileTreeProbe currentPath="/vault/docs/guide.md" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore collapsed folder" }));
+
+    expect(await screen.findByText("docs/guide.md")).toBeInTheDocument();
+    expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
+    expect(screen.getByTestId("open-state")).toHaveTextContent("closed");
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+      aiAgentSessionId: "session-restored",
+      fileTreeOpen: false,
+      folderName: "vault",
+      folderPath: "/vault"
     });
   });
 

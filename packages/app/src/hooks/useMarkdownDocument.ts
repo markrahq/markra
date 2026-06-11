@@ -294,7 +294,13 @@ type UseMarkdownDocumentOptions = {
   getCurrentMarkdown: (fallbackContent: string) => string;
   isCurrentMarkdownEquivalent?: (markdown: string) => boolean | undefined;
   onMarkdownTreeChange?: (path: string) => unknown | Promise<unknown>;
-  onTreeRootFromFolderPath: (path: string, name: string, sessionId?: string | null, clearFilePath?: boolean) => unknown | Promise<unknown>;
+  onTreeRootFromFolderPath: (
+    path: string,
+    name: string,
+    sessionId?: string | null,
+    clearFilePath?: boolean,
+    openTree?: boolean
+  ) => unknown | Promise<unknown>;
   onTreeRootFromFilePath: (path: string) => unknown;
   onWorkspaceSessionChange?: (sessionId: string) => unknown;
   preferencesReady?: boolean;
@@ -1660,12 +1666,13 @@ export function useMarkdownDocument({
 
           assignWorkspaceSessionId(sessionId);
 
-          if (workspace.folderPath && workspace.fileTreeOpen) {
+          if (workspace.folderPath) {
             const folderResult = await onTreeRootFromFolderPath(
               workspace.folderPath,
               workspace.folderName ?? workspace.folderPath,
               sessionId,
-              restoreFilePaths.length === 0
+              restoreFilePaths.length === 0,
+              workspace.fileTreeOpen
             );
             if (!active) return;
 
