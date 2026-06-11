@@ -8061,12 +8061,6 @@ describe("MarkdownPaper editing", () => {
     expect(fireEvent.keyDown(view.dom, { key: "Backspace", bubbles: true, cancelable: true })).toBe(false);
 
     expect(selectionHasAncestor(view, "blockquote")).toBe(true);
-    expect(selectionHasAncestor(view, "list_item")).toBe(false);
-
-    focusEditor(view);
-    expect(fireEvent.keyDown(view.dom, { key: "Backspace", bubbles: true, cancelable: true })).toBe(false);
-
-    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
     expect(selectionHasAncestor(view, "list_item")).toBe(true);
 
     typeText(view, " continued");
@@ -8121,6 +8115,79 @@ describe("MarkdownPaper editing", () => {
     expect(markdown).not.toContain("Nested child");
     expect(markdown).not.toContain("> - Parent two\n>   -");
     await settleMarkdownListener();
+  });
+
+  it("does not recreate an empty nested callout list item on repeated Backspace", async () => {
+    const source = [
+      "> [!NOTE]",
+      ">",
+      "> - Parent",
+      ">   - A item",
+      ">   - B item",
+      ">   - Empty item",
+      ">   - C item"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const emptyFrom = findTextPosition(view, "Empty item");
+
+    selectText(view, emptyFrom, emptyFrom + "Empty item".length);
+    view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+
+    focusEditor(view);
+    expect(pressBackspace(view)).toBe(true);
+
+    focusEditor(view);
+    fireEvent.keyDown(view.dom, { key: "Backspace", bubbles: true, cancelable: true });
+
+    const emptyItems = Array.from(
+      container.querySelectorAll<HTMLElement>(".ProseMirror blockquote.markra-callout li")
+    ).filter((item) => item.textContent?.trim().length === 0);
+    expect(emptyItems).toHaveLength(0);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).not.toContain(">   -\n");
+    expect(markdown).not.toContain(">   - \n");
+    expect(markdown).not.toContain("Empty item");
+  });
+
+  it("keeps child items nested when deleting an empty nested callout list parent", async () => {
+    const source = [
+      "> [!NOTE]",
+      ">",
+      "> - Parent",
+      ">   - Previous child",
+      ">   - Empty parent",
+      ">     - Grandchild one",
+      ">     - Grandchild two",
+      ">   - After child"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const emptyFrom = findTextPosition(view, "Empty parent");
+
+    selectText(view, emptyFrom, emptyFrom + "Empty parent".length);
+    view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+
+    focusEditor(view);
+    expect(pressBackspace(view)).toBe(true);
+
+    const previousChild = Array.from(
+      container.querySelectorAll<HTMLElement>(".ProseMirror blockquote.markra-callout > ul > li > ul > li")
+    ).find((item) => item.textContent?.includes("Previous child"));
+    expect(previousChild).toBeDefined();
+
+    const nestedGrandchildren = Array.from(previousChild?.querySelectorAll<HTMLElement>("ul > li") ?? []);
+    expect(nestedGrandchildren).toHaveLength(2);
+    expect(nestedGrandchildren[0]).toHaveTextContent("Grandchild one");
+    expect(nestedGrandchildren[1]).toHaveTextContent("Grandchild two");
+    expect(view.state.selection.$from.parent.textContent).toBe("Previous child");
+    expect(view.state.selection.from).toBe(findTextPosition(view, "Previous child", "Previous child".length));
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain(">   - Previous child\n>     - Grandchild one\n>     - Grandchild two");
+    expect(markdown).toContain(">   - After child");
+    expect(markdown).not.toContain("Empty parent");
   });
 
   it("removes the first emptied callout list item instead of leaving an empty bullet", async () => {
@@ -8182,6 +8249,8 @@ describe("MarkdownPaper editing", () => {
 
     expect(nestedItems).toHaveLength(1);
     expect(nestedItems[0]).toHaveTextContent("Second child");
+    expect(view.state.selection.$from.parent.textContent).toBe("Parent");
+    expect(view.state.selection.from).toBe(findTextPosition(view, "Parent", "Parent".length));
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     const markdown = serializeMarkdown(view.state.doc);
@@ -8191,7 +8260,7 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
-  it("promotes child list items when deleting an emptied callout list parent", async () => {
+  it("keeps child list items nested when deleting an emptied callout list parent", async () => {
     const source = [
       "> [!NOTE]",
       ">",
@@ -8216,18 +8285,21 @@ describe("MarkdownPaper editing", () => {
       (child): child is HTMLLIElement => child instanceof HTMLLIElement
     );
 
-    expect(topLevelItems).toHaveLength(4);
+    expect(topLevelItems).toHaveLength(2);
     expect(topLevelItems[0]).toHaveTextContent("Keep");
-    expect(topLevelItems[1]).toHaveTextContent("Child one");
-    expect(topLevelItems[2]).toHaveTextContent("Child two");
-    expect(topLevelItems[3]).toHaveTextContent("After");
+    expect(topLevelItems[1]).toHaveTextContent("After");
     expect(topLevelItems.some((item) => item.textContent?.trim().length === 0)).toBe(false);
+
+    const nestedItems = Array.from(topLevelItems[0].querySelectorAll<HTMLElement>("ul > li"));
+    expect(nestedItems).toHaveLength(2);
+    expect(nestedItems[0]).toHaveTextContent("Child one");
+    expect(nestedItems[1]).toHaveTextContent("Child two");
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     const markdown = serializeMarkdown(view.state.doc);
-    expect(markdown).toContain("> - Keep\n> - Child one\n> - Child two\n> - After");
+    expect(markdown).toContain("> - Keep\n>   - Child one\n>   - Child two\n> - After");
     expect(markdown).not.toContain("Parent");
-    expect(markdown).not.toContain("> -\n>   - Child one");
+    expect(markdown).not.toContain("> - Child one");
     await settleMarkdownListener();
   });
 
@@ -8251,7 +8323,7 @@ describe("MarkdownPaper editing", () => {
     focusEditor(view);
     fireEvent.keyDown(view.dom, { key: "Backspace", bubbles: true, cancelable: true });
 
-    expect(serializeMarkdown(view.state.doc)).toContain("> - Keep\n> - Child one\n> - Child two\n> - After");
+    expect(serializeMarkdown(view.state.doc)).toContain("> - Keep\n>   - Child one\n>   - Child two\n> - After");
 
     expect(pressShortcut(view, "z", { metaKey: true })).toBe(true);
 
@@ -8264,8 +8336,8 @@ describe("MarkdownPaper editing", () => {
     expect(pressShortcut(view, "z", { metaKey: true, shiftKey: true })).toBe(true);
 
     const redoMarkdown = serializeMarkdown(view.state.doc);
-    expect(redoMarkdown).toContain("> - Keep\n> - Child one\n> - Child two\n> - After");
-    expect(redoMarkdown).not.toContain("> -\n>   - Child one");
+    expect(redoMarkdown).toContain("> - Keep\n>   - Child one\n>   - Child two\n> - After");
+    expect(redoMarkdown).not.toContain("> - Child one");
     await settleMarkdownListener();
   });
 
