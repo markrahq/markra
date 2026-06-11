@@ -273,7 +273,8 @@ vi.mock("../lib/settings/app-settings", () => ({
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ],
-    showWordCount: true
+    showWordCount: true,
+    wrapCodeBlocks: true
   },
   appThemeOptions: [
     "system",
@@ -444,7 +445,8 @@ vi.mock("../lib/settings/app-settings", () => ({
       { id: "theme", visible: true }
     ],
     showWordCount: true,
-    ...preferences
+    ...preferences,
+    wrapCodeBlocks: preferences?.wrapCodeBlocks ?? true
   })),
   normalizeTitlebarActions: vi.fn((actions) => Array.isArray(actions) ? actions : [
     { id: "aiAgent", visible: true },
@@ -1046,7 +1048,8 @@ export function installAppTestHarness() {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
-      showWordCount: true
+      showWordCount: true,
+      wrapCodeBlocks: true
     });
     mockedGetStoredExportSettings.mockResolvedValue({
       pandocArgs: "",

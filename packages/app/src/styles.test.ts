@@ -318,14 +318,32 @@ describe("editor stylesheet", () => {
     expect(languageSelectStyles).toContain("border border-(--border-default)");
   });
 
-  it("wraps code block lines instead of forcing horizontal scrolling", () => {
+  it("wraps code block lines by default", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const codeStart = styles.indexOf(".markdown-paper .markra-code-block code {");
-    const codeEnd = styles.indexOf(".markdown-paper .hljs-keyword");
+    const codeEnd = styles.indexOf(".markdown-paper[data-code-block-wrap=\"false\"] .markra-code-block pre");
     const codeStyles = styles.slice(codeStart, codeEnd);
 
     expect(codeStyles).toContain("white-space: pre-wrap");
     expect(codeStyles).toContain("overflow-wrap: anywhere");
+  });
+
+  it("allows code block wrapping to be disabled", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const preStart = styles.indexOf(".markdown-paper[data-code-block-wrap=\"false\"] .markra-code-block pre");
+    const preEnd = styles.indexOf(".markdown-paper[data-code-block-wrap=\"false\"] .markra-code-block code");
+    const preStyles = styles.slice(preStart, preEnd);
+    const codeStart = styles.indexOf(".markdown-paper[data-code-block-wrap=\"false\"] .markra-code-block code");
+    const codeEnd = styles.indexOf(".markdown-paper .hljs-keyword");
+    const codeStyles = styles.slice(codeStart, codeEnd);
+
+    expect(preStart).toBeGreaterThanOrEqual(0);
+    expect(preEnd).toBeGreaterThan(preStart);
+    expect(preStyles).toContain("overflow-x: auto");
+    expect(codeStart).toBeGreaterThanOrEqual(0);
+    expect(codeEnd).toBeGreaterThan(codeStart);
+    expect(codeStyles).toContain("white-space: pre");
+    expect(codeStyles).toContain("overflow-wrap: normal");
   });
 
   it("folds Mermaid code source while showing the rendered preview", () => {

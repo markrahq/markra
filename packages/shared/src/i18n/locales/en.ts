@@ -190,6 +190,8 @@ const messages: BaseLocaleMessages = {
   "settings.editor.sidebarLayoutMode.tabs": "Tabs",
   "settings.editor.showWordCount": "Show word count",
   "settings.editor.showWordCountDescription": "Show document word count in the editor status line.",
+  "settings.editor.wrapCodeBlocks": "Wrap code block lines",
+  "settings.editor.wrapCodeBlocksDescription": "Wrap long lines inside code blocks instead of requiring horizontal scrolling.",
   "settings.editor.highlightSyntax": "Highlight syntax",
   "settings.editor.highlightSyntaxDescription": "Render ==text== as highlighted text in the visual editor.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",

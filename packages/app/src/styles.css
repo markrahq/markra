@@ -3029,6 +3029,15 @@
     white-space: pre-wrap;
   }
 
+  .markdown-paper[data-code-block-wrap="false"] .markra-code-block pre {
+    overflow-x: auto;
+  }
+
+  .markdown-paper[data-code-block-wrap="false"] .markra-code-block code {
+    overflow-wrap: normal;
+    white-space: pre;
+  }
+
   .markdown-paper .hljs-keyword,
   .markdown-paper .hljs-selector-tag,
   .markdown-paper .hljs-literal {

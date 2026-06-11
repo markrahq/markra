@@ -42,6 +42,7 @@ type MarkdownPaperProps = {
   scrollRef?: Ref<HTMLElement>;
   topInset?: "tabs" | "titlebar";
   workspaceFiles?: MarkdownPaperSurfaceProps["workspaceFiles"];
+  wrapCodeBlocks?: boolean;
 };
 
 export function MarkdownPaper({
@@ -75,7 +76,8 @@ export function MarkdownPaper({
   revision,
   scrollRef,
   topInset = "titlebar",
-  workspaceFiles
+  workspaceFiles,
+  wrapCodeBlocks = true
 }: MarkdownPaperProps) {
   const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
   const paperStyle = {
@@ -101,6 +103,7 @@ export function MarkdownPaper({
         aria-label={t(language, "app.markdownEditor")}
         data-editor-engine="milkdown"
         data-editor-theme={editorTheme}
+        data-code-block-wrap={wrapCodeBlocks ? "true" : "false"}
       >
         <EditorWidthResizer
           language={language}

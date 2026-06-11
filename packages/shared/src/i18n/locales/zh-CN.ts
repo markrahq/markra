@@ -190,6 +190,8 @@ const messages: LocaleMessages = {
   "settings.editor.sidebarLayoutMode.tabs": "页签",
   "settings.editor.showWordCount": "显示字数统计",
   "settings.editor.showWordCountDescription": "在编辑器状态栏显示当前文档字数。",
+  "settings.editor.wrapCodeBlocks": "代码块自动换行",
+  "settings.editor.wrapCodeBlocksDescription": "在代码块中折行显示长行，而不是依赖横向滚动。",
   "settings.editor.highlightSyntax": "语法高亮",
   "settings.editor.highlightSyntaxDescription": "在可视编辑器中把 ==text== 显示为高亮文本。",
   "settings.editor.githubAlerts": "GitHub 风格警告框",

@@ -530,6 +530,8 @@ const messages: LocaleMessages = {
   "settings.editor.sidebarLayoutMode.tabs": "タブ",
   "settings.editor.showWordCount": "単語数を表示",
   "settings.editor.showWordCountDescription": "エディターのステータス行にドキュメントの単語数を表示します。",
+  "settings.editor.wrapCodeBlocks": "コードブロックの行を折り返す",
+  "settings.editor.wrapCodeBlocksDescription": "横スクロールではなく、コードブロック内の長い行を折り返します。",
   "settings.editor.highlightSyntax": "ハイライト構文",
   "settings.editor.highlightSyntaxDescription": "ビジュアルエディターで ==text== をハイライト表示します。",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
