@@ -102,7 +102,7 @@ const messages: LocaleMessages = {
   "settings.editor.imageUploadProvider.showPicGoSettings": "显示 PicGo/PicList 配置",
   "settings.editor.imageUploadProvider.showS3Settings": "显示 S3 兼容配置",
   "settings.editor.imageUploadFileNamePattern": "文件命名规则",
-  "settings.editor.imageUploadFileNamePatternDescription": "支持 {name}、{timestamp}、{random}，图片扩展名会自动追加。",
+  "settings.editor.imageUploadFileNamePatternDescription": "支持 {name}、{timestamp}、{random}、{md5}，图片扩展名会自动追加。",
   "settings.editor.clipboardImageFolder": "剪贴板图片文件夹",
   "settings.editor.clipboardImageFolderDescription": "粘贴图片时保存到当前 Markdown 文件旁边的这个文件夹。",
   "settings.editor.webDavServerUrl": "WebDAV 服务器 URL",

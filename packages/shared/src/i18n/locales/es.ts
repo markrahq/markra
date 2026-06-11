@@ -442,7 +442,7 @@ const messages: LocaleMessages = {
   "settings.editor.imageUploadProvider.showPicGoSettings": "Mostrar configuración de PicGo/PicList",
   "settings.editor.imageUploadProvider.showS3Settings": "Mostrar configuración compatible con S3",
   "settings.editor.imageUploadFileNamePattern": "Regla de nombres de archivo",
-  "settings.editor.imageUploadFileNamePatternDescription": "Admite {name}, {timestamp} y {random}. No incluyas separadores de ruta.",
+  "settings.editor.imageUploadFileNamePatternDescription": "Admite {name}, {timestamp}, {random} y {md5}. No incluyas separadores de ruta.",
   "settings.editor.webDavServerUrl": "URL del servidor WebDAV",
   "settings.editor.webDavServerUrlDescription": "URL base de la carpeta WebDAV que recibe las imágenes.",
   "settings.editor.webDavUsername": "Usuario WebDAV",
