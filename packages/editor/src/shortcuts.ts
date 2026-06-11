@@ -17,7 +17,7 @@ import { Fragment, type Node as ProseNode, type NodeType, type ResolvedPos } fro
 import type { Command, Selection } from "@milkdown/kit/prose/state";
 import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import { liftListItem, sinkListItem, wrapInList } from "@milkdown/kit/prose/schema-list";
+import { liftListItem, sinkListItem, splitListItem, wrapInList } from "@milkdown/kit/prose/schema-list";
 import { $prose } from "@milkdown/kit/utils";
 import {
   defaultKeyboardShortcuts,
@@ -40,6 +40,7 @@ import {
 } from "@markra/shared";
 import { toggleAllFoldableBlocks } from "./fold-toggle.ts";
 import { finalizeActiveLiveMarkdown, markraLiveMarkdownSpecs } from "./input-rules.ts";
+import { removeEmptyListItem, tightenListSpreadInSelectionAncestor } from "./list-editing.ts";
 
 export const markdownShortcutActions = keyboardShortcutActions;
 export const defaultMarkdownShortcuts = defaultKeyboardShortcuts;
@@ -380,6 +381,16 @@ function ancestorDepthOfNodeType($position: ResolvedPos, nodeType: NodeType) {
   return null;
 }
 
+function continueListItem(view: EditorView, listItem: NodeType, tightAncestorName?: string) {
+  const command = selectionIsEmptyTextBlock(view.state.selection)
+    ? liftListItem(listItem)
+    : splitListItem(listItem, { spread: false });
+  const handled = runCommand(view, command);
+  if (handled && tightAncestorName) tightenListSpreadInSelectionAncestor(view, tightAncestorName);
+
+  return handled;
+}
+
 function blockquoteExitDepth(selection: Selection, blockquote: NodeType) {
   if (!(selection instanceof TextSelection) || !selection.empty) return null;
   if (!selection.$from.parent.isTextblock) return null;
@@ -556,6 +567,14 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
             return true;
           }
 
+          if (selectionIsInsideNodeType(view.state.selection, listItem)) {
+            const handled = continueListItem(view, listItem, "blockquote");
+            if (!handled) return false;
+
+            event.preventDefault();
+            return true;
+          }
+
           const handled = exitBlockquoteAtEnd(view, blockquote, paragraph);
           if (handled) {
             event.preventDefault();
@@ -567,6 +586,20 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
             view.focus();
             return true;
           }
+        } else if (
+          (event.key === "Backspace" || event.key === "Delete") &&
+          !hasModifier &&
+          selectionIsInsideNodeType(view.state.selection, blockquote) &&
+          selectionIsInsideNodeType(view.state.selection, listItem)
+        ) {
+          const handled = removeEmptyListItem(view, event.key);
+          if (!handled) return false;
+          if (selectionIsInsideNodeType(view.state.selection, blockquote)) {
+            tightenListSpreadInSelectionAncestor(view, "blockquote");
+          }
+
+          event.preventDefault();
+          return true;
         } else if (event.key === "Backspace" && !hasModifier && selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
           const handled = runCommand(view, lift);
           if (!handled) return false;
@@ -593,6 +626,9 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
               view,
               event.shiftKey ? liftCurrentListItem(listItem) : sinkListItem(listItem)
             );
+            if (handled && selectionIsInsideNodeType(view.state.selection, blockquote)) {
+              tightenListSpreadInSelectionAncestor(view, "blockquote");
+            }
             if (!handled) view.focus();
 
             event.preventDefault();

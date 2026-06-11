@@ -5581,6 +5581,81 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("continues quote list items when pressing Enter", async () => {
+    const { container, editor, view } = await renderEditor("> - First");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "First", "First".length));
+
+    expect(pressEnter(view)).toBe(true);
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    expect(selectionHasAncestor(view, "list_item")).toBe(true);
+
+    typeText(view, "Second");
+
+    const quote = container.querySelector<HTMLElement>(".ProseMirror blockquote");
+    expect(quote?.querySelectorAll("ul li")).toHaveLength(2);
+    expect(serializeMarkdown(view.state.doc)).toContain("> - First\n> - Second");
+    await settleMarkdownListener();
+  });
+
+  it("nests and lifts quote list items with Tab like ordinary lists", async () => {
+    const { container, editor, view } = await renderEditor("> - First\n> - Second");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Second"));
+
+    expect(pressShortcut(view, "Tab")).toBe(true);
+
+    let topLevelItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror blockquote > ul > li"));
+    let nestedItems = Array.from(container.querySelectorAll<HTMLElement>(
+      ".ProseMirror blockquote > ul > li > ul > li"
+    ));
+    expect(topLevelItems).toHaveLength(1);
+    expect(nestedItems).toHaveLength(1);
+    expect(nestedItems[0]).toHaveTextContent("Second");
+    expect(serializeMarkdown(view.state.doc)).toContain("> - First\n>   - Second");
+
+    expect(pressShortcut(view, "Tab", { shiftKey: true })).toBe(true);
+
+    topLevelItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror blockquote > ul > li"));
+    nestedItems = Array.from(container.querySelectorAll<HTMLElement>(
+      ".ProseMirror blockquote > ul > li > ul > li"
+    ));
+    expect(topLevelItems).toHaveLength(2);
+    expect(nestedItems).toHaveLength(0);
+    expect(topLevelItems[1]).toHaveTextContent("Second");
+    expect(serializeMarkdown(view.state.doc)).toContain("> - First\n> - Second");
+    await settleMarkdownListener();
+  });
+
+  it("removes emptied quote list items without recreating the bullet", async () => {
+    const source = ["> - Parent", ">   - First child", ">   - Empty child", ">   - Last child"].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const emptyFrom = findTextPosition(view, "Empty child");
+
+    selectText(view, emptyFrom, emptyFrom + "Empty child".length);
+    view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+
+    focusEditor(view);
+    expect(pressBackspace(view)).toBe(true);
+
+    focusEditor(view);
+    fireEvent.keyDown(view.dom, { key: "Backspace", bubbles: true, cancelable: true });
+
+    const emptyItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror blockquote li")).filter(
+      (item) => item.textContent?.trim().length === 0
+    );
+    expect(emptyItems).toHaveLength(0);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+    expect(markdown).toContain("> - Parent\n>   - First child\n>   - Last child");
+    expect(markdown).not.toContain("Empty child");
+    expect(markdown).not.toContain(">   -\n");
+    await settleMarkdownListener();
+  });
+
   it("exits quote formatting before following prose when pressing Enter at the quote end", async () => {
     const { editor, view } = await renderEditor(["> Quote", "", "After"].join("\n"));
     moveCursor(view, findTextPosition(view, "Quote", "Quote".length));
