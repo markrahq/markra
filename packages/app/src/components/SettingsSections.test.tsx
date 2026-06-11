@@ -315,6 +315,32 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("toggles code block line wrapping from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          wrapCodeBlocks: true
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const wrapSwitch = screen.getByRole("switch", { name: "Wrap code block lines" });
+
+    expect(wrapSwitch).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(wrapSwitch);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      wrapCodeBlocks: false
+    });
+  });
+
   it("switches the sidebar layout from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

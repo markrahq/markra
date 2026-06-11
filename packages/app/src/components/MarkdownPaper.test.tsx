@@ -64,6 +64,7 @@ async function renderEditor(
       path: string;
       relativePath: string;
     }>;
+    wrapCodeBlocks?: boolean;
   } = {}
 ) {
   let editor: Editor | null = null;
@@ -86,6 +87,7 @@ async function renderEditor(
       resolveImageSrc={options.resolveImageSrc}
       revision={0}
       workspaceFiles={options.workspaceFiles}
+      wrapCodeBlocks={options.wrapCodeBlocks}
     />
   );
 
@@ -721,6 +723,12 @@ afterAll(async () => {
 });
 
 describe("MarkdownPaper editing", () => {
+  it("marks whether code blocks should wrap long lines", async () => {
+    const { container } = await renderEditor("```ts\nconst syntheticValue = 'mock';\n```", { wrapCodeBlocks: false });
+
+    expect(container.querySelector(".markdown-paper")).toHaveAttribute("data-code-block-wrap", "false");
+  });
+
   it("renders exact visual search highlights without width normalization", async () => {
     const { container, view } = await renderEditor("alpha, beta，gamma, delta");
 

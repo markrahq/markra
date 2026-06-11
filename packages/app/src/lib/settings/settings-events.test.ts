@@ -180,7 +180,8 @@ describe("settings events", () => {
         { id: "aiAgent", visible: true },
         { id: "history", visible: true }
       ],
-      showWordCount: false
+      showWordCount: false,
+      wrapCodeBlocks: false
     };
 
     await notifyAppEditorPreferencesChanged(preferences);

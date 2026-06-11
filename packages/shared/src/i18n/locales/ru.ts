@@ -530,6 +530,8 @@ const messages: LocaleMessages = {
   "settings.editor.sidebarLayoutMode.tabs": "Вкладки",
   "settings.editor.showWordCount": "Показывать число слов",
   "settings.editor.showWordCountDescription": "Показывает число слов документа в строке состояния редактора.",
+  "settings.editor.wrapCodeBlocks": "Переносить строки в блоках кода",
+  "settings.editor.wrapCodeBlocksDescription": "Переносит длинные строки в блоках кода вместо горизонтальной прокрутки.",
   "settings.editor.highlightSyntax": "Синтаксис выделения",
   "settings.editor.highlightSyntaxDescription": "Показывает ==text== как выделенный текст в визуальном редакторе.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",

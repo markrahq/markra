@@ -27,6 +27,7 @@ type SideDocumentPaneProps = {
   revision: number;
   sizeBytes?: number;
   workspaceFiles?: MarkdownDocumentLinkFile[];
+  wrapCodeBlocks?: boolean;
   onChange: (content: string) => unknown;
   onContentWidthChange?: (width: number) => unknown;
   onContentWidthResizeEnd?: () => unknown;
@@ -56,6 +57,7 @@ export function SideDocumentPane({
   revision,
   sizeBytes,
   workspaceFiles,
+  wrapCodeBlocks = true,
   onChange,
   onContentWidthChange,
   onContentWidthResizeEnd,
@@ -111,6 +113,7 @@ export function SideDocumentPane({
           revision={revision}
           topInset="titlebar"
           workspaceFiles={workspaceFiles}
+          wrapCodeBlocks={wrapCodeBlocks}
         />
       )}
     </section>

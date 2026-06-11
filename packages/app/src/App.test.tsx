@@ -160,7 +160,8 @@ function createStoredEditorPreferences(
       { id: "theme", visible: true }
     ],
     showWordCount: true,
-    ...overrides
+    ...overrides,
+    wrapCodeBlocks: overrides.wrapCodeBlocks ?? true
   };
 }
 
@@ -473,7 +474,8 @@ describe("Markra workspace", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
-      showWordCount: true
+      showWordCount: true,
+      wrapCodeBlocks: true
     });
     renderApp();
 
@@ -519,7 +521,8 @@ describe("Markra workspace", () => {
           { id: "aiAgent", visible: true },
           { id: "theme", visible: true }
         ],
-        showWordCount: true
+        showWordCount: true,
+        wrapCodeBlocks: true
       })
     );
     await waitFor(() =>
@@ -553,7 +556,8 @@ describe("Markra workspace", () => {
           { id: "aiAgent", visible: true },
           { id: "theme", visible: true }
         ],
-        showWordCount: true
+        showWordCount: true,
+        wrapCodeBlocks: true
       })
     );
   });
@@ -1103,7 +1107,8 @@ describe("Markra workspace", () => {
         { id: "save" as const, visible: true },
         { id: "theme" as const, visible: true }
       ],
-      showWordCount: true
+      showWordCount: true,
+      wrapCodeBlocks: true
     };
     mockedGetStoredEditorPreferences.mockResolvedValue(initialPreferences);
     window.history.pushState({}, "", "/?settings=1");
@@ -1214,7 +1219,8 @@ describe("Markra workspace", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
-      showWordCount: true
+      showWordCount: true,
+      wrapCodeBlocks: true
     });
     window.history.pushState({}, "", "/?settings=1");
 
@@ -3266,7 +3272,8 @@ describe("Markra workspace", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
-      showWordCount: true
+      showWordCount: true,
+      wrapCodeBlocks: true
     });
     mockedOpenNativeMarkdownPath.mockResolvedValue({
       kind: "folder",
@@ -3400,7 +3407,8 @@ describe("Markra workspace", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
-      showWordCount: true
+      showWordCount: true,
+      wrapCodeBlocks: true
     });
     mockOpenMarkdownFile({
       content: "Original synthetic text",

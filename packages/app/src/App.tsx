@@ -3605,6 +3605,7 @@ function WorkspaceApp() {
                             scrollRef={visualScrollRef}
                             topInset="titlebar"
                             workspaceFiles={fileTreeFiles}
+                            wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
                           />
                         )}
                       </div>
@@ -3706,6 +3707,7 @@ function WorkspaceApp() {
                         scrollRef={visualScrollRef}
                         topInset="titlebar"
                         workspaceFiles={fileTreeFiles}
+                        wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
                       />
                     )
                   )}
@@ -3758,6 +3760,7 @@ function WorkspaceApp() {
                         onContentWidthChange={handleEditorContentWidthChange}
                         onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                         onFocus={handleSideDocumentPaneFocus}
+                        wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
                       />
                     </>
                   ) : null}

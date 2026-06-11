@@ -530,6 +530,8 @@ const messages: LocaleMessages = {
   "settings.editor.sidebarLayoutMode.tabs": "탭",
   "settings.editor.showWordCount": "단어 수 표시",
   "settings.editor.showWordCountDescription": "편집기 상태 줄에 문서 단어 수를 표시합니다.",
+  "settings.editor.wrapCodeBlocks": "코드 블록 줄 바꿈",
+  "settings.editor.wrapCodeBlocksDescription": "가로 스크롤 대신 코드 블록의 긴 줄을 줄 바꿈합니다.",
   "settings.editor.highlightSyntax": "하이라이트 구문",
   "settings.editor.highlightSyntaxDescription": "비주얼 편집기에서 ==text== 를 하이라이트 텍스트로 표시합니다.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",

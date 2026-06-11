@@ -214,6 +214,8 @@ export type I18nKey =
   | "settings.editor.sidebarLayoutMode.tabs"
   | "settings.editor.showWordCount"
   | "settings.editor.showWordCountDescription"
+  | "settings.editor.wrapCodeBlocks"
+  | "settings.editor.wrapCodeBlocksDescription"
   | "settings.editor.highlightSyntax"
   | "settings.editor.highlightSyntaxDescription"
   | "settings.editor.githubAlerts"

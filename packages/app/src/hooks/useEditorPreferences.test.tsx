@@ -77,7 +77,8 @@ vi.mock("../lib/settings/app-settings", () => ({
     showAiSelectionToolbarOnSelection: false,
     showDocumentTabs: true,
     splitVisualPanePercent: 50,
-    showWordCount: true
+    showWordCount: true,
+    wrapCodeBlocks: true
   },
   getStoredEditorPreferences: vi.fn()
 }));
@@ -174,7 +175,8 @@ describe("useEditorPreferences", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
-      showWordCount: true
+      showWordCount: true,
+      wrapCodeBlocks: true
     });
     mockedListenAppEditorPreferencesChanged.mockImplementation(async (listener) => {
       onPreferencesChanged = listener;
@@ -264,7 +266,8 @@ describe("useEditorPreferences", () => {
           { id: "sourceMode", visible: true },
           { id: "aiAgent", visible: true }
         ],
-        showWordCount: false
+        showWordCount: false,
+        wrapCodeBlocks: false
       });
     });
 

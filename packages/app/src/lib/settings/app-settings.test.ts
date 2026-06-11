@@ -245,7 +245,8 @@ describe("app settings", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
-      showWordCount: true
+      showWordCount: true,
+      wrapCodeBlocks: true
     });
 
     expect(store.get).toHaveBeenCalledWith("editorPreferences");
@@ -614,7 +615,8 @@ describe("app settings", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
-      showWordCount: false
+      showWordCount: false,
+      wrapCodeBlocks: true
     });
   });
 
@@ -642,6 +644,12 @@ describe("app settings", () => {
     expect(normalizeEditorPreferences({}).autoUpdateEnabled).toBe(true);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: false }).autoUpdateEnabled).toBe(false);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: "no" }).autoUpdateEnabled).toBe(true);
+  });
+
+  it("normalizes the code block line wrapping preference", () => {
+    expect(normalizeEditorPreferences({}).wrapCodeBlocks).toBe(true);
+    expect(normalizeEditorPreferences({ wrapCodeBlocks: false }).wrapCodeBlocks).toBe(false);
+    expect(normalizeEditorPreferences({ wrapCodeBlocks: "no" }).wrapCodeBlocks).toBe(true);
   });
 
   it("migrates the old AI selection display mode into independent switches", () => {
@@ -991,7 +999,8 @@ describe("app settings", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
-      showWordCount: true
+      showWordCount: true,
+      wrapCodeBlocks: true
     });
   });
 
@@ -1060,7 +1069,8 @@ describe("app settings", () => {
         { id: "aiAgent", visible: true },
         { id: "history", visible: true }
       ],
-      showWordCount: false
+      showWordCount: false,
+      wrapCodeBlocks: false
     });
 
     expect(store.set).toHaveBeenCalledWith("editorPreferences", {
@@ -1127,7 +1137,8 @@ describe("app settings", () => {
         { id: "aiAgent", visible: true },
         { id: "history", visible: true }
       ],
-      showWordCount: false
+      showWordCount: false,
+      wrapCodeBlocks: false
     });
     expect(store.save).toHaveBeenCalledTimes(1);
   });

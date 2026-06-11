@@ -530,6 +530,8 @@ const messages: LocaleMessages = {
   "settings.editor.sidebarLayoutMode.tabs": "Onglets",
   "settings.editor.showWordCount": "Afficher le nombre de mots",
   "settings.editor.showWordCountDescription": "Affiche le nombre de mots dans la ligne d’état de l’éditeur.",
+  "settings.editor.wrapCodeBlocks": "Renvoyer les lignes des blocs de code",
+  "settings.editor.wrapCodeBlocksDescription": "Renvoie les longues lignes dans les blocs de code au lieu d’imposer un défilement horizontal.",
   "settings.editor.highlightSyntax": "Syntaxe de surlignage",
   "settings.editor.highlightSyntaxDescription": "Affiche ==text== comme texte surligné dans l’éditeur visuel.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",

@@ -2813,6 +2813,22 @@ export function EditorSettings({
             />
           }
         />
+        <SettingsRow
+          title={translate("settings.editor.wrapCodeBlocks")}
+          description={translate("settings.editor.wrapCodeBlocksDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.wrapCodeBlocks}
+              label={translate("settings.editor.wrapCodeBlocks")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  wrapCodeBlocks: !preferences.wrapCodeBlocks
+                })
+              }
+            />
+          }
+        />
       </SettingsSection>
       <SettingsSection label={translate("settings.sections.extendedSyntax")}>
         <SettingsRow

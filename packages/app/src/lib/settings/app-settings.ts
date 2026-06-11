@@ -145,6 +145,7 @@ export type EditorPreferences = {
   splitVisualPanePercent: number;
   titlebarActions: TitlebarActionPreference[];
   showWordCount: boolean;
+  wrapCodeBlocks: boolean;
 };
 export type ExportSettings = {
   pandocArgs: string;
@@ -313,7 +314,8 @@ export const defaultEditorPreferences: EditorPreferences = {
   showDocumentTabs: true,
   splitVisualPanePercent: defaultSplitVisualPanePercent,
   titlebarActions: [...defaultTitlebarActions],
-  showWordCount: true
+  showWordCount: true,
+  wrapCodeBlocks: true
 };
 
 export const defaultExportSettings: ExportSettings = {
@@ -980,7 +982,9 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     splitVisualPanePercent: normalizeSplitVisualPanePercent(preferences.splitVisualPanePercent),
     titlebarActions: normalizeTitlebarActions(preferences.titlebarActions),
     showWordCount:
-      typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount
+      typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount,
+    wrapCodeBlocks:
+      typeof preferences.wrapCodeBlocks === "boolean" ? preferences.wrapCodeBlocks : defaultEditorPreferences.wrapCodeBlocks
   };
 }
 

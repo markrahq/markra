@@ -146,6 +146,7 @@ describe("Markra AI workspace", () => {
       splitVisualPanePercent: 50,
       showWordCount: true,
       suggestAiPanelForComplexInlinePrompts: true,
+      wrapCodeBlocks: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -226,6 +227,7 @@ describe("Markra AI workspace", () => {
       splitVisualPanePercent: 50,
       showWordCount: true,
       suggestAiPanelForComplexInlinePrompts: false,
+      wrapCodeBlocks: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },

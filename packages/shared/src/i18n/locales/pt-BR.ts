@@ -530,6 +530,8 @@ const messages: LocaleMessages = {
   "settings.editor.sidebarLayoutMode.tabs": "Abas",
   "settings.editor.showWordCount": "Mostrar contagem de palavras",
   "settings.editor.showWordCountDescription": "Mostra a contagem de palavras na linha de status do editor.",
+  "settings.editor.wrapCodeBlocks": "Quebrar linhas em blocos de código",
+  "settings.editor.wrapCodeBlocksDescription": "Quebra linhas longas dentro de blocos de código em vez de exigir rolagem horizontal.",
   "settings.editor.highlightSyntax": "Sintaxe de destaque",
   "settings.editor.highlightSyntaxDescription": "Renderiza ==text== como texto destacado no editor visual.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
