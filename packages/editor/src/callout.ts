@@ -293,6 +293,7 @@ function firstTextBlockStartPosition(node: ProseNode, nodeFrom: number) {
   let position: number | null = null;
 
   node.descendants((child, offset) => {
+    if (position !== null) return false;
     if (!child.isTextblock) return true;
 
     position = nodeFrom + offset + 2;
@@ -306,6 +307,7 @@ function firstTextBlockEndPosition(node: ProseNode, nodeFrom: number) {
   let position: number | null = null;
 
   node.descendants((child, offset) => {
+    if (position !== null) return false;
     if (!child.isTextblock) return true;
 
     position = nodeFrom + offset + 2 + child.content.size;
@@ -340,11 +342,63 @@ function childListItems(listItem: ProseNode) {
   return items;
 }
 
-function promoteEmptyListItemChildren(view: EditorView) {
-  const context = emptyListItemContext(view.state);
-  if (!context) return false;
-  if (!listItemHasOnlyEmptyTextBlocksAndLists(context.listItem)) return false;
+function childLists(listItem: ProseNode) {
+  const lists: ProseNode[] = [];
 
+  listItem.forEach((child) => {
+    if (isListNode(child)) lists.push(child);
+  });
+
+  return lists;
+}
+
+function appendChildListsToListItem(listItem: ProseNode, lists: ProseNode[]) {
+  const children: ProseNode[] = [];
+  listItem.forEach((child) => children.push(child));
+
+  for (const list of lists) {
+    const lastChild = children.at(-1);
+    if (lastChild && isListNode(lastChild) && lastChild.type === list.type) {
+      children[children.length - 1] = lastChild.type.create(
+        lastChild.attrs,
+        lastChild.content.append(list.content),
+        lastChild.marks
+      );
+      continue;
+    }
+
+    children.push(list);
+  }
+
+  return listItem.type.create(listItem.attrs, Fragment.fromArray(children), listItem.marks);
+}
+
+function moveEmptyListItemChildrenToPreviousSibling(view: EditorView, context: EmptyListItemContext) {
+  if (context.itemIndex <= 0) return false;
+
+  const lists = childLists(context.listItem);
+  if (lists.length === 0) return false;
+
+  const previousItem = context.parentList.child(context.itemIndex - 1);
+  const previousItemFrom = context.from - previousItem.nodeSize;
+  const updatedPreviousItem = appendChildListsToListItem(previousItem, lists);
+  const transaction = closeHistory(view.state.tr.replaceWith(previousItemFrom, context.to, updatedPreviousItem));
+  const selectionPosition = Math.min(
+    firstTextBlockEndPosition(updatedPreviousItem, previousItemFrom) ?? previousItemFrom + 1,
+    transaction.doc.content.size
+  );
+
+  view.dispatch(
+    transaction
+      .setSelection(TextSelection.create(transaction.doc, selectionPosition))
+      .scrollIntoView()
+  );
+  view.focus();
+
+  return true;
+}
+
+function promoteEmptyListItemChildren(view: EditorView, context: EmptyListItemContext) {
   const promotedItems = childListItems(context.listItem);
   if (promotedItems.length === 0) return false;
 
@@ -361,23 +415,72 @@ function promoteEmptyListItemChildren(view: EditorView) {
   return true;
 }
 
-function removeFirstEmptyLeafListItem(view: EditorView) {
+function removeEmptyListItemWithChildren(view: EditorView, key: KeyboardEvent["key"]) {
+  const context = emptyListItemContext(view.state);
+  if (!context) return false;
+  if (!listItemHasOnlyEmptyTextBlocksAndLists(context.listItem)) return false;
+
+  return (
+    (key === "Backspace" && moveEmptyListItemChildrenToPreviousSibling(view, context)) ||
+    promoteEmptyListItemChildren(view, context)
+  );
+}
+
+function parentListItemEndPosition(context: EmptyListItemContext) {
+  const parentListItemDepth = context.parentListDepth - 1;
+  if (parentListItemDepth <= 0) return null;
+
+  const parentListItem = context.$from.node(parentListItemDepth);
+  if (parentListItem.type.name !== "list_item") return null;
+
+  const parentListItemFrom = context.$from.before(parentListItemDepth);
+  return firstTextBlockEndPosition(parentListItem, parentListItemFrom) ?? parentListItemFrom + 1;
+}
+
+function removeEmptyLeafListItem(view: EditorView, key: KeyboardEvent["key"]) {
   const context = emptyListItemContext(view.state);
   if (!context) return false;
   if (context.listItem.childCount !== 1) return false;
-  if (context.itemIndex !== 0 || context.parentList.childCount <= 1) return false;
+  if (context.parentList.childCount <= 1) return false;
 
-  const nextItem = context.parentList.child(context.itemIndex + 1);
-  const nextItemPosition = firstTextBlockStartPosition(nextItem, context.to) ?? context.to + 1;
+  if (key === "Backspace" && context.itemIndex === 0) {
+    const parentSelectionPosition = parentListItemEndPosition(context);
+    if (parentSelectionPosition !== null) {
+      const transaction = closeHistory(view.state.tr.delete(context.from, context.to));
+      const mappedSelectionPosition = Math.min(
+        Math.max(transaction.mapping.map(parentSelectionPosition, -1), 1),
+        transaction.doc.content.size
+      );
+
+      view.dispatch(
+        transaction
+          .setSelection(TextSelection.create(transaction.doc, mappedSelectionPosition))
+          .scrollIntoView()
+      );
+      view.focus();
+
+      return true;
+    }
+  }
+
+  const preferPrevious = key === "Backspace" && context.itemIndex > 0;
+  const siblingIndex = preferPrevious ? context.itemIndex - 1 : context.itemIndex + 1;
+  if (siblingIndex < 0 || siblingIndex >= context.parentList.childCount) return false;
+
+  const sibling = context.parentList.child(siblingIndex);
+  const siblingFrom = preferPrevious ? context.from - sibling.nodeSize : context.to;
+  const selectionPosition = preferPrevious
+    ? firstTextBlockEndPosition(sibling, siblingFrom) ?? context.from - 1
+    : firstTextBlockStartPosition(sibling, siblingFrom) ?? context.to + 1;
   const transaction = closeHistory(view.state.tr.delete(context.from, context.to));
   const mappedSelectionPosition = Math.min(
-    Math.max(transaction.mapping.map(nextItemPosition, -1), 1),
+    Math.max(transaction.mapping.map(selectionPosition, preferPrevious ? -1 : 1), 1),
     transaction.doc.content.size
   );
 
   view.dispatch(
     transaction
-      .setSelection(TextSelection.near(transaction.doc.resolve(mappedSelectionPosition), 1))
+      .setSelection(TextSelection.near(transaction.doc.resolve(mappedSelectionPosition), preferPrevious ? -1 : 1))
       .scrollIntoView()
   );
   view.focus();
@@ -426,10 +529,10 @@ function removeEmptyNestedCalloutListItem(view: EditorView) {
   return true;
 }
 
-function removeEmptyCalloutListItem(view: EditorView) {
+function removeEmptyCalloutListItem(view: EditorView, key: KeyboardEvent["key"]) {
   return (
-    promoteEmptyListItemChildren(view) ||
-    removeFirstEmptyLeafListItem(view) ||
+    removeEmptyListItemWithChildren(view, key) ||
+    removeEmptyLeafListItem(view, key) ||
     removeEmptyNestedCalloutListItem(view)
   );
 }
@@ -994,7 +1097,7 @@ export const markraCalloutPlugin = $prose((ctx) => {
         const callout = findCalloutAtSelection(view);
         if (!callout) return false;
         if (selectionIsInsideNodeName(view.state, "list_item")) {
-          const handled = removeEmptyCalloutListItem(view);
+          const handled = removeEmptyCalloutListItem(view, event.key);
           if (!handled) return false;
 
           event.preventDefault();
