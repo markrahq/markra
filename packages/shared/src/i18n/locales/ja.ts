@@ -442,7 +442,7 @@ const messages: LocaleMessages = {
   "settings.editor.imageUploadProvider.showPicGoSettings": "PicGo/PicList 設定を表示",
   "settings.editor.imageUploadProvider.showS3Settings": "S3 互換設定を表示",
   "settings.editor.imageUploadFileNamePattern": "ファイル命名規則",
-  "settings.editor.imageUploadFileNamePatternDescription": "{name}、{timestamp}、{random} を使用できます。パス区切り文字は含めないでください。",
+  "settings.editor.imageUploadFileNamePatternDescription": "{name}、{timestamp}、{random}、{md5} を使用できます。パス区切り文字は含めないでください。",
   "settings.editor.webDavServerUrl": "WebDAV サーバー URL",
   "settings.editor.webDavServerUrlDescription": "画像アップロードを受け取る WebDAV フォルダーのベース URL です。",
   "settings.editor.webDavUsername": "WebDAV ユーザー名",

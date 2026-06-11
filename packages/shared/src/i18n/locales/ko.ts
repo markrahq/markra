@@ -442,7 +442,7 @@ const messages: LocaleMessages = {
   "settings.editor.imageUploadProvider.showPicGoSettings": "PicGo/PicList 설정 보기",
   "settings.editor.imageUploadProvider.showS3Settings": "S3 호환 설정 보기",
   "settings.editor.imageUploadFileNamePattern": "파일 이름 규칙",
-  "settings.editor.imageUploadFileNamePatternDescription": "{name}, {timestamp}, {random}을 지원합니다. 경로 구분자는 포함하지 마세요.",
+  "settings.editor.imageUploadFileNamePatternDescription": "{name}, {timestamp}, {random}, {md5}을 지원합니다. 경로 구분자는 포함하지 마세요.",
   "settings.editor.webDavServerUrl": "WebDAV 서버 URL",
   "settings.editor.webDavServerUrlDescription": "이미지 업로드를 받을 WebDAV 폴더의 기본 URL입니다.",
   "settings.editor.webDavUsername": "WebDAV 사용자 이름",

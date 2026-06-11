@@ -1,3 +1,6 @@
+import { md5 } from "@noble/hashes/legacy.js";
+import { bytesToHex } from "@noble/hashes/utils.js";
+
 import type {
   EditorPreferences,
   PicGoImageUploadSettings,
@@ -65,7 +68,7 @@ const imageMimeExtensions: Record<string, string> = {
   "image/webp": "webp"
 };
 
-export function createImageUploadFileName(
+export async function createImageUploadFileName(
   image: File,
   pattern: string,
   options: ImageUploadFileNameOptions = {}
@@ -74,10 +77,12 @@ export function createImageUploadFileName(
   const name = sanitizeFileNamePart(image.name.replace(/\.[^.]*$/u, "")) || "image";
   const timestamp = options.timestamp?.() ?? String(Date.now());
   const random = options.random?.() ?? defaultRandomToken();
+  const md5 = pattern.includes("{md5}") ? await fileMd5Hex(image) : "";
   const renderedPattern = (pattern.trim() || "pasted-image-{timestamp}")
     .replace(/\{name\}/gu, name)
     .replace(/\{timestamp\}/gu, timestamp)
-    .replace(/\{random\}/gu, random);
+    .replace(/\{random\}/gu, random)
+    .replace(/\{md5\}/gu, md5);
   const baseName = sanitizeFileNamePart(stripKnownImageExtension(renderedPattern)) || `pasted-image-${timestamp}`;
 
   return `${baseName}.${extension}`;
@@ -111,7 +116,6 @@ export async function saveEditorImage({
   uploadS3Image = uploadNativeS3Image,
   uploadWebDavImage = uploadNativeWebDavImage
 }: SaveEditorImageInput): Promise<SaveEditorImageResult> {
-  const fileName = createImageUploadFileName(image, preferences.imageUpload.fileNamePattern);
   const provider = preferences.imageUpload.provider === "s3" && !s3ImageUploadEnabled
     ? "local"
     : preferences.imageUpload.provider;
@@ -126,7 +130,11 @@ export async function saveEditorImage({
     }
 
     return {
-      image: await uploadPicGoImage({ fileName, image, settings }),
+      image: await uploadPicGoImage({
+        fileName: await createImageUploadFileName(image, preferences.imageUpload.fileNamePattern),
+        image,
+        settings
+      }),
       refreshTree: false,
       status: "saved"
     };
@@ -142,7 +150,11 @@ export async function saveEditorImage({
     }
 
     return {
-      image: await uploadS3Image({ fileName, image, settings }),
+      image: await uploadS3Image({
+        fileName: await createImageUploadFileName(image, preferences.imageUpload.fileNamePattern),
+        image,
+        settings
+      }),
       refreshTree: false,
       status: "saved"
     };
@@ -158,7 +170,11 @@ export async function saveEditorImage({
     }
 
     return {
-      image: await uploadWebDavImage({ fileName, image, settings }),
+      image: await uploadWebDavImage({
+        fileName: await createImageUploadFileName(image, preferences.imageUpload.fileNamePattern),
+        image,
+        settings
+      }),
       refreshTree: false,
       status: "saved"
     };
@@ -174,7 +190,7 @@ export async function saveEditorImage({
   return {
     image: await saveLocalImage({
       documentPath,
-      fileName,
+      fileName: await createImageUploadFileName(image, preferences.imageUpload.fileNamePattern),
       folder: preferences.clipboardImageFolder,
       image
     }),
@@ -209,6 +225,10 @@ function sanitizeFileNamePart(value: string) {
 
 function stripKnownImageExtension(value: string) {
   return value.replace(/\.(?:avif|bmp|gif|jpe?g|png|webp)$/iu, "");
+}
+
+async function fileMd5Hex(file: File) {
+  return bytesToHex(md5(new Uint8Array(await file.arrayBuffer())));
 }
 
 function defaultRandomToken() {

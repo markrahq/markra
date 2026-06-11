@@ -442,7 +442,7 @@ const messages: LocaleMessages = {
   "settings.editor.imageUploadProvider.showPicGoSettings": "顯示 PicGo/PicList 設定",
   "settings.editor.imageUploadProvider.showS3Settings": "顯示 S3 相容設定",
   "settings.editor.imageUploadFileNamePattern": "檔案命名規則",
-  "settings.editor.imageUploadFileNamePatternDescription": "支援 {name}、{timestamp}、{random}。請勿包含路徑分隔符。",
+  "settings.editor.imageUploadFileNamePatternDescription": "支援 {name}、{timestamp}、{random}、{md5}。請勿包含路徑分隔符。",
   "settings.editor.webDavServerUrl": "WebDAV 伺服器 URL",
   "settings.editor.webDavServerUrlDescription": "接收圖片上傳的 WebDAV 資料夾基礎 URL。",
   "settings.editor.webDavUsername": "WebDAV 使用者名稱",

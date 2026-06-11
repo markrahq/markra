@@ -2,27 +2,35 @@ import { defaultEditorPreferences } from "./settings/app-settings";
 import { createImageUploadFileName, saveEditorImage } from "./image-upload";
 
 describe("save editor image", () => {
-  it("creates safe image file names from the configured pattern", () => {
+  it("creates safe image file names from the configured pattern", async () => {
     const image = new File([new Uint8Array([1, 2, 3])], "My Diagram!.png", { type: "image/png" });
 
-    expect(createImageUploadFileName(image, "{name}-{timestamp}-{random}", {
+    expect(await createImageUploadFileName(image, "{name}-{timestamp}-{random}", {
       random: () => "abc123",
       timestamp: () => "1700000000000"
     })).toBe("My-Diagram-1700000000000-abc123.png");
   });
 
-  it("keeps dots that are part of the configured file naming pattern", () => {
+  it("uses the image content md5 in configured file naming patterns", async () => {
+    const image = new File([new Uint8Array([1, 2, 3])], "Diagram.png", { type: "image/png" });
+
+    expect(await createImageUploadFileName(image, "{name}-{md5}", {
+      timestamp: () => "1700000000000"
+    })).toBe("Diagram-5289df737df57326fcdd22597afb1fac.png");
+  });
+
+  it("keeps dots that are part of the configured file naming pattern", async () => {
     const image = new File([new Uint8Array([1, 2, 3])], "My Diagram.png", { type: "image/png" });
 
-    expect(createImageUploadFileName(image, "{name}.{timestamp}", {
+    expect(await createImageUploadFileName(image, "{name}.{timestamp}", {
       timestamp: () => "1700000000000"
     })).toBe("My-Diagram.1700000000000.png");
   });
 
-  it("keeps SVG image extensions when creating upload file names", () => {
+  it("keeps SVG image extensions when creating upload file names", async () => {
     const image = new File([new Uint8Array([1, 2, 3])], "Logo.svg", { type: "image/svg+xml" });
 
-    expect(createImageUploadFileName(image, "{name}-{timestamp}", {
+    expect(await createImageUploadFileName(image, "{name}-{timestamp}", {
       timestamp: () => "1700000000000"
     })).toBe("Logo-1700000000000.svg");
   });
@@ -128,6 +136,7 @@ describe("save editor image", () => {
           ...defaultEditorPreferences,
           imageUpload: {
             ...defaultEditorPreferences.imageUpload,
+            fileNamePattern: "{name}-{md5}",
             provider: "picgo",
             picgo
           }
@@ -146,7 +155,7 @@ describe("save editor image", () => {
     });
 
     expect(uploadPicGoImage).toHaveBeenCalledWith({
-      fileName: expect.stringMatching(/^pasted-image-\d+\.png$/u),
+      fileName: "Diagram-5289df737df57326fcdd22597afb1fac.png",
       image,
       settings: picgo
     });

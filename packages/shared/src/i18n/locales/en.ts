@@ -102,7 +102,7 @@ const messages: BaseLocaleMessages = {
   "settings.editor.imageUploadProvider.showPicGoSettings": "Show PicGo/PicList settings",
   "settings.editor.imageUploadProvider.showS3Settings": "Show S3-compatible settings",
   "settings.editor.imageUploadFileNamePattern": "File naming pattern",
-  "settings.editor.imageUploadFileNamePatternDescription": "Tokens: {name}, {timestamp}, {random}. The image extension is added automatically.",
+  "settings.editor.imageUploadFileNamePatternDescription": "Tokens: {name}, {timestamp}, {random}, {md5}. The image extension is added automatically.",
   "settings.editor.clipboardImageFolder": "Clipboard image folder",
   "settings.editor.clipboardImageFolderDescription": "Save pasted images in this folder beside the current Markdown file.",
   "settings.editor.webDavServerUrl": "WebDAV server URL",
