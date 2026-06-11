@@ -85,7 +85,7 @@ export function MarkdownPaper({
     ...(bottomOverlayInset > 0 ? { paddingBottom: `${bottomOverlayInset}px` } : {})
   } satisfies CSSProperties;
   const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";
-  const editorInstanceKey = `${documentKey ?? documentPath ?? "untitled"}:${revision}`;
+  const editorInstanceKey = `${documentKey ?? "untitled"}:${documentPath ?? "unsaved"}:${revision}`;
 
   return (
     <section

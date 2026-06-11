@@ -120,6 +120,7 @@ export type NativeMarkdownDroppedTarget =
     };
 
 export type SaveNativeMarkdownFileInput = {
+  defaultDirectory?: string | null;
   historyCursorId?: string;
   path: string | null;
   skipHistorySnapshot?: boolean;
@@ -350,6 +351,19 @@ function treeRootPathFromPath(path: string) {
 function normalizeNativeParentPath(path: string | null | undefined) {
   const trimmedPath = path?.trim();
   return trimmedPath ? trimmedPath : null;
+}
+
+function nativePathSeparator(path: string) {
+  return path.includes("\\") && !path.includes("/") ? "\\" : "/";
+}
+
+function nativeDefaultSavePath(defaultDirectory: string | null | undefined, suggestedName: string) {
+  const directory = defaultDirectory?.trim();
+  const name = suggestedName.trim() || "Untitled.md";
+  if (!directory) return name;
+
+  const separator = nativePathSeparator(directory);
+  return `${directory.replace(/[\\/]+$/u, "")}${separator}${name.replace(/^[\\/]+/u, "")}`;
 }
 
 export async function takeNativeOpenedMarkdownPaths(): Promise<string[]> {
@@ -726,6 +740,7 @@ export async function openNativeMarkdownFolder(labels?: NativeMarkdownPickerLabe
 }
 
 export async function saveNativeMarkdownFile({
+  defaultDirectory,
   historyCursorId,
   path,
   skipHistorySnapshot,
@@ -742,7 +757,7 @@ export async function saveNativeMarkdownFile({
   const targetPath =
     path ??
     (await save({
-      defaultPath: suggestedName,
+      defaultPath: nativeDefaultSavePath(defaultDirectory, suggestedName),
       filters: markdownFilters
     }));
 

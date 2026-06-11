@@ -67,6 +67,7 @@ export type NativeMarkdownDroppedTarget =
     };
 
 export type SaveNativeMarkdownFileInput = {
+  defaultDirectory?: string | null;
   historyCursorId?: string;
   path: string | null;
   skipHistorySnapshot?: boolean;

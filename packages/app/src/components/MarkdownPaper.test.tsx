@@ -1323,6 +1323,41 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
   });
 
+  it("recreates the editor when an untitled document receives a saved path", async () => {
+    let editor: Editor | null = null;
+    const savedContent = "# Scratch\n\nSaved immediately.";
+    const { container, rerender } = render(
+      <MarkdownPaper
+        documentKey="untitled:0"
+        documentPath={null}
+        initialContent=""
+        onEditorReady={(instance) => {
+          editor = instance;
+        }}
+        onMarkdownChange={() => {}}
+        revision={0}
+      />
+    );
+
+    await waitFor(() => expect(editor).not.toBeNull());
+    expect(container.querySelector(".ProseMirror")).not.toHaveTextContent("Saved immediately.");
+
+    rerender(
+      <MarkdownPaper
+        documentKey="untitled:0"
+        documentPath="/mock-files/scratch.md"
+        initialContent={savedContent}
+        onEditorReady={(instance) => {
+          editor = instance;
+        }}
+        onMarkdownChange={() => {}}
+        revision={0}
+      />
+    );
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror")).toHaveTextContent("Saved immediately."));
+  });
+
   it("renders fenced code blocks with syntax highlighting and line numbers", async () => {
     const source = ["```ts", "const answer = 42;", "return answer;", "```"].join("\n");
     const { container, editor, view } = await renderEditor(source);

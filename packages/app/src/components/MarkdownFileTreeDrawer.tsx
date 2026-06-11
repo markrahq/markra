@@ -508,6 +508,22 @@ function collectMarkdownFolderPaths(nodes: TreeNode[]) {
   return paths;
 }
 
+function collectMarkdownFolderTargetPaths(nodes: TreeNode[]) {
+  const paths: string[] = [];
+
+  const collect = (treeNodes: TreeNode[]) => {
+    treeNodes.forEach((node) => {
+      if (node.type !== "folder") return;
+
+      if (node.path) paths.push(node.path);
+      collect(node.children);
+    });
+  };
+
+  collect(nodes);
+  return paths;
+}
+
 function outlineItemKey(item: MarkdownOutlineItem, index: number) {
   return `${index}:${item.level}:${item.title}`;
 }
@@ -793,6 +809,7 @@ export function MarkdownFileTreeDrawer({
   const [creatingFile, setCreatingFile] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [creatingParentPath, setCreatingParentPath] = useState<string | null>(null);
+  const [selectedCreateParentPath, setSelectedCreateParentPath] = useState<string | null>(null);
   const [creatingTemplate, setCreatingTemplate] = useState<MarkdownTemplate | null>(null);
   const [creatingTemplateStartedAt, setCreatingTemplateStartedAt] = useState<Date | null>(null);
   const [newFileName, setNewFileName] = useState("");
@@ -873,6 +890,7 @@ export function MarkdownFileTreeDrawer({
     setFileTreeScrollOffset((current) => current === nextOffset ? current : nextOffset);
   }, []);
   const folderPaths = useMemo(() => collectMarkdownFolderPaths(fullTree), [fullTree]);
+  const folderTargetPaths = useMemo(() => collectMarkdownFolderTargetPaths(fullTree), [fullTree]);
   const availableMarkdownTemplates = useMemo(() => mergeMarkdownTemplates(customTemplates), [customTemplates]);
   const outlineMaxLevel = outlineLevelFilter === "all" ? null : outlineLevelFilter;
   const outlineRenderItems = useMemo(() => buildOutlineRenderItems(outlineItems, outlineMaxLevel), [outlineItems, outlineMaxLevel]);
@@ -913,7 +931,7 @@ export function MarkdownFileTreeDrawer({
 
     return normalizedParentPath;
   }, [rootPath]);
-  const activeCreateParentPath = useMemo(() => {
+  const currentDocumentCreateParentPath = useMemo(() => {
     const normalizedRootPath = rootPath ? normalizeMovedPath(rootPath) : null;
     const currentParentPath = currentPath ? parentPathFromPath(currentPath) : null;
     if (!normalizedRootPath || !currentParentPath) return null;
@@ -925,6 +943,7 @@ export function MarkdownFileTreeDrawer({
 
     return null;
   }, [currentPath, normalizeTreeCreateParentPath, rootPath]);
+  const activeCreateParentPath = selectedCreateParentPath ?? currentDocumentCreateParentPath;
   const recentFolderChoices = recentFolders.slice(0, 5);
   const recentFolderAreaVisible = recentFolderChoices.length > 0 && Boolean(onOpenRecentFolder);
   const tabbedSidebarLayout = sidebarLayoutMode === "tabs";
@@ -950,6 +969,16 @@ export function MarkdownFileTreeDrawer({
       outlineResizeCleanupRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedCreateParentPath) return;
+
+    const normalizedSelectedParentPath = normalizeMovedPath(selectedCreateParentPath);
+    const selectedFolderStillExists = folderTargetPaths.some((folderPath) =>
+      normalizeMovedPath(folderPath) === normalizedSelectedParentPath
+    );
+    if (!selectedFolderStillExists) setSelectedCreateParentPath(null);
+  }, [folderTargetPaths, selectedCreateParentPath]);
 
   useEffect(() => {
     if (filePanelVisible) return;
@@ -1670,7 +1699,10 @@ export function MarkdownFileTreeDrawer({
                 type="button"
                 aria-expanded={expanded}
                 onContextMenu={(event) => openContextMenu(event, folderFile, node.path)}
-                onClick={() => toggleFolder(node.relativePath)}
+                onClick={() => {
+                  setSelectedCreateParentPath(normalizeTreeCreateParentPath(node.path));
+                  toggleFolder(node.relativePath);
+                }}
                 {...dragSource.attributes}
                 {...dragSource.listeners}
               >
@@ -1713,6 +1745,7 @@ export function MarkdownFileTreeDrawer({
             title={node.file.path}
             onContextMenu={(event) => openContextMenu(event, node.file)}
             onClick={() => {
+              setSelectedCreateParentPath(null);
               onOpenFile(node.file);
             }}
             {...dragSource.attributes}

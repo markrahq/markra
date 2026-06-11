@@ -1677,6 +1677,49 @@ describe("useMarkdownDocument", () => {
     });
   });
 
+  it("keeps an untitled edit visible when save starts before the tab state flushes", async () => {
+    const savedPath = "/mock-files/scratch.md";
+    const savedContent = "# Scratch\n\nSaved immediately.";
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "scratch.md",
+      path: savedPath
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: () => savedContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      result.current.handleMarkdownChange(savedContent);
+      await result.current.saveCurrentDocument();
+    });
+
+    expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledWith({
+      contents: savedContent,
+      path: null,
+      suggestedName: "Untitled.md"
+    });
+    expect(result.current.document).toMatchObject({
+      content: savedContent,
+      dirty: false,
+      name: "scratch.md",
+      path: savedPath
+    });
+    expect(result.current.tabs).toEqual([
+      expect.objectContaining({
+        content: savedContent,
+        dirty: false,
+        name: "scratch.md",
+        path: savedPath
+      })
+    ]);
+  });
+
   it("clears a saved file draft after saving the document", async () => {
     const guidePath = "/mock-files/vault/guide.md";
     mockedReadNativeMarkdownFile.mockResolvedValue({

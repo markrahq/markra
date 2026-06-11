@@ -587,6 +587,32 @@ describe("native file access", () => {
     });
   });
 
+  it("starts the native save dialog in the open markdown folder for an untitled document", async () => {
+    mockedSave.mockResolvedValue("/mock-files/vault/Untitled.md");
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await expect(
+      saveNativeMarkdownFile({
+        defaultDirectory: "/mock-files/vault",
+        path: null,
+        suggestedName: "Untitled.md",
+        contents: "# Untitled"
+      })
+    ).resolves.toEqual({
+      path: "/mock-files/vault/Untitled.md",
+      name: "Untitled.md"
+    });
+
+    expect(mockedSave).toHaveBeenCalledWith({
+      defaultPath: "/mock-files/vault/Untitled.md",
+      filters: [{ name: "Markdown", extensions: ["md", "markdown", "txt"] }]
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("write_markdown_file", {
+      path: "/mock-files/vault/Untitled.md",
+      contents: "# Untitled"
+    });
+  });
+
   it("exports rendered HTML through the native save dialog", async () => {
     mockedSave.mockResolvedValue("/mock-files/draft.html");
     mockedInvoke.mockResolvedValue(undefined);

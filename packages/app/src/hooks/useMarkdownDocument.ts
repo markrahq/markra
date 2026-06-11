@@ -288,6 +288,7 @@ function isDeletedDocumentPath(documentPath: string, deletedPath: string) {
 type UseMarkdownDocumentOptions = {
   beforeNativeAppExit?: () => unknown | Promise<unknown>;
   confirmDiscardUnsavedChanges?: (document: DocumentState) => boolean | Promise<boolean>;
+  defaultSaveDirectory?: string | null;
   documentTabsEnabled?: boolean;
   editorReady?: boolean | (() => boolean);
   getCurrentMarkdown: (fallbackContent: string) => string;
@@ -316,9 +317,17 @@ function resolveEditorReady(editorReady: boolean | (() => boolean)) {
   return typeof editorReady === "function" ? editorReady() : editorReady;
 }
 
+function defaultSaveDirectoryInput(defaultSaveDirectory: string | null | undefined, path: string | null) {
+  if (path !== null) return {};
+
+  const directory = defaultSaveDirectory?.trim();
+  return directory ? { defaultDirectory: directory } : {};
+}
+
 export function useMarkdownDocument({
   beforeNativeAppExit,
   confirmDiscardUnsavedChanges,
+  defaultSaveDirectory,
   documentTabsEnabled = false,
   editorReady = true,
   getCurrentMarkdown,
@@ -1175,7 +1184,12 @@ export function useMarkdownDocument({
     if (documentTabsEnabled && targetTabId && !targetTab) return;
 
     const fallbackTabId = targetTabId ?? activeTabIdRef.current ?? fileTabId(savedFile.path);
-    const targetDocument = targetTab ? documentFromTab(targetTab) : documentRef.current;
+    const targetDocument =
+      targetTabId === activeTabIdRef.current
+        ? documentRef.current
+        : targetTab
+          ? documentFromTab(targetTab)
+          : documentRef.current;
     const sourceContent = options.sourceContent ?? contents;
     const contentChangedAfterSaveStarted =
       targetDocument.content !== sourceContent && targetDocument.content !== contents;
@@ -1219,8 +1233,10 @@ export function useMarkdownDocument({
 
       const targetTabId = activeTabIdRef.current;
       const contents = currentMarkdown();
+      const savePath = saveAs ? null : current.path;
       const savedFile = await saveNativeMarkdownFile({
-        path: saveAs ? null : current.path,
+        ...defaultSaveDirectoryInput(defaultSaveDirectory, savePath),
+        path: savePath,
         suggestedName: current.name || "Untitled.md",
         contents
       });
@@ -1234,7 +1250,7 @@ export function useMarkdownDocument({
       });
       return savedFile;
     },
-    [applySavedCurrentDocument, currentMarkdown]
+    [applySavedCurrentDocument, currentMarkdown, defaultSaveDirectory]
   );
 
   const saveCurrentDocumentContent = useCallback(
@@ -1258,11 +1274,13 @@ export function useMarkdownDocument({
         suggestedName: current.name || "Untitled.md"
       }]);
 
+      const savePath = current.path;
       let savedFile: Awaited<ReturnType<typeof saveNativeMarkdownFile>>;
       try {
         savedFile = await saveNativeMarkdownFile({
+          ...defaultSaveDirectoryInput(defaultSaveDirectory, savePath),
           historyCursorId: options.historyCursorId,
-          path: current.path,
+          path: savePath,
           skipHistorySnapshot: options.skipHistorySnapshot,
           suggestedName: current.name || "Untitled.md",
           contents
@@ -1293,7 +1311,7 @@ export function useMarkdownDocument({
       }]);
       return savedFile;
     },
-    [applySavedCurrentDocument]
+    [applySavedCurrentDocument, defaultSaveDirectory]
   );
 
   const saveMarkdownTab = useCallback(
@@ -1304,8 +1322,10 @@ export function useMarkdownDocument({
       if (!tab?.open) return null;
 
       const contents = tab.id === activeTabIdRef.current ? currentMarkdown() : tab.content;
+      const savePath = saveAs ? null : tab.path;
       const savedFile = await saveNativeMarkdownFile({
-        path: saveAs ? null : tab.path,
+        ...defaultSaveDirectoryInput(defaultSaveDirectory, savePath),
+        path: savePath,
         suggestedName: tab.name || "Untitled.md",
         contents
       });
@@ -1342,7 +1362,14 @@ export function useMarkdownDocument({
       });
       return savedFile;
     },
-    [currentMarkdown, onTreeRootFromFilePath, registerWindowRestoreState, rememberRecentMarkdownFile, syncActiveDocumentFromEditor]
+    [
+      currentMarkdown,
+      defaultSaveDirectory,
+      onTreeRootFromFilePath,
+      registerWindowRestoreState,
+      rememberRecentMarkdownFile,
+      syncActiveDocumentFromEditor
+    ]
   );
 
   const handleSaveClick = useCallback(() => {
