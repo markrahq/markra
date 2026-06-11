@@ -73,7 +73,9 @@ import {
   clampNumber,
   debug,
   findSearchRanges,
+  isMarkdownPath,
   normalizeSearchIndex,
+  parentPathFromPath,
   t,
   type I18nKey,
   type SearchRange
@@ -210,6 +212,14 @@ function documentTabAsFolderFile(tab: MarkdownTabsBarDocumentItem): NativeMarkdo
     path: tab.path,
     relativePath: tab.path
   };
+}
+
+function defaultSaveDirectoryFromFileTree(sourcePath: string | null) {
+  const trimmedSourcePath = sourcePath?.trim();
+  if (!trimmedSourcePath) return null;
+  if (!isMarkdownPath(trimmedSourcePath)) return trimmedSourcePath;
+
+  return parentPathFromPath(trimmedSourcePath);
 }
 
 function persistSideDocumentGroup(group: StoredWorkspaceSideBySideGroup | null) {
@@ -567,6 +577,10 @@ function WorkspaceApp() {
     workspaceLayoutClassName,
     workspaceLayoutStyle
   } = fileTree;
+  const defaultMarkdownSaveDirectory = useMemo(
+    () => defaultSaveDirectoryFromFileTree(fileTreeSourcePath),
+    [fileTreeSourcePath]
+  );
   const confirmDiscardUnsavedChanges = useCallback((currentDocument: { name: string }) => {
     return confirmNativeUnsavedMarkdownDocumentDiscard(currentDocument.name, {
       cancelLabel: translate("app.cancelDiscardUnsavedMarkdownDocument"),
@@ -691,6 +705,7 @@ function WorkspaceApp() {
   const markdownDocument = useMarkdownDocument({
     beforeNativeAppExit: beforeNativeAppExitBackup,
     confirmDiscardUnsavedChanges,
+    defaultSaveDirectory: defaultMarkdownSaveDirectory,
     documentTabsEnabled: editorPreferences.preferences.showDocumentTabs,
     editorReady: isDocumentEditorReady,
     getCurrentMarkdown: readCurrentMarkdownForDocument,

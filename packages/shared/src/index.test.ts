@@ -8,6 +8,7 @@ import {
   isRecord,
   joinApiUrl,
   normalizeNullableString,
+  parentPathFromPath,
   pathNameFromPath,
   stableTextKey
 } from ".";
@@ -59,6 +60,11 @@ describe("utilities", () => {
     expect(pathNameFromPath(null)).toBe("No folder");
     expect(folderNameFromDocumentPath("/vault/docs/readme.md")).toBe("docs");
     expect(folderNameFromDocumentPath(null)).toBe("No folder");
+    expect(parentPathFromPath("/vault/docs/readme.md")).toBe("/vault/docs");
+    expect(parentPathFromPath("/readme.md")).toBe("/");
+    expect(parentPathFromPath("C:\\vault\\docs\\readme.md")).toBe("C:\\vault\\docs");
+    expect(parentPathFromPath("C:\\readme.md")).toBe("C:\\");
+    expect(parentPathFromPath("readme.md")).toBeNull();
   });
 
   it("builds stable short text keys", () => {

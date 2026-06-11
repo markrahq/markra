@@ -1030,6 +1030,36 @@ describe("MarkdownFileTreeDrawer", () => {
     }
   });
 
+  it("starts toolbar create actions inside the selected folder", () => {
+    const createFolder = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/deploy/deploy.md"
+        files={[
+          ...markdownFiles,
+          { name: "notes.md", path: "/vault/docs/notes.md", relativePath: "docs/notes.md" }
+        ]}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onCreateFolder={createFolder}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "docs" }));
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New Folder" }));
+    const newFolderInput = screen.getByRole("textbox", { name: "New folder name" });
+    fireEvent.change(newFolderInput, { target: { value: "Research" } });
+    fireEvent.keyDown(newFolderInput, { key: "Enter" });
+
+    expect(createFolder).toHaveBeenCalledWith("Research", "/vault/docs");
+  });
+
   it("starts root create actions at the tree root when the current file is in the root folder", () => {
     const createFile = vi.fn();
     const createFolder = vi.fn();

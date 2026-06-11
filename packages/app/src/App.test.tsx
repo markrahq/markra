@@ -3844,6 +3844,49 @@ describe("Markra workspace", () => {
     );
   });
 
+  it("starts untitled document saves in the open markdown folder", async () => {
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "note.md", path: `${mockFolderPath}/note.md`, relativePath: "note.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Note\n\nExisting file.",
+      name: "note.md",
+      path: `${mockFolderPath}/note.md`
+    });
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "Untitled.md",
+      path: `${mockFolderPath}/Untitled.md`
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "note.md" }));
+    expect(await screen.findByText("Note")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "New tab" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Markdown" }));
+
+    await waitFor(() =>
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          defaultDirectory: mockFolderPath,
+          path: null,
+          suggestedName: "Untitled.md"
+        })
+      )
+    );
+  });
+
   it("opens and saves markdown files through native Tauri file APIs", async () => {
     mockOpenMarkdownFile({
       content: "# Native file\n\nOpened from disk.",
