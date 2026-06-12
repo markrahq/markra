@@ -11,7 +11,7 @@ import {
   strongSchema
 } from "@milkdown/kit/preset/commonmark";
 import { strikethroughSchema } from "@milkdown/kit/preset/gfm";
-import { exitCode, lift, setBlockType, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
+import { exitCode, lift, setBlockType, splitBlock, toggleMark, wrapIn } from "@milkdown/kit/prose/commands";
 import { redo, undo } from "@milkdown/kit/prose/history";
 import { Fragment, type Node as ProseNode, type NodeType, type ResolvedPos } from "@milkdown/kit/prose/model";
 import type { Command, Selection } from "@milkdown/kit/prose/state";
@@ -113,62 +113,6 @@ function listItemContext(selection: Selection, listItem: NodeType): ListItemCont
     parentListDepth: fromDepth - 1,
     to
   };
-}
-
-function listItemHasChildList(item: ProseNode) {
-  for (let index = 0; index < item.childCount; index += 1) {
-    if (nodeIsList(item.child(index))) return true;
-  }
-
-  return false;
-}
-
-function listItemIsNested(context: ListItemContext, listItem: NodeType, selection: Selection) {
-  return context.parentListDepth > 0 && selection.$from.node(context.parentListDepth - 1).type === listItem;
-}
-
-function liftCreatesChildListFromFollowingSiblings(selection: Selection, listItem: NodeType) {
-  const context = listItemContext(selection, listItem);
-  if (!context) return false;
-  if (!listItemIsNested(context, listItem, selection)) return false;
-  if (listItemHasChildList(context.item)) return false;
-
-  return context.itemIndex < context.parentList.childCount - 1;
-}
-
-function splitCurrentListItemChildLists(view: EditorView, listItem: NodeType) {
-  const { selection } = view.state;
-  const context = listItemContext(selection, listItem);
-  if (!context) return false;
-
-  const retainedChildren: ProseNode[] = [];
-  const promotedItems: ProseNode[] = [];
-  context.item.forEach((child) => {
-    if (nodeIsList(child)) {
-      child.forEach((item) => promotedItems.push(item));
-      return;
-    }
-
-    retainedChildren.push(child);
-  });
-  if (promotedItems.length === 0 || retainedChildren.length === 0) return false;
-
-  const retainedItem = context.item.type.create(
-    context.item.attrs,
-    Fragment.fromArray(retainedChildren),
-    context.item.marks
-  );
-  const replacement = Fragment.fromArray([retainedItem, ...promotedItems]);
-  const transaction = view.state.tr.replaceWith(context.from, context.to, replacement);
-  const selectionPosition = Math.min(selection.from, transaction.doc.content.size);
-  view.dispatch(
-    transaction
-      .setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1))
-      .scrollIntoView()
-  );
-  view.focus();
-
-  return true;
 }
 
 function continuationBlockContext(selection: Selection, listItem: NodeType) {
@@ -336,17 +280,7 @@ function liftCurrentListItem(listItem: NodeType): Command {
       return handled || true;
     }
 
-    const shouldSplitLiftedChildren = liftCreatesChildListFromFollowingSiblings(state.selection, listItem);
-
-    if (!shouldSplitLiftedChildren || !dispatch || !view) {
-      return liftListItem(listItem)(state, dispatch, view);
-    }
-
-    const handled = liftListItem(listItem)(state, dispatch, view);
-    if (!handled) return false;
-
-    splitCurrentListItemChildLists(view, listItem);
-    return true;
+    return liftListItem(listItem)(state, dispatch, view);
   };
 }
 
@@ -389,38 +323,6 @@ function continueListItem(view: EditorView, listItem: NodeType, tightAncestorNam
   if (handled && tightAncestorName) tightenListSpreadInSelectionAncestor(view, tightAncestorName);
 
   return handled;
-}
-
-function blockquoteExitDepth(selection: Selection, blockquote: NodeType) {
-  if (!(selection instanceof TextSelection) || !selection.empty) return null;
-  if (!selection.$from.parent.isTextblock) return null;
-  if (selection.$from.parentOffset !== selection.$from.parent.content.size) return null;
-
-  const blockquoteDepth = ancestorDepthOfNodeType(selection.$from, blockquote);
-  if (blockquoteDepth === null) return null;
-  if (selection.$from.after(selection.$from.depth) !== selection.$from.end(blockquoteDepth)) return null;
-
-  return blockquoteDepth;
-}
-
-function exitBlockquoteAtEnd(view: EditorView, blockquote: NodeType, paragraph: NodeType) {
-  const blockquoteDepth = blockquoteExitDepth(view.state.selection, blockquote);
-  if (blockquoteDepth === null) return false;
-
-  if (selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
-    return runCommand(view, lift);
-  }
-
-  const insertAt = view.state.selection.$from.after(blockquoteDepth);
-  const transaction = view.state.tr.insert(insertAt, paragraph.create());
-  view.dispatch(
-    transaction
-      .setSelection(TextSelection.create(transaction.doc, insertAt + 1))
-      .scrollIntoView()
-  );
-  view.focus();
-
-  return true;
 }
 
 function emptyTopLevelParagraphAfterTable(view: EditorView, paragraph: NodeType) {
@@ -562,9 +464,7 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
         if (event.key === "Enter" && !hasModifier && selectionIsInsideNodeType(view.state.selection, blockquote)) {
           const finalizedLiveMarkdown = finalizeActiveLiveMarkdown(view, liveMarkdownSpecs);
           if (finalizedLiveMarkdown) {
-            event.preventDefault();
             view.focus();
-            return true;
           }
 
           if (selectionIsInsideNodeType(view.state.selection, listItem)) {
@@ -575,15 +475,19 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
             return true;
           }
 
-          const handled = exitBlockquoteAtEnd(view, blockquote, paragraph);
-          if (handled) {
+          if (selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
+            const handled = runCommand(view, lift);
+            if (!handled) return false;
+
             event.preventDefault();
             return true;
           }
 
-          if (selectionIsEmptyBlockquote(view.state.selection, blockquote)) {
+          if (finalizedLiveMarkdown) {
+            const handled = runCommand(view, splitBlock);
+            if (!handled) return false;
+
             event.preventDefault();
-            view.focus();
             return true;
           }
         } else if (

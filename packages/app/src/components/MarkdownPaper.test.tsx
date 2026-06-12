@@ -5388,6 +5388,23 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("nests only the current list item when Tab is pressed before following siblings", async () => {
+    const { editor, view } = await renderEditor(["- A", "- B", "- C", "- D"].join("\n"));
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "C"));
+
+    expect(pressShortcut(view, "Tab")).toBe(true);
+
+    expect(serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0)).toEqual([
+      "- A",
+      "- B",
+      "  - C",
+      "- D"
+    ]);
+    await settleMarkdownListener();
+  });
+
   it("lifts only the current list item with Shift+Tab", async () => {
     const source = ["- Parent", "  - First child", "  - Second child", "- After"].join("\n");
     const { container, editor, view } = await renderEditor(source);
@@ -5399,21 +5416,47 @@ describe("MarkdownPaper editing", () => {
 
     const topLevelItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > ul > li"));
     const nestedItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > ul > li > ul > li"));
-    expect(topLevelItems).toHaveLength(4);
+    expect(topLevelItems).toHaveLength(3);
     expect(topLevelItems[0]).toHaveTextContent("Parent");
     expect(topLevelItems[1]).toHaveTextContent("First child");
-    expect(topLevelItems[2]).toHaveTextContent("Second child");
-    expect(topLevelItems[3]).toHaveTextContent("After");
-    expect(nestedItems).toHaveLength(0);
+    expect(topLevelItems[2]).toHaveTextContent("After");
+    expect(nestedItems).toHaveLength(1);
+    expect(nestedItems[0]).toHaveTextContent("Second child");
 
     const markdown = serializeMarkdown(view.state.doc);
     expect(markdown.split("\n").filter((line) => line.length > 0)).toEqual([
       "- Parent",
       "- First child",
-      "- Second child",
+      "  - Second child",
       "- After"
     ]);
-    expect(markdown).not.toContain("- First child\n  - Second child");
+  });
+
+  it("lifts list items without reducing following sibling indentation", async () => {
+    const source = [
+      "- Parent",
+      "  - First child",
+      "  - Second child",
+      "    - Nested detail",
+      "  - Third child",
+      "- After"
+    ].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Second child"));
+
+    expect(pressShortcut(view, "Tab", { shiftKey: true })).toBe(true);
+
+    expect(serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0)).toEqual([
+      "- Parent",
+      "  - First child",
+      "- Second child",
+      "  - Nested detail",
+      "  - Third child",
+      "- After"
+    ]);
+    await settleMarkdownListener();
   });
 
   it("lifts only the active list continuation line with Shift+Tab", async () => {
@@ -5552,7 +5595,7 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
-  it("exits quote formatting when pressing Enter at the quote end", async () => {
+  it("continues quote formatting at the quote end and exits from a blank quote line", async () => {
     const { container, editor, view } = await renderEditor("> Quote");
     moveCursor(view, findTextPosition(view, "Quote", "Quote".length));
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
@@ -5560,9 +5603,33 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror blockquote")).toHaveTextContent("Quote");
     expect(pressEnter(view)).toBe(true);
 
-    expect(selectionHasAncestor(view, "blockquote")).toBe(false);
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
     typeText(view, "Next");
-    expect(serializeMarkdown(view.state.doc)).toBe("> Quote\n\nNext\n");
+    expect(serializeMarkdown(view.state.doc)).toContain("> Quote\n>\n> Next");
+
+    expect(pressEnter(view)).toBe(true);
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    expect(pressEnter(view)).toBe(true);
+    expect(selectionHasAncestor(view, "blockquote")).toBe(false);
+    typeText(view, "After");
+    expect(serializeMarkdown(view.state.doc)).toBe("> Quote\n>\n> Next\n\nAfter\n");
+    await settleMarkdownListener();
+  });
+
+  it("moves to a new quote line after one Enter from typed quote content", async () => {
+    const { editor, view } = await renderEditor();
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "> ");
+    typeText(view, "First line");
+
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    expect(pressEnter(view)).toBe(true);
+
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    expect(view.state.selection.$from.parent.textContent).toBe("");
+    typeText(view, "Second line");
+    expect(serializeMarkdown(view.state.doc)).toContain("> First line\n>\n> Second line");
     await settleMarkdownListener();
   });
 
@@ -5629,6 +5696,89 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("nests only the current quote list item when Tab is pressed before following siblings", async () => {
+    const { editor, view } = await renderEditor(["> - A", "> - B", "> - C", "> - D"].join("\n"));
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "C"));
+
+    expect(pressShortcut(view, "Tab")).toBe(true);
+
+    expect(serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0)).toEqual([
+      "> - A",
+      "> - B",
+      ">   - C",
+      "> - D"
+    ]);
+    await settleMarkdownListener();
+  });
+
+  it("keeps following quote list siblings outside when nesting an item with children", async () => {
+    const source = ["> - A", "> - B", "> - C", ">   - C child", "> - D"].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "C"));
+
+    expect(pressShortcut(view, "Tab")).toBe(true);
+
+    expect(serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0)).toEqual([
+      "> - A",
+      "> - B",
+      ">   - C",
+      ">     - C child",
+      "> - D"
+    ]);
+    await settleMarkdownListener();
+  });
+
+  it("keeps following quote list siblings outside when nesting after an item with children", async () => {
+    const source = ["> - A", "> - B", ">   - B child", "> - C", "> - D"].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "C"));
+
+    expect(pressShortcut(view, "Tab")).toBe(true);
+
+    expect(serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0)).toEqual([
+      "> - A",
+      "> - B",
+      ">   - B child",
+      ">   - C",
+      "> - D"
+    ]);
+    await settleMarkdownListener();
+  });
+
+  it("lifts quote list items without reducing following sibling indentation", async () => {
+    const source = [
+      "> - Parent",
+      ">   - First child",
+      ">   - Second child",
+      ">     - Nested detail",
+      ">   - Third child",
+      "> - After"
+    ].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Second child"));
+
+    expect(pressShortcut(view, "Tab", { shiftKey: true })).toBe(true);
+
+    const lines = serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0);
+    expect(lines).toEqual([
+      "> - Parent",
+      ">   - First child",
+      "> - Second child",
+      ">   - Nested detail",
+      ">   - Third child",
+      "> - After"
+    ]);
+    await settleMarkdownListener();
+  });
+
   it("removes emptied quote list items without recreating the bullet", async () => {
     const source = ["> - Parent", ">   - First child", ">   - Empty child", ">   - Last child"].join("\n");
     const { container, editor, view } = await renderEditor(source);
@@ -5656,7 +5806,7 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
-  it("exits quote formatting before following prose when pressing Enter at the quote end", async () => {
+  it("keeps quote formatting before following prose when pressing Enter at the quote end", async () => {
     const { editor, view } = await renderEditor(["> Quote", "", "After"].join("\n"));
     moveCursor(view, findTextPosition(view, "Quote", "Quote".length));
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
@@ -5664,12 +5814,12 @@ describe("MarkdownPaper editing", () => {
     expect(pressEnter(view)).toBe(true);
     typeText(view, "Next");
 
-    expect(selectionHasAncestor(view, "blockquote")).toBe(false);
-    expect(serializeMarkdown(view.state.doc)).toBe("> Quote\n\nNext\n\nAfter\n");
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    expect(serializeMarkdown(view.state.doc)).toBe("> Quote\n>\n> Next\n\nAfter\n");
     await settleMarkdownListener();
   });
 
-  it("finalizes live markdown inside quote formatting before exiting on the next Enter", async () => {
+  it("finalizes live markdown inside quote formatting and continues on one Enter", async () => {
     const { container, editor, view } = await renderEditor("> ");
     moveCursor(view, findFirstTextBlockCursor(view));
     typeText(view, "**Quote**");
@@ -5680,11 +5830,15 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror blockquote strong")).toHaveTextContent("Quote");
     expect(selectionHasAncestor(view, "blockquote")).toBe(true);
 
-    expect(pressEnter(view)).toBe(true);
+    expect(view.state.selection.$from.parent.textContent).toBe("");
     typeText(view, "Next");
 
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    expect(serializeMarkdown(view.state.doc)).toBe("> **Quote**\n>\n> Next\n");
+
+    expect(pressEnter(view)).toBe(true);
+    expect(pressEnter(view)).toBe(true);
     expect(selectionHasAncestor(view, "blockquote")).toBe(false);
-    expect(serializeMarkdown(view.state.doc)).toBe("> **Quote**\n\nNext\n");
     await settleMarkdownListener();
   });
 
@@ -6798,6 +6952,25 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("> - First\n> - Second");
   });
 
+  it("nests only the current callout list item when Tab is pressed before following siblings", async () => {
+    const source = ["> [!NOTE]", ">", "> - A", "> - B", "> - C", "> - D"].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "C"));
+
+    expect(pressShortcut(view, "Tab")).toBe(true);
+
+    expect(serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0)).toEqual([
+      "> [!NOTE]",
+      ">",
+      "> - A",
+      "> - B",
+      ">   - C",
+      "> - D"
+    ]);
+  });
+
   it("lifts only the current callout list item with Shift+Tab", async () => {
     const source = [
       "> [!NOTE]",
@@ -6820,16 +6993,46 @@ describe("MarkdownPaper editing", () => {
     const nestedItems = Array.from(container.querySelectorAll<HTMLElement>(
       ".ProseMirror blockquote.markra-callout > ul > li > ul > li"
     ));
-    expect(topLevelItems).toHaveLength(4);
+    expect(topLevelItems).toHaveLength(3);
     expect(topLevelItems[0]).toHaveTextContent("Parent");
     expect(topLevelItems[1]).toHaveTextContent("First child");
-    expect(topLevelItems[2]).toHaveTextContent("Second child");
-    expect(topLevelItems[3]).toHaveTextContent("After");
-    expect(nestedItems).toHaveLength(0);
+    expect(topLevelItems[2]).toHaveTextContent("After");
+    expect(nestedItems).toHaveLength(1);
+    expect(nestedItems[0]).toHaveTextContent("Second child");
 
     const markdown = serializeMarkdown(view.state.doc);
-    expect(markdown).toContain("> - Parent\n> - First child\n> - Second child\n> - After");
-    expect(markdown).not.toContain("> - First child\n>   - Second child");
+    expect(markdown).toContain("> - Parent\n> - First child\n>   - Second child\n> - After");
+  });
+
+  it("lifts callout list items without reducing following sibling indentation", async () => {
+    const source = [
+      "> [!NOTE]",
+      ">",
+      "> - Parent",
+      ">   - First child",
+      ">   - Second child",
+      ">     - Nested detail",
+      ">   - Third child",
+      "> - After"
+    ].join("\n");
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Second child"));
+
+    expect(pressShortcut(view, "Tab", { shiftKey: true })).toBe(true);
+
+    const lines = serializeMarkdown(view.state.doc).split("\n").filter((line) => line.length > 0);
+    expect(lines).toEqual([
+      "> [!NOTE]",
+      ">",
+      "> - Parent",
+      ">   - First child",
+      "> - Second child",
+      ">   - Nested detail",
+      ">   - Third child",
+      "> - After"
+    ]);
   });
 
   it("lifts only the active callout continuation paragraph with Shift+Tab", async () => {
@@ -7884,6 +8087,44 @@ describe("MarkdownPaper editing", () => {
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toContain("> [!WARNING]\n>\n> First line\n>\n> Second line");
+    await settleMarkdownListener();
+  });
+
+  it("moves to a new callout body line after one Enter from typed callout content", async () => {
+    const { editor, view } = await renderEditor();
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "> [!WARNING]");
+    typeText(view, "First line");
+
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    expect(pressEnter(view)).toBe(true);
+
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    expect(view.state.selection.$from.parent.textContent).toBe("");
+    typeText(view, "Second line");
+    expect(serializeMarkdown(view.state.doc)).toContain("> [!WARNING]\n>\n> First line\n>\n> Second line");
+    await settleMarkdownListener();
+  });
+
+  it("finalizes live markdown inside callout body content and continues on one Enter", async () => {
+    const { container, editor, view } = await renderEditor();
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "> [!WARNING]");
+    expect(container.querySelector(".ProseMirror blockquote.markra-callout")).toBeInTheDocument();
+    expect(view.state.selection.$from.parent.textContent).toBe("");
+    typeText(view, "**First line**");
+
+    expectLiveMark(container, "strong", "First line");
+    expect(pressEnter(view)).toBe(true);
+
+    expect(container.querySelector(".ProseMirror blockquote.markra-callout strong")).toHaveTextContent("First line");
+    expect(selectionHasAncestor(view, "blockquote")).toBe(true);
+    expect(view.state.selection.$from.parent.textContent).toBe("");
+
+    typeText(view, "Second line");
+    expect(serializeMarkdown(view.state.doc)).toContain("> [!WARNING]\n>\n> **First line**\n>\n> Second line");
     await settleMarkdownListener();
   });
 

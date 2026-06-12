@@ -15,6 +15,7 @@ import {
   type MarkdownCalloutType,
   type ParsedMarkdownCalloutMarker
 } from "@markra/shared";
+import { finalizeActiveLiveMarkdown, markraLiveMarkdownSpecs } from "./input-rules.ts";
 import { removeEmptyListItem } from "./list-editing.ts";
 
 type CalloutBlock = {
@@ -733,6 +734,7 @@ export const markraCalloutPlugin = $prose((ctx) => {
   const paragraph = paragraphSchema.type(ctx);
   const blockquote = blockquoteSchema.type(ctx);
   const listItem = listItemSchema.type(ctx);
+  const liveMarkdownSpecs = markraLiveMarkdownSpecs(ctx);
   let deleteHoldStartedInsideNonEmptyCallout = false;
 
   return new Plugin({
@@ -787,6 +789,9 @@ export const markraCalloutPlugin = $prose((ctx) => {
           if (selectionIsAtSlashCommandEnd(view.state)) return false;
 
           const callout = findCalloutAtSelection(view);
+          if (callout) {
+            finalizeActiveLiveMarkdown(view, liveMarkdownSpecs);
+          }
 
           const handled = callout
             ? handleCalloutEnter(view, callout, paragraph, listItem)
