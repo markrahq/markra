@@ -1661,8 +1661,9 @@ describe("Markra workspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
 
-    expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "source");
-    expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
+    const sourceEditor = await screen.findByLabelText("Markdown editor");
+    expect(sourceEditor).toHaveAttribute("data-editor-engine", "source");
+    expect(sourceEditor).toHaveStyle({
       maxWidth: "980px"
     });
     expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "980");
