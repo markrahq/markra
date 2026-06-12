@@ -27,7 +27,9 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
+    "@codemirror/commands": "6.10.3",
     "@codemirror/lang-json": "6.0.2",
+    "@codemirror/lang-markdown": "6.5.0",
     "@codemirror/lint": "6.9.5",
     "@codemirror/state": "6.6.0",
     "@codemirror/view": "6.41.1",

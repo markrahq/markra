@@ -1,4 +1,5 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { EditorView } from "@codemirror/view";
 import {
   installAppTestHarness,
   mockNativePath,
@@ -27,6 +28,23 @@ vi.mock("./hooks/useEditorController", async (importOriginal) => {
 });
 
 installAppTestHarness();
+
+function replaceMarkdownSource(sourceEditor: HTMLElement, value: string) {
+  const view = EditorView.findFromDOM(sourceEditor);
+  if (!view) {
+    throw new Error("Expected the markdown source editor to use CodeMirror.");
+  }
+
+  act(() => {
+    view.dispatch({
+      changes: {
+        from: 0,
+        insert: value,
+        to: view.state.doc.length
+      }
+    });
+  });
+}
 
 describe("Markra document history restore", () => {
   beforeEach(() => {
@@ -287,11 +305,7 @@ describe("Markra document history restore", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
-    fireEvent.change(await screen.findByRole("textbox", { name: "Markdown source" }), {
-      target: {
-        value: "# Updated\n\nSynthetic body."
-      }
-    });
+    replaceMarkdownSource(await screen.findByRole("textbox", { name: "Markdown source" }), "# Updated\n\nSynthetic body.");
     fireEvent.click(screen.getByRole("button", { name: "Save Markdown" }));
 
     await waitFor(() => {
