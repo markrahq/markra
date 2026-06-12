@@ -676,6 +676,7 @@ const messages: LocaleMessages = {
   "menu.strikethrough": "Зачёркнутый",
   "menu.inlineCode": "Встроенный код",
   "menu.highlight": "Выделить",
+  "menu.clearFormatting": "Очистить форматирование",
   "menu.paragraph": "Абзац",
   "menu.headingLevel": "Уровень заголовка",
   "menu.heading1": "Заголовок 1",

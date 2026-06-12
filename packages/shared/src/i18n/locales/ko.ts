@@ -676,6 +676,7 @@ const messages: LocaleMessages = {
   "menu.strikethrough": "취소선",
   "menu.inlineCode": "인라인 코드",
   "menu.highlight": "하이라이트",
+  "menu.clearFormatting": "서식 지우기",
   "menu.paragraph": "단락",
   "menu.headingLevel": "제목 수준",
   "menu.heading1": "제목 1",

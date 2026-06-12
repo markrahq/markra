@@ -5,6 +5,7 @@ import {
   Check,
   Code2,
   Copy,
+  Eraser,
   FileText,
   Heading,
   Heading1,
@@ -129,6 +130,11 @@ const basicSelectionActions: BasicSelectionAction[] = [
     action: "highlight",
     icon: Highlighter,
     labelKey: "menu.highlight"
+  },
+  {
+    action: "clearFormatting",
+    icon: Eraser,
+    labelKey: "menu.clearFormatting"
   },
   {
     action: "quote",

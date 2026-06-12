@@ -494,6 +494,7 @@ function WorkspaceApp() {
   }, [editorPreferences.preferences.markdownTemplates]);
 
   const editor = useEditorController();
+  const clearEditorSelectionFormatting = editor.clearSelectionFormatting;
   const findEditorSearchMatches = editor.findSearchMatches;
   const getEditorCurrentMarkdown = editor.getCurrentMarkdown;
   const handleMilkdownEditorReady = editor.handleEditorReady;
@@ -2594,6 +2595,14 @@ function WorkspaceApp() {
       return;
     }
 
+    if (action === "clearFormatting") {
+      if (!clearEditorSelectionFormatting()) return;
+
+      syncVisualMarkdownAfterEditorCommand();
+      syncAiSelectionToolbarFormattingState();
+      return;
+    }
+
     const normalizedShortcuts = normalizeMarkdownShortcuts(editorPreferences.preferences.markdownShortcuts);
     const shortcut = markdownShortcutToKeyboardEventInit(normalizedShortcuts[action]);
     if (!shortcut) return;
@@ -2604,6 +2613,7 @@ function WorkspaceApp() {
     });
     syncAiSelectionToolbarFormattingState();
   }, [
+    clearEditorSelectionFormatting,
     editorPreferences.preferences.markdownShortcuts,
     handleRunEditorShortcut,
     readOnlyMode,

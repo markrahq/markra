@@ -23,6 +23,7 @@ import {
 import type { MarkdownOutlineItem } from "@markra/markdown";
 import { debug, type SearchRange } from "@markra/shared";
 import {
+  clearSelectionFormattingInView,
   readSelectionFormattingActionsFromView,
   readSelectionFormattingStateFromView,
   setSelectionHeadingLevelInView,
@@ -456,6 +457,17 @@ export function useEditorController() {
     }
   }, []);
 
+  const clearSelectionFormatting = useCallback(() => {
+    try {
+      const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
+      if (!view) return false;
+
+      return clearSelectionFormattingInView(view);
+    } catch {
+      return false;
+    }
+  }, []);
+
   const getHeadingAnchors = useCallback((): AiHeadingAnchor[] => {
     try {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
@@ -849,6 +861,7 @@ export function useEditorController() {
     applyAiResult,
     clearAiPreview,
     clearAiSelection,
+    clearSelectionFormatting,
     confirmAiResultApplied,
     findSearchMatches,
     getDocumentEndPosition,

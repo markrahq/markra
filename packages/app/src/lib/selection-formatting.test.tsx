@@ -15,6 +15,7 @@ import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "../components/MarkdownPaper";
 import {
+  clearSelectionFormattingInView,
   readSelectionFormattingActionsFromView,
   readSelectionFormattingStateFromView,
   setSelectionHeadingLevelInView,
@@ -174,5 +175,25 @@ describe("selection formatting", () => {
     expect(toggleSelectionHighlightInView(view)).toBe(true);
     expect(view.state.doc.textContent).toBe("Highlight this text");
     expect(readSelectionFormattingActionsFromView(view)).not.toContain("highlight");
+  });
+
+  it("clears mixed inline formatting from the selected text", async () => {
+    const { view } = await renderEditor(
+      "**Bold** *italic* ~~strike~~ `code` [link](https://example.test) ==highlight=="
+    );
+    const from = findTextPosition(view, "Bold");
+    const to = findTextPosition(view, "highlight") + "highlight".length;
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+
+    expect(readSelectionFormattingActionsFromView(view)).toEqual(
+      expect.arrayContaining(["bold", "italic", "strikethrough", "inlineCode", "link"])
+    );
+    expect(view.state.doc.textContent).toContain("==highlight==");
+
+    expect(clearSelectionFormattingInView(view)).toBe(true);
+
+    expect(view.state.doc.textContent).toBe("Bold italic strike code link highlight");
+    expect(readSelectionFormattingActionsFromView(view)).toEqual([]);
   });
 });

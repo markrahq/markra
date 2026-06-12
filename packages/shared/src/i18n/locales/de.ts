@@ -676,6 +676,7 @@ const messages: LocaleMessages = {
   "menu.strikethrough": "Durchgestrichen",
   "menu.inlineCode": "Inline-Code",
   "menu.highlight": "Hervorheben",
+  "menu.clearFormatting": "Formatierung entfernen",
   "menu.paragraph": "Absatz",
   "menu.headingLevel": "Überschriftenebene",
   "menu.heading1": "Überschrift 1",

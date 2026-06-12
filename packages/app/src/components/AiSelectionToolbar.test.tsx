@@ -61,6 +61,7 @@ describe("AiSelectionToolbar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Strikethrough" }));
     fireEvent.click(screen.getByRole("button", { name: "Inline Code" }));
     fireEvent.click(screen.getByRole("button", { name: "Highlight" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear Formatting" }));
     fireEvent.click(screen.getByRole("button", { name: "Quote" }));
     fireEvent.click(screen.getByRole("button", { name: "Bullet List" }));
     fireEvent.click(screen.getByRole("button", { name: "Ordered List" }));
@@ -73,6 +74,7 @@ describe("AiSelectionToolbar", () => {
       "strikethrough",
       "inlineCode",
       "highlight",
+      "clearFormatting",
       "quote",
       "bulletList",
       "orderedList"
