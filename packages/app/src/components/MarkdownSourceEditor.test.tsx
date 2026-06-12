@@ -58,6 +58,35 @@ describe("MarkdownSourceEditor", () => {
     expect(handleChange).toHaveBeenCalledWith("# Changed");
   });
 
+  it("applies visible Markra token classes to common Markdown syntax", async () => {
+    const content = [
+      "# Title",
+      "",
+      "```ts",
+      "const answer = 42;",
+      "```",
+      "- Item",
+      "Text with `code`, [link](https://example.test), and **strong text**."
+    ].join("\n");
+
+    const { container } = render(
+      <MarkdownSourceEditor
+        content={content}
+        onChange={() => {}}
+      />
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector(".markdown-source-token-heading")).toHaveTextContent("Title");
+      expect(container.querySelector(".markdown-source-token-code-fence")).toHaveTextContent("```");
+      expect(container.querySelector(".markdown-source-token-code")).toHaveTextContent("const answer = 42;");
+      expect(container.querySelector(".markdown-source-token-list-marker")).toHaveTextContent("-");
+      expect(container.querySelector(".markdown-source-token-inline-code")).toHaveTextContent("code");
+      expect(container.querySelector(".markdown-source-token-link")).toHaveTextContent("link");
+      expect(container.querySelector(".markdown-source-token-emphasis")).toHaveTextContent("strong text");
+    });
+  });
+
   it("keeps source edits undoable and redoable", () => {
     const handleChange = vi.fn();
     const { container } = render(
