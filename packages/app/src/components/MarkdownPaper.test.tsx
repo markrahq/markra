@@ -5277,6 +5277,46 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps escaped literal markdown delimiters visible as plain text", async () => {
+    const cases = [
+      { source: "\\*literal\\*", text: "*literal*", selector: ".markra-live-mark-emphasis" },
+      { source: "\\*\\*literal\\*\\*", text: "**literal**", selector: ".markra-live-mark-strong" },
+      {
+        source: "\\*\\*\\*literal\\*\\*\\*",
+        text: "***literal***",
+        selector: ".markra-live-mark-strong.markra-live-mark-emphasis"
+      },
+      { source: "\\_literal\\_", text: "_literal_", selector: ".markra-live-mark-emphasis" },
+      { source: "\\_\\_literal\\_\\_", text: "__literal__", selector: ".markra-live-mark-strong" },
+      { source: "\\~\\~literal\\~\\~", text: "~~literal~~", selector: ".markra-live-mark-strikethrough" },
+      { source: "\\=\\=literal\\=\\=", text: "==literal==", selector: ".markra-live-mark-highlight" },
+      { source: "\\`literal\\`", text: "`literal`", selector: ".markra-live-mark-inlineCode" }
+    ];
+
+    for (const { source, text, selector } of cases) {
+      const { container } = await renderEditor(source);
+
+      expect(container.querySelector(".ProseMirror")?.textContent).toBe(text);
+      expect(container.querySelector(`.ProseMirror ${selector}`)).not.toBeInTheDocument();
+      expectHiddenMarkdownDelimiters(container, 0);
+    }
+
+    await settleMarkdownListener();
+  });
+
+  it("keeps edited escaped literal markdown delimiters as plain text", async () => {
+    const { container, view } = await renderEditor("\\*literal\\*");
+
+    const from = findTextPosition(view, "literal");
+    selectText(view, from, from + "literal".length);
+    typeText(view, "edited");
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("*edited*");
+    expect(container.querySelector(".ProseMirror .markra-live-mark-emphasis")).not.toBeInTheDocument();
+    expectHiddenMarkdownDelimiters(container, 0);
+    await settleMarkdownListener();
+  });
+
   it("supports inline markdown formatting shortcuts", async () => {
     const strong = await renderEditor();
     typeText(strong.view, "bold");

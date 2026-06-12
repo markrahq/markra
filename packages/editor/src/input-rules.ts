@@ -2,7 +2,7 @@ import type { Ctx } from "@milkdown/kit/ctx";
 import { emphasisSchema, inlineCodeSchema, strongSchema } from "@milkdown/kit/preset/commonmark";
 import { strikethroughSchema } from "@milkdown/kit/preset/gfm";
 import type { Mark, MarkType, Node as ProseNode } from "@milkdown/kit/prose/model";
-import { type EditorState, Plugin, PluginKey, TextSelection } from "@milkdown/kit/prose/state";
+import { type EditorState, Plugin, PluginKey, TextSelection, type Transaction } from "@milkdown/kit/prose/state";
 import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 
@@ -10,6 +10,7 @@ export type LiveMarkdownKind = "strong" | "emphasis" | "inlineCode" | "strikethr
 
 export type MarkraLiveMarkdownOptions = {
   highlight?: boolean;
+  initialMarkdown?: string;
 };
 
 export type LiveMarkdownSpec = {
@@ -53,6 +54,10 @@ type SuppressedLiveMarkdownRange = ActiveLiveMarkdownRange & {
   cursor: number;
 };
 
+type SuppressedLiteralMarkdownRange = ActiveLiveMarkdownRange & {
+  marker: string;
+};
+
 type ExitedFoldedMarkdownRange = FoldedMarkdownRange & {
   cursor: number;
 };
@@ -62,6 +67,7 @@ type LiveMarkdownPluginState = {
   activeFoldedRange: FoldedMarkdownRange | null;
   exitedFoldedRange: ExitedFoldedMarkdownRange | null;
   suppressedLiveRange: SuppressedLiveMarkdownRange | null;
+  suppressedLiteralRanges: SuppressedLiteralMarkdownRange[];
 };
 
 const liveMarkdownKey = new PluginKey("markra-live-markdown");
@@ -110,6 +116,132 @@ function getLiveMarkdownRanges(text: string, specs: LiveMarkdownSpec[]) {
   }
 
   return ranges.sort((left, right) => left.from - right.from || right.to - left.to);
+}
+
+function escapedMarkerSource(marker: string) {
+  return Array.from(marker).map((character) => `\\${character}`).join("");
+}
+
+function unescapeMarkdownPunctuation(text: string) {
+  const escapable = new Set(Array.from(String.raw`!"#$%&'()*+,-./:;<=>?@[\]^_` + "`{|}~"));
+  let result = "";
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    const nextCharacter = text[index + 1];
+    if (character === "\\" && nextCharacter && escapable.has(nextCharacter)) {
+      result += nextCharacter;
+      index += 1;
+      continue;
+    }
+
+    result += character;
+  }
+
+  return result;
+}
+
+function escapedLiteralMarkdownTexts(markdown: string, specs: LiveMarkdownSpec[]) {
+  const literals: Array<{ marker: string; text: string }> = [];
+  const seen = new Set<string>();
+  const markers = [...new Set(specs.flatMap((spec) => spec.markers))].sort((left, right) => right.length - left.length);
+
+  for (const marker of markers) {
+    const escapedMarker = escapedMarkerSource(marker);
+    let searchFrom = 0;
+
+    while (searchFrom < markdown.length) {
+      const openingStart = markdown.indexOf(escapedMarker, searchFrom);
+      if (openingStart < 0) break;
+
+      const openingEnd = openingStart + escapedMarker.length;
+      const lineEnd = markdown.indexOf("\n", openingEnd);
+      const closingLimit = lineEnd < 0 ? markdown.length : lineEnd;
+      const closingStart = markdown.indexOf(escapedMarker, openingEnd);
+
+      if (closingStart < 0 || closingStart > closingLimit) {
+        searchFrom = openingEnd;
+        continue;
+      }
+
+      const content = unescapeMarkdownPunctuation(markdown.slice(openingEnd, closingStart));
+      if (content.length > 0) {
+        const text = `${marker}${content}${marker}`;
+        const key = `${marker}\n${text}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          literals.push({ marker, text });
+        }
+      }
+      searchFrom = closingStart + escapedMarker.length;
+    }
+  }
+
+  return literals;
+}
+
+function findSuppressedLiteralRanges(
+  doc: ProseNode,
+  specs: LiveMarkdownSpec[],
+  initialMarkdown: string | undefined
+) {
+  if (!initialMarkdown) return [];
+
+  const literals = escapedLiteralMarkdownTexts(initialMarkdown, specs);
+  if (literals.length === 0) return [];
+
+  const ranges: SuppressedLiteralMarkdownRange[] = [];
+
+  doc.descendants((node, position) => {
+    if (!node.isTextblock) return;
+
+    const blockStart = position + 1;
+    for (const literal of literals) {
+      let fromIndex = 0;
+      while (fromIndex < node.textContent.length) {
+        const index = node.textContent.indexOf(literal.text, fromIndex);
+        if (index < 0) break;
+
+        ranges.push({
+          from: blockStart + index,
+          to: blockStart + index + literal.text.length,
+          marker: literal.marker
+        });
+        fromIndex = index + literal.text.length;
+      }
+    }
+  });
+
+  return ranges.sort((left, right) => left.from - right.from || right.to - left.to);
+}
+
+function mapSuppressedLiteralRanges(
+  ranges: SuppressedLiteralMarkdownRange[],
+  tr: Transaction
+) {
+  if (!tr.docChanged || ranges.length === 0) return ranges;
+
+  return ranges.flatMap((range) => {
+    const from = tr.mapping.map(range.from, -1);
+    const to = tr.mapping.map(range.to, 1);
+
+    if (to <= from) return [];
+
+    const text = tr.doc.textBetween(from, to);
+    if (!text.startsWith(range.marker) || !text.endsWith(range.marker)) return [];
+    if (text.length <= range.marker.length * 2) return [];
+
+    return [{ ...range, from, to }];
+  });
+}
+
+function isSuppressedLiteralRange(
+  ranges: SuppressedLiteralMarkdownRange[],
+  from: number,
+  to: number,
+  marker: string
+) {
+  return ranges.some((range) => range.from === from && range.to === to && range.marker === marker);
 }
 
 function getMarkByType(marks: readonly Mark[], markType: MarkType) {
@@ -338,7 +470,8 @@ function buildLiveMarkdownDecorations(
   specs: LiveMarkdownSpec[],
   activeLiveRange: ActiveLiveMarkdownRange | null,
   activeFoldedRange: FoldedMarkdownRange | null,
-  exitedFoldedRange: ExitedFoldedMarkdownRange | null
+  exitedFoldedRange: ExitedFoldedMarkdownRange | null,
+  suppressedLiteralRanges: SuppressedLiteralMarkdownRange[]
 ) {
   const decorations: Decoration[] = [];
 
@@ -351,6 +484,10 @@ function buildLiveMarkdownDecorations(
     for (const range of ranges) {
       const from = blockStart + range.from;
       const to = blockStart + range.to;
+      if (isSuppressedLiteralRange(suppressedLiteralRanges, from, to, range.marker)) {
+        continue;
+      }
+
       const contentFrom = blockStart + range.contentFrom;
       const contentTo = blockStart + range.contentTo;
       const delimiterClass =
@@ -679,20 +816,23 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       return clearManagedStoredMarks(newState, managedMarkTypes);
     },
     state: {
-      init: (): LiveMarkdownPluginState => ({
+      init: (_config, state): LiveMarkdownPluginState => ({
         suppressActiveAt: null,
         activeFoldedRange: null,
         exitedFoldedRange: null,
-        suppressedLiveRange: null
+        suppressedLiveRange: null,
+        suppressedLiteralRanges: findSuppressedLiteralRanges(state.doc, specs, options.initialMarkdown)
       }),
       apply: (tr, value, _oldState, newState): LiveMarkdownPluginState => {
         const meta = tr.getMeta(liveMarkdownKey) as Partial<LiveMarkdownPluginState> | undefined;
+        const suppressedLiteralRanges = mapSuppressedLiteralRanges(value.suppressedLiteralRanges, tr);
         if (meta && "exitedFoldedRange" in meta) {
           return {
             suppressActiveAt: null,
             activeFoldedRange: meta.activeFoldedRange ?? null,
             exitedFoldedRange: meta.exitedFoldedRange ?? null,
-            suppressedLiveRange: null
+            suppressedLiveRange: null,
+            suppressedLiteralRanges
           };
         }
 
@@ -702,7 +842,8 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
             suppressActiveAt: null,
             activeFoldedRange: null,
             exitedFoldedRange: null,
-            suppressedLiveRange: meta.suppressedLiveRange
+            suppressedLiveRange: meta.suppressedLiveRange,
+            suppressedLiteralRanges
           };
         }
 
@@ -711,7 +852,8 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
             suppressActiveAt: meta.suppressActiveAt,
             activeFoldedRange: null,
             exitedFoldedRange: null,
-            suppressedLiveRange: null
+            suppressedLiveRange: null,
+            suppressedLiteralRanges
           };
         }
 
@@ -729,7 +871,8 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
             activeFoldedRange,
             exitedFoldedRange,
             suppressedLiveRange:
-              selection?.from === value.suppressedLiveRange?.cursor ? value.suppressedLiveRange : null
+              selection?.from === value.suppressedLiveRange?.cursor ? value.suppressedLiveRange : null,
+            suppressedLiteralRanges
           };
         }
 
@@ -738,11 +881,12 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
             suppressActiveAt: null,
             activeFoldedRange: null,
             exitedFoldedRange: null,
-            suppressedLiveRange: null
+            suppressedLiveRange: null,
+            suppressedLiteralRanges
           };
         }
 
-        return value;
+        return suppressedLiteralRanges === value.suppressedLiteralRanges ? value : { ...value, suppressedLiteralRanges };
       }
     },
     props: {
@@ -761,7 +905,8 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           specs,
           activeLiveRange,
           pluginState?.activeFoldedRange ?? null,
-          pluginState?.exitedFoldedRange ?? null
+          pluginState?.exitedFoldedRange ?? null,
+          pluginState?.suppressedLiteralRanges ?? []
         );
       },
       handleTextInput: (view, _from, _to, text) => insertTextAfterExitedFoldedMarkdown(view, text, managedMarkTypes),

@@ -340,7 +340,7 @@ function MilkdownEditorSurface({
             resolveImageSrc
           })
         )
-        .use(markraLiveMarkdownPlugin({ highlight: highlightSyntaxEnabled }));
+        .use(markraLiveMarkdownPlugin({ highlight: highlightSyntaxEnabled, initialMarkdown: initialContentRef.current }));
 
       if (externalLinkOpeningEnabled) {
         editor.use(
