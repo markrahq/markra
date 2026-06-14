@@ -349,6 +349,9 @@ function moveCursorPastFoldedMarkdownDelimiter(
   const pluginState = liveMarkdownKey.getState(view.state) as LiveMarkdownPluginState | undefined;
 
   if (direction === "right") {
+    const exitedRange = pluginState?.exitedFoldedRange ?? null;
+    if (exitedRange && selection.from === exitedRange.cursor) return false;
+
     const foldedRange =
       pluginState?.activeFoldedRange ?? getFoldedMarkdownRangeAtCursor(view.state.doc, selection.from, specs);
     if (!foldedRange || selection.from !== foldedRange.to) return false;

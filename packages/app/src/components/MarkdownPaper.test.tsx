@@ -6173,6 +6173,22 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("lets the browser continue right-arrow movement after exiting inline code delimiters", async () => {
+    const source = "`n!`/`n₁!` \\* `n₂!` \\* … \\* `nₖ!`)";
+    const { container, view } = await renderEditor(source);
+    const firstCodeEnd = findTextPosition(view, "n!", "n!".length);
+
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe("n!/n₁! * n₂! * … * nₖ!)");
+    expect(container.querySelectorAll(".ProseMirror code")).toHaveLength(4);
+
+    moveCursor(view, firstCodeEnd);
+    expect(pressArrowRight(view)).toBe(true);
+    expect(view.state.selection.from).toBe(firstCodeEnd);
+    expect(pressArrowRight(view)).toBeUndefined();
+    expect(view.state.selection.from).toBe(firstCodeEnd);
+    await settleMarkdownListener();
+  });
+
   it("turns filled strong delimiters into bold text", async () => {
     const { container, view } = await renderEditor();
 
@@ -6436,7 +6452,7 @@ describe("MarkdownPaper editing", () => {
       exitedClosingDelimiterDecorations.some((decoration) => decoration.from === codeEnd && decoration.to === codeEnd)
     ).toBe(true);
     expect(container.querySelector(".ProseMirror code")?.textContent).toBe("sample");
-    expect(pressArrowRight(view)).toBe(true);
+    expect(pressArrowRight(view)).toBeUndefined();
     const stableExitedClosingDelimiterDecorations: Array<{ from: number; to: number }> = [];
     view.someProp("decorations", (decorations) => {
       const value = typeof decorations === "function" ? decorations(view.state) : decorations;
