@@ -20,6 +20,17 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("%23ffffff");
   });
 
+  it("paints editor paper surfaces during editor remounts", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const paperSurfaceStart = styles.indexOf(".markdown-paper,\n  .markdown-source-paper {");
+    const paperSurfaceEnd = styles.indexOf("}", paperSurfaceStart);
+    const paperSurfaceStyles = styles.slice(paperSurfaceStart, paperSurfaceEnd);
+
+    expect(paperSurfaceStart).toBeGreaterThanOrEqual(0);
+    expect(paperSurfaceEnd).toBeGreaterThan(paperSurfaceStart);
+    expect(paperSurfaceStyles).toContain("background: var(--editor-paper-bg, var(--bg-primary));");
+  });
+
   it("forces a grabbing cursor during document tab pointer drags", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

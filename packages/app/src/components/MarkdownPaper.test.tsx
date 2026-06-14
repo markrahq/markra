@@ -764,6 +764,8 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelector(".paper-scroll")).toHaveClass("overscroll-none");
     expect(container.querySelector(".paper-scroll")).toHaveClass("h-full", "min-h-0", "overflow-auto");
+    expect(container.querySelector(".paper-scroll")).toHaveClass("bg-(--bg-primary)");
+    expect(container.querySelector(".paper-scroll")).not.toHaveClass("bg-transparent");
   });
 
   it("marks the editor paper with the default resolved app theme", async () => {

@@ -28,6 +28,18 @@ function replaceCodeMirrorDoc(view: EditorView, value: string) {
 }
 
 describe("MarkdownSourceEditor", () => {
+  it("keeps the source writing surface painted during editor swaps", () => {
+    const { container } = render(
+      <MarkdownSourceEditor
+        content="# Synthetic note"
+        onChange={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".paper-scroll")).toHaveClass("bg-(--bg-primary)");
+    expect(container.querySelector(".paper-scroll")).not.toHaveClass("bg-transparent");
+  });
+
   it("renders editable markdown with CodeMirror source highlighting", () => {
     const content = [
       "# Title",
