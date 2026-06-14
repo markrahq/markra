@@ -632,7 +632,7 @@ function SettingsCallout({
         <Icon size={14} />
       </span>
       <div className="min-w-0">
-        <p className="m-0 text-[12px] leading-5 font-[700] tracking-normal text-(--text-heading)">{title}</p>
+        <p className="m-0 text-[12px] leading-5 font-bold tracking-normal text-(--text-heading)">{title}</p>
         <p className="m-0 max-w-[72ch] text-[12px] leading-4.5 font-[450] text-(--text-secondary)">{description}</p>
       </div>
     </div>

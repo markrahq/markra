@@ -3558,7 +3558,7 @@ function WorkspaceApp() {
             style={{ gridTemplateColumns: `minmax(0,1fr) ${aiAgentInset}` }}
           >
             <div
-              className={`editor-content-slot relative h-full min-h-0 overflow-hidden transition-[box-shadow] duration-150 ease-out ${
+              className={`editor-content-slot relative h-full min-h-0 overflow-hidden transition-shadow duration-150 ease-out ${
                 editorTabDropTargetActive ? "ring-2 ring-(--accent)/30 ring-inset" : ""
               }`}
               data-document-search-open={documentSearchOpen && documentSearchAvailable ? "true" : undefined}
