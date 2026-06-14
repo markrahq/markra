@@ -69,6 +69,7 @@ import {
   useNativeMenuHandlers,
   useNativeMenus
 } from "./hooks/useNativeBindings";
+import type { Editor as MilkdownEditor } from "@milkdown/kit/core";
 import {
   aiTranslationLanguageName,
   clampNumber,
@@ -459,6 +460,7 @@ function WorkspaceApp() {
   const largeMarkdownVisualBlockedRef = useRef(false);
   const sourceScrollRef = useRef<HTMLElement | null>(null);
   const visualScrollRef = useRef<HTMLElement | null>(null);
+  const mainVisualEditorsRef = useRef(new Map<string, MilkdownEditor>());
   const documentTabViewStatesRef = useRef(new Map<string, DocumentTabViewState>());
   const pendingEditorModeScrollRef = useRef<PendingEditorModeScroll | null>(null);
   const splitSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -777,6 +779,32 @@ function WorkspaceApp() {
     path: document.path,
     sizeBytes: document.sizeBytes ?? null
   };
+  const handleMainVisualEditorReady = useCallback((
+    tabId: string,
+    readyEditor: MilkdownEditor | null,
+    options?: Parameters<typeof handleMilkdownEditorReady>[1]
+  ) => {
+    if (readyEditor) {
+      mainVisualEditorsRef.current.set(tabId, readyEditor);
+    } else {
+      mainVisualEditorsRef.current.delete(tabId);
+    }
+
+    if (tabId === activeTabId) {
+      handleVisualEditorReady(readyEditor, options);
+    }
+  }, [activeTabId, handleVisualEditorReady]);
+  useEffect(() => {
+    if (!activeTabId) {
+      handleVisualEditorReady(null);
+      return;
+    }
+
+    const activeEditor = mainVisualEditorsRef.current.get(activeTabId);
+    if (!activeEditor) return;
+
+    handleVisualEditorReady(activeEditor, { autoFocus: false });
+  }, [activeTabId, handleVisualEditorReady]);
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
   backupSourcePathRef.current = fileTreeSourcePath ?? document.path;
   syncSourcePathRef.current = fileTreeSourcePath ?? document.path;
@@ -907,7 +935,6 @@ function WorkspaceApp() {
     "--side-document-main-pane": `${resolvedSideDocumentMainPanePercent}fr`,
     "--side-document-secondary-pane": `${100 - resolvedSideDocumentMainPanePercent}fr`
   } as CSSProperties), [resolvedSideDocumentMainPanePercent]);
-  const resolveImageSrc = useMemo(() => createMarkdownImageSrcResolver(document.path), [document.path]);
   const resolveExportImageSrc = useMemo(
     () => createMarkdownImageSrcResolver(document.path, { convertFileSrc: localFileUrlFromPath }),
     [document.path]
@@ -3469,6 +3496,90 @@ function WorkspaceApp() {
       : editorPreferences.preferences.titlebarActions.filter((action) => action.id !== "aiAgent"),
     [aiFeatureEnabled, editorPreferences.preferences.titlebarActions]
   );
+  const mainVisualEditorTabs = documentTabs.filter((tab) => tab.open);
+  const mainVisualEditors = (
+    <>
+      {mainVisualEditorTabs.map((tab) => {
+        const tabActive = tab.id === activeTabId;
+        const tabVisualBlocked = shouldBlockLargeMarkdownVisual(tab.content, {
+          sizeBytes: tab.sizeBytes
+        });
+        if (tabVisualBlocked) {
+          if (!tabActive || sourceMode) return null;
+
+          return (
+            <LargeMarkdownNotice
+              key={`${tab.id}:large-visual-notice`}
+              language={appLanguage.language}
+              onOpenSourceMode={handleEditorModeToggle}
+            />
+          );
+        }
+
+        const visualHidden = !tabActive || sourceMode;
+
+        return (
+          <div
+            key={tab.id}
+            aria-hidden={visualHidden ? "true" : undefined}
+            className="h-full min-h-0"
+            hidden={visualHidden}
+          >
+            <MarkdownPaper
+              autoFocus={
+                tabActive &&
+                !sourceMode &&
+                (splitMode ? activeEditorSurface === "visual" : shouldFocusEditorOnReady(tab.content))
+              }
+              bottomOverlayInset={
+                tabActive &&
+                !sourceMode &&
+                aiCommandVisible &&
+                (!splitMode || activeEditorSurface === "visual")
+                  ? aiCommandOverlayInset
+                  : 0
+              }
+              bodyFontSize={editorPreferences.preferences.bodyFontSize}
+              contentWidth={activeEditorContentWidth}
+              contentWidthPx={activeEditorContentWidthPx}
+              documentKey={tab.id}
+              documentPath={tab.path}
+              editorTheme={appTheme.editorTheme}
+              extendedSyntax={editorPreferences.preferences.extendedSyntax}
+              initialContent={tab.content}
+              language={appLanguage.language}
+              lineHeight={editorPreferences.preferences.lineHeight}
+              markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
+              onEditorReady={(readyEditor, options) => handleMainVisualEditorReady(tab.id, readyEditor, options)}
+              onMarkdownChange={(content) => {
+                const options = { documentRevision: tab.revision };
+                if (tabActive) {
+                  handleVisualMarkdownChange(content, options);
+                  return;
+                }
+
+                handleMarkdownTabChange(tab.id, content, options);
+              }}
+              onContentWidthChange={handleEditorContentWidthChange}
+              onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
+              onSaveClipboardImage={handleSaveClipboardImage}
+              onSaveRemoteClipboardImage={handleSaveRemoteClipboardImage}
+              openExternalUrl={handleOpenEditorLink}
+              readOnly={readOnlyMode}
+              onTextSelectionChange={tabActive ? handleTextSelectionChange : undefined}
+              resolveImageSrc={createMarkdownImageSrcResolver(tab.path)}
+              revision={tab.revision}
+              onScroll={tabActive ? handleVisualPaneScroll : undefined}
+              scrollRef={tabActive ? visualScrollRef : undefined}
+              topInset="titlebar"
+              workspaceFiles={fileTreeFiles}
+              wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
+            />
+          </div>
+        );
+      })}
+    </>
+  );
 
   return (
     <>
@@ -3649,46 +3760,7 @@ function WorkspaceApp() {
                       style={splitSurfaceStyle}
                     >
                       <div className="min-h-0 overflow-hidden" onFocusCapture={handleVisualPaneFocus}>
-                        {largeMarkdownVisualBlocked ? (
-                          <LargeMarkdownNotice
-                            language={appLanguage.language}
-                            onOpenSourceMode={handleEditorModeToggle}
-                          />
-                        ) : (
-                          <MarkdownPaper
-                            autoFocus={activeEditorSurface === "visual"}
-                            bottomOverlayInset={aiCommandVisible && activeEditorSurface === "visual" ? aiCommandOverlayInset : 0}
-                            bodyFontSize={editorPreferences.preferences.bodyFontSize}
-                            contentWidth={activeEditorContentWidth}
-                            contentWidthPx={activeEditorContentWidthPx}
-                            documentKey={activeTabId}
-                            documentPath={document.path}
-                            editorTheme={appTheme.editorTheme}
-                            extendedSyntax={editorPreferences.preferences.extendedSyntax}
-                            initialContent={document.content}
-                            language={appLanguage.language}
-                            lineHeight={editorPreferences.preferences.lineHeight}
-                            markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
-                            onEditorReady={handleVisualEditorReady}
-                            onMarkdownChange={(content) => handleVisualMarkdownChange(content, {
-                              documentRevision: document.revision
-                            })}
-                            onContentWidthChange={handleEditorContentWidthChange}
-                            onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
-                            onSaveClipboardImage={handleSaveClipboardImage}
-                            onSaveRemoteClipboardImage={handleSaveRemoteClipboardImage}
-                            openExternalUrl={handleOpenEditorLink}
-                            readOnly={readOnlyMode}
-                            onTextSelectionChange={handleTextSelectionChange}
-                            resolveImageSrc={resolveImageSrc}
-                            revision={document.revision}
-                            onScroll={handleVisualPaneScroll}
-                            scrollRef={visualScrollRef}
-                            topInset="titlebar"
-                            workspaceFiles={fileTreeFiles}
-                            wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
-                          />
-                        )}
+                        {mainVisualEditors}
                       </div>
                       <div
                         className="group/split-resizer relative z-20 hidden cursor-col-resize touch-none outline-none min-[900px]:block"
@@ -3731,54 +3803,7 @@ function WorkspaceApp() {
                     </div>
                   ) : (
                     <div className="relative h-full min-h-0">
-                      {largeMarkdownVisualBlocked ? (
-                        sourceMode ? null : (
-                          <LargeMarkdownNotice
-                            language={appLanguage.language}
-                            onOpenSourceMode={handleEditorModeToggle}
-                          />
-                        )
-                      ) : (
-                        <div
-                          aria-hidden={sourceMode ? "true" : undefined}
-                          className="h-full min-h-0"
-                          hidden={sourceMode}
-                        >
-                          <MarkdownPaper
-                            autoFocus={!sourceMode && shouldFocusEditorOnReady(document.content)}
-                            bottomOverlayInset={!sourceMode && aiCommandVisible ? aiCommandOverlayInset : 0}
-                            bodyFontSize={editorPreferences.preferences.bodyFontSize}
-                            contentWidth={activeEditorContentWidth}
-                            contentWidthPx={activeEditorContentWidthPx}
-                            documentKey={activeTabId}
-                            documentPath={document.path}
-                            editorTheme={appTheme.editorTheme}
-                            extendedSyntax={editorPreferences.preferences.extendedSyntax}
-                            initialContent={document.content}
-                            language={appLanguage.language}
-                            lineHeight={editorPreferences.preferences.lineHeight}
-                            markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
-                            onEditorReady={handleVisualEditorReady}
-                            onMarkdownChange={(content) => handleVisualMarkdownChange(content, {
-                              documentRevision: document.revision
-                            })}
-                            onContentWidthChange={handleEditorContentWidthChange}
-                            onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
-                            onSaveClipboardImage={handleSaveClipboardImage}
-                            onSaveRemoteClipboardImage={handleSaveRemoteClipboardImage}
-                            openExternalUrl={handleOpenEditorLink}
-                            readOnly={readOnlyMode}
-                            onTextSelectionChange={handleTextSelectionChange}
-                            resolveImageSrc={resolveImageSrc}
-                            revision={document.revision}
-                            onScroll={handleVisualPaneScroll}
-                            scrollRef={visualScrollRef}
-                            topInset="titlebar"
-                            workspaceFiles={fileTreeFiles}
-                            wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
-                          />
-                        </div>
-                      )}
+                      {mainVisualEditors}
                       {sourceMode ? (
                         <LazyMarkdownSourceEditor
                           autoFocus

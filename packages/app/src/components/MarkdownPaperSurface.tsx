@@ -89,21 +89,26 @@ function markdownShortcutSignature(shortcuts: MarkdownShortcutMap | undefined) {
 function MilkdownInstanceBridge({ autoFocus, onEditorReady }: Pick<MarkdownPaperSurfaceProps, "autoFocus" | "onEditorReady">) {
   const [loading, getEditor] = useInstance();
   const autoFocusRef = useRef(autoFocus);
+  const onEditorReadyRef = useRef(onEditorReady);
 
   useEffect(() => {
     autoFocusRef.current = autoFocus;
   }, [autoFocus]);
 
   useEffect(() => {
+    onEditorReadyRef.current = onEditorReady;
+  }, [onEditorReady]);
+
+  useEffect(() => {
     if (loading) return;
 
     const editor = getEditor();
-    onEditorReady(editor, { autoFocus: autoFocusRef.current });
+    onEditorReadyRef.current(editor, { autoFocus: autoFocusRef.current });
 
     return () => {
-      onEditorReady(null);
+      onEditorReadyRef.current(null);
     };
-  }, [getEditor, loading, onEditorReady]);
+  }, [getEditor, loading]);
 
   return null;
 }
@@ -160,6 +165,7 @@ function MilkdownEditorSurface({
   const onSaveRemoteClipboardImageRef = useRef(onSaveRemoteClipboardImage);
   const onTextSelectionChangeRef = useRef(onTextSelectionChange);
   const readOnlyRef = useRef(readOnly);
+  const resolveImageSrcRef = useRef(resolveImageSrc);
   const workspaceFilesRef = useRef(workspaceFiles ?? []);
   const externalLinkOpeningEnabled = Boolean(openExternalUrl);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
@@ -242,8 +248,16 @@ function MilkdownEditorSurface({
   }, [readOnly]);
 
   useEffect(() => {
+    resolveImageSrcRef.current = resolveImageSrc;
+  }, [resolveImageSrc]);
+
+  useEffect(() => {
     workspaceFilesRef.current = workspaceFiles ?? [];
   }, [workspaceFiles]);
+
+  const resolveCurrentImageSrc = useCallback((src: string) => {
+    return resolveImageSrcRef.current?.(src) ?? src;
+  }, []);
 
   const createEditor = useCallback(
     (root: HTMLElement) => {
@@ -331,13 +345,13 @@ function MilkdownEditorSurface({
         )
         .use(markraTableControlsPlugin(tableControlLabels))
         .use(markraTrailingParagraphPlugin)
-        .use(markraLinkImageLivePlugin(resolveImageSrc))
+        .use(markraLinkImageLivePlugin(resolveCurrentImageSrc))
         .use(markraHeadingLevelPlugin)
         .use(
           markraRawHtmlPlugin({
             htmlSourceApplyLabel: t(language, "editor.htmlSourceApply"),
             htmlSourceLabel: t(language, "editor.htmlSource"),
-            resolveImageSrc
+            resolveImageSrc: resolveCurrentImageSrc
           })
         )
         .use(markraLiveMarkdownPlugin({ highlight: highlightSyntaxEnabled, initialMarkdown: initialContentRef.current }));
@@ -370,7 +384,7 @@ function MilkdownEditorSurface({
       language,
       markdownDocumentLabel,
       normalizedMarkdownShortcuts,
-      resolveImageSrc,
+      resolveCurrentImageSrc,
       slashCommandLabels
     ]
   );
