@@ -1,6 +1,6 @@
 [package]
 name = "markra"
-version = "0.11.2"
+version = "0.11.3-beta.4"
 description = "AI-native Markdown editor"
 authors = ["Markra contributors"]
 license = "AGPL-3.0-only"
