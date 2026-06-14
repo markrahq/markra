@@ -4,6 +4,7 @@ import { useApplicationShortcuts, useNativeMenuHandlers } from "./useNativeBindi
 
 describe("useNativeMenuHandlers", () => {
   const baseOptions = {
+    insertMarkdownLink: vi.fn(),
     insertMarkdownSnippet: vi.fn(),
     insertMarkdownTable: vi.fn(),
     openDocument: vi.fn(),
@@ -14,10 +15,12 @@ describe("useNativeMenuHandlers", () => {
   };
 
   it("routes the insert table menu command to the editor table insertion", () => {
+    const insertMarkdownLink = vi.fn();
     const insertMarkdownSnippet = vi.fn();
     const insertMarkdownTable = vi.fn();
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
+        insertMarkdownLink,
         insertMarkdownSnippet,
         insertMarkdownTable,
         openDocument: vi.fn(),
@@ -31,6 +34,24 @@ describe("useNativeMenuHandlers", () => {
     result.current.insertTable?.();
 
     expect(insertMarkdownTable).toHaveBeenCalledTimes(1);
+    expect(insertMarkdownLink).not.toHaveBeenCalled();
+    expect(insertMarkdownSnippet).not.toHaveBeenCalled();
+  });
+
+  it("routes the insert link menu command to the editor link insertion", () => {
+    const insertMarkdownLink = vi.fn();
+    const insertMarkdownSnippet = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        insertMarkdownLink,
+        insertMarkdownSnippet
+      })
+    );
+
+    result.current.insertLink?.();
+
+    expect(insertMarkdownLink).toHaveBeenCalledTimes(1);
     expect(insertMarkdownSnippet).not.toHaveBeenCalled();
   });
 

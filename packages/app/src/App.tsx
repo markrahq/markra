@@ -263,6 +263,27 @@ function useSettingsWindowRoute() {
 
 const pandocInstallUrl = "https://pandoc.org/installing.html";
 
+type EditorLinkCommandOptions = {
+  insertMarkdownLink: () => unknown;
+  readOnlyMode: boolean;
+  syncAiSelectionToolbarFormattingState: () => unknown;
+  syncVisualMarkdownAfterEditorCommand: () => unknown;
+};
+
+export function runEditorLinkCommand({
+  insertMarkdownLink,
+  readOnlyMode,
+  syncAiSelectionToolbarFormattingState,
+  syncVisualMarkdownAfterEditorCommand
+}: EditorLinkCommandOptions) {
+  if (readOnlyMode) return false;
+
+  insertMarkdownLink();
+  syncVisualMarkdownAfterEditorCommand();
+  syncAiSelectionToolbarFormattingState();
+  return true;
+}
+
 function isPandocSetupError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error ?? "");
 
@@ -498,6 +519,7 @@ function WorkspaceApp() {
   const findEditorSearchMatches = editor.findSearchMatches;
   const getEditorCurrentMarkdown = editor.getCurrentMarkdown;
   const handleMilkdownEditorReady = editor.handleEditorReady;
+  const insertEditorMarkdownLink = editor.insertMarkdownLink;
   const insertEditorMarkdownSnippet = editor.insertMarkdownSnippet;
   const insertEditorMarkdownTable = editor.insertMarkdownTable;
   const isEditorCurrentMarkdownEquivalent = editor.isCurrentMarkdownEquivalent;
@@ -2572,6 +2594,19 @@ function WorkspaceApp() {
     insertEditorMarkdownSnippet(...args);
     syncVisualMarkdownAfterEditorCommand();
   }, [insertEditorMarkdownSnippet, readOnlyMode, syncVisualMarkdownAfterEditorCommand]);
+  const handleInsertMarkdownLink = useCallback(() => {
+    runEditorLinkCommand({
+      insertMarkdownLink: insertEditorMarkdownLink,
+      readOnlyMode,
+      syncAiSelectionToolbarFormattingState,
+      syncVisualMarkdownAfterEditorCommand
+    });
+  }, [
+    insertEditorMarkdownLink,
+    readOnlyMode,
+    syncAiSelectionToolbarFormattingState,
+    syncVisualMarkdownAfterEditorCommand
+  ]);
   const handleInsertMarkdownTable = useCallback(() => {
     if (readOnlyMode) return;
 
@@ -2637,8 +2672,8 @@ function WorkspaceApp() {
     if (readOnlyMode) return;
 
     setAiSelectionToolbarAnchor(null);
-    handleInsertMarkdownSnippet("[", "](https://)", "text");
-  }, [handleInsertMarkdownSnippet, readOnlyMode]);
+    handleInsertMarkdownLink();
+  }, [handleInsertMarkdownLink, readOnlyMode]);
   const handleAiSelectionToolbarCopySelection = useCallback(() => {
     const selectedText = activeAiSelection?.source === "selection" ? activeAiSelection.text : "";
     if (!selectedText.trim() || !navigator.clipboard) return;
@@ -3082,6 +3117,7 @@ function WorkspaceApp() {
     exportHtml: exportFeatureEnabled ? exportHtmlDocument : undefined,
     exportLatex: exportFeatureEnabled && pandocFeatureEnabled ? exportLatexDocument : undefined,
     exportPdf: exportFeatureEnabled ? exportPdfDocument : undefined,
+    insertMarkdownLink: handleInsertMarkdownLink,
     insertMarkdownSnippet: handleInsertMarkdownSnippet,
     insertMarkdownTable: handleInsertMarkdownTable,
     language: appLanguage.language,

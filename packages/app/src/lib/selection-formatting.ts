@@ -326,6 +326,25 @@ export function toggleSelectionHighlightInView(view: EditorView) {
   return true;
 }
 
+export function toggleSelectionLinkInView(view: EditorView) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || selection.empty) return false;
+
+  const link = view.state.schema.marks.link;
+  if (!link || !view.state.doc.rangeHasMark(selection.from, selection.to, link)) return false;
+
+  const transaction = view.state.tr.removeMark(selection.from, selection.to, link);
+  if (!transaction.docChanged) return false;
+
+  view.dispatch(
+    transaction
+      .setSelection(TextSelection.create(transaction.doc, selection.from, selection.to))
+      .scrollIntoView()
+  );
+  view.focus();
+  return true;
+}
+
 export function clearSelectionFormattingInView(view: EditorView) {
   const { selection } = view.state;
   if (!(selection instanceof TextSelection) || selection.empty) return false;

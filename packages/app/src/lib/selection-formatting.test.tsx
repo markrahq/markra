@@ -19,6 +19,7 @@ import {
   readSelectionFormattingActionsFromView,
   readSelectionFormattingStateFromView,
   setSelectionHeadingLevelInView,
+  toggleSelectionLinkInView,
   toggleSelectionHighlightInView,
   type SelectionFormattingAction
 } from "./selection-formatting";
@@ -175,6 +176,19 @@ describe("selection formatting", () => {
     expect(toggleSelectionHighlightInView(view)).toBe(true);
     expect(view.state.doc.textContent).toBe("Highlight this text");
     expect(readSelectionFormattingActionsFromView(view)).not.toContain("highlight");
+  });
+
+  it("removes link formatting from selected linked text", async () => {
+    const { view } = await renderEditor("[Synthetic link](https://example.test/articles/about)");
+
+    selectText(view, "Synthetic link");
+
+    expect(readSelectionFormattingActionsFromView(view)).toContain("link");
+
+    expect(toggleSelectionLinkInView(view)).toBe(true);
+
+    expect(view.state.doc.textContent).toBe("Synthetic link");
+    expect(readSelectionFormattingActionsFromView(view)).not.toContain("link");
   });
 
   it("clears mixed inline formatting from the selected text", async () => {

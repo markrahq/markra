@@ -344,7 +344,10 @@ export function markraTextSelectionObserverPlugin(
   return $prose(() => {
     let lastSignature = "";
 
-    const notifySelectionChange = (view: EditorView, options: { requireFocusForEmptySelection: boolean }) => {
+    const notifySelectionChange = (
+      view: EditorView,
+      options: { force?: boolean; requireFocusForEmptySelection: boolean }
+    ) => {
       if (editorViewIsComposing(view)) return;
 
       const { selection } = view.state;
@@ -363,7 +366,7 @@ export function markraTextSelectionObserverPlugin(
         const blockContext = readAiSelectionContextFromView(view);
         if (blockContext.text.trim()) {
           const signature = `${blockContext.source ?? "block"}:${blockContext.from}:${blockContext.to}:${blockContext.text}`;
-          if (signature === lastSignature) return;
+          if (!options.force && signature === lastSignature) return;
 
           lastSignature = signature;
           onTextSelectionChange(blockContext);
@@ -388,7 +391,7 @@ export function markraTextSelectionObserverPlugin(
       }
 
       const signature = `${selection.from}:${selection.to}:${text}`;
-      if (signature === lastSignature) return;
+      if (!options.force && signature === lastSignature) return;
 
       lastSignature = signature;
       onTextSelectionChange({
@@ -467,9 +470,14 @@ export function markraTextSelectionObserverPlugin(
           },
           update(view, previousState) {
             const { selection } = view.state;
-            if (selection.eq(previousState.selection)) return;
+            const selectionChanged = !selection.eq(previousState.selection);
+            const selectionTextMayNeedRefresh = !selectionChanged && !selection.empty && !view.state.doc.eq(previousState.doc);
+            if (!selectionChanged && !selectionTextMayNeedRefresh) return;
             if (pointerSelectionPending) return;
-            notifySelectionChange(view, { requireFocusForEmptySelection: true });
+            notifySelectionChange(view, {
+              force: selectionTextMayNeedRefresh,
+              requireFocusForEmptySelection: true
+            });
           }
         };
       }

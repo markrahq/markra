@@ -8,6 +8,7 @@ import {
   isRecord,
   joinApiUrl,
   normalizeNullableString,
+  normalizedExternalAutolinkUrl,
   parentPathFromPath,
   pathNameFromPath,
   stableTextKey
@@ -94,5 +95,19 @@ describe("utilities", () => {
 
   it("appends query paths directly to host-only URLs", () => {
     expect(joinApiUrl("https://api.example.com", "?api-version=1")).toBe("https://api.example.com?api-version=1");
+  });
+
+  it("normalizes explicit external URLs for autolinking", () => {
+    expect(normalizedExternalAutolinkUrl(" https://example.test/articles/about ")).toBe(
+      "https://example.test/articles/about"
+    );
+    expect(normalizedExternalAutolinkUrl("mailto:hello@example.test")).toBe("mailto:hello@example.test");
+  });
+
+  it("rejects text that should not be autolinked", () => {
+    expect(normalizedExternalAutolinkUrl("example.test/articles/about")).toBeNull();
+    expect(normalizedExternalAutolinkUrl("https://example.test first")).toBeNull();
+    expect(normalizedExternalAutolinkUrl("javascript:alert(1)")).toBeNull();
+    expect(normalizedExternalAutolinkUrl("file:///mock-files/secret.md")).toBeNull();
   });
 });

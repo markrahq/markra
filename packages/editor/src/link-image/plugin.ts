@@ -1,6 +1,7 @@
 import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
 import { Plugin, PluginKey, type EditorState } from "@milkdown/kit/prose/state";
 import { $prose } from "@milkdown/kit/utils";
+import { normalizedExternalAutolinkUrl } from "@markra/shared";
 import { buildLiveLinkImageDecorations } from "./decorations.ts";
 import { replaceRawMarkdownTarget } from "./finalize.ts";
 import { createFinalizedImageNodeView } from "./images.ts";
@@ -43,6 +44,11 @@ function activeLiveMarkdownRange(state: EditorState) {
   const liveState = linkImageLiveKey.getState(state);
 
   return sameRange(liveState?.suppressedRange ?? null, range) ? null : range;
+}
+
+function pastedExternalUrl(event: ClipboardEvent) {
+  const text = event.clipboardData?.getData("text/plain") ?? "";
+  return normalizedExternalAutolinkUrl(text);
 }
 
 export function markraLinkImageLivePlugin(resolveImageSrc?: ResolveMarkdownImageSrc) {
@@ -135,6 +141,23 @@ export function markraLinkImageLivePlugin(resolveImageSrc?: ResolveMarkdownImage
             event.preventDefault();
             return true;
           }
+        },
+        handlePaste: (view, event) => {
+          const { $from, $to } = view.state.selection;
+          if ($from.parent.type.spec.code || !$from.parent.inlineContent || !$from.sameParent($to)) return false;
+
+          const href = pastedExternalUrl(event);
+          if (!href) return false;
+
+          const { from, to } = view.state.selection;
+          const selectedText = view.state.selection.empty ? "" : view.state.doc.textBetween(from, to, " ");
+          const pastedText = event.clipboardData?.getData("text/plain") ?? "";
+          const label = selectedText.trim() || pastedText.trim() || href;
+          const linkedText = view.state.schema.text(label, [link.create({ href })]);
+          const tr = view.state.tr.replaceWith(from, to, linkedText).scrollIntoView();
+
+          view.dispatch(tr);
+          return true;
         },
         handleKeyDown: (view, event) => {
           const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;

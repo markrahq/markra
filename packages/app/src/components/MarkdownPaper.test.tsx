@@ -354,6 +354,21 @@ function pasteHtml(view: EditorView, html: string, slice: Slice) {
   return view.someProp("handlePaste", (handler) => handler(view, event, slice));
 }
 
+function pasteText(view: EditorView, text: string) {
+  const event = new Event("paste", {
+    bubbles: true,
+    cancelable: true
+  }) as ClipboardEvent;
+  Object.defineProperty(event, "clipboardData", {
+    value: {
+      files: [],
+      getData: (type: string) => type === "text/plain" ? text : ""
+    }
+  });
+
+  return view.someProp("handlePaste", (handler) => handler(view, event, view.state.selection.content()));
+}
+
 function dropImage(view: EditorView, image: File) {
   const event = new Event("drop", {
     bubbles: true,
@@ -4358,6 +4373,31 @@ describe("MarkdownPaper editing", () => {
     });
   });
 
+  it.each([
+    ["bold", "b", { metaKey: true }, "strong"],
+    ["italic", "i", { metaKey: true }, "em"],
+    ["strikethrough", "x", { metaKey: true, shiftKey: true }, "del"],
+    ["inline code", "e", { metaKey: true }, "code"]
+  ] as const)("notifies when the %s shortcut changes the current text selection", async (_label, key, modifiers, selector) => {
+    const onTextSelectionChange = vi.fn();
+    const { container, view } = await renderEditor("Format me", { onTextSelectionChange });
+    const from = findTextPosition(view, "Format me");
+    const to = from + "Format me".length;
+
+    selectText(view, from, to);
+    onTextSelectionChange.mockClear();
+
+    expect(pressShortcut(view, key, modifiers)).toBe(true);
+
+    expect(container.querySelector(`.ProseMirror ${selector}`)).toHaveTextContent("Format me");
+    expect(onTextSelectionChange).toHaveBeenCalledWith({
+      from,
+      source: "selection",
+      text: "Format me",
+      to
+    });
+  });
+
   it("waits until pointer text selection settles before notifying selected text", async () => {
     const onTextSelectionChange = vi.fn();
     const selectedDomSelection = {
@@ -7739,6 +7779,21 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector('.ProseMirror a[href="https://example.com"]')).not.toBeInTheDocument();
     expect(container.querySelectorAll(".ProseMirror .markra-live-link-source.markra-md-delimiter")).toHaveLength(2);
     expect(container.querySelector(".ProseMirror")?.textContent).toBe("[Markra](https://example.com)");
+    await settleMarkdownListener();
+  });
+
+  it("turns pasted standalone URLs into finalized links", async () => {
+    const { container, editor, view } = await renderEditor();
+
+    expect(pasteText(view, "https://example.test/articles/about")).toBe(true);
+
+    const link = container.querySelector<HTMLAnchorElement>(
+      '.ProseMirror a[href="https://example.test/articles/about"]'
+    );
+    expect(link).toHaveTextContent("https://example.test/articles/about");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("<https://example.test/articles/about>");
     await settleMarkdownListener();
   });
 

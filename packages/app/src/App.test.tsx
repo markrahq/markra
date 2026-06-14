@@ -86,6 +86,7 @@ import {
   mockedWriteNativeMarkdownTemplateFile,
   renderApp
 } from "./test/app-harness";
+import { runEditorLinkCommand } from "./App";
 import type { NativeMenuHandlers } from "./test/app-harness";
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests } from "./runtime";
 
@@ -245,6 +246,23 @@ function mockTitlebarActionRects(actionIds: string[]) {
 describe("Markra workspace", () => {
   afterEach(() => {
     resetAppRuntimeForTests();
+  });
+
+  it("syncs selection toolbar formatting after running the editor link command", () => {
+    const insertMarkdownLink = vi.fn();
+    const syncAiSelectionToolbarFormattingState = vi.fn();
+    const syncVisualMarkdownAfterEditorCommand = vi.fn();
+
+    expect(runEditorLinkCommand({
+      insertMarkdownLink,
+      readOnlyMode: false,
+      syncAiSelectionToolbarFormattingState,
+      syncVisualMarkdownAfterEditorCommand
+    })).toBe(true);
+
+    expect(insertMarkdownLink).toHaveBeenCalledTimes(1);
+    expect(syncVisualMarkdownAfterEditorCommand).toHaveBeenCalledTimes(1);
+    expect(syncAiSelectionToolbarFormattingState).toHaveBeenCalledTimes(1);
   });
 
   it("renders a Typora-like minimal writing surface", async () => {

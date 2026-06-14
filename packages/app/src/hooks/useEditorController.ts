@@ -21,12 +21,13 @@ import {
   type AiEditorPreviewLabels
 } from "@markra/editor";
 import type { MarkdownOutlineItem } from "@markra/markdown";
-import { debug, type SearchRange } from "@markra/shared";
+import { debug, normalizedExternalAutolinkUrl, type SearchRange } from "@markra/shared";
 import {
   clearSelectionFormattingInView,
   readSelectionFormattingActionsFromView,
   readSelectionFormattingStateFromView,
   setSelectionHeadingLevelInView,
+  toggleSelectionLinkInView,
   toggleSelectionHighlightInView,
   type SelectionHeadingLevel,
   type SelectionFormattingState
@@ -43,6 +44,29 @@ const defaultMarkdownTable = [
   "|  |  |"
 ].join("\n");
 const aiSelectionHoldSelector = ".markra-ai-selection-hold";
+
+type MarkdownLinkInsertion =
+  | {
+      href: string;
+      kind: "link";
+      label: string;
+      selectionFromOffset: number;
+      selectionToOffset: number;
+    }
+  | {
+      cursorOffset: number;
+      insertedText: string;
+      kind: "snippet";
+      selectionFromOffset?: undefined;
+      selectionToOffset?: undefined;
+    }
+  | {
+      cursorOffset?: undefined;
+      insertedText: string;
+      kind: "snippet";
+      selectionFromOffset: number;
+      selectionToOffset: number;
+    };
 
 function comparableSerializedMarkdown(markdown: string) {
   return markdown
@@ -114,6 +138,36 @@ function aiCommandSelectionScrollBehavior(): ScrollBehavior {
   if (typeof window.matchMedia !== "function") return "smooth";
 
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+}
+
+export function markdownLinkInsertionForSelection(selectedText: string): MarkdownLinkInsertion {
+  const href = normalizedExternalAutolinkUrl(selectedText);
+  if (href) {
+    return {
+      href,
+      kind: "link",
+      label: selectedText.trim(),
+      selectionFromOffset: 0,
+      selectionToOffset: selectedText.trim().length
+    };
+  }
+
+  const content = selectedText || "text";
+  const insertedText = `[${content}](https://)`;
+  if (selectedText) {
+    return {
+      insertedText,
+      kind: "snippet",
+      selectionFromOffset: 1,
+      selectionToOffset: 1 + content.length
+    };
+  }
+
+  return {
+    cursorOffset: `[${content}`.length,
+    insertedText,
+    kind: "snippet"
+  };
 }
 
 export function readAiSelectionContextFromView(view: EditorView): AiSelectionContext {
@@ -665,6 +719,49 @@ export function useEditorController() {
     view.focus();
   }, []);
 
+  const insertMarkdownLink = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      if (toggleSelectionLinkInView(view)) return;
+
+      const { from, to } = view.state.selection;
+      const selectedText = view.state.doc.textBetween(from, to, " ");
+      const insertion = markdownLinkInsertionForSelection(selectedText);
+
+      if (insertion.kind === "link") {
+        const link = linkSchema.type(ctx);
+        const linkedText = view.state.schema.text(insertion.label, [
+          link.create({ href: insertion.href })
+        ]);
+        const tr = view.state.tr.replaceWith(from, to, linkedText);
+        tr.setSelection(
+          TextSelection.create(
+            tr.doc,
+            from + insertion.selectionFromOffset,
+            from + insertion.selectionToOffset
+          )
+        ).scrollIntoView();
+
+        view.dispatch(tr);
+        view.focus();
+        return;
+      }
+
+      const tr = view.state.tr.insertText(insertion.insertedText, from, to);
+      const selection =
+        insertion.selectionFromOffset === undefined
+          ? TextSelection.create(tr.doc, from + insertion.cursorOffset)
+          : TextSelection.create(tr.doc, from + insertion.selectionFromOffset, from + insertion.selectionToOffset);
+      tr.setSelection(selection).scrollIntoView();
+
+      view.dispatch(tr);
+      view.focus();
+    });
+  }, []);
+
   const insertMarkdownTable = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -876,6 +973,7 @@ export function useEditorController() {
     getTableAnchors,
     handleEditorReady,
     holdAiSelection,
+    insertMarkdownLink,
     insertMarkdownSnippet,
     insertMarkdownTable,
     listAiPreviews,

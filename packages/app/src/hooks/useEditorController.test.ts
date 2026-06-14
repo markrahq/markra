@@ -1,4 +1,5 @@
 import {
+  markdownLinkInsertionForSelection,
   scrollElementToContainerTop,
   scrollElementsAboveContainerBottomInset,
   selectionAnchorFromEditorView
@@ -125,6 +126,35 @@ describe("editor controller scrolling", () => {
 
     expect(scrollElementsAboveContainerBottomInset([target], container, 200, 24)).toBe(false);
     expect(scrollTo).not.toHaveBeenCalled();
+  });
+});
+
+describe("editor controller link insertion", () => {
+  it("uses a selected URL as both the link label and href", () => {
+    expect(markdownLinkInsertionForSelection("https://example.test/articles/about")).toEqual({
+      href: "https://example.test/articles/about",
+      kind: "link",
+      label: "https://example.test/articles/about",
+      selectionFromOffset: 0,
+      selectionToOffset: "https://example.test/articles/about".length
+    });
+  });
+
+  it("keeps non-URL selections as an editable markdown link snippet", () => {
+    expect(markdownLinkInsertionForSelection("Synthetic label")).toEqual({
+      insertedText: "[Synthetic label](https://)",
+      kind: "snippet",
+      selectionFromOffset: 1,
+      selectionToOffset: "[Synthetic label".length
+    });
+  });
+
+  it("places the cursor after the placeholder label for empty link snippets", () => {
+    expect(markdownLinkInsertionForSelection("")).toEqual({
+      cursorOffset: "[text".length,
+      insertedText: "[text](https://)",
+      kind: "snippet"
+    });
   });
 });
 
