@@ -56,6 +56,7 @@ import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditor
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
 import { useSelectionToolbarAnchorRefresh } from "./hooks/useSelectionToolbarAnchorRefresh";
+import { useSharedEditorHistory } from "./hooks/useSharedEditorHistory";
 import { useSideBySideTabs } from "./hooks/useSideBySideTabs";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
 import { useBackupSettings } from "./hooks/useBackupSettings";
@@ -447,8 +448,6 @@ function WorkspaceApp() {
   const pendingEditorContentWidthPxRef = useRef<number | null>(null);
   const pendingSplitVisualPanePercentRef = useRef(defaultSplitVisualPanePercent);
   const pendingSideDocumentMainPanePercentRef = useRef(defaultSideDocumentMainPanePercent);
-  const sourceToVisualHistoryRef = useRef(false);
-  const sourceToVisualSyncingRef = useRef(false);
   const lastDocumentSearchRevealRevisionRef = useRef(0);
   const documentRevisionRef = useRef(0);
   const visualEditorReadyRevisionRef = useRef<number | null>(null);
@@ -877,6 +876,17 @@ function WorkspaceApp() {
       : null;
   const visibleSourceDocumentSearchMatches =
     documentSearchOpen && documentSearchSurface === "source" ? sourceDocumentSearchMatches : [];
+  const {
+    isApplyingSourceToVisualSync,
+    markSourceEditForHistory
+  } = useSharedEditorHistory({
+    documentContent: document.content,
+    documentRevision: document.revision,
+    largeMarkdownVisualBlocked,
+    replaceEditorMarkdown,
+    sourceSurfaceActive,
+    visualEditorReadySequence
+  });
   const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
   const aiResult = aiResults.at(-1) ?? null;
   const activeEditorContentWidth = editorContentWidth;
@@ -2536,24 +2546,19 @@ function WorkspaceApp() {
     setDocumentOperationTarget("side");
   }, []);
   const handleVisualMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
-    if (sourceToVisualSyncingRef.current) return;
+    if (isApplyingSourceToVisualSync()) return;
     if (readOnlyMode) return;
 
     if (splitMode) setActiveEditorSurface("visual");
     handleMarkdownChange(content, options);
-  }, [handleMarkdownChange, readOnlyMode, splitMode]);
+  }, [handleMarkdownChange, isApplyingSourceToVisualSync, readOnlyMode, splitMode]);
   const handleSourceMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
     if (readOnlyMode) return;
 
-    if (
-      content !== document.content &&
-      (options?.documentRevision === undefined || options.documentRevision === document.revision)
-    ) {
-      sourceToVisualHistoryRef.current = true;
-    }
+    markSourceEditForHistory(content, options);
     if (splitMode) setActiveEditorSurface("source");
     handleMarkdownChange(content, options);
-  }, [document.content, document.revision, handleMarkdownChange, readOnlyMode, splitMode]);
+  }, [handleMarkdownChange, markSourceEditForHistory, readOnlyMode, splitMode]);
   const syncSplitPaneScrollPosition = useCallback((sourceSurface: EditorSurface, sourceElement: HTMLElement) => {
     if (!splitMode) return false;
 
@@ -2653,6 +2658,14 @@ function WorkspaceApp() {
     syncVisualMarkdownAfterEditorCommand();
     return handled;
   }, [readOnlyMode, runEditorShortcut, syncVisualMarkdownAfterEditorCommand]);
+  const sourceEditorHistoryHandlers = useMemo(() => {
+    if (largeMarkdownVisualBlocked) return {};
+
+    return {
+      onRedo: () => handleRunEditorShortcut("z", { shiftKey: true }, { focusEditor: false }),
+      onUndo: () => handleRunEditorShortcut("z", {}, { focusEditor: false })
+    };
+  }, [handleRunEditorShortcut, largeMarkdownVisualBlocked]);
   const handleAiSelectionToolbarFormattingAction = useCallback((action: SelectionFormattingToolbarAction) => {
     if (readOnlyMode) return;
 
@@ -3106,28 +3119,6 @@ function WorkspaceApp() {
     editorMode,
     hasOpenDocument,
     saveDocumentTabViewState,
-    visualEditorReadySequence
-  ]);
-  useEffect(() => {
-    if (!sourceSurfaceActive || largeMarkdownVisualBlocked) {
-      sourceToVisualHistoryRef.current = false;
-      return;
-    }
-
-    sourceToVisualSyncingRef.current = true;
-    try {
-      const synced = replaceEditorMarkdown(document.content, {
-        addToHistory: sourceToVisualHistoryRef.current
-      });
-      if (synced) sourceToVisualHistoryRef.current = false;
-    } finally {
-      sourceToVisualSyncingRef.current = false;
-    }
-  }, [
-    document.content,
-    largeMarkdownVisualBlocked,
-    replaceEditorMarkdown,
-    sourceSurfaceActive,
     visualEditorReadySequence
   ]);
   const aiAgentContext = useMemo(() => ({
@@ -3728,17 +3719,8 @@ function WorkspaceApp() {
                           })}
                           onContentWidthChange={handleEditorContentWidthChange}
                           onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
-                          onRedo={
-                            largeMarkdownVisualBlocked
-                              ? undefined
-                              : () => handleRunEditorShortcut("z", { shiftKey: true }, { focusEditor: false })
-                          }
+                          {...sourceEditorHistoryHandlers}
                           onScroll={handleSourcePaneScroll}
-                          onUndo={
-                            largeMarkdownVisualBlocked
-                              ? undefined
-                              : () => handleRunEditorShortcut("z", {}, { focusEditor: false })
-                          }
                           readOnly={readOnlyMode}
                           searchActiveIndex={normalizedDocumentSearchActiveIndex}
                           searchMatches={visibleSourceDocumentSearchMatches}
@@ -3812,17 +3794,8 @@ function WorkspaceApp() {
                           })}
                           onContentWidthChange={handleEditorContentWidthChange}
                           onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
-                          onRedo={
-                            largeMarkdownVisualBlocked
-                              ? undefined
-                              : () => handleRunEditorShortcut("z", { shiftKey: true }, { focusEditor: false })
-                          }
+                          {...sourceEditorHistoryHandlers}
                           onScroll={handleSourcePaneScroll}
-                          onUndo={
-                            largeMarkdownVisualBlocked
-                              ? undefined
-                              : () => handleRunEditorShortcut("z", {}, { focusEditor: false })
-                          }
                           readOnly={readOnlyMode}
                           searchActiveIndex={normalizedDocumentSearchActiveIndex}
                           searchMatches={visibleSourceDocumentSearchMatches}
