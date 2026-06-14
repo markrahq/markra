@@ -4275,6 +4275,39 @@ describe("Markra workspace", () => {
     expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Switch to split mode" }));
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+
+    const splitScrollElements = Array.from(
+      container.querySelectorAll<HTMLElement>(".editor-split-surface .paper-scroll")
+    );
+    const sourceScroll = sourceEditor.closest<HTMLElement>(".paper-scroll");
+    const visualScroll = splitScrollElements.find((element) => element !== sourceScroll) ?? null;
+    expect(sourceScroll).toBeInTheDocument();
+    expect(visualScroll).toBeInTheDocument();
+
+    mockScrollMetrics(sourceScroll!, {
+      clientHeight: 200,
+      scrollHeight: 1000,
+      scrollTop: 200
+    });
+    mockScrollMetrics(visualScroll!, {
+      clientHeight: 300,
+      scrollHeight: 700,
+      scrollTop: 0
+    });
+
+    fireEvent.scroll(sourceScroll!);
+
+    expect(visualScroll!.scrollTop).toBe(100);
+  });
+
+  it("recalibrates split pane scrolling after target layout changes", async () => {
+    const { container } = renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to split mode" }));
+    expect(await screen.findByRole("textbox", { name: "Markdown source" })).toBeInTheDocument();
 
     const [visualScroll, sourceScroll] = Array.from(
       container.querySelectorAll<HTMLElement>(".editor-split-surface .paper-scroll")
@@ -4294,8 +4327,21 @@ describe("Markra workspace", () => {
     });
 
     fireEvent.scroll(sourceScroll!);
-
     expect(visualScroll!.scrollTop).toBe(100);
+
+    mockScrollMetrics(visualScroll!, {
+      clientHeight: 300,
+      scrollHeight: 900,
+      scrollTop: visualScroll!.scrollTop
+    });
+
+    await act(async () => {
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+    });
+
+    expect(visualScroll!.scrollTop).toBe(150);
   });
 
   it("keeps scroll progress when an opened file switches from visual to source mode", async () => {
@@ -4321,10 +4367,14 @@ describe("Markra workspace", () => {
     });
     fireEvent.scroll(visualScroll);
 
-    let restoreFrame: FrameRequestCallback | null = null;
+    const restoreFrames: FrameRequestCallback[] = [];
+    const flushRestoreFrames = () => {
+      const frames = restoreFrames.splice(0);
+      frames.forEach((frame) => frame(0));
+    };
     const requestAnimationFrameSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
-      restoreFrame = callback;
-      return 1;
+      restoreFrames.push(callback);
+      return restoreFrames.length;
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
@@ -4336,7 +4386,7 @@ describe("Markra workspace", () => {
     });
 
     act(() => {
-      restoreFrame?.(0);
+      flushRestoreFrames();
     });
 
     expect(sourceScroll.scrollTop).toBe(500);
@@ -4351,7 +4401,7 @@ describe("Markra workspace", () => {
     });
 
     act(() => {
-      restoreFrame?.(0);
+      flushRestoreFrames();
     });
 
     expect(restoredVisualScroll.scrollTop).toBe(400);

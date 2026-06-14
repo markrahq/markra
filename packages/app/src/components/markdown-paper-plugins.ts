@@ -286,7 +286,7 @@ function markraMarkdownStyleRemark(this: { data: () => RemarkProcessorData }) {
   const data = this.data();
   data.settings = {
     ...data.settings,
-    rule: "-",
+    rule: "*",
     ruleRepetition: 3,
     ruleSpaces: false
   };

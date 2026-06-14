@@ -464,6 +464,7 @@ function WorkspaceApp() {
   const splitSurfaceRef = useRef<HTMLDivElement | null>(null);
   const sideDocumentSurfaceRef = useRef<HTMLDivElement | null>(null);
   const splitScrollSyncTargetRef = useRef<EditorSurface | null>(null);
+  const splitScrollSyncFrameRef = useRef<number | null>(null);
   const splitPaneResizeCleanupRef = useRef<(() => unknown) | null>(null);
   const sideDocumentPaneResizeCleanupRef = useRef<(() => unknown) | null>(null);
   const exportContextRef = useRef({
@@ -1716,6 +1717,10 @@ function WorkspaceApp() {
       splitPaneResizeCleanupRef.current = null;
       sideDocumentPaneResizeCleanupRef.current?.();
       sideDocumentPaneResizeCleanupRef.current = null;
+      if (splitScrollSyncFrameRef.current !== null) {
+        window.cancelAnimationFrame(splitScrollSyncFrameRef.current);
+        splitScrollSyncFrameRef.current = null;
+      }
     };
   }, []);
 
@@ -2542,37 +2547,58 @@ function WorkspaceApp() {
     if (splitMode) setActiveEditorSurface("source");
     handleMarkdownChange(content, options);
   }, [handleMarkdownChange, readOnlyMode, splitMode]);
-  const syncSplitPaneScroll = useCallback((sourceSurface: EditorSurface, event: ReactUIEvent<HTMLElement>) => {
-    if (!splitMode) return;
+  const syncSplitPaneScrollPosition = useCallback((sourceSurface: EditorSurface, sourceElement: HTMLElement) => {
+    if (!splitMode) return false;
 
     if (splitScrollSyncTargetRef.current === sourceSurface) {
       splitScrollSyncTargetRef.current = null;
-      return;
+      return false;
     }
 
-    const sourceElement = event.currentTarget;
     const targetSurface: EditorSurface = sourceSurface === "source" ? "visual" : "source";
     const targetElement = targetSurface === "visual" ? visualScrollRef.current : sourceScrollRef.current;
-    if (!targetElement) return;
+    if (!targetElement) return false;
 
     const sourceMaxScrollTop = Math.max(0, sourceElement.scrollHeight - sourceElement.clientHeight);
     const targetMaxScrollTop = Math.max(0, targetElement.scrollHeight - targetElement.clientHeight);
-    if (targetMaxScrollTop <= 0) return;
+    if (targetMaxScrollTop <= 0) return true;
 
     const nextScrollTop =
       sourceMaxScrollTop <= 0
         ? 0
         : Math.round((sourceElement.scrollTop / sourceMaxScrollTop) * targetMaxScrollTop);
-    if (Math.abs(targetElement.scrollTop - nextScrollTop) < 1) return;
+    if (Math.abs(targetElement.scrollTop - nextScrollTop) >= 1) {
+      splitScrollSyncTargetRef.current = targetSurface;
+      targetElement.scrollTop = nextScrollTop;
+      window.setTimeout(() => {
+        if (splitScrollSyncTargetRef.current === targetSurface) {
+          splitScrollSyncTargetRef.current = null;
+        }
+      }, 0);
+    }
 
-    splitScrollSyncTargetRef.current = targetSurface;
-    targetElement.scrollTop = nextScrollTop;
-    window.setTimeout(() => {
-      if (splitScrollSyncTargetRef.current === targetSurface) {
-        splitScrollSyncTargetRef.current = null;
-      }
-    }, 0);
+    return true;
   }, [splitMode]);
+  const scheduleSplitPaneScrollResync = useCallback((sourceSurface: EditorSurface, sourceElement: HTMLElement) => {
+    if (!splitMode) return;
+
+    if (splitScrollSyncFrameRef.current !== null) {
+      window.cancelAnimationFrame(splitScrollSyncFrameRef.current);
+    }
+
+    splitScrollSyncFrameRef.current = window.requestAnimationFrame(() => {
+      splitScrollSyncFrameRef.current = null;
+      if (!sourceElement.isConnected) return;
+
+      syncSplitPaneScrollPosition(sourceSurface, sourceElement);
+    });
+  }, [splitMode, syncSplitPaneScrollPosition]);
+  const syncSplitPaneScroll = useCallback((sourceSurface: EditorSurface, event: ReactUIEvent<HTMLElement>) => {
+    const sourceElement = event.currentTarget;
+    if (!syncSplitPaneScrollPosition(sourceSurface, sourceElement)) return;
+
+    scheduleSplitPaneScrollResync(sourceSurface, sourceElement);
+  }, [scheduleSplitPaneScrollResync, syncSplitPaneScrollPosition]);
   const handleSourcePaneScroll = useCallback((event: ReactUIEvent<HTMLElement>) => {
     saveDocumentTabViewState(activeTabId, { sourceScrollTop: event.currentTarget.scrollTop });
     syncSplitPaneScroll("source", event);

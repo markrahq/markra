@@ -2677,8 +2677,23 @@ describe("MarkdownPaper editing", () => {
     });
 
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
-    expect(serializeMarkdown(view.state.doc)).toBe("First\n\nSecond\n\n---\n");
+    expect(serializeMarkdown(view.state.doc)).toBe("First\n\nSecond\n\n***\n");
     restoreLayout();
+  });
+
+  it("serializes horizontal rules without creating a setext-heading trap in source mode", async () => {
+    const { editor, view } = await renderEditor("First\n\n---\n\nSecond");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+    const markdown = serializeMarkdown(view.state.doc);
+
+    expect(markdown).toBe("First\n\n***\n\nSecond\n");
+
+    const editedMarkdown = markdown.replace("\n\n***", "\nInserted\n***");
+    const editedDocument = parseMarkdown(editedMarkdown);
+    expect(editedDocument.child(0).type.name).toBe("paragraph");
+    expect(editedDocument.child(0).textContent).toContain("Inserted");
+    expect(editedDocument.child(1).type.name).toBe("hr");
   });
 
   it("reorders blocks below a table drop target", async () => {
