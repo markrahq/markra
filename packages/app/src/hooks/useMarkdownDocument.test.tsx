@@ -346,6 +346,48 @@ describe("useMarkdownDocument", () => {
     expect(markdownHelperMocks.getWordCount).not.toHaveBeenCalled();
   });
 
+  it("moves an existing recent file to the top when reopening it", async () => {
+    const recentFiles = [
+      { name: "guide.md", path: "/mock-files/guide.md" },
+      { name: "notes.md", path: "/mock-files/notes.md" }
+    ];
+    mockedGetStoredRecentMarkdownFiles.mockResolvedValue(recentFiles);
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "# Notes",
+      name: "notes.md",
+      path: "/mock-files/notes.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await waitFor(() => expect(result.current.recentFiles).toEqual(recentFiles));
+    mockedSaveStoredRecentMarkdownFile.mockClear();
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "notes.md",
+        path: "/mock-files/notes.md",
+        relativePath: "notes.md"
+      });
+    });
+
+    expect(result.current.recentFiles).toEqual([
+      { name: "notes.md", path: "/mock-files/notes.md" },
+      { name: "guide.md", path: "/mock-files/guide.md" }
+    ]);
+    expect(mockedSaveStoredRecentMarkdownFile).toHaveBeenCalledWith({
+      name: "notes.md",
+      path: "/mock-files/notes.md"
+    });
+  });
+
   it("defers medium document summaries until idle time", async () => {
     const mediumContent = "# Medium file\n\nSynthetic content.";
     const outlineItems = [{ level: 1, title: "Medium file" }];
