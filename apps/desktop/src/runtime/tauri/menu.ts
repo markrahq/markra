@@ -76,6 +76,7 @@ export type NativeStaticMenuCommand =
   | "aiContinueWriting"
   | "aiSummarize"
   | "aiTranslate"
+  | "toggleFullscreen"
   | "toggleMarkdownFiles"
   | "toggleDocumentHistory"
   | "toggleAiAgent"

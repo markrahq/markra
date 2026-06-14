@@ -36,6 +36,7 @@ import {
   installNativeMarkdownFileDrop,
   listNativeMarkdownFilesForPath,
   takeNativeOpenedMarkdownPaths,
+  toggleNativeWindowFullscreen,
   renameNativeMarkdownTreeFile,
   watchNativeMarkdownFile,
   writeNativeMarkdownTemplateFile,
@@ -178,7 +179,8 @@ vi.mock("../lib/tauri", () => ({
   listenNativeAppExitRequested: vi.fn(),
   listenNativeWindowCloseRequested: vi.fn(),
   openSettingsWindow: vi.fn(),
-  setNativeWindowTitle: vi.fn()
+  setNativeWindowTitle: vi.fn(),
+  toggleNativeWindowFullscreen: vi.fn()
 }));
 
 vi.mock("../lib/tauri/updater", () => ({
@@ -649,6 +651,7 @@ export const mockedInstallNativeEditorContextMenu = vi.mocked(installNativeEdito
 export const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
 export const mockedOpenNativeExternalUrl = vi.mocked(openNativeExternalUrl);
 export const mockedCloseNativeWindow = vi.mocked(closeNativeWindow);
+export const mockedToggleNativeWindowFullscreen = vi.mocked(toggleNativeWindowFullscreen);
 export const mockedExitNativeApp = vi.mocked(exitNativeApp);
 export const mockedListenNativeAppExitRequested = vi.mocked(listenNativeAppExitRequested);
 export const mockedListenNativeWindowCloseRequested = vi.mocked(listenNativeWindowCloseRequested);

@@ -104,7 +104,7 @@ import type {
   SelectionFormattingAction,
   SelectionFormattingToolbarAction
 } from "./lib/selection-formatting";
-import { openNativeExternalUrl, openSettingsWindow } from "./lib/tauri";
+import { openNativeExternalUrl, openSettingsWindow, toggleNativeWindowFullscreen } from "./lib/tauri";
 import { aiAgentWebSearchAvailable, type AiDiffResult, type AiEditIntent, type AiSelectionContext } from "@markra/ai";
 import {
   AI_EDITOR_PREVIEW_APPLIED_EVENT,
@@ -3134,6 +3134,7 @@ function WorkspaceApp() {
     toggleAiAgent: aiFeatureEnabled ? handleAiAgentToggle : undefined,
     toggleAiCommand: aiFeatureEnabled ? handleAiCommandToggle : undefined,
     toggleDocumentHistory: handleDocumentHistoryOpen,
+    toggleFullscreen: toggleNativeWindowFullscreen,
     toggleMarkdownFiles: handleFileTreeToggle,
     toggleReadOnlyMode: handleReadOnlyModeToggle,
     toggleSourceMode: handleEditorModeToggle

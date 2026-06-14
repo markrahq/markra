@@ -161,11 +161,21 @@ export async function closeNativeWindow() {
 }
 
 export async function minimizeNativeWindow() {
-  const currentWindow = await getCurrentNativeWindow();
-  await currentWindow?.minimize();
+  if (!("__TAURI_INTERNALS__" in window)) {
+    return;
+  }
+
+  await invoke("minimize_current_window");
 }
 
 export async function toggleNativeWindowMaximized() {
   const currentWindow = await getCurrentNativeWindow();
   await currentWindow?.toggleMaximize();
+}
+
+export async function toggleNativeWindowFullscreen() {
+  const currentWindow = await getCurrentNativeWindow();
+  if (!currentWindow) return;
+
+  await currentWindow.setFullscreen(!(await currentWindow.isFullscreen()));
 }

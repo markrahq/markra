@@ -2,7 +2,7 @@ import type { MouseEvent } from "react";
 import {
   closeNativeWindow,
   minimizeNativeWindow,
-  toggleNativeWindowMaximized
+  toggleNativeWindowFullscreen
 } from "../lib/tauri/window";
 
 type WindowControlAction = () => Promise<unknown> | unknown;
@@ -10,6 +10,7 @@ type WindowControlAction = () => Promise<unknown> | unknown;
 type MacWindowControlsProps = {
   className?: string;
   onClose?: WindowControlAction;
+  onFullscreen?: WindowControlAction;
   onMinimize?: WindowControlAction;
   onZoom?: WindowControlAction;
 };
@@ -111,9 +112,12 @@ function WindowControlButton({ action, className, icon, label }: WindowControlBu
 export function MacWindowControls({
   className = "",
   onClose = closeNativeWindow,
+  onFullscreen,
   onMinimize = minimizeNativeWindow,
-  onZoom = toggleNativeWindowMaximized
+  onZoom
 }: MacWindowControlsProps) {
+  const fullscreenAction = onFullscreen ?? onZoom ?? toggleNativeWindowFullscreen;
+
   return (
     <div
       className={`mac-window-controls group/window-controls flex h-10 select-none items-center gap-2 pl-4 pr-2 [-webkit-user-select:none] ${className}`}
@@ -132,10 +136,10 @@ export function MacWindowControls({
         label="Minimize window"
       />
       <WindowControlButton
-        action={onZoom}
+        action={fullscreenAction}
         className="border-[#1aab29] bg-[#28c840]"
         icon="zoom"
-        label="Zoom window"
+        label="Toggle full screen"
       />
     </div>
   );

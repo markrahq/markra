@@ -66,3 +66,7 @@ export function minimizeNativeWindow() {
 export function toggleNativeWindowMaximized() {
   return getAppRuntime().window.toggleWindowMaximized();
 }
+
+export function toggleNativeWindowFullscreen() {
+  return getAppRuntime().window.toggleWindowFullscreen();
+}

@@ -39,6 +39,20 @@ enum NativeApplicationMenuProfile {
     Settings,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NativeMenuPlatform {
+    Macos,
+    Windows,
+    Linux,
+    Other,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum NativeFullscreenMenuKind {
+    System,
+    FrontendCommand,
+}
+
 #[derive(Clone, Default)]
 struct NativeApplicationMenuConfig {
     accelerators: Option<HashMap<String, String>>,
@@ -97,6 +111,27 @@ fn native_application_menu_profile_for_window_label(label: &str) -> NativeApplic
     }
 
     NativeApplicationMenuProfile::Editor
+}
+
+fn current_native_menu_platform() -> NativeMenuPlatform {
+    if cfg!(target_os = "macos") {
+        NativeMenuPlatform::Macos
+    } else if cfg!(target_os = "windows") {
+        NativeMenuPlatform::Windows
+    } else if cfg!(target_os = "linux") {
+        NativeMenuPlatform::Linux
+    } else {
+        NativeMenuPlatform::Other
+    }
+}
+
+fn fullscreen_menu_kind_for_platform(platform: NativeMenuPlatform) -> NativeFullscreenMenuKind {
+    match platform {
+        NativeMenuPlatform::Macos => NativeFullscreenMenuKind::System,
+        NativeMenuPlatform::Windows | NativeMenuPlatform::Linux | NativeMenuPlatform::Other => {
+            NativeFullscreenMenuKind::FrontendCommand
+        }
+    }
 }
 
 #[cfg(test)]
@@ -575,6 +610,8 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         labels.toggle_source_mode,
         &menu_accelerator(accelerators, "toggleSourceMode", "CmdOrCtrl+Alt+S"),
     )?;
+    let toggle_fullscreen =
+        app_menu_item_without_accelerator(app, "toggleFullscreen", labels.fullscreen)?;
 
     let app_menu = create_markra_app_submenu(app, labels)?;
 
@@ -605,8 +642,15 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         .items(&[&link, &image, &table])
         .build()?;
 
-    let view_menu = SubmenuBuilder::with_id(app, "markra:view", labels.view)
-        .fullscreen_with_text(labels.fullscreen)
+    let view_menu_builder = SubmenuBuilder::with_id(app, "markra:view", labels.view);
+    let view_menu_builder = match fullscreen_menu_kind_for_platform(current_native_menu_platform())
+    {
+        NativeFullscreenMenuKind::System => {
+            view_menu_builder.fullscreen_with_text(labels.fullscreen)
+        }
+        NativeFullscreenMenuKind::FrontendCommand => view_menu_builder.item(&toggle_fullscreen),
+    };
+    let view_menu = view_menu_builder
         .separator()
         .items(&[
             &toggle_file_list,
@@ -752,6 +796,7 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
             | "insertLink"
             | "insertImage"
             | "insertTable"
+            | "toggleFullscreen"
             | "toggleMarkdownFiles"
             | "toggleAiAgent"
             | "toggleAiCommand"
@@ -796,6 +841,7 @@ mod tests {
         assert!(is_frontend_menu_command("formatBold"));
         assert!(is_frontend_menu_command("insertImage"));
         assert!(is_frontend_menu_command("insertTable"));
+        assert!(is_frontend_menu_command("toggleFullscreen"));
         assert!(is_frontend_menu_command("toggleMarkdownFiles"));
         assert!(is_frontend_menu_command("toggleAiAgent"));
         assert!(is_frontend_menu_command("toggleAiCommand"));
@@ -804,6 +850,24 @@ mod tests {
         assert!(is_frontend_menu_command("toggleSourceMode"));
         assert!(!is_frontend_menu_command("markra:file"));
         assert!(!is_frontend_menu_command("copy"));
+    }
+
+    #[test]
+    fn fullscreen_menu_uses_system_role_on_macos() {
+        assert_eq!(
+            fullscreen_menu_kind_for_platform(NativeMenuPlatform::Macos),
+            NativeFullscreenMenuKind::System
+        );
+    }
+
+    #[test]
+    fn fullscreen_menu_uses_frontend_command_outside_macos() {
+        for platform in [NativeMenuPlatform::Windows, NativeMenuPlatform::Linux] {
+            assert_eq!(
+                fullscreen_menu_kind_for_platform(platform),
+                NativeFullscreenMenuKind::FrontendCommand
+            );
+        }
     }
 
     #[test]

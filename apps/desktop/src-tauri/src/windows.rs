@@ -1,6 +1,15 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[cfg(target_os = "macos")]
+use std::{ops::Deref, time::Duration};
+
+#[cfg(target_os = "macos")]
+use dispatch2::{DispatchQueue, DispatchTime};
+#[cfg(target_os = "macos")]
+use objc2::Message;
+#[cfg(target_os = "macos")]
+use objc2_app_kit::{NSWindow, NSWindowStyleMask};
+#[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
 use tauri::{utils::config::Color, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
@@ -8,6 +17,8 @@ const BLANK_EDITOR_WINDOW_LABEL_PREFIX: &str = "markra-editor-";
 const BLANK_EDITOR_WINDOW_URL: &str = "index.html?blank=1";
 const MAIN_WINDOW_LABEL: &str = "main";
 const EDITOR_WINDOW_DECORATIONS: bool = true;
+#[cfg(test)]
+pub(crate) const MINIMIZE_CURRENT_WINDOW_COMMAND: &str = "minimize_current_window";
 #[cfg(test)]
 pub(crate) const OPEN_BLANK_EDITOR_WINDOW_COMMAND: &str = "open_blank_editor_window";
 #[cfg(test)]
@@ -25,6 +36,8 @@ const SETTINGS_WINDOW_RESIZABLE: bool = true;
 const SETTINGS_WINDOW_SHADOW: bool = true;
 #[cfg(target_os = "macos")]
 const SETTINGS_WINDOW_HIDDEN_TITLE: bool = true;
+#[cfg(target_os = "macos")]
+const MACOS_FULLSCREEN_MINIMIZE_DELAY_MS: u64 = 700;
 
 static NEXT_EDITOR_WINDOW_ID: AtomicUsize = AtomicUsize::new(1);
 
@@ -103,6 +116,21 @@ where
         return;
     };
     schedule_hide_native_macos_window_controls(ns_window);
+}
+
+#[cfg(target_os = "macos")]
+struct MainThreadSafe<T>(T);
+
+#[cfg(target_os = "macos")]
+unsafe impl<T> Send for MainThreadSafe<T> {}
+
+#[cfg(target_os = "macos")]
+impl<T> Deref for MainThreadSafe<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -287,6 +315,70 @@ fn editor_window_transparent() -> bool {
 
 fn editor_window_decorations() -> bool {
     EDITOR_WINDOW_DECORATIONS
+}
+
+#[cfg(target_os = "macos")]
+fn miniaturize_macos_window(window: &NSWindow) {
+    NSWindow::miniaturize(window, Some(window));
+}
+
+#[cfg(target_os = "macos")]
+fn schedule_macos_window_minimize(window: &NSWindow) {
+    let ns_window = MainThreadSafe(window.retain());
+    let delay = DispatchTime::try_from(Duration::from_millis(MACOS_FULLSCREEN_MINIMIZE_DELAY_MS))
+        .unwrap_or(DispatchTime::NOW);
+
+    let _ = DispatchQueue::main().after(delay, move || {
+        miniaturize_macos_window(&ns_window);
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn minimize_macos_window(ns_window: *mut std::ffi::c_void) {
+    if ns_window.is_null() {
+        return;
+    }
+
+    let ns_window = ns_window as usize;
+    dispatch2::run_on_main(move |_| {
+        let ns_window = ns_window as *mut std::ffi::c_void;
+        let window = unsafe { &*ns_window.cast::<NSWindow>() };
+
+        if window.styleMask().contains(NSWindowStyleMask::FullScreen) {
+            let retained_window = window.retain();
+            window.toggleFullScreen(None);
+            schedule_macos_window_minimize(&retained_window);
+            return;
+        }
+
+        miniaturize_macos_window(window);
+    });
+}
+
+#[cfg(target_os = "macos")]
+fn minimize_window<R>(window: &tauri::Window<R>) -> tauri::Result<()>
+where
+    R: tauri::Runtime,
+{
+    let Ok(ns_window) = window.ns_window() else {
+        return window.minimize();
+    };
+
+    minimize_macos_window(ns_window);
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn minimize_window<R>(window: &tauri::Window<R>) -> tauri::Result<()>
+where
+    R: tauri::Runtime,
+{
+    window.minimize()
+}
+
+#[tauri::command]
+pub(crate) fn minimize_current_window(window: tauri::Window) -> Result<(), String> {
+    minimize_window(&window).map_err(|error| error.to_string())
 }
 
 pub(crate) fn spawn_blank_editor_window<R>(app: tauri::AppHandle<R>)
@@ -502,6 +594,7 @@ mod tests {
             "core:window:allow-close",
             "core:window:allow-destroy",
             "core:window:allow-minimize",
+            "core:window:allow-set-fullscreen",
             "core:window:allow-toggle-maximize",
         ] {
             assert!(
@@ -599,6 +692,7 @@ mod tests {
 
     #[test]
     fn exposes_window_command_names_for_js_menus() {
+        assert_eq!(MINIMIZE_CURRENT_WINDOW_COMMAND, "minimize_current_window");
         assert_eq!(OPEN_BLANK_EDITOR_WINDOW_COMMAND, "open_blank_editor_window");
         assert_eq!(OPEN_SETTINGS_WINDOW_COMMAND, "open_settings_window");
     }

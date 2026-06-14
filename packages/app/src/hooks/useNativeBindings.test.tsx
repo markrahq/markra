@@ -150,6 +150,7 @@ describe("useNativeMenuHandlers", () => {
     const toggleAiAgent = vi.fn();
     const toggleAiCommand = vi.fn();
     const toggleDocumentHistory = vi.fn();
+    const toggleFullscreen = vi.fn();
     const toggleMarkdownFiles = vi.fn();
     const toggleReadOnlyMode = vi.fn();
     const toggleSourceMode = vi.fn();
@@ -161,6 +162,7 @@ describe("useNativeMenuHandlers", () => {
         toggleAiAgent,
         toggleAiCommand,
         toggleDocumentHistory,
+        toggleFullscreen,
         toggleMarkdownFiles,
         toggleReadOnlyMode,
         toggleSourceMode
@@ -169,6 +171,7 @@ describe("useNativeMenuHandlers", () => {
 
     result.current.closeDocument?.();
     result.current.checkForUpdates?.();
+    result.current.toggleFullscreen?.();
     result.current.toggleMarkdownFiles?.();
     result.current.toggleDocumentHistory?.();
     result.current.toggleAiAgent?.();
@@ -178,6 +181,7 @@ describe("useNativeMenuHandlers", () => {
 
     expect(closeDocument).toHaveBeenCalledTimes(1);
     expect(checkForUpdates).toHaveBeenCalledTimes(1);
+    expect(toggleFullscreen).toHaveBeenCalledTimes(1);
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
     expect(toggleDocumentHistory).toHaveBeenCalledTimes(1);
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);

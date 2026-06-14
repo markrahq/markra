@@ -12,6 +12,7 @@ import {
   minimizeNativeWindow,
   openSettingsWindow,
   setNativeEditorWindowRestoreState,
+  toggleNativeWindowFullscreen,
   toggleNativeWindowMaximized
 } from "./window";
 
@@ -105,12 +106,12 @@ describe("native window actions", () => {
   });
 
   it("minimizes the current Tauri window", async () => {
-    const minimize = vi.fn().mockResolvedValue(undefined);
-    mockedGetCurrentWindow.mockReturnValue({ minimize } as unknown as ReturnType<typeof getCurrentWindow>);
+    mockedInvoke.mockResolvedValue(undefined);
 
     await minimizeNativeWindow();
 
-    expect(minimize).toHaveBeenCalledTimes(1);
+    expect(mockedInvoke).toHaveBeenCalledWith("minimize_current_window");
+    expect(mockedGetCurrentWindow).not.toHaveBeenCalled();
   });
 
   it("toggles the current Tauri window maximized state", async () => {
@@ -122,11 +123,23 @@ describe("native window actions", () => {
     expect(toggleMaximize).toHaveBeenCalledTimes(1);
   });
 
+  it("toggles the current Tauri window fullscreen state", async () => {
+    const isFullscreen = vi.fn().mockResolvedValue(false);
+    const setFullscreen = vi.fn().mockResolvedValue(undefined);
+    mockedGetCurrentWindow.mockReturnValue({ isFullscreen, setFullscreen } as unknown as ReturnType<typeof getCurrentWindow>);
+
+    await toggleNativeWindowFullscreen();
+
+    expect(isFullscreen).toHaveBeenCalledTimes(1);
+    expect(setFullscreen).toHaveBeenCalledWith(true);
+  });
+
   it("skips native calls outside Tauri", async () => {
     Reflect.deleteProperty(window, "__TAURI_INTERNALS__");
 
     await closeNativeWindow();
     await minimizeNativeWindow();
+    await toggleNativeWindowFullscreen();
     await toggleNativeWindowMaximized();
 
     expect(mockedGetCurrentWindow).not.toHaveBeenCalled();

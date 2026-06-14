@@ -49,6 +49,7 @@ type NativeMenuHandlerOptions = {
   toggleAiAgent?: () => unknown | Promise<unknown>;
   toggleAiCommand?: () => unknown | Promise<unknown>;
   toggleDocumentHistory?: () => unknown | Promise<unknown>;
+  toggleFullscreen?: () => unknown | Promise<unknown>;
   toggleMarkdownFiles?: () => unknown | Promise<unknown>;
   toggleReadOnlyMode?: () => unknown | Promise<unknown>;
   toggleSourceMode?: () => unknown | Promise<unknown>;
@@ -103,6 +104,7 @@ export function useNativeMenuHandlers({
   toggleAiAgent,
   toggleAiCommand,
   toggleDocumentHistory,
+  toggleFullscreen,
   toggleMarkdownFiles,
   toggleReadOnlyMode,
   toggleSourceMode
@@ -136,6 +138,7 @@ export function useNativeMenuHandlers({
     toggleAiAgent,
     toggleAiCommand,
     toggleDocumentHistory,
+    toggleFullscreen,
     toggleMarkdownFiles,
     toggleReadOnlyMode,
     toggleSourceMode
@@ -165,6 +168,7 @@ export function useNativeMenuHandlers({
     toggleAiAgent,
     toggleAiCommand,
     toggleDocumentHistory,
+    toggleFullscreen,
     toggleMarkdownFiles,
     toggleReadOnlyMode,
     toggleSourceMode
@@ -219,6 +223,7 @@ export function useNativeMenuHandlers({
       if (toggleDocumentHistory) {
         handlers.toggleDocumentHistory = () => latestOptionsRef.current.toggleDocumentHistory?.();
       }
+      if (toggleFullscreen) handlers.toggleFullscreen = () => latestOptionsRef.current.toggleFullscreen?.();
       if (toggleMarkdownFiles) handlers.toggleMarkdownFiles = () => latestOptionsRef.current.toggleMarkdownFiles?.();
       if (toggleReadOnlyMode) handlers.toggleReadOnlyMode = () => latestOptionsRef.current.toggleReadOnlyMode?.();
       if (toggleSourceMode) handlers.toggleSourceMode = () => latestOptionsRef.current.toggleSourceMode?.();

@@ -54,8 +54,8 @@ use window_state::{
 };
 use windows::{
     apply_main_window_chrome, apply_webview_window_chrome, apply_window_event_chrome,
-    open_blank_editor_window, open_settings_window, spawn_blank_editor_window,
-    spawn_settings_window,
+    minimize_current_window, open_blank_editor_window, open_settings_window,
+    spawn_blank_editor_window, spawn_settings_window,
 };
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -135,6 +135,7 @@ pub fn run() {
             write_markdown_template_file,
             delete_markdown_template_file,
             save_clipboard_image,
+            minimize_current_window,
             open_blank_editor_window,
             open_settings_window,
             open_external_url,

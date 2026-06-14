@@ -126,6 +126,7 @@ export const desktopRuntime = {
     openSettingsWindow: windowRuntime.openSettingsWindow,
     setEditorWindowRestoreState: windowRuntime.setNativeEditorWindowRestoreState,
     setWindowTitle: windowRuntime.setNativeWindowTitle,
+    toggleWindowFullscreen: windowRuntime.toggleNativeWindowFullscreen,
     toggleWindowMaximized: windowRuntime.toggleNativeWindowMaximized
   }
 } satisfies AppRuntime;
