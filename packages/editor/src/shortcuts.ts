@@ -284,6 +284,155 @@ function liftCurrentListItem(listItem: NodeType): Command {
   };
 }
 
+function nodeChildren(node: ProseNode) {
+  const children: ProseNode[] = [];
+  node.forEach((child) => children.push(child));
+  return children;
+}
+
+function appendItemToNestedList(
+  listItemNode: ProseNode,
+  listType: NodeType,
+  item: ProseNode
+) {
+  const children = nodeChildren(listItemNode);
+  const lastChild = children.at(-1);
+
+  if (lastChild?.type === listType) {
+    children[children.length - 1] = lastChild.type.create(
+      lastChild.attrs,
+      lastChild.content.append(Fragment.from(item)),
+      lastChild.marks
+    );
+  } else {
+    children.push(listType.create(null, Fragment.from(item)));
+  }
+
+  return listItemNode.type.create(listItemNode.attrs, Fragment.fromArray(children), listItemNode.marks);
+}
+
+function orderedListAttrsAfterRemovingFirstItem(list: ProseNode) {
+  if (list.type.name !== "ordered_list") return list.attrs;
+
+  const order = typeof list.attrs.order === "number" ? list.attrs.order : 1;
+  return {
+    ...list.attrs,
+    order: order + 1
+  };
+}
+
+function listWithoutChild(list: ProseNode, childIndex: number) {
+  const children = nodeChildren(list).filter((_child, index) => index !== childIndex);
+  if (children.length === 0) return null;
+
+  const attrs = childIndex === 0
+    ? orderedListAttrsAfterRemovingFirstItem(list)
+    : list.attrs;
+  return list.type.create(attrs, Fragment.fromArray(children), list.marks);
+}
+
+function adjacentPreviousListContext(selection: Selection, context: ListItemContext) {
+  const grandparentDepth = context.parentListDepth - 1;
+  if (grandparentDepth < 0) return null;
+
+  const currentListIndex = selection.$from.index(grandparentDepth);
+  if (currentListIndex <= 0) return null;
+
+  const grandparent = selection.$from.node(grandparentDepth);
+  const previousList = grandparent.child(currentListIndex - 1);
+  if (previousList.type !== context.parentList.type || previousList.childCount === 0) return null;
+
+  const currentListFrom = selection.$from.before(context.parentListDepth);
+  return {
+    currentListFrom,
+    currentListIndex,
+    grandparent,
+    previousList,
+    previousListFrom: currentListFrom - previousList.nodeSize
+  };
+}
+
+function nestedItemPosition(previousListFrom: number, previousList: ProseNode, listType: NodeType) {
+  const previousItem = previousList.lastChild;
+  if (!previousItem) return null;
+
+  const previousItemOffset = previousList.content.size - previousItem.nodeSize;
+  const previousItemFrom = previousListFrom + 1 + previousItemOffset;
+  const existingNestedList = previousItem.lastChild?.type === listType ? previousItem.lastChild : null;
+  if (!existingNestedList) return previousItemFrom + 2 + previousItem.content.size;
+
+  const nestedListOffset = previousItem.content.size - existingNestedList.nodeSize;
+  const nestedListFrom = previousItemFrom + 1 + nestedListOffset;
+  return nestedListFrom + 1 + existingNestedList.content.size;
+}
+
+function sinkFirstItemIntoAdjacentPreviousList(listItem: NodeType): Command {
+  return (state, dispatch) => {
+    const context = listItemContext(state.selection, listItem);
+    if (!context || context.itemIndex !== 0) return false;
+
+    const adjacentContext = adjacentPreviousListContext(state.selection, context);
+    if (!adjacentContext) return false;
+
+    const previousItems = nodeChildren(adjacentContext.previousList);
+    const previousItem = previousItems.at(-1);
+    if (!previousItem) return false;
+
+    const nestedItemFrom = nestedItemPosition(
+      adjacentContext.previousListFrom,
+      adjacentContext.previousList,
+      context.parentList.type
+    );
+    if (nestedItemFrom === null) return false;
+
+    previousItems[previousItems.length - 1] = appendItemToNestedList(
+      previousItem,
+      context.parentList.type,
+      context.item
+    );
+    const updatedPreviousList = adjacentContext.previousList.type.create(
+      adjacentContext.previousList.attrs,
+      Fragment.fromArray(previousItems),
+      adjacentContext.previousList.marks
+    );
+    const updatedCurrentList = listWithoutChild(context.parentList, context.itemIndex);
+    const replacementNodes = updatedCurrentList
+      ? [updatedPreviousList, updatedCurrentList]
+      : [updatedPreviousList];
+    const replacement = Fragment.fromArray(replacementNodes);
+
+    if (!adjacentContext.grandparent.canReplace(
+      adjacentContext.currentListIndex - 1,
+      adjacentContext.currentListIndex + 1,
+      replacement
+    )) return false;
+
+    if (dispatch) {
+      const selectionOffset = state.selection.from - context.from;
+      const transaction = state.tr.replaceWith(
+        adjacentContext.previousListFrom,
+        adjacentContext.currentListFrom + context.parentList.nodeSize,
+        replacement
+      );
+      const selectionPosition = Math.min(nestedItemFrom + selectionOffset, transaction.doc.content.size);
+
+      dispatch(
+        transaction
+          .setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1))
+          .scrollIntoView()
+      );
+    }
+
+    return true;
+  };
+}
+
+function sinkCurrentListItem(listItem: NodeType): Command {
+  return (state, dispatch, view) =>
+    sinkListItem(listItem)(state, dispatch, view) ||
+    sinkFirstItemIntoAdjacentPreviousList(listItem)(state, dispatch, view);
+}
+
 function toggleBlockquote(blockquote: ReturnType<typeof blockquoteSchema.type>): Command {
   return (state, dispatch, view) => {
     if (selectionIsInsideNodeType(state.selection, blockquote)) {
@@ -528,7 +677,7 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
           if (selectionIsInsideNodeType(view.state.selection, listItem)) {
             const handled = runCommand(
               view,
-              event.shiftKey ? liftCurrentListItem(listItem) : sinkListItem(listItem)
+              event.shiftKey ? liftCurrentListItem(listItem) : sinkCurrentListItem(listItem)
             );
             if (handled && selectionIsInsideNodeType(view.state.selection, blockquote)) {
               tightenListSpreadInSelectionAncestor(view, "blockquote");

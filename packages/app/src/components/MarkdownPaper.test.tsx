@@ -5494,6 +5494,23 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("nests the first item of an adjacent mixed-marker bullet list with Tab", async () => {
+    const { container, editor, view } = await renderEditor(["- Parent", "", "* Child"].join("\n"));
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Child"));
+
+    expect(pressShortcut(view, "Tab")).toBe(true);
+
+    const topLevelItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > ul > li"));
+    const nestedItems = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > ul > li > ul > li"));
+    expect(topLevelItems).toHaveLength(1);
+    expect(nestedItems).toHaveLength(1);
+    expect(nestedItems[0]).toHaveTextContent("Child");
+    expect(serializeMarkdown(view.state.doc)).toContain("  - Child");
+    await settleMarkdownListener();
+  });
+
   it("nests only the current list item when Tab is pressed before following siblings", async () => {
     const { editor, view } = await renderEditor(["- A", "- B", "- C", "- D"].join("\n"));
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
@@ -7119,6 +7136,28 @@ describe("MarkdownPaper editing", () => {
     expect(nestedItems).toHaveLength(0);
     expect(topLevelItems[1]).toHaveTextContent("Second");
     expect(serializeMarkdown(view.state.doc)).toContain("> - First\n> - Second");
+  });
+
+  it("nests the first item of an adjacent mixed-marker callout bullet list with Tab", async () => {
+    const source = ["> [!NOTE]", ">", "> - Parent", ">", "> * Child"].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Child"));
+
+    expect(pressShortcut(view, "Tab")).toBe(true);
+
+    const topLevelItems = Array.from(
+      container.querySelectorAll<HTMLElement>(".ProseMirror blockquote.markra-callout > ul > li")
+    );
+    const nestedItems = Array.from(container.querySelectorAll<HTMLElement>(
+      ".ProseMirror blockquote.markra-callout > ul > li > ul > li"
+    ));
+    expect(topLevelItems).toHaveLength(1);
+    expect(nestedItems).toHaveLength(1);
+    expect(nestedItems[0]).toHaveTextContent("Child");
+    expect(serializeMarkdown(view.state.doc)).toContain(">   - Child");
+    await settleMarkdownListener();
   });
 
   it("nests only the current callout list item when Tab is pressed before following siblings", async () => {
