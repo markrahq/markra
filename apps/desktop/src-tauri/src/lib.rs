@@ -58,6 +58,13 @@ use windows::{
     spawn_blank_editor_window, spawn_settings_window,
 };
 
+fn focus_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -67,6 +74,12 @@ pub fn run() {
         .manage(NativeApplicationMenuState::default())
         .manage(NativeMenuTargetState::default())
         .manage(EditorWindowRestoreState::default());
+
+    #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+        queue_opened_markdown_paths(app, opened_markdown_paths_from_args(args));
+        focus_main_window(app);
+    }));
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
@@ -232,6 +245,28 @@ mod tests {
         assert!(
             lib_source.contains("tauri_plugin_window_state::Builder::default().build()"),
             "Tauri builder should register the window state restore plugin"
+        );
+    }
+
+    #[test]
+    fn desktop_registers_single_instance_plugin_before_other_plugins() {
+        let manifest = include_str!("../Cargo.toml");
+        assert!(
+            manifest.contains("tauri-plugin-single-instance"),
+            "desktop manifest should include the single instance plugin"
+        );
+
+        let lib_source = include_str!("lib.rs");
+        let single_instance_index = lib_source
+            .find("tauri_plugin_single_instance::init")
+            .expect("Tauri builder should register the single instance plugin");
+        let store_plugin_index = lib_source
+            .find("tauri_plugin_store::Builder")
+            .expect("Tauri builder should register the store plugin");
+
+        assert!(
+            single_instance_index < store_plugin_index,
+            "single instance plugin should be registered before other plugins"
         );
     }
 

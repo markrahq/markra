@@ -3868,6 +3868,126 @@ describe("Markra workspace", () => {
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockDroppedPath);
   });
 
+  it("opens an OS-opened markdown file in a new tab when document tabs are enabled", async () => {
+    let onOpenedPaths: ((paths: string[]) => unknown) | null = null;
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nAlready open.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListenNativeOpenedMarkdownPaths.mockImplementation(async (listener) => {
+      onOpenedPaths = listener;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === mockNativePath) {
+        return {
+          content: "# Native file\n\nAlready open.",
+          name: "native.md",
+          path: mockNativePath
+        };
+      }
+
+      return {
+        content: "# Runtime file\n\nOpened while Markra was already running.",
+        name: "dropped.md",
+        path: mockDroppedPath
+      };
+    });
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByRole("heading", { name: "Native file" })).toBeInTheDocument();
+    await waitFor(() => expect(onOpenedPaths).not.toBeNull());
+
+    await act(async () => {
+      await onOpenedPaths?.([mockDroppedPath]);
+    });
+
+    expect(await screen.findByRole("heading", { name: "Runtime file" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /native\.md/ })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: /dropped\.md/ })).toHaveAttribute("aria-selected", "true");
+    expect(mockedOpenNativeMarkdownFileInNewWindow).not.toHaveBeenCalled();
+  });
+
+  it("opens an OS-opened markdown file from a child folder in the current workspace as a new tab", async () => {
+    const childFolderPath = "/mock-files/docs/dropped.md";
+    let onOpenedPaths: ((paths: string[]) => unknown) | null = null;
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nAlready open.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListenNativeOpenedMarkdownPaths.mockImplementation(async (listener) => {
+      onOpenedPaths = listener;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === mockNativePath) {
+        return {
+          content: "# Native file\n\nAlready open.",
+          name: "native.md",
+          path: mockNativePath
+        };
+      }
+
+      return {
+        content: "# Child file\n\nOpened from a nested workspace folder.",
+        name: "dropped.md",
+        path: childFolderPath
+      };
+    });
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByRole("heading", { name: "Native file" })).toBeInTheDocument();
+    await waitFor(() => expect(onOpenedPaths).not.toBeNull());
+
+    await act(async () => {
+      await onOpenedPaths?.([childFolderPath]);
+    });
+
+    expect(await screen.findByRole("heading", { name: "Child file" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /native\.md/ })).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByRole("tab", { name: /dropped\.md/ })).toHaveAttribute("aria-selected", "true");
+    expect(mockedOpenNativeMarkdownFileInNewWindow).not.toHaveBeenCalled();
+  });
+
+  it("opens an OS-opened markdown file from another folder in a new window", async () => {
+    const otherFolderPath = "/other-vault/dropped.md";
+    let onOpenedPaths: ((paths: string[]) => unknown) | null = null;
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nAlready open.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListenNativeOpenedMarkdownPaths.mockImplementation(async (listener) => {
+      onOpenedPaths = listener;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Native file\n\nAlready open.",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByRole("heading", { name: "Native file" })).toBeInTheDocument();
+    await waitFor(() => expect(onOpenedPaths).not.toBeNull());
+
+    await act(async () => {
+      await onOpenedPaths?.([otherFolderPath]);
+    });
+
+    await waitFor(() => expect(mockedOpenNativeMarkdownFileInNewWindow).toHaveBeenCalledWith(otherFolderPath));
+    expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalledWith(otherFolderPath);
+    expect(screen.queryByRole("tab", { name: /dropped\.md/ })).not.toBeInTheDocument();
+  });
+
   it("opens a markdown folder when a native folder window opens with an initial path", async () => {
     window.history.pushState({}, "", "/?folder=%2Fmock-files%2Fvault");
     mockedListNativeMarkdownFilesForPath.mockResolvedValue([

@@ -39,4 +39,5 @@ objc2-app-kit = { version = "0.3.0", default-features = false, features = ["std"
 objc2-foundation = { version = "0.3.0", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]
+tauri-plugin-single-instance = "2.4.2"
 tauri-plugin-window-state = "2.4.1"

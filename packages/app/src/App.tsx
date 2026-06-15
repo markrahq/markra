@@ -469,7 +469,8 @@ function WorkspaceApp() {
     onTreeRootFromFilePath: setRootFromMarkdownFilePath,
     onWorkspaceSessionChange: setAiAgentSessionId,
     preferencesReady: !editorPreferences.loading,
-    restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup
+    restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup,
+    workspaceSourcePath: fileTreeSourcePath
   });
   const {
     clearRecentMarkdownFiles,

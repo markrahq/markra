@@ -40,7 +40,7 @@ import {
 } from "../lib/performance-marks";
 import { replaceMovedPath } from "../lib/path-move";
 import { setNativeWindowTitle } from "../lib/tauri";
-import { debug, pathNameFromPath, type DocumentState } from "@markra/shared";
+import { debug, isMarkdownPath, parentPathFromPath, pathNameFromPath, type DocumentState } from "@markra/shared";
 import {
   activeFilePathFromTabs,
   activeFilePathFromWindowRestore,
@@ -144,6 +144,7 @@ type UseMarkdownDocumentOptions = {
   onWorkspaceSessionChange?: (sessionId: string) => unknown;
   preferencesReady?: boolean;
   restoreWorkspaceOnStartup?: boolean;
+  workspaceSourcePath?: string | null;
 };
 
 type ClearOpenDocumentOptions = {
@@ -162,6 +163,38 @@ function resolveEditorReady(editorReady: boolean | (() => boolean)) {
   return typeof editorReady === "function" ? editorReady() : editorReady;
 }
 
+function normalizeComparablePath(path: string | null | undefined) {
+  const trimmedPath = path?.trim();
+  if (!trimmedPath) return null;
+
+  const normalizedPath = trimmedPath.replace(/\\/gu, "/").replace(/\/+$/u, "");
+  return normalizedPath || (trimmedPath.startsWith("/") ? "/" : null);
+}
+
+function isPathWithinRoot(path: string, rootPath: string | null) {
+  const normalizedPath = normalizeComparablePath(path);
+  const normalizedRootPath = normalizeComparablePath(rootPath);
+  if (!normalizedPath || !normalizedRootPath) return false;
+  if (normalizedPath === normalizedRootPath) return true;
+
+  const rootWithSeparator = normalizedRootPath.endsWith("/")
+    ? normalizedRootPath
+    : `${normalizedRootPath}/`;
+  return normalizedPath.startsWith(rootWithSeparator);
+}
+
+function workspaceRootForSource(sourcePath: string | null | undefined, currentFilePath: string | null) {
+  const normalizedSourcePath = normalizeComparablePath(sourcePath);
+  if (normalizedSourcePath) {
+    return isMarkdownPath(normalizedSourcePath)
+      ? parentPathFromPath(normalizedSourcePath)
+      : normalizedSourcePath;
+  }
+
+  const normalizedCurrentFilePath = normalizeComparablePath(currentFilePath);
+  return normalizedCurrentFilePath ? parentPathFromPath(normalizedCurrentFilePath) : null;
+}
+
 export function useMarkdownDocument({
   beforeNativeAppExit,
   confirmDiscardUnsavedChanges,
@@ -175,7 +208,8 @@ export function useMarkdownDocument({
   onTreeRootFromFilePath,
   onWorkspaceSessionChange,
   preferencesReady = true,
-  restoreWorkspaceOnStartup = true
+  restoreWorkspaceOnStartup = true,
+  workspaceSourcePath
 }: UseMarkdownDocumentOptions) {
   const [document, setDocument] = useState<DocumentState>(() => createInitialDocumentState());
   const [tabs, setTabs] = useState<MarkdownDocumentTab[]>(() => [createDocumentTab(createInitialDocumentState(), "untitled:0")]);
@@ -1257,13 +1291,20 @@ export function useMarkdownDocument({
     return true;
   }, [confirmDiscardUnsavedChanges, hasDiscardableTabChanges, registerWindowRestoreState, setActiveTabState, syncActiveDocumentFromEditor]);
 
+  const isCurrentDocumentEmptyUntitled = useCallback(() => {
+    const current = documentRef.current;
+    return !current.open || (current.path === null && currentMarkdown().trim() === "");
+  }, [currentMarkdown]);
+
+  const isFileInCurrentWorkspace = useCallback((path: string) => {
+    const workspaceRootPath = workspaceRootForSource(workspaceSourcePath, documentRef.current.path);
+    return isPathWithinRoot(path, workspaceRootPath);
+  }, [workspaceSourcePath]);
+
   const handleDroppedMarkdownPath = useCallback(
     async (target: NativeMarkdownDroppedTarget) => {
-      const current = documentRef.current;
-      const isEmptyUntitledDocument = !current.open || (current.path === null && currentMarkdown().trim() === "");
-
       if (target.kind === "folder") {
-        if (!isEmptyUntitledDocument) {
+        if (!isCurrentDocumentEmptyUntitled()) {
           await openNativeMarkdownFolderInNewWindow(target.path);
           return;
         }
@@ -1274,14 +1315,14 @@ export function useMarkdownDocument({
         return;
       }
 
-      if (isEmptyUntitledDocument) {
+      if (isCurrentDocumentEmptyUntitled()) {
         await loadNativeMarkdownPath(target.path);
         return;
       }
 
       await openNativeMarkdownFileInNewWindow(target.path);
     },
-    [clearOpenDocument, currentMarkdown, loadNativeMarkdownPath, onTreeRootFromFolderPath, resolveWorkspaceSessionId]
+    [clearOpenDocument, isCurrentDocumentEmptyUntitled, loadNativeMarkdownPath, onTreeRootFromFolderPath, resolveWorkspaceSessionId]
   );
 
   const handleNativeOpenedMarkdownPaths = useCallback(async (paths: string[]) => {
@@ -1292,7 +1333,15 @@ export function useMarkdownDocument({
     for (const path of paths) {
       try {
         const target = await resolveNativeMarkdownPath(path);
-        await handleDroppedMarkdownPath(target);
+
+        if (target.kind === "folder") {
+          await handleDroppedMarkdownPath(target);
+        } else if (isCurrentDocumentEmptyUntitled() || (documentTabsEnabled && isFileInCurrentWorkspace(target.path))) {
+          await loadNativeMarkdownPath(target.path);
+        } else {
+          await openNativeMarkdownFileInNewWindow(target.path);
+        }
+
         openedPath = true;
       } catch {
         // Unsupported or moved OS-opened paths should not block other files.
@@ -1301,7 +1350,7 @@ export function useMarkdownDocument({
 
     if (openedPath) openedFromNativeRef.current = true;
     return openedPath;
-  }, [handleDroppedMarkdownPath]);
+  }, [documentTabsEnabled, handleDroppedMarkdownPath, isCurrentDocumentEmptyUntitled, isFileInCurrentWorkspace, loadNativeMarkdownPath]);
 
   useEffect(() => {
     const title = document.open && document.dirty ? `${document.name} *` : document.name;
