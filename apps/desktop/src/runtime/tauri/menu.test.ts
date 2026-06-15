@@ -355,6 +355,42 @@ describe("native menu", () => {
     expect(domMenuItemById("markra:context:table").textContent).toContain("Cmd/Ctrl+Shift+T");
   });
 
+  it("uses the native clipboard command for editor context menu paste", async () => {
+    const target = document.createElement("main");
+    const paper = document.createElement("article");
+    const execCommand = vi.fn((command: string) => command !== "paste");
+    const browserReadText = vi.fn().mockResolvedValue("browser clipboard text");
+    paper.className = "markdown-paper";
+    target.append(paper);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText: browserReadText
+      }
+    });
+    mockedInvoke.mockImplementation(async (command) => {
+      if (command === "read_clipboard_text") return "native clipboard text";
+
+      return undefined;
+    });
+
+    await installNativeEditorContextMenu(target, {}, "en");
+
+    paper.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    domMenuItemById("markra:context:paste").click();
+    await flushNativeMenuPopup();
+    await flushNativeMenuPopup();
+
+    expect(mockedInvoke).toHaveBeenCalledWith("read_clipboard_text");
+    expect(browserReadText).not.toHaveBeenCalled();
+    expect(execCommand).toHaveBeenCalledTimes(1);
+    expect(execCommand).toHaveBeenNthCalledWith(1, "insertText", false, "native clipboard text");
+  });
+
   it("passes customized app shortcuts to the native application menu", async () => {
     await installNativeApplicationMenu({}, "en", {
       openQuickOpen: "Mod+Alt+P",

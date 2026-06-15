@@ -1,6 +1,7 @@
 mod ai_http;
 mod app_exit;
 mod backup;
+mod clipboard;
 mod external_urls;
 mod image_upload;
 mod language;
@@ -20,6 +21,7 @@ use std::time::Duration;
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
 use app_exit::handle_app_exit_requested;
 use backup::backup_markdown_folder;
+use clipboard::read_clipboard_text;
 use external_urls::open_external_url;
 use image_upload::{upload_picgo_image, upload_s3_image, upload_webdav_image};
 use markdown_files::{
@@ -184,6 +186,7 @@ pub fn run() {
             write_markdown_template_file,
             delete_markdown_template_file,
             save_clipboard_image,
+            read_clipboard_text,
             minimize_current_window,
             open_blank_editor_window,
             open_settings_window,

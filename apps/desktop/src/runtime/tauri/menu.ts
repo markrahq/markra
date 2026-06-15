@@ -36,9 +36,18 @@ export type NativeMarkdownFileTreeContextMenuHandlers = {
   saveFileAsTemplate?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
 };
 
+export type NativeClipboardTextReader = () => string | null | undefined | Promise<string | null | undefined>;
+
 export type NativeEditorContextMenuOptions = {
   getAiCommandsAvailable?: () => boolean;
   markdownShortcuts?: MarkdownShortcutMap;
+  readClipboardText?: NativeClipboardTextReader;
+};
+
+export type NativeEditorContextMenuEntryOptions = {
+  aiCommandsAvailable?: boolean;
+  markdownShortcuts?: MarkdownShortcutMap;
+  readClipboardText?: NativeClipboardTextReader;
 };
 
 export type NativeStaticMenuCommand =
@@ -147,12 +156,29 @@ function normalizeRecentFilesForNativeMenu(files: readonly RecentMarkdownFile[])
   });
 }
 
+async function readNativeClipboardText() {
+  try {
+    const text = await invoke<string | null>("read_clipboard_text");
+
+    return typeof text === "string" ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+function withNativeClipboardText<TOptions extends { readClipboardText?: NativeClipboardTextReader }>(options: TOptions) {
+  return {
+    ...options,
+    readClipboardText: options.readClipboardText ?? readNativeClipboardText
+  };
+}
+
 export function createNativeEditorContextMenuItems(
   handlers: NativeMenuHandlers,
   language: AppLanguage = "en",
-  options: { aiCommandsAvailable?: boolean; markdownShortcuts?: MarkdownShortcutMap } = {}
+  options: NativeEditorContextMenuEntryOptions = {}
 ): ContextMenuEntry[] {
-  return createEditorContextMenuEntries(handlers, language, options, desktopContextMenuIdPrefixes);
+  return createEditorContextMenuEntries(handlers, language, withNativeClipboardText(options), desktopContextMenuIdPrefixes);
 }
 
 export async function installNativeEditorContextMenu(
@@ -175,7 +201,7 @@ export async function installNativeEditorContextMenu(
       entries: createEditorContextMenuEntriesFromOptions(
         handlers,
         language,
-        options,
+        withNativeClipboardText(options),
         desktopContextMenuIdPrefixes
       ),
       position: contextMenuPositionFromEvent(mouseEvent)

@@ -45,6 +45,7 @@ import type {
   UploadNativeWebDavImageInput
 } from "../lib/tauri/file";
 import type {
+  NativeEditorContextMenuEntryOptions,
   NativeEditorContextMenuOptions,
   NativeMarkdownFileTreeContextMenuHandlers,
   NativeMenuHandlers
@@ -190,7 +191,7 @@ export type AppMenuRuntime = {
   createEditorContextMenuItems: (
     handlers: NativeMenuHandlers,
     language?: AppLanguage,
-    options?: { aiCommandsAvailable?: boolean; markdownShortcuts?: MarkdownShortcutMap }
+    options?: NativeEditorContextMenuEntryOptions
   ) => ContextMenuEntry[];
   createMarkdownFileTreeContextMenuItems: (
     handlers: NativeMarkdownFileTreeContextMenuHandlers,

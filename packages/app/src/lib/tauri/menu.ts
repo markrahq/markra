@@ -24,9 +24,18 @@ export type NativeMarkdownFileTreeContextMenuHandlers = {
   saveFileAsTemplate?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
 };
 
+export type NativeClipboardTextReader = () => string | null | undefined | Promise<string | null | undefined>;
+
 export type NativeEditorContextMenuOptions = {
   getAiCommandsAvailable?: () => boolean;
   markdownShortcuts?: MarkdownShortcutMap;
+  readClipboardText?: NativeClipboardTextReader;
+};
+
+export type NativeEditorContextMenuEntryOptions = {
+  aiCommandsAvailable?: boolean;
+  markdownShortcuts?: MarkdownShortcutMap;
+  readClipboardText?: NativeClipboardTextReader;
 };
 
 export type NativeStaticMenuCommand =
@@ -94,7 +103,7 @@ export function installNativeApplicationMenu(
 export function createNativeEditorContextMenuItems(
   handlers: NativeMenuHandlers,
   language: AppLanguage = "en",
-  options: { aiCommandsAvailable?: boolean; markdownShortcuts?: MarkdownShortcutMap } = {}
+  options: NativeEditorContextMenuEntryOptions = {}
 ) {
   return getAppRuntime().menu.createEditorContextMenuItems(handlers, language, options);
 }
