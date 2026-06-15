@@ -1,0 +1,724 @@
+import { defaultMarkdownShortcuts } from "@markra/editor";
+import { createSettingsStoreHarness, resetSettingsStoreRuntime, setupSettingsStoreHarness } from "../../test/settings-store";
+import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../ai-actions";
+import {
+  getStoredEditorPreferences,
+  normalizeEditorPreferences,
+  reorderTitlebarActions,
+  saveStoredEditorPreferences
+} from "./app-settings";
+
+const settingsStore = createSettingsStoreHarness();
+const { loadStore: mockedLoadStore, store } = settingsStore;
+
+describe("editor preferences", () => {
+  beforeEach(() => {
+    setupSettingsStoreHarness(settingsStore);
+  });
+
+  afterEach(() => {
+    resetSettingsStoreRuntime();
+  });
+
+  it("loads split AI-on-selection defaults with complex prompt suggestions off", async () => {
+    store.get.mockResolvedValue(undefined);
+
+    await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoUpdateEnabled: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "assets",
+      closeAiCommandOnAgentPanelOpen: false,
+      contentWidth: "default",
+      contentWidthPx: null,
+      extendedSyntax: {
+        githubAlerts: true,
+        highlight: true
+      },
+      imageUpload: {
+        fileNamePattern: "pasted-image-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
+        provider: "local",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "",
+          publicBaseUrl: "",
+          serverUrl: "",
+          uploadPath: "",
+          username: ""
+        }
+      },
+      lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
+      markdownTemplates: [],
+      restoreWorkspaceOnStartup: true,
+      sidebarLayoutMode: "stacked",
+      showAiQuickInputOnSelection: true,
+      showAiSelectionToolbarOnSelection: false,
+      suggestAiPanelForComplexInlinePrompts: false,
+      showDocumentTabs: true,
+      splitVisualPanePercent: 50,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "splitMode", visible: true },
+        { id: "history", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
+      showWordCount: true,
+      wrapCodeBlocks: true
+    });
+
+    expect(store.get).toHaveBeenCalledWith("editorPreferences");
+  });
+
+  it("normalizes partial editor preferences from older settings files", async () => {
+    store.get.mockResolvedValue({
+      autoUpdateEnabled: true,
+      bodyFontSize: 99,
+      clipboardImageFolder: "media/screenshots",
+      closeAiCommandOnAgentPanelOpen: true,
+      contentWidth: "page",
+      imageUpload: {
+        fileNamePattern: "web-{name}-{timestamp}",
+        provider: "webdav",
+        webdav: {
+          password: "secret",
+          publicBaseUrl: " https://cdn.example.com/images/ ",
+          serverUrl: " https://dav.example.com/remote.php/dav/files/me/ ",
+          uploadPath: " Markra/screenshots ",
+          username: " ada "
+        }
+      },
+      lineHeight: 2,
+      markdownShortcuts: {
+        bold: "Mod+Alt+B",
+        italic: "Mod+S",
+        quote: "Shift+B"
+      },
+      markdownTemplates: [
+        {
+          content: "# legacy content is migrated to the template file layer",
+          fileName: " standup.md ",
+          id: " standup ",
+          name: " Standup ",
+          suggestedName: " {{date}} standup "
+        },
+        {
+          fileName: "../unsafe.md",
+          id: "",
+          name: "",
+          suggestedName: ""
+        }
+      ],
+      restoreWorkspaceOnStartup: false,
+      sidebarLayoutMode: "stacked",
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true,
+      showWordCount: false
+    });
+
+    await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoUpdateEnabled: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "media/screenshots",
+      closeAiCommandOnAgentPanelOpen: true,
+      contentWidth: "default",
+      contentWidthPx: null,
+      imageUpload: {
+        fileNamePattern: "web-{name}-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
+        provider: "webdav",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "secret",
+          publicBaseUrl: "https://cdn.example.com/images",
+          serverUrl: "https://dav.example.com/remote.php/dav/files/me",
+          uploadPath: "Markra/screenshots",
+          username: "ada"
+        }
+      },
+      extendedSyntax: {
+        githubAlerts: true,
+        highlight: true
+      },
+      lineHeight: 1.65,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bold: "Mod+Alt+B"
+      },
+      markdownTemplates: [
+        {
+          fileName: "standup.md",
+          id: "standup",
+          name: "Standup",
+          suggestedName: "{{date}} standup"
+        }
+      ],
+      restoreWorkspaceOnStartup: false,
+      sidebarLayoutMode: "stacked",
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true,
+      suggestAiPanelForComplexInlinePrompts: false,
+      showDocumentTabs: true,
+      splitVisualPanePercent: 50,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "splitMode", visible: true },
+        { id: "history", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
+      showWordCount: false,
+      wrapCodeBlocks: true
+    });
+  });
+
+  it("normalizes titlebar action ordering and visibility", () => {
+    expect(normalizeEditorPreferences({
+      titlebarActions: [
+        { id: "save", visible: false },
+        { id: "theme", visible: true },
+        { id: "save", visible: true },
+        { id: "unknown", visible: true },
+        { id: "aiAgent", visible: "yes" },
+        { id: "open", visible: true }
+      ]
+    }).titlebarActions).toEqual([
+      { id: "save", visible: false },
+      { id: "theme", visible: true },
+      { id: "aiAgent", visible: true },
+      { id: "sourceMode", visible: true },
+      { id: "splitMode", visible: true },
+      { id: "history", visible: true }
+    ]);
+  });
+
+  it("normalizes the automatic update preference", () => {
+    expect(normalizeEditorPreferences({}).autoUpdateEnabled).toBe(true);
+    expect(normalizeEditorPreferences({ autoUpdateEnabled: false }).autoUpdateEnabled).toBe(false);
+    expect(normalizeEditorPreferences({ autoUpdateEnabled: "no" }).autoUpdateEnabled).toBe(true);
+  });
+
+  it("normalizes the code block line wrapping preference", () => {
+    expect(normalizeEditorPreferences({}).wrapCodeBlocks).toBe(true);
+    expect(normalizeEditorPreferences({ wrapCodeBlocks: false }).wrapCodeBlocks).toBe(false);
+    expect(normalizeEditorPreferences({ wrapCodeBlocks: "no" }).wrapCodeBlocks).toBe(true);
+  });
+
+  it("migrates the old AI selection display mode into independent switches", () => {
+    expect(normalizeEditorPreferences({
+      autoOpenAiOnSelection: true,
+      aiSelectionDisplayMode: "command"
+    })).toMatchObject({
+      showAiQuickInputOnSelection: true,
+      showAiSelectionToolbarOnSelection: false
+    });
+
+    expect(normalizeEditorPreferences({
+      autoOpenAiOnSelection: true,
+      aiSelectionDisplayMode: "toolbar"
+    })).toMatchObject({
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true
+    });
+
+    expect(normalizeEditorPreferences({
+      autoOpenAiOnSelection: false,
+      aiSelectionDisplayMode: "toolbar"
+    })).toMatchObject({
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: false
+    });
+  });
+
+  it("normalizes AI quick action prompt overrides", () => {
+    expect(normalizeEditorPreferences({
+      aiQuickActionPrompts: {
+        continue: "Keep writing in the same voice.",
+        polish: 42,
+        summarize: "Summarize in one sentence."
+      }
+    }).aiQuickActionPrompts).toEqual({
+      ...defaultAiQuickActionPrompts,
+      continue: "Keep writing in the same voice.",
+      summarize: "Summarize in one sentence."
+    });
+  });
+
+  it("normalizes extended syntax preferences", () => {
+    expect(normalizeEditorPreferences({}).extendedSyntax).toEqual({
+      githubAlerts: true,
+      highlight: true
+    });
+    expect(normalizeEditorPreferences({
+      extendedSyntax: {
+        githubAlerts: false,
+        highlight: false
+      }
+    }).extendedSyntax).toEqual({
+      githubAlerts: false,
+      highlight: false
+    });
+    expect(normalizeEditorPreferences({
+      extendedSyntax: {
+        githubAlerts: "maybe",
+        highlight: "nope"
+      }
+    }).extendedSyntax).toEqual({
+      githubAlerts: true,
+      highlight: true
+    });
+    expect(normalizeEditorPreferences({
+      extendedSyntax: null
+    }).extendedSyntax).toEqual({
+      githubAlerts: true,
+      highlight: true
+    });
+  });
+
+  it("normalizes stored built-in AI quick action prompts as unset defaults", () => {
+    expect(normalizeEditorPreferences({
+      aiQuickActionPrompts: {
+        continue: defaultAiQuickActionPrompt("continue", "English"),
+        translate: defaultAiQuickActionPrompt("translate", "English")
+      }
+    }).aiQuickActionPrompts).toEqual(defaultAiQuickActionPrompts);
+  });
+
+  it("moves titlebar actions to the target slot in both directions", () => {
+    const actions = [
+      { id: "aiAgent", visible: true },
+      { id: "sourceMode", visible: true },
+      { id: "splitMode", visible: true },
+      { id: "history", visible: true },
+      { id: "save", visible: true },
+      { id: "theme", visible: true }
+    ] as const;
+
+    expect(reorderTitlebarActions(actions, "aiAgent", "save")).toEqual([
+      { id: "sourceMode", visible: true },
+      { id: "splitMode", visible: true },
+      { id: "history", visible: true },
+      { id: "save", visible: true },
+      { id: "aiAgent", visible: true },
+      { id: "theme", visible: true }
+    ]);
+    expect(reorderTitlebarActions(actions, "save", "sourceMode")).toEqual([
+      { id: "aiAgent", visible: true },
+      { id: "save", visible: true },
+      { id: "sourceMode", visible: true },
+      { id: "splitMode", visible: true },
+      { id: "history", visible: true },
+      { id: "theme", visible: true }
+    ]);
+  });
+
+  it("normalizes custom markdown shortcuts while keeping unsafe chords at their defaults", () => {
+    expect(normalizeEditorPreferences({
+      markdownShortcuts: {
+        bold: "mod+alt+b",
+        inlineCode: "Mod+Shift+E",
+        italic: "Mod+S",
+        quote: "Alt+Q",
+        strikethrough: "Mod+Shift+X"
+      }
+    }).markdownShortcuts).toEqual({
+      ...defaultMarkdownShortcuts,
+      bold: "Mod+Alt+B",
+      strikethrough: "Mod+Shift+X"
+    });
+  });
+
+  it("normalizes custom editor content width pixels", () => {
+    expect(normalizeEditorPreferences({ contentWidthPx: 1120 }).contentWidthPx).toBe(1120);
+    expect(normalizeEditorPreferences({ contentWidthPx: 320 }).contentWidthPx).toBe(640);
+    expect(normalizeEditorPreferences({ contentWidthPx: 2000 }).contentWidthPx).toBe(1280);
+    expect(normalizeEditorPreferences({ contentWidthPx: "wide" }).contentWidthPx).toBeNull();
+  });
+
+  it("normalizes split pane visual width percentages", () => {
+    expect(normalizeEditorPreferences({ splitVisualPanePercent: 64 }).splitVisualPanePercent).toBe(64);
+    expect(normalizeEditorPreferences({ splitVisualPanePercent: 10 }).splitVisualPanePercent).toBe(25);
+    expect(normalizeEditorPreferences({ splitVisualPanePercent: 90 }).splitVisualPanePercent).toBe(75);
+    expect(normalizeEditorPreferences({ splitVisualPanePercent: "wide" }).splitVisualPanePercent).toBe(50);
+  });
+
+  it("normalizes the sidebar layout mode", () => {
+    expect(normalizeEditorPreferences({}).sidebarLayoutMode).toBe("stacked");
+    expect(normalizeEditorPreferences({ sidebarLayoutMode: "tabs" }).sidebarLayoutMode).toBe("tabs");
+    expect(normalizeEditorPreferences({ sidebarLayoutMode: "stacked" }).sidebarLayoutMode).toBe("stacked");
+    expect(normalizeEditorPreferences({ sidebarLayoutMode: "paged" }).sidebarLayoutMode).toBe("stacked");
+  });
+
+  it("migrates previous app shortcut defaults to the current defaults", () => {
+    expect(normalizeEditorPreferences({
+      markdownShortcuts: {
+        toggleAiAgent: "Mod+Shift+A",
+        toggleSourceMode: "Mod+Alt+V"
+      }
+    }).markdownShortcuts).toEqual(defaultMarkdownShortcuts);
+  });
+
+  it("keeps markdown shortcut mappings unique after normalization", () => {
+    expect(normalizeEditorPreferences({
+      markdownShortcuts: {
+        bold: "Mod+I"
+      }
+    }).markdownShortcuts).toEqual(defaultMarkdownShortcuts);
+
+    expect(normalizeEditorPreferences({
+      markdownShortcuts: {
+        bold: "Mod+I",
+        italic: "Mod+B"
+      }
+    }).markdownShortcuts).toEqual({
+      ...defaultMarkdownShortcuts,
+      bold: "Mod+I",
+      italic: "Mod+B"
+    });
+  });
+
+  it("falls back to local image upload when persisted image upload settings are unsafe", () => {
+    expect(normalizeEditorPreferences({
+      imageUpload: {
+        fileNamePattern: "../bad",
+        provider: "ftp",
+        webdav: {
+          publicBaseUrl: "file:///tmp/images",
+          serverUrl: "ftp://dav.example.com/images",
+          uploadPath: "../outside",
+          username: 42
+        }
+      }
+    }).imageUpload).toEqual({
+      provider: "local",
+      fileNamePattern: "pasted-image-{timestamp}",
+      picgo: {
+        secret: "",
+        serverUrl: ""
+      },
+      s3: {
+        accessKeyId: "",
+        bucket: "",
+        endpointUrl: "",
+        publicBaseUrl: "",
+        region: "",
+        secretAccessKey: "",
+        uploadPath: ""
+      },
+      webdav: {
+        password: "",
+        publicBaseUrl: "",
+        serverUrl: "",
+        uploadPath: "",
+        username: ""
+      }
+    });
+  });
+
+  it("normalizes S3-compatible image upload settings", () => {
+    expect(normalizeEditorPreferences({
+      imageUpload: {
+        fileNamePattern: "{name}-{random}",
+        provider: "s3",
+        s3: {
+          accessKeyId: " access-key ",
+          bucket: " markra-images ",
+          endpointUrl: " https://s3.example.com/ ",
+          publicBaseUrl: " https://cdn.example.com/images/ ",
+          region: " us-east-1 ",
+          secretAccessKey: "secret",
+          uploadPath: " notes/screenshots "
+        }
+      }
+    }).imageUpload).toEqual({
+      provider: "s3",
+      fileNamePattern: "{name}-{random}",
+      picgo: {
+        secret: "",
+        serverUrl: ""
+      },
+      s3: {
+        accessKeyId: "access-key",
+        bucket: "markra-images",
+        endpointUrl: "https://s3.example.com",
+        publicBaseUrl: "https://cdn.example.com/images",
+        region: "us-east-1",
+        secretAccessKey: "secret",
+        uploadPath: "notes/screenshots"
+      },
+      webdav: {
+        password: "",
+        publicBaseUrl: "",
+        serverUrl: "",
+        uploadPath: "",
+        username: ""
+      }
+    });
+  });
+
+  it("normalizes PicGo and PicList server image upload settings", () => {
+    expect(normalizeEditorPreferences({
+      imageUpload: {
+        fileNamePattern: "{name}-{random}",
+        provider: "picgo",
+        picgo: {
+          secret: " server-secret ",
+          serverUrl: " http://127.0.0.1:36677/upload?ignored=true#docs "
+        }
+      }
+    }).imageUpload).toEqual({
+      provider: "picgo",
+      fileNamePattern: "{name}-{random}",
+      picgo: {
+        secret: "server-secret",
+        serverUrl: "http://127.0.0.1:36677/upload"
+      },
+      s3: {
+        accessKeyId: "",
+        bucket: "",
+        endpointUrl: "",
+        publicBaseUrl: "",
+        region: "",
+        secretAccessKey: "",
+        uploadPath: ""
+      },
+      webdav: {
+        password: "",
+        publicBaseUrl: "",
+        serverUrl: "",
+        uploadPath: "",
+        username: ""
+      }
+    });
+  });
+
+  it("falls back to the default clipboard image folder when the stored folder is unsafe", async () => {
+    store.get.mockResolvedValue({
+      clipboardImageFolder: "../outside"
+    });
+
+    await expect(getStoredEditorPreferences()).resolves.toEqual({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoUpdateEnabled: true,
+      bodyFontSize: 16,
+      clipboardImageFolder: "assets",
+      closeAiCommandOnAgentPanelOpen: false,
+      contentWidth: "default",
+      contentWidthPx: null,
+      extendedSyntax: {
+        githubAlerts: true,
+        highlight: true
+      },
+      imageUpload: {
+        fileNamePattern: "pasted-image-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
+        provider: "local",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "",
+          publicBaseUrl: "",
+          serverUrl: "",
+          uploadPath: "",
+          username: ""
+        }
+      },
+      lineHeight: 1.65,
+      markdownShortcuts: defaultMarkdownShortcuts,
+      markdownTemplates: [],
+      restoreWorkspaceOnStartup: true,
+      sidebarLayoutMode: "stacked",
+      showAiQuickInputOnSelection: true,
+      showAiSelectionToolbarOnSelection: false,
+      suggestAiPanelForComplexInlinePrompts: false,
+      showDocumentTabs: true,
+      splitVisualPanePercent: 50,
+      titlebarActions: [
+        { id: "aiAgent", visible: true },
+        { id: "sourceMode", visible: true },
+        { id: "splitMode", visible: true },
+        { id: "history", visible: true },
+        { id: "save", visible: true },
+        { id: "theme", visible: true }
+      ],
+      showWordCount: true,
+      wrapCodeBlocks: true
+    });
+  });
+
+  it("persists editor preferences", async () => {
+    await saveStoredEditorPreferences({
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoUpdateEnabled: true,
+      bodyFontSize: 18,
+      clipboardImageFolder: "images",
+      closeAiCommandOnAgentPanelOpen: true,
+      contentWidth: "wide",
+      contentWidthPx: 1120,
+      extendedSyntax: {
+        githubAlerts: false,
+        highlight: false
+      },
+      imageUpload: {
+        fileNamePattern: "{name}-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
+        provider: "webdav",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "secret",
+          publicBaseUrl: "https://cdn.example.com/images",
+          serverUrl: "https://dav.example.com/images",
+          uploadPath: "notes",
+          username: "ada"
+        }
+      },
+      lineHeight: 1.8,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bold: "Mod+Alt+B"
+      },
+      markdownTemplates: [
+        {
+          fileName: "weekly-review.md",
+          id: "weekly-review",
+          name: "Weekly review",
+          suggestedName: "{{date}} weekly"
+        }
+      ],
+      restoreWorkspaceOnStartup: false,
+      sidebarLayoutMode: "tabs",
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true,
+      suggestAiPanelForComplexInlinePrompts: true,
+      showDocumentTabs: false,
+      splitVisualPanePercent: 64,
+      titlebarActions: [
+        { id: "theme", visible: true },
+        { id: "save", visible: false },
+        { id: "sourceMode", visible: true },
+        { id: "splitMode", visible: true },
+        { id: "aiAgent", visible: true },
+        { id: "history", visible: true }
+      ],
+      showWordCount: false,
+      wrapCodeBlocks: false
+    });
+
+    expect(store.set).toHaveBeenCalledWith("editorPreferences", {
+      aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoUpdateEnabled: true,
+      bodyFontSize: 18,
+      clipboardImageFolder: "images",
+      closeAiCommandOnAgentPanelOpen: true,
+      contentWidth: "wide",
+      contentWidthPx: 1120,
+      extendedSyntax: {
+        githubAlerts: false,
+        highlight: false
+      },
+      imageUpload: {
+        fileNamePattern: "{name}-{timestamp}",
+        picgo: {
+          secret: "",
+          serverUrl: ""
+        },
+        provider: "webdav",
+        s3: {
+          accessKeyId: "",
+          bucket: "",
+          endpointUrl: "",
+          publicBaseUrl: "",
+          region: "",
+          secretAccessKey: "",
+          uploadPath: ""
+        },
+        webdav: {
+          password: "secret",
+          publicBaseUrl: "https://cdn.example.com/images",
+          serverUrl: "https://dav.example.com/images",
+          uploadPath: "notes",
+          username: "ada"
+        }
+      },
+      lineHeight: 1.8,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bold: "Mod+Alt+B"
+      },
+      markdownTemplates: [
+        {
+          fileName: "weekly-review.md",
+          id: "weekly-review",
+          name: "Weekly review",
+          suggestedName: "{{date}} weekly"
+        }
+      ],
+      restoreWorkspaceOnStartup: false,
+      sidebarLayoutMode: "tabs",
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true,
+      suggestAiPanelForComplexInlinePrompts: true,
+      showDocumentTabs: false,
+      splitVisualPanePercent: 64,
+      titlebarActions: [
+        { id: "theme", visible: true },
+        { id: "save", visible: false },
+        { id: "sourceMode", visible: true },
+        { id: "splitMode", visible: true },
+        { id: "aiAgent", visible: true },
+        { id: "history", visible: true }
+      ],
+      showWordCount: false,
+      wrapCodeBlocks: false
+    });
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+});
