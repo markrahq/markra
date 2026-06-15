@@ -20,7 +20,9 @@ const terminalAffordanceAtomNodeNames = new Set([
 function needsTrailingParagraphAffordance(doc: ProseNode, paragraph: NodeType) {
   const lastNode = doc.lastChild;
   if (!lastNode) return false;
-  if (lastNode.type === paragraph) return false;
+  if (lastNode.type === paragraph) {
+    return lastNode.content.size > 0 && doc.canReplaceWith(doc.childCount, doc.childCount, paragraph);
+  }
   if (lastNode.isTextblock && !terminalAffordanceTextblockNodeNames.has(lastNode.type.name)) return false;
   if (lastNode.isAtom && !terminalAffordanceAtomNodeNames.has(lastNode.type.name)) return false;
 
@@ -29,6 +31,15 @@ function needsTrailingParagraphAffordance(doc: ProseNode, paragraph: NodeType) {
 
 function isPlainLeftMouseDown(event: MouseEvent) {
   return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
+}
+
+function eventTargetElement(target: EventTarget | null) {
+  return target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+}
+
+function hasNonCollapsedNativeSelection(document: Document) {
+  const selection = document.getSelection();
+  return Boolean(selection && !selection.isCollapsed);
 }
 
 function insertTrailingParagraph(view: EditorView, paragraph: NodeType) {
@@ -71,6 +82,30 @@ function createTrailingParagraphWidget(view: EditorView, paragraph: NodeType) {
 export function createTrailingParagraphPlugin(paragraph: NodeType) {
   return new Plugin({
     key: trailingParagraphKey,
+    view(view) {
+      const paper = view.dom.closest<HTMLElement>(".markdown-paper");
+      if (!paper) return {};
+
+      const handlePaperMouseDown = (event: MouseEvent) => {
+        if (!isPlainLeftMouseDown(event)) return;
+
+        const target = eventTargetElement(event.target);
+        if (target !== paper) return;
+        if (hasNonCollapsedNativeSelection(paper.ownerDocument)) return;
+        if (!insertTrailingParagraph(view, paragraph)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+      };
+
+      paper.addEventListener("mousedown", handlePaperMouseDown);
+
+      return {
+        destroy() {
+          paper.removeEventListener("mousedown", handlePaperMouseDown);
+        }
+      };
+    },
     props: {
       handleDOMEvents: {
         mousedown(view, event) {
