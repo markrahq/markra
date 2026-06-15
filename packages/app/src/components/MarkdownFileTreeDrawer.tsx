@@ -229,6 +229,7 @@ export function MarkdownFileTreeDrawer({
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameFileName, setRenameFileName] = useState("");
   const renamingPathRef = useRef<string | null>(null);
+  const renamingFileRef = useRef<NativeMarkdownFolderFile | null>(null);
   const [dragOverTargetPath, setDragOverTargetPath] = useState<string | null>(null);
   const [activeDragFile, setActiveDragFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [collapsedOutlineKeys, setCollapsedOutlineKeys] = useState<Set<string>>(() => new Set());
@@ -523,6 +524,7 @@ export function MarkdownFileTreeDrawer({
     setCreatingFolder(false);
     setNewFolderName("");
     setRenamingPath(null);
+    renamingFileRef.current = null;
     setRenameFileName("");
     setCreatingParentPath(normalizeTreeCreateParentPath(parentPath));
     setCreatingTemplate(template);
@@ -540,6 +542,7 @@ export function MarkdownFileTreeDrawer({
     setCreatingTemplate(null);
     setCreatingTemplateStartedAt(null);
     setRenamingPath(null);
+    renamingFileRef.current = null;
     setRenameFileName("");
     setCreatingParentPath(normalizeTreeCreateParentPath(parentPath));
     setCreatingFolder(true);
@@ -613,6 +616,7 @@ export function MarkdownFileTreeDrawer({
     setNewFolderName("");
     setCreatingParentPath(null);
     setCreateMenuOpen(false);
+    renamingFileRef.current = file;
     setRenamingPath(file.path);
     setRenameFileName(file.name);
   };
@@ -620,6 +624,7 @@ export function MarkdownFileTreeDrawer({
   const commitRenameFile = (file: NativeMarkdownFolderFile) => {
     const normalizedName = renameFileName.trim();
     if (!normalizedName || normalizedName === file.name) {
+      renamingFileRef.current = null;
       setRenamingPath(null);
       setRenameFileName("");
       return;
@@ -630,6 +635,7 @@ export function MarkdownFileTreeDrawer({
       .then(() => {
         if (renamingPathRef.current !== file.path) return;
 
+        renamingFileRef.current = null;
         setRenamingPath(null);
         setRenameFileName("");
       });
@@ -644,6 +650,7 @@ export function MarkdownFileTreeDrawer({
     setNewFolderName("");
     setCreatingParentPath(null);
     setCreateMenuOpen(false);
+    renamingFileRef.current = null;
     setRenamingPath(null);
     setRenameFileName("");
   };
@@ -654,6 +661,29 @@ export function MarkdownFileTreeDrawer({
 
     cancelFileTreeInputs();
   };
+
+  useEffect(() => {
+    if (!renamingPath) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      const fileTreeRoot = fileTreeBodyRef.current?.closest(".markdown-file-tree");
+      if (fileTreeRoot?.contains(target)) return;
+
+      const renamingFile = renamingFileRef.current;
+      if (!renamingFile) return;
+
+      commitRenameFile(renamingFile);
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [renamingPath, commitRenameFile]);
 
   const creatingAtParentPath = (parentPath: string | null | undefined, depth = 0) => {
     return creatingAtFileTreeParentPath(parentPath, depth, creatingParentPath);

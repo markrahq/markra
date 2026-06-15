@@ -1201,6 +1201,38 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(renameFile).not.toHaveBeenCalled();
   });
 
+  it("commits and closes the rename input when clicking outside the sidebar", async () => {
+    const renameFile = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onRenameFile={renameFile}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    act(() => {
+      contextHandlers?.renameFile?.(markdownFiles[0]);
+    });
+
+    const renameInput = screen.getByRole("textbox", { name: "Rename file" });
+    fireEvent.change(renameInput, { target: { value: "Renamed.md" } });
+    fireEvent.pointerDown(document.body);
+
+    expect(renameFile).toHaveBeenCalledWith(markdownFiles[0], "Renamed.md");
+    await waitFor(() => {
+      expect(screen.queryByRole("textbox", { name: "Rename file" })).not.toBeInTheDocument();
+    });
+  });
+
   it("opens the blank file tree area context menu and creates folders", () => {
     const createFile = vi.fn();
     const createFolder = vi.fn();
