@@ -46,7 +46,7 @@ import { clampNumber, t, type AppLanguage } from "@markra/shared";
 import { IconButton } from "@markra/ui";
 import type { MarkdownOutlineItem } from "@markra/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
-import { normalizeMovedPath } from "../lib/path-move";
+import { normalizeMovedPath, sameNativePath } from "../lib/path-move";
 import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import type { RecentMarkdownFolder, SidebarLayoutMode } from "../lib/settings/app-settings";
@@ -1157,7 +1157,7 @@ export function MarkdownFileTreeDrawer({
   };
 
   const renderFileRowContent = (node: FileNode, depth: number, mode: FileTreeRowRenderMode) => {
-    const active = node.file.path === currentPath;
+    const active = sameNativePath(node.file.path, currentPath);
     const renaming = renamingPath === node.file.path;
     const asset = node.file.kind === "asset";
     const FileIcon = asset ? ImageIcon : FileText;

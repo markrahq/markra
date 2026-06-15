@@ -2002,6 +2002,53 @@ describe("Markra workspace", () => {
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath);
   });
 
+  it("keeps a newly created Windows tree file selected without opening duplicate tabs", async () => {
+    const rootPath = "C:\\mock-vault";
+    const treeFilePath = "C:\\mock-vault\\Created.md";
+    const createdFilePath = "\\\\?\\C:\\mock-vault\\Created.md";
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: rootPath,
+      name: "mock-vault"
+    });
+    mockedListNativeMarkdownFilesForPath
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { name: "Created.md", path: treeFilePath, relativePath: "Created.md" }
+      ]);
+    mockedCreateNativeMarkdownTreeFile.mockResolvedValue({
+      name: "Created.md",
+      path: createdFilePath,
+      relativePath: "Created.md"
+    });
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => ({
+      content: "# Created\n\nSynthetic note.",
+      name: "Created.md",
+      path
+    }));
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("heading", { name: "mock-vault" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New file" }));
+    const fileNameInput = screen.getByRole("textbox", { name: "New file name" });
+    fireEvent.change(fileNameInput, { target: { value: "Created" } });
+    fireEvent.keyDown(fileNameInput, { key: "Enter" });
+
+    const createdTreeButton = await screen.findByRole("button", { name: "Created.md" });
+    expect(createdTreeButton).toHaveAttribute("aria-current", "page");
+    expect(screen.getAllByRole("tab", { name: /Created\.md/ })).toHaveLength(1);
+
+    fireEvent.click(createdTreeButton);
+
+    await waitFor(() =>
+      expect(screen.getAllByRole("tab", { name: /Created\.md/ })).toHaveLength(1)
+    );
+    expect(screen.getByRole("tab", { name: /Created\.md/ })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("deletes a sidebar folder from the context menu", async () => {
     const docsPath = `${mockFolderPath}/docs`;
     const docsFolder = { kind: "folder" as const, name: "docs", path: docsPath, relativePath: "docs" };

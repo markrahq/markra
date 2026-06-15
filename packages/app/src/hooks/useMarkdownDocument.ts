@@ -38,7 +38,7 @@ import {
   measureAppPerformance,
   measureAppPerformanceAsync
 } from "../lib/performance-marks";
-import { replaceMovedPath } from "../lib/path-move";
+import { normalizeComparablePath, replaceMovedPath, sameNativePath } from "../lib/path-move";
 import { setNativeWindowTitle } from "../lib/tauri";
 import { debug, isMarkdownPath, parentPathFromPath, pathNameFromPath, type DocumentState } from "@markra/shared";
 import {
@@ -161,14 +161,6 @@ function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState
 
 function resolveEditorReady(editorReady: boolean | (() => boolean)) {
   return typeof editorReady === "function" ? editorReady() : editorReady;
-}
-
-function normalizeComparablePath(path: string | null | undefined) {
-  const trimmedPath = path?.trim();
-  if (!trimmedPath) return null;
-
-  const normalizedPath = trimmedPath.replace(/\\/gu, "/").replace(/\/+$/u, "");
-  return normalizedPath || (trimmedPath.startsWith("/") ? "/" : null);
 }
 
 function isPathWithinRoot(path: string, rootPath: string | null) {
@@ -672,7 +664,7 @@ export function useMarkdownDocument({
         if (documentTabsEnabled) {
           syncActiveDocumentFromEditor();
           const currentTabs = tabsRef.current;
-          const existingTab = currentTabs.find((tab) => tab.path === file.path);
+          const existingTab = currentTabs.find((tab) => sameNativePath(tab.path, file.path));
           let nextTabs: MarkdownDocumentTab[];
           let nextActiveTabId: string;
 
@@ -905,7 +897,7 @@ export function useMarkdownDocument({
         syncActiveDocumentFromEditor();
 
         const currentTabs = tabsRef.current;
-        const existingTab = currentTabs.find((tab) => tab.path === nativeFile.path);
+        const existingTab = currentTabs.find((tab) => sameNativePath(tab.path, nativeFile.path));
         if (existingTab) return existingTab.id;
 
         const nextTab = createDocumentTab(nextDocument, fileTabId(nativeFile.path));
