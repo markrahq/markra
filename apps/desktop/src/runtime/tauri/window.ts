@@ -168,6 +168,18 @@ export async function minimizeNativeWindow() {
   await invoke("minimize_current_window");
 }
 
+export async function showNativeWindow() {
+  const currentWindow = await getCurrentNativeWindow();
+  if (!currentWindow) return;
+
+  await currentWindow.show();
+  try {
+    await currentWindow.setFocus();
+  } catch {
+    // Focusing is best-effort; showing the window is the startup-critical action.
+  }
+}
+
 export async function toggleNativeWindowMaximized() {
   const currentWindow = await getCurrentNativeWindow();
   await currentWindow?.toggleMaximize();

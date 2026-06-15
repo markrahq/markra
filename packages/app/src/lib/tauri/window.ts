@@ -63,6 +63,10 @@ export function minimizeNativeWindow() {
   return getAppRuntime().window.minimizeWindow();
 }
 
+export function showNativeWindow() {
+  return getAppRuntime().window.showWindow();
+}
+
 export function toggleNativeWindowMaximized() {
   return getAppRuntime().window.toggleWindowMaximized();
 }

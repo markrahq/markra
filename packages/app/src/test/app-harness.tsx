@@ -30,6 +30,7 @@ import {
   saveNativePdfFile,
   searchNativeMarkdownFilesForPath,
   setNativeEditorWindowRestoreState,
+  showNativeWindow,
   showNativePandocSetup,
   showNativeMarkdownFileTreeContextMenu,
   syncNativeMarkdownFolder,
@@ -180,6 +181,7 @@ vi.mock("../lib/tauri", () => ({
   listenNativeWindowCloseRequested: vi.fn(),
   openSettingsWindow: vi.fn(),
   setNativeWindowTitle: vi.fn(),
+  showNativeWindow: vi.fn(),
   toggleNativeWindowFullscreen: vi.fn()
 }));
 
@@ -635,6 +637,7 @@ export const mockedSaveNativePandocFile = vi.mocked(saveNativePandocFile);
 export const mockedSaveNativePdfFile = vi.mocked(saveNativePdfFile);
 export const mockedSearchNativeMarkdownFilesForPath = vi.mocked(searchNativeMarkdownFilesForPath);
 export const mockedSetNativeEditorWindowRestoreState = vi.mocked(setNativeEditorWindowRestoreState);
+export const mockedShowNativeWindow = vi.mocked(showNativeWindow);
 export const mockedShowNativePandocSetup = vi.mocked(showNativePandocSetup);
 export const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
 export const mockedSyncNativeMarkdownFolder = vi.mocked(syncNativeMarkdownFolder);
@@ -836,6 +839,7 @@ export function installAppTestHarness() {
     mockedInstallNativeEditorContextMenu.mockReset();
     mockedOpenNativeExternalUrl.mockReset();
     mockedCloseNativeWindow.mockReset();
+    mockedShowNativeWindow.mockReset();
     mockedExitNativeApp.mockReset();
     mockedListenNativeAppExitRequested.mockReset();
     mockedListenNativeWindowCloseRequested.mockReset();
@@ -919,6 +923,7 @@ export function installAppTestHarness() {
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenNativeExternalUrl.mockResolvedValue(undefined);
     mockedCloseNativeWindow.mockResolvedValue(undefined);
+    mockedShowNativeWindow.mockResolvedValue(undefined);
     mockedExitNativeApp.mockResolvedValue(undefined);
     mockedListenNativeAppExitRequested.mockResolvedValue(() => {});
     mockedListenNativeWindowCloseRequested.mockResolvedValue(() => {});
