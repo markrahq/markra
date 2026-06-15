@@ -131,14 +131,28 @@ async function pasteClipboardText(
   }
 }
 
+async function runInjectedClipboardPasteCommand(
+  documentTarget: Document,
+  readClipboardText: NonNullable<NativeEditorContextMenuOptions["readClipboardText"]>
+) {
+  const handled = await pasteClipboardText(documentTarget, readClipboardText);
+  if (handled) return true;
+
+  return runDocumentEditCommand(documentTarget, "paste");
+}
+
 function runBrowserEditCommand(command: BrowserEditCommand, options: Pick<EditorContextMenuEntryOptions, "readClipboardText"> = {}) {
   const documentTarget = typeof document === "undefined" ? null : document;
   if (!documentTarget) return false;
 
+  if (command === "paste" && options.readClipboardText) {
+    return runInjectedClipboardPasteCommand(documentTarget, options.readClipboardText);
+  }
+
   const handled = runDocumentEditCommand(documentTarget, command);
   if (handled || command !== "paste") return handled;
 
-  return pasteClipboardText(documentTarget, options.readClipboardText);
+  return pasteClipboardText(documentTarget);
 }
 
 function browserItem(

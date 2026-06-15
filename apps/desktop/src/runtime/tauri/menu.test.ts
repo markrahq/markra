@@ -387,8 +387,8 @@ describe("native menu", () => {
 
     expect(mockedInvoke).toHaveBeenCalledWith("read_clipboard_text");
     expect(browserReadText).not.toHaveBeenCalled();
-    expect(execCommand).toHaveBeenNthCalledWith(1, "paste");
-    expect(execCommand).toHaveBeenNthCalledWith(2, "insertText", false, "native clipboard text");
+    expect(execCommand).toHaveBeenCalledTimes(1);
+    expect(execCommand).toHaveBeenNthCalledWith(1, "insertText", false, "native clipboard text");
   });
 
   it("passes customized app shortcuts to the native application menu", async () => {
