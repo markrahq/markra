@@ -1,0 +1,263 @@
+import { RotateCcw } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  defaultMarkdownShortcuts,
+  markdownShortcutFromKeyboardEvent,
+  normalizeMarkdownShortcuts,
+  parseMarkdownShortcut,
+  type MarkdownShortcutAction
+} from "@markra/editor";
+import type { I18nKey } from "@markra/shared";
+import type { EditorPreferences } from "../../lib/settings/app-settings";
+import type { DesktopPlatform } from "../../lib/platform";
+import {
+  SettingsButton,
+  SettingsRow,
+  SettingsSection
+} from "./SettingsControls";
+import type { SettingsTranslate } from "./translate";
+
+const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
+  bold: "menu.bold",
+  bulletList: "menu.bulletList",
+  codeBlock: "menu.codeBlock",
+  heading1: "menu.heading1",
+  heading2: "menu.heading2",
+  heading3: "menu.heading3",
+  image: "menu.image",
+  inlineCode: "menu.inlineCode",
+  italic: "menu.italic",
+  link: "menu.link",
+  openQuickOpen: "app.quickOpen",
+  orderedList: "menu.orderedList",
+  paragraph: "menu.paragraph",
+  quote: "menu.quote",
+  strikethrough: "menu.strikethrough",
+  table: "menu.table",
+  toggleAiAgent: "app.toggleAiAgent",
+  toggleAiCommand: "app.aiCommandDialog",
+  toggleAllFolds: "editor.toggleAllFolds",
+  toggleDocumentHistory: "app.documentHistory",
+  toggleMarkdownFiles: "app.toggleMarkdownFiles",
+  toggleReadOnlyMode: "app.toggleReadOnlyMode",
+  toggleSourceMode: "app.switchToSourceMode"
+};
+
+const keyboardShortcutSections: Array<{
+  labelKey: I18nKey;
+  actions: MarkdownShortcutAction[];
+}> = [
+  {
+    labelKey: "settings.editor.shortcutsGroupApp",
+    actions: [
+      "openQuickOpen",
+      "toggleMarkdownFiles",
+      "toggleDocumentHistory",
+      "toggleAiAgent",
+      "toggleAiCommand",
+      "toggleSourceMode",
+      "toggleReadOnlyMode"
+    ]
+  },
+  {
+    labelKey: "settings.categories.editor",
+    actions: [
+      "bold",
+      "italic",
+      "strikethrough",
+      "inlineCode",
+      "paragraph",
+      "heading1",
+      "heading2",
+      "heading3",
+      "bulletList",
+      "orderedList",
+      "quote",
+      "codeBlock",
+      "link",
+      "image",
+      "table",
+      "toggleAllFolds"
+    ]
+  }
+];
+
+function keyboardShortcutActionAvailable(action: MarkdownShortcutAction, aiEnabled: boolean) {
+  return aiEnabled || (action !== "toggleAiAgent" && action !== "toggleAiCommand");
+}
+
+function formatShortcutForPlatform(shortcut: string, platform: DesktopPlatform) {
+  const parsed = parseMarkdownShortcut(shortcut);
+  if (!parsed) return shortcut;
+
+  if (platform === "macos") {
+    return [
+      "⌘",
+      parsed.shift ? "⇧" : null,
+      parsed.alt ? "⌥" : null,
+      parsed.key
+    ].filter((part): part is string => Boolean(part)).join("+");
+  }
+
+  return [
+    "Ctrl",
+    parsed.shift ? "Shift" : null,
+    parsed.alt ? "Alt" : null,
+    parsed.key
+  ].filter((part): part is string => Boolean(part)).join("+");
+}
+
+function ShortcutCaptureButton({
+  active,
+  actionLabel,
+  platform,
+  shortcut,
+  translate,
+  onStart
+}: {
+  active: boolean;
+  actionLabel: string;
+  platform: DesktopPlatform;
+  shortcut: string;
+  translate: SettingsTranslate;
+  onStart: () => unknown;
+}) {
+  return (
+    <button
+      className={`inline-flex h-8 min-w-28 items-center justify-center rounded-md border px-3 font-mono text-[12px] leading-5 font-[650] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
+        active
+          ? "border-(--accent) bg-(--bg-active) text-(--text-heading)"
+          : "border-(--border-default) bg-(--bg-primary) text-(--text-heading) hover:bg-(--bg-hover)"
+      }`}
+      type="button"
+      aria-label={`${actionLabel} ${translate("settings.editor.shortcutAriaSuffix")}`}
+      aria-pressed={active}
+      onClick={onStart}
+    >
+      {active ? translate("settings.editor.shortcutRecording") : formatShortcutForPlatform(shortcut, platform)}
+    </button>
+  );
+}
+
+export function KeyboardShortcutsSettings({
+  aiEnabled = true,
+  onUpdatePreferences,
+  platform = "macos",
+  preferences,
+  translate
+}: {
+  aiEnabled?: boolean;
+  onUpdatePreferences: (preferences: EditorPreferences) => unknown;
+  platform?: DesktopPlatform;
+  preferences: EditorPreferences;
+  translate: SettingsTranslate;
+}) {
+  const [activeAction, setActiveAction] = useState<MarkdownShortcutAction | null>(null);
+  const shortcuts = useMemo(
+    () => normalizeMarkdownShortcuts(preferences.markdownShortcuts),
+    [preferences.markdownShortcuts]
+  );
+  const availableShortcutSections = useMemo(
+    () => keyboardShortcutSections
+      .map((section) => ({
+        ...section,
+        actions: section.actions.filter((action) => keyboardShortcutActionAvailable(action, aiEnabled))
+      }))
+      .filter((section) => section.actions.length > 0),
+    [aiEnabled]
+  );
+
+  useEffect(() => {
+    if (activeAction && !keyboardShortcutActionAvailable(activeAction, aiEnabled)) setActiveAction(null);
+  }, [activeAction, aiEnabled]);
+
+  useEffect(() => {
+    if (!activeAction) return;
+
+    const handleShortcutCapture = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setActiveAction(null);
+        return;
+      }
+
+      const nextShortcut = markdownShortcutFromKeyboardEvent(event);
+      if (!nextShortcut) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      onUpdatePreferences({
+        ...preferences,
+        markdownShortcuts: normalizeMarkdownShortcuts({
+          ...shortcuts,
+          [activeAction]: nextShortcut
+        })
+      });
+      setActiveAction(null);
+    };
+
+    window.addEventListener("keydown", handleShortcutCapture, true);
+
+    return () => {
+      window.removeEventListener("keydown", handleShortcutCapture, true);
+    };
+  }, [activeAction, onUpdatePreferences, preferences, shortcuts]);
+
+  return (
+    <SettingsSection label={translate("settings.sections.keyboardShortcuts")}>
+      <SettingsRow
+        title={translate("settings.editor.shortcuts")}
+        description={translate("settings.editor.shortcutsDescription")}
+        action={
+          <SettingsButton
+            label={translate("settings.editor.shortcutsResetLabel")}
+            onClick={() => {
+              setActiveAction(null);
+              onUpdatePreferences({
+                ...preferences,
+                markdownShortcuts: { ...defaultMarkdownShortcuts }
+              });
+            }}
+          >
+            <RotateCcw aria-hidden="true" size={13} />
+            {translate("settings.editor.shortcutsReset")}
+          </SettingsButton>
+        }
+      />
+      <div className="divide-y divide-(--border-default)">
+        {availableShortcutSections.map((section) => (
+          <div key={section.labelKey} className="py-4 first:pt-3 last:pb-4">
+            <h4 className="m-0 mb-3 text-[12px] leading-5 font-bold tracking-normal text-(--text-secondary)">
+              {translate(section.labelKey)}
+            </h4>
+            <div className="grid grid-cols-2 gap-x-5 gap-y-2 max-[760px]:grid-cols-1">
+              {section.actions.map((action) => {
+                const actionLabel = translate(markdownShortcutLabelKeys[action]);
+
+                return (
+                  <div
+                    key={action}
+                    className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-3"
+                  >
+                    <span className="min-w-0 truncate text-[12px] leading-5 font-[560] text-(--text-heading)">
+                      {actionLabel}
+                    </span>
+                    <ShortcutCaptureButton
+                      active={activeAction === action}
+                      actionLabel={actionLabel}
+                      platform={platform}
+                      shortcut={shortcuts[action]}
+                      translate={translate}
+                      onStart={() => setActiveAction(action)}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </SettingsSection>
+  );
+}

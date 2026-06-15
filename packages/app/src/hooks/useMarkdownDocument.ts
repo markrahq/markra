@@ -11,8 +11,7 @@ import {
   saveStoredRecentMarkdownFile,
   saveStoredWorkspaceState,
   type RecentMarkdownFile,
-  type StoredWorkspaceDraftTab,
-  type StoredWorkspaceWindow
+  type StoredWorkspaceDraftTab
 } from "../lib/settings/app-settings";
 import { getMarkdownOutline, getWordCount, type MarkdownOutlineItem } from "@markra/markdown";
 import {
@@ -39,9 +38,30 @@ import {
   measureAppPerformance,
   measureAppPerformanceAsync
 } from "../lib/performance-marks";
-import { normalizeMovedPath, replaceMovedPath } from "../lib/path-move";
+import { replaceMovedPath } from "../lib/path-move";
 import { setNativeWindowTitle } from "../lib/tauri";
 import { debug, pathNameFromPath, type DocumentState } from "@markra/shared";
+import {
+  activeFilePathFromTabs,
+  activeFilePathFromWindowRestore,
+  blankDocumentName,
+  createDocumentTab,
+  createInitialDocumentState,
+  defaultSaveDirectoryInput,
+  documentFromDraftTab,
+  documentFromTab,
+  draftWorkspacePatchFromTabs,
+  fileTabId,
+  isDeletedDocumentPath,
+  isEquivalentEditorMarkdown,
+  isPristineUntitledDocument,
+  normalizeOpenFilePaths,
+  openFilePathsFromTabs,
+  restoreFilePathsFromWorkspace,
+  type MarkdownDocumentTab
+} from "./markdown-document/document-model";
+
+export type { MarkdownDocumentTab } from "./markdown-document/document-model";
 
 function isBlankEditorWindow() {
   return new URLSearchParams(window.location.search).has("blank");
@@ -54,21 +74,6 @@ function initialMarkdownFilePath() {
 function initialMarkdownFolderPath() {
   return new URLSearchParams(window.location.search).get("folder");
 }
-
-function createInitialDocumentState(): DocumentState {
-  return {
-    path: null,
-    name: "Untitled.md",
-    content: "",
-    dirty: false,
-    open: true,
-    revision: 0
-  };
-}
-
-export type MarkdownDocumentTab = DocumentState & {
-  id: string;
-};
 
 type CreateBlankDocumentOptions = {
   content?: string;
@@ -119,172 +124,6 @@ function calculateMarkdownDocumentSummary(
   }), detail);
 }
 
-function blankDocumentName(name: string | null | undefined) {
-  const trimmedName = name?.trim();
-  return trimmedName ? trimmedName : "Untitled.md";
-}
-
-function createDocumentTab(document: DocumentState, id: string): MarkdownDocumentTab {
-  return {
-    ...document,
-    id
-  };
-}
-
-function documentFromTab(tab: MarkdownDocumentTab): DocumentState {
-  return {
-    path: tab.path,
-    name: tab.name,
-    content: tab.content,
-    sizeBytes: tab.sizeBytes,
-    dirty: tab.dirty,
-    open: tab.open,
-    revision: tab.revision
-  };
-}
-
-function documentFromDraftTab(draft: StoredWorkspaceDraftTab, revision: number): DocumentState {
-  return {
-    path: draft.path,
-    name: draft.name,
-    content: draft.content,
-    dirty: true,
-    open: true,
-    revision
-  };
-}
-
-function fileTabId(path: string) {
-  return `file:${path}`;
-}
-
-function normalizeOpenFilePaths(paths: readonly (string | null | undefined)[]) {
-  const seenPaths = new Set<string>();
-  const normalizedPaths: string[] = [];
-
-  paths.forEach((item) => {
-    const path = item?.trim();
-    if (!path || seenPaths.has(path)) return;
-
-    seenPaths.add(path);
-    normalizedPaths.push(path);
-  });
-
-  return normalizedPaths;
-}
-
-function openFilePathsFromTabs(tabs: readonly MarkdownDocumentTab[]) {
-  return normalizeOpenFilePaths(tabs.map((tab) => tab.open ? tab.path : null));
-}
-
-function restoreFilePathsFromWorkspace(openFilePaths: readonly string[], filePath: string | null, documentTabsEnabled: boolean) {
-  if (!documentTabsEnabled) return filePath ? [filePath] : [];
-
-  const paths = normalizeOpenFilePaths(openFilePaths);
-  const activeFilePath = filePath?.trim() ?? "";
-
-  if (activeFilePath && !paths.includes(activeFilePath)) paths.push(activeFilePath);
-
-  return paths;
-}
-
-function activeFilePathFromWindowRestore(window: StoredWorkspaceWindow) {
-  return window.filePath ?? window.openFilePaths.at(-1) ?? null;
-}
-
-function activeFilePathFromTabs(tabs: readonly MarkdownDocumentTab[], activeTabId: string | null) {
-  return tabs.find((tab) => tab.id === activeTabId)?.path ?? null;
-}
-
-function isPristineUntitledDocument(document: DocumentState) {
-  return document.open && document.path === null && document.content === "" && !document.dirty && document.revision === 0;
-}
-
-function draftTabFromDocumentTab(tab: MarkdownDocumentTab): StoredWorkspaceDraftTab | null {
-  if (!tab.open || !tab.dirty) return null;
-  if (tab.path === null && tab.content.trim().length === 0) return null;
-
-  return {
-    content: tab.content,
-    id: tab.id,
-    name: tab.name || (tab.path ? pathNameFromPath(tab.path) : "Untitled.md"),
-    path: tab.path
-  };
-}
-
-function draftWorkspacePatchFromTabs(tabs: readonly MarkdownDocumentTab[], activeTabId: string | null) {
-  const draftTabs = tabs.flatMap((tab) => {
-    const draft = draftTabFromDocumentTab(tab);
-    return draft ? [draft] : [];
-  });
-  const activeDraftId = activeTabId && draftTabs.some((draft) => draft.id === activeTabId)
-    ? activeTabId
-    : null;
-
-  return {
-    activeDraftId,
-    draftTabs
-  };
-}
-
-function normalizeComparableMarkdownHeadings(content: string) {
-  const lines = content.replace(/\r\n?/gu, "\n").split("\n");
-  const normalized: string[] = [];
-  let fencedMarker: "`" | "~" | null = null;
-
-  for (const line of lines) {
-    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/u);
-    if (fenceMatch) {
-      const marker = fenceMatch[1]!.startsWith("~") ? "~" : "`";
-      if (!fencedMarker) {
-        fencedMarker = marker;
-      } else if (fencedMarker === marker) {
-        fencedMarker = null;
-      }
-
-      normalized.push(line);
-      continue;
-    }
-
-    if (!fencedMarker) {
-      const atxHeadingMatch = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/u);
-      if (atxHeadingMatch) {
-        normalized.push(`${atxHeadingMatch[1]} ${atxHeadingMatch[2]!.trim()}`);
-        continue;
-      }
-
-      const setextHeadingMatch = line.match(/^\s*(=+|-+)\s*$/u);
-      const previousLine = normalized.at(-1);
-      if (setextHeadingMatch && previousLine?.trim()) {
-        const level = setextHeadingMatch[1]!.startsWith("=") ? 1 : 2;
-        normalized[normalized.length - 1] = `${"#".repeat(level)} ${previousLine.trim()}`;
-        continue;
-      }
-    }
-
-    normalized.push(line);
-  }
-
-  return normalized.join("\n");
-}
-
-function comparableMarkdown(content: string) {
-  return normalizeComparableMarkdownHeadings(content)
-    .replace(/[ \t]+$/gmu, "")
-    .trim();
-}
-
-function isEquivalentEditorMarkdown(left: string, right: string) {
-  return comparableMarkdown(left) === comparableMarkdown(right);
-}
-
-function isDeletedDocumentPath(documentPath: string, deletedPath: string) {
-  const normalizedDocumentPath = normalizeMovedPath(documentPath);
-  const normalizedDeletedPath = normalizeMovedPath(deletedPath);
-
-  return normalizedDocumentPath === normalizedDeletedPath || normalizedDocumentPath.startsWith(`${normalizedDeletedPath}/`);
-}
-
 type UseMarkdownDocumentOptions = {
   beforeNativeAppExit?: () => unknown | Promise<unknown>;
   confirmDiscardUnsavedChanges?: (document: DocumentState) => boolean | Promise<boolean>;
@@ -321,13 +160,6 @@ function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState
 
 function resolveEditorReady(editorReady: boolean | (() => boolean)) {
   return typeof editorReady === "function" ? editorReady() : editorReady;
-}
-
-function defaultSaveDirectoryInput(defaultSaveDirectory: string | null | undefined, path: string | null) {
-  if (path !== null) return {};
-
-  const directory = defaultSaveDirectory?.trim();
-  return directory ? { defaultDirectory: directory } : {};
 }
 
 export function useMarkdownDocument({

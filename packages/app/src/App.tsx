@@ -63,6 +63,9 @@ import { useBackupSettings } from "./hooks/useBackupSettings";
 import { useDefaultContextMenuBlocker } from "./hooks/useDefaultContextMenuBlocker";
 import { useSyncSettings } from "./hooks/useSyncSettings";
 import { useWebSearchSettings } from "./hooks/useWebSearchSettings";
+import { useSettingsWindowRoute } from "./hooks/useSettingsWindowRoute";
+import { useWorkspaceBackupSync } from "./hooks/useWorkspaceBackupSync";
+import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import {
   useApplicationShortcuts,
   useNativeMarkdownDrop,
@@ -75,16 +78,12 @@ import {
   clampNumber,
   debug,
   findSearchRanges,
-  isMarkdownPath,
   normalizeSearchIndex,
-  parentPathFromPath,
   t,
   type I18nKey,
   type SearchRange
 } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
-import { runMarkdownBackup } from "./lib/backup";
-import { runMarkdownSync } from "./lib/sync";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
@@ -96,11 +95,9 @@ import { markAppPerformance } from "./lib/performance-marks";
 import { replaceMovedPath } from "./lib/path-move";
 import { resolveDesktopPlatform } from "./lib/platform";
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
-import {
-  searchWorkspaceFiles,
-  type WorkspaceSearchResponse,
-  type WorkspaceSearchResult
-} from "./lib/workspace-search";
+import { runEditorLinkCommand } from "./app/editor-link-command";
+import { isPandocSetupError, runPandocSetupAction } from "./app/pandoc-setup";
+import type { WorkspaceSearchResult } from "./lib/workspace-search";
 import type {
   SelectionHeadingLevel,
   SelectionFormattingAction,
@@ -137,9 +134,7 @@ import {
   type TitlebarActionPreference
 } from "./lib/settings/app-settings";
 import {
-  notifyAppBackupSettingsChanged,
-  notifyAppEditorPreferencesChanged,
-  notifyAppSyncSettingsChanged
+  notifyAppEditorPreferencesChanged
 } from "./lib/settings/settings-events";
 import { getAppRuntime } from "./runtime";
 import {
@@ -152,7 +147,6 @@ import {
   saveNativeHtmlFile,
   saveNativePandocFile,
   saveNativePdfFile,
-  searchNativeMarkdownFilesForPath,
   showNativePandocSetup,
   writeNativeMarkdownTemplateFile,
   type NativeMarkdownFolderFile,
@@ -164,65 +158,30 @@ import {
   markdownTemplateEntryFromTemplate,
   type MarkdownTemplate
 } from "./lib/templates";
+import {
+  aiPreviewActionKey,
+  aiResultSignature,
+  createImageDocumentTab,
+  defaultSaveDirectoryFromFileTree,
+  documentTabAsFolderFile,
+  imageDocumentTabId,
+  replaceTextRange,
+  replaceTextRanges,
+  restoreElementScrollTop,
+  selectionAnchorsEqual,
+  unsavedMarkdownFileNameFromTreeInput,
+  type ImageDocumentTab
+} from "./app/workspace-model";
 
 const aiAgentPanelDefaultWidth = 384;
 const aiAgentPanelMinWidth = 320;
 const aiAgentPanelMaxWidth = 760;
 const splitPaneKeyboardStepPercent = 5;
-const aiResultSignatureSeparator = "\u001f";
 const aiSelectionCopySuccessMs = 1600;
 const sideDocumentPaneKeyboardStepPercent = 5;
 const sideDocumentMainPanePercentMin = 35;
 const sideDocumentMainPanePercentMax = 70;
 const defaultSideDocumentMainPanePercent = 50;
-export const globalSearchDebounceMs = 180;
-const globalSearchRecentQueryLimit = 8;
-const emptyWorkspaceSearchResponse: WorkspaceSearchResponse = {
-  results: [],
-  searchedFileCount: 0,
-  truncated: false,
-  unreadableFileCount: 0
-};
-
-type ImageDocumentTab = NativeMarkdownFolderFile & {
-  id: string;
-};
-
-function imageDocumentTabId(path: string) {
-  return `image:${path}`;
-}
-
-function createImageDocumentTab(file: NativeMarkdownFolderFile): ImageDocumentTab {
-  return {
-    ...file,
-    id: imageDocumentTabId(file.path)
-  };
-}
-
-function unsavedMarkdownFileNameFromTreeInput(fileName: string) {
-  const trimmedName = fileName.trim();
-  if (!trimmedName) return "Untitled.md";
-  return /\.(?:md|markdown)$/iu.test(trimmedName) ? trimmedName : `${trimmedName}.md`;
-}
-
-function documentTabAsFolderFile(tab: MarkdownTabsBarDocumentItem): NativeMarkdownFolderFile | null {
-  if (!tab.path) return null;
-
-  return {
-    ...(tab.displayKind === "image" ? { kind: "asset" as const } : {}),
-    name: tab.name || "Untitled.md",
-    path: tab.path,
-    relativePath: tab.path
-  };
-}
-
-function defaultSaveDirectoryFromFileTree(sourcePath: string | null) {
-  const trimmedSourcePath = sourcePath?.trim();
-  if (!trimmedSourcePath) return null;
-  if (!isMarkdownPath(trimmedSourcePath)) return trimmedSourcePath;
-
-  return parentPathFromPath(trimmedSourcePath);
-}
 
 function persistSideDocumentGroup(group: StoredWorkspaceSideBySideGroup | null) {
   saveStoredWorkspaceState({ sideBySideGroup: group }).catch(() => {});
@@ -241,127 +200,8 @@ type PendingEditorModeScroll = {
   targetSurface: EditorSurface;
 };
 
-function isSettingsWindowRoute() {
-  return new URLSearchParams(window.location.search).has("settings");
-}
-
-function useSettingsWindowRoute() {
-  const [isSettingsRoute, setIsSettingsRoute] = useState(isSettingsWindowRoute);
-
-  useEffect(() => {
-    const handleRouteChange = () => {
-      setIsSettingsRoute(isSettingsWindowRoute());
-    };
-
-    window.addEventListener("popstate", handleRouteChange);
-
-    return () => {
-      window.removeEventListener("popstate", handleRouteChange);
-    };
-  }, []);
-
-  return isSettingsRoute;
-}
-
-const pandocInstallUrl = "https://pandoc.org/installing.html";
-
-type EditorLinkCommandOptions = {
-  insertMarkdownLink: () => unknown;
-  readOnlyMode: boolean;
-  syncAiSelectionToolbarFormattingState: () => unknown;
-  syncVisualMarkdownAfterEditorCommand: () => unknown;
-};
-
-export function runEditorLinkCommand({
-  insertMarkdownLink,
-  readOnlyMode,
-  syncAiSelectionToolbarFormattingState,
-  syncVisualMarkdownAfterEditorCommand
-}: EditorLinkCommandOptions) {
-  if (readOnlyMode) return false;
-
-  insertMarkdownLink();
-  syncVisualMarkdownAfterEditorCommand();
-  syncAiSelectionToolbarFormattingState();
-  return true;
-}
-
-function isPandocSetupError(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error ?? "");
-
-  return /Pandoc export requires Pandoc|Pandoc executable not found|Failed to launch Pandoc/u.test(message);
-}
-
-async function runPandocSetupAction(action: "cancel" | "install" | "setPath") {
-  if (action === "install") {
-    await openNativeExternalUrl(pandocInstallUrl);
-    return;
-  }
-
-  if (action === "setPath") {
-    await openSettingsWindow("exportPandocPath");
-  }
-}
-
-function aiResultSignature(result: AiDiffResult) {
-  if (result.type === "error") return `error${aiResultSignatureSeparator}${result.message}`;
-
-  return [
-    result.type,
-    result.from,
-    result.to,
-    result.original,
-    result.replacement
-  ].join(aiResultSignatureSeparator);
-}
-
-function aiPreviewActionKey(result: AiDiffResult, previewId?: string) {
-  return previewId ? `preview${aiResultSignatureSeparator}${previewId}` : `result${aiResultSignatureSeparator}${aiResultSignature(result)}`;
-}
-
-function selectionAnchorsEqual(left: SelectionAnchor | null, right: SelectionAnchor | null) {
-  if (left === right) return true;
-  if (!left || !right) return false;
-
-  return left.bottom === right.bottom
-    && left.left === right.left
-    && left.right === right.right
-    && left.top === right.top;
-}
-
-function replaceTextRange(content: string, range: SearchRange, replacement: string) {
-  return `${content.slice(0, range.from)}${replacement}${content.slice(range.to)}`;
-}
-
-function replaceTextRanges(content: string, ranges: SearchRange[], replacement: string) {
-  return [...ranges]
-    .sort((left, right) => right.from - left.from)
-    .reduce((nextContent, range) => replaceTextRange(nextContent, range, replacement), content);
-}
-
-function restoreElementScrollTop(element: HTMLElement, scrollTop: number) {
-  try {
-    element.scrollTop = scrollTop;
-  } catch {
-    // Non-browser DOM doubles can expose scrollTop as read-only.
-  }
-}
-
-function nextGlobalSearchRecentQueries(current: string[], query: string) {
-  const normalizedQuery = query.trim();
-  if (!normalizedQuery) return current;
-
-  const normalizedQueryKey = normalizedQuery.toLowerCase();
-  const nextQueries = [
-    normalizedQuery,
-    ...current.filter((currentQuery) => currentQuery.toLowerCase() !== normalizedQueryKey)
-  ].slice(0, globalSearchRecentQueryLimit);
-
-  return current.length === nextQueries.length
-    && current.every((currentQuery, index) => currentQuery === nextQueries[index])
-    ? current
-    : nextQueries;
-}
+export { runEditorLinkCommand } from "./app/editor-link-command";
+export { globalSearchDebounceMs } from "./hooks/useWorkspaceSearch";
 
 export default function App() {
   const isSettingsRoute = useSettingsWindowRoute();
@@ -419,16 +259,6 @@ function WorkspaceApp() {
   const [documentSearchActiveIndex, setDocumentSearchActiveIndex] = useState(0);
   const [documentSearchRevealRevision, setDocumentSearchRevealRevision] = useState(0);
   const [visualDocumentSearchMatches, setVisualDocumentSearchMatches] = useState<SearchRange[]>([]);
-  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
-  const backupRunningRef = useRef(false);
-  const backupSourcePathRef = useRef<string | null>(null);
-  const syncRunningRef = useRef(false);
-  const syncSourcePathRef = useRef<string | null>(null);
-  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
-  const [globalSearchCaseSensitive, setGlobalSearchCaseSensitive] = useState(false);
-  const [globalSearchLoading, setGlobalSearchLoading] = useState(false);
-  const [globalSearchResponse, setGlobalSearchResponse] = useState<WorkspaceSearchResponse>(emptyWorkspaceSearchResponse);
-  const [globalSearchRecentQueries, setGlobalSearchRecentQueries] = useState<string[]>([]);
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
   const [documentHistoryOpen, setDocumentHistoryOpen] = useState(false);
   const [documentHistoryRefreshKey, setDocumentHistoryRefreshKey] = useState(0);
@@ -614,120 +444,18 @@ function WorkspaceApp() {
       okLabel: translate("app.confirmDiscardUnsavedMarkdownDocumentAction")
     });
   }, [translate]);
-  const runWorkspaceBackup = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
-    if (backupRunningRef.current || backupSettings.loading) return null;
-
-    backupRunningRef.current = true;
-    try {
-      const result = await runMarkdownBackup({
-        settings: backupSettings.settings,
-        sourcePath: backupSourcePathRef.current
-      });
-
-      if (result.status === "backed-up") {
-        await notifyAppBackupSettingsChanged(result.settings);
-        if (!silent) {
-          showAppToast({
-            id: "backup",
-            message: translate("settings.backup.completed"),
-            status: "success"
-          });
-        }
-      } else if (!silent) {
-        showAppToast({
-          id: "backup",
-          message: translate(
-            result.reason === "missing-source"
-              ? "settings.backup.missingSource"
-              : "settings.backup.missingTarget"
-          ),
-          status: "error"
-        });
-      }
-
-      return result;
-    } catch (error) {
-      debug(() => ["[markra-backup] backup failed", {
-        error: error instanceof Error ? error.message : String(error)
-      }]);
-      if (!silent) {
-        showAppToast({
-          id: "backup",
-          message: translate("settings.backup.failed"),
-          status: "error"
-        });
-      }
-      return null;
-    } finally {
-      backupRunningRef.current = false;
-    }
-  }, [backupSettings.loading, backupSettings.settings, translate]);
-  const runWorkspaceSync = useCallback(async ({
-    silent = false,
-    sourcePath = syncSourcePathRef.current
-  }: {
-    silent?: boolean;
-    sourcePath?: string | null;
-  } = {}) => {
-    if (syncRunningRef.current || syncSettings.loading || editorPreferences.loading) return null;
-
-    syncRunningRef.current = true;
-    try {
-      const result = await runMarkdownSync({
-        settings: syncSettings.settings,
-        sourcePath,
-        storageWebDavSettings: editorPreferences.preferences.imageUpload.webdav
-      });
-
-      if (result.status === "synced") {
-        await notifyAppSyncSettingsChanged(result.settings);
-        if (!silent) {
-          showAppToast({
-            id: "sync",
-            message: translate("settings.sync.completed"),
-            status: "success"
-          });
-        }
-      } else if (!silent) {
-        showAppToast({
-          id: "sync",
-          message: translate(
-            result.reason === "missing-source"
-              ? "settings.sync.missingSource"
-              : "settings.sync.missingWebDav"
-          ),
-          status: "error"
-        });
-      }
-
-      return result;
-    } catch (error) {
-      debug(() => ["[markra-sync] sync failed", {
-        error: error instanceof Error ? error.message : String(error)
-      }]);
-      if (!silent) {
-        showAppToast({
-          id: "sync",
-          message: translate("settings.sync.failed"),
-          status: "error"
-        });
-      }
-      return null;
-    } finally {
-      syncRunningRef.current = false;
-    }
-  }, [
-    editorPreferences.loading,
-    editorPreferences.preferences.imageUpload.webdav,
-    syncSettings.loading,
-    syncSettings.settings,
+  const {
+    backupStatusLabel,
+    beforeNativeAppExitBackup,
+    runWorkspaceSync,
+    setSourcePath: setWorkspaceBackupSyncSourcePath,
+    syncStatusLabel
+  } = useWorkspaceBackupSync({
+    backupSettings,
+    editorPreferences,
+    syncSettings,
     translate
-  ]);
-  const beforeNativeAppExitBackup = useCallback(async () => {
-    if (!backupSettings.settings.backupOnExit) return;
-
-    await runWorkspaceBackup({ silent: true });
-  }, [backupSettings.settings.backupOnExit, runWorkspaceBackup]);
+  });
   const markdownDocument = useMarkdownDocument({
     beforeNativeAppExit: beforeNativeAppExitBackup,
     confirmDiscardUnsavedChanges,
@@ -806,66 +534,28 @@ function WorkspaceApp() {
     handleVisualEditorReady(activeEditor, { autoFocus: false });
   }, [activeTabId, handleVisualEditorReady]);
   const workspaceKey = document.path ?? fileTree.sourcePath ?? null;
-  backupSourcePathRef.current = fileTreeSourcePath ?? document.path;
-  syncSourcePathRef.current = fileTreeSourcePath ?? document.path;
-  const backupStatusLabel = useMemo(() => {
-    if (backupSettings.settings.lastBackupAt === null) return null;
-
-    return `${translate("settings.backup.lastBackup")} ${new Intl.DateTimeFormat(undefined, {
-      timeStyle: "short"
-    }).format(new Date(backupSettings.settings.lastBackupAt))}`;
-  }, [backupSettings.settings.lastBackupAt, translate]);
-  const syncStatusLabel = useMemo(() => {
-    if (syncSettings.settings.lastSyncAt === null) return null;
-
-    return `${translate("settings.sync.lastSync")} ${new Intl.DateTimeFormat(undefined, {
-      timeStyle: "short"
-    }).format(new Date(syncSettings.settings.lastSyncAt))}`;
-  }, [syncSettings.settings.lastSyncAt, translate]);
-  useEffect(() => {
-    if (backupSettings.loading) return;
-    if (backupSettings.settings.intervalMinutes <= 0) return;
-    if (!backupSettings.settings.targetPath.trim()) return;
-
-    const intervalMs = backupSettings.settings.intervalMinutes * 60 * 1000;
-    const intervalId = window.setInterval(() => {
-      runWorkspaceBackup({ silent: true }).catch(() => {});
-    }, intervalMs);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [
-    backupSettings.loading,
-    backupSettings.settings.intervalMinutes,
-    backupSettings.settings.targetPath,
-    runWorkspaceBackup
-  ]);
-  useEffect(() => {
-    if (syncSettings.loading) return;
-    if (editorPreferences.loading) return;
-    if (!syncSettings.settings.enabled) return;
-    if (syncSettings.settings.intervalMinutes <= 0) return;
-    if (!editorPreferences.preferences.imageUpload.webdav.serverUrl.trim()) return;
-    if (!syncSettings.settings.remotePath.trim()) return;
-
-    const intervalMs = syncSettings.settings.intervalMinutes * 60 * 1000;
-    const intervalId = window.setInterval(() => {
-      runWorkspaceSync({ silent: true }).catch(() => {});
-    }, intervalMs);
-
-    return () => {
-      window.clearInterval(intervalId);
-    };
-  }, [
-    runWorkspaceSync,
-    editorPreferences.loading,
-    editorPreferences.preferences.imageUpload.webdav.serverUrl,
-    syncSettings.loading,
-    syncSettings.settings.enabled,
-    syncSettings.settings.intervalMinutes,
-    syncSettings.settings.remotePath
-  ]);
+  setWorkspaceBackupSyncSourcePath(fileTreeSourcePath ?? document.path);
+  const workspaceSearch = useWorkspaceSearch({
+    activeImageFile,
+    documentContent: document.content,
+    documentPath: document.path,
+    fileTreeFiles,
+    fileTreeSourcePath
+  });
+  const {
+    caseSensitive: globalSearchCaseSensitive,
+    closeSearch: closeGlobalSearch,
+    hideSearch: hideGlobalSearch,
+    loading: globalSearchLoading,
+    open: globalSearchOpen,
+    openSearch: openGlobalSearch,
+    query: globalSearchQuery,
+    recentQueries: globalSearchRecentQueries,
+    response: globalSearchResponse,
+    selectRecentQuery: selectGlobalSearchRecentQuery,
+    setCaseSensitive: setGlobalSearchCaseSensitive,
+    setQuery: setGlobalSearchQuery
+  } = workspaceSearch;
   const hasOpenDocument = document.open;
   const largeMarkdownVisualBlocked =
     hasOpenDocument && !activeImageFile && shouldBlockLargeMarkdownVisual(document.content, {
@@ -2159,34 +1849,29 @@ function WorkspaceApp() {
     await openTreeMarkdownFile(file);
   }, [captureActiveDocumentViewState, openImageTab, openTreeMarkdownFile]);
   const handleQuickOpenOpen = useCallback(() => {
-    setGlobalSearchOpen(false);
+    hideGlobalSearch();
     setDocumentSearchOpen(false);
     setQuickOpenOpen(true);
-  }, []);
+  }, [hideGlobalSearch]);
   const handleQuickOpenClose = useCallback(() => {
     setQuickOpenOpen(false);
   }, []);
   const handleGlobalSearchOpen = useCallback(() => {
     setQuickOpenOpen(false);
-    setGlobalSearchOpen(true);
-  }, []);
-  const handleGlobalSearchClose = useCallback(() => {
-    setGlobalSearchOpen(false);
-    setGlobalSearchQuery("");
-    setGlobalSearchLoading(false);
-    setGlobalSearchResponse(emptyWorkspaceSearchResponse);
-  }, []);
+    openGlobalSearch();
+  }, [openGlobalSearch]);
+  const handleGlobalSearchClose = closeGlobalSearch;
   const handleGlobalSearchQueryChange = useCallback((query: string) => {
     setGlobalSearchQuery(query);
-  }, []);
+  }, [setGlobalSearchQuery]);
   const handleGlobalSearchCaseSensitiveChange = useCallback((caseSensitive: boolean) => {
     setGlobalSearchCaseSensitive(caseSensitive);
-  }, []);
+  }, [setGlobalSearchCaseSensitive]);
   const handleGlobalSearchRecentQuerySelect = useCallback((query: string) => {
-    setGlobalSearchQuery(query);
-  }, []);
+    selectGlobalSearchRecentQuery(query);
+  }, [selectGlobalSearchRecentQuery]);
   const handleGlobalSearchResultOpen = useCallback(async (result: WorkspaceSearchResult) => {
-    setGlobalSearchOpen(false);
+    hideGlobalSearch();
     await handleOpenTreeFile(result.file);
     if (!documentSearchOpen) return;
 
@@ -2195,122 +1880,7 @@ function WorkspaceApp() {
     setDocumentSearchReplaceOpen(false);
     setDocumentSearchActiveIndex(result.matchIndex);
     setDocumentSearchRevealRevision((current) => current + 1);
-  }, [documentSearchOpen, globalSearchCaseSensitive, globalSearchQuery, handleOpenTreeFile]);
-  useEffect(() => {
-    const query = globalSearchQuery.trim();
-    const fileTreeSearchableFileCount = fileTreeFiles.filter((file) =>
-      file.kind !== "asset" && file.kind !== "folder"
-    ).length;
-
-    if (!globalSearchOpen) {
-      setGlobalSearchLoading(false);
-      setGlobalSearchResponse({
-        ...emptyWorkspaceSearchResponse,
-        searchedFileCount: fileTreeSearchableFileCount
-      });
-      return;
-    }
-
-    if (!query) {
-      let active = true;
-
-      setGlobalSearchLoading(false);
-      setGlobalSearchResponse({
-        ...emptyWorkspaceSearchResponse,
-        searchedFileCount: fileTreeSearchableFileCount
-      });
-
-      const loadNativeFileCount = async () => {
-        if (!fileTreeSourcePath) return null;
-
-        return searchNativeMarkdownFilesForPath({
-          caseSensitive: globalSearchCaseSensitive,
-          currentDocument: null,
-          path: fileTreeSourcePath,
-          query: ""
-        }).catch(() => null);
-      };
-
-      loadNativeFileCount().then((response) => {
-        if (!active || !response) return;
-
-        setGlobalSearchResponse({
-          ...emptyWorkspaceSearchResponse,
-          searchedFileCount: response.searchedFileCount,
-          truncated: response.truncated,
-          unreadableFileCount: response.unreadableFileCount
-        });
-      });
-
-      return () => {
-        active = false;
-      };
-    }
-
-    let active = true;
-    setGlobalSearchLoading(true);
-    setGlobalSearchRecentQueries((current) => nextGlobalSearchRecentQueries(current, query));
-
-    const runGlobalSearch = async () => {
-      const nativeResponse = fileTreeSourcePath
-        ? await searchNativeMarkdownFilesForPath({
-            caseSensitive: globalSearchCaseSensitive,
-            currentDocument: !activeImageFile && document.path
-              ? {
-                  content: document.content,
-                  path: document.path
-                }
-              : null,
-            path: fileTreeSourcePath,
-            query
-          }).catch(() => null)
-        : null;
-      if (nativeResponse) return nativeResponse;
-
-      return searchWorkspaceFiles(fileTreeFiles, query, {
-        caseSensitive: globalSearchCaseSensitive,
-        readFile: async (path) => {
-          if (!activeImageFile && document.path === path) {
-            return {
-              content: document.content,
-              path
-            };
-          }
-
-          const file = await readNativeMarkdownFile(path);
-
-          return {
-            content: file.content,
-            path: file.path
-          };
-        }
-      });
-    };
-
-    const searchTimeout = window.setTimeout(() => {
-      runGlobalSearch().then((response) => {
-        if (active) setGlobalSearchResponse(response);
-      }).catch(() => {
-        if (active) setGlobalSearchResponse(emptyWorkspaceSearchResponse);
-      }).finally(() => {
-        if (active) setGlobalSearchLoading(false);
-      });
-    }, globalSearchDebounceMs);
-
-    return () => {
-      active = false;
-      window.clearTimeout(searchTimeout);
-    };
-  }, [
-    activeImageFile,
-    document.content,
-    document.path,
-    fileTreeFiles,
-    fileTreeSourcePath,
-    globalSearchCaseSensitive,
-    globalSearchOpen,
-    globalSearchQuery
-  ]);
+  }, [documentSearchOpen, globalSearchCaseSensitive, globalSearchQuery, handleOpenTreeFile, hideGlobalSearch]);
   const handleOpenTreeFileToSide = useCallback(async (file: NativeMarkdownFolderFile) => {
     captureActiveDocumentViewState();
 

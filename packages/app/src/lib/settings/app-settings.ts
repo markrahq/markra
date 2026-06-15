@@ -7,13 +7,11 @@ import {
   normalizeStoredAiAgentSessionSummaries,
   normalizeStoredAiAgentSessionSummary,
   type StoredAiAgentSessionSummary,
-  type StoredAiAgentSessionState,
-  type WebSearchProviderId,
-  type WebSearchSettings
+  type StoredAiAgentSessionState
 } from "@markra/ai";
 import { defaultMarkdownShortcuts, normalizeMarkdownShortcuts, type MarkdownShortcutBindings } from "@markra/editor";
 import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "@markra/providers";
-import { clampNumber, isAppLanguage, normalizeNullableString, pathNameFromPath, type AppLanguage } from "@markra/shared";
+import { clampNumber, isAppLanguage, type AppLanguage } from "@markra/shared";
 import {
   editorContentWidthOptions,
   normalizeEditorContentWidthPx,
@@ -26,6 +24,113 @@ import {
   type AiQuickActionPrompts
 } from "../ai-actions";
 import { getAppRuntime } from "../../runtime";
+import {
+  defaultBackupSettings,
+  normalizeBackupSettings,
+  type BackupSettings
+} from "./backup-settings";
+import {
+  defaultExportSettings,
+  normalizeExportSettings,
+  type ExportSettings,
+  type PdfMarginPreset,
+  type PdfPageSize
+} from "./export-settings";
+import {
+  defaultNetworkSettings,
+  normalizeNetworkSettings,
+  type NetworkSettings
+} from "./network-settings";
+import {
+  normalizeRecentMarkdownFiles,
+  normalizeRecentMarkdownFolders,
+  prependRecentMarkdownFile,
+  prependRecentMarkdownFolder,
+  type RecentMarkdownFile,
+  type RecentMarkdownFolder
+} from "./recent-markdown";
+import {
+  defaultSyncSettings,
+  normalizeSyncSettings,
+  type SyncProvider,
+  type SyncSettings,
+  type WebDavSyncSettings
+} from "./sync-settings";
+import {
+  defaultWebSearchSettings,
+  normalizeWebSearchSettings,
+  type WebSearchProviderId,
+  type WebSearchSettings
+} from "./web-search-settings";
+import {
+  defaultWorkspaceState,
+  normalizeWorkspaceState,
+  type StoredWorkspaceDraftTab,
+  type StoredWorkspaceSideBySideGroup,
+  type StoredWorkspaceState,
+  type StoredWorkspaceWindow
+} from "./workspace-state";
+
+export {
+  defaultBackupSettings,
+  normalizeBackupSettings
+} from "./backup-settings";
+export {
+  defaultExportSettings,
+  normalizeExportSettings
+} from "./export-settings";
+export {
+  defaultNetworkSettings,
+  normalizeNetworkSettings
+} from "./network-settings";
+export {
+  normalizeRecentMarkdownFiles,
+  normalizeRecentMarkdownFolders,
+  prependRecentMarkdownFile,
+  prependRecentMarkdownFolder
+} from "./recent-markdown";
+export {
+  defaultSyncSettings,
+  normalizeSyncSettings
+} from "./sync-settings";
+export {
+  defaultWebSearchSettings,
+  normalizeWebSearchSettings
+} from "./web-search-settings";
+export {
+  defaultWorkspaceState,
+  normalizeWorkspaceState
+} from "./workspace-state";
+export type {
+  BackupSettings
+} from "./backup-settings";
+export type {
+  ExportSettings,
+  PdfMarginPreset,
+  PdfPageSize
+} from "./export-settings";
+export type {
+  NetworkSettings
+} from "./network-settings";
+export type {
+  RecentMarkdownFile,
+  RecentMarkdownFolder
+} from "./recent-markdown";
+export type {
+  SyncProvider,
+  SyncSettings,
+  WebDavSyncSettings
+} from "./sync-settings";
+export type {
+  WebSearchProviderId,
+  WebSearchSettings
+} from "./web-search-settings";
+export type {
+  StoredWorkspaceDraftTab,
+  StoredWorkspaceSideBySideGroup,
+  StoredWorkspaceState,
+  StoredWorkspaceWindow
+} from "./workspace-state";
 
 const settingsStorePath = "settings.json";
 const aiAgentSessionIndexStorePath = "ai-agent-sessions/index.json";
@@ -81,8 +186,6 @@ export const editorThemeOptions = [
 export type EditorTheme = typeof editorThemeOptions[number];
 export const appThemeOptions = ["system", ...editorThemeOptions] as const;
 export type AppTheme = typeof appThemeOptions[number];
-export type PdfMarginPreset = "custom" | "default" | "narrow" | "none" | "normal" | "wide";
-export type PdfPageSize = "a4" | "custom" | "default" | "letter";
 export type TitlebarActionId = "aiAgent" | "sourceMode" | "splitMode" | "history" | "save" | "theme";
 export type TitlebarActionPreference = {
   id: TitlebarActionId;
@@ -148,83 +251,8 @@ export type EditorPreferences = {
   showWordCount: boolean;
   wrapCodeBlocks: boolean;
 };
-export type ExportSettings = {
-  pandocArgs: string;
-  pandocPath: string;
-  pdfAuthor: string;
-  pdfFooter: string;
-  pdfHeader: string;
-  pdfHeightMm: number;
-  pdfMarginMm: number;
-  pdfMarginPreset: PdfMarginPreset;
-  pdfPageBreakOnH1: boolean;
-  pdfPageSize: PdfPageSize;
-  pdfWidthMm: number;
-};
-export type BackupSettings = {
-  backupOnExit: boolean;
-  intervalMinutes: number;
-  lastBackupAt: number | null;
-  targetPath: string;
-};
-export type SyncProvider = "webdav";
-export type WebDavSyncSettings = {
-  password: string;
-  remotePath: string;
-  serverUrl: string;
-  username: string;
-};
-export type NetworkSettings = {
-  bypassLocalAddresses: boolean;
-  proxyEnabled: boolean;
-  proxyUrl: string;
-};
-export type SyncSettings = {
-  autoSyncOnSave: boolean;
-  enabled: boolean;
-  intervalMinutes: number;
-  lastSyncAt: number | null;
-  provider: SyncProvider;
-  remotePath: string;
-};
-export type StoredWorkspaceState = {
-  activeDraftId?: string | null;
-  aiAgentSessionId: string | null;
-  draftTabs?: StoredWorkspaceDraftTab[];
-  filePath: string | null;
-  fileTreeOpen: boolean;
-  folderName: string | null;
-  folderPath: string | null;
-  openFilePaths: string[];
-  openWindows?: StoredWorkspaceWindow[];
-  sideBySideGroup?: StoredWorkspaceSideBySideGroup | null;
-};
-export type StoredWorkspaceDraftTab = {
-  content: string;
-  id: string;
-  name: string;
-  path: string | null;
-};
-export type StoredWorkspaceWindow = {
-  filePath: string | null;
-  label: string;
-  openFilePaths: string[];
-};
-export type StoredWorkspaceSideBySideGroup = {
-  primaryFilePath: string;
-  sideFilePath: string;
-};
-export type RecentMarkdownFolder = {
-  name: string;
-  path: string;
-};
-export type RecentMarkdownFile = {
-  name: string;
-  path: string;
-};
 export type { AppLanguage };
 export type { EditorContentWidth };
-export type { WebSearchProviderId, WebSearchSettings };
 
 export const customThemeCssMaxLength = 50000;
 export const defaultCustomThemeCss = `:root[data-theme="custom"] {
@@ -324,85 +352,14 @@ export const defaultEditorPreferences: EditorPreferences = {
   wrapCodeBlocks: true
 };
 
-export const defaultExportSettings: ExportSettings = {
-  pandocArgs: "",
-  pandocPath: "",
-  pdfAuthor: "",
-  pdfFooter: "",
-  pdfHeader: "",
-  pdfHeightMm: 297,
-  pdfMarginMm: 18,
-  pdfMarginPreset: "default",
-  pdfPageBreakOnH1: false,
-  pdfPageSize: "default",
-  pdfWidthMm: 210
-};
-
 export const defaultAiAgentPreferences: AiAgentPreferences = {
   thinkingEnabled: false,
   webSearchEnabled: false
 };
 
-export const defaultWebSearchSettings: WebSearchSettings = {
-  contentMaxChars: 12_000,
-  enabled: true,
-  maxResults: 5,
-  providerId: "local-bing",
-  searxngApiHost: ""
-};
-export const defaultNetworkSettings: NetworkSettings = {
-  bypassLocalAddresses: true,
-  proxyEnabled: false,
-  proxyUrl: ""
-};
-export const defaultBackupSettings: BackupSettings = {
-  backupOnExit: false,
-  intervalMinutes: 0,
-  lastBackupAt: null,
-  targetPath: ""
-};
-export const defaultSyncSettings: SyncSettings = {
-  autoSyncOnSave: false,
-  enabled: false,
-  intervalMinutes: 0,
-  lastSyncAt: null,
-  provider: "webdav",
-  remotePath: ""
-};
-export const recentMarkdownFilesMaxLength = 10;
-export const recentMarkdownFoldersMaxLength = 5;
-
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
-const backupIntervalMinutesMin = 0;
-const backupIntervalMinutesMax = 24 * 60;
-const syncIntervalMinutesMin = 0;
-const syncIntervalMinutesMax = 24 * 60;
 const sidebarLayoutModeOptions: readonly SidebarLayoutMode[] = ["stacked", "tabs"];
-const exportPageSizeOptions: PdfPageSize[] = ["default", "a4", "letter", "custom"];
-const exportMarginPresetOptions: PdfMarginPreset[] = ["default", "none", "narrow", "normal", "wide", "custom"];
-const exportPageSizeDimensions: Record<Exclude<PdfPageSize, "custom">, { heightMm: number; widthMm: number }> = {
-  a4: { heightMm: 297, widthMm: 210 },
-  default: { heightMm: 297, widthMm: 210 },
-  letter: { heightMm: 279, widthMm: 216 }
-};
-const exportMarginPresetMm: Record<Exclude<PdfMarginPreset, "custom">, number> = {
-  default: 18,
-  narrow: 10,
-  none: 0,
-  normal: 18,
-  wide: 25
-};
-
-export const defaultWorkspaceState: StoredWorkspaceState = {
-  aiAgentSessionId: null,
-  filePath: null,
-  fileTreeOpen: false,
-  folderName: null,
-  folderPath: null,
-  openFilePaths: [],
-  openWindows: []
-};
 
 function loadSettingsStore() {
   return getAppRuntime().settings.loadStore(settingsStorePath, { autoSave: false, defaults: {} });
@@ -1039,70 +996,6 @@ export function normalizeSplitVisualPanePercent(value: unknown) {
   return Math.round(percent);
 }
 
-export function normalizeRecentMarkdownFiles(value: unknown): RecentMarkdownFile[] {
-  if (!Array.isArray(value)) return [];
-
-  const seenPaths = new Set<string>();
-  const files: RecentMarkdownFile[] = [];
-
-  value.forEach((item) => {
-    if (files.length >= recentMarkdownFilesMaxLength) return;
-    if (typeof item !== "object" || item === null) return;
-
-    const candidate = item as Partial<RecentMarkdownFile>;
-    const path = typeof candidate.path === "string" ? candidate.path.trim() : "";
-    if (!path || seenPaths.has(path)) return;
-
-    const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
-    seenPaths.add(path);
-    files.push({
-      name: name || pathNameFromPath(path),
-      path
-    });
-  });
-
-  return files;
-}
-
-export function prependRecentMarkdownFile(
-  files: readonly RecentMarkdownFile[],
-  file: RecentMarkdownFile
-) {
-  return normalizeRecentMarkdownFiles([file, ...files]);
-}
-
-export function normalizeRecentMarkdownFolders(value: unknown): RecentMarkdownFolder[] {
-  if (!Array.isArray(value)) return [];
-
-  const seenPaths = new Set<string>();
-  const folders: RecentMarkdownFolder[] = [];
-
-  value.forEach((item) => {
-    if (folders.length >= recentMarkdownFoldersMaxLength) return;
-    if (typeof item !== "object" || item === null) return;
-
-    const candidate = item as Partial<RecentMarkdownFolder>;
-    const path = typeof candidate.path === "string" ? candidate.path.trim() : "";
-    if (!path || seenPaths.has(path)) return;
-
-    const name = typeof candidate.name === "string" ? candidate.name.trim() : "";
-    seenPaths.add(path);
-    folders.push({
-      name: name || pathNameFromPath(path),
-      path
-    });
-  });
-
-  return folders;
-}
-
-export function prependRecentMarkdownFolder(
-  folders: readonly RecentMarkdownFolder[],
-  folder: RecentMarkdownFolder
-) {
-  return normalizeRecentMarkdownFolders([folder, ...folders]);
-}
-
 export function normalizeTitlebarActions(value: unknown): TitlebarActionPreference[] {
   if (!Array.isArray(value)) return [...defaultTitlebarActions];
 
@@ -1220,37 +1113,6 @@ export function normalizeWebDavImageUploadSettings(value: unknown): WebDavImageU
   };
 }
 
-export function normalizeExportSettings(value: unknown): ExportSettings {
-  if (typeof value !== "object" || value === null) return defaultExportSettings;
-
-  const settings = value as Partial<ExportSettings>;
-  const pdfPageSize = exportPageSizeOptions.includes(settings.pdfPageSize as PdfPageSize)
-    ? (settings.pdfPageSize as PdfPageSize)
-    : defaultExportSettings.pdfPageSize;
-  const pdfMarginMm = normalizeExportMarginMm(settings.pdfMarginMm);
-  const pdfMarginPreset = normalizeExportMarginPreset(settings.pdfMarginPreset, pdfMarginMm);
-  const dimensions = pdfPageSize === "custom"
-    ? {
-        heightMm: normalizeExportPageDimension(settings.pdfHeightMm, defaultExportSettings.pdfHeightMm),
-        widthMm: normalizeExportPageDimension(settings.pdfWidthMm, defaultExportSettings.pdfWidthMm)
-      }
-    : exportPageSizeDimensions[pdfPageSize];
-
-  return {
-    pandocArgs: normalizeExportText(settings.pandocArgs, 1000),
-    pandocPath: normalizeExportText(settings.pandocPath, 500),
-    pdfAuthor: normalizeExportText(settings.pdfAuthor),
-    pdfFooter: normalizeExportText(settings.pdfFooter),
-    pdfHeader: normalizeExportText(settings.pdfHeader),
-    pdfHeightMm: dimensions.heightMm,
-    pdfMarginMm: pdfMarginPreset === "custom" ? pdfMarginMm : exportMarginPresetMm[pdfMarginPreset],
-    pdfMarginPreset,
-    pdfPageBreakOnH1: typeof settings.pdfPageBreakOnH1 === "boolean" ? settings.pdfPageBreakOnH1 : false,
-    pdfPageSize,
-    pdfWidthMm: dimensions.widthMm
-  };
-}
-
 export function normalizeClipboardImageFolder(value: unknown) {
   if (typeof value !== "string") return defaultEditorPreferences.clipboardImageFolder;
 
@@ -1315,318 +1177,6 @@ function normalizeS3Bucket(value: unknown) {
   if (!bucket || bucket.includes("/") || bucket.includes("\\") || bucket === "." || bucket === "..") return "";
 
   return bucket;
-}
-
-function normalizeExportMarginMm(value: unknown) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return defaultExportSettings.pdfMarginMm;
-
-  return Math.min(Math.max(Math.round(value), 0), 60);
-}
-
-function normalizeExportMarginPreset(value: unknown, marginMm: number): PdfMarginPreset {
-  if (exportMarginPresetOptions.includes(value as PdfMarginPreset)) {
-    return value as PdfMarginPreset;
-  }
-
-  return marginMm === defaultExportSettings.pdfMarginMm ? "default" : "custom";
-}
-
-function normalizeExportPageDimension(value: unknown, fallback: number) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
-
-  return Math.min(Math.max(Math.round(value), 50), 2000);
-}
-
-function normalizeExportText(value: unknown, maxLength = 200) {
-  if (typeof value !== "string") return "";
-
-  return value.trim().slice(0, maxLength);
-}
-
-export function normalizeWebSearchSettings(value: unknown): WebSearchSettings {
-  if (typeof value !== "object" || value === null) return defaultWebSearchSettings;
-
-  const settings = value as Partial<WebSearchSettings>;
-
-  return {
-    contentMaxChars: normalizeWebSearchInteger(settings.contentMaxChars, {
-      defaultValue: defaultWebSearchSettings.contentMaxChars,
-      max: 40_000,
-      min: 2_000
-    }),
-    enabled:
-      typeof settings.enabled === "boolean"
-        ? settings.enabled
-        : defaultWebSearchSettings.enabled,
-    maxResults: normalizeWebSearchInteger(settings.maxResults, {
-      defaultValue: defaultWebSearchSettings.maxResults,
-      max: 20,
-      min: 1
-    }),
-    providerId: settings.providerId === "searxng" ? "searxng" : defaultWebSearchSettings.providerId,
-    searxngApiHost: normalizeWebSearchApiHost(settings.searxngApiHost)
-  };
-}
-
-export function normalizeBackupSettings(value: unknown): BackupSettings {
-  if (typeof value !== "object" || value === null) return { ...defaultBackupSettings };
-
-  const settings = value as Partial<BackupSettings>;
-  const intervalMinutes = clampNumber(
-    settings.intervalMinutes,
-    backupIntervalMinutesMin,
-    backupIntervalMinutesMax
-  );
-  const lastBackupAt = clampNumber(settings.lastBackupAt, 0, Number.MAX_SAFE_INTEGER);
-
-  return {
-    backupOnExit:
-      typeof settings.backupOnExit === "boolean"
-        ? settings.backupOnExit
-        : defaultBackupSettings.backupOnExit,
-    intervalMinutes: intervalMinutes === null
-      ? defaultBackupSettings.intervalMinutes
-      : Math.round(intervalMinutes),
-    lastBackupAt: lastBackupAt === null ? null : Math.round(lastBackupAt),
-    targetPath: normalizeNullableString(settings.targetPath)?.trim() ?? defaultBackupSettings.targetPath
-  };
-}
-
-export function normalizeSyncSettings(value: unknown): SyncSettings {
-  if (typeof value !== "object" || value === null) return { ...defaultSyncSettings };
-
-  const settings = value as Partial<SyncSettings> & { webdav?: Partial<WebDavSyncSettings> };
-  const legacyWebDav = typeof settings.webdav === "object" && settings.webdav !== null
-    ? settings.webdav
-    : {};
-  const intervalMinutes = clampNumber(
-    settings.intervalMinutes,
-    syncIntervalMinutesMin,
-    syncIntervalMinutesMax
-  );
-  const lastSyncAt = clampNumber(settings.lastSyncAt, 0, Number.MAX_SAFE_INTEGER);
-
-  return {
-    autoSyncOnSave:
-      typeof settings.autoSyncOnSave === "boolean"
-        ? settings.autoSyncOnSave
-        : defaultSyncSettings.autoSyncOnSave,
-    enabled:
-      typeof settings.enabled === "boolean"
-        ? settings.enabled
-        : defaultSyncSettings.enabled,
-    intervalMinutes: intervalMinutes === null
-      ? defaultSyncSettings.intervalMinutes
-      : Math.round(intervalMinutes),
-    lastSyncAt: lastSyncAt === null ? null : Math.round(lastSyncAt),
-    provider: settings.provider === "webdav" ? "webdav" : defaultSyncSettings.provider,
-    remotePath:
-      normalizeNullableString(settings.remotePath)?.trim()
-      ?? normalizeNullableString(legacyWebDav.remotePath)?.trim()
-      ?? defaultSyncSettings.remotePath
-  };
-}
-
-function normalizeWebSearchInteger(
-  value: unknown,
-  limits: {
-    defaultValue: number;
-    max: number;
-    min: number;
-  }
-) {
-  if (typeof value !== "number" || !Number.isFinite(value)) return limits.defaultValue;
-
-  return Math.min(Math.max(Math.round(value), limits.min), limits.max);
-}
-
-function normalizeWebSearchApiHost(value: unknown) {
-  if (typeof value !== "string") return "";
-
-  const trimmed = value.trim().replace(/\/+$/u, "");
-  if (!trimmed) return "";
-
-  try {
-    const url = new URL(trimmed);
-    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
-
-    url.pathname = url.pathname.replace(/\/+$/u, "");
-    url.search = "";
-    url.hash = "";
-
-    return url.toString().replace(/\/+$/u, "");
-  } catch {
-    return "";
-  }
-}
-
-export function normalizeNetworkSettings(value: unknown): NetworkSettings {
-  if (typeof value !== "object" || value === null) return { ...defaultNetworkSettings };
-
-  const settings = value as Partial<NetworkSettings>;
-  const proxyUrl = normalizeProxyUrl(settings.proxyUrl);
-  if (settings.proxyEnabled === true && !proxyUrl) return { ...defaultNetworkSettings };
-
-  const proxyEnabled = typeof settings.proxyEnabled === "boolean"
-    ? settings.proxyEnabled && proxyUrl.length > 0
-    : defaultNetworkSettings.proxyEnabled;
-
-  return {
-    bypassLocalAddresses:
-      typeof settings.bypassLocalAddresses === "boolean"
-        ? settings.bypassLocalAddresses
-        : defaultNetworkSettings.bypassLocalAddresses,
-    proxyEnabled,
-    proxyUrl
-  };
-}
-
-function normalizeProxyUrl(value: unknown) {
-  if (typeof value !== "string") return "";
-
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-
-  try {
-    const url = new URL(trimmed);
-    if (!["http:", "https:", "socks5:", "socks5h:"].includes(url.protocol)) return "";
-    if (!url.hostname) return "";
-
-    url.pathname = "";
-    url.search = "";
-    url.hash = "";
-
-    return url.toString().replace(/\/$/u, "");
-  } catch {
-    return "";
-  }
-}
-
-export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
-  if (typeof value !== "object" || value === null) return defaultWorkspaceState;
-
-  const workspace = value as Partial<StoredWorkspaceState>;
-  const openFilePaths = normalizeWorkspaceOpenFilePaths(workspace.openFilePaths);
-  const openFilePathSet = new Set(openFilePaths);
-  const draftTabs = normalizeWorkspaceDraftTabs(workspace.draftTabs);
-  const activeDraftId = normalizeNullableString(workspace.activeDraftId);
-  const persistedActiveDraftId = activeDraftId && draftTabs.some((draft) => draft.id === activeDraftId)
-    ? activeDraftId
-    : null;
-  const sideBySideGroup = normalizeWorkspaceSideBySideGroup(workspace.sideBySideGroup);
-  const persistedSideBySideGroup =
-    sideBySideGroup &&
-    openFilePathSet.has(sideBySideGroup.primaryFilePath) &&
-    openFilePathSet.has(sideBySideGroup.sideFilePath)
-      ? sideBySideGroup
-      : null;
-
-  return {
-    ...(draftTabs.length > 0 ? { activeDraftId: persistedActiveDraftId, draftTabs } : {}),
-    aiAgentSessionId: normalizeNullableString(workspace.aiAgentSessionId),
-    filePath: normalizeNullableString(workspace.filePath),
-    fileTreeOpen: typeof workspace.fileTreeOpen === "boolean" ? workspace.fileTreeOpen : false,
-    folderName: normalizeNullableString(workspace.folderName),
-    folderPath: normalizeNullableString(workspace.folderPath),
-    openFilePaths,
-    openWindows: normalizeWorkspaceWindows(workspace.openWindows),
-    ...(persistedSideBySideGroup ? { sideBySideGroup: persistedSideBySideGroup } : {})
-  };
-}
-
-function normalizeWorkspaceDraftTabs(value: unknown): StoredWorkspaceDraftTab[] {
-  if (!Array.isArray(value)) return [];
-
-  const seenIds = new Set<string>();
-  const draftTabs: StoredWorkspaceDraftTab[] = [];
-  const normalizeDraftString = (item: unknown) => {
-    if (typeof item !== "string") return null;
-
-    const trimmed = item.trim();
-    return trimmed ? trimmed : null;
-  };
-
-  value.forEach((item) => {
-    if (typeof item !== "object" || item === null) return;
-
-    const candidate = item as Partial<StoredWorkspaceDraftTab>;
-    const id = normalizeDraftString(candidate.id);
-    if (!id || seenIds.has(id) || typeof candidate.content !== "string") return;
-
-    const path = normalizeDraftString(candidate.path);
-    if (!path && candidate.content.trim().length === 0) return;
-
-    const name = normalizeDraftString(candidate.name) ?? (path ? pathNameFromPath(path) : "Untitled.md");
-    seenIds.add(id);
-    draftTabs.push({
-      content: candidate.content,
-      id,
-      name,
-      path
-    });
-  });
-
-  return draftTabs;
-}
-
-function normalizeWorkspaceOpenFilePaths(value: unknown) {
-  if (!Array.isArray(value)) return [];
-
-  const seenPaths = new Set<string>();
-  const paths: string[] = [];
-
-  value.forEach((item) => {
-    const path = normalizeNullableString(item);
-    if (!path || seenPaths.has(path)) return;
-
-    seenPaths.add(path);
-    paths.push(path);
-  });
-
-  return paths;
-}
-
-function normalizeWorkspaceWindows(value: unknown): StoredWorkspaceWindow[] {
-  if (!Array.isArray(value)) return [];
-
-  const seenLabels = new Set<string>();
-  const windows: StoredWorkspaceWindow[] = [];
-
-  value.forEach((item) => {
-    if (typeof item !== "object" || item === null) return;
-
-    const candidate = item as Partial<StoredWorkspaceWindow>;
-    const label = normalizeNullableString(candidate.label);
-    if (!label || seenLabels.has(label)) return;
-
-    const filePath = normalizeNullableString(candidate.filePath);
-    const openFilePaths = normalizeWorkspaceOpenFilePaths(candidate.openFilePaths);
-    if (filePath && !openFilePaths.includes(filePath)) openFilePaths.push(filePath);
-    if (!filePath && openFilePaths.length === 0) return;
-
-    seenLabels.add(label);
-    windows.push({
-      filePath,
-      label,
-      openFilePaths
-    });
-  });
-
-  return windows;
-}
-
-function normalizeWorkspaceSideBySideGroup(value: unknown): StoredWorkspaceSideBySideGroup | null {
-  if (typeof value !== "object" || value === null) return null;
-
-  const group = value as Partial<StoredWorkspaceSideBySideGroup>;
-  const primaryFilePath = normalizeNullableString(group.primaryFilePath);
-  const sideFilePath = normalizeNullableString(group.sideFilePath);
-  if (!primaryFilePath || !sideFilePath || primaryFilePath === sideFilePath) return null;
-
-  return {
-    primaryFilePath,
-    sideFilePath
-  };
 }
 
 function aiAgentSessionStorePath(sessionId: string | null) {
