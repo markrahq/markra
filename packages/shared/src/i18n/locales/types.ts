@@ -195,6 +195,7 @@ export type I18nKey =
   | "settings.sync.webdavUrl"
   | "settings.sync.webdavUrlDescription"
   | "settings.sync.remotePath"
+  | "settings.sync.remotePathPlaceholder"
   | "settings.sync.remotePathDescription"
   | "settings.sync.username"
   | "settings.sync.usernameDescription"

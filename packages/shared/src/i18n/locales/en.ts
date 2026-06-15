@@ -171,6 +171,7 @@ const messages: BaseLocaleMessages = {
   "settings.sync.webdavUrl": "WebDAV URL",
   "settings.sync.webdavUrlDescription": "Base WebDAV collection URL from your provider.",
   "settings.sync.remotePath": "Remote folder",
+  "settings.sync.remotePathPlaceholder": "e.g. markra",
   "settings.sync.remotePathDescription": "Remote notes folder. Sync uploads and downloads changes, preserving conflicts as copies.",
   "settings.sync.username": "Username",
   "settings.sync.usernameDescription": "WebDAV username stored locally in Markra settings.",

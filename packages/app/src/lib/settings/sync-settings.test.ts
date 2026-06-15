@@ -17,9 +17,28 @@ describe("sync settings", () => {
   it("loads remote sync settings disabled by default", async () => {
     store.get.mockResolvedValue(undefined);
 
-    await expect(getStoredSyncSettings()).resolves.toEqual(defaultSyncSettings);
+    await expect(getStoredSyncSettings()).resolves.toEqual({
+      ...defaultSyncSettings,
+      remotePath: "markra"
+    });
 
     expect(store.get).toHaveBeenCalledWith("syncSettings");
+  });
+
+  it("defaults the remote sync folder to markra", () => {
+    expect(normalizeSyncSettings({})).toEqual({
+      ...defaultSyncSettings,
+      remotePath: "markra"
+    });
+  });
+
+  it("keeps an explicitly cleared remote sync folder empty while editing", () => {
+    expect(normalizeSyncSettings({
+      remotePath: " "
+    })).toEqual({
+      ...defaultSyncSettings,
+      remotePath: ""
+    });
   });
 
   it("normalizes and persists WebDAV sync settings", async () => {

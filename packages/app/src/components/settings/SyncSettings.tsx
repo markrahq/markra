@@ -81,7 +81,7 @@ export function SyncSettings({
           <SettingsTextInput
             label={translate("settings.sync.remotePath")}
             value={settings.remotePath}
-            placeholder="markra"
+            placeholder={translate("settings.sync.remotePathPlaceholder")}
             widthClassName="w-56"
             onChange={(remotePath) =>
               onUpdateSettings({

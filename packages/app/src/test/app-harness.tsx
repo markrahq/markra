@@ -212,7 +212,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     intervalMinutes: 0,
     lastSyncAt: null,
     provider: "webdav",
-    remotePath: ""
+    remotePath: "markra"
   },
   defaultSplitVisualPanePercent: 50,
   splitVisualPanePercentMin: 25,
@@ -1149,7 +1149,7 @@ export function installAppTestHarness() {
       intervalMinutes: 0,
       lastSyncAt: null,
       provider: "webdav",
-      remotePath: ""
+      remotePath: "markra"
     });
     mockedGetStoredCustomThemeCss.mockResolvedValue(":root[data-theme=\"custom\"] { --bg-primary: #fdf6e3; }");
     mockedGetStoredTheme.mockResolvedValue("light");

@@ -34,6 +34,10 @@ describe("SyncSettings", () => {
     expect(screen.queryByRole("textbox", { name: "WebDAV URL" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "Username" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Password")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Remote folder" })).toHaveAttribute(
+      "placeholder",
+      "e.g. markra"
+    );
 
     fireEvent.click(screen.getByRole("switch", { name: "Enable sync" }));
     expect(onUpdateSettings).toHaveBeenCalledWith({
@@ -79,6 +83,7 @@ describe("SyncSettings", () => {
       />
     );
 
+    expect(screen.getByRole("textbox", { name: "Remote folder" })).toHaveValue("markra");
     expect(screen.getByRole("button", { name: "Sync now" })).toBeDisabled();
   });
 });

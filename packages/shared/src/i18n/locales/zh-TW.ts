@@ -509,6 +509,7 @@ const messages: LocaleMessages = {
   "settings.sync.webdavUrl": "WebDAV 位址",
   "settings.sync.webdavUrlDescription": "服務提供者給的 WebDAV 基礎目錄位址。",
   "settings.sync.remotePath": "遠端資料夾",
+  "settings.sync.remotePathPlaceholder": "例如：markra",
   "settings.sync.remotePathDescription": "遠端筆記資料夾。同步會上傳和下載變更，衝突會保留為副本。",
   "settings.sync.username": "使用者名稱",
   "settings.sync.usernameDescription": "WebDAV 使用者名稱會儲存在本機 Markra 設定中。",

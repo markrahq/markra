@@ -18,13 +18,15 @@ export type SyncSettings = {
   remotePath: string;
 };
 
+const defaultSyncRemotePath = "markra";
+
 export const defaultSyncSettings: SyncSettings = {
   autoSyncOnSave: false,
   enabled: false,
   intervalMinutes: 0,
   lastSyncAt: null,
   provider: "webdav",
-  remotePath: ""
+  remotePath: defaultSyncRemotePath
 };
 
 const syncIntervalMinutesMin = 0;
@@ -58,9 +60,12 @@ export function normalizeSyncSettings(value: unknown): SyncSettings {
       : Math.round(intervalMinutes),
     lastSyncAt: lastSyncAt === null ? null : Math.round(lastSyncAt),
     provider: settings.provider === "webdav" ? "webdav" : defaultSyncSettings.provider,
-    remotePath:
-      normalizeNullableString(settings.remotePath)?.trim()
-      ?? normalizeNullableString(legacyWebDav.remotePath)?.trim()
-      ?? defaultSyncSettings.remotePath
+    remotePath: normalizeSyncRemotePath(settings.remotePath, legacyWebDav.remotePath)
   };
+}
+
+function normalizeSyncRemotePath(remotePath: unknown, legacyRemotePath: unknown) {
+  if (typeof remotePath === "string") return remotePath.trim();
+
+  return normalizeNullableString(legacyRemotePath)?.trim() ?? defaultSyncSettings.remotePath;
 }
