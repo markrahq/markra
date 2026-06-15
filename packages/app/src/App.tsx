@@ -64,6 +64,7 @@ import { useDefaultContextMenuBlocker } from "./hooks/useDefaultContextMenuBlock
 import { useSyncSettings } from "./hooks/useSyncSettings";
 import { useWebSearchSettings } from "./hooks/useWebSearchSettings";
 import { useSettingsWindowRoute } from "./hooks/useSettingsWindowRoute";
+import { useStartupWindowReveal } from "./hooks/useStartupWindowReveal";
 import { useWorkspaceBackupSync } from "./hooks/useWorkspaceBackupSync";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
 import {
@@ -206,7 +207,13 @@ export { globalSearchDebounceMs } from "./hooks/useWorkspaceSearch";
 export default function App() {
   const isSettingsRoute = useSettingsWindowRoute();
 
-  return isSettingsRoute ? <SettingsWindow /> : <WorkspaceApp />;
+  return isSettingsRoute ? <SettingsRouteApp /> : <WorkspaceApp />;
+}
+
+function SettingsRouteApp() {
+  useStartupWindowReveal({ ready: true });
+
+  return <SettingsWindow />;
 }
 
 function WorkspaceApp() {
@@ -577,6 +584,17 @@ function WorkspaceApp() {
       sizeBytes: document.sizeBytes
     });
   largeMarkdownVisualBlockedRef.current = largeMarkdownVisualBlocked;
+  const startupSettingsReady = appLanguage.ready && !editorPreferences.loading;
+  const startupWindowReady =
+    startupSettingsReady &&
+    (
+      Boolean(activeImageFile) ||
+      !hasOpenDocument ||
+      sourceSurfaceActive ||
+      largeMarkdownVisualBlocked ||
+      visualEditorReadyRevisionRef.current === documentRevisionRef.current
+    );
+  useStartupWindowReveal({ ready: startupWindowReady });
   const documentHistoryAvailable = hasOpenDocument && document.path !== null && !activeImageFile && !readOnlyMode;
   const documentSearchAvailable = hasOpenDocument && !activeImageFile;
   const documentSearchSurface: EditorSurface =

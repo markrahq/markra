@@ -1,4 +1,4 @@
-import { type CSSProperties, type Ref, type UIEvent } from "react";
+import { lazy, Suspense, type CSSProperties, type Ref, type UIEvent } from "react";
 import { t, type AppLanguage } from "@markra/shared";
 import {
   editorContentWidthPixels,
@@ -8,7 +8,13 @@ import {
 } from "../lib/editor-width";
 import type { EditorTheme } from "../lib/settings/app-settings";
 import { EditorWidthResizer } from "./EditorWidthResizer";
-import { MarkdownPaperSurface, type MarkdownPaperSurfaceProps } from "./MarkdownPaperSurface";
+import type { MarkdownPaperSurfaceProps } from "./MarkdownPaperSurface";
+
+const MarkdownPaperSurface = lazy(async () => {
+  const module = await import("./MarkdownPaperSurface");
+
+  return { default: module.MarkdownPaperSurface };
+});
 
 type MarkdownPaperProps = {
   autoFocus?: boolean;
@@ -50,6 +56,16 @@ function editorBottomPadding(bottomOverlayInset: number) {
   if (bottomOverlayInset <= 0) return 0;
 
   return `${bottomOverlayInset}px`;
+}
+
+function MarkdownPaperSurfaceFallback() {
+  return (
+    <div
+      aria-hidden="true"
+      className="min-h-6"
+      data-editor-engine="milkdown-loading"
+    />
+  );
 }
 
 export function MarkdownPaper({
@@ -122,24 +138,26 @@ export function MarkdownPaper({
           onResizeEnd={onContentWidthResizeEnd}
           onResizeStart={onContentWidthResizeStart}
         />
-        <MarkdownPaperSurface
-          autoFocus={autoFocus}
-          documentPath={documentPath}
-          extendedSyntax={extendedSyntax}
-          initialContent={initialContent}
-          language={language}
-          markdownShortcuts={markdownShortcuts}
-          onActiveOutlineIndexChange={onActiveOutlineIndexChange}
-          onEditorReady={onEditorReady}
-          onMarkdownChange={onMarkdownChange}
-          onSaveClipboardImage={onSaveClipboardImage}
-          onSaveRemoteClipboardImage={onSaveRemoteClipboardImage}
-          openExternalUrl={openExternalUrl}
-          readOnly={readOnly}
-          onTextSelectionChange={onTextSelectionChange}
-          resolveImageSrc={resolveImageSrc}
-          workspaceFiles={workspaceFiles}
-        />
+        <Suspense fallback={<MarkdownPaperSurfaceFallback />}>
+          <MarkdownPaperSurface
+            autoFocus={autoFocus}
+            documentPath={documentPath}
+            extendedSyntax={extendedSyntax}
+            initialContent={initialContent}
+            language={language}
+            markdownShortcuts={markdownShortcuts}
+            onActiveOutlineIndexChange={onActiveOutlineIndexChange}
+            onEditorReady={onEditorReady}
+            onMarkdownChange={onMarkdownChange}
+            onSaveClipboardImage={onSaveClipboardImage}
+            onSaveRemoteClipboardImage={onSaveRemoteClipboardImage}
+            openExternalUrl={openExternalUrl}
+            readOnly={readOnly}
+            onTextSelectionChange={onTextSelectionChange}
+            resolveImageSrc={resolveImageSrc}
+            workspaceFiles={workspaceFiles}
+          />
+        </Suspense>
       </article>
     </section>
   );

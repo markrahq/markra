@@ -258,6 +258,7 @@ export type AppWindowRuntime = {
   openSettingsWindow: (target?: NativeSettingsWindowTarget) => Promise<unknown>;
   setEditorWindowRestoreState: (input: SetNativeEditorWindowRestoreStateInput) => Promise<unknown>;
   setWindowTitle: (title: string) => Promise<unknown>;
+  showWindow: () => Promise<unknown>;
   toggleWindowFullscreen: () => Promise<unknown>;
   toggleWindowMaximized: () => Promise<unknown>;
 };
@@ -415,6 +416,7 @@ export function createDefaultAppRuntime(): AppRuntime {
           document.title = title;
         }
       },
+      showWindow: async () => undefined,
       toggleWindowFullscreen: async () => undefined,
       toggleWindowMaximized: async () => undefined
     }

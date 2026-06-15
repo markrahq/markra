@@ -311,7 +311,7 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "milkdown");
-    expect(container.querySelector("[data-milkdown-root]")).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector("[data-milkdown-root]")).toBeInTheDocument());
     expect(screen.queryByText("File")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle file list" })).toBeInTheDocument();
