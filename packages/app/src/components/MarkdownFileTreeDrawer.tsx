@@ -42,9 +42,12 @@ import {
   TableOfContents,
   X
 } from "lucide-react";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 import { clampNumber, t, type AppLanguage } from "@markra/shared";
 import { IconButton } from "@markra/ui";
-import type { MarkdownOutlineItem } from "@markra/markdown";
+import { markraHighlightRemarkPlugin, type MarkdownOutlineItem } from "@markra/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
 import { normalizeMovedPath, sameNativePath } from "../lib/path-move";
 import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
@@ -154,9 +157,54 @@ const fileTreeDropListTargetClassName = "rounded-sm bg-(--bg-active)";
 const sidebarPanelTabBaseClassName = "relative -mb-px h-10 cursor-pointer border-0 border-b border-transparent bg-transparent px-2 text-[13px] leading-none font-[560] transition-colors duration-150 ease-out focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)";
 const sidebarPanelTabActiveClassName = "border-(--text-secondary) text-(--text-heading)";
 const sidebarPanelTabInactiveClassName = "text-(--text-secondary) hover:text-(--text-heading)";
+const outlineTitleMarkdownPlugins = [remarkGfm, remarkMath, markraHighlightRemarkPlugin];
+const outlineTitleMarkdownComponents = {
+  a: ({ children }) => <>{children}</>,
+  code: ({ children, className }) => {
+    const isMath = typeof className === "string" && className.split(/\s+/u).includes("math-inline");
+    if (isMath) {
+      return <span className="markra-outline-title-math font-mono text-[0.92em] text-(--text-heading)">{children}</span>;
+    }
+
+    return (
+      <code className="rounded-sm bg-(--bg-active) px-0.75 py-0.25 font-mono text-[0.92em] text-(--text-heading)">
+        {children}
+      </code>
+    );
+  },
+  del: ({ children }) => <del className="line-through decoration-(--text-tertiary) decoration-1">{children}</del>,
+  em: ({ children }) => (
+    <em className="italic text-(--text-primary)" style={{ fontStyle: "italic", fontSynthesis: "style" }}>
+      {children}
+    </em>
+  ),
+  img: ({ alt }) => <>{alt}</>,
+  mark: ({ children }) => (
+    <mark className="rounded-sm bg-(--accent-soft) px-0.5 text-(--text-heading)">
+      {children}
+    </mark>
+  ),
+  p: ({ children }) => <>{children}</>,
+  strong: ({ children }) => <strong className="font-[760] text-(--text-heading)">{children}</strong>
+} satisfies Components;
 
 function sidebarPanelTabClassName(selected: boolean) {
   return `${sidebarPanelTabBaseClassName} ${selected ? sidebarPanelTabActiveClassName : sidebarPanelTabInactiveClassName}`;
+}
+
+function OutlineTitle({ item }: { item: MarkdownOutlineItem }) {
+  if (!item.titleMarkdown || item.titleMarkdown === item.title) return item.title;
+
+  return (
+    <ReactMarkdown
+      allowedElements={["a", "br", "code", "del", "em", "img", "mark", "p", "strong"]}
+      components={outlineTitleMarkdownComponents}
+      remarkPlugins={outlineTitleMarkdownPlugins}
+      unwrapDisallowed
+    >
+      {item.titleMarkdown}
+    </ReactMarkdown>
+  );
 }
 
 export function MarkdownFileTreeDrawer({
@@ -1318,7 +1366,7 @@ export function MarkdownFileTreeDrawer({
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => onSelectOutlineItem(item, index)}
                 >
-                  {item.title}
+                  <OutlineTitle item={item} />
                 </button>
               </div>
             </li>

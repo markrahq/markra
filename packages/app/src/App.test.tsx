@@ -3740,6 +3740,62 @@ describe("Markra workspace", () => {
     );
   });
 
+  it("scrolls to a formatted outline heading using its readable title", async () => {
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nParagraph\n\n## **Synthetic** heading\n\nTarget body",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    const formattedHeading = await screen.findByRole("heading", { name: "Synthetic heading" });
+
+    const writingSurface = screen.getByLabelText("Writing surface");
+    const scrollTo = vi.fn();
+    Object.defineProperty(writingSurface, "scrollTop", {
+      configurable: true,
+      value: 120
+    });
+    Object.defineProperty(writingSurface, "scrollTo", {
+      configurable: true,
+      value: scrollTo
+    });
+    vi.spyOn(writingSurface, "getBoundingClientRect").mockReturnValue({
+      bottom: 710,
+      height: 700,
+      left: 0,
+      right: 900,
+      top: 10,
+      width: 900,
+      x: 0,
+      y: 10,
+      toJSON: () => ({})
+    });
+    vi.spyOn(formattedHeading, "getBoundingClientRect").mockReturnValue({
+      bottom: 350,
+      height: 40,
+      left: 160,
+      right: 760,
+      top: 310,
+      width: 600,
+      x: 160,
+      y: 310,
+      toJSON: () => ({})
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    fireEvent.click(screen.getByRole("button", { name: "Synthetic heading" }));
+
+    await waitFor(() =>
+      expect(scrollTo).toHaveBeenCalledWith({
+        behavior: "auto",
+        top: 356
+      })
+    );
+  });
+
   it("keeps outline heading navigation stable across repeated heading clicks", async () => {
     mockOpenMarkdownFile({
       content: "# A\n\nA body\n\n# B\n\nB body",

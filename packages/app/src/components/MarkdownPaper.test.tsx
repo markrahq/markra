@@ -53,6 +53,7 @@ async function renderEditor(
     onSaveClipboardImage?: (image: File) => Promise<{ alt: string; src: string } | null>;
     onSaveRemoteClipboardImage?: (image: RemoteClipboardImage) => Promise<{ alt: string; src: string } | null>;
     openExternalUrl?: (url: string) => unknown;
+    bottomOverlayInset?: number;
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
     readOnly?: boolean;
     resolveImageSrc?: (src: string) => string;
@@ -72,6 +73,7 @@ async function renderEditor(
     <MarkdownPaper
       documentPath={options.documentPath}
       editorTheme={options.editorTheme}
+      bottomOverlayInset={options.bottomOverlayInset}
       initialContent={initialContent}
       onEditorReady={(instance) => {
         editor = instance;
@@ -781,6 +783,20 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelector(".paper-scroll")).toHaveClass("overscroll-none");
     expect(container.querySelector(".paper-scroll")).toHaveClass("h-full", "min-h-0", "overflow-auto");
+  });
+
+  it("keeps enough bottom space for outline jumps near the end of a document", async () => {
+    const { container } = await renderEditor("# Synthetic heading");
+    const paper = container.querySelector(".markdown-paper");
+
+    expect(paper?.getAttribute("style")).toContain("padding-bottom: calc(100vh - 4rem)");
+  });
+
+  it("adds bottom overlays to the outline jump reserve", async () => {
+    const { container } = await renderEditor("# Synthetic heading", { bottomOverlayInset: 96 });
+    const paper = container.querySelector(".markdown-paper");
+
+    expect(paper?.getAttribute("style")).toContain("padding-bottom: calc(96px + calc(100vh - 4rem))");
   });
 
   it("marks the editor paper with the default resolved app theme", async () => {

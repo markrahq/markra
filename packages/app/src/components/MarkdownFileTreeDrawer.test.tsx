@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MarkdownFileTreeDrawer } from "./MarkdownFileTreeDrawer";
+import { getMarkdownOutline } from "@markra/markdown";
 import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 
 vi.mock("../lib/tauri", () => ({
@@ -1981,6 +1982,119 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(screen.getByText("Details")).toBeInTheDocument();
     expect(screen.getByText("Obsidian Vault")).toBeInTheDocument();
     expect(selectOutlineItem).toHaveBeenCalledWith({ level: 2, title: "Details" }, 1);
+  });
+
+  it("renders inline markdown formatting in outline titles", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[
+          {
+            level: 1,
+            title: "Bold italic deleted",
+            titleMarkdown: "**Bold** _italic_ ~~deleted~~"
+          }
+        ]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const outlineButton = screen.getByRole("button", { name: "Bold italic deleted" });
+    const boldTitle = within(outlineButton).getByText("Bold");
+    const italicTitle = within(outlineButton).getByText("italic");
+    const deletedTitle = within(outlineButton).getByText("deleted");
+
+    expect(boldTitle.tagName).toBe("STRONG");
+    expect(boldTitle).toHaveClass("font-[760]");
+    expect(italicTitle.tagName).toBe("EM");
+    expect(italicTitle).toHaveClass("italic");
+    expect(italicTitle.getAttribute("style")).toContain("font-style: italic");
+    expect(italicTitle.getAttribute("style")).toContain("font-synthesis: style");
+    expect(deletedTitle.tagName).toBe("DEL");
+  });
+
+  it("renders Markra highlight and inline math in outline titles", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[
+          {
+            level: 1,
+            title: "Marked formula x^2",
+            titleMarkdown: "==Marked== formula $x^2$"
+          }
+        ]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const outlineButton = screen.getByRole("button", { name: "Marked formula x^2" });
+    const highlightedTitle = within(outlineButton).getByText("Marked");
+    const mathTitle = within(outlineButton).getByText("x^2");
+
+    expect(highlightedTitle.tagName).toBe("MARK");
+    expect(highlightedTitle).toHaveClass("bg-(--accent-soft)");
+    expect(mathTitle).toHaveClass("markra-outline-title-math");
+  });
+
+  it("keeps links and images as plain outline title text", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[
+          {
+            level: 1,
+            title: "Linked Alt text",
+            titleMarkdown: "[Linked](https://example.test) ![Alt text](asset.png)"
+          }
+        ]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const outlineButton = screen.getByRole("button", { name: "Linked Alt text" });
+
+    expect(outlineButton).toHaveTextContent("Linked Alt text");
+    expect(outlineButton.querySelector("a")).not.toBeInTheDocument();
+    expect(outlineButton.querySelector("img")).not.toBeInTheDocument();
+    expect(outlineButton.querySelector(".underline")).not.toBeInTheDocument();
+  });
+
+  it("renders combined bold and italic outline titles from markdown content", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={getMarkdownOutline("## ***Synthetic***")}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const outlineButton = screen.getByRole("button", { name: "Synthetic" });
+    const strongTitle = outlineButton.querySelector("strong");
+    const italicTitle = outlineButton.querySelector("em");
+
+    expect(strongTitle).toHaveTextContent("Synthetic");
+    expect(strongTitle).toHaveClass("font-[760]");
+    expect(italicTitle).toHaveTextContent("Synthetic");
+    expect(italicTitle).toHaveClass("italic");
+    expect(italicTitle?.getAttribute("style")).toContain("font-style: italic");
+    expect(italicTitle?.getAttribute("style")).toContain("font-synthesis: style");
   });
 
   it("collapses nested outline headings without affecting later siblings", () => {

@@ -45,6 +45,14 @@ type MarkdownPaperProps = {
   wrapCodeBlocks?: boolean;
 };
 
+const editorBottomScrollReserve = "calc(100vh - 4rem)";
+
+function editorBottomPadding(bottomOverlayInset: number) {
+  if (bottomOverlayInset <= 0) return editorBottomScrollReserve;
+
+  return `calc(${editorBottomScrollReserve} + ${bottomOverlayInset}px)`;
+}
+
 export function MarkdownPaper({
   autoFocus = false,
   bottomOverlayInset = 0,
@@ -84,7 +92,7 @@ export function MarkdownPaper({
     fontSize: `${bodyFontSize}px`,
     lineHeight,
     maxWidth: `${resolvedContentWidth}px`,
-    ...(bottomOverlayInset > 0 ? { paddingBottom: `${bottomOverlayInset}px` } : {})
+    paddingBottom: editorBottomPadding(bottomOverlayInset)
   } satisfies CSSProperties;
   const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";
   const editorInstanceKey = `${documentKey ?? "untitled"}:${documentPath ?? "unsaved"}:${revision}`;

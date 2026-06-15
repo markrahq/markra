@@ -18,7 +18,12 @@
   },
   "dependencies": {
     "@markra/shared": "workspace:*",
-    "@tauri-apps/api": "2.11.0"
+    "@tauri-apps/api": "2.11.0",
+    "mdast-util-to-string": "4.0.0",
+    "remark-gfm": "4.0.1",
+    "remark-math": "6.0.0",
+    "remark-parse": "11.0.0",
+    "unified": "11.0.5"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

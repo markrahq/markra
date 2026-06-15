@@ -17,4 +17,26 @@ describe("markdown helpers", () => {
       { level: 2, title: "Next" }
     ]);
   });
+
+  it("extracts readable titles from formatted markdown headings", () => {
+    expect(
+      getMarkdownOutline(
+        [
+          "# **Synthetic** heading",
+          "## _Linked_ [label](https://example.test)",
+          "### `Code` and ~~old text~~"
+        ].join("\n\n")
+      )
+    ).toEqual([
+      { level: 1, title: "Synthetic heading", titleMarkdown: "**Synthetic** heading" },
+      { level: 2, title: "Linked label", titleMarkdown: "_Linked_ [label](https://example.test)" },
+      { level: 3, title: "Code and old text", titleMarkdown: "`Code` and ~~old text~~" }
+    ]);
+  });
+
+  it("extracts readable titles from Markra highlight and math headings", () => {
+    expect(getMarkdownOutline("# ==Marked== formula $x^2$")).toEqual([
+      { level: 1, title: "Marked formula x^2", titleMarkdown: "==Marked== formula $x^2$" }
+    ]);
+  });
 });
