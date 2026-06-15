@@ -525,16 +525,31 @@ function mockBlockDragLayout(view: EditorView, blocks: HTMLElement[], positions:
   };
 }
 
+function isEditorTopLevelBlockElement(child: Element): child is HTMLElement {
+  return child instanceof HTMLElement && !child.classList.contains("markra-trailing-paragraph");
+}
+
+function editorTopLevelBlockElementsFromSurface(surface: HTMLElement) {
+  return Array.from(surface.children).filter(isEditorTopLevelBlockElement);
+}
+
+function editorTopLevelBlockElements(container: HTMLElement) {
+  const surface = container.querySelector<HTMLElement>(".ProseMirror");
+  if (!surface) throw new Error("Could not find editor surface.");
+
+  return editorTopLevelBlockElementsFromSurface(surface);
+}
+
 function mockTopLevelBlockDragLayout(view: EditorView, container: HTMLElement) {
   return mockBlockDragLayout(
     view,
-    Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > *")),
+    editorTopLevelBlockElements(container),
     topLevelBlockPositions(view)
   );
 }
 
 function mockThinHorizontalRuleBlockDragLayout(view: EditorView, container: HTMLElement) {
-  const blocks = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror > *"));
+  const blocks = editorTopLevelBlockElements(container);
   const positions = topLevelBlockPositions(view);
   const blockRects = [
     {
@@ -626,7 +641,7 @@ function mockTopLevelBlockDragLayoutByCurrentDomOrder(view: EditorView, containe
   const surface = container.querySelector<HTMLElement>(".ProseMirror");
   if (!surface) throw new Error("Could not find editor surface.");
 
-  const blocks = Array.from(surface.children).filter((child): child is HTMLElement => child instanceof HTMLElement);
+  const blocks = editorTopLevelBlockElements(container);
   const positions = topLevelBlockPositions(view);
   const originalPosAtCoords = view.posAtCoords.bind(view);
 
@@ -646,7 +661,9 @@ function mockTopLevelBlockDragLayoutByCurrentDomOrder(view: EditorView, containe
   };
 
   for (const block of blocks) {
-    block.getBoundingClientRect = vi.fn(() => rectForIndex(Array.from(surface.children).indexOf(block)));
+    block.getBoundingClientRect = vi.fn(() =>
+      rectForIndex(editorTopLevelBlockElementsFromSurface(surface).indexOf(block))
+    );
   }
 
   view.dom.getBoundingClientRect = vi.fn(() => ({
@@ -6927,6 +6944,96 @@ describe("MarkdownPaper editing", () => {
     expect(view.state.doc.child(view.state.doc.childCount - 1).type.name).toBe("paragraph");
     expect(view.state.doc.child(view.state.doc.childCount - 1).textContent).toBe("After terminal block");
     expect(serializeMarkdown(view.state.doc)).toContain("After terminal block");
+  });
+
+  it("creates a trailing paragraph after clicking past a terminal body paragraph", async () => {
+    const { container, editor, view } = await renderEditor("Synthetic body");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    let trailingAffordance: HTMLElement | null = null;
+
+    await waitFor(() => {
+      trailingAffordance = container.querySelector(".ProseMirror .markra-trailing-paragraph");
+      expect(trailingAffordance).toBeInTheDocument();
+    });
+
+    expect(view.state.doc.childCount).toBe(1);
+    expect(view.state.doc.child(0).type.name).toBe("paragraph");
+    expect(view.state.doc.child(0).textContent).toBe("Synthetic body");
+
+    fireEvent.mouseDown(trailingAffordance!);
+
+    await waitFor(() => expect(view.state.doc.childCount).toBe(2));
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).content.size).toBe(0);
+
+    typeText(view, "Next body");
+
+    expect(view.state.doc.child(1).textContent).toBe("Next body");
+    expect(serializeMarkdown(view.state.doc)).toContain("Next body");
+  });
+
+  it("creates a trailing paragraph after clicking paper blank space below a terminal body paragraph", async () => {
+    const { editor, view } = await renderEditor("Synthetic body");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    fireEvent.mouseDown(screen.getByLabelText("Markdown editor"), { button: 0 });
+
+    await waitFor(() => expect(view.state.doc.childCount).toBe(2));
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).content.size).toBe(0);
+
+    typeText(view, "Next body");
+
+    expect(view.state.doc.child(1).textContent).toBe("Next body");
+    expect(serializeMarkdown(view.state.doc)).toContain("Next body");
+  });
+
+  it("creates a trailing paragraph after clicking past terminal display math", async () => {
+    const source = String.raw`$$ E = mc^2 $$`;
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    let trailingAffordance: HTMLElement | null = null;
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).toBeInTheDocument();
+      trailingAffordance = container.querySelector(".ProseMirror .markra-trailing-paragraph");
+      expect(trailingAffordance).toBeInTheDocument();
+    });
+
+    fireEvent.mouseDown(trailingAffordance!);
+
+    await waitFor(() => expect(view.state.doc.childCount).toBe(2));
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).content.size).toBe(0);
+
+    typeText(view, "After formula");
+
+    expect(view.state.doc.child(1).textContent).toBe("After formula");
+    expect(serializeMarkdown(view.state.doc)).toContain(source);
+    expect(serializeMarkdown(view.state.doc)).toContain("After formula");
+  });
+
+  it("creates a trailing paragraph after clicking paper blank space below terminal display math", async () => {
+    const source = String.raw`$$ E = mc^2 $$`;
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-math-render-display")).toBeInTheDocument();
+      expect(container.querySelector(".ProseMirror .markra-trailing-paragraph")).toBeInTheDocument();
+    });
+
+    fireEvent.mouseDown(screen.getByLabelText("Markdown editor"), { button: 0 });
+
+    await waitFor(() => expect(view.state.doc.childCount).toBe(2));
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).content.size).toBe(0);
+
+    typeText(view, "After formula");
+
+    expect(view.state.doc.child(1).textContent).toBe("After formula");
+    expect(serializeMarkdown(view.state.doc)).toContain(source);
+    expect(serializeMarkdown(view.state.doc)).toContain("After formula");
   });
 
   it.each([
