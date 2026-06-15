@@ -82,6 +82,7 @@ type CreateBlankDocumentOptions = {
 
 type MarkdownChangeOptions = {
   documentRevision?: number;
+  surface?: "source" | "visual";
 };
 
 type SaveCurrentDocumentContentOptions = {
@@ -488,6 +489,15 @@ export function useMarkdownDocument({
     if (options.documentRevision !== undefined && options.documentRevision !== current.revision) return;
     if (!current.open || current.content === content) return;
     const editorContentEquivalent = isActiveEditorMarkdownEquivalent(current.content);
+    if (
+      !current.dirty &&
+      options.surface === "visual" &&
+      editorContentEquivalent === true &&
+      !isEquivalentEditorMarkdown(current.content, content) &&
+      isActiveEditorMarkdownEquivalent(content) === false
+    ) {
+      return;
+    }
     const nextDocument =
       !current.dirty && (editorContentEquivalent === true || isEquivalentEditorMarkdown(current.content, content))
         ? { ...current, content, dirty: false }
