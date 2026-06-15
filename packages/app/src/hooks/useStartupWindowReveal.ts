@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { showNativeWindow } from "../lib/tauri";
 
 export const startupWindowRevealFallbackMs = 1800;
+export const startupWindowRevealPaintFallbackMs = 120;
 
 type UseStartupWindowRevealOptions = {
   fallbackMs?: number;
@@ -15,12 +16,28 @@ function scheduleAfterNextPaint(callback: () => unknown) {
     return () => clearTimeout(timeout);
   }
 
+  let completed = false;
   let secondFrameId: number | null = null;
+  let paintFallbackTimeout: number | null = null;
+  const runCallback = () => {
+    if (completed) return;
+
+    completed = true;
+    if (paintFallbackTimeout !== null) {
+      window.clearTimeout(paintFallbackTimeout);
+    }
+    callback();
+  };
   const firstFrameId = window.requestAnimationFrame(() => {
-    secondFrameId = window.requestAnimationFrame(callback);
+    secondFrameId = window.requestAnimationFrame(runCallback);
   });
+  paintFallbackTimeout = window.setTimeout(runCallback, startupWindowRevealPaintFallbackMs);
 
   return () => {
+    completed = true;
+    if (paintFallbackTimeout !== null) {
+      window.clearTimeout(paintFallbackTimeout);
+    }
     window.cancelAnimationFrame(firstFrameId);
     if (secondFrameId !== null) window.cancelAnimationFrame(secondFrameId);
   };

@@ -73,4 +73,19 @@ describe("useStartupWindowReveal", () => {
 
     expect(revealWindow).toHaveBeenCalledTimes(1);
   });
+
+  it("reveals even when hidden windows do not run animation frames", async () => {
+    vi.mocked(window.requestAnimationFrame).mockImplementation(() => 1);
+    const revealWindow = vi.fn().mockResolvedValue(undefined);
+    render(
+      <StartupWindowRevealTest
+        ready
+        revealWindow={revealWindow}
+      />
+    );
+
+    await vi.advanceTimersByTimeAsync(150);
+
+    expect(revealWindow).toHaveBeenCalledTimes(1);
+  });
 });

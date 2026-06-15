@@ -173,7 +173,11 @@ export async function showNativeWindow() {
   if (!currentWindow) return;
 
   await currentWindow.show();
-  await currentWindow.setFocus();
+  try {
+    await currentWindow.setFocus();
+  } catch {
+    // Focusing is best-effort; showing the window is the startup-critical action.
+  }
 }
 
 export async function toggleNativeWindowMaximized() {

@@ -126,6 +126,17 @@ describe("native window actions", () => {
     expect(setFocus).toHaveBeenCalledTimes(1);
   });
 
+  it("keeps the window show action successful when focusing fails", async () => {
+    const show = vi.fn().mockResolvedValue(undefined);
+    const setFocus = vi.fn().mockRejectedValue(new Error("focus denied"));
+    mockedGetCurrentWindow.mockReturnValue({ show, setFocus } as unknown as ReturnType<typeof getCurrentWindow>);
+
+    await expect(showNativeWindow()).resolves.toBeUndefined();
+
+    expect(show).toHaveBeenCalledTimes(1);
+    expect(setFocus).toHaveBeenCalledTimes(1);
+  });
+
   it("toggles the current Tauri window maximized state", async () => {
     const toggleMaximize = vi.fn().mockResolvedValue(undefined);
     mockedGetCurrentWindow.mockReturnValue({ toggleMaximize } as unknown as ReturnType<typeof getCurrentWindow>);
