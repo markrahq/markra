@@ -2165,14 +2165,14 @@ function WorkspaceApp() {
     if (readOnlyMode) return;
 
     if (splitMode) setActiveEditorSurface("visual");
-    handleMarkdownChange(content, options);
+    handleMarkdownChange(content, { ...options, surface: "visual" });
   }, [handleMarkdownChange, isApplyingSourceToVisualSync, readOnlyMode, sourceSurfaceActive, splitMode]);
   const handleSourceMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
     if (readOnlyMode) return;
 
     markSourceEditForHistory(content, options);
     if (splitMode) setActiveEditorSurface("source");
-    handleMarkdownChange(content, options);
+    handleMarkdownChange(content, { ...options, surface: "source" });
   }, [handleMarkdownChange, markSourceEditForHistory, readOnlyMode, splitMode]);
   const syncSplitPaneScrollPosition = useCallback((sourceSurface: EditorSurface, sourceElement: HTMLElement) => {
     if (!splitMode) return false;

@@ -1808,6 +1808,68 @@ describe("useMarkdownDocument", () => {
     ]);
   });
 
+  it("ignores stale clean editor changes emitted after saving", async () => {
+    let editorMarkdown = "# Guide\n\nSaved";
+    const confirmDiscardUnsavedChanges = vi.fn(() => true);
+    mockedOpenNativeMarkdownPath.mockResolvedValueOnce({
+      kind: "file",
+      file: {
+        content: "# Notes\n\nClean",
+        name: "notes.md",
+        path: "/mock-files/notes.md"
+      }
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "# Guide\n\nOriginal",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    mockedSaveNativeMarkdownFile.mockResolvedValueOnce({
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        getCurrentMarkdown: () => editorMarkdown,
+        isCurrentMarkdownEquivalent: (markdown) => markdown === editorMarkdown,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+    act(() => {
+      result.current.handleMarkdownChange(editorMarkdown, { surface: "visual" });
+    });
+    await act(async () => {
+      await result.current.saveCurrentDocument();
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("# Guide\n\nOriginal", { surface: "visual" });
+    });
+    await act(async () => {
+      await result.current.openMarkdownFile();
+    });
+
+    expect(confirmDiscardUnsavedChanges).not.toHaveBeenCalled();
+    expect(result.current.document).toMatchObject({
+      content: "# Notes\n\nClean",
+      dirty: false,
+      name: "notes.md",
+      path: "/mock-files/notes.md"
+    });
+  });
+
   it("clears a saved file draft after saving the document", async () => {
     const guidePath = "/mock-files/vault/guide.md";
     mockedReadNativeMarkdownFile.mockResolvedValue({
