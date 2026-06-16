@@ -542,6 +542,17 @@ function editorTopLevelBlockElements(container: HTMLElement) {
   return editorTopLevelBlockElementsFromSurface(surface);
 }
 
+function mockTopLevelBlockRects(container: HTMLElement, rects: DOMRect[]) {
+  const blocks = editorTopLevelBlockElements(container);
+  if (blocks.length !== rects.length) {
+    throw new Error(`Expected ${rects.length} editor blocks, found ${blocks.length}.`);
+  }
+
+  for (const [index, block] of blocks.entries()) {
+    block.getBoundingClientRect = vi.fn(() => rects[index]);
+  }
+}
+
 function mockTopLevelBlockDragLayout(view: EditorView, container: HTMLElement) {
   return mockBlockDragLayout(
     view,
@@ -6987,6 +6998,55 @@ describe("MarkdownPaper editing", () => {
 
     expect(view.state.doc.child(1).textContent).toBe("Next body");
     expect(serializeMarkdown(view.state.doc)).toContain("Next body");
+  });
+
+  it("does not create a trailing paragraph after clicking paper blank space before the final block", async () => {
+    const { container, view } = await renderEditor("First\n\nSecond\n\nThird");
+
+    mockTopLevelBlockRects(container, [
+      {
+        bottom: 128,
+        height: 28,
+        left: 160,
+        right: 640,
+        top: 100,
+        width: 480,
+        x: 160,
+        y: 100,
+        toJSON: () => ({})
+      },
+      {
+        bottom: 188,
+        height: 28,
+        left: 160,
+        right: 640,
+        top: 160,
+        width: 480,
+        x: 160,
+        y: 160,
+        toJSON: () => ({})
+      },
+      {
+        bottom: 248,
+        height: 28,
+        left: 160,
+        right: 640,
+        top: 220,
+        width: 480,
+        x: 160,
+        y: 220,
+        toJSON: () => ({})
+      }
+    ] as DOMRect[]);
+
+    fireEvent.mouseDown(screen.getByLabelText("Markdown editor"), {
+      button: 0,
+      clientX: 672,
+      clientY: 174
+    });
+
+    expect(view.state.doc.childCount).toBe(3);
+    expect(view.state.doc.child(2).textContent).toBe("Third");
   });
 
   it("creates a trailing paragraph after clicking paper blank space below a terminal body paragraph", async () => {

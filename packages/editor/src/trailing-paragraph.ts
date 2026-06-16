@@ -42,6 +42,22 @@ function hasNonCollapsedNativeSelection(document: Document) {
   return Boolean(selection && !selection.isCollapsed);
 }
 
+function isTopLevelContentElement(element: Element): element is HTMLElement {
+  return element instanceof HTMLElement && !element.classList.contains("markra-trailing-paragraph");
+}
+
+function lastTopLevelContentElement(view: EditorView) {
+  return Array.from(view.dom.children).filter(isTopLevelContentElement).at(-1) ?? null;
+}
+
+function clickIsPastLastTopLevelBlock(view: EditorView, event: MouseEvent) {
+  const lastElement = lastTopLevelContentElement(view);
+  if (!lastElement) return true;
+
+  const rect = lastElement.getBoundingClientRect();
+  return event.clientY >= rect.bottom;
+}
+
 function insertTrailingParagraph(view: EditorView, paragraph: NodeType) {
   if (!view.editable) return false;
   if (!needsTrailingParagraphAffordance(view.state.doc, paragraph)) return false;
@@ -92,6 +108,7 @@ export function createTrailingParagraphPlugin(paragraph: NodeType) {
         const target = eventTargetElement(event.target);
         if (target !== paper) return;
         if (hasNonCollapsedNativeSelection(paper.ownerDocument)) return;
+        if (!clickIsPastLastTopLevelBlock(view, event)) return;
         if (!insertTrailingParagraph(view, paragraph)) return;
 
         event.preventDefault();
@@ -110,6 +127,7 @@ export function createTrailingParagraphPlugin(paragraph: NodeType) {
       handleDOMEvents: {
         mousedown(view, event) {
           if (event.target !== view.dom || !isPlainLeftMouseDown(event)) return false;
+          if (!clickIsPastLastTopLevelBlock(view, event)) return false;
           if (!insertTrailingParagraph(view, paragraph)) return false;
 
           event.preventDefault();
