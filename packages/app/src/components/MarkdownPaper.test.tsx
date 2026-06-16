@@ -789,11 +789,16 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".markra-search-match-current")).toHaveTextContent(",");
   });
 
-  it("keeps the writing surface from macOS-style scroll dragging", async () => {
+  it("keeps the writing surface from macOS-style scroll dragging without pane-level horizontal scroll", async () => {
     const { container } = await renderEditor();
 
     expect(container.querySelector(".paper-scroll")).toHaveClass("overscroll-none");
-    expect(container.querySelector(".paper-scroll")).toHaveClass("h-full", "min-h-0", "overflow-auto");
+    expect(container.querySelector(".paper-scroll")).toHaveClass(
+      "h-full",
+      "min-h-0",
+      "overflow-x-hidden",
+      "overflow-y-auto"
+    );
   });
 
   it("does not add base bottom padding to the visual editor paper", async () => {

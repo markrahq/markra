@@ -39,7 +39,7 @@ function MarkdownSourceEditorFallback({
   return (
     <section
       aria-hidden="true"
-      className="paper-scroll h-full min-h-0 overflow-auto overscroll-none bg-transparent"
+      className="paper-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-none bg-transparent"
       ref={scrollRef}
     >
       <article

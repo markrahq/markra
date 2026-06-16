@@ -115,7 +115,7 @@ export function MarkdownPaper({
 
   return (
     <section
-      className="paper-scroll h-full min-h-0 overflow-auto overscroll-none bg-transparent"
+      className="paper-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-none bg-transparent"
       aria-label={t(language, "app.writingSurface")}
       onScroll={onScroll}
       ref={scrollRef}

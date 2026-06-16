@@ -61,6 +61,22 @@ describe("MarkdownSourceEditor", () => {
     expect(handleChange).toHaveBeenCalledWith("# Changed");
   });
 
+  it("keeps source scrolling vertical without pane-level horizontal scroll", () => {
+    const { container } = render(
+      <MarkdownSourceEditor
+        content="# Source"
+        onChange={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".paper-scroll")).toHaveClass(
+      "h-full",
+      "min-h-0",
+      "overflow-x-hidden",
+      "overflow-y-auto"
+    );
+  });
+
   it("keeps literal markdown punctuation unchanged while editing", () => {
     const handleChange = vi.fn();
     const { container } = render(
