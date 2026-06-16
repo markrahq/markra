@@ -6490,6 +6490,20 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("does not render highlight syntax across separate inline code blocks", async () => {
+    const { container } = await renderEditor("Check `left == value`, `right == value`", {
+      extendedSyntax: {
+        githubAlerts: true,
+        highlight: true
+      }
+    });
+
+    expect(container.querySelectorAll(".ProseMirror code")).toHaveLength(2);
+    expect(container.querySelector(".ProseMirror .markra-live-mark-highlight")).not.toBeInTheDocument();
+    expectHiddenMarkdownDelimiters(container, 0);
+    await settleMarkdownListener();
+  });
+
   it("keeps typing inside filled inline delimiters styled", async () => {
     const strong = await renderEditor();
     typeText(strong.view, "****");

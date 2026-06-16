@@ -266,6 +266,78 @@ function hasManagedMark(marks: readonly Mark[] | null | undefined, markTypes: Ma
   return Boolean(marks?.some((mark) => markTypes.includes(mark.type)));
 }
 
+function getMarkTypesForKind(specs: LiveMarkdownSpec[], kind: LiveMarkdownKind) {
+  const markTypes: MarkType[] = [];
+
+  for (const spec of specs) {
+    for (const mark of spec.marks) {
+      if (mark.kind === kind && !markTypes.includes(mark.markType)) {
+        markTypes.push(mark.markType);
+      }
+    }
+  }
+
+  return markTypes;
+}
+
+function textRangeAvoidsMarks(
+  node: ProseNode,
+  from: number,
+  to: number,
+  markTypes: MarkType[]
+) {
+  let cursor = from;
+  let valid = true;
+
+  node.forEach((child, offset) => {
+    if (!valid || offset >= to) return;
+
+    const childTo = offset + child.nodeSize;
+    if (childTo <= cursor) return;
+
+    if (offset > cursor) {
+      valid = false;
+      return;
+    }
+
+    const overlapTo = Math.min(childTo, to);
+    if (!child.isText || hasManagedMark(child.marks, markTypes)) {
+      valid = false;
+      return;
+    }
+
+    cursor = overlapTo;
+  });
+
+  return valid && cursor >= to;
+}
+
+function liveMarkdownRangeHasEligibleDelimiters(
+  node: ProseNode,
+  range: LiveMarkdownRange,
+  excludedDelimiterMarkTypes: MarkType[]
+) {
+  const closingFrom = range.to - range.marker.length;
+
+  return (
+    textRangeAvoidsMarks(node, range.from, range.contentFrom, excludedDelimiterMarkTypes) &&
+    textRangeAvoidsMarks(node, closingFrom, range.to, excludedDelimiterMarkTypes)
+  );
+}
+
+function getLiveMarkdownRangesInTextblock(
+  node: ProseNode,
+  specs: LiveMarkdownSpec[]
+) {
+  if (node.type.spec.code) return [];
+
+  const inlineCodeMarkTypes = getMarkTypesForKind(specs, "inlineCode");
+
+  return getLiveMarkdownRanges(node.textContent, specs).filter((range) =>
+    liveMarkdownRangeHasEligibleDelimiters(node, range, inlineCodeMarkTypes)
+  );
+}
+
 function selectionContainsManagedMark(state: EditorState, markTypes: MarkType[]) {
   const { selection } = state;
   if (selection.empty) return false;
@@ -387,7 +459,7 @@ function deleteTextAfterLiveMarkdownRange(
   if (!$from.parent.isTextblock) return false;
 
   const cursor = $from.parentOffset;
-  const range = getLiveMarkdownRanges($from.parent.textContent, specs).find(
+  const range = getLiveMarkdownRangesInTextblock($from.parent, specs).find(
     (candidate) => candidate.to + 1 === cursor
   );
   if (!range) return false;
@@ -482,7 +554,7 @@ function buildLiveMarkdownDecorations(
     if (!node.isTextblock) return;
 
     const blockStart = position + 1;
-    const ranges = getLiveMarkdownRanges(node.textContent, specs);
+    const ranges = getLiveMarkdownRangesInTextblock(node, specs);
 
     for (const range of ranges) {
       const from = blockStart + range.from;
@@ -571,7 +643,7 @@ function findActiveLiveMarkdownRange(state: EditorState, specs: LiveMarkdownSpec
   const { $from } = selection;
   if (!$from.parent.isTextblock) return null;
 
-  const ranges = getLiveMarkdownRanges($from.parent.textContent, specs)
+  const ranges = getLiveMarkdownRangesInTextblock($from.parent, specs)
     .filter((range) => range.content.trim().length > 0)
     .filter((range) => range.from <= $from.parentOffset && $from.parentOffset <= range.to)
     .sort((left, right) => left.to - left.from - (right.to - right.from));
