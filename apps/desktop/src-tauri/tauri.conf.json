@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Markra",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "identifier": "dev.markra.app",
   "build": {
     "beforeDevCommand": "pnpm dev --host 127.0.0.1 --port 1420 --strictPort",
