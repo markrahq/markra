@@ -39,4 +39,23 @@ describe("markdown helpers", () => {
       { level: 1, title: "Marked formula x^2", titleMarkdown: "==Marked== formula $x^2$" }
     ]);
   });
+
+  it("keeps numeric chapter prefixes in heading titles", () => {
+    expect(
+      getMarkdownOutline(["## 1. Overview", "### 2) Details", "## 10. **Final** chapter"].join("\n\n"))
+    ).toEqual([
+      { level: 2, title: "1. Overview" },
+      { level: 3, title: "2) Details" },
+      { level: 2, title: "10. Final chapter", titleMarkdown: "10. **Final** chapter" }
+    ]);
+  });
+
+  it("keeps non-numeric leading marker prefixes in heading titles", () => {
+    expect(
+      getMarkdownOutline(["## - Dash heading", "### > Quoted heading"].join("\n\n"))
+    ).toEqual([
+      { level: 2, title: "- Dash heading" },
+      { level: 3, title: "> Quoted heading" }
+    ]);
+  });
 });
