@@ -10,6 +10,10 @@ export function confirmNativeAiAgentSessionDelete(sessionTitle: string, labels: 
   return getAppRuntime().dialog.confirmAiAgentSessionDelete(sessionTitle, labels);
 }
 
+export function showNativeAppAbout() {
+  return getAppRuntime().dialog.showAppAbout();
+}
+
 type NativePandocSetupLabels = {
   cancelLabel: string;
   installLabel: string;

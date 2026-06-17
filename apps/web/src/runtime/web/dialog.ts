@@ -7,6 +7,7 @@ export function createWebDialogRuntime(options: WebRuntimeOptions): AppDialogRun
 
   return {
     confirmAiAgentSessionDelete: async (_sessionTitle, labels) => confirm(labels.message),
+    showAppAbout: async () => undefined,
     showPandocSetup: async () => "cancel"
   };
 }

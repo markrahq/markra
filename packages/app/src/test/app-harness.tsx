@@ -33,6 +33,7 @@ import {
   searchNativeMarkdownFilesForPath,
   setNativeEditorWindowRestoreState,
   showNativeWindow,
+  showNativeAppAbout,
   showNativePandocSetup,
   showNativeMarkdownFileTreeContextMenu,
   syncNativeMarkdownFolder,
@@ -41,6 +42,7 @@ import {
   listNativeMarkdownFilesForPath,
   takeNativeOpenedMarkdownPaths,
   toggleNativeWindowFullscreen,
+  toggleNativeWindowMaximized,
   renameNativeMarkdownTreeFile,
   watchNativeMarkdownFile,
   writeNativeMarkdownTemplateFile,
@@ -188,7 +190,9 @@ vi.mock("../lib/tauri", () => ({
   openSettingsWindow: vi.fn(),
   setNativeWindowTitle: vi.fn(),
   showNativeWindow: vi.fn(),
-  toggleNativeWindowFullscreen: vi.fn()
+  showNativeAppAbout: vi.fn(),
+  toggleNativeWindowFullscreen: vi.fn(),
+  toggleNativeWindowMaximized: vi.fn()
 }));
 
 vi.mock("../lib/tauri/updater", () => ({
@@ -646,6 +650,7 @@ export const mockedSaveNativePdfFile = vi.mocked(saveNativePdfFile);
 export const mockedSearchNativeMarkdownFilesForPath = vi.mocked(searchNativeMarkdownFilesForPath);
 export const mockedSetNativeEditorWindowRestoreState = vi.mocked(setNativeEditorWindowRestoreState);
 export const mockedShowNativeWindow = vi.mocked(showNativeWindow);
+export const mockedShowNativeAppAbout = vi.mocked(showNativeAppAbout);
 export const mockedShowNativePandocSetup = vi.mocked(showNativePandocSetup);
 export const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
 export const mockedSyncNativeMarkdownFolder = vi.mocked(syncNativeMarkdownFolder);
@@ -849,6 +854,7 @@ export function installAppTestHarness() {
     mockedOpenNativeExternalUrl.mockReset();
     mockedCloseNativeWindow.mockReset();
     mockedShowNativeWindow.mockReset();
+    mockedShowNativeAppAbout.mockReset();
     mockedExitNativeApp.mockReset();
     mockedListenNativeAppExitRequested.mockReset();
     mockedListenNativeWindowCloseRequested.mockReset();
@@ -936,6 +942,7 @@ export function installAppTestHarness() {
     mockedOpenNativeExternalUrl.mockResolvedValue(undefined);
     mockedCloseNativeWindow.mockResolvedValue(undefined);
     mockedShowNativeWindow.mockResolvedValue(undefined);
+    mockedShowNativeAppAbout.mockResolvedValue(undefined);
     mockedExitNativeApp.mockResolvedValue(undefined);
     mockedListenNativeAppExitRequested.mockResolvedValue(() => {});
     mockedListenNativeWindowCloseRequested.mockResolvedValue(() => {});

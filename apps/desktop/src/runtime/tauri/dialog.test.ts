@@ -1,16 +1,23 @@
+import { invoke } from "@tauri-apps/api/core";
 import { confirm, message } from "@tauri-apps/plugin-dialog";
-import { confirmNativeAiAgentSessionDelete, showNativePandocSetup } from "./dialog";
+import { confirmNativeAiAgentSessionDelete, showNativeAppAbout, showNativePandocSetup } from "./dialog";
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn()
+}));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   confirm: vi.fn(),
   message: vi.fn()
 }));
 
+const mockedInvoke = vi.mocked(invoke);
 const mockedConfirm = vi.mocked(confirm);
 const mockedMessage = vi.mocked(message);
 
 describe("native dialogs", () => {
   beforeEach(() => {
+    mockedInvoke.mockReset();
     mockedConfirm.mockReset();
     mockedMessage.mockReset();
   });
@@ -58,5 +65,11 @@ describe("native dialogs", () => {
       kind: "warning",
       title: "Pandoc required"
     });
+  });
+
+  it("opens the system-native app about panel through Rust", async () => {
+    await showNativeAppAbout();
+
+    expect(mockedInvoke).toHaveBeenCalledWith("show_native_app_about");
   });
 });

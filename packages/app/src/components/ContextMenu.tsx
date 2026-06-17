@@ -358,9 +358,12 @@ type ContextMenuButtonProps = {
 
 function ContextMenuButton({ entry, onClose }: ContextMenuButtonProps) {
   const disabled = Boolean(entry.disabled);
+  const acceleratorLabel = entry.accelerator ? formatAccelerator(entry.accelerator) : null;
+  const accessibleLabel = acceleratorLabel ? `${entry.label} ${acceleratorLabel}` : entry.label;
 
   return (
     <button
+      aria-label={accessibleLabel}
       className="flex h-7 w-full items-center justify-between gap-4 rounded-md border-0 bg-transparent px-2 text-left font-inherit text-(--text-primary) outline-none transition-[background-color,color,opacity] duration-150 ease-out enabled:cursor-pointer enabled:hover:bg-(--bg-hover) enabled:hover:text-(--text-heading) enabled:focus-visible:bg-(--bg-hover) enabled:focus-visible:text-(--text-heading) disabled:opacity-45"
       data-menu-item-id={entry.id}
       disabled={disabled}
@@ -380,7 +383,7 @@ function ContextMenuButton({ entry, onClose }: ContextMenuButtonProps) {
       </span>
       {entry.accelerator ? (
         <span className="shrink-0 text-[12px] font-[520] text-(--text-secondary)">
-          {formatAccelerator(entry.accelerator)}
+          {acceleratorLabel}
         </span>
       ) : null}
     </button>

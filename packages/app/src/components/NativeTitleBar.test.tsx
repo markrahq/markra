@@ -54,6 +54,7 @@ describe("NativeTitleBar", () => {
     expect(within(container.querySelector(".document-actions") as HTMLElement).queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
     expect(titlebar).toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
     expect(titlebar).toHaveClass("h-10");
+    expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
     expect(container.querySelector(".document-actions")).toHaveClass("h-10");
     expect(container.querySelector("[data-titlebar-action='aiAgent']")).toHaveClass("transition-transform");
   });
@@ -194,7 +195,11 @@ describe("NativeTitleBar", () => {
       gridTemplateColumns: "minmax(0,1fr) 164px",
       left: "289px"
     });
+    expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
+    expect(container.querySelector(".windows-app-chrome")).not.toBeInTheDocument();
+    expect(container.querySelector(".native-titlebar")).toHaveClass("top-0");
     expect(container.querySelector(".windows-titlebar-actions")).toBeInTheDocument();
+    expect(container.querySelector(".windows-window-controls")).not.toBeInTheDocument();
     expect(container.querySelector(".titlebar-spacer")).not.toBeInTheDocument();
   });
 
@@ -252,11 +257,16 @@ describe("NativeTitleBar", () => {
 
     expect(screen.getByRole("tablist", { name: "Open documents" })).toBeInTheDocument();
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      left: "221px"
+      left: "219px"
+    });
+    expect(container.querySelector(".native-titlebar")).toHaveClass("border-t", "border-l", "rounded-tl-md");
+    expect(container.querySelector(".windows-titlebar-corner-mask")).toHaveStyle({
+      left: "218px",
+      width: "3px"
     });
     expect(container.querySelector(".native-titlebar-sidebar-spacer")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title-slot")).not.toHaveStyle({ paddingLeft: "232px" });
-    expect(container.querySelector(".native-title-slot")).toHaveClass("pl-4");
+    expect(container.querySelector(".native-title-slot")).toHaveClass("pl-2.5");
   });
 
   it("keeps Windows titlebar file actions outside the drag region", () => {
@@ -292,10 +302,256 @@ describe("NativeTitleBar", () => {
       gridTemplateColumns: "minmax(0,1fr) 164px 384px"
     });
     expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
+    expect(container.querySelector(".windows-app-chrome .windows-window-controls")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
 
     expect(toggleSourceMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders Windows self-drawn window controls beside titlebar actions", () => {
+    const toggleMarkdownFiles = vi.fn();
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        platform="windows"
+        theme="light"
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={toggleMarkdownFiles}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".windows-app-chrome")).toBeInTheDocument();
+    expect(container.querySelector(".windows-app-chrome")).toHaveClass("bg-(--bg-chrome)");
+    expect(container.querySelector(".windows-app-chrome")).not.toHaveClass("border-b");
+    expect(container.querySelector(".windows-app-chrome-tools")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle workspace sidebar" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Go back" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Go forward" })).not.toBeInTheDocument();
+    expect(container.querySelector(".native-titlebar")).toHaveClass("top-10");
+    expect(container.querySelector(".native-titlebar")).toHaveClass("bg-(--bg-primary)");
+    expect(container.querySelector(".native-titlebar")).toHaveClass("border-t");
+    expect(container.querySelector(".native-titlebar")).not.toHaveClass("border-l");
+    expect(container.querySelector(".native-titlebar")).not.toHaveClass("rounded-tl-md");
+    expect(container.querySelector(".native-title-slot")).toHaveClass("pl-3");
+    expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
+    expect(container.querySelector(".native-titlebar")).toHaveStyle({
+      gridTemplateColumns: "minmax(0,1fr) 164px"
+    });
+    expect(container.querySelector(".windows-window-controls")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Minimize window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Maximize or restore window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close window" })).not.toHaveAttribute("data-tauri-drag-region");
+    expect(screen.getByRole("button", { name: "Close window" }).closest(".windows-window-controls")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle workspace sidebar" }));
+
+    expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it("places the Windows folder context in the center of the top chrome instead of the centered titlebar", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentKind="folder"
+        documentName="Desktop"
+        markdownFilesOpen={false}
+        platform="windows"
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    const workspaceContext = container.querySelector(".windows-app-chrome-context");
+
+    expect(workspaceContext).toBeInTheDocument();
+    expect(workspaceContext?.closest(".windows-app-chrome")).toBeInTheDocument();
+    expect(workspaceContext?.closest(".windows-app-chrome-center")).toBeInTheDocument();
+    expect(workspaceContext?.closest(".windows-app-chrome-center")).toHaveClass("absolute", "left-1/2", "-translate-x-1/2");
+    expect(workspaceContext).toHaveTextContent("Desktop");
+    expect(screen.queryByRole("heading", { name: "Desktop" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the Windows workspace folder visible while a file title is active", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentKind="file"
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        platform="windows"
+        theme="light"
+        workspaceName="Desktop"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    const workspaceContext = container.querySelector(".windows-app-chrome-context");
+
+    expect(workspaceContext).toBeInTheDocument();
+    expect(workspaceContext).toHaveTextContent("Desktop");
+    expect(screen.getByRole("heading", { name: "Draft.md" })).toBeInTheDocument();
+  });
+
+  it("opens self-drawn Windows app menu dropdowns from the top chrome", () => {
+    const openMarkdown = vi.fn();
+    const saveMarkdown = vi.fn();
+    const saveMarkdownAs = vi.fn();
+    const exportPdf = vi.fn();
+    const openSettings = vi.fn();
+    const showAbout = vi.fn();
+    const checkForUpdates = vi.fn();
+    const exitApp = vi.fn();
+    const formatBold = vi.fn();
+    const runAiPolish = vi.fn();
+    const toggleAiCommand = vi.fn();
+    const toggleAllFolds = vi.fn();
+    const toggleWindowMaximized = vi.fn();
+    const toggleMarkdownFiles = vi.fn();
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        platform="windows"
+        theme="light"
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={openMarkdown}
+        onSaveMarkdown={saveMarkdown}
+        onShowAbout={showAbout}
+        onOpenSettings={openSettings}
+        onExitApp={exitApp}
+        onToggleMarkdownFiles={toggleMarkdownFiles}
+        onToggleWindowMaximized={toggleWindowMaximized}
+        onToggleTheme={() => {}}
+        menuHandlers={{
+          checkForUpdates,
+          exportPdf,
+          formatBold,
+          aiPolish: runAiPolish,
+          saveDocumentAs: saveMarkdownAs,
+          toggleAiCommand,
+          toggleAllFolds
+        }}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Markra" }));
+
+    expect(screen.getByRole("menu", { name: "Markra" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "About Markra" }));
+    expect(showAbout).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Markra" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Settings... Ctrl+," }));
+    expect(openSettings).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Markra" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Check for updates" }));
+    expect(checkForUpdates).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Markra" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Quit Markra" }));
+    expect(exitApp).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "File" }));
+
+    expect(screen.getByRole("menu", { name: "File" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open... Ctrl+O" }));
+    expect(openMarkdown).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Save Ctrl+S" }));
+    expect(saveMarkdown).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    const saveAsItem = screen.getByRole("menuitem", { name: "Save As... Ctrl+Shift+S" });
+    expect(saveAsItem).not.toBeDisabled();
+    fireEvent.click(saveAsItem);
+    expect(saveMarkdownAs).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    const exportMenuItem = screen.getByRole("menuitem", { name: "Export" });
+    expect(exportMenuItem).not.toBeDisabled();
+    fireEvent.pointerEnter(exportMenuItem);
+    const exportPdfItem = screen.getByRole("menuitem", { name: "Export PDF Ctrl+Alt+P" });
+    expect(exportPdfItem).not.toBeDisabled();
+    fireEvent.click(exportPdfItem);
+    expect(exportPdf).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(screen.getByRole("menu", { name: "Edit" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Undo Ctrl+Z" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "Select All Ctrl+A" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Format" }));
+
+    expect(screen.getByRole("menu", { name: "Format" })).toBeInTheDocument();
+    const boldItem = screen.getByRole("menuitem", { name: "Bold Ctrl+B" });
+    expect(boldItem).not.toBeDisabled();
+    fireEvent.click(boldItem);
+    expect(formatBold).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Format" }));
+    expect(screen.getByRole("menuitem", { name: "Heading 1 Ctrl+Alt+1" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    expect(screen.getByRole("menu", { name: "View" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Enter Full Screen" })).not.toBeInTheDocument();
+    const maximizeItem = screen.getByRole("menuitem", { name: "Maximize/Restore Window" });
+    expect(maximizeItem).not.toBeDisabled();
+    fireEvent.click(maximizeItem);
+    expect(toggleWindowMaximized).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Maximize or restore window" }));
+    expect(toggleWindowMaximized).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    const aiCommandItem = screen.getByRole("menuitem", { name: "AI writing command Ctrl+Shift+J" });
+    expect(aiCommandItem).not.toBeDisabled();
+    fireEvent.click(aiCommandItem);
+    expect(toggleAiCommand).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    const foldsItem = screen.getByRole("menuitem", { name: "Toggle all folds Ctrl+Alt+T" });
+    expect(foldsItem).not.toBeDisabled();
+    fireEvent.click(foldsItem);
+    expect(toggleAllFolds).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Toggle file list Ctrl+Shift+M" }));
+    expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 
   it("reserves AI panel width as a separate Windows titlebar column so action hitboxes stay narrow", () => {
@@ -325,6 +581,7 @@ describe("NativeTitleBar", () => {
       gridTemplateColumns: "minmax(0,1fr) 164px 384px"
     });
     expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
+    expect(container.querySelector(".windows-app-chrome .windows-window-controls")).toBeInTheDocument();
   });
 
   it("keeps compact Windows file actions clear of the Markra AI panel", () => {
@@ -347,7 +604,11 @@ describe("NativeTitleBar", () => {
       />
     );
 
-    expect(container.querySelector(".windows-titlebar-actions")).toHaveStyle({ transform: "translateX(-384px)" });
+    expect(container.querySelector(".native-titlebar")).toHaveStyle({
+      gridTemplateColumns: "minmax(0,1fr) 164px 384px"
+    });
+    expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
+    expect(container.querySelector(".windows-app-chrome .windows-window-controls")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toBeInTheDocument();
   });
@@ -749,7 +1010,7 @@ describe("NativeTitleBar", () => {
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps only right-aligned file actions on Windows", () => {
+  it("renders the full self-drawn Windows titlebar with right-aligned file actions", () => {
     const { container } = render(
       <NativeTitleBar
         aiAgentOpen
@@ -771,12 +1032,13 @@ describe("NativeTitleBar", () => {
 
     const titlebar = container.querySelector(".native-titlebar");
 
-    expect(screen.getByLabelText("Window drag region")).toBeInTheDocument();
-    expect(titlebar).toHaveClass("fixed", "right-3.5", "w-auto");
-    expect(titlebar).not.toHaveClass("inset-x-0");
+    expect(screen.getAllByLabelText("Window drag region")).toHaveLength(2);
+    expect(titlebar).toHaveClass("fixed", "inset-x-0", "grid");
+    expect(titlebar).not.toHaveClass("right-3.5", "w-auto");
     expect(titlebar).not.toHaveClass("grid-cols-[240px_minmax(0,1fr)_240px]");
     expect(container.querySelector(".mac-window-controls")).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Draft.md" })).not.toBeInTheDocument();
+    expect(container.querySelector(".windows-app-chrome .windows-window-controls")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Draft\.md/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New file" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
@@ -785,7 +1047,7 @@ describe("NativeTitleBar", () => {
     expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toBeInTheDocument();
     expect(container.querySelector(".document-actions")).toHaveClass("relative");
     expect(container.querySelector(".document-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
-    expect(container.querySelector(".windows-titlebar-actions")).toHaveStyle({ transform: "translateX(-384px)" });
+    expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
   });
 
   it("omits the Markdown or folder picker from the Windows titlebar", () => {

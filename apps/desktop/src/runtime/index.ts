@@ -38,6 +38,7 @@ export const desktopRuntime = {
   },
   dialog: {
     confirmAiAgentSessionDelete: dialog.confirmNativeAiAgentSessionDelete,
+    showAppAbout: dialog.showNativeAppAbout,
     showPandocSetup: dialog.showNativePandocSetup
   },
   events: {

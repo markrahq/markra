@@ -20,6 +20,16 @@ function renderSettingsSidebar(onCategoryChange = vi.fn()) {
   return onCategoryChange;
 }
 
+function renderSettingsContent(platform?: "linux" | "macos" | "windows") {
+  const { container } = render(
+    <SettingsContent activeCategory="general" platform={platform} translate={translate}>
+      <div />
+    </SettingsContent>
+  );
+
+  return container.querySelector(".settings-content");
+}
+
 describe("SettingsShell", () => {
   it("shows keyboard shortcuts as its own settings category", () => {
     const onCategoryChange = renderSettingsSidebar();
@@ -33,6 +43,31 @@ describe("SettingsShell", () => {
     renderSettingsSidebar();
 
     expect(screen.getByText("Markra v9.9.9")).toBeInTheDocument();
+  });
+
+  it("keeps settings shell chrome treatment scoped to Windows", () => {
+    const defaultContent = renderSettingsContent();
+
+    expect(defaultContent).not.toHaveClass("rounded-tl-md");
+    expect(defaultContent).not.toHaveClass("border-l");
+
+    const { container } = render(
+      <SettingsSidebar
+        activeCategory="general"
+        appVersion="9.9.9"
+        platform="windows"
+        translate={translate}
+        onCategoryChange={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".settings-sidebar")).toHaveClass("border-r-0", "bg-(--bg-chrome)");
+  });
+
+  it("rounds the Windows settings content corner", () => {
+    const content = renderSettingsContent("windows");
+
+    expect(content).toHaveClass("border-t", "border-l", "rounded-tl-md");
   });
 
   it("shows storage as its own settings category", () => {

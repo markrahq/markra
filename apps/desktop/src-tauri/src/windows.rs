@@ -16,7 +16,6 @@ use tauri::{utils::config::Color, Emitter, Manager, WebviewUrl, WebviewWindowBui
 const BLANK_EDITOR_WINDOW_LABEL_PREFIX: &str = "markra-editor-";
 const BLANK_EDITOR_WINDOW_URL: &str = "index.html?blank=1";
 const MAIN_WINDOW_LABEL: &str = "main";
-const EDITOR_WINDOW_DECORATIONS: bool = true;
 #[cfg(test)]
 pub(crate) const MINIMIZE_CURRENT_WINDOW_COMMAND: &str = "minimize_current_window";
 #[cfg(test)]
@@ -27,7 +26,6 @@ const SETTINGS_WINDOW_LABEL: &str = "markra-settings";
 const SETTINGS_WINDOW_URL: &str = "index.html?settings=1";
 const SETTINGS_WINDOW_TARGET_EVENT: &str = "markra://settings-window-target";
 const SETTINGS_WINDOW_TARGET_EXPORT_PANDOC_PATH: &str = "exportPandocPath";
-const SETTINGS_WINDOW_DECORATIONS: bool = true;
 const SETTINGS_WINDOW_WIDTH: f64 = 1040.0;
 const SETTINGS_WINDOW_HEIGHT: f64 = 720.0;
 const SETTINGS_WINDOW_MIN_WIDTH: f64 = 860.0;
@@ -70,8 +68,20 @@ pub(crate) fn is_settings_window_label(label: &str) -> bool {
     label == SETTINGS_WINDOW_LABEL
 }
 
+fn should_hide_native_menu_for_window_label_on_platform(platform: &str, label: &str) -> bool {
+    if is_settings_window_label(label) {
+        return true;
+    }
+
+    platform == "windows" && (label == MAIN_WINDOW_LABEL || is_blank_editor_window_label(label))
+}
+
 fn should_hide_native_menu_for_window_label(label: &str) -> bool {
-    is_settings_window_label(label)
+    should_hide_native_menu_for_window_label_on_platform(current_window_chrome_platform(), label)
+}
+
+fn editor_window_decorations_for_platform(platform: &str) -> bool {
+    platform != "windows"
 }
 
 pub(crate) fn hide_native_menu_for_settings_window<R>(window: &tauri::WebviewWindow<R>)
@@ -233,10 +243,13 @@ where
 }
 
 #[cfg(not(target_os = "macos"))]
-pub(crate) fn apply_main_window_chrome<R>(_app: &tauri::App<R>)
+pub(crate) fn apply_main_window_chrome<R>(app: &tauri::App<R>)
 where
     R: tauri::Runtime,
 {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        hide_native_menu_for_settings_window(&window);
+    }
 }
 
 pub(crate) fn editor_window_url_for_path(path: &str) -> String {
@@ -301,6 +314,7 @@ where
         match builder.build() {
             Ok(window) => {
                 hide_native_macos_window_controls(&window);
+                hide_native_menu_for_settings_window(&window);
             }
             Err(error) => {
                 eprintln!("failed to create blank editor window: {error}");
@@ -314,7 +328,7 @@ fn editor_window_transparent() -> bool {
 }
 
 fn editor_window_decorations() -> bool {
-    EDITOR_WINDOW_DECORATIONS
+    editor_window_decorations_for_platform(current_window_chrome_platform())
 }
 
 #[cfg(target_os = "macos")]
@@ -398,7 +412,7 @@ fn settings_window_transparent() -> bool {
 }
 
 fn settings_window_decorations() -> bool {
-    SETTINGS_WINDOW_DECORATIONS
+    editor_window_decorations()
 }
 
 fn settings_window_inner_size() -> (f64, f64) {
@@ -556,8 +570,24 @@ mod tests {
 
     #[test]
     fn macos_windows_preserve_native_rounded_frame() {
-        assert!(editor_window_decorations());
-        assert!(settings_window_decorations());
+        #[cfg(target_os = "windows")]
+        {
+            assert!(!editor_window_decorations());
+            assert!(!settings_window_decorations());
+        }
+
+        #[cfg(not(target_os = "windows"))]
+        {
+            assert!(editor_window_decorations());
+            assert!(settings_window_decorations());
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_settings_windows_are_self_drawn() {
+        assert!(!editor_window_decorations());
+        assert!(!settings_window_decorations());
     }
 
     #[test]
@@ -641,12 +671,34 @@ mod tests {
     }
 
     #[test]
-    fn settings_window_is_the_only_window_label_that_hides_native_menu() {
-        assert!(should_hide_native_menu_for_window_label(
+    fn windows_editor_windows_hide_native_menu() {
+        assert!(should_hide_native_menu_for_window_label_on_platform(
+            "windows",
             SETTINGS_WINDOW_LABEL
         ));
-        assert!(!should_hide_native_menu_for_window_label(MAIN_WINDOW_LABEL));
-        assert!(!should_hide_native_menu_for_window_label("markra-editor-1"));
+        assert!(should_hide_native_menu_for_window_label_on_platform(
+            "macos",
+            SETTINGS_WINDOW_LABEL
+        ));
+        assert!(should_hide_native_menu_for_window_label_on_platform(
+            "windows",
+            MAIN_WINDOW_LABEL
+        ));
+        assert!(should_hide_native_menu_for_window_label_on_platform(
+            "windows",
+            "markra-editor-1"
+        ));
+        assert!(!should_hide_native_menu_for_window_label_on_platform(
+            "macos",
+            MAIN_WINDOW_LABEL
+        ));
+    }
+
+    #[test]
+    fn windows_editor_windows_are_self_drawn() {
+        assert!(!editor_window_decorations_for_platform("windows"));
+        assert!(editor_window_decorations_for_platform("macos"));
+        assert!(editor_window_decorations_for_platform("linux"));
     }
 
     #[test]

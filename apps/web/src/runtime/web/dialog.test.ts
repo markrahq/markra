@@ -21,6 +21,7 @@ describe("web dialog runtime", () => {
       setPathLabel: "Set path",
       title: "Pandoc"
     })).resolves.toBe("cancel");
+    await expect(runtime.dialog.showAppAbout()).resolves.toBeUndefined();
 
     expect(confirm).toHaveBeenCalledWith("Delete session?");
   });

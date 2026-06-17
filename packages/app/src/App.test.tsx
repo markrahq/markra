@@ -520,7 +520,11 @@ describe("Markra workspace", () => {
       gridTemplateColumns: "minmax(0,1fr) 164px",
       left: "289px"
     });
+    expect(container.querySelector(".windows-app-chrome")).not.toBeInTheDocument();
+    expect(container.querySelector(".native-titlebar")).toHaveClass("top-0");
+    expect(container.querySelector(".markdown-file-tree-slot")?.parentElement).not.toHaveClass("pt-10");
     expect(container.querySelector(".windows-titlebar-actions")).toBeInTheDocument();
+    expect(container.querySelector(".windows-window-controls")).not.toBeInTheDocument();
     expect(container.querySelector(".titlebar-spacer")).not.toBeInTheDocument();
     expect(container.querySelector(".document-tabs-drag-spacer")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title-slot")?.getAttribute("style") ?? "").not.toContain("margin-left");
@@ -1016,6 +1020,7 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".settings-sidebar nav")).toBeInTheDocument();
     expect(container.querySelector(".settings-layout")).toHaveClass("grid-cols-[180px_minmax(0,1fr)]");
     expect(container.querySelector(".settings-sidebar")).toHaveClass("bg-(--bg-secondary)");
+    expect(container.querySelector(".settings-content")).not.toHaveClass("rounded-tl-md");
     expect(container.querySelector(".settings-content-header")).toHaveClass("border-b");
     expect(container.querySelector(".settings-panel-title")).toHaveClass("text-[16px]");
     const settingsGroups = Array.from(container.querySelectorAll(".settings-list-group"));
@@ -1244,6 +1249,19 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
     expect(container.querySelector(".settings-drag-region")).not.toBeInTheDocument();
     expect(container.querySelector(".settings-window .mac-window-controls")).not.toBeInTheDocument();
+    const settingsChrome = container.querySelector(".settings-window-chrome") as HTMLElement;
+    expect(settingsChrome).toBeInTheDocument();
+    expect(settingsChrome).toHaveClass("fixed", "top-0", "h-10", "bg-(--bg-chrome)");
+    expect(settingsChrome).not.toHaveClass("border-b");
+    expect(settingsChrome).toHaveAttribute("data-tauri-drag-region");
+    expect(within(settingsChrome).getByText("Markra")).toBeInTheDocument();
+    expect(within(settingsChrome).getByText("Settings")).toBeInTheDocument();
+    expect(within(settingsChrome).getByRole("button", { name: "Minimize window" })).toBeInTheDocument();
+    expect(within(settingsChrome).getByRole("button", { name: "Maximize or restore window" })).toBeInTheDocument();
+    expect(within(settingsChrome).getByRole("button", { name: "Close window" })).toBeInTheDocument();
+    expect(container.querySelector(".settings-layout")).toHaveClass("absolute", "top-10", "bottom-0");
+    expect(container.querySelector(".settings-sidebar")).toHaveClass("border-r-0", "bg-(--bg-chrome)");
+    expect(container.querySelector(".settings-content")).toHaveClass("border-t", "border-l", "rounded-tl-md");
     expect(container.querySelector(".settings-sidebar-header")).toHaveClass("h-14", "items-center");
     expect(container.querySelector(".settings-sidebar-header")).not.toHaveClass("pt-14");
     expect(container.querySelector(".settings-sidebar-title")).toBeInTheDocument();
@@ -1812,7 +1830,7 @@ describe("Markra workspace", () => {
 
     renderApp();
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle workspace sidebar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Open Folder" }));
 
     expect(await screen.findByRole("complementary", { name: "Markdown file tree" })).toBeInTheDocument();
@@ -1840,7 +1858,7 @@ describe("Markra workspace", () => {
 
     renderApp();
 
-    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    fireEvent.click(screen.getByRole("button", { name: "Toggle workspace sidebar" }));
     fireEvent.click(await screen.findByRole("button", { name: "Open Folder" }));
 
     expect(mockedOpenNativeMarkdownFolder).toHaveBeenCalledTimes(1);

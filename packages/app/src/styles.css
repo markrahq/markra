@@ -171,6 +171,7 @@
   :root {
     --bg-primary: #ffffff;
     --bg-secondary: #fafafa;
+    --bg-chrome: color-mix(in oklab, var(--bg-secondary) 82%, var(--bg-primary));
     --bg-code: #f8f8f8;
     --bg-hover: #f5f5f5;
     --bg-active: #eeeeee;

@@ -45,3 +45,6 @@ Thumbs.db
 
 .hermes
 .codex
+
+.cargo-target/
+apps/desktop/src-tauri/gen/schemas/windows-schema.json

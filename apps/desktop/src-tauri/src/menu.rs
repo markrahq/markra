@@ -297,6 +297,102 @@ fn application_about_metadata() -> AboutMetadata<'static> {
     }
 }
 
+fn native_about_full_version(metadata: &AboutMetadata<'_>) -> Option<String> {
+    match (&metadata.version, &metadata.short_version) {
+        (Some(version), Some(short_version)) => Some(format!("{version} ({short_version})")),
+        (Some(version), None) => Some(version.clone()),
+        _ => None,
+    }
+}
+
+fn native_about_dialog_title(metadata: &AboutMetadata<'_>) -> String {
+    format!("About {}", metadata.name.as_deref().unwrap_or("Markra"))
+}
+
+fn native_about_dialog_message(metadata: &AboutMetadata<'_>) -> String {
+    use std::fmt::Write;
+
+    let mut message = String::new();
+    if let Some(name) = &metadata.name {
+        let _ = writeln!(&mut message, "Name: {name}");
+    }
+    if let Some(version) = native_about_full_version(metadata) {
+        let _ = writeln!(&mut message, "Version: {version}");
+    }
+    if let Some(authors) = &metadata.authors {
+        let _ = writeln!(&mut message, "Authors: {}", authors.join(", "));
+    }
+    if let Some(license) = &metadata.license {
+        let _ = writeln!(&mut message, "License: {license}");
+    }
+    match (&metadata.website_label, &metadata.website) {
+        (Some(label), None) => {
+            let _ = writeln!(&mut message, "Website: {label}");
+        }
+        (None, Some(url)) => {
+            let _ = writeln!(&mut message, "Website: {url}");
+        }
+        (Some(label), Some(url)) => {
+            let _ = writeln!(&mut message, "Website: {label} {url}");
+        }
+        _ => {}
+    }
+    if let Some(comments) = &metadata.comments {
+        let _ = writeln!(&mut message, "\n{comments}");
+    }
+    if let Some(copyright) = &metadata.copyright {
+        let _ = writeln!(&mut message, "\n{copyright}");
+    }
+
+    message
+}
+
+#[cfg(windows)]
+fn encode_windows_wide(text: impl AsRef<str>) -> Vec<u16> {
+    text.as_ref()
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect()
+}
+
+#[cfg(windows)]
+fn show_windows_native_about_dialog(hwnd: isize, metadata: AboutMetadata<'static>) {
+    let message = encode_windows_wide(native_about_dialog_message(&metadata));
+    let title = encode_windows_wide(native_about_dialog_title(&metadata));
+
+    std::thread::spawn(move || unsafe {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONINFORMATION, MB_OK};
+
+        MessageBoxW(
+            hwnd as windows_sys::Win32::Foundation::HWND,
+            message.as_ptr(),
+            title.as_ptr(),
+            MB_ICONINFORMATION | MB_OK,
+        );
+    });
+}
+
+#[cfg(windows)]
+fn show_native_app_about_for_window<R: tauri::Runtime>(
+    window: &tauri::Window<R>,
+) -> Result<(), String> {
+    let hwnd = window.hwnd().map_err(|error| error.to_string())?.0 as isize;
+    show_windows_native_about_dialog(hwnd, application_about_metadata());
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn show_native_app_about_for_window<R: tauri::Runtime>(
+    _window: &tauri::Window<R>,
+) -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+pub(crate) fn show_native_app_about(window: tauri::Window) -> Result<(), String> {
+    show_native_app_about_for_window(&window)
+}
+
 fn create_markra_app_submenu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     labels: crate::menu_labels::MenuLabels,
@@ -1013,6 +1109,18 @@ mod tests {
             .credits
             .as_deref()
             .is_some_and(|credits| credits.contains("https://github.com/murongg/markra")));
+    }
+
+    #[test]
+    fn native_about_dialog_uses_application_metadata() {
+        let metadata = application_about_metadata();
+
+        assert_eq!(native_about_dialog_title(&metadata), "About Markra");
+
+        let message = native_about_dialog_message(&metadata);
+        assert!(message.contains("Name: Markra"));
+        assert!(message.contains(&format!("Version: {}", env!("CARGO_PKG_VERSION"))));
+        assert!(message.contains(&format!("Website: GitHub {MARKRA_GITHUB_URL}")));
     }
 
     #[test]

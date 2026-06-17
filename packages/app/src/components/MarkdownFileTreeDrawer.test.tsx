@@ -408,7 +408,7 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(createFolder).not.toHaveBeenCalled();
   });
 
-  it("places open Windows sidebar controls inside a separated drawer footer", () => {
+  it("keeps only settings inside the open Windows drawer footer", () => {
     const toggleMarkdownFiles = vi.fn();
     const { container } = render(
       <MarkdownFileTreeDrawer
@@ -425,24 +425,18 @@ describe("MarkdownFileTreeDrawer", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: "Toggle file list" });
     const settings = screen.getByRole("button", { name: "Settings" });
     const footer = container.querySelector(".markdown-file-tree-footer");
+    const sidebar = screen.getByRole("complementary", { name: "Markdown file tree" });
 
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    expect(footer).toHaveClass("shrink-0", "border-t");
+    expect(sidebar).toHaveClass("bg-(--bg-chrome)");
+    expect(footer).toHaveClass("shrink-0", "border-t", "bg-(--bg-chrome)");
     expect(settings.closest(".markdown-file-tree-footer")).toBe(footer);
-    expect(toggle.closest(".markdown-file-tree-footer")).toBe(footer);
+    expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
     expect(settings).not.toHaveClass("fixed", "bottom-3", "left-3");
-    expect(toggle).not.toHaveClass("fixed", "bottom-3");
-    expect(toggle).not.toHaveStyle({ left: "300px" });
-    expect(toggle).toContainElement(container.querySelector(".lucide-panel-left"));
     expect(container.querySelector(".markdown-file-tree")).toHaveClass("pt-0");
     expect(container.querySelector(".markdown-file-tree")).not.toHaveClass("pt-10");
-
-    fireEvent.click(toggle);
-
-    expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
+    expect(toggleMarkdownFiles).not.toHaveBeenCalled();
   });
 
   it("keeps the resize handle below the Windows titlebar tab strip", () => {
@@ -467,7 +461,7 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(container.querySelector(".markdown-file-tree-resizer-indicator")).not.toBeInTheDocument();
   });
 
-  it("keeps the Windows sidebar toggle reachable when the drawer is collapsed", () => {
+  it("does not render a Windows sidebar toggle when the drawer is collapsed", () => {
     const toggleMarkdownFiles = vi.fn();
     const { container } = render(
       <MarkdownFileTreeDrawer
@@ -484,11 +478,9 @@ describe("MarkdownFileTreeDrawer", () => {
       />
     );
 
-    const toggle = screen.getByRole("button", { name: "Toggle file list" });
-
-    expect(toggle).toHaveAttribute("aria-pressed", "false");
-    expect(toggle).toHaveStyle({ left: "48px" });
-    expect(toggle).toContainElement(container.querySelector(".lucide-panel-right"));
+    expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
+    expect(container.querySelector(".lucide-panel-right")).not.toBeInTheDocument();
+    expect(toggleMarkdownFiles).not.toHaveBeenCalled();
   });
 
   it("renders a folder-style markdown file tree with folders collapsed by default", () => {

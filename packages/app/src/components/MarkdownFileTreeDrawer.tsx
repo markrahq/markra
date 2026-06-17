@@ -34,8 +34,6 @@ import {
   LayoutTemplate,
   ListChevronsDownUp,
   ListChevronsUpDown,
-  PanelLeft,
-  PanelRight,
   Plus,
   Search,
   Settings,
@@ -362,9 +360,7 @@ export function MarkdownFileTreeDrawer({
   const resolvedMinWidth = Math.max(160, minWidth);
   const resolvedMaxWidth = Math.max(resolvedMinWidth, maxWidth);
   const resolvedWidth = clampNumber(width, resolvedMinWidth, resolvedMaxWidth);
-  const showWindowsSidebarToggle = platform === "windows" && onToggleMarkdownFiles;
   const showWindowsOpenFolderAction = platform === "windows" && onOpenFolder;
-  const WindowsSidebarToggleIcon = open ? PanelLeft : PanelRight;
   const drawerTopPaddingClassName = platform === "windows" ? "pt-0" : "pt-10";
   const fileCreationAvailable = Boolean(onCreateFile);
   const folderCreationAvailable = folderOpen && Boolean(onCreateFolder);
@@ -416,6 +412,7 @@ export function MarkdownFileTreeDrawer({
   const outlineResizerVisible = !tabbedSidebarLayout && outlineOpen && filePanelAvailable;
   const fileSearchVisible = !tabbedSidebarLayout || activeSidebarPanel === "files";
   const folderAccessVisible = !tabbedSidebarLayout || activeSidebarPanel === "files";
+  const fileTreeSurfaceClassName = platform === "windows" ? "bg-(--bg-chrome)" : "bg-(--bg-secondary)";
   const outlineToolbarVisible = !tabbedSidebarLayout ||
     (outlinePanelOpen && (outlineItems.length > 0 || outlineExpansionAvailable));
   useEffect(() => {
@@ -1475,7 +1472,7 @@ export function MarkdownFileTreeDrawer({
 
   const renderFolderAccessArea = () => (
     recentFolderAreaVisible ? (
-      <div className="shrink-0 border-b border-(--border-default) bg-(--bg-secondary)">
+      <div className={`shrink-0 border-b border-(--border-default) ${fileTreeSurfaceClassName}`}>
         {recentFolderAreaVisible && onOpenRecentFolder ? (
           <section
             className="markdown-file-tree-recent-folders py-1"
@@ -1605,7 +1602,6 @@ export function MarkdownFileTreeDrawer({
       </>
     ) : null
   );
-
   return (
     <>
       {!open ? (
@@ -1618,20 +1614,8 @@ export function MarkdownFileTreeDrawer({
         </IconButton>
       ) : null}
 
-      {!open && showWindowsSidebarToggle ? (
-        <IconButton
-          className="fixed bottom-3 z-30 opacity-45 transition-[left,opacity,background-color,color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:opacity-100 focus-visible:opacity-100"
-          label={label("app.toggleMarkdownFiles")}
-          pressed={open}
-          style={{ left: "48px" }}
-          onClick={onToggleMarkdownFiles}
-        >
-          <WindowsSidebarToggleIcon aria-hidden="true" size={15} />
-        </IconButton>
-      ) : null}
-
       <aside
-        className={`markdown-file-tree relative flex h-full min-h-0 w-full flex-col border-r border-(--border-default) bg-(--bg-secondary) ${drawerTopPaddingClassName} will-change-transform transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}
+        className={`markdown-file-tree relative flex h-full min-h-0 w-full flex-col border-r border-(--border-default) ${fileTreeSurfaceClassName} ${drawerTopPaddingClassName} will-change-transform transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}
         aria-label={label("app.markdownFileTree")}
         aria-hidden={!open}
         inert={!open}
@@ -2000,7 +1984,7 @@ export function MarkdownFileTreeDrawer({
           ) : null}
         </div>
         {open ? (
-          <div className="markdown-file-tree-footer flex h-12 shrink-0 items-center justify-between border-t border-(--border-default) bg-(--bg-secondary) px-2.5">
+          <div className={`markdown-file-tree-footer flex h-12 shrink-0 items-center justify-between border-t border-(--border-default) ${fileTreeSurfaceClassName} px-2.5`}>
             <IconButton
               className="rounded-md opacity-70 hover:opacity-100 focus-visible:opacity-100"
               label={label("settings.title")}
@@ -2009,16 +1993,6 @@ export function MarkdownFileTreeDrawer({
               <Settings aria-hidden="true" size={15} />
             </IconButton>
 
-            {showWindowsSidebarToggle ? (
-              <IconButton
-                className="rounded-md bg-(--bg-active) text-(--text-heading) opacity-80 transition-[opacity,background-color,color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:opacity-100 focus-visible:opacity-100"
-                label={label("app.toggleMarkdownFiles")}
-                pressed={open}
-                onClick={onToggleMarkdownFiles}
-              >
-                <WindowsSidebarToggleIcon aria-hidden="true" size={15} />
-              </IconButton>
-            ) : null}
           </div>
         ) : null}
       </aside>

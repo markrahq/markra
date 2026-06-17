@@ -22,6 +22,7 @@ import { appVersion } from "../lib/app-version";
 import { resolveDesktopPlatform } from "../lib/platform";
 import { closeNativeWindow } from "../lib/tauri";
 import { MacWindowControls } from "./MacWindowControls";
+import { WindowsWindowControls } from "./WindowsWindowControls";
 import { getAppRuntime } from "../runtime";
 import type { SettingsCategory } from "../hooks/useSettingsWindowState";
 
@@ -82,6 +83,10 @@ export function SettingsWindow() {
   ];
   const activeSettingsCategory = hiddenCategories.includes(activeCategory) ? "general" : activeCategory;
   const platform = resolveDesktopPlatform();
+  const showWindowsWindowChrome = platform === "windows" && appFeatures.nativeWindowChrome;
+  const settingsLayoutClassName = showWindowsWindowChrome
+    ? "settings-layout absolute inset-x-0 top-10 bottom-0 grid grid-cols-[180px_minmax(0,1fr)]"
+    : "settings-layout grid h-screen grid-cols-[180px_minmax(0,1fr)]";
   const handleCloseSettings = () => {
     closeNativeWindow().catch(() => {});
   };
@@ -106,7 +111,28 @@ export function SettingsWindow() {
       {platform === "macos" ? (
         <MacWindowControls className="fixed top-0 left-0 z-20 h-9.5" />
       ) : null}
-      <div className="settings-layout grid h-screen grid-cols-[180px_minmax(0,1fr)]">
+      {showWindowsWindowChrome ? (
+        <header
+          className="settings-window-chrome fixed inset-x-0 top-0 z-30 grid h-10 grid-cols-[minmax(0,1fr)_auto] select-none items-center bg-(--bg-chrome) [-webkit-user-select:none]"
+          aria-label={translate("settings.aria.dragRegion")}
+          data-tauri-drag-region
+        >
+          <div
+            className="relative z-20 flex h-10 items-center px-3 text-[12px] leading-none font-[620] text-(--text-heading)"
+            data-tauri-drag-region
+          >
+            Markra
+          </div>
+          <div
+            className="pointer-events-none absolute top-0 left-1/2 z-10 flex h-10 -translate-x-1/2 items-center justify-center px-6 text-[12px] leading-none font-[620] text-(--text-heading)"
+            data-tauri-drag-region
+          >
+            {translate("settings.title")}
+          </div>
+          <WindowsWindowControls />
+        </header>
+      ) : null}
+      <div className={settingsLayoutClassName}>
         <SettingsSidebar
           activeCategory={activeSettingsCategory}
           appVersion={appVersion}
@@ -117,6 +143,7 @@ export function SettingsWindow() {
         />
         <SettingsContent
           activeCategory={activeSettingsCategory}
+          platform={platform}
           translate={translate}
           onClose={platform === "linux" ? handleCloseSettings : undefined}
         >

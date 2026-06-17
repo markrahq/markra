@@ -40,7 +40,7 @@ use menu::{
     emit_native_menu_command_payload, install_application_menu, is_native_new_window_command,
     is_native_settings_window_command, native_menu_command_from_id,
     remember_native_menu_webview_window, remember_native_menu_window_from_event,
-    NativeApplicationMenuState, NativeMenuTargetState,
+    show_native_app_about, NativeApplicationMenuState, NativeMenuTargetState,
 };
 use opened_files::{
     opened_markdown_paths_from_args, opened_markdown_paths_from_args_with_cwd,
@@ -70,7 +70,7 @@ use windows::{
 const STARTUP_WINDOW_NATIVE_REVEAL_FALLBACK_MS: u64 = 2400;
 
 fn window_state_restore_flags() -> StateFlags {
-    StateFlags::all() - StateFlags::VISIBLE
+    StateFlags::all() - StateFlags::VISIBLE - StateFlags::DECORATIONS
 }
 
 fn focus_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
@@ -222,6 +222,7 @@ pub fn run() {
             create_markdown_tree_file,
             create_markdown_tree_folder,
             install_application_menu,
+            show_native_app_about,
             rename_markdown_tree_file,
             move_markdown_tree_file,
             delete_markdown_tree_file,
@@ -353,6 +354,16 @@ mod tests {
     }
 
     #[test]
+    fn desktop_window_state_restore_does_not_restore_decorations() {
+        let flags = crate::window_state_restore_flags();
+
+        assert!(
+            !flags.contains(tauri_plugin_window_state::StateFlags::DECORATIONS),
+            "window-state should not restore old native decorations over the configured window chrome"
+        );
+    }
+
+    #[test]
     fn desktop_registers_native_startup_window_reveal_fallback() {
         let lib_source = include_str!("lib.rs");
         let fallback_registration =
@@ -400,6 +411,21 @@ mod tests {
         assert!(
             lib_source.contains("reveal_or_open_markdown_paths(&app.handle(), paths, false);"),
             "initial CLI-opened paths should trigger a native window reveal instead of only being queued"
+        );
+    }
+
+    #[test]
+    fn desktop_registers_native_about_command() {
+        let lib_source = include_str!("lib.rs");
+        let command_name = ["show", "_native_app", "_about"].concat();
+        let registration = format!("{command_name},");
+        let handler_source = &lib_source[lib_source
+            .find("tauri::generate_handler![")
+            .expect("Tauri invoke handler should be registered")..];
+
+        assert!(
+            handler_source.contains(&registration),
+            "Windows self-drawn app menu should be able to open the system-native About panel"
         );
     }
 

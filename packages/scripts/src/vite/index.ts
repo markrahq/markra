@@ -4,10 +4,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import { stripDebugPlugin } from "./strip-debug.ts";
+import type { UserConfig } from "vite";
 
 export type MarkraAppViteConfigOptions = {
   browserNodeStubUrl: string | URL;
   packageJsonUrl: string | URL;
+  server?: UserConfig["server"];
   stripDebug?: boolean;
   test?: {
     setupFiles?: string | string[];
@@ -155,6 +157,7 @@ export function createMarkraAppViteConfig(options: MarkraAppViteConfigOptions) {
         }
       }
     },
+    server: options.server,
     test: {
       environment: "jsdom",
       globals: true,

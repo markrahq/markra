@@ -104,7 +104,14 @@ import type {
   SelectionFormattingAction,
   SelectionFormattingToolbarAction
 } from "./lib/selection-formatting";
-import { openNativeExternalUrl, openSettingsWindow, toggleNativeWindowFullscreen } from "./lib/tauri";
+import {
+  closeNativeWindow,
+  openNativeExternalUrl,
+  openSettingsWindow,
+  showNativeAppAbout,
+  toggleNativeWindowFullscreen,
+  toggleNativeWindowMaximized
+} from "./lib/tauri";
 import { aiAgentWebSearchAvailable, type AiDiffResult, type AiEditIntent, type AiSelectionContext } from "@markra/ai";
 import {
   AI_EDITOR_PREVIEW_APPLIED_EVENT,
@@ -222,6 +229,7 @@ function WorkspaceApp() {
   const aiFeatureEnabled = appFeatures.ai;
   const exportFeatureEnabled = appFeatures.export;
   const nativeWindowChromeEnabled = appFeatures.nativeWindowChrome;
+  const windowsSelfDrawnChromeEnabled = nativeWindowChromeEnabled && desktopPlatform === "windows";
   const pandocFeatureEnabled = appFeatures.pandoc;
   const s3ImageUploadFeatureEnabled = appFeatures.s3ImageUpload;
   const updaterFeatureEnabled = appFeatures.updater;
@@ -2114,6 +2122,12 @@ function WorkspaceApp() {
   const handleOpenSettings = useCallback(() => {
     openSettingsWindow().catch(() => {});
   }, []);
+  const handleShowAbout = useCallback(() => {
+    showNativeAppAbout().catch(() => {});
+  }, []);
+  const handleExitApp = useCallback(() => {
+    closeNativeWindow().catch(() => {});
+  }, []);
   const rawFileTreeRootName = rootNameForDocument(document.path);
   const fileTreeRootName =
     rawFileTreeRootName === "No folder"
@@ -3197,6 +3211,7 @@ function WorkspaceApp() {
           markdownFilesOpen={fileTreeOpen}
           markdownFilesResizing={fileTreeResizing}
           markdownFilesWidth={fileTreeWidth}
+          menuHandlers={nativeMenuHandlers}
           nativeWindowChrome={nativeWindowChromeEnabled}
           quickCreateMarkdownFileVisible={!fileTreeOpen}
           historyDisabled={!documentHistoryAvailable}
@@ -3208,16 +3223,21 @@ function WorkspaceApp() {
           titlebarActions={appTitlebarActions}
           titleContent={titlebarDocumentTabs}
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
+          onExitApp={handleExitApp}
           onOpenMarkdown={handleOpenMarkdownFile}
           onOpenMarkdownFolder={handleOpenMarkdownFolder}
+          onOpenSettings={handleOpenSettings}
           onSaveMarkdown={handleSaveDocument}
           onShowDocumentHistory={handleDocumentHistoryOpen}
+          onShowAbout={handleShowAbout}
           onTitlebarActionsChange={handleTitlebarActionsChange}
           onToggleAiAgent={handleAiAgentToggle}
           onToggleMarkdownFiles={handleFileTreeToggle}
           onToggleSplitMode={handleEditorSplitToggle}
           onToggleSourceMode={handleEditorModeToggle}
           onToggleTheme={appTheme.toggleTheme}
+          onToggleWindowMaximized={toggleNativeWindowMaximized}
+          workspaceName={fileTree.sourcePath ? fileTreeRootName : undefined}
         />
 
         {documentHistoryOpen && document.path ? (
@@ -3232,7 +3252,10 @@ function WorkspaceApp() {
 
         <span className="screen-reader-title sr-only">{titleDocumentName}</span>
 
-        <div className={workspaceLayoutClassName} style={workspaceLayoutStyle}>
+        <div
+          className={`${workspaceLayoutClassName} ${windowsSelfDrawnChromeEnabled ? "pt-10" : ""}`}
+          style={workspaceLayoutStyle}
+        >
           <div className="markdown-file-tree-slot min-h-0 overflow-hidden">
             <MarkdownFileTreeDrawer
               activeOutlineIndex={activeDocumentOutlineIndex}

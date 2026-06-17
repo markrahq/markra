@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { confirm, message } from "@tauri-apps/plugin-dialog";
 
 type NativeConfirmLabels = {
@@ -13,6 +14,10 @@ export async function confirmNativeAiAgentSessionDelete(sessionTitle: string, la
     okLabel: labels.okLabel,
     title: sessionTitle
   });
+}
+
+export function showNativeAppAbout() {
+  return invoke("show_native_app_about");
 }
 
 type NativePandocSetupLabels = {

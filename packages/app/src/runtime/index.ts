@@ -104,6 +104,7 @@ export type AppDialogRuntime = {
     sessionTitle: string,
     labels: { cancelLabel: string; message: string; okLabel: string }
   ) => Promise<boolean>;
+  showAppAbout: () => Promise<unknown>;
   showPandocSetup: (
     labels: {
       cancelLabel: string;
@@ -370,6 +371,7 @@ export function createDefaultAppRuntime(): AppRuntime {
     },
     dialog: {
       confirmAiAgentSessionDelete: async () => false,
+      showAppAbout: async () => undefined,
       showPandocSetup: async () => "cancel"
     },
     events: {
