@@ -77,7 +77,7 @@ export function markraHighlightRemarkPlugin() {
 }
 
 function readableMarkdownHeadingTitle(title: string) {
-  return toString(inlineMarkdownParser.runSync(inlineMarkdownParser.parse(title))).trim();
+  return toString(inlineMarkdownParser.runSync(inlineMarkdownParser.parse(`# ${title}`))).trim();
 }
 
 export function getMarkdownOutline(text: string): MarkdownOutlineItem[] {

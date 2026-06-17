@@ -34,6 +34,20 @@ describe("markdown helpers", () => {
     ]);
   });
 
+  it("preserves numeric prefixes in readable heading titles", () => {
+    expect(
+      getMarkdownOutline(
+        [
+          "## 1. **Synthetic** heading",
+          "### 2) Follow-up heading"
+        ].join("\n\n")
+      )
+    ).toEqual([
+      { level: 2, title: "1. Synthetic heading", titleMarkdown: "1. **Synthetic** heading" },
+      { level: 3, title: "2) Follow-up heading" }
+    ]);
+  });
+
   it("extracts readable titles from Markra highlight and math headings", () => {
     expect(getMarkdownOutline("# ==Marked== formula $x^2$")).toEqual([
       { level: 1, title: "Marked formula x^2", titleMarkdown: "==Marked== formula $x^2$" }
