@@ -4,10 +4,12 @@ import {
   useMemo,
   useRef,
   useState,
+  type Dispatch,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type SetStateAction,
   type UIEvent as ReactUIEvent
 } from "react";
 import {
@@ -48,7 +50,7 @@ import { IconButton } from "@markra/ui";
 import { markraHighlightRemarkPlugin, type MarkdownOutlineItem } from "@markra/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
 import { normalizeMovedPath, sameNativePath } from "../lib/path-move";
-import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
+import { readNativeClipboardText, showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import type { RecentMarkdownFolder, SidebarLayoutMode } from "../lib/settings/app-settings";
 import {
@@ -102,6 +104,12 @@ import {
   buildOutlineRenderItems,
   visibleOutlineRenderItems
 } from "./file-tree/outline-model";
+import {
+  contextMenuItem,
+  contextMenuPositionFromEvent,
+  contextMenuSeparator,
+  showContextMenu
+} from "./ContextMenu";
 
 type MarkdownFileTreeDrawerProps = {
   activeOutlineIndex?: number | null;
@@ -204,6 +212,108 @@ function OutlineTitle({ item }: { item: MarkdownOutlineItem }) {
       {item.titleMarkdown}
     </ReactMarkdown>
   );
+}
+
+type EditableTextInput = HTMLInputElement | HTMLTextAreaElement;
+type TextInputValueSetter = Dispatch<SetStateAction<string>>;
+
+function textInputSelection(input: EditableTextInput) {
+  const valueLength = input.value.length;
+  const start = input.selectionStart ?? valueLength;
+  const end = input.selectionEnd ?? start;
+  const normalizedStart = clampNumber(start, 0, valueLength) ?? valueLength;
+  const normalizedEnd = clampNumber(end, normalizedStart, valueLength) ?? normalizedStart;
+
+  return {
+    end: normalizedEnd,
+    start: normalizedStart
+  };
+}
+
+function selectedTextInputText(input: EditableTextInput) {
+  const { end, start } = textInputSelection(input);
+
+  return input.value.slice(start, end);
+}
+
+async function writeBrowserClipboardText(input: EditableTextInput, text: string) {
+  const clipboard = input.ownerDocument.defaultView?.navigator.clipboard;
+  const writeText = clipboard?.writeText;
+  if (typeof writeText !== "function") return false;
+
+  try {
+    await writeText.call(clipboard, text);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function runTextInputDocumentCommand(input: EditableTextInput, command: string) {
+  const documentTarget = input.ownerDocument;
+  const execCommand = (documentTarget as unknown as Record<string, unknown>)["execCommand"];
+  if (typeof execCommand !== "function") return false;
+
+  try {
+    input.focus({ preventScroll: true });
+    return Boolean(execCommand.call(documentTarget, command));
+  } catch {
+    return false;
+  }
+}
+
+function restoreTextInputSelection(input: EditableTextInput, start: number, end = start) {
+  const restoreSelection = () => {
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(start, end);
+  };
+
+  input.ownerDocument.defaultView?.setTimeout(restoreSelection, 0);
+}
+
+function replaceTextInputSelection(
+  input: EditableTextInput,
+  setValue: TextInputValueSetter,
+  replacement: string
+) {
+  const { end, start } = textInputSelection(input);
+  const nextValue = `${input.value.slice(0, start)}${replacement}${input.value.slice(end)}`;
+  const nextSelectionStart = start + replacement.length;
+
+  setValue(nextValue);
+  restoreTextInputSelection(input, nextSelectionStart);
+}
+
+async function copyTextInputSelection(input: EditableTextInput) {
+  const selectedText = selectedTextInputText(input);
+  if (!selectedText) return false;
+
+  const wroteClipboardText = await writeBrowserClipboardText(input, selectedText);
+  if (wroteClipboardText) return true;
+
+  return runTextInputDocumentCommand(input, "copy");
+}
+
+async function cutTextInputSelection(input: EditableTextInput, setValue: TextInputValueSetter) {
+  if (input.readOnly || input.disabled) return false;
+  const selectedText = selectedTextInputText(input);
+  if (!selectedText) return false;
+
+  const copied = await copyTextInputSelection(input);
+  if (!copied) return false;
+
+  replaceTextInputSelection(input, setValue, "");
+  return true;
+}
+
+async function pasteTextInputSelection(input: EditableTextInput, setValue: TextInputValueSetter) {
+  if (input.readOnly || input.disabled) return false;
+
+  const clipboardText = await readNativeClipboardText();
+  if (!clipboardText) return false;
+
+  replaceTextInputSelection(input, setValue, clipboardText);
+  return true;
 }
 
 export function MarkdownFileTreeDrawer({
@@ -790,6 +900,56 @@ export function MarkdownFileTreeDrawer({
     ).catch(() => {});
   };
 
+  const openTextInputContextMenu = (
+    event: ReactMouseEvent<HTMLInputElement>,
+    setValue: TextInputValueSetter
+  ) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const input = event.currentTarget;
+    const selectedText = selectedTextInputText(input);
+    const canEditInput = !input.readOnly && !input.disabled;
+
+    showContextMenu(input.ownerDocument, {
+      entries: [
+        contextMenuItem(
+          "markra:file-tree-input:cut",
+          label("menu.cut"),
+          "CmdOrCtrl+X",
+          () => cutTextInputSelection(input, setValue),
+          !canEditInput || !selectedText
+        ),
+        contextMenuItem(
+          "markra:file-tree-input:copy",
+          label("menu.copy"),
+          "CmdOrCtrl+C",
+          () => copyTextInputSelection(input),
+          !selectedText
+        ),
+        contextMenuItem(
+          "markra:file-tree-input:paste",
+          label("menu.paste"),
+          "CmdOrCtrl+V",
+          () => pasteTextInputSelection(input, setValue),
+          !canEditInput
+        ),
+        contextMenuSeparator(),
+        contextMenuItem(
+          "markra:file-tree-input:select-all",
+          label("menu.selectAll"),
+          "CmdOrCtrl+A",
+          () => {
+            input.focus({ preventScroll: true });
+            input.setSelectionRange(0, input.value.length);
+          },
+          input.value.length === 0
+        )
+      ],
+      position: contextMenuPositionFromEvent(event.nativeEvent)
+    });
+  };
+
   const dragTargetKey = (targetParentPath: string | null) => targetParentPath ?? "__root__";
 
   const canMoveFileToParent = (file: NativeMarkdownFolderFile, targetParentPath: string | null) => {
@@ -1025,6 +1185,7 @@ export function MarkdownFileTreeDrawer({
             value={newFileName}
             placeholder="Untitled.md"
             onChange={(event) => setNewFileName(event.target.value)}
+            onContextMenu={(event) => openTextInputContextMenu(event, setNewFileName)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
                 event.preventDefault();
@@ -1065,6 +1226,7 @@ export function MarkdownFileTreeDrawer({
           value={newFolderName}
           placeholder={label("app.newMarkdownFolder")}
           onChange={(event) => setNewFolderName(event.target.value)}
+          onContextMenu={(event) => openTextInputContextMenu(event, setNewFolderName)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();
@@ -1140,6 +1302,7 @@ export function MarkdownFileTreeDrawer({
           type="text"
           value={renameFileName}
           onChange={(event) => setRenameFileName(event.target.value)}
+          onContextMenu={(event) => openTextInputContextMenu(event, setRenameFileName)}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
               event.preventDefault();

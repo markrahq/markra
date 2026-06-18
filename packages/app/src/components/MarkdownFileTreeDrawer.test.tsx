@@ -1,13 +1,15 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MarkdownFileTreeDrawer } from "./MarkdownFileTreeDrawer";
 import { getMarkdownOutline } from "@markra/markdown";
-import { showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
+import { readNativeClipboardText, showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 
 vi.mock("../lib/tauri", () => ({
+  readNativeClipboardText: vi.fn(),
   showNativeMarkdownFileTreeContextMenu: vi.fn()
 }));
 
 const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
+const mockedReadNativeClipboardText = vi.mocked(readNativeClipboardText);
 
 const markdownFiles = [
   { name: "Untitled.md", path: "/vault/Untitled.md", relativePath: "Untitled.md" },
@@ -25,6 +27,8 @@ describe("MarkdownFileTreeDrawer", () => {
   beforeEach(() => {
     mockedShowNativeMarkdownFileTreeContextMenu.mockReset();
     mockedShowNativeMarkdownFileTreeContextMenu.mockResolvedValue(undefined);
+    mockedReadNativeClipboardText.mockReset();
+    mockedReadNativeClipboardText.mockResolvedValue(null);
   });
 
   it("keeps settings fixed in the lower-left", () => {
@@ -793,6 +797,44 @@ describe("MarkdownFileTreeDrawer", () => {
     fireEvent.keyDown(renameInput, { key: "Enter" });
 
     expect(renameFile).toHaveBeenCalledWith(markdownFiles[0], "Renamed.md");
+  });
+
+  it("shows text editing actions when right-clicking a file name input", async () => {
+    const createFile = vi.fn();
+    mockedReadNativeClipboardText.mockResolvedValue("Pasted note");
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onCreateFile={createFile}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New file" }));
+
+    const newFileInput = screen.getByRole("textbox", { name: "New file name" }) as HTMLInputElement;
+    fireEvent.contextMenu(newFileInput, { clientX: 24, clientY: 36 });
+
+    expect(mockedShowNativeMarkdownFileTreeContextMenu).not.toHaveBeenCalled();
+    expect(screen.getByRole("menuitem", { name: /Cut/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Copy/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Paste/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Select All/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("menuitem", { name: /Paste/ }));
+
+    await waitFor(() => expect(newFileInput).toHaveValue("Pasted note"));
+
+    fireEvent.keyDown(newFileInput, { key: "Enter" });
+
+    expect(createFile).toHaveBeenCalledWith("Pasted note");
   });
 
   it("keeps the rename input visible until an async rename finishes", async () => {

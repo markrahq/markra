@@ -21,6 +21,7 @@ import {
 } from "@markra/shared";
 import { defaultAiQuickActionPrompt } from "../lib/ai-actions";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
+import { focusedEditableTextInput } from "../lib/editable-target";
 
 type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
@@ -78,6 +79,25 @@ type ApplicationShortcutOptions = {
 };
 
 const emptyRecentMarkdownFiles: readonly RecentMarkdownFile[] = [];
+
+function runFocusedEditableTextCommand(command: "redo" | "undo") {
+  if (typeof document === "undefined") return false;
+
+  const control = focusedEditableTextInput(document);
+  if (!control) return false;
+
+  const documentTarget = control.ownerDocument;
+  const execCommand = (documentTarget as unknown as Record<string, unknown>)["execCommand"];
+  if (typeof execCommand !== "function") return true;
+
+  try {
+    execCommand.call(documentTarget, command);
+  } catch {
+    // Keep the command scoped to the focused text control even if the WebView refuses it.
+  }
+
+  return true;
+}
 
 export function useNativeMenuHandlers({
   checkForUpdates,
@@ -181,8 +201,16 @@ export function useNativeMenuHandlers({
         openFolder: () => latestOptionsRef.current.openFolder(),
         saveDocument: () => latestOptionsRef.current.saveDocument(),
         saveDocumentAs: () => latestOptionsRef.current.saveDocumentAs(),
-        editUndo: () => latestOptionsRef.current.runEditorShortcut("z"),
-        editRedo: () => latestOptionsRef.current.runEditorShortcut("z", { shiftKey: true }),
+        editUndo: () => {
+          if (runFocusedEditableTextCommand("undo")) return;
+
+          latestOptionsRef.current.runEditorShortcut("z");
+        },
+        editRedo: () => {
+          if (runFocusedEditableTextCommand("redo")) return;
+
+          latestOptionsRef.current.runEditorShortcut("z", { shiftKey: true });
+        },
         formatBold: () => runMarkdownShortcut("bold"),
         formatItalic: () => runMarkdownShortcut("italic"),
         formatStrikethrough: () => runMarkdownShortcut("strikethrough"),

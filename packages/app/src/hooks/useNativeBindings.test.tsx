@@ -124,6 +124,40 @@ describe("useNativeMenuHandlers", () => {
     });
   });
 
+  it("keeps native edit history commands inside a focused text input", () => {
+    const runEditorShortcut = vi.fn();
+    const execCommand = vi.fn().mockReturnValue(true);
+    const input = document.createElement("input");
+    const originalExecCommand = document.execCommand;
+    input.type = "text";
+    document.body.append(input);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand
+    });
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        runEditorShortcut
+      })
+    );
+
+    input.focus();
+
+    result.current.editUndo?.();
+    result.current.editRedo?.();
+
+    expect(execCommand).toHaveBeenNthCalledWith(1, "undo");
+    expect(execCommand).toHaveBeenNthCalledWith(2, "redo");
+    expect(runEditorShortcut).not.toHaveBeenCalled();
+
+    input.remove();
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: originalExecCommand
+    });
+  });
+
   it("routes the native all-folds command through the configured editor shortcut", () => {
     const runEditorShortcut = vi.fn();
     const { result } = renderHook(() =>

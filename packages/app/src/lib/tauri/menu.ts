@@ -91,6 +91,10 @@ export function listenNativeApplicationMenuCommands(handlers: NativeMenuHandlers
   return getAppRuntime().menu.listenApplicationMenuCommands(handlers);
 }
 
+export function readNativeClipboardText() {
+  return getAppRuntime().menu.readClipboardText();
+}
+
 export function installNativeApplicationMenu(
   handlers: NativeMenuHandlers,
   language: AppLanguage = "en",
