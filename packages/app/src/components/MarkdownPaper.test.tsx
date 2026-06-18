@@ -2731,6 +2731,33 @@ describe("MarkdownPaper editing", () => {
     restoreLayout();
   });
 
+  it("ignores horizontal rule margin clicks", async () => {
+    const { container, view } = await renderEditor("First\n\n---\n\nSecond");
+    const restoreLayout = mockThinHorizontalRuleBlockDragLayout(view, container);
+    const surface = container.querySelector<HTMLElement>(".ProseMirror");
+    expect(surface?.querySelector("hr")).toBeInTheDocument();
+
+    const secondCursor = findTextPosition(view, "Second");
+    moveCursor(view, secondCursor);
+    fireEvent.mouseDown(surface!, {
+      button: 0,
+      clientX: 200,
+      clientY: 134
+    });
+    expect(view.state.selection.from).toBe(secondCursor);
+
+    const firstCursor = findTextPosition(view, "First");
+    moveCursor(view, firstCursor);
+    fireEvent.mouseDown(surface!, {
+      button: 0,
+      clientX: 200,
+      clientY: 147
+    });
+    expect(view.state.selection.from).toBe(firstCursor);
+
+    restoreLayout();
+  });
+
   it("serializes horizontal rules without creating a setext-heading trap in source mode", async () => {
     const { editor, view } = await renderEditor("First\n\n---\n\nSecond");
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));

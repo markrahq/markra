@@ -19,6 +19,7 @@ import {
   markraAiEditorPreviewPlugin,
   markraAiSelectionHoldPlugin,
   markraBlockDragPlugin,
+  markraBlockGapPlugin,
   markraCalloutPlugin,
   markraCalloutRemarkPlugin,
   markraCalloutSerializerPlugin,
@@ -339,6 +340,7 @@ function MilkdownEditorSurface({
         .use(markraAiEditorPreviewPlugin)
         .use(markraSearchPlugin())
         .use(markraFootnotePreviewPlugin())
+        .use(markraBlockGapPlugin)
         .use(markraBlockDragPlugin(blockDragLabels))
         .use(markraHeadingTogglePlugin(headingToggleLabels))
         .use(markraListTogglePlugin(listToggleLabels))

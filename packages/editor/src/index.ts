@@ -1,5 +1,6 @@
 export * from "./ai-preview.ts";
 export * from "./block-drag.ts";
+export * from "./block-gap.ts";
 export * from "./callout.ts";
 export * from "./code-block.ts";
 export * from "./clipboard-images.ts";
