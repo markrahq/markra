@@ -19,6 +19,10 @@ vi.mock("../lib/settings/app-settings", () => ({
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     contentWidthPx: null,
+    editorFontFamily: {
+      family: null,
+      source: "theme"
+    },
     extendedSyntax: {
       githubAlerts: true,
       highlight: true
@@ -107,6 +111,10 @@ describe("useEditorPreferences", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      editorFontFamily: {
+        family: null,
+        source: "theme"
+      },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true
@@ -198,6 +206,10 @@ describe("useEditorPreferences", () => {
         closeAiCommandOnAgentPanelOpen: true,
         contentWidth: "wide",
         contentWidthPx: 1120,
+        editorFontFamily: {
+          family: "Example Serif",
+          source: "system"
+        },
         extendedSyntax: {
           githubAlerts: true,
           highlight: false

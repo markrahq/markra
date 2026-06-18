@@ -3,6 +3,7 @@ import {
   editorContentWidthPixels,
   type EditorContentWidth
 } from "../lib/editor-width";
+import { editorFontFamilyCssValue } from "../lib/editor-font";
 import type { MarkdownSourceEditorProps } from "./MarkdownSourceEditor";
 
 const MarkdownSourceEditor = lazy(async () => {
@@ -18,6 +19,10 @@ function markdownSourceTopInsetClassName(topInset: MarkdownSourceEditorProps["to
   return "pt-6 max-[900px]:pt-5";
 }
 
+type MarkdownSourceFallbackStyle = CSSProperties & {
+  "--source-editor-font-family"?: string;
+};
+
 function markdownSourceContentWidth(contentWidth: EditorContentWidth | undefined, contentWidthPx: number | null | undefined) {
   return contentWidthPx ?? editorContentWidthPixels[contentWidth ?? "default"];
 }
@@ -26,15 +31,18 @@ function MarkdownSourceEditorFallback({
   bodyFontSize = 16,
   contentWidth,
   contentWidthPx,
+  editorFontFamily = { family: null, source: "theme" },
   lineHeight = 1.65,
   scrollRef,
   topInset = "titlebar"
 }: MarkdownSourceEditorProps) {
+  const editorFontFamilyCss = editorFontFamilyCssValue(editorFontFamily);
   const paperStyle = {
+    ...(editorFontFamilyCss ? { "--source-editor-font-family": editorFontFamilyCss } : {}),
     fontSize: `${bodyFontSize}px`,
     lineHeight,
     maxWidth: `${markdownSourceContentWidth(contentWidth, contentWidthPx)}px`
-  } satisfies CSSProperties;
+  } satisfies MarkdownSourceFallbackStyle;
 
   return (
     <section

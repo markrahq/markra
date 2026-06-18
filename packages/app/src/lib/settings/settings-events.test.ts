@@ -158,6 +158,10 @@ describe("settings events", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide" as const,
       contentWidthPx: 1120,
+      editorFontFamily: {
+        family: "Example Serif",
+        source: "system"
+      },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true

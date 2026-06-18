@@ -3,6 +3,7 @@ mod app_exit;
 mod backup;
 mod clipboard;
 mod external_urls;
+mod fonts;
 mod image_upload;
 mod language;
 mod markdown_files;
@@ -24,6 +25,7 @@ use app_exit::handle_app_exit_requested;
 use backup::backup_markdown_folder;
 use clipboard::read_clipboard_text;
 use external_urls::open_external_url;
+use fonts::list_system_font_families;
 use image_upload::{upload_picgo_image, upload_s3_image, upload_webdav_image};
 use markdown_files::{
     check_pandoc_available, create_markdown_tree_file, create_markdown_tree_folder,
@@ -267,7 +269,8 @@ pub fn run() {
             install_shell_command,
             uninstall_shell_command,
             set_editor_window_restore_state,
-            list_editor_window_restore_states
+            list_editor_window_restore_states,
+            list_system_font_families
         ])
         .build(tauri::generate_context!())
         .expect("error while building Markra")

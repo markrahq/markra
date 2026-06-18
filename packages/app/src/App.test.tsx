@@ -200,6 +200,7 @@ function createStoredEditorPreferences(
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     contentWidthPx: null,
+    editorFontFamily: { family: null, source: "theme" },
     extendedSyntax: {
       githubAlerts: true,
       highlight: true
@@ -539,6 +540,7 @@ describe("Markra workspace", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" as const },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true
@@ -586,6 +588,7 @@ describe("Markra workspace", () => {
         closeAiCommandOnAgentPanelOpen: false,
         contentWidth: "default",
         contentWidthPx: null,
+        editorFontFamily: { family: null, source: "theme" },
         extendedSyntax: {
           githubAlerts: true,
           highlight: true
@@ -621,6 +624,7 @@ describe("Markra workspace", () => {
         closeAiCommandOnAgentPanelOpen: false,
         contentWidth: "default",
         contentWidthPx: null,
+        editorFontFamily: { family: null, source: "theme" },
         extendedSyntax: {
           githubAlerts: true,
           highlight: true
@@ -1267,6 +1271,7 @@ describe("Markra workspace", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default" as const,
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" as const },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true
@@ -1389,6 +1394,7 @@ describe("Markra workspace", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true
@@ -3548,6 +3554,7 @@ describe("Markra workspace", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true
@@ -3683,6 +3690,7 @@ describe("Markra workspace", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true

@@ -239,6 +239,15 @@ export type AppShellCommandRuntime = {
   uninstallShellCommand: () => Promise<NativeShellCommandStatus>;
 };
 
+export type AppSystemFontFamily = {
+  family: string;
+  label: string;
+};
+
+export type AppSystemFontsRuntime = {
+  listFontFamilies: () => Promise<AppSystemFontFamily[]>;
+};
+
 export type AppWebResourceRuntime = {
   requestWebResource: (request: NativeWebResourceRequest) => Promise<NativeWebResourceResponse>;
 };
@@ -283,6 +292,7 @@ export type AppRuntime = {
   platform: AppPlatformRuntime;
   settings: AppSettingsRuntime;
   shellCommand: AppShellCommandRuntime;
+  systemFonts: AppSystemFontsRuntime;
   updater: AppUpdaterRuntime;
   webResource: AppWebResourceRuntime;
   window: AppWindowRuntime;
@@ -406,6 +416,9 @@ export function createDefaultAppRuntime(): AppRuntime {
       getShellCommandStatus: async () => ({ commandPath: null, targetPath: null, status: "unavailable" }),
       installShellCommand: async () => ({ commandPath: null, targetPath: null, status: "unavailable" }),
       uninstallShellCommand: async () => ({ commandPath: null, targetPath: null, status: "unavailable" })
+    },
+    systemFonts: {
+      listFontFamilies: async () => []
     },
     updater: {
       checkAppUpdate: async () => null

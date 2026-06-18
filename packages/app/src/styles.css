@@ -790,6 +790,7 @@
   .markdown-paper .ProseMirror {
     @apply min-h-[calc(100vh-176px)] outline-none;
     cursor: var(--editor-text-cursor);
+    font-family: var(--editor-font-family);
   }
 
   .markdown-paper .ProseMirror {

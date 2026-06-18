@@ -239,6 +239,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     contentWidthPx: null,
+    editorFontFamily: { family: null, source: "theme" },
     extendedSyntax: {
       githubAlerts: true,
       highlight: true
@@ -501,6 +502,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     contentWidthPx: null,
+    editorFontFamily: { family: null, source: "theme" },
     extendedSyntax: {
       githubAlerts: true,
       highlight: true
@@ -1180,6 +1182,7 @@ export function installAppTestHarness() {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true

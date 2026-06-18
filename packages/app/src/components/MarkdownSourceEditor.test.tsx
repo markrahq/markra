@@ -77,6 +77,22 @@ describe("MarkdownSourceEditor", () => {
     );
   });
 
+  it("lets an explicit editor font override the default source font", () => {
+    const { container } = render(
+      <MarkdownSourceEditor
+        content="# Source"
+        editorFontFamily={{
+          family: "Example Serif",
+          source: "system"
+        }}
+        onChange={() => {}}
+      />
+    );
+    const paper = container.querySelector<HTMLElement>(".markdown-source-paper");
+
+    expect(paper?.style.getPropertyValue("--source-editor-font-family")).toContain("\"Example Serif\"");
+  });
+
   it("keeps literal markdown punctuation unchanged while editing", () => {
     const handleChange = vi.fn();
     const { container } = render(

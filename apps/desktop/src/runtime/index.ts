@@ -6,6 +6,7 @@ import type { AppRuntime } from "@markra/app/runtime";
 import * as ai from "./tauri/native-ai";
 import * as dialog from "./tauri/dialog";
 import * as files from "./tauri/file";
+import * as fonts from "./tauri/fonts";
 import * as menu from "./tauri/menu";
 import * as shellCommand from "./tauri/shell-command";
 import * as updater from "./tauri/updater";
@@ -114,6 +115,9 @@ export const desktopRuntime = {
     getShellCommandStatus: shellCommand.getNativeShellCommandStatus,
     installShellCommand: shellCommand.installNativeShellCommand,
     uninstallShellCommand: shellCommand.uninstallNativeShellCommand
+  },
+  systemFonts: {
+    listFontFamilies: fonts.listNativeSystemFontFamilies
   },
   updater: {
     checkAppUpdate: updater.checkNativeAppUpdate

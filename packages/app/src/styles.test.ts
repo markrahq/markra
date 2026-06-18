@@ -20,6 +20,17 @@ describe("editor stylesheet", () => {
     expect(styles).not.toContain(".markdown-source-input");
   });
 
+  it("applies selected visual editor fonts to the editable ProseMirror surface", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const surfaceRuleStart = styles.indexOf(".markdown-paper [data-milkdown-root],");
+    const surfaceRuleEnd = styles.indexOf(".markdown-paper .ProseMirror li", surfaceRuleStart);
+    const surfaceRule = styles.slice(surfaceRuleStart, surfaceRuleEnd);
+
+    expect(surfaceRuleStart).toBeGreaterThanOrEqual(0);
+    expect(surfaceRuleEnd).toBeGreaterThan(surfaceRuleStart);
+    expect(surfaceRule).toContain("font-family: var(--editor-font-family);");
+  });
+
   it("forces a grabbing cursor during document tab pointer drags", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

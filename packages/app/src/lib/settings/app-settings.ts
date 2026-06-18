@@ -17,6 +17,11 @@ import {
   normalizeEditorContentWidthPx,
   type EditorContentWidth
 } from "../editor-width";
+import {
+  defaultEditorFontFamily,
+  normalizeEditorFontFamilyPreference,
+  type EditorFontFamilyPreference
+} from "../editor-font";
 import { normalizeMarkdownTemplateEntries, type MarkdownTemplateEntry } from "../templates";
 import {
   defaultAiQuickActionPrompts,
@@ -298,6 +303,7 @@ export type EditorPreferences = {
   closeAiCommandOnAgentPanelOpen: boolean;
   contentWidth: EditorContentWidth;
   contentWidthPx: number | null;
+  editorFontFamily: EditorFontFamilyPreference;
   extendedSyntax: ExtendedSyntaxPreferences;
   imageUpload: ImageUploadSettings;
   lineHeight: number;
@@ -316,6 +322,7 @@ export type EditorPreferences = {
 };
 export type { AppLanguage };
 export type { EditorContentWidth };
+export type { EditorFontFamilyPreference };
 
 export const customThemeCssMaxLength = 50000;
 export const defaultCustomThemeCss = `:root[data-theme="custom"] {
@@ -406,6 +413,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   closeAiCommandOnAgentPanelOpen: false,
   contentWidth: "default",
   contentWidthPx: null,
+  editorFontFamily: { ...defaultEditorFontFamily },
   extendedSyntax: { ...defaultExtendedSyntaxPreferences },
   imageUpload: defaultImageUploadSettings,
   lineHeight: 1.65,
@@ -1222,6 +1230,7 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   if (typeof value !== "object" || value === null) {
     return {
       ...defaultEditorPreferences,
+      editorFontFamily: { ...defaultEditorFontFamily },
       extendedSyntax: { ...defaultExtendedSyntaxPreferences },
       titlebarActions: [...defaultTitlebarActions]
     };
@@ -1247,6 +1256,7 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       ? (preferences.contentWidth as EditorContentWidth)
       : defaultEditorPreferences.contentWidth,
     contentWidthPx: normalizeEditorContentWidthPx(preferences.contentWidthPx),
+    editorFontFamily: normalizeEditorFontFamilyPreference(preferences.editorFontFamily),
     extendedSyntax: normalizeExtendedSyntaxPreferences(preferences.extendedSyntax),
     imageUpload: normalizeImageUploadSettings(preferences.imageUpload),
     lineHeight: editorLineHeightOptions.includes(preferences.lineHeight as typeof editorLineHeightOptions[number])

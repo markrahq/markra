@@ -71,6 +71,7 @@ import {
   listenNativeSettingsWindowTarget,
   type NativeSettingsWindowTarget
 } from "../lib/tauri/window";
+import { normalizeSystemFontFamilyName } from "../lib/editor-font";
 import {
   loadMarkdownTemplatesFromEntries,
   markdownTemplateEntryFromTemplate,
@@ -78,6 +79,7 @@ import {
 } from "../lib/templates";
 import { useAppLanguage } from "./useAppLanguage";
 import { useAppTheme } from "./useAppTheme";
+import { getAppRuntime, type AppSystemFontFamily } from "../runtime";
 
 export type SettingsCategory =
   | "general"
@@ -120,6 +122,43 @@ export function shellCommandActionFailureMessage(baseMessage: string, error: unk
   return detail ? `${baseMessage} ${detail}` : baseMessage;
 }
 
+export function canonicalizeEditorFontFamilyPreference(
+  preferences: EditorPreferences,
+  systemFontFamilies: readonly AppSystemFontFamily[]
+): EditorPreferences | null {
+  if (preferences.editorFontFamily.source !== "system") return null;
+
+  const savedFamily = normalizeSystemFontFamilyName(preferences.editorFontFamily.family);
+  if (!savedFamily) return null;
+
+  const matchesSavedFamily = systemFontFamilies.some(
+    (fontFamily) => normalizeSystemFontFamilyName(fontFamily.family) === savedFamily
+  );
+  if (matchesSavedFamily) return null;
+
+  const labelMatches = new Map<string, string>();
+  for (const fontFamily of systemFontFamilies) {
+    const family = normalizeSystemFontFamilyName(fontFamily.family);
+    const label = normalizeSystemFontFamilyName(fontFamily.label);
+
+    if (!family || label !== savedFamily) continue;
+    labelMatches.set(family, family);
+  }
+
+  if (labelMatches.size !== 1) return null;
+
+  const canonicalFamily = Array.from(labelMatches.keys())[0];
+  if (!canonicalFamily) return null;
+
+  return {
+    ...preferences,
+    editorFontFamily: {
+      family: canonicalFamily,
+      source: "system"
+    }
+  };
+}
+
 export function useSettingsWindowState() {
   const appTheme = useAppTheme();
   const appLanguage = useAppLanguage();
@@ -145,6 +184,7 @@ export function useSettingsWindowState() {
   const [webSearchSettings, setWebSearchSettings] = useState<WebSearchSettings>(defaultWebSearchSettings);
   const [shellCommandStatus, setShellCommandStatus] = useState<NativeShellCommandStatus | null>(null);
   const [shellCommandRunning, setShellCommandRunning] = useState(false);
+  const [systemFontFamilies, setSystemFontFamilies] = useState<AppSystemFontFamily[]>([]);
   const [selectedAiProviderId, setSelectedAiProviderId] = useState<string | undefined>(
     () => createDefaultAiSettings().defaultProviderId
   );
@@ -207,6 +247,22 @@ export function useSettingsWindowState() {
       setAiSettings(settings);
       setSelectedAiProviderId(settings.defaultProviderId ?? settings.providers[0]?.id);
     }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    getAppRuntime().systemFonts.listFontFamilies()
+      .then((fontFamilies) => {
+        if (!cancelled) setSystemFontFamilies(fontFamilies);
+      })
+      .catch(() => {
+        if (!cancelled) setSystemFontFamilies([]);
+      });
 
     return () => {
       cancelled = true;
@@ -392,6 +448,13 @@ export function useSettingsWindowState() {
       .then(() => notifyAppEditorPreferencesChanged(preferences))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    const nextPreferences = canonicalizeEditorFontFamilyPreference(editorPreferences, systemFontFamilies);
+    if (!nextPreferences) return;
+
+    handleUpdateEditorPreferences(nextPreferences);
+  }, [editorPreferences, handleUpdateEditorPreferences, systemFontFamilies]);
 
   const handleUpdateNetworkSettings = useCallback((settings: NetworkSettings) => {
     setNetworkSettings(settings);
@@ -691,6 +754,7 @@ export function useSettingsWindowState() {
     shellCommandStatus,
     syncRunning,
     syncSettings,
+    systemFontFamilies,
     clearSettingsFocusTarget,
     translate,
     webSearchSettings,

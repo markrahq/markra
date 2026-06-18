@@ -1,6 +1,7 @@
 import { t, type AppLanguage } from "@markra/shared";
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { EditorContentWidth } from "../lib/editor-width";
+import type { EditorFontFamilyPreference } from "../lib/editor-font";
 import type { EditorTheme, ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
 import type { MarkdownDocumentLinkFile } from "../lib/document-links";
 import { shouldBlockLargeMarkdownVisual } from "../lib/large-markdown";
@@ -15,6 +16,7 @@ type SideDocumentPaneProps = {
   contentWidthPx: number | null;
   documentKey?: string | null;
   documentPath?: string | null;
+  editorFontFamily: EditorFontFamilyPreference;
   editorTheme: EditorTheme;
   extendedSyntax?: ExtendedSyntaxPreferences;
   language?: AppLanguage;
@@ -45,6 +47,7 @@ export function SideDocumentPane({
   contentWidthPx,
   documentKey,
   documentPath,
+  editorFontFamily,
   editorTheme,
   extendedSyntax,
   language = "en",
@@ -78,6 +81,7 @@ export function SideDocumentPane({
           content={content}
           contentWidth={contentWidth}
           contentWidthPx={contentWidthPx}
+          editorFontFamily={editorFontFamily}
           extendedSyntax={extendedSyntax}
           language={language}
           lineHeight={lineHeight}
@@ -97,6 +101,7 @@ export function SideDocumentPane({
           contentWidthPx={contentWidthPx}
           documentKey={documentKey}
           documentPath={documentPath}
+          editorFontFamily={editorFontFamily}
           editorTheme={editorTheme}
           extendedSyntax={extendedSyntax}
           initialContent={content}

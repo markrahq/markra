@@ -31,6 +31,7 @@ describe("editor preferences", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true
@@ -138,6 +139,7 @@ describe("editor preferences", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "default",
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" },
       imageUpload: {
         fileNamePattern: "web-{name}-{timestamp}",
         picgo: {
@@ -223,6 +225,26 @@ describe("editor preferences", () => {
     expect(normalizeEditorPreferences({}).autoUpdateEnabled).toBe(true);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: false }).autoUpdateEnabled).toBe(false);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: "no" }).autoUpdateEnabled).toBe(true);
+  });
+
+  it("normalizes the editor font family preference", () => {
+    expect(normalizeEditorPreferences({}).editorFontFamily).toEqual({ family: null, source: "theme" });
+    expect(normalizeEditorPreferences({
+      editorFontFamily: {
+        family: "Example Serif",
+        source: "system"
+      }
+    }).editorFontFamily).toEqual({ family: "Example Serif", source: "system" });
+    expect(normalizeEditorPreferences({
+      editorFontFamily: {
+        family: "",
+        source: "system"
+      }
+    }).editorFontFamily).toEqual({ family: null, source: "theme" });
+    expect(normalizeEditorPreferences({ editorFontFamily: "Legacy Sans" }).editorFontFamily).toEqual({
+      family: "Legacy Sans",
+      source: "system"
+    });
   });
 
   it("normalizes the code block line wrapping preference", () => {
@@ -532,6 +554,7 @@ describe("editor preferences", () => {
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
         highlight: true
@@ -592,6 +615,7 @@ describe("editor preferences", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide",
       contentWidthPx: 1120,
+      editorFontFamily: { family: "Example Serif", source: "system" },
       extendedSyntax: {
         githubAlerts: false,
         highlight: false
@@ -660,6 +684,7 @@ describe("editor preferences", () => {
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide",
       contentWidthPx: 1120,
+      editorFontFamily: { family: "Example Serif", source: "system" },
       extendedSyntax: {
         githubAlerts: false,
         highlight: false

@@ -114,6 +114,117 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("searches and switches the editor font family from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          editorFontFamily: { family: null, source: "theme" }
+        }}
+        systemFontFamilies={[
+          { family: "Example Sans", label: "Example Sans" },
+          { family: "Example Serif", label: "Example Serif" }
+        ]}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const fontFamilySelect = screen.getByRole("combobox", { name: "Editor font" });
+
+    expect(fontFamilySelect).toHaveValue("Theme default");
+
+    fireEvent.focus(fontFamilySelect);
+
+    expect(fontFamilySelect).toHaveValue("");
+    expect(fontFamilySelect).toHaveAttribute("placeholder", "Theme default");
+    expect(screen.getByRole("option", { name: "Theme default" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Example Sans" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Example Serif" })).toBeInTheDocument();
+
+    fireEvent.change(fontFamilySelect, { target: { value: "ser" } });
+
+    expect(screen.queryByRole("option", { name: "Example Sans" })).not.toBeInTheDocument();
+
+    const serifOption = screen.getByRole("option", { name: "Example Serif" });
+    expect(serifOption.getAttribute("style")).toContain("\"Example Serif\"");
+
+    fireEvent.click(serifOption);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      editorFontFamily: {
+        family: "Example Serif",
+        source: "system"
+      }
+    });
+  });
+
+  it("previews the selected editor font family in the closed select text", () => {
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          editorFontFamily: {
+            family: "Example Serif",
+            source: "system"
+          }
+        }}
+        systemFontFamilies={[
+          { family: "Example Sans", label: "Example Sans" },
+          { family: "Example Serif", label: "Example Serif" }
+        ]}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    const fontFamilySelect = screen.getByRole("combobox", { name: "Editor font" });
+
+    expect(fontFamilySelect).toHaveValue("Example Serif");
+    expect(fontFamilySelect.getAttribute("style")).toContain("\"Example Serif\"");
+  });
+
+  it("shows localized font labels while applying CSS font family names", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          editorFontFamily: {
+            family: "游明朝",
+            source: "system"
+          }
+        }}
+        systemFontFamilies={[{ family: "YuMincho", label: "游明朝" }]}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const fontFamilySelect = screen.getByRole("combobox", { name: "Editor font" });
+
+    expect(fontFamilySelect).toHaveValue("Theme default");
+
+    fireEvent.focus(fontFamilySelect);
+
+    const localizedOption = screen.getByRole("option", { name: "游明朝" });
+    expect(screen.queryByRole("option", { name: "YuMincho" })).not.toBeInTheDocument();
+
+    fireEvent.click(localizedOption);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      editorFontFamily: {
+        family: "YuMincho",
+        source: "system"
+      }
+    });
+  });
+
   it("switches the sidebar layout from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

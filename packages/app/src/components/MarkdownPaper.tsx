@@ -6,6 +6,10 @@ import {
   editorCustomContentWidthMin,
   type EditorContentWidth
 } from "../lib/editor-width";
+import {
+  editorFontFamilyCssValue,
+  type EditorFontFamilyPreference
+} from "../lib/editor-font";
 import type { EditorTheme } from "../lib/settings/app-settings";
 import { EditorWidthResizer } from "./EditorWidthResizer";
 import type { MarkdownPaperSurfaceProps } from "./MarkdownPaperSurface";
@@ -26,6 +30,7 @@ type MarkdownPaperProps = {
   contentWidthPx?: number | null;
   documentKey?: string | null;
   documentPath?: MarkdownPaperSurfaceProps["documentPath"];
+  editorFontFamily?: EditorFontFamilyPreference;
   editorTheme?: EditorTheme;
   extendedSyntax?: MarkdownPaperSurfaceProps["extendedSyntax"];
   initialContent: string;
@@ -50,6 +55,11 @@ type MarkdownPaperProps = {
   topInset?: "tabs" | "titlebar";
   workspaceFiles?: MarkdownPaperSurfaceProps["workspaceFiles"];
   wrapCodeBlocks?: boolean;
+};
+
+type MarkdownPaperStyle = CSSProperties & {
+  "--editor-font-family"?: string;
+  "--editor-heading-font-family"?: string;
 };
 
 function editorBottomPadding(bottomOverlayInset: number) {
@@ -78,6 +88,7 @@ export function MarkdownPaper({
   contentWidthPx = null,
   documentKey,
   documentPath,
+  editorFontFamily = { family: null, source: "theme" },
   editorTheme = "light",
   extendedSyntax,
   initialContent,
@@ -104,12 +115,19 @@ export function MarkdownPaper({
   wrapCodeBlocks = true
 }: MarkdownPaperProps) {
   const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
+  const editorFontFamilyCss = editorFontFamilyCssValue(editorFontFamily);
   const paperStyle = {
+    ...(editorFontFamilyCss
+      ? {
+          "--editor-font-family": editorFontFamilyCss,
+          "--editor-heading-font-family": "var(--editor-font-family)"
+        }
+      : {}),
     fontSize: `${bodyFontSize}px`,
     lineHeight,
     maxWidth: `${resolvedContentWidth}px`,
     paddingBottom: editorBottomPadding(bottomOverlayInset)
-  } satisfies CSSProperties;
+  } satisfies MarkdownPaperStyle;
   const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";
   const editorInstanceKey = `${documentKey ?? "untitled"}:${documentPath ?? "unsaved"}:${revision}`;
 

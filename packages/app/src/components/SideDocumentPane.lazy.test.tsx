@@ -35,6 +35,7 @@ describe("SideDocumentPane source editor loading", () => {
       content: "# Source",
       contentWidth: "default" as const,
       contentWidthPx: null,
+      editorFontFamily: { family: null, source: "theme" } as const,
       editorTheme: "light" as const,
       lineHeight: 1.65,
       mode: "visual" as const,

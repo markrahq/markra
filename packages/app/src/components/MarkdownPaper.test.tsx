@@ -42,13 +42,14 @@ import {
   readAiTableAnchorsFromView
 } from "../hooks/useEditorController";
 import type { AiSelectionContext } from "@markra/ai";
-import type { EditorTheme, ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
+import type { EditorFontFamilyPreference, EditorTheme, ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
 
 async function renderEditor(
   initialContent = "",
   options: {
     documentPath?: string | null;
     editorTheme?: EditorTheme;
+    editorFontFamily?: EditorFontFamilyPreference;
     onMarkdownChange?: (content: string) => unknown;
     onSaveClipboardImage?: (image: File) => Promise<{ alt: string; src: string } | null>;
     onSaveRemoteClipboardImage?: (image: RemoteClipboardImage) => Promise<{ alt: string; src: string } | null>;
@@ -73,6 +74,7 @@ async function renderEditor(
     <MarkdownPaper
       documentPath={options.documentPath}
       editorTheme={options.editorTheme}
+      editorFontFamily={options.editorFontFamily}
       bottomOverlayInset={options.bottomOverlayInset}
       initialContent={initialContent}
       onEditorReady={(instance) => {
@@ -772,6 +774,28 @@ describe("MarkdownPaper editing", () => {
     const { container } = await renderEditor("```ts\nconst syntheticValue = 'mock';\n```", { wrapCodeBlocks: false });
 
     expect(container.querySelector(".markdown-paper")).toHaveAttribute("data-code-block-wrap", "false");
+  });
+
+  it("lets an explicit editor font override theme fonts", async () => {
+    const { container } = await renderEditor("# Synthetic heading", {
+      editorFontFamily: {
+        family: "Example Serif",
+        source: "system"
+      },
+      editorTheme: "gothic"
+    });
+    const paper = container.querySelector<HTMLElement>(".markdown-paper");
+
+    expect(paper?.style.getPropertyValue("--editor-font-family")).toContain("\"Example Serif\"");
+    expect(paper?.style.getPropertyValue("--editor-heading-font-family")).toBe("var(--editor-font-family)");
+  });
+
+  it("does not override theme fonts by default", async () => {
+    const { container } = await renderEditor("# Synthetic heading");
+    const paper = container.querySelector<HTMLElement>(".markdown-paper");
+
+    expect(paper?.style.getPropertyValue("--editor-font-family")).toBe("");
+    expect(paper?.style.getPropertyValue("--editor-heading-font-family")).toBe("");
   });
 
   it("renders exact visual search highlights without width normalization", async () => {

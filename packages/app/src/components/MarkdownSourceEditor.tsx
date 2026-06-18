@@ -10,6 +10,10 @@ import {
   editorCustomContentWidthMin,
   type EditorContentWidth
 } from "../lib/editor-width";
+import {
+  editorFontFamilyCssValue,
+  type EditorFontFamilyPreference
+} from "../lib/editor-font";
 import type { ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
 import { EditorWidthResizer } from "./EditorWidthResizer";
 
@@ -21,6 +25,7 @@ export type MarkdownSourceEditorProps = {
   contentWidthMax?: number;
   contentWidthMin?: number;
   contentWidthPx?: number | null;
+  editorFontFamily?: EditorFontFamilyPreference;
   extendedSyntax?: ExtendedSyntaxPreferences;
   language?: AppLanguage;
   lineHeight?: number;
@@ -36,6 +41,10 @@ export type MarkdownSourceEditorProps = {
   searchMatches?: SearchRange[];
   scrollRef?: Ref<HTMLElement>;
   topInset?: "none" | "tabs" | "titlebar";
+};
+
+type MarkdownSourcePaperStyle = CSSProperties & {
+  "--source-editor-font-family"?: string;
 };
 
 const externalSourceUpdate = Annotation.define<boolean>();
@@ -140,7 +149,7 @@ function markdownSourceTheme(): Extension {
     ".cm-scroller": {
       cursor: "text",
       fontFamily:
-        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+        'var(--source-editor-font-family, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace)',
       lineHeight: "inherit",
       overflow: "visible"
     },
@@ -158,6 +167,7 @@ export function MarkdownSourceEditor({
   contentWidthMax = editorCustomContentWidthMax,
   contentWidthMin = editorCustomContentWidthMin,
   contentWidthPx = null,
+  editorFontFamily = { family: null, source: "theme" },
   language = "en",
   lineHeight = 1.65,
   onChange,
@@ -183,12 +193,14 @@ export function MarkdownSourceEditor({
   const editableCompartmentRef = useRef(new Compartment());
   const searchCompartmentRef = useRef(new Compartment());
   const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
+  const editorFontFamilyCss = editorFontFamilyCssValue(editorFontFamily);
   const sourceLabel = t(language, "app.markdownSource");
   const paperStyle = {
+    ...(editorFontFamilyCss ? { "--source-editor-font-family": editorFontFamilyCss } : {}),
     fontSize: `${bodyFontSize}px`,
     lineHeight,
     maxWidth: `${resolvedContentWidth}px`
-  } satisfies CSSProperties;
+  } satisfies MarkdownSourcePaperStyle;
   const topInsetClassName =
     topInset === "tabs"
       ? "pt-24 max-[900px]:pt-20"

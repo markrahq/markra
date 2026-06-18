@@ -70,6 +70,7 @@ export function SettingsWindow() {
     shellCommandStatus,
     syncRunning,
     syncSettings,
+    systemFontFamilies,
     clearSettingsFocusTarget,
     translate,
     webSearchSettings,
@@ -249,6 +250,7 @@ export function SettingsWindow() {
               aiEnabled={appFeatures.ai}
               preferences={editorPreferences}
               s3ImageUploadEnabled={appFeatures.s3ImageUpload}
+              systemFontFamilies={systemFontFamilies}
               translate={translate}
               onUpdatePreferences={handleUpdateEditorPreferences}
             />

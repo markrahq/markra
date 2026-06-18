@@ -3158,6 +3158,7 @@ function WorkspaceApp() {
               contentWidthPx={activeEditorContentWidthPx}
               documentKey={tab.id}
               documentPath={tab.path}
+              editorFontFamily={editorPreferences.preferences.editorFontFamily}
               editorTheme={appTheme.editorTheme}
               extendedSyntax={editorPreferences.preferences.extendedSyntax}
               initialContent={tab.content}
@@ -3408,6 +3409,7 @@ function WorkspaceApp() {
                           content={document.content}
                           contentWidth={activeEditorContentWidth}
                           contentWidthPx={activeEditorContentWidthPx}
+                          editorFontFamily={editorPreferences.preferences.editorFontFamily}
                           extendedSyntax={editorPreferences.preferences.extendedSyntax}
                           language={appLanguage.language}
                           lineHeight={editorPreferences.preferences.lineHeight}
@@ -3435,6 +3437,7 @@ function WorkspaceApp() {
                           content={document.content}
                           contentWidth={activeEditorContentWidth}
                           contentWidthPx={activeEditorContentWidthPx}
+                          editorFontFamily={editorPreferences.preferences.editorFontFamily}
                           extendedSyntax={editorPreferences.preferences.extendedSyntax}
                           language={appLanguage.language}
                           lineHeight={editorPreferences.preferences.lineHeight}
@@ -3486,6 +3489,7 @@ function WorkspaceApp() {
                         contentWidthPx={activeEditorContentWidthPx}
                         documentKey={sideDocumentTab.id}
                         documentPath={sideDocumentTab.path}
+                        editorFontFamily={editorPreferences.preferences.editorFontFamily}
                         editorTheme={appTheme.editorTheme}
                         extendedSyntax={editorPreferences.preferences.extendedSyntax}
                         language={appLanguage.language}
