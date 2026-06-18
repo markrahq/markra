@@ -21,6 +21,7 @@ export const selectionFormattingToolbarActions = [
   "inlineCode",
   "highlight",
   "clearFormatting",
+  "paragraph",
   "heading1",
   "quote",
   "bulletList",
