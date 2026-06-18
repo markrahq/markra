@@ -213,6 +213,7 @@ export type AppMenuRuntime = {
     options?: NativeEditorContextMenuOptions
   ) => Promise<RuntimeCleanup>;
   listenApplicationMenuCommands: (handlers: NativeMenuHandlers) => Promise<RuntimeCleanup>;
+  readClipboardText: () => Promise<string | null>;
   showMarkdownFileTreeContextMenu: (
     handlers: NativeMarkdownFileTreeContextMenuHandlers,
     language?: AppLanguage,
@@ -330,6 +331,18 @@ function unsupportedFeature(feature: string): Promise<never> {
   return Promise.reject(new Error(`${feature} is unavailable without a configured app runtime.`));
 }
 
+async function readBrowserClipboardText() {
+  const clipboard = typeof navigator === "undefined" ? null : navigator.clipboard;
+  const readText = clipboard?.readText;
+  if (typeof readText !== "function") return null;
+
+  try {
+    return await readText.call(clipboard);
+  } catch {
+    return null;
+  }
+}
+
 function createDefaultFileRuntime(): AppFileRuntime {
   return {
     confirmMarkdownFileDelete: async () => false,
@@ -406,6 +419,7 @@ export function createDefaultAppRuntime(): AppRuntime {
       installApplicationMenu: async () => () => undefined,
       installEditorContextMenu: async () => () => undefined,
       listenApplicationMenuCommands: async () => () => undefined,
+      readClipboardText: readBrowserClipboardText,
       showMarkdownFileTreeContextMenu: async () => undefined
     },
     platform: {

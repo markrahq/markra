@@ -103,6 +103,7 @@ export const desktopRuntime = {
     installApplicationMenu: menu.installNativeApplicationMenu,
     installEditorContextMenu: menu.installNativeEditorContextMenu,
     listenApplicationMenuCommands: menu.listenNativeApplicationMenuCommands,
+    readClipboardText: menu.readNativeClipboardText,
     showMarkdownFileTreeContextMenu: menu.showNativeMarkdownFileTreeContextMenu
   },
   platform: {

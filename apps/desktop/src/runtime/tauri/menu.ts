@@ -175,7 +175,7 @@ function normalizeRecentFilesForNativeMenu(files: readonly RecentMarkdownFile[])
   });
 }
 
-async function readNativeClipboardText() {
+export async function readNativeClipboardText() {
   try {
     const text = await invoke<string | null>("read_clipboard_text");
 
