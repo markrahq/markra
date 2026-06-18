@@ -201,6 +201,9 @@ function MilkdownEditorSurface({
     collapseSection: t(language, "editor.collapseSection"),
     expandSection: t(language, "editor.expandSection")
   };
+  const headingLevelLabels = {
+    paragraph: t(language, "menu.paragraph")
+  };
   const listToggleLabels = {
     collapseListItem: t(language, "editor.collapseListItem"),
     expandListItem: t(language, "editor.expandListItem")
@@ -360,7 +363,7 @@ function MilkdownEditorSurface({
         .use(markraTableControlsPlugin(tableControlLabels))
         .use(markraTrailingParagraphPlugin)
         .use(markraLinkImageLivePlugin(resolveCurrentImageSrc))
-        .use(markraHeadingLevelPlugin)
+        .use(markraHeadingLevelPlugin(headingLevelLabels))
         .use(
           markraRawHtmlPlugin({
             htmlSourceApplyLabel: t(language, "editor.htmlSourceApply"),

@@ -140,6 +140,31 @@ describe("AiSelectionToolbar", () => {
     expect(onSetHeadingLevel).toHaveBeenCalledWith(3);
   });
 
+  it("routes paragraph choices from the heading level menu", () => {
+    const onRunFormattingAction = vi.fn();
+
+    render(
+      <AiSelectionToolbar
+        activeHeadingLevel={2}
+        anchor={anchor}
+        language="en"
+        open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={onRunFormattingAction}
+        onRunAction={vi.fn()}
+        onSetHeadingLevel={vi.fn()}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Heading Level H2" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Paragraph" }));
+
+    expect(onRunFormattingAction).toHaveBeenCalledWith("paragraph");
+    expect(screen.queryByRole("menu", { name: "Heading Level" })).not.toBeInTheDocument();
+  });
+
   it("renders the heading level menu outside the scrollable toolbar shell", () => {
     render(
       <AiSelectionToolbar

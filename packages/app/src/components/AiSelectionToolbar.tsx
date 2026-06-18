@@ -21,6 +21,7 @@ import {
   List,
   ListOrdered,
   PenLine,
+  Pilcrow,
   Plus,
   Quote,
   Sparkles,
@@ -61,7 +62,16 @@ type HeadingLevelOption = {
   icon: LucideIcon;
   label: string;
   level: SelectionHeadingLevel;
+  type: "heading";
 };
+
+type ParagraphLevelOption = {
+  icon: LucideIcon;
+  labelKey: I18nKey;
+  type: "paragraph";
+};
+
+type HeadingMenuOption = HeadingLevelOption | ParagraphLevelOption;
 
 type AiSelectionToolbarProps = {
   anchor: SelectionAnchor | null;
@@ -165,8 +175,17 @@ const headingLevelIcons: Record<SelectionHeadingLevel, LucideIcon> = {
 const headingLevelOptions: HeadingLevelOption[] = selectionHeadingLevels.map((level) => ({
   icon: headingLevelIcons[level],
   label: `H${level}`,
-  level
+  level,
+  type: "heading"
 }));
+const headingMenuOptions: HeadingMenuOption[] = [
+  {
+    icon: Pilcrow,
+    labelKey: "menu.paragraph",
+    type: "paragraph"
+  },
+  ...headingLevelOptions
+];
 
 export function AiSelectionToolbar({
   anchor,
@@ -193,7 +212,7 @@ export function AiSelectionToolbar({
     setHeadingLevelMenuStyle(
       anchoredPopoverStyle(button, headingLevelMenuRef.current, {
         fallbackSize: {
-          height: 76,
+          height: 112,
           width: 112
         },
         gap: 4
@@ -281,9 +300,10 @@ export function AiSelectionToolbar({
             role="menu"
             aria-label={label("menu.headingLevel")}
           >
-            {headingLevelOptions.map((option) => {
+            {headingMenuOptions.map((option) => {
               const HeadingLevelIcon = option.icon;
-              const selected = option.level === activeHeadingLevel;
+              const optionLabel = option.type === "paragraph" ? label(option.labelKey) : option.label;
+              const selected = option.type === "heading" && option.level === activeHeadingLevel;
 
               return (
                 <button
@@ -292,14 +312,19 @@ export function AiSelectionToolbar({
                       ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
                       : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
                   }`}
-                  key={option.level}
+                  key={option.type === "paragraph" ? "paragraph" : option.level}
                   type="button"
                   role="menuitemradio"
-                  aria-label={option.label}
+                  aria-label={optionLabel}
                   aria-checked={selected}
-                  title={option.label}
+                  title={optionLabel}
                   onClick={() => {
                     setHeadingLevelMenuOpen(false);
+                    if (option.type === "paragraph") {
+                      onRunFormattingAction("paragraph");
+                      return;
+                    }
+
                     onSetHeadingLevel(option.level);
                   }}
                 >

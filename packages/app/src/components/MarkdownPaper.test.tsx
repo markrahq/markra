@@ -6838,6 +6838,7 @@ describe("MarkdownPaper editing", () => {
 
     expect(screen.getByRole("listbox", { name: "Heading level" })).toBeInTheDocument();
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Paragraph",
       "H1",
       "H2",
       "H3",
@@ -6853,6 +6854,22 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("### Title");
     expect(screen.queryByRole("listbox", { name: "Heading level" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Heading level H3" })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("converts a heading to paragraph from the heading level list", async () => {
+    const { container, editor, view } = await renderEditor("## Title");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    focusEditor(view);
+    moveCursor(view, findTextPosition(view, "Title"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Heading level H2" }));
+    fireEvent.click(screen.getByRole("option", { name: "Paragraph" }));
+
+    expect(container.querySelector(".ProseMirror p")).toHaveTextContent("Title");
+    expect(container.querySelector(".ProseMirror h2")).not.toBeInTheDocument();
+    expect(serializeMarkdown(view.state.doc).trim()).toBe("Title");
+    expect(screen.queryByRole("listbox", { name: "Heading level" })).not.toBeInTheDocument();
   });
 
   it("keeps inline heading formatting rendered while editing the heading", async () => {

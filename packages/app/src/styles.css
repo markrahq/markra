@@ -1547,6 +1547,11 @@
     line-height: 1;
   }
 
+  .markdown-paper .markra-heading-level-list [data-heading-level="paragraph"] {
+    grid-column: 1 / -1;
+    padding-inline: 0.5rem;
+  }
+
   .markdown-paper .markra-heading-level-list [role="option"]:hover,
   .markdown-paper .markra-heading-level-list [role="option"]:focus-visible {
     background: var(--editor-bg-secondary);
