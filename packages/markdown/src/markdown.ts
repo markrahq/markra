@@ -77,7 +77,13 @@ export function markraHighlightRemarkPlugin() {
 }
 
 function readableMarkdownHeadingTitle(title: string) {
-  return toString(inlineMarkdownParser.runSync(inlineMarkdownParser.parse(title))).trim();
+  // A heading's text is inline content, but `inlineMarkdownParser` parses whatever it is handed
+  // as a block document — so a leading "1. " / "2) ", "- ", "> " or "#" prefix is mis-read as a
+  // list, blockquote or heading marker and dropped, losing it from the outline (e.g. "1. Overview"
+  // became "Overview"). Parsing the title back inside a heading keeps the whole value as heading
+  // inline content, so those prefixes survive while inline formatting (bold/links/code/highlight/
+  // math) is still flattened.
+  return toString(inlineMarkdownParser.runSync(inlineMarkdownParser.parse(`# ${title}`))).trim();
 }
 
 export function getMarkdownOutline(text: string): MarkdownOutlineItem[] {
