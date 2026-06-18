@@ -19,6 +19,7 @@ export type NativeMarkdownFileTreeContextMenuHandlers = {
   }>;
   createFolder?: () => unknown | Promise<unknown>;
   deleteFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
+  openContainingFolder?: (file?: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   openFileToSide?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   renameFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   saveFileAsTemplate?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;

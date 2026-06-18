@@ -1,4 +1,7 @@
-import { createEditorContextMenuEntries } from "./context-menu-items";
+import {
+  createEditorContextMenuEntries,
+  createMarkdownFileTreeContextMenuEntries
+} from "./context-menu-items";
 import type { ContextMenuEntry, ContextMenuItem } from "../components/ContextMenu";
 
 function menuItemById(entries: ContextMenuEntry[], id: string): ContextMenuItem {
@@ -121,5 +124,43 @@ describe("editor context menu entries", () => {
     expect(execCommand).toHaveBeenCalledTimes(1);
     expect(execCommand).toHaveBeenNthCalledWith(1, "paste");
     expect(readText).not.toHaveBeenCalled();
+  });
+});
+
+describe("markdown file tree context menu entries", () => {
+  it("offers one containing-folder action for markdown files", () => {
+    const openContainingFolder = vi.fn();
+    const file = {
+      name: "guide.md",
+      path: "/mock-project/docs/guide.md",
+      relativePath: "docs/guide.md"
+    };
+
+    const item = menuItemById(
+      createMarkdownFileTreeContextMenuEntries({ openContainingFolder }, "zh-CN", file),
+      "markra:file-tree:open-containing-folder"
+    );
+
+    expect(item.label).toBe("打开所在文件夹");
+
+    item.onSelect?.();
+
+    expect(openContainingFolder).toHaveBeenCalledWith(file);
+  });
+
+  it("offers the containing-folder action from the file tree background", () => {
+    const openContainingFolder = vi.fn();
+
+    const item = menuItemById(
+      createMarkdownFileTreeContextMenuEntries({ openContainingFolder }, "zh-CN"),
+      "markra:file-tree:open-containing-folder"
+    );
+
+    expect(item.label).toBe("打开所在文件夹");
+
+    item.onSelect?.();
+
+    expect(openContainingFolder).toHaveBeenCalledTimes(1);
+    expect(openContainingFolder.mock.calls[0]).toEqual([]);
   });
 });

@@ -132,6 +132,7 @@ type MarkdownFileTreeDrawerProps = {
   onCreateFolder?: (folderName: string, parentPath?: string | null) => unknown | Promise<unknown>;
   onDeleteFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onOpenFile: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
+  onOpenContainingFolder?: (path: string) => unknown | Promise<unknown>;
   onOpenFileToSide?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onOpenFolder?: () => unknown | Promise<unknown>;
   onOpenRecentFolder?: (folder: RecentMarkdownFolder) => unknown | Promise<unknown>;
@@ -337,6 +338,7 @@ export function MarkdownFileTreeDrawer({
   onCreateFolder,
   onDeleteFile,
   onOpenFile,
+  onOpenContainingFolder,
   onOpenFileToSide,
   onOpenFolder,
   onOpenRecentFolder,
@@ -475,6 +477,7 @@ export function MarkdownFileTreeDrawer({
   const fileCreationAvailable = Boolean(onCreateFile);
   const folderCreationAvailable = folderOpen && Boolean(onCreateFolder);
   const folderActionsAvailable = fileCreationAvailable || folderCreationAvailable;
+  const backgroundContextMenuAvailable = folderActionsAvailable || Boolean(onOpenContainingFolder && rootPath);
   const folderExpansionAvailable = folderPaths.length > 0;
   const allFoldersExpanded = folderExpansionAvailable && folderPaths.every((folderPath) => expandedFolders.has(folderPath));
   const outlineExpansionAvailable = collapsibleOutlineKeys.length > 0;
@@ -872,7 +875,7 @@ export function MarkdownFileTreeDrawer({
   ) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!folderActionsAvailable && !file) return;
+    if (!backgroundContextMenuAvailable && !file) return;
 
     const createTargetFolderPath = normalizeCreateParentPath(targetFolderPath ?? targetFolderPathForFile(file));
 
@@ -891,6 +894,14 @@ export function MarkdownFileTreeDrawer({
         deleteFile: (targetFile) => {
           onDeleteFile?.(targetFile);
         },
+        openContainingFolder: onOpenContainingFolder
+          ? (targetFile) => {
+            const path = targetFile?.path ?? rootPath;
+            if (!path) return;
+
+            return onOpenContainingFolder(path);
+          }
+          : undefined,
         openFileToSide: onOpenFileToSide,
         renameFile: startRenamingFile,
         saveFileAsTemplate: onSaveFileAsTemplate

@@ -273,6 +273,10 @@ export function deleteNativeMarkdownTreeFile(rootPath: string, path: string) {
   return getAppRuntime().files.deleteMarkdownTreeFile(rootPath, path);
 }
 
+export function openNativeContainingFolder(path: string) {
+  return getAppRuntime().files.openContainingFolder(path);
+}
+
 export function confirmNativeMarkdownFileDelete(
   fileName: string,
   labels: { cancelLabel: string; message: string; okLabel: string }

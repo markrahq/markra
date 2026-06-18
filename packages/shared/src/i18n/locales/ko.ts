@@ -324,6 +324,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFile": "파일 만들기",
   "app.newMarkdownFileFromTemplate": "템플릿에서 만들기",
   "app.saveMarkdownFileAsTemplate": "템플릿으로 저장",
+  "app.openContainingFolder": "포함된 폴더 열기",
   "app.markdownTemplateSaved": "템플릿으로 저장했습니다.",
   "app.markdownTemplateSaveFailed": "템플릿을 저장할 수 없습니다.",
   "app.newMarkdownFileName": "새 파일 이름",

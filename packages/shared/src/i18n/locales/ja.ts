@@ -332,6 +332,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFile": "ファイルを作成",
   "app.newMarkdownFileFromTemplate": "テンプレートから作成",
   "app.saveMarkdownFileAsTemplate": "テンプレートとして保存",
+  "app.openContainingFolder": "所在フォルダーを開く",
   "app.markdownTemplateSaved": "テンプレートとして保存しました。",
   "app.markdownTemplateSaveFailed": "テンプレートを保存できませんでした。",
   "app.newMarkdownFileName": "新しいファイル名",

@@ -532,6 +532,7 @@ const messages: BaseLocaleMessages = {
   "app.newMarkdownFile": "New file",
   "app.newMarkdownFileFromTemplate": "New from template",
   "app.saveMarkdownFileAsTemplate": "Save as template",
+  "app.openContainingFolder": "Open containing folder",
   "app.markdownTemplateSaved": "Template saved.",
   "app.markdownTemplateSaveFailed": "Could not save template.",
   "app.newMarkdownFileName": "New file name",

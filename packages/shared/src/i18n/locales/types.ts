@@ -543,6 +543,7 @@ export type I18nKey =
   | "app.newMarkdownFile"
   | "app.newMarkdownFileFromTemplate"
   | "app.saveMarkdownFileAsTemplate"
+  | "app.openContainingFolder"
   | "app.markdownTemplateSaved"
   | "app.markdownTemplateSaveFailed"
   | "app.newMarkdownFileName"

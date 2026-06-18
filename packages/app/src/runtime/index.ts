@@ -151,6 +151,7 @@ export type AppFileRuntime = {
     path: string,
     targetParentPath?: string | null
   ) => Promise<NativeMarkdownFolderFile>;
+  openContainingFolder: (path: string) => Promise<unknown>;
   openMarkdownFile: (labels?: NativeMarkdownPickerLabels) => Promise<NativeMarkdownFile | null>;
   openMarkdownFileInNewWindow: (path: string) => Promise<unknown>;
   openMarkdownFolder: (labels?: NativeMarkdownPickerLabels) => Promise<NativeMarkdownFolder | null>;
@@ -359,6 +360,7 @@ function createDefaultFileRuntime(): AppFileRuntime {
     listMarkdownFileHistory: async () => [],
     listMarkdownFilesForPath: async () => [],
     moveMarkdownTreeFile: () => unsupportedFeature("moveMarkdownTreeFile"),
+    openContainingFolder: () => unsupportedFeature("openContainingFolder"),
     openMarkdownFile: async () => null,
     openMarkdownFileInNewWindow: () => unsupportedFeature("openMarkdownFileInNewWindow"),
     openMarkdownFolder: async () => null,

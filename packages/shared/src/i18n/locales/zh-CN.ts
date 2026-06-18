@@ -532,6 +532,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFile": "新建文件",
   "app.newMarkdownFileFromTemplate": "从模板新建",
   "app.saveMarkdownFileAsTemplate": "保存为模板",
+  "app.openContainingFolder": "打开所在文件夹",
   "app.markdownTemplateSaved": "已保存为模板。",
   "app.markdownTemplateSaveFailed": "无法保存模板。",
   "app.newMarkdownFileName": "新文件名",

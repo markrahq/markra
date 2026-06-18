@@ -1,4 +1,7 @@
-use std::path::PathBuf;
+use std::{
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 use crate::windows::{
     editor_window_url_for_folder, editor_window_url_for_path, spawn_editor_window,
@@ -12,6 +15,84 @@ fn markdown_open_picker_title(title: Option<String>) -> String {
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| "Open Markdown File or Folder".to_string())
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FileManagerPlatform {
+    Linux,
+    Macos,
+    Windows,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+struct FileManagerCommand {
+    program: String,
+    args: Vec<String>,
+}
+
+fn current_file_manager_platform() -> FileManagerPlatform {
+    if cfg!(target_os = "macos") {
+        return FileManagerPlatform::Macos;
+    }
+
+    if cfg!(windows) {
+        return FileManagerPlatform::Windows;
+    }
+
+    FileManagerPlatform::Linux
+}
+
+fn file_manager_command_for_path(
+    path: &Path,
+    path_is_directory: bool,
+    platform: FileManagerPlatform,
+) -> Result<FileManagerCommand, String> {
+    let path_text = path.to_string_lossy().to_string();
+
+    match platform {
+        FileManagerPlatform::Macos => Ok(FileManagerCommand {
+            program: "open".to_string(),
+            args: vec!["-R".to_string(), path_text],
+        }),
+        FileManagerPlatform::Windows => Ok(FileManagerCommand {
+            program: "explorer".to_string(),
+            args: vec![format!("/select,{path_text}")],
+        }),
+        FileManagerPlatform::Linux => {
+            let folder_path = if path_is_directory {
+                path
+            } else {
+                path.parent()
+                    .ok_or_else(|| "Could not resolve containing folder.".to_string())?
+            };
+
+            Ok(FileManagerCommand {
+                program: "xdg-open".to_string(),
+                args: vec![folder_path.to_string_lossy().to_string()],
+            })
+        }
+    }
+}
+
+#[tauri::command]
+pub(crate) fn open_containing_folder(path: String) -> Result<(), String> {
+    let target_path = PathBuf::from(path);
+    if !target_path.exists() {
+        return Err("Path does not exist.".to_string());
+    }
+
+    let command = file_manager_command_for_path(
+        &target_path,
+        target_path.is_dir(),
+        current_file_manager_platform(),
+    )?;
+
+    Command::new(&command.program)
+        .args(&command.args)
+        .spawn()
+        .map_err(|error| error.to_string())?;
+
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -204,6 +285,45 @@ mod tests {
         assert_eq!(
             markdown_open_picker_title(None),
             "Open Markdown File or Folder"
+        );
+    }
+
+    #[test]
+    fn builds_file_manager_commands_for_common_desktop_platforms() {
+        let file_path = PathBuf::from("/mock-project/docs/guide.md");
+        let folder_path = PathBuf::from("/mock-project/docs");
+
+        assert_eq!(
+            file_manager_command_for_path(&file_path, false, FileManagerPlatform::Macos)
+                .expect("macOS file command"),
+            FileManagerCommand {
+                program: "open".to_string(),
+                args: vec!["-R".to_string(), "/mock-project/docs/guide.md".to_string()]
+            }
+        );
+        assert_eq!(
+            file_manager_command_for_path(&file_path, false, FileManagerPlatform::Windows)
+                .expect("Windows file command"),
+            FileManagerCommand {
+                program: "explorer".to_string(),
+                args: vec!["/select,/mock-project/docs/guide.md".to_string()]
+            }
+        );
+        assert_eq!(
+            file_manager_command_for_path(&file_path, false, FileManagerPlatform::Linux)
+                .expect("Linux file command"),
+            FileManagerCommand {
+                program: "xdg-open".to_string(),
+                args: vec!["/mock-project/docs".to_string()]
+            }
+        );
+        assert_eq!(
+            file_manager_command_for_path(&folder_path, true, FileManagerPlatform::Linux)
+                .expect("Linux folder command"),
+            FileManagerCommand {
+                program: "xdg-open".to_string(),
+                args: vec!["/mock-project/docs".to_string()]
+            }
         );
     }
 

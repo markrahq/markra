@@ -18,6 +18,7 @@ import {
   listNativeMarkdownFilesForPath,
   moveNativeMarkdownTreeFile,
   takeNativeOpenedMarkdownPaths,
+  openNativeContainingFolder,
   openNativeMarkdownFolder,
   openNativeMarkdownFile,
   openNativeMarkdownFolderInNewWindow,
@@ -1254,6 +1255,16 @@ describe("native file access", () => {
     });
     expect(mockedInvoke).toHaveBeenCalledWith("open_markdown_folder_in_new_window", {
       path: mockFolderPath
+    });
+  });
+
+  it("opens the native containing folder for a path", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await openNativeContainingFolder(mockReadmePath);
+
+    expect(mockedInvoke).toHaveBeenCalledWith("open_containing_folder", {
+      path: mockReadmePath
     });
   });
 });

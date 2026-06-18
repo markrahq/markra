@@ -294,11 +294,21 @@ export function createMarkdownFileTreeContextMenuEntries(
     contextMenuItem(fileTreeId("new-folder"), label("app.newMarkdownFolder"), undefined, handlers.createFolder)
   ];
 
-  if (!file) return collapseContextMenuEntries(entries);
+  if (!file) {
+    if (handlers.openContainingFolder) {
+      entries.push(
+        contextMenuSeparator(),
+        contextMenuItem(fileTreeId("open-containing-folder"), label("app.openContainingFolder"), undefined, () => handlers.openContainingFolder?.())
+      );
+    }
+
+    return collapseContextMenuEntries(entries);
+  }
 
   if (fileIsFolder) {
     entries.push(
       contextMenuSeparator(),
+      contextMenuItem(fileTreeId("open-containing-folder"), label("app.openContainingFolder"), undefined, () => handlers.openContainingFolder?.(file), !handlers.openContainingFolder),
       contextMenuItem(fileTreeId("rename"), label("app.renameMarkdownFolder"), undefined, () => handlers.renameFile?.(file), !handlers.renameFile),
       contextMenuItem(fileTreeId("delete"), label("app.deleteMarkdownFolder"), undefined, () => handlers.deleteFile?.(file), !handlers.deleteFile)
     );
@@ -330,6 +340,7 @@ export function createMarkdownFileTreeContextMenuEntries(
     );
   }
   entries.push(
+    contextMenuItem(fileTreeId("open-containing-folder"), label("app.openContainingFolder"), undefined, () => handlers.openContainingFolder?.(file), !handlers.openContainingFolder),
     contextMenuItem(fileTreeId("rename"), label("app.renameMarkdownFile"), undefined, () => handlers.renameFile?.(file), !handlers.renameFile),
     contextMenuItem(fileTreeId("delete"), label("app.deleteMarkdownFile"), undefined, () => handlers.deleteFile?.(file), !handlers.deleteFile)
   );

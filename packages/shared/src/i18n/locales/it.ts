@@ -324,6 +324,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFile": "Nuovo file",
   "app.newMarkdownFileFromTemplate": "Crea da modello",
   "app.saveMarkdownFileAsTemplate": "Salva come modello",
+  "app.openContainingFolder": "Apri cartella contenitore",
   "app.markdownTemplateSaved": "Modello salvato.",
   "app.markdownTemplateSaveFailed": "Impossibile salvare il modello.",
   "app.newMarkdownFileName": "Nuovo nome file",

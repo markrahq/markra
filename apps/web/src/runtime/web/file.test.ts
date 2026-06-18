@@ -198,6 +198,15 @@ describe("web file runtime", () => {
     expect(folderUrl.searchParams.has("path")).toBe(false);
   });
 
+  it("reports containing-folder actions as desktop-only", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB
+    });
+
+    await expect(runtime.files.openContainingFolder("web-file://file-id/note.md"))
+      .rejects.toThrow("Opening containing folders requires the desktop runtime.");
+  });
+
   it("opens browser directories and lists Markdown tree entries", async () => {
     const directory = new FakeDirectoryHandle("mock-vault", {
       ".git": new FakeDirectoryHandle(".git", {

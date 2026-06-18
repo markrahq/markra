@@ -992,6 +992,9 @@ export function createWebFileRuntime(
       return markdownFileFromHandle(handle);
     },
     openMarkdownFileInNewWindow: async (path) => openMarkdownRouteInNewWindow("path", path),
+    async openContainingFolder() {
+      throw new Error("Opening containing folders requires the desktop runtime.");
+    },
     async openMarkdownFolder() {
       if (showDirectoryPicker) {
         const handle = await showDirectoryPicker();

@@ -71,6 +71,7 @@ export const desktopRuntime = {
     listMarkdownFileHistory: files.listNativeMarkdownFileHistory,
     listMarkdownFilesForPath: files.listNativeMarkdownFilesForPath,
     moveMarkdownTreeFile: files.moveNativeMarkdownTreeFile,
+    openContainingFolder: files.openNativeContainingFolder,
     openMarkdownFile: files.openNativeMarkdownFile,
     openMarkdownFileInNewWindow: files.openNativeMarkdownFileInNewWindow,
     openMarkdownFolder: files.openNativeMarkdownFolder,

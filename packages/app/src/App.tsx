@@ -149,6 +149,7 @@ import {
   confirmNativeMarkdownFileDelete,
   confirmNativeUnsavedMarkdownDocumentDiscard,
   downloadNativeWebImage,
+  openNativeContainingFolder,
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
   readNativeMarkdownTemplateFile,
@@ -2615,6 +2616,9 @@ function WorkspaceApp() {
     setActiveImageFile(null);
     clearOpenDocument({ persistWorkspace: false });
   }, [captureActiveDocumentViewState, clearOpenDocument, confirmCanDiscardCurrentDocument, openRecentFolder]);
+  const handleOpenContainingFolder = useCallback((path: string) => {
+    openNativeContainingFolder(path).catch(() => {});
+  }, []);
   const clearExportSnapshot = useCallback((id: number) => {
     setExportSnapshot((current) => current?.id === id ? null : current);
   }, []);
@@ -3278,6 +3282,7 @@ function WorkspaceApp() {
               onCreateFolder={handleCreateMarkdownTreeFolder}
               onDeleteFile={handleDeleteMarkdownTreeFile}
               onMoveFile={handleMoveMarkdownTreeFile}
+              onOpenContainingFolder={handleOpenContainingFolder}
               onOpenFile={handleOpenTreeFile}
               onOpenFileToSide={
                 editorPreferences.preferences.showDocumentTabs

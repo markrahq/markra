@@ -332,6 +332,7 @@ const messages: LocaleMessages = {
   "app.newMarkdownFile": "新增檔案",
   "app.newMarkdownFileFromTemplate": "從範本新增",
   "app.saveMarkdownFileAsTemplate": "儲存為範本",
+  "app.openContainingFolder": "開啟所在資料夾",
   "app.markdownTemplateSaved": "已儲存為範本。",
   "app.markdownTemplateSaveFailed": "無法儲存範本。",
   "app.newMarkdownFileName": "新檔名",

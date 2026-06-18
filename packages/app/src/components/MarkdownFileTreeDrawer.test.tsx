@@ -160,7 +160,7 @@ describe("MarkdownFileTreeDrawer", () => {
   it("shows recent folders in a dedicated sidebar section", () => {
     const openRecentFolder = vi.fn();
     const removeRecentFolder = vi.fn();
-    render(
+    const { container } = render(
       <MarkdownFileTreeDrawer
         currentPath="/vault/Untitled.md"
         files={markdownFiles}
@@ -199,7 +199,7 @@ describe("MarkdownFileTreeDrawer", () => {
   it("collapses recent folders and removes a recent folder without opening it", () => {
     const openRecentFolder = vi.fn();
     const removeRecentFolder = vi.fn();
-    render(
+    const { container } = render(
       <MarkdownFileTreeDrawer
         currentPath="/vault/Untitled.md"
         files={markdownFiles}
@@ -797,6 +797,45 @@ describe("MarkdownFileTreeDrawer", () => {
     fireEvent.keyDown(renameInput, { key: "Enter" });
 
     expect(renameFile).toHaveBeenCalledWith(markdownFiles[0], "Renamed.md");
+  });
+
+  it("opens the containing folder from file tree context menus", () => {
+    const openContainingFolder = vi.fn();
+
+    const { container } = render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenContainingFolder={openContainingFolder}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
+    const fileContextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    act(() => {
+      fileContextHandlers?.openContainingFolder?.(markdownFiles[0]);
+    });
+
+    expect(openContainingFolder).toHaveBeenCalledWith("/vault/Untitled.md");
+
+    openContainingFolder.mockClear();
+    mockedShowNativeMarkdownFileTreeContextMenu.mockClear();
+    const fileTreeScroll = container.querySelector(".file-tree-scroll");
+    if (!fileTreeScroll) throw new Error("file tree scroll area should render");
+
+    fireEvent.contextMenu(fileTreeScroll);
+    const backgroundContextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+    act(() => {
+      backgroundContextHandlers?.openContainingFolder?.();
+    });
+
+    expect(openContainingFolder).toHaveBeenCalledWith("/vault");
   });
 
   it("shows text editing actions when right-clicking a file name input", async () => {

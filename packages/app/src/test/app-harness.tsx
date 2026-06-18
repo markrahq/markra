@@ -13,6 +13,7 @@ import {
   installNativeShellCommand,
   closeNativeWindow,
   exitNativeApp,
+  openNativeContainingFolder,
   openNativeMarkdownFolder,
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
@@ -147,6 +148,7 @@ vi.mock("../lib/tauri", () => ({
   getNativeShellCommandStatus: vi.fn(),
   installNativeShellCommand: vi.fn(),
   installNativeMarkdownFileDrop: vi.fn(),
+  openNativeContainingFolder: vi.fn(),
   openNativeMarkdownFolder: vi.fn(),
   openNativeMarkdownFolderInNewWindow: vi.fn(),
   openNativeMarkdownFileInNewWindow: vi.fn(),
@@ -732,6 +734,7 @@ vi.mock("@markra/providers", async (importOriginal) => {
 });
 
 export const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
+export const mockedOpenNativeContainingFolder = vi.mocked(openNativeContainingFolder);
 export const mockedOpenNativeMarkdownFolderInNewWindow = vi.mocked(openNativeMarkdownFolderInNewWindow);
 export const mockedConfirmNativeMarkdownFileDelete = vi.mocked(confirmNativeMarkdownFileDelete);
 export const mockedConfirmNativeUnsavedMarkdownDocumentDiscard = vi.mocked(confirmNativeUnsavedMarkdownDocumentDiscard);
@@ -931,6 +934,7 @@ export function installAppTestHarness() {
     mockedDeleteNativeMarkdownTreeFile.mockReset();
     mockedDetectNativePandocPath.mockReset();
     mockedInstallNativeMarkdownFileDrop.mockReset();
+    mockedOpenNativeContainingFolder.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
     mockedOpenNativeMarkdownFolderInNewWindow.mockReset();
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
@@ -1047,6 +1051,7 @@ export function installAppTestHarness() {
     mockedSearchNativeMarkdownFilesForPath.mockResolvedValue(null);
     mockedTakeNativeOpenedMarkdownPaths.mockResolvedValue([]);
     mockedInstallNativeMarkdownFileDrop.mockResolvedValue(() => {});
+    mockedOpenNativeContainingFolder.mockResolvedValue(undefined);
     mockedListenNativeOpenedMarkdownPaths.mockResolvedValue(() => {});
     mockedInstallNativeApplicationMenu.mockResolvedValue(() => {});
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});

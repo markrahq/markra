@@ -653,6 +653,10 @@ export async function openNativeMarkdownFolderInNewWindow(path: string) {
   await invoke("open_markdown_folder_in_new_window", { path });
 }
 
+export async function openNativeContainingFolder(path: string) {
+  await invoke("open_containing_folder", { path });
+}
+
 function pickerTitleOption(labels: NativeMarkdownPickerLabels | undefined) {
   const title = labels?.title.trim();
   return title ? { title } : {};
