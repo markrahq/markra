@@ -122,6 +122,7 @@ describe("native menu", () => {
     mockedInvoke.mockResolvedValue(undefined);
     mockedListen.mockResolvedValue(unlisten);
     mockedGetCurrentWindow.mockReturnValue({
+      label: "main",
       isFocused
     } as unknown as ReturnType<typeof getCurrentWindow>);
     isFocused.mockResolvedValue(true);
@@ -211,6 +212,24 @@ describe("native menu", () => {
     await listener?.({ payload: { command: "saveDocument" } } as Parameters<NonNullable<typeof listener>>[0]);
 
     expect(handlers.saveDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores targeted native application menu commands for another window", async () => {
+    const handlers: NativeMenuHandlers = {
+      toggleSourceMode: vi.fn()
+    };
+
+    await listenNativeApplicationMenuCommands(handlers);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await listener?.({
+      payload: {
+        command: "toggleSourceMode",
+        targetWindowLabel: "markra-editor-1"
+      }
+    } as unknown as Parameters<NonNullable<typeof listener>>[0]);
+
+    expect(handlers.toggleSourceMode).not.toHaveBeenCalled();
   });
 
   it("shows a self-drawn context menu only inside the markdown paper", async () => {

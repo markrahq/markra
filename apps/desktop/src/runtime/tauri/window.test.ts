@@ -5,6 +5,7 @@ import { exit } from "@tauri-apps/plugin-process";
 import {
   closeNativeWindow,
   exitNativeApp,
+  getCurrentNativeWindowLabel,
   listenNativeAppExitRequested,
   listenNativeWindowCloseRequested,
   listenNativeSettingsWindowTarget,
@@ -124,6 +125,12 @@ describe("native window actions", () => {
 
     expect(show).toHaveBeenCalledTimes(1);
     expect(setFocus).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the current Tauri window label", async () => {
+    mockedGetCurrentWindow.mockReturnValue({ label: "markra-editor-1" } as unknown as ReturnType<typeof getCurrentWindow>);
+
+    await expect(getCurrentNativeWindowLabel()).resolves.toBe("markra-editor-1");
   });
 
   it("keeps the window show action successful when focusing fails", async () => {

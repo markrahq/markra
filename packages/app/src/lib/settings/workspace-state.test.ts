@@ -1,4 +1,5 @@
 import { createSettingsStoreHarness, resetSettingsStoreRuntime, setupSettingsStoreHarness } from "../../test/settings-store";
+import { configureAppRuntime, createDefaultAppRuntime } from "../../runtime";
 import { getStoredWorkspaceState, saveStoredWorkspaceState } from "./app-settings";
 
 const settingsStore = createSettingsStoreHarness();
@@ -151,22 +152,177 @@ describe("workspace state settings", () => {
     });
 
     expect(store.set).toHaveBeenCalledWith("workspace", {
-      aiAgentSessionId: "session-a",
-      filePath: "/mock-files/vault/README.md",
-      fileTreeOpen: true,
-      folderName: "vault",
-      folderPath: "/mock-files/vault",
-      openFilePaths: [
-        "/mock-files/vault/README.md",
-        "/mock-files/vault/notes.md"
-      ],
       openWindows: [],
-      sideBySideGroup: {
-        primaryFilePath: "/mock-files/vault/README.md",
-        sideFilePath: "/mock-files/vault/notes.md"
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-a",
+          filePath: "/mock-files/vault/README.md",
+          fileTreeOpen: true,
+          folderName: "vault",
+          folderPath: "/mock-files/vault",
+          openFilePaths: [
+            "/mock-files/vault/README.md",
+            "/mock-files/vault/notes.md"
+          ],
+          sideBySideGroup: {
+            primaryFilePath: "/mock-files/vault/README.md",
+            sideFilePath: "/mock-files/vault/notes.md"
+          }
+        }
       }
     });
     expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists workspace state updates for only the targeted window", async () => {
+    store.get.mockResolvedValue({
+      openWindows: [],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-main",
+          filePath: "/mock-files/main.md",
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: ["/mock-files/main.md"]
+        },
+        "markra-editor-1": {
+          aiAgentSessionId: "session-secondary",
+          filePath: "/mock-files/secondary.md",
+          fileTreeOpen: true,
+          folderName: "mock-files",
+          folderPath: "/mock-files",
+          openFilePaths: ["/mock-files/secondary.md"]
+        }
+      }
+    });
+
+    await saveStoredWorkspaceState({
+      filePath: "/mock-files/secondary-next.md",
+      openFilePaths: ["/mock-files/secondary-next.md"]
+    }, { windowLabel: "markra-editor-1" });
+
+    expect(store.set).toHaveBeenCalledWith("workspace", {
+      openWindows: [],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-main",
+          filePath: "/mock-files/main.md",
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: ["/mock-files/main.md"]
+        },
+        "markra-editor-1": {
+          aiAgentSessionId: "session-secondary",
+          filePath: "/mock-files/secondary-next.md",
+          fileTreeOpen: true,
+          folderName: "mock-files",
+          folderPath: "/mock-files",
+          openFilePaths: ["/mock-files/secondary-next.md"]
+        }
+      }
+    });
+  });
+
+  it("loads workspace state for the targeted window", async () => {
+    store.get.mockResolvedValue({
+      openWindows: [
+        {
+          filePath: "/mock-files/main.md",
+          label: "main",
+          openFilePaths: ["/mock-files/main.md"]
+        }
+      ],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-main",
+          filePath: "/mock-files/main.md",
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: ["/mock-files/main.md"]
+        },
+        "markra-editor-1": {
+          aiAgentSessionId: "session-secondary",
+          filePath: "/mock-files/secondary.md",
+          fileTreeOpen: true,
+          folderName: "mock-files",
+          folderPath: "/mock-files",
+          openFilePaths: ["/mock-files/secondary.md"]
+        }
+      }
+    });
+
+    await expect(getStoredWorkspaceState({ windowLabel: "markra-editor-1" })).resolves.toEqual({
+      aiAgentSessionId: "session-secondary",
+      filePath: "/mock-files/secondary.md",
+      fileTreeOpen: true,
+      folderName: "mock-files",
+      folderPath: "/mock-files",
+      openFilePaths: ["/mock-files/secondary.md"],
+      openWindows: [
+        {
+          filePath: "/mock-files/main.md",
+          label: "main",
+          openFilePaths: ["/mock-files/main.md"]
+        }
+      ]
+    });
+  });
+
+  it("uses the current runtime window label when no explicit window label is provided", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      settings: {
+        loadStore: mockedLoadStore
+      },
+      window: {
+        ...runtime.window,
+        getCurrentWindowLabel: async () => "markra-editor-2"
+      }
+    });
+    store.get.mockResolvedValue({
+      openWindows: [],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-main",
+          filePath: "/mock-files/main.md",
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: ["/mock-files/main.md"]
+        }
+      }
+    });
+
+    await saveStoredWorkspaceState({
+      filePath: "/mock-files/secondary.md",
+      openFilePaths: ["/mock-files/secondary.md"]
+    });
+
+    expect(store.set).toHaveBeenCalledWith("workspace", {
+      openWindows: [],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-main",
+          filePath: "/mock-files/main.md",
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: ["/mock-files/main.md"]
+        },
+        "markra-editor-2": {
+          aiAgentSessionId: null,
+          filePath: "/mock-files/secondary.md",
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: ["/mock-files/secondary.md"]
+        }
+      }
+    });
   });
 
   it("clears the saved side-by-side workspace group", async () => {
@@ -191,16 +347,20 @@ describe("workspace state settings", () => {
     });
 
     expect(store.set).toHaveBeenCalledWith("workspace", {
-      aiAgentSessionId: "session-a",
-      filePath: "/mock-files/vault/README.md",
-      fileTreeOpen: true,
-      folderName: "vault",
-      folderPath: "/mock-files/vault",
-      openFilePaths: [
-        "/mock-files/vault/README.md",
-        "/mock-files/vault/notes.md"
-      ],
-      openWindows: []
+      openWindows: [],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-a",
+          filePath: "/mock-files/vault/README.md",
+          fileTreeOpen: true,
+          folderName: "vault",
+          folderPath: "/mock-files/vault",
+          openFilePaths: [
+            "/mock-files/vault/README.md",
+            "/mock-files/vault/notes.md"
+          ]
+        }
+      }
     });
     expect(store.save).toHaveBeenCalledTimes(1);
   });
@@ -230,13 +390,17 @@ describe("workspace state settings", () => {
     });
 
     expect(store.set).toHaveBeenCalledWith("workspace", {
-      aiAgentSessionId: "session-a",
-      filePath: null,
-      fileTreeOpen: false,
-      folderName: null,
-      folderPath: null,
-      openFilePaths: [],
-      openWindows: []
+      openWindows: [],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-a",
+          filePath: null,
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: []
+        }
+      }
     });
     expect(store.save).toHaveBeenCalledTimes(1);
   });

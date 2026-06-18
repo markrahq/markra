@@ -124,6 +124,7 @@ export const desktopRuntime = {
   window: {
     closeWindow: windowRuntime.closeNativeWindow,
     exitApp: windowRuntime.exitNativeApp,
+    getCurrentWindowLabel: windowRuntime.getCurrentNativeWindowLabel,
     listEditorWindowRestoreStates: windowRuntime.listNativeEditorWindowRestoreStates,
     listenAppExitRequested: windowRuntime.listenNativeAppExitRequested,
     listenSettingsWindowTarget: windowRuntime.listenNativeSettingsWindowTarget,

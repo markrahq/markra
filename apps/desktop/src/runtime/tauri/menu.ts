@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   createEditorContextMenuEntries,
   createEditorContextMenuEntriesFromOptions,
@@ -101,9 +102,27 @@ export type NativeMenuCommand =
 type NativeMenuCommandPayload = {
   command: NativeMenuCommand;
   recentFile?: RecentMarkdownFile;
+  targetWindowLabel?: string;
 };
 
+function currentNativeWindowLabel() {
+  try {
+    return getCurrentWindow().label;
+  } catch {
+    return null;
+  }
+}
+
+function shouldRunNativeMenuAction(payload: NativeMenuCommandPayload) {
+  const targetWindowLabel = payload.targetWindowLabel?.trim();
+  if (!targetWindowLabel) return true;
+
+  return currentNativeWindowLabel() === targetWindowLabel;
+}
+
 function runNativeMenuAction(payload: NativeMenuCommandPayload, handlers: NativeMenuHandlers) {
+  if (!shouldRunNativeMenuAction(payload)) return;
+
   if (payload.command === "openRecentFile") {
     if (!payload.recentFile) return;
 

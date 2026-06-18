@@ -13,6 +13,8 @@ export type StoredWorkspaceState = {
   sideBySideGroup?: StoredWorkspaceSideBySideGroup | null;
 };
 
+export type StoredWorkspaceWindowState = Omit<StoredWorkspaceState, "openWindows">;
+
 export type StoredWorkspaceDraftTab = {
   content: string;
   id: string;

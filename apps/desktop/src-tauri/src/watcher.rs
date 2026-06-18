@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -8,15 +9,15 @@ const MARKDOWN_FILE_CHANGED_EVENT: &str = "markra://file-changed";
 const MARKDOWN_TREE_CHANGED_EVENT: &str = "markra://tree-changed";
 
 struct ActiveMarkdownWatcher {
-    path: PathBuf,
+    subscriber_count: usize,
     _watcher: RecommendedWatcher,
 }
 
 #[derive(Default)]
-pub(crate) struct MarkdownFileWatcherState(Mutex<Option<ActiveMarkdownWatcher>>);
+pub(crate) struct MarkdownFileWatcherState(Mutex<HashMap<PathBuf, ActiveMarkdownWatcher>>);
 
 #[derive(Default)]
-pub(crate) struct MarkdownTreeWatcherState(Mutex<Option<ActiveMarkdownWatcher>>);
+pub(crate) struct MarkdownTreeWatcherState(Mutex<HashMap<PathBuf, ActiveMarkdownWatcher>>);
 
 #[derive(Clone, serde::Serialize)]
 struct MarkdownFileChanged {
@@ -97,6 +98,78 @@ fn markdown_tree_event_path<'a>(event: &'a Event, root: &Path) -> Option<&'a Pat
     })
 }
 
+fn remove_path_entry<T>(entries: &mut HashMap<PathBuf, T>, path: &Path) -> Option<T> {
+    entries.remove(path)
+}
+
+fn release_active_watcher_subscription(subscriber_count: &mut usize) -> bool {
+    if *subscriber_count > 1 {
+        *subscriber_count -= 1;
+        return false;
+    }
+
+    true
+}
+
+fn has_active_watcher_subscription(
+    watcher_state: &Mutex<HashMap<PathBuf, ActiveMarkdownWatcher>>,
+    path: &Path,
+) -> Result<bool, String> {
+    let mut active_watchers = watcher_state
+        .lock()
+        .map_err(|_| "markdown watcher state lock is poisoned".to_string())?;
+
+    if let Some(watcher) = active_watchers.get_mut(path) {
+        watcher.subscriber_count += 1;
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
+fn remember_active_watcher(
+    watcher_state: &Mutex<HashMap<PathBuf, ActiveMarkdownWatcher>>,
+    path: PathBuf,
+    watcher: RecommendedWatcher,
+) -> Result<(), String> {
+    let mut active_watchers = watcher_state
+        .lock()
+        .map_err(|_| "markdown watcher state lock is poisoned".to_string())?;
+
+    if let Some(existing_watcher) = active_watchers.get_mut(&path) {
+        existing_watcher.subscriber_count += 1;
+        return Ok(());
+    }
+
+    active_watchers.insert(
+        path.clone(),
+        ActiveMarkdownWatcher {
+            subscriber_count: 1,
+            _watcher: watcher,
+        },
+    );
+
+    Ok(())
+}
+
+fn release_active_watcher(
+    watcher_state: &Mutex<HashMap<PathBuf, ActiveMarkdownWatcher>>,
+    path: &Path,
+) -> Result<(), String> {
+    let mut active_watchers = watcher_state
+        .lock()
+        .map_err(|_| "markdown watcher state lock is poisoned".to_string())?;
+
+    if let Some(watcher) = active_watchers.get_mut(path) {
+        if !release_active_watcher_subscription(&mut watcher.subscriber_count) {
+            return Ok(());
+        }
+    }
+
+    remove_path_entry(&mut active_watchers, path);
+    Ok(())
+}
+
 #[tauri::command]
 pub(crate) fn watch_markdown_file(
     app: tauri::AppHandle,
@@ -104,6 +177,10 @@ pub(crate) fn watch_markdown_file(
     path: String,
 ) -> Result<(), String> {
     let watched_path = PathBuf::from(&path);
+    if has_active_watcher_subscription(&watcher_state.0, &watched_path)? {
+        return Ok(());
+    }
+
     let watch_root = watched_path
         .parent()
         .map(Path::to_path_buf)
@@ -144,16 +221,7 @@ pub(crate) fn watch_markdown_file(
         .watch(&watch_root, RecursiveMode::Recursive)
         .map_err(|error| error.to_string())?;
 
-    let mut active_watcher = watcher_state
-        .0
-        .lock()
-        .map_err(|_| "markdown file watcher state lock is poisoned".to_string())?;
-    *active_watcher = Some(ActiveMarkdownWatcher {
-        path: watched_path,
-        _watcher: watcher,
-    });
-
-    Ok(())
+    remember_active_watcher(&watcher_state.0, watched_path, watcher)
 }
 
 #[tauri::command]
@@ -162,19 +230,7 @@ pub(crate) fn unwatch_markdown_file(
     path: String,
 ) -> Result<(), String> {
     let watched_path = PathBuf::from(path);
-    let mut active_watcher = watcher_state
-        .0
-        .lock()
-        .map_err(|_| "markdown file watcher state lock is poisoned".to_string())?;
-
-    if active_watcher
-        .as_ref()
-        .is_some_and(|watcher| watcher.path == watched_path)
-    {
-        *active_watcher = None;
-    }
-
-    Ok(())
+    release_active_watcher(&watcher_state.0, &watched_path)
 }
 
 #[tauri::command]
@@ -184,6 +240,10 @@ pub(crate) fn watch_markdown_tree(
     root_path: String,
 ) -> Result<(), String> {
     let source_path = PathBuf::from(&root_path);
+    if has_active_watcher_subscription(&watcher_state.0, &source_path)? {
+        return Ok(());
+    }
+
     let watch_root = if source_path.is_dir() {
         source_path.clone()
     } else {
@@ -216,16 +276,7 @@ pub(crate) fn watch_markdown_tree(
         .watch(&watch_root, RecursiveMode::Recursive)
         .map_err(|error| error.to_string())?;
 
-    let mut active_watcher = watcher_state
-        .0
-        .lock()
-        .map_err(|_| "markdown tree watcher state lock is poisoned".to_string())?;
-    *active_watcher = Some(ActiveMarkdownWatcher {
-        path: source_path,
-        _watcher: watcher,
-    });
-
-    Ok(())
+    remember_active_watcher(&watcher_state.0, source_path, watcher)
 }
 
 #[tauri::command]
@@ -234,25 +285,14 @@ pub(crate) fn unwatch_markdown_tree(
     root_path: String,
 ) -> Result<(), String> {
     let watched_path = PathBuf::from(root_path);
-    let mut active_watcher = watcher_state
-        .0
-        .lock()
-        .map_err(|_| "markdown tree watcher state lock is poisoned".to_string())?;
-
-    if active_watcher
-        .as_ref()
-        .is_some_and(|watcher| watcher.path == watched_path)
-    {
-        *active_watcher = None;
-    }
-
-    Ok(())
+    release_active_watcher(&watcher_state.0, &watched_path)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use notify::event::{CreateKind, DataChange, ModifyKind};
+    use std::collections::HashMap;
 
     #[test]
     fn matches_target_file_modifications_in_the_watched_directory() {
@@ -297,5 +337,27 @@ mod tests {
             .add_path(PathBuf::from("/mock-files/node_modules/pkg/readme.md"));
 
         assert!(markdown_tree_event_path(&event, &root).is_none());
+    }
+
+    #[test]
+    fn removing_an_active_watcher_keeps_other_paths() {
+        let mut entries = HashMap::from([
+            (PathBuf::from("/mock-files/first.md"), "first"),
+            (PathBuf::from("/mock-files/second.md"), "second"),
+        ]);
+
+        remove_path_entry(&mut entries, Path::new("/mock-files/first.md"));
+
+        assert_eq!(entries.len(), 1);
+        assert!(entries.contains_key(Path::new("/mock-files/second.md")));
+    }
+
+    #[test]
+    fn shared_active_watchers_release_only_after_last_subscription() {
+        let mut subscriber_count = 2;
+
+        assert!(!release_active_watcher_subscription(&mut subscriber_count));
+        assert_eq!(subscriber_count, 1);
+        assert!(release_active_watcher_subscription(&mut subscriber_count));
     }
 }

@@ -36,6 +36,8 @@ pub(crate) struct NativeMenuCommand {
     pub(crate) command: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) recent_file: Option<NativeRecentFile>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) target_window_label: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -253,13 +255,29 @@ pub(crate) fn remember_native_menu_window_from_event<R: tauri::Runtime>(
     }
 }
 
+fn focused_native_menu_window_label<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+) -> Option<String> {
+    app.webview_windows()
+        .into_iter()
+        .find(|(_, window)| window.is_focused().unwrap_or(false))
+        .map(|(label, _)| label)
+}
+
 pub(crate) fn emit_native_menu_command_payload<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
-    payload: NativeMenuCommand,
+    mut payload: NativeMenuCommand,
 ) {
-    let target_label = app.state::<NativeMenuTargetState>().label();
+    let target_label = focused_native_menu_window_label(app)
+        .or_else(|| app.state::<NativeMenuTargetState>().label());
 
-    if let Some(window) = target_label.and_then(|label| app.get_webview_window(&label)) {
+    if let Some(label) = target_label {
+        payload.target_window_label = Some(label.clone());
+        let Some(window) = app.get_webview_window(&label) else {
+            let _ = app.emit(NATIVE_MENU_COMMAND_EVENT, payload);
+            return;
+        };
+
         let _ = window.emit(NATIVE_MENU_COMMAND_EVENT, payload);
         return;
     }
@@ -598,6 +616,7 @@ pub(crate) fn native_menu_command_from_id<R: tauri::Runtime>(
             .map(|recent_file| NativeMenuCommand {
                 command: OPEN_RECENT_FILE_COMMAND.to_string(),
                 recent_file: Some(recent_file),
+                target_window_label: None,
             });
     }
 
@@ -605,6 +624,7 @@ pub(crate) fn native_menu_command_from_id<R: tauri::Runtime>(
         return Some(NativeMenuCommand {
             command: command.to_string(),
             recent_file: None,
+            target_window_label: None,
         });
     }
 
@@ -1146,6 +1166,25 @@ mod tests {
         state.remember("markra-editor-1");
 
         assert_eq!(state.label().as_deref(), Some("markra-editor-1"));
+    }
+
+    #[test]
+    fn native_menu_command_payload_serializes_target_window_label() {
+        let payload = NativeMenuCommand {
+            command: "toggleSourceMode".to_string(),
+            recent_file: None,
+            target_window_label: Some("markra-editor-1".to_string()),
+        };
+
+        let value = serde_json::to_value(payload).expect("payload should serialize");
+
+        assert_eq!(
+            value,
+            serde_json::json!({
+                "command": "toggleSourceMode",
+                "targetWindowLabel": "markra-editor-1"
+            })
+        );
     }
 
     #[test]

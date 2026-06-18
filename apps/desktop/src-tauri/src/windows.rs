@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use crate::menu::remember_native_menu_webview_window;
+
 #[cfg(target_os = "macos")]
 use std::{ops::Deref, time::Duration};
 
@@ -313,6 +315,7 @@ where
 
         match builder.build() {
             Ok(window) => {
+                remember_native_menu_webview_window(&window);
                 hide_native_macos_window_controls(&window);
                 hide_native_menu_for_settings_window(&window);
             }
@@ -740,6 +743,24 @@ mod tests {
         assert!(is_blank_editor_window_label(&first));
         assert!(is_blank_editor_window_label(&second));
         assert!(!is_blank_editor_window_label("main"));
+    }
+
+    #[test]
+    fn secondary_editor_windows_become_native_menu_targets_when_created() {
+        let source = include_str!("windows.rs");
+        let start = source
+            .find("pub(crate) fn spawn_editor_window")
+            .expect("spawn_editor_window should exist");
+        let end = source[start..]
+            .find("fn editor_window_transparent")
+            .map(|offset| start + offset)
+            .expect("spawn_editor_window should end before editor_window_transparent");
+        let spawn_editor_window_source = &source[start..end];
+
+        assert!(
+            spawn_editor_window_source.contains("remember_native_menu_webview_window(&window);"),
+            "secondary editor windows should become native menu targets as soon as they are created"
+        );
     }
 
     #[test]

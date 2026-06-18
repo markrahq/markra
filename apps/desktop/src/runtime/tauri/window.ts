@@ -86,6 +86,10 @@ async function getCurrentNativeWindow() {
   return getCurrentWindow();
 }
 
+export async function getCurrentNativeWindowLabel() {
+  return (await getCurrentNativeWindow())?.label ?? null;
+}
+
 function normalizeNativeEditorWindowRestoreStates(value: unknown): NativeEditorWindowRestoreState[] {
   if (!Array.isArray(value)) return [];
 

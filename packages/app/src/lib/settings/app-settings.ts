@@ -68,6 +68,7 @@ import {
   type StoredWorkspaceDraftTab,
   type StoredWorkspaceSideBySideGroup,
   type StoredWorkspaceState,
+  type StoredWorkspaceWindowState,
   type StoredWorkspaceWindow
 } from "./workspace-state";
 
@@ -129,6 +130,7 @@ export type {
   StoredWorkspaceDraftTab,
   StoredWorkspaceSideBySideGroup,
   StoredWorkspaceState,
+  StoredWorkspaceWindowState,
   StoredWorkspaceWindow
 } from "./workspace-state";
 
@@ -157,6 +159,22 @@ const syncSettingsKey = "syncSettings";
 const workspaceKey = "workspace";
 const recentMarkdownFilesKey = "recentMarkdownFiles";
 const recentMarkdownFoldersKey = "recentMarkdownFolders";
+const mainWorkspaceWindowLabel = "main";
+const settingsWorkspaceWindowLabel = "markra-settings";
+
+type StoredWorkspaceStateOptions = {
+  windowLabel?: string | null;
+};
+
+type StoredWorkspaceStore = {
+  legacyState: StoredWorkspaceState;
+  openWindows: StoredWorkspaceWindow[];
+  windowStates: Record<string, StoredWorkspaceWindowState>;
+};
+
+type StoredWorkspaceStoreValue = Partial<StoredWorkspaceState> & {
+  windowStates?: unknown;
+};
 
 export type ResolvedAppTheme = "light" | "dark";
 export const appAppearanceModeOptions = ["system", "light", "dark"] as const;
@@ -917,19 +935,147 @@ export async function saveStoredSyncSettings(settings: SyncSettings) {
   await store.save();
 }
 
-export async function getStoredWorkspaceState(): Promise<StoredWorkspaceState> {
-  const store = await loadSettingsStore();
-  const workspace = await store.get<StoredWorkspaceState>(workspaceKey);
-
-  return normalizeWorkspaceState(workspace);
+function normalizeWorkspaceWindowLabel(label: string | null | undefined) {
+  const trimmedLabel = label?.trim();
+  return trimmedLabel ? trimmedLabel : mainWorkspaceWindowLabel;
 }
 
-export async function saveStoredWorkspaceState(patch: Partial<StoredWorkspaceState>) {
-  const store = await loadSettingsStore();
-  const current = normalizeWorkspaceState(await store.get<StoredWorkspaceState>(workspaceKey));
-  const workspace = normalizeWorkspaceState({ ...current, ...patch });
+function workspaceWindowStateFromWorkspaceState(state: StoredWorkspaceState): StoredWorkspaceWindowState {
+  const { openWindows: _openWindows, ...windowState } = state;
+  return windowState;
+}
 
-  await store.set(workspaceKey, workspace);
+function workspaceWindowStateIsEmpty(state: StoredWorkspaceWindowState) {
+  return (
+    !state.activeDraftId &&
+    !state.draftTabs?.length &&
+    !state.aiAgentSessionId &&
+    !state.filePath &&
+    !state.fileTreeOpen &&
+    !state.folderName &&
+    !state.folderPath &&
+    state.openFilePaths.length === 0 &&
+    !state.sideBySideGroup
+  );
+}
+
+function normalizeWorkspaceWindowStates(value: unknown) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {};
+  }
+
+  const states: Record<string, StoredWorkspaceWindowState> = {};
+
+  Object.entries(value as Record<string, unknown>).forEach(([label, state]) => {
+    states[normalizeWorkspaceWindowLabel(label)] = workspaceWindowStateFromWorkspaceState(normalizeWorkspaceState(state));
+  });
+
+  return states;
+}
+
+function normalizeWorkspaceStore(value: unknown): StoredWorkspaceStore {
+  const legacyState = normalizeWorkspaceState(value);
+  const candidate = typeof value === "object" && value !== null
+    ? value as StoredWorkspaceStoreValue
+    : {};
+  const legacyWindowState = workspaceWindowStateFromWorkspaceState(legacyState);
+  const legacyWindowStates: Record<string, StoredWorkspaceWindowState> = {};
+
+  if (!workspaceWindowStateIsEmpty(legacyWindowState)) {
+    legacyWindowStates[mainWorkspaceWindowLabel] = legacyWindowState;
+  }
+
+  return {
+    legacyState,
+    openWindows: legacyState.openWindows ?? [],
+    windowStates: {
+      ...legacyWindowStates,
+      ...normalizeWorkspaceWindowStates(candidate.windowStates)
+    }
+  };
+}
+
+async function resolveStoredWorkspaceWindowLabel(options: StoredWorkspaceStateOptions = {}) {
+  if ("windowLabel" in options) {
+    return normalizeWorkspaceWindowLabel(options.windowLabel);
+  }
+
+  try {
+    return normalizeWorkspaceWindowLabel(await getAppRuntime().window.getCurrentWindowLabel());
+  } catch {
+    return mainWorkspaceWindowLabel;
+  }
+}
+
+function workspaceStateForWindowLabel(store: StoredWorkspaceStore, label: string): StoredWorkspaceState {
+  const targetLabel = label === settingsWorkspaceWindowLabel ? mainWorkspaceWindowLabel : label;
+  const windowState =
+    store.windowStates[targetLabel] ??
+    (targetLabel === mainWorkspaceWindowLabel
+      ? workspaceWindowStateFromWorkspaceState(store.legacyState)
+      : workspaceWindowStateFromWorkspaceState(defaultWorkspaceState));
+
+  return {
+    ...windowState,
+    openWindows: store.openWindows
+  };
+}
+
+function workspaceWindowPatchFromStatePatch(patch: Partial<StoredWorkspaceState>) {
+  const { openWindows: _openWindows, ...windowPatch } = patch;
+  return windowPatch;
+}
+
+function workspacePatchHasWindowState(patch: Partial<StoredWorkspaceState>) {
+  return Object.keys(patch).some((key) => key !== "openWindows");
+}
+
+function serializedWorkspaceStore(store: StoredWorkspaceStore) {
+  return {
+    openWindows: store.openWindows,
+    windowStates: store.windowStates
+  };
+}
+
+export async function getStoredWorkspaceState(options: StoredWorkspaceStateOptions = {}): Promise<StoredWorkspaceState> {
+  const store = await loadSettingsStore();
+  const workspace = normalizeWorkspaceStore(await store.get<StoredWorkspaceStoreValue>(workspaceKey));
+  const windowLabel = await resolveStoredWorkspaceWindowLabel(options);
+
+  return workspaceStateForWindowLabel(workspace, windowLabel);
+}
+
+export async function saveStoredWorkspaceState(
+  patch: Partial<StoredWorkspaceState>,
+  options: StoredWorkspaceStateOptions = {}
+) {
+  const store = await loadSettingsStore();
+  const current = normalizeWorkspaceStore(await store.get<StoredWorkspaceStoreValue>(workspaceKey));
+
+  if (patch.openWindows !== undefined) {
+    current.openWindows = normalizeWorkspaceState({ openWindows: patch.openWindows }).openWindows ?? [];
+  }
+
+  if (workspacePatchHasWindowState(patch)) {
+    const windowLabel = await resolveStoredWorkspaceWindowLabel(options);
+    const targetLabel = windowLabel === settingsWorkspaceWindowLabel ? mainWorkspaceWindowLabel : windowLabel;
+    const currentWindowState = workspaceStateForWindowLabel(current, targetLabel);
+    const nextWindowState = workspaceWindowStateFromWorkspaceState(
+      normalizeWorkspaceState({
+        ...currentWindowState,
+        ...workspaceWindowPatchFromStatePatch(patch),
+        openWindows: []
+      })
+    );
+
+    if (workspaceWindowStateIsEmpty(nextWindowState)) {
+      delete current.windowStates[targetLabel];
+    } else {
+      current.windowStates[targetLabel] = nextWindowState;
+    }
+  }
+
+  await store.set(workspaceKey, serializedWorkspaceStore(current));
   await store.save();
 }
 
