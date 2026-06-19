@@ -54,6 +54,7 @@ import { useAiAgentSessionList } from "./hooks/useAiAgentSessionList";
 import { useAiAgentSession } from "./hooks/useAiAgentSession";
 import { useAiSettings } from "./hooks/useAiSettings";
 import { useDocumentSearchState } from "./hooks/useDocumentSearchState";
+import { useEditorContentWidthState } from "./hooks/useEditorContentWidthState";
 import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { useDeferredAiSelectionReveal } from "./hooks/ai-selection-reveal";
 import { useExportSettings } from "./hooks/useExportSettings";
@@ -90,7 +91,6 @@ import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
-import type { EditorContentWidth } from "./lib/editor-width";
 import { saveEditorImage } from "./lib/image-upload";
 import { aiCommandSelection, automaticAiSelection } from "./lib/ai-selection";
 import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
@@ -243,8 +243,6 @@ function WorkspaceApp() {
   const webSearchSettings = useWebSearchSettings();
   const [markdownTemplates, setMarkdownTemplates] = useState<MarkdownTemplate[]>([]);
   const [aiAgentSessionId, setAiAgentSessionId] = useState<string | null>(null);
-  const [editorContentWidth, setEditorContentWidth] = useState<EditorContentWidth>("default");
-  const [editorContentWidthPx, setEditorContentWidthPx] = useState<number | null>(null);
   const [aiResults, setAiResults] = useState<AiDiffResult[]>([]);
   const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [imageTabs, setImageTabs] = useState<ImageDocumentTab[]>([]);
@@ -281,7 +279,6 @@ function WorkspaceApp() {
   const aiContextMenuActionIdRef = useRef(0);
   const aiSelectionCopySuccessTimerRef = useRef<number | null>(null);
   const exportRequestIdRef = useRef(0);
-  const pendingEditorContentWidthPxRef = useRef<number | null>(null);
   const pendingSplitVisualPanePercentRef = useRef(defaultSplitVisualPanePercent);
   const pendingSideDocumentMainPanePercentRef = useRef(defaultSideDocumentMainPanePercent);
   const lastDocumentSearchRevealRevisionRef = useRef(0);
@@ -643,8 +640,30 @@ function WorkspaceApp() {
   });
   const activeAiAgentSessionId = workspaceSessionId ?? aiAgentSessionId;
   const aiResult = aiResults.at(-1) ?? null;
-  const activeEditorContentWidth = editorContentWidth;
-  const activeEditorContentWidthPx = editorContentWidthPx ?? editorPreferences.preferences.contentWidthPx ?? null;
+  const commitEditorContentWidth = useCallback((nextWidth: {
+    contentWidth: typeof editorPreferences.preferences.contentWidth;
+    contentWidthPx: number;
+  }) => {
+    const nextPreferences = {
+      ...editorPreferences.preferences,
+      contentWidth: nextWidth.contentWidth,
+      contentWidthPx: nextWidth.contentWidthPx
+    };
+
+    saveStoredEditorPreferences(nextPreferences)
+      .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
+      .catch(() => {});
+  }, [editorPreferences.preferences]);
+  const {
+    activeWidth: activeEditorContentWidth,
+    activeWidthPx: activeEditorContentWidthPx,
+    onResizeEnd: handleEditorContentWidthResizeEnd,
+    onWidthChange: handleEditorContentWidthChange
+  } = useEditorContentWidthState({
+    contentWidth: editorPreferences.preferences.contentWidth,
+    contentWidthPx: editorPreferences.preferences.contentWidthPx ?? null,
+    onCommit: commitEditorContentWidth
+  });
   const resolvedSplitVisualPanePercent =
     clampNumber(splitVisualPanePercent, splitVisualPanePercentMin, splitVisualPanePercentMax) ?? defaultSplitVisualPanePercent;
   const resolvedSideDocumentMainPanePercent =
@@ -1455,13 +1474,6 @@ function WorkspaceApp() {
   }, [handleSaveClipboardImage, readOnlyMode, translate]);
 
   useEffect(() => {
-    const storedWidth = editorPreferences.preferences.contentWidthPx ?? null;
-    setEditorContentWidth(editorPreferences.preferences.contentWidth);
-    setEditorContentWidthPx(storedWidth);
-    pendingEditorContentWidthPxRef.current = storedWidth;
-  }, [editorPreferences.preferences.contentWidth, editorPreferences.preferences.contentWidthPx]);
-
-  useEffect(() => {
     setSplitVisualPanePercent(editorPreferences.preferences.splitVisualPanePercent);
     pendingSplitVisualPanePercentRef.current = editorPreferences.preferences.splitVisualPanePercent;
   }, [editorPreferences.preferences.splitVisualPanePercent]);
@@ -1479,25 +1491,6 @@ function WorkspaceApp() {
     };
   }, []);
 
-  const handleEditorContentWidthChange = useCallback((width: number) => {
-    pendingEditorContentWidthPxRef.current = width;
-    setEditorContentWidthPx(width);
-  }, []);
-
-  const handleEditorContentWidthResizeEnd = useCallback(() => {
-    const nextWidth = pendingEditorContentWidthPxRef.current;
-    if (nextWidth === null) return;
-
-    const nextPreferences = {
-      ...editorPreferences.preferences,
-      contentWidth: activeEditorContentWidth,
-      contentWidthPx: nextWidth
-    };
-
-    saveStoredEditorPreferences(nextPreferences)
-      .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
-      .catch(() => {});
-  }, [activeEditorContentWidth, editorPreferences.preferences]);
   const resizeSplitVisualPane = useCallback((nextPercent: number | null) => {
     if (nextPercent === null) return;
 
