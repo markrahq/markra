@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   getStoredAiSettings,
   type AiProviderApiStyle,
@@ -22,6 +22,7 @@ export type AvailableAiTextModel = {
 export function useAiSettings() {
   const [settings, setSettings] = useState<AiProviderSettings | null>(null);
   const [loading, setLoading] = useState(true);
+  const liveSettingsReceivedRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -29,10 +30,10 @@ export function useAiSettings() {
 
     getStoredAiSettings()
       .then((nextSettings) => {
-        if (alive) setSettings(nextSettings);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(nextSettings);
       })
       .catch(() => {
-        if (alive) setSettings(null);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(null);
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -40,6 +41,7 @@ export function useAiSettings() {
 
     listenAppAiSettingsChanged((nextSettings) => {
       if (alive) {
+        liveSettingsReceivedRef.current = true;
         setSettings(nextSettings);
         setLoading(false);
       }
@@ -75,6 +77,7 @@ export function useAiSettings() {
       };
 
       setSettings(nextSettings);
+      liveSettingsReceivedRef.current = true;
       await saveStoredAiSettings(nextSettings);
       await notifyAppAiSettingsChanged(nextSettings);
     },
@@ -97,6 +100,7 @@ export function useAiSettings() {
       };
 
       setSettings(nextSettings);
+      liveSettingsReceivedRef.current = true;
       await saveStoredAiSettings(nextSettings);
       await notifyAppAiSettingsChanged(nextSettings);
     },

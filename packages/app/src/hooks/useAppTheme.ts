@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getStoredCustomThemeCss,
   getStoredThemePreferences,
@@ -70,6 +70,8 @@ export function useAppTheme() {
   const [themePreferences, setThemePreferences] = useState<AppThemePreferences>(defaultAppThemePreferences);
   const [customThemeCss, setCustomThemeCss] = useState<CustomThemeCssValues>(defaultCustomThemeCssValues);
   const [systemTheme, setSystemTheme] = useState<ResolvedAppTheme>(() => getSystemTheme());
+  const liveCustomThemeCssReceivedRef = useRef(false);
+  const liveThemePreferencesReceivedRef = useRef(false);
   const editorTheme = resolveAppThemePreferencesEditorTheme(themePreferences, systemTheme);
   const resolvedTheme = resolveAppThemePreferencesAppearance(themePreferences, systemTheme);
 
@@ -77,11 +79,11 @@ export function useAppTheme() {
     let active = true;
 
     getStoredThemePreferences().then((storedPreferences) => {
-      if (active) setThemePreferences(storedPreferences);
+      if (active && !liveThemePreferencesReceivedRef.current) setThemePreferences(storedPreferences);
     }).catch(() => {});
 
     getStoredCustomThemeCss().then((storedCss) => {
-      if (active) setCustomThemeCss(storedCss);
+      if (active && !liveCustomThemeCssReceivedRef.current) setCustomThemeCss(storedCss);
     }).catch(() => {});
 
     return () => {
@@ -114,7 +116,10 @@ export function useAppTheme() {
     let cleanup: (() => unknown) | null = null;
 
     listenAppThemeChanged((nextPreferences) => {
-      if (active) setThemePreferences(nextPreferences);
+      if (active) {
+        liveThemePreferencesReceivedRef.current = true;
+        setThemePreferences(nextPreferences);
+      }
     }).then((stopListening) => {
       if (!active) {
         stopListening();
@@ -135,7 +140,10 @@ export function useAppTheme() {
     let cleanup: (() => unknown) | null = null;
 
     listenAppCustomThemeCssChanged((nextCss) => {
-      if (active) setCustomThemeCss(nextCss);
+      if (active) {
+        liveCustomThemeCssReceivedRef.current = true;
+        setCustomThemeCss(nextCss);
+      }
     }).then((stopListening) => {
       if (!active) {
         stopListening();
@@ -155,6 +163,7 @@ export function useAppTheme() {
     const normalizedPreferences = normalizeAppThemePreferences(nextPreferences);
 
     setThemePreferences(normalizedPreferences);
+    liveThemePreferencesReceivedRef.current = true;
     saveStoredThemePreferences(normalizedPreferences)
       .then(() => notifyAppThemeChanged(normalizedPreferences))
       .catch(() => {});
@@ -195,6 +204,7 @@ export function useAppTheme() {
     });
 
     setCustomThemeCss(normalizedCss);
+    liveCustomThemeCssReceivedRef.current = true;
     saveStoredCustomThemeCss(normalizedCss).then(() => notifyAppCustomThemeCssChanged(normalizedCss)).catch(() => {});
   }, [customThemeCss, resolvedTheme]);
 
@@ -205,6 +215,7 @@ export function useAppTheme() {
     });
 
     setCustomThemeCss(normalizedCss);
+    liveCustomThemeCssReceivedRef.current = true;
     saveStoredCustomThemeCss(normalizedCss).then(() => notifyAppCustomThemeCssChanged(normalizedCss)).catch(() => {});
   }, [customThemeCss]);
 
@@ -215,6 +226,7 @@ export function useAppTheme() {
     });
 
     setCustomThemeCss(normalizedCss);
+    liveCustomThemeCssReceivedRef.current = true;
     saveStoredCustomThemeCss(normalizedCss).then(() => notifyAppCustomThemeCssChanged(normalizedCss)).catch(() => {});
   }, [customThemeCss]);
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   defaultSyncSettings,
   getStoredSyncSettings,
@@ -9,6 +9,7 @@ import { listenAppSyncSettingsChanged } from "../lib/settings/settings-events";
 export function useSyncSettings() {
   const [settings, setSettings] = useState<SyncSettings>(defaultSyncSettings);
   const [loading, setLoading] = useState(true);
+  const liveSettingsReceivedRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -16,10 +17,10 @@ export function useSyncSettings() {
 
     getStoredSyncSettings()
       .then((storedSettings) => {
-        if (alive) setSettings(storedSettings);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(storedSettings);
       })
       .catch(() => {
-        if (alive) setSettings(defaultSyncSettings);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(defaultSyncSettings);
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -28,6 +29,7 @@ export function useSyncSettings() {
     listenAppSyncSettingsChanged((nextSettings) => {
       if (!alive) return;
 
+      liveSettingsReceivedRef.current = true;
       setSettings(nextSettings);
       setLoading(false);
     }).then((cleanup) => {

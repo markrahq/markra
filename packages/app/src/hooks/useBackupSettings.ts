@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   defaultBackupSettings,
   getStoredBackupSettings,
@@ -9,6 +9,7 @@ import { listenAppBackupSettingsChanged } from "../lib/settings/settings-events"
 export function useBackupSettings() {
   const [settings, setSettings] = useState<BackupSettings>(defaultBackupSettings);
   const [loading, setLoading] = useState(true);
+  const liveSettingsReceivedRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -16,10 +17,10 @@ export function useBackupSettings() {
 
     getStoredBackupSettings()
       .then((storedSettings) => {
-        if (alive) setSettings(storedSettings);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(storedSettings);
       })
       .catch(() => {
-        if (alive) setSettings(defaultBackupSettings);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(defaultBackupSettings);
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -28,6 +29,7 @@ export function useBackupSettings() {
     listenAppBackupSettingsChanged((nextSettings) => {
       if (!alive) return;
 
+      liveSettingsReceivedRef.current = true;
       setSettings(nextSettings);
       setLoading(false);
     }).then((cleanup) => {

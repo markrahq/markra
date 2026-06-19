@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   defaultWebSearchSettings,
   getStoredWebSearchSettings,
@@ -9,6 +9,7 @@ import { listenAppWebSearchSettingsChanged } from "../lib/settings/settings-even
 export function useWebSearchSettings() {
   const [settings, setSettings] = useState<WebSearchSettings>(defaultWebSearchSettings);
   const [loading, setLoading] = useState(true);
+  const liveSettingsReceivedRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -16,10 +17,10 @@ export function useWebSearchSettings() {
 
     getStoredWebSearchSettings()
       .then((storedSettings) => {
-        if (alive) setSettings(storedSettings);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(storedSettings);
       })
       .catch(() => {
-        if (alive) setSettings(defaultWebSearchSettings);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(defaultWebSearchSettings);
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -28,6 +29,7 @@ export function useWebSearchSettings() {
     listenAppWebSearchSettingsChanged((nextSettings) => {
       if (!alive) return;
 
+      liveSettingsReceivedRef.current = true;
       setSettings(nextSettings);
       setLoading(false);
     }).then((cleanup) => {

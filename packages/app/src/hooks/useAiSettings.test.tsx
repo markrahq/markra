@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { getStoredAiSettings, saveStoredAiSettings } from "../lib/settings/app-settings";
+import { getStoredAiSettings, saveStoredAiSettings, type AiProviderConfig } from "../lib/settings/app-settings";
 import { listenAppAiSettingsChanged, notifyAppAiSettingsChanged } from "../lib/settings/settings-events";
 import { useAiSettings } from "./useAiSettings";
 
@@ -281,5 +281,62 @@ describe("useAiSettings", () => {
         })
       ])
     );
+  });
+
+  it("keeps a live AI settings update when the initial stored settings resolve later", async () => {
+    let handleAiSettingsChanged: ((settings: Parameters<typeof mockedNotifyAppAiSettingsChanged>[0]) => unknown) | null = null;
+    let resolveStoredSettings: (settings: Awaited<ReturnType<typeof getStoredAiSettings>>) => void = () => {};
+
+    mockedGetStoredAiSettings.mockReturnValue(new Promise((resolve) => {
+      resolveStoredSettings = resolve;
+    }));
+    mockedListenAppAiSettingsChanged.mockImplementation(async (listener) => {
+      handleAiSettingsChanged = listener;
+      return () => {};
+    });
+
+    const openAiProvider: AiProviderConfig = {
+      apiKey: "openai-key",
+      baseUrl: "https://api.openai.com/v1",
+      defaultModelId: "gpt-5.5",
+      enabled: true,
+      id: "openai",
+      models: [{ capabilities: ["text"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }],
+      name: "OpenAI",
+      type: "openai" as const
+    };
+    const deepSeekProvider: AiProviderConfig = {
+      apiKey: "deepseek-key",
+      baseUrl: "https://api.deepseek.com/v1",
+      defaultModelId: "deepseek-v4-flash",
+      enabled: true,
+      id: "deepseek",
+      models: [{ capabilities: ["text", "reasoning"], enabled: true, id: "deepseek-v4-flash", name: "DeepSeek V4 Flash" }],
+      name: "DeepSeek",
+      type: "deepseek" as const
+    };
+
+    const { result } = renderHook(() => useAiSettings());
+
+    act(() => {
+      handleAiSettingsChanged?.({
+        defaultModelId: "deepseek-v4-flash",
+        defaultProviderId: "deepseek",
+        providers: [openAiProvider, deepSeekProvider]
+      });
+    });
+    expect(result.current.activeProvider?.id).toBe("deepseek");
+
+    await act(async () => {
+      resolveStoredSettings({
+        defaultModelId: "gpt-5.5",
+        defaultProviderId: "openai",
+        providers: [openAiProvider, deepSeekProvider]
+      });
+    });
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.activeProvider?.id).toBe("deepseek");
+    expect(result.current.defaultModelId).toBe("deepseek-v4-flash");
   });
 });

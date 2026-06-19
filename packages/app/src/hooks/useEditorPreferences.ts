@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   defaultEditorPreferences,
   getStoredEditorPreferences,
@@ -9,6 +9,7 @@ import { listenAppEditorPreferencesChanged } from "../lib/settings/settings-even
 export function useEditorPreferences() {
   const [preferences, setPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
   const [loading, setLoading] = useState(true);
+  const livePreferencesReceivedRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -16,17 +17,20 @@ export function useEditorPreferences() {
 
     getStoredEditorPreferences()
       .then((storedPreferences) => {
-        if (alive) setPreferences(storedPreferences);
+        if (alive && !livePreferencesReceivedRef.current) setPreferences(storedPreferences);
       })
       .catch(() => {
-        if (alive) setPreferences(defaultEditorPreferences);
+        if (alive && !livePreferencesReceivedRef.current) setPreferences(defaultEditorPreferences);
       })
       .finally(() => {
         if (alive) setLoading(false);
       });
 
     listenAppEditorPreferencesChanged((nextPreferences) => {
-      if (alive) setPreferences(nextPreferences);
+      if (alive) {
+        livePreferencesReceivedRef.current = true;
+        setPreferences(nextPreferences);
+      }
     }).then((cleanup) => {
       if (!alive) {
         cleanup();

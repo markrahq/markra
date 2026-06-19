@@ -68,6 +68,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
   const [width, setWidth] = useState(markdownFileTreeDefaultWidth);
   const [resizing, setResizing] = useState(false);
   const loadedSourcePathRef = useRef<string | null>(null);
+  const openChangedBeforeWorkspaceRestoreRef = useRef(false);
   const fileTreeWorkspacePath = fileTreeSortWorkspacePathFromSourcePath(sourcePath);
   const fileTreeSort = useMemo(
     () => fileTreeWorkspacePath
@@ -151,6 +152,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
         setFiles([]);
         setSourcePath(null);
         setRootName("No folder");
+        openChangedBeforeWorkspaceRestoreRef.current = true;
         setOpen(false);
       }
 
@@ -159,6 +161,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
 
     setSourcePath(path);
     setRootName(folderName);
+    openChangedBeforeWorkspaceRestoreRef.current = true;
     setOpen(openTree);
     loadedSourcePathRef.current = path;
     setFiles(nextFiles);
@@ -274,6 +277,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
 
   const toggle = useCallback(
     (fallbackPath: string | null = null) => {
+      openChangedBeforeWorkspaceRestoreRef.current = true;
       setOpen((currentOpen) => {
         const nextOpen = !currentOpen;
         if (nextOpen) refresh(fallbackPath);
@@ -317,7 +321,10 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     let active = true;
 
     getStoredWorkspaceState().then((workspace) => {
-      if (active) setRecentFoldersOpenState(workspace.recentFoldersOpen ?? true);
+      if (active) {
+        if (!openChangedBeforeWorkspaceRestoreRef.current) setOpen(workspace.fileTreeOpen);
+        setRecentFoldersOpenState(workspace.recentFoldersOpen ?? true);
+      }
     }).catch(() => {});
 
     return () => {

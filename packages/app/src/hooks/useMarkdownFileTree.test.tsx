@@ -435,6 +435,17 @@ describe("useMarkdownFileTree", () => {
     });
   });
 
+  it("restores the main file tree expansion state from workspace settings", async () => {
+    mockedGetStoredWorkspaceState.mockResolvedValue(mockWorkspaceState({
+      fileTreeOpen: true
+    }));
+
+    render(<FileTreeProbe />);
+
+    await waitFor(() => expect(screen.getByTestId("open-state")).toHaveTextContent("open"));
+    expect(screen.getByTestId("layout-columns")).toHaveTextContent("288px minmax(0,1fr)");
+  });
+
   it("opens a remembered markdown folder without showing the native picker", async () => {
     mockedListNativeMarkdownFilesForPath.mockResolvedValue([
       { path: "/recent/notes/index.md", name: "index.md", relativePath: "index.md" }

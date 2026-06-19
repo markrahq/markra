@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   defaultExportSettings,
   getStoredExportSettings,
@@ -9,6 +9,7 @@ import { listenAppExportSettingsChanged } from "../lib/settings/settings-events"
 export function useExportSettings() {
   const [settings, setSettings] = useState<ExportSettings>(defaultExportSettings);
   const [loading, setLoading] = useState(true);
+  const liveSettingsReceivedRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -16,17 +17,20 @@ export function useExportSettings() {
 
     getStoredExportSettings()
       .then((storedSettings) => {
-        if (alive) setSettings(storedSettings);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(storedSettings);
       })
       .catch(() => {
-        if (alive) setSettings(defaultExportSettings);
+        if (alive && !liveSettingsReceivedRef.current) setSettings(defaultExportSettings);
       })
       .finally(() => {
         if (alive) setLoading(false);
       });
 
     listenAppExportSettingsChanged((nextSettings) => {
-      if (alive) setSettings(nextSettings);
+      if (alive) {
+        liveSettingsReceivedRef.current = true;
+        setSettings(nextSettings);
+      }
     }).then((cleanup) => {
       if (!alive) {
         cleanup();
