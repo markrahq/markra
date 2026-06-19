@@ -1084,19 +1084,13 @@ export function useMarkdownDocument({
     const sourceContent = options.sourceContent ?? contents;
     const contentChangedAfterSaveStarted =
       targetDocument.content !== sourceContent && targetDocument.content !== contents;
-    const savedDocumentRefreshNeeded =
-      !contentChangedAfterSaveStarted &&
-      (targetDocument.dirty ||
-        targetDocument.content !== contents ||
-        targetDocument.path !== savedFile.path ||
-        targetDocument.name !== savedFile.name);
     const nextDocument = {
       ...targetDocument,
       path: savedFile.path,
       name: savedFile.name,
       content: contentChangedAfterSaveStarted ? targetDocument.content : contents,
       dirty: contentChangedAfterSaveStarted ? true : false,
-      revision: savedDocumentRefreshNeeded ? targetDocument.revision + 1 : targetDocument.revision
+      revision: targetDocument.revision
     };
 
     const nextTabs = documentTabsEnabled
@@ -1231,18 +1225,13 @@ export function useMarkdownDocument({
       if (!savedFile) return null;
 
       const sourceDocument = documentFromTab(tab);
-      const savedDocumentRefreshNeeded =
-        tab.dirty ||
-        tab.content !== contents ||
-        tab.path !== savedFile.path ||
-        tab.name !== savedFile.name;
       const nextDocument = {
         ...sourceDocument,
         path: savedFile.path,
         name: savedFile.name,
         content: contents,
         dirty: false,
-        revision: savedDocumentRefreshNeeded ? sourceDocument.revision + 1 : sourceDocument.revision
+        revision: sourceDocument.revision
       };
       const nextTabs = tabsRef.current.map((candidate) =>
         candidate.id === tabId ? createDocumentTab(nextDocument, candidate.id) : candidate

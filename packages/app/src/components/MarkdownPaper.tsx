@@ -129,7 +129,7 @@ export function MarkdownPaper({
     paddingBottom: editorBottomPadding(bottomOverlayInset)
   } satisfies MarkdownPaperStyle;
   const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";
-  const editorInstanceKey = `${documentKey ?? "untitled"}:${documentPath ?? "unsaved"}:${revision}`;
+  const editorInstanceKey = `${documentKey ?? "untitled"}:${revision}`;
 
   return (
     <section

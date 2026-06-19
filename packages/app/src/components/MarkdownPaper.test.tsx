@@ -1420,14 +1420,14 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
   });
 
-  it("recreates the editor when an untitled document receives a saved path", async () => {
+  it("keeps the editor mounted when an untitled document receives a saved path", async () => {
     let editor: Editor | null = null;
     const savedContent = "# Scratch\n\nSaved immediately.";
     const { container, rerender } = render(
       <MarkdownPaper
         documentKey="untitled:0"
         documentPath={null}
-        initialContent=""
+        initialContent={savedContent}
         onEditorReady={(instance) => {
           editor = instance;
         }}
@@ -1437,7 +1437,10 @@ describe("MarkdownPaper editing", () => {
     );
 
     await waitFor(() => expect(editor).not.toBeNull());
-    expect(container.querySelector(".ProseMirror")).not.toHaveTextContent("Saved immediately.");
+    const initialEditor = editor;
+    const initialPaper = container.querySelector('[data-editor-engine="milkdown"]');
+    expect(initialPaper).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")).toHaveTextContent("Saved immediately.");
 
     rerender(
       <MarkdownPaper
@@ -1452,7 +1455,9 @@ describe("MarkdownPaper editing", () => {
       />
     );
 
-    await waitFor(() => expect(container.querySelector(".ProseMirror")).toHaveTextContent("Saved immediately."));
+    expect(container.querySelector('[data-editor-engine="milkdown"]')).toBe(initialPaper);
+    expect(editor).toBe(initialEditor);
+    expect(container.querySelector(".ProseMirror")).toHaveTextContent("Saved immediately.");
   });
 
   it("renders fenced code blocks with syntax highlighting and line numbers", async () => {
