@@ -2077,6 +2077,20 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc).trimEnd()).toBe(source);
   });
 
+  it("keeps literal math delimiter examples in inline code spans", async () => {
+    const source = "Math examples use `$...$` inline and `$$...$$` display.";
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(container.querySelector(".ProseMirror .markra-math-render")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror .markra-math-source-hidden")).not.toBeInTheDocument();
+    expect(Array.from(container.querySelectorAll(".ProseMirror code")).map((node) => node.textContent)).toEqual([
+      "$...$",
+      "$$...$$"
+    ]);
+    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe(source);
+  });
+
   it("applies display math macro definitions to later formulas", async () => {
     const macroDefinition = ["$$", String.raw`\newcommand{\RR}{\mathbb{R}}`, "$$"].join("\n");
     const source = [macroDefinition, "", String.raw`The domain is $\RR$.`].join("\n");

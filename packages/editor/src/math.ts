@@ -553,6 +553,34 @@ function getMathRanges(text: string) {
   return ranges;
 }
 
+function hasCodeMark(node: ProseNode) {
+  return node.marks.some((mark) => mark.type.spec.code === true || ["code", "inlineCode"].includes(mark.type.name));
+}
+
+function mathRangeTouchesCodeMark(node: ProseNode, range: Pick<MathRange, "from" | "to">) {
+  let touchesCodeMark = false;
+
+  node.forEach((child, offset) => {
+    if (touchesCodeMark || offset >= range.to) return;
+
+    const childTo = offset + child.nodeSize;
+    if (childTo <= range.from || !child.isText) return;
+
+    if (hasCodeMark(child)) {
+      touchesCodeMark = true;
+      return false;
+    }
+  });
+
+  return touchesCodeMark;
+}
+
+function getMathRangesInTextblock(node: ProseNode) {
+  if (node.type.spec.code) return [];
+
+  return getMathRanges(node.textContent).filter((range) => !mathRangeTouchesCodeMark(node, range));
+}
+
 function makeAbsoluteRange(range: MathRange, blockStart: number): MathRange {
   return {
     ...range,
@@ -572,7 +600,7 @@ function findActiveMathRange(state: EditorState) {
 
   const from = Math.min($from.parentOffset, selection.$to.parentOffset);
   const to = Math.max($from.parentOffset, selection.$to.parentOffset);
-  const relativeRange = getMathRanges($from.parent.textContent).find((candidate) =>
+  const relativeRange = getMathRangesInTextblock($from.parent).find((candidate) =>
     selection.empty ? candidate.from < from && from < candidate.to : candidate.from <= from && to <= candidate.to
   );
 
@@ -587,7 +615,7 @@ function findMathRangeByBounds(doc: ProseNode, bounds: ActiveMathSource): MathRa
     if (!node.isTextblock || node.type.spec.code) return;
 
     const blockStart = position + 1;
-    for (const relativeRange of getMathRanges(node.textContent)) {
+    for (const relativeRange of getMathRangesInTextblock(node)) {
       const range = makeAbsoluteRange(relativeRange, blockStart);
       if (range.from !== bounds.from || range.to !== bounds.to) continue;
 
@@ -618,7 +646,7 @@ export function findHiddenDisplayMathSourceRanges(state: EditorState): MarkraHid
     if (!node.isTextblock || node.type.spec.code) return;
 
     const blockStart = position + 1;
-    for (const relativeRange of getMathRanges(node.textContent)) {
+    for (const relativeRange of getMathRangesInTextblock(node)) {
       if (relativeRange.kind !== "display") continue;
 
       const range = makeAbsoluteRange(relativeRange, blockStart);
@@ -647,7 +675,7 @@ function findAdjacentMathRange(state: EditorState, direction: "backward" | "forw
     if (!node.isTextblock || node.type.spec.code) return;
 
     const blockStart = position + 1;
-    for (const relativeRange of getMathRanges(node.textContent)) {
+    for (const relativeRange of getMathRangesInTextblock(node)) {
       const range = makeAbsoluteRange(relativeRange, blockStart);
       const touchesCursor = direction === "forward" ? range.from === cursor : range.to === cursor;
       if (!touchesCursor) continue;
@@ -661,7 +689,7 @@ function findAdjacentMathRange(state: EditorState, direction: "backward" | "forw
 }
 
 function displayMathRangeForWholeTextBlock(node: ProseNode, position: number): MathRange | null {
-  const relativeRanges = getMathRanges(node.textContent);
+  const relativeRanges = getMathRangesInTextblock(node);
   const range = relativeRanges.length === 1 ? relativeRanges[0] : null;
   if (!range || range.kind !== "display") return null;
   if (range.from !== 0 || range.to !== node.textContent.length) return null;
@@ -1116,7 +1144,7 @@ function buildMathDecorations(state: EditorState, activeRange: MathRange | null)
     if (!node.isTextblock || node.type.spec.code) return;
 
     const blockStart = position + 1;
-    for (const relativeRange of getMathRanges(node.textContent)) {
+    for (const relativeRange of getMathRangesInTextblock(node)) {
       const range = renderMathRange(makeAbsoluteRange(relativeRange, blockStart), macros);
       const isActive = activeRange?.from === range.from && activeRange.to === range.to;
       decorations.push(
