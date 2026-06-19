@@ -11,7 +11,7 @@ import {
 } from "@markra/ai";
 import { defaultMarkdownShortcuts, normalizeMarkdownShortcuts, type MarkdownShortcutBindings } from "@markra/editor";
 import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "@markra/providers";
-import { clampNumber, isAppLanguage, type AppLanguage } from "@markra/shared";
+import { clampNumber, isAppLanguage, normalizeNullableString, type AppLanguage } from "@markra/shared";
 import {
   editorContentWidthOptions,
   normalizeEditorContentWidthPx,
@@ -69,7 +69,11 @@ import {
 } from "./web-search-settings";
 import {
   defaultWorkspaceState,
+  normalizeFileTreeSortByWorkspace,
+  normalizeStoredFileTreeSort,
   normalizeWorkspaceState,
+  type StoredFileTreeSort,
+  type StoredFileTreeSortByWorkspace,
   type StoredWorkspaceDraftTab,
   type StoredWorkspaceSideBySideGroup,
   type StoredWorkspaceState,
@@ -104,7 +108,10 @@ export {
   normalizeWebSearchSettings
 } from "./web-search-settings";
 export {
+  defaultStoredFileTreeSort,
   defaultWorkspaceState,
+  normalizeFileTreeSortByWorkspace,
+  normalizeStoredFileTreeSort,
   normalizeWorkspaceState
 } from "./workspace-state";
 export type {
@@ -132,6 +139,8 @@ export type {
   WebSearchSettings
 } from "./web-search-settings";
 export type {
+  StoredFileTreeSort,
+  StoredFileTreeSortByWorkspace,
   StoredWorkspaceDraftTab,
   StoredWorkspaceSideBySideGroup,
   StoredWorkspaceState,
@@ -161,11 +170,13 @@ const webSearchKey = "webSearch";
 const networkKey = "network";
 const backupSettingsKey = "backupSettings";
 const syncSettingsKey = "syncSettings";
+const fileTreeSortByWorkspaceKey = "fileTreeSortByWorkspace";
 const workspaceKey = "workspace";
 const recentMarkdownFilesKey = "recentMarkdownFiles";
 const recentMarkdownFoldersKey = "recentMarkdownFolders";
 const mainWorkspaceWindowLabel = "main";
 const settingsWorkspaceWindowLabel = "markra-settings";
+const maxFileTreeSortWorkspaceEntries = 50;
 
 type StoredWorkspaceStateOptions = {
   windowLabel?: string | null;
@@ -940,6 +951,33 @@ export async function saveStoredSyncSettings(settings: SyncSettings) {
   const store = await loadSettingsStore();
 
   await store.set(syncSettingsKey, normalizeSyncSettings(settings));
+  await store.save();
+}
+
+export async function getStoredFileTreeSortByWorkspace(): Promise<StoredFileTreeSortByWorkspace> {
+  const store = await loadSettingsStore();
+  const sortByWorkspace = await store.get<StoredFileTreeSortByWorkspace>(fileTreeSortByWorkspaceKey);
+
+  return normalizeFileTreeSortByWorkspace(sortByWorkspace);
+}
+
+export async function saveStoredFileTreeSortForWorkspace(
+  workspacePath: string | null | undefined,
+  sort: StoredFileTreeSort
+) {
+  const normalizedWorkspacePath = normalizeNullableString(workspacePath);
+  if (!normalizedWorkspacePath) return;
+
+  const store = await loadSettingsStore();
+  const current = normalizeFileTreeSortByWorkspace(
+    await store.get<StoredFileTreeSortByWorkspace>(fileTreeSortByWorkspaceKey)
+  );
+  const nextSortByWorkspaceEntries = [
+    [normalizedWorkspacePath, normalizeStoredFileTreeSort(sort)] as const,
+    ...Object.entries(current).filter(([path]) => path !== normalizedWorkspacePath)
+  ].slice(0, maxFileTreeSortWorkspaceEntries);
+
+  await store.set(fileTreeSortByWorkspaceKey, Object.fromEntries(nextSortByWorkspaceEntries));
   await store.save();
 }
 

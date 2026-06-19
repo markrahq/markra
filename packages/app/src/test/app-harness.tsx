@@ -231,6 +231,10 @@ vi.mock("../lib/settings/app-settings", () => ({
     provider: "webdav",
     remotePath: "markra"
   },
+  defaultStoredFileTreeSort: {
+    direction: "ascending",
+    key: "name"
+  },
   defaultSplitVisualPanePercent: 50,
   splitVisualPanePercentMin: 25,
   splitVisualPanePercentMax: 75,
@@ -487,6 +491,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   getStoredCustomThemeCss: vi.fn(),
   getStoredEditorPreferences: vi.fn(),
   getStoredExportSettings: vi.fn(),
+  getStoredFileTreeSortByWorkspace: vi.fn(async () => ({})),
   getStoredLanguage: vi.fn(),
   getStoredNetworkSettings: vi.fn(),
   getStoredRecentMarkdownFiles: vi.fn(),
@@ -563,6 +568,15 @@ vi.mock("../lib/settings/app-settings", () => ({
     ...preferences,
     wrapCodeBlocks: preferences?.wrapCodeBlocks ?? true
   })),
+  normalizeStoredFileTreeSort: vi.fn((sort) => {
+    const value = typeof sort === "object" && sort !== null
+      ? sort as Record<string, unknown>
+      : {};
+    const key = ["createdAt", "modifiedAt", "name"].includes(String(value.key)) ? value.key : "name";
+    const direction = ["ascending", "descending"].includes(String(value.direction)) ? value.direction : "ascending";
+
+    return { direction, key };
+  }),
   normalizeTitlebarActions: vi.fn((actions) => Array.isArray(actions) ? actions : [
     { id: "aiAgent", visible: true },
     { id: "sourceMode", visible: true },
@@ -682,6 +696,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   saveStoredCustomThemeCss: vi.fn(),
   saveStoredEditorPreferences: vi.fn(),
   saveStoredExportSettings: vi.fn(),
+  saveStoredFileTreeSortForWorkspace: vi.fn(async () => {}),
   saveStoredLanguage: vi.fn(),
   saveStoredNetworkSettings: vi.fn(),
   saveStoredRecentMarkdownFile: vi.fn(),

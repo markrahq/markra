@@ -800,6 +800,70 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(treeRows()).toEqual(["alpha", "zeta", "zed.md", "alpha.md"]);
   });
 
+  it("supports controlled file tree sorting", () => {
+    const onFileTreeSortChange = vi.fn();
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/alpha.md"
+        fileTreeSort={{ direction: "descending", key: "modifiedAt" }}
+        files={[
+          {
+            kind: "folder",
+            name: "zeta",
+            path: "/vault/zeta",
+            relativePath: "zeta",
+            createdAt: 200,
+            modifiedAt: 900
+          },
+          {
+            kind: "folder",
+            name: "alpha",
+            path: "/vault/alpha",
+            relativePath: "alpha",
+            createdAt: 800,
+            modifiedAt: 100
+          },
+          {
+            name: "zed.md",
+            path: "/vault/zed.md",
+            relativePath: "zed.md",
+            createdAt: 700,
+            modifiedAt: 300
+          },
+          {
+            name: "alpha.md",
+            path: "/vault/alpha.md",
+            relativePath: "alpha.md",
+            createdAt: 100,
+            modifiedAt: 600
+          }
+        ]}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onFileTreeSortChange={onFileTreeSortChange}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+    const tree = screen.getByRole("tree", { name: "Markdown files" });
+
+    expect(within(tree).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "zeta",
+      "alpha",
+      "alpha.md",
+      "zed.md"
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Sort files" }));
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Name" }));
+
+    expect(onFileTreeSortChange).toHaveBeenCalledWith({
+      direction: "ascending",
+      key: "name"
+    });
+  });
+
   it("closes sidebar option menus after clicking outside them", () => {
     render(
       <MarkdownFileTreeDrawer

@@ -11,9 +11,11 @@ import {
 } from "../lib/tauri";
 import {
   createAiAgentSessionId,
+  getStoredFileTreeSortByWorkspace,
   getStoredRecentMarkdownFolders,
   getStoredWorkspaceState,
   removeStoredRecentMarkdownFolder,
+  saveStoredFileTreeSortForWorkspace,
   saveStoredRecentMarkdownFolder,
   saveStoredWorkspaceState,
   type RecentMarkdownFolder
@@ -33,13 +35,20 @@ vi.mock("../lib/tauri", () => ({
 
 vi.mock("../lib/settings/app-settings", () => ({
   createAiAgentSessionId: vi.fn(),
+  defaultStoredFileTreeSort: {
+    direction: "ascending",
+    key: "name"
+  },
+  getStoredFileTreeSortByWorkspace: vi.fn(),
   getStoredRecentMarkdownFolders: vi.fn(),
   getStoredWorkspaceState: vi.fn(),
+  normalizeStoredFileTreeSort: vi.fn((sort) => sort),
   prependRecentMarkdownFolder: vi.fn((folders: RecentMarkdownFolder[], folder: RecentMarkdownFolder) => [
     folder,
     ...folders.filter((item) => item.path !== folder.path)
   ].slice(0, 5)),
   removeStoredRecentMarkdownFolder: vi.fn(),
+  saveStoredFileTreeSortForWorkspace: vi.fn(),
   saveStoredRecentMarkdownFolder: vi.fn(),
   saveStoredWorkspaceState: vi.fn()
 }));
@@ -53,9 +62,11 @@ const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
 const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
 const mockedWatchNativeMarkdownTree = vi.mocked(watchNativeMarkdownTree);
 const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
+const mockedGetStoredFileTreeSortByWorkspace = vi.mocked(getStoredFileTreeSortByWorkspace);
 const mockedGetStoredRecentMarkdownFolders = vi.mocked(getStoredRecentMarkdownFolders);
 const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
 const mockedRemoveStoredRecentMarkdownFolder = vi.mocked(removeStoredRecentMarkdownFolder);
+const mockedSaveStoredFileTreeSortForWorkspace = vi.mocked(saveStoredFileTreeSortForWorkspace);
 const mockedSaveStoredRecentMarkdownFolder = vi.mocked(saveStoredRecentMarkdownFolder);
 const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
 
@@ -84,6 +95,7 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
       <p data-testid="tree-width">{tree.width}</p>
       <p data-testid="tree-resizing">{tree.resizing ? "resizing" : "idle"}</p>
       <p data-testid="recent-folders-open-state">{tree.recentFoldersOpen ? "open" : "closed"}</p>
+      <p data-testid="file-tree-sort">{`${tree.fileTreeSort.key}:${tree.fileTreeSort.direction}`}</p>
       <p data-testid="layout-class">{tree.workspaceLayoutClassName}</p>
       <p data-testid="layout-columns">{tree.workspaceLayoutStyle.gridTemplateColumns}</p>
       <button type="button" onClick={() => tree.openMarkdownFolder()}>
@@ -109,6 +121,9 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
         onClick={() => tree.openFolderPath("/vault", "vault", "session-restored", false, false)}
       >
         Restore collapsed folder
+      </button>
+      <button type="button" onClick={() => tree.setRootFromMarkdownFilePath("/mock-workspaces/notes/daily.md")}>
+        Use file root
       </button>
       <button
         type="button"
@@ -136,6 +151,12 @@ function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) 
       </button>
       <button type="button" onClick={() => tree.setRecentFoldersOpen?.(true)}>
         Expand recent folders
+      </button>
+      <button
+        type="button"
+        onClick={() => tree.setFileTreeSort({ direction: "descending", key: "createdAt" })}
+      >
+        Sort created descending
       </button>
       <button type="button" onClick={() => tree.createFile("Daily note")}>
         Create
@@ -196,12 +217,15 @@ describe("useMarkdownFileTree", () => {
     mockedRenameNativeMarkdownTreeFile.mockReset();
     mockedWatchNativeMarkdownTree.mockReset();
     mockedCreateAiAgentSessionId.mockReset();
+    mockedGetStoredFileTreeSortByWorkspace.mockReset();
     mockedGetStoredRecentMarkdownFolders.mockReset();
     mockedGetStoredWorkspaceState.mockReset();
     mockedRemoveStoredRecentMarkdownFolder.mockReset();
+    mockedSaveStoredFileTreeSortForWorkspace.mockReset();
     mockedSaveStoredRecentMarkdownFolder.mockReset();
     mockedSaveStoredWorkspaceState.mockReset();
     mockedCreateAiAgentSessionId.mockReturnValue("session-folder");
+    mockedGetStoredFileTreeSortByWorkspace.mockResolvedValue({});
     mockedGetStoredRecentMarkdownFolders.mockResolvedValue([]);
     mockedGetStoredWorkspaceState.mockResolvedValue(mockWorkspaceState({
       recentFoldersOpen: true
@@ -231,6 +255,7 @@ describe("useMarkdownFileTree", () => {
       relativePath: "docs/readme.md"
     });
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
+    mockedSaveStoredFileTreeSortForWorkspace.mockResolvedValue(undefined);
     mockedWatchNativeMarkdownTree.mockResolvedValue(() => {});
   });
 
@@ -351,6 +376,62 @@ describe("useMarkdownFileTree", () => {
     expect(screen.getByTestId("recent-folders-open-state")).toHaveTextContent("closed");
     expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
       recentFoldersOpen: false
+    });
+  });
+
+  it("restores and persists file tree sort per selected workspace folder", async () => {
+    mockedGetStoredFileTreeSortByWorkspace.mockResolvedValue({
+      "/recent/notes": {
+        direction: "descending",
+        key: "modifiedAt"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { path: "/recent/notes/index.md", name: "index.md", relativePath: "index.md" }
+    ]);
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open recent folder" }));
+
+    expect(await screen.findByText("index.md")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("file-tree-sort")).toHaveTextContent("modifiedAt:descending")
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sort created descending" }));
+
+    expect(screen.getByTestId("file-tree-sort")).toHaveTextContent("createdAt:descending");
+    expect(mockedSaveStoredFileTreeSortForWorkspace).toHaveBeenCalledWith("/recent/notes", {
+      direction: "descending",
+      key: "createdAt"
+    });
+  });
+
+  it("uses the containing folder as the file tree sort workspace for a markdown file root", async () => {
+    mockedGetStoredFileTreeSortByWorkspace.mockResolvedValue({
+      "/mock-workspaces/notes": {
+        direction: "descending",
+        key: "modifiedAt"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { path: "/mock-workspaces/notes/daily.md", name: "daily.md", relativePath: "daily.md" }
+    ]);
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Use file root" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("file-tree-sort")).toHaveTextContent("modifiedAt:descending")
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Sort created descending" }));
+
+    expect(mockedSaveStoredFileTreeSortForWorkspace).toHaveBeenCalledWith("/mock-workspaces/notes", {
+      direction: "descending",
+      key: "createdAt"
     });
   });
 

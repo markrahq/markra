@@ -15,6 +15,13 @@ export type StoredWorkspaceState = {
 };
 
 export type StoredWorkspaceWindowState = Omit<StoredWorkspaceState, "openWindows">;
+export type StoredFileTreeSortKey = "createdAt" | "modifiedAt" | "name";
+export type StoredFileTreeSortDirection = "ascending" | "descending";
+export type StoredFileTreeSort = {
+  direction: StoredFileTreeSortDirection;
+  key: StoredFileTreeSortKey;
+};
+export type StoredFileTreeSortByWorkspace = Record<string, StoredFileTreeSort>;
 
 export type StoredWorkspaceDraftTab = {
   content: string;
@@ -43,6 +50,13 @@ export const defaultWorkspaceState: StoredWorkspaceState = {
   openFilePaths: [],
   openWindows: []
 };
+export const defaultStoredFileTreeSort = {
+  direction: "ascending",
+  key: "name"
+} satisfies StoredFileTreeSort;
+
+const storedFileTreeSortKeys: readonly StoredFileTreeSortKey[] = ["createdAt", "modifiedAt", "name"];
+const storedFileTreeSortDirections: readonly StoredFileTreeSortDirection[] = ["ascending", "descending"];
 
 export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
   if (typeof value !== "object" || value === null) return defaultWorkspaceState;
@@ -75,6 +89,39 @@ export function normalizeWorkspaceState(value: unknown): StoredWorkspaceState {
     ...(typeof workspace.recentFoldersOpen === "boolean" ? { recentFoldersOpen: workspace.recentFoldersOpen } : {}),
     ...(persistedSideBySideGroup ? { sideBySideGroup: persistedSideBySideGroup } : {})
   };
+}
+
+function normalizedStoredFileTreeSort(value: unknown): StoredFileTreeSort | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const sort = value as Partial<StoredFileTreeSort>;
+  if (!storedFileTreeSortKeys.includes(sort.key as StoredFileTreeSortKey)) return null;
+  if (!storedFileTreeSortDirections.includes(sort.direction as StoredFileTreeSortDirection)) return null;
+
+  return {
+    direction: sort.direction as StoredFileTreeSortDirection,
+    key: sort.key as StoredFileTreeSortKey
+  };
+}
+
+export function normalizeStoredFileTreeSort(value: unknown): StoredFileTreeSort {
+  return normalizedStoredFileTreeSort(value) ?? defaultStoredFileTreeSort;
+}
+
+export function normalizeFileTreeSortByWorkspace(value: unknown): StoredFileTreeSortByWorkspace {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return {};
+
+  const sorts: StoredFileTreeSortByWorkspace = {};
+
+  Object.entries(value as Record<string, unknown>).forEach(([path, sort]) => {
+    const normalizedPath = normalizeNullableString(path);
+    const normalizedSort = normalizedStoredFileTreeSort(sort);
+    if (!normalizedPath || !normalizedSort) return;
+
+    sorts[normalizedPath] = normalizedSort;
+  });
+
+  return sorts;
 }
 
 function normalizeWorkspaceDraftTabs(value: unknown): StoredWorkspaceDraftTab[] {

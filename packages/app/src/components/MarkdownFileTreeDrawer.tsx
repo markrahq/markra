@@ -115,6 +115,7 @@ type MarkdownFileTreeDrawerProps = {
   activeOutlineIndex?: number | null;
   currentPath: string | null;
   customTemplates?: readonly MarkdownTemplate[];
+  fileTreeSort?: FileTreeSort;
   files: NativeMarkdownFolderFile[];
   language?: AppLanguage;
   maxWidth?: number;
@@ -132,6 +133,7 @@ type MarkdownFileTreeDrawerProps = {
   onCreateFile?: (fileName: string, parentPath?: string | null, contents?: string) => unknown | Promise<unknown>;
   onCreateFolder?: (folderName: string, parentPath?: string | null) => unknown | Promise<unknown>;
   onDeleteFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
+  onFileTreeSortChange?: (sort: FileTreeSort) => unknown;
   onOpenFile: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onOpenContainingFolder?: (path: string) => unknown | Promise<unknown>;
   onOpenFileToSide?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
@@ -360,6 +362,7 @@ export function MarkdownFileTreeDrawer({
   activeOutlineIndex = null,
   currentPath,
   customTemplates = emptyMarkdownTemplates,
+  fileTreeSort: controlledFileTreeSort,
   files,
   language = "en",
   maxWidth = 440,
@@ -377,6 +380,7 @@ export function MarkdownFileTreeDrawer({
   onCreateFile,
   onCreateFolder,
   onDeleteFile,
+  onFileTreeSortChange,
   onOpenFile,
   onOpenContainingFolder,
   onOpenFileToSide,
@@ -422,8 +426,7 @@ export function MarkdownFileTreeDrawer({
   const [newFileName, setNewFileName] = useState("");
   const [newFolderName, setNewFolderName] = useState("");
   const [fileTreeSortMenuOpen, setFileTreeSortMenuOpen] = useState(false);
-  const [fileTreeSortKey, setFileTreeSortKey] = useState<FileTreeSortKey>(defaultFileTreeSort.key);
-  const [fileTreeSortDirection, setFileTreeSortDirection] = useState<FileTreeSortDirection>(defaultFileTreeSort.direction);
+  const [localFileTreeSort, setLocalFileTreeSort] = useState<FileTreeSort>(defaultFileTreeSort);
   const [activeSidebarPanel, setActiveSidebarPanel] = useState<SidebarPanel>("files");
   const [outlineLevelMenuOpen, setOutlineLevelMenuOpen] = useState(false);
   const [outlineLevelFilter, setOutlineLevelFilter] = useState<OutlineLevelFilter>("all");
@@ -443,10 +446,13 @@ export function MarkdownFileTreeDrawer({
       }
     })
   );
-  const fileTreeSort = useMemo(
-    () => ({ direction: fileTreeSortDirection, key: fileTreeSortKey }) satisfies FileTreeSort,
-    [fileTreeSortDirection, fileTreeSortKey]
-  );
+  const fileTreeSort = controlledFileTreeSort ?? localFileTreeSort;
+  const fileTreeSortKey = fileTreeSort.key;
+  const fileTreeSortDirection = fileTreeSort.direction;
+  const updateFileTreeSort = useCallback((sort: FileTreeSort) => {
+    if (controlledFileTreeSort === undefined) setLocalFileTreeSort(sort);
+    onFileTreeSortChange?.(sort);
+  }, [controlledFileTreeSort, onFileTreeSortChange]);
   const fullTree = useMemo(() => buildMarkdownFileTree(files, rootPath, fileTreeSort), [files, rootPath, fileTreeSort]);
   const tree = useMemo(() => filterMarkdownFileTree(fullTree, searchQuery), [fullTree, searchQuery]);
   const recentFoldersOpen = controlledRecentFoldersOpen ?? localRecentFoldersOpen;
@@ -736,12 +742,17 @@ export function MarkdownFileTreeDrawer({
   };
 
   const selectFileTreeSortKey = (key: FileTreeSortKey) => {
-    setFileTreeSortKey(key);
-    setFileTreeSortDirection(key === "name" ? "ascending" : "descending");
+    updateFileTreeSort({
+      direction: key === "name" ? "ascending" : "descending",
+      key
+    });
   };
 
   const selectFileTreeSortDirection = (direction: FileTreeSortDirection) => {
-    setFileTreeSortDirection(direction);
+    updateFileTreeSort({
+      direction,
+      key: fileTreeSortKey
+    });
   };
 
   const startCreatingFile = (parentPath: string | null = null, template: MarkdownTemplate | null = null) => {

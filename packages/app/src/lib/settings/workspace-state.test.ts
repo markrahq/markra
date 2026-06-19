@@ -1,6 +1,11 @@
 import { createSettingsStoreHarness, resetSettingsStoreRuntime, setupSettingsStoreHarness } from "../../test/settings-store";
 import { configureAppRuntime, createDefaultAppRuntime } from "../../runtime";
-import { getStoredWorkspaceState, saveStoredWorkspaceState } from "./app-settings";
+import {
+  getStoredFileTreeSortByWorkspace,
+  getStoredWorkspaceState,
+  saveStoredFileTreeSortForWorkspace,
+  saveStoredWorkspaceState
+} from "./app-settings";
 
 const settingsStore = createSettingsStoreHarness();
 const { loadStore: mockedLoadStore, store } = settingsStore;
@@ -169,6 +174,69 @@ describe("workspace state settings", () => {
             sideFilePath: "/mock-files/vault/notes.md"
           }
         }
+      }
+    });
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads normalized file tree sort preferences by workspace path", async () => {
+    store.get.mockResolvedValue({
+      "/mock-workspaces/notes": {
+        direction: "descending",
+        key: "modifiedAt"
+      },
+      "/mock-workspaces/drafts": {
+        direction: "ascending",
+        key: "createdAt"
+      },
+      " ": {
+        direction: "descending",
+        key: "name"
+      },
+      "/mock-workspaces/invalid": {
+        direction: "sideways",
+        key: "name"
+      }
+    });
+
+    await expect(getStoredFileTreeSortByWorkspace()).resolves.toEqual({
+      "/mock-workspaces/notes": {
+        direction: "descending",
+        key: "modifiedAt"
+      },
+      "/mock-workspaces/drafts": {
+        direction: "ascending",
+        key: "createdAt"
+      }
+    });
+    expect(store.get).toHaveBeenCalledWith("fileTreeSortByWorkspace");
+  });
+
+  it("stores the latest file tree sort for one workspace without overwriting other workspaces", async () => {
+    store.get.mockResolvedValue({
+      "/mock-workspaces/archive": {
+        direction: "ascending",
+        key: "name"
+      },
+      "/mock-workspaces/notes": {
+        direction: "ascending",
+        key: "name"
+      }
+    });
+
+    await saveStoredFileTreeSortForWorkspace("/mock-workspaces/notes", {
+      direction: "descending",
+      key: "modifiedAt"
+    });
+
+    expect(store.set).toHaveBeenCalledWith("fileTreeSortByWorkspace", {
+      "/mock-workspaces/notes": {
+        direction: "descending",
+        key: "modifiedAt"
+      },
+      "/mock-workspaces/archive": {
+        direction: "ascending",
+        key: "name"
       }
     });
     expect(store.save).toHaveBeenCalledTimes(1);

@@ -1,13 +1,19 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   createAiAgentSessionId,
+  defaultStoredFileTreeSort,
+  getStoredFileTreeSortByWorkspace,
   getStoredRecentMarkdownFolders,
   getStoredWorkspaceState,
+  normalizeStoredFileTreeSort,
   prependRecentMarkdownFolder,
   removeStoredRecentMarkdownFolder,
+  saveStoredFileTreeSortForWorkspace,
   saveStoredRecentMarkdownFolder,
   saveStoredWorkspaceState,
-  type RecentMarkdownFolder
+  type RecentMarkdownFolder,
+  type StoredFileTreeSort,
+  type StoredFileTreeSortByWorkspace
 } from "../lib/settings/app-settings";
 import {
   createNativeMarkdownTreeFile,
@@ -20,7 +26,7 @@ import {
   watchNativeMarkdownTree,
   type NativeMarkdownFolderFile
 } from "../lib/tauri";
-import { clampNumber, folderNameFromDocumentPath, pathNameFromPath } from "@markra/shared";
+import { clampNumber, folderNameFromDocumentPath, isMarkdownPath, parentPathFromPath, pathNameFromPath } from "@markra/shared";
 
 export const markdownFileTreeDefaultWidth = 288;
 export const markdownFileTreeMinWidth = 220;
@@ -44,6 +50,13 @@ function normalizeTreeParentPath(path: string | null | undefined) {
   return trimmedPath ? trimmedPath : null;
 }
 
+function fileTreeSortWorkspacePathFromSourcePath(path: string | null | undefined) {
+  const normalizedPath = normalizeTreeParentPath(path);
+  if (!normalizedPath) return null;
+
+  return isMarkdownPath(normalizedPath) ? parentPathFromPath(normalizedPath) : normalizedPath;
+}
+
 export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFileTreeOptions = {}) {
   const [files, setFiles] = useState<NativeMarkdownFolderFile[]>([]);
   const [rootName, setRootName] = useState("No folder");
@@ -51,9 +64,17 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
   const [open, setOpen] = useState(false);
   const [recentFolders, setRecentFolders] = useState<RecentMarkdownFolder[]>([]);
   const [recentFoldersOpen, setRecentFoldersOpenState] = useState(true);
+  const [fileTreeSortByWorkspace, setFileTreeSortByWorkspace] = useState<StoredFileTreeSortByWorkspace>({});
   const [width, setWidth] = useState(markdownFileTreeDefaultWidth);
   const [resizing, setResizing] = useState(false);
   const loadedSourcePathRef = useRef<string | null>(null);
+  const fileTreeWorkspacePath = fileTreeSortWorkspacePathFromSourcePath(sourcePath);
+  const fileTreeSort = useMemo(
+    () => fileTreeWorkspacePath
+      ? fileTreeSortByWorkspace[fileTreeWorkspacePath] ?? defaultStoredFileTreeSort
+      : defaultStoredFileTreeSort,
+    [fileTreeSortByWorkspace, fileTreeWorkspacePath]
+  );
   const workspaceLayoutClassName = `workspace-layout grid h-full min-h-0 overflow-hidden ${
     resizing
       ? "transition-none"
@@ -179,6 +200,23 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     persistWorkspaceState({ recentFoldersOpen: openRecentFolders });
   }, []);
 
+  const setFileTreeSort = useCallback((sort: StoredFileTreeSort) => {
+    const normalizedSort = normalizeStoredFileTreeSort(sort);
+    const workspacePath = fileTreeSortWorkspacePathFromSourcePath(sourcePath);
+    if (!workspacePath) return;
+
+    setFileTreeSortByWorkspace((current) => {
+      const remainingSorts = { ...current };
+      delete remainingSorts[workspacePath];
+
+      return {
+        [workspacePath]: normalizedSort,
+        ...remainingSorts
+      };
+    });
+    saveStoredFileTreeSortForWorkspace(workspacePath, normalizedSort).catch(() => {});
+  }, [sourcePath]);
+
   const createFile = useCallback(async (fileName: string, parentPath: string | null = null, contents?: string) => {
     if (!sourcePath) return null;
 
@@ -250,6 +288,18 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     (path: string | null) => (sourcePath ? rootName : folderNameFromDocumentPath(path)),
     [rootName, sourcePath]
   );
+
+  useEffect(() => {
+    let active = true;
+
+    getStoredFileTreeSortByWorkspace().then((sorts) => {
+      if (active) setFileTreeSortByWorkspace(sorts);
+    }).catch(() => {});
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -337,6 +387,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     createFolder,
     deleteFile,
     files,
+    fileTreeSort,
     recentFolders,
     recentFoldersOpen,
     resizing,
@@ -348,6 +399,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     openRecentFolder,
     removeRecentFolder,
     setRecentFoldersOpen,
+    setFileTreeSort,
     moveFile,
     rootNameForDocument,
     refresh,
