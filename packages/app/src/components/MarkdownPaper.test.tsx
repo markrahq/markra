@@ -2755,7 +2755,7 @@ describe("MarkdownPaper editing", () => {
     restoreLayout();
   });
 
-  it("ignores horizontal rule margin clicks", async () => {
+  it("only ignores horizontal rule margin clicks close to the divider", async () => {
     const { container, view } = await renderEditor("First\n\n---\n\nSecond");
     const restoreLayout = mockThinHorizontalRuleBlockDragLayout(view, container);
     const surface = container.querySelector<HTMLElement>(".ProseMirror");
@@ -2763,20 +2763,38 @@ describe("MarkdownPaper editing", () => {
 
     const secondCursor = findTextPosition(view, "Second");
     moveCursor(view, secondCursor);
-    fireEvent.mouseDown(surface!, {
+    const upperWhitespaceResult = fireEvent.mouseDown(surface!, {
       button: 0,
       clientX: 200,
       clientY: 134
     });
+    expect(upperWhitespaceResult).toBe(true);
+    expect(view.state.selection.from).toBe(secondCursor);
+
+    const topGapResult = fireEvent.mouseDown(surface!, {
+      button: 0,
+      clientX: 200,
+      clientY: 138
+    });
+    expect(topGapResult).toBe(false);
     expect(view.state.selection.from).toBe(secondCursor);
 
     const firstCursor = findTextPosition(view, "First");
     moveCursor(view, firstCursor);
-    fireEvent.mouseDown(surface!, {
+    const bottomGapResult = fireEvent.mouseDown(surface!, {
+      button: 0,
+      clientX: 200,
+      clientY: 143
+    });
+    expect(bottomGapResult).toBe(false);
+    expect(view.state.selection.from).toBe(firstCursor);
+
+    const lowerWhitespaceResult = fireEvent.mouseDown(surface!, {
       button: 0,
       clientX: 200,
       clientY: 147
     });
+    expect(lowerWhitespaceResult).toBe(true);
     expect(view.state.selection.from).toBe(firstCursor);
 
     restoreLayout();

@@ -3034,7 +3034,7 @@
   }
 
   .markdown-paper hr {
-    @apply my-8 border-0;
+    @apply my-5 border-0;
     height: 12px;
     cursor: pointer;
     background: linear-gradient(var(--border-default), var(--border-default)) center / 100% 1px no-repeat;

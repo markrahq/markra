@@ -3,7 +3,7 @@ import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 
 const gapGuardedBlockNames = new Set(["hr"]);
-const fallbackGapPadding = 12;
+const maximumGuardedGapPadding = 4;
 
 function isPlainLeftMouseDown(event: MouseEvent) {
   return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
@@ -18,19 +18,26 @@ function pixelValue(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function guardedGapExtent(value: string) {
+  const pixels = pixelValue(value);
+  if (!pixels) return maximumGuardedGapPadding;
+
+  return Math.min(pixels, maximumGuardedGapPadding);
+}
+
 function blockGapExtents(element: Element) {
   const ownerWindow = element.ownerDocument.defaultView;
   if (!ownerWindow) {
     return {
-      bottom: fallbackGapPadding,
-      top: fallbackGapPadding
+      bottom: maximumGuardedGapPadding,
+      top: maximumGuardedGapPadding
     };
   }
 
   const style = ownerWindow.getComputedStyle(element);
   return {
-    bottom: pixelValue(style.marginBottom) || fallbackGapPadding,
-    top: pixelValue(style.marginTop) || fallbackGapPadding
+    bottom: guardedGapExtent(style.marginBottom),
+    top: guardedGapExtent(style.marginTop)
   };
 }
 

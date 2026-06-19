@@ -181,6 +181,8 @@ describe("editor stylesheet", () => {
 
     expect(ruleStart).toBeGreaterThanOrEqual(0);
     expect(ruleEnd).toBeGreaterThan(ruleStart);
+    expect(ruleStyles).toContain("@apply my-5 border-0");
+    expect(ruleStyles).not.toContain("@apply my-8 border-0");
     expect(ruleStyles).toContain("height:");
     expect(ruleStyles).toContain("cursor: pointer");
     expect(ruleStyles).toContain("background:");
