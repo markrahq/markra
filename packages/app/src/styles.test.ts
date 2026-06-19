@@ -69,6 +69,26 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("background-clip: content-box");
   });
 
+  it("keeps visible scrollbars for the macOS 27 WebKit scrolling workaround", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const workaroundStart = styles.indexOf('html[data-webkit-scroll-workaround="macos-27"]');
+    const workaroundEnd = styles.indexOf("  html,\n  body,", workaroundStart);
+    const workaroundStyles = styles.slice(workaroundStart, workaroundEnd);
+
+    expect(workaroundStart).toBeGreaterThanOrEqual(0);
+    expect(workaroundEnd).toBeGreaterThan(workaroundStart);
+    expect(workaroundStyles).toContain('html[data-webkit-scroll-workaround="macos-27"]');
+    expect(workaroundStyles).toContain('html[data-webkit-scroll-workaround="macos-27"] *');
+    expect(workaroundStyles).toContain("scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track)");
+    expect(workaroundStyles).toContain("scrollbar-width: thin");
+    expect(workaroundStyles).toContain('html[data-webkit-scroll-workaround="macos-27"] *::-webkit-scrollbar');
+    expect(workaroundStyles).toContain("width: 10px");
+    expect(workaroundStyles).toContain("height: 10px");
+    expect(workaroundStyles).not.toContain("scrollbar-color: auto");
+    expect(workaroundStyles).not.toContain("width: auto");
+    expect(workaroundStyles).not.toContain("height: auto");
+  });
+
   it("keeps primary editor headings free of divider underlines", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const headingStart = styles.indexOf(".markdown-paper h1 {");

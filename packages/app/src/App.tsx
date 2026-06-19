@@ -96,7 +96,11 @@ import { aiCommandSelection, automaticAiSelection } from "./lib/ai-selection";
 import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
 import { markAppPerformance } from "./lib/performance-marks";
 import { replaceMovedPath } from "./lib/path-move";
-import { resolveDesktopPlatform } from "./lib/platform";
+import {
+  resolveDesktopOsVersion,
+  resolveDesktopPlatform,
+  webKitScrollWorkaroundForPlatform
+} from "./lib/platform";
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
 import { runEditorLinkCommand } from "./app/editor-link-command";
 import { isPandocSetupError, runPandocSetupAction } from "./app/pandoc-setup";
@@ -225,6 +229,8 @@ function SettingsRouteApp() {
 
 function WorkspaceApp() {
   const desktopPlatform = resolveDesktopPlatform();
+  const desktopOsVersion = resolveDesktopOsVersion();
+  const webKitScrollWorkaround = webKitScrollWorkaroundForPlatform(desktopPlatform, desktopOsVersion);
   const appFeatures = getAppRuntime().features;
   const aiFeatureEnabled = appFeatures.ai;
   const exportFeatureEnabled = appFeatures.export;
@@ -315,6 +321,23 @@ function WorkspaceApp() {
     thinkingEnabled: false,
     webSearchEnabled: false
   });
+
+  useEffect(() => {
+    const root = globalThis.document?.documentElement;
+    if (!root) return;
+
+    if (webKitScrollWorkaround) {
+      root.dataset.webkitScrollWorkaround = webKitScrollWorkaround;
+      return () => {
+        if (root.dataset.webkitScrollWorkaround === webKitScrollWorkaround) {
+          delete root.dataset.webkitScrollWorkaround;
+        }
+      };
+    }
+
+    delete root.dataset.webkitScrollWorkaround;
+  }, [webKitScrollWorkaround]);
+
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const clearAiSelectionToolbarCopySuccess = useCallback(() => {
     if (aiSelectionCopySuccessTimerRef.current !== null) {

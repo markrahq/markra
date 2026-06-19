@@ -96,6 +96,7 @@ export type AppEventsRuntime = {
 };
 
 export type AppPlatformRuntime = {
+  resolveDesktopOsVersion: () => string | null;
   resolveDesktopPlatform: () => DesktopPlatform | null;
 };
 
@@ -425,6 +426,7 @@ export function createDefaultAppRuntime(): AppRuntime {
       showMarkdownFileTreeContextMenu: async () => undefined
     },
     platform: {
+      resolveDesktopOsVersion: () => null,
       resolveDesktopPlatform: () => null
     },
     settings: createMemorySettingsRuntime(),

@@ -1,5 +1,5 @@
 import { emit, listen } from "@tauri-apps/api/event";
-import { platform as tauriPlatform, type Platform as TauriPlatform } from "@tauri-apps/plugin-os";
+import { platform as tauriPlatform, version as tauriVersion, type Platform as TauriPlatform } from "@tauri-apps/plugin-os";
 import { load } from "@tauri-apps/plugin-store";
 import { hasTauriRuntime } from "@markra/shared";
 import type { AppRuntime } from "@markra/app/runtime";
@@ -26,6 +26,14 @@ function normalizeDesktopPlatform(platform: string | null | undefined): DesktopP
 function resolveDesktopPlatform() {
   try {
     return normalizeDesktopPlatform(tauriPlatform() satisfies TauriPlatform);
+  } catch {
+    return null;
+  }
+}
+
+function resolveDesktopOsVersion() {
+  try {
+    return tauriVersion() || null;
   } catch {
     return null;
   }
@@ -108,6 +116,7 @@ export const desktopRuntime = {
     showMarkdownFileTreeContextMenu: menu.showNativeMarkdownFileTreeContextMenu
   },
   platform: {
+    resolveDesktopOsVersion,
     resolveDesktopPlatform
   },
   settings: {

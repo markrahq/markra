@@ -653,6 +653,25 @@
     height: 0;
   }
 
+  html[data-webkit-scroll-workaround="macos-27"],
+  html[data-webkit-scroll-workaround="macos-27"] * {
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-width: thin;
+  }
+
+  html[data-webkit-scroll-workaround="macos-27"] *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  html[data-webkit-scroll-workaround="macos-27"] *::-webkit-scrollbar-thumb {
+    min-height: 48px;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-color: var(--scrollbar-thumb);
+    background-clip: content-box;
+  }
+
   html,
   body,
   #root {

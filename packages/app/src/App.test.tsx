@@ -61,6 +61,7 @@ import {
   mockedRemoveStoredRecentMarkdownFolder,
   mockedResetWelcomeDocumentState,
   mockedRenameNativeMarkdownTreeFile,
+  mockedResolveDesktopOsVersion,
   mockedResolveDesktopPlatform,
   mockedSaveNativeHtmlFile,
   mockedSaveNativeMarkdownFile,
@@ -116,6 +117,8 @@ const defaultImageUpload = {
     username: ""
   }
 };
+
+const webKitScrollWorkaroundAttribute = "data-webkit-scroll-workaround";
 
 function mockElementFromPoint(element: Element) {
   const mock = vi.fn(() => element);
@@ -279,6 +282,29 @@ function mockTitlebarActionRects(actionIds: string[]) {
 }
 
 describe("Markra workspace", () => {
+  it("marks macOS 27 windows for the WebKit scrolling workaround", async () => {
+    mockedResolveDesktopPlatform.mockReturnValue("macos");
+    mockedResolveDesktopOsVersion.mockReturnValue("27.0");
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(document.documentElement).toHaveAttribute(webKitScrollWorkaroundAttribute, "macos-27");
+    });
+  });
+
+  it("clears the WebKit scrolling workaround outside macOS 27", async () => {
+    document.documentElement.setAttribute(webKitScrollWorkaroundAttribute, "macos-27");
+    mockedResolveDesktopPlatform.mockReturnValue("macos");
+    mockedResolveDesktopOsVersion.mockReturnValue("26.6");
+
+    renderApp();
+
+    await waitFor(() => {
+      expect(document.documentElement).not.toHaveAttribute(webKitScrollWorkaroundAttribute);
+    });
+  });
+
   afterEach(() => {
     resetAppRuntimeForTests();
   });
@@ -492,6 +518,7 @@ describe("Markra workspace", () => {
         updater: true
       },
       platform: {
+        resolveDesktopOsVersion: () => null,
         resolveDesktopPlatform: () => "windows"
       }
     });

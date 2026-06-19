@@ -127,7 +127,7 @@ import {
 } from "../lib/settings/settings-events";
 import { fetchAiProviderModels, testAiProviderConnection } from "@markra/providers";
 import { chatCompletion, generateAiAgentSessionTitle } from "@markra/ai";
-import { resolveDesktopPlatform } from "../lib/platform";
+import { resolveDesktopOsVersion, resolveDesktopPlatform } from "../lib/platform";
 
 const testAiQuickActionPrompts = vi.hoisted(() => ({
   continue: "",
@@ -208,6 +208,7 @@ vi.mock("../lib/platform", async (importOriginal) => {
 
   return {
     ...actual,
+    resolveDesktopOsVersion: vi.fn(() => null),
     resolveDesktopPlatform: vi.fn(() => "macos")
   };
 });
@@ -783,6 +784,7 @@ export const mockedExitNativeApp = vi.mocked(exitNativeApp);
 export const mockedListenNativeAppExitRequested = vi.mocked(listenNativeAppExitRequested);
 export const mockedListenNativeWindowCloseRequested = vi.mocked(listenNativeWindowCloseRequested);
 export const mockedCheckNativeAppUpdate = vi.mocked(checkNativeAppUpdate);
+export const mockedResolveDesktopOsVersion = vi.mocked(resolveDesktopOsVersion);
 export const mockedResolveDesktopPlatform = vi.mocked(resolveDesktopPlatform);
 export const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 export const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
@@ -972,6 +974,7 @@ export function installAppTestHarness() {
     mockedListenNativeAppExitRequested.mockReset();
     mockedListenNativeWindowCloseRequested.mockReset();
     mockedCheckNativeAppUpdate.mockReset();
+    mockedResolveDesktopOsVersion.mockReset();
     mockedResolveDesktopPlatform.mockReset();
     mockedOpenSettingsWindow.mockReset();
     mockedGetStoredLanguage.mockReset();
@@ -1041,6 +1044,7 @@ export function installAppTestHarness() {
     mockedInstallNativeShellCommand.mockReset();
     mockedUninstallNativeShellCommand.mockReset();
     document.documentElement.removeAttribute("data-theme");
+    document.documentElement.removeAttribute("data-webkit-scroll-workaround");
     document.documentElement.removeAttribute("data-window");
     document.getElementById("markra-custom-theme-style")?.remove();
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
@@ -1081,6 +1085,7 @@ export function installAppTestHarness() {
       status: "missing"
     });
     mockedCheckNativeAppUpdate.mockResolvedValue(null);
+    mockedResolveDesktopOsVersion.mockReturnValue(null);
     mockedResolveDesktopPlatform.mockReturnValue("macos");
     mockedOpenSettingsWindow.mockResolvedValue(undefined);
     mockedReadNativeMarkdownImageFile.mockResolvedValue({
