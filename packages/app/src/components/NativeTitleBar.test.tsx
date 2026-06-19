@@ -319,7 +319,35 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
       left: "219px"
     });
-    expect(container.querySelector(".native-titlebar")).toHaveClass("border-t", "border-l", "rounded-tl-md");
+    expect(container.querySelector(".native-titlebar")).toHaveClass("rounded-tl-md", "overflow-hidden");
+    expect(container.querySelector(".native-titlebar")).not.toHaveClass("border-t");
+    expect(container.querySelector(".native-titlebar")).not.toHaveClass("border-l");
+    expect(container.querySelector(".native-titlebar")).toHaveClass("transition-[left]");
+    expect(container.querySelector(".windows-titlebar-top-divider")).toHaveClass(
+      "absolute",
+      "top-0",
+      "right-0",
+      "left-1.5",
+      "h-px",
+      "bg-(--border-default)"
+    );
+    expect(container.querySelector(".windows-titlebar-corner-divider")).toHaveClass(
+      "absolute",
+      "top-0",
+      "left-0",
+      "size-1.5",
+      "rounded-tl-md",
+      "border-t",
+      "border-l",
+      "border-(--border-default)"
+    );
+    const titlebar = container.querySelector<HTMLElement>(".native-titlebar");
+    const sidebarDivider = container.querySelector<HTMLElement>(".windows-titlebar-sidebar-divider");
+    expect(sidebarDivider).toBeInTheDocument();
+    expect(titlebar).toContainElement(sidebarDivider);
+    expect(container.querySelector(".windows-titlebar-sidebar-surface")).not.toBeInTheDocument();
+    expect(sidebarDivider).toHaveClass("absolute", "top-1.5", "bottom-0", "left-0", "w-px", "bg-(--border-default)");
+    expect(sidebarDivider).not.toHaveClass("right-0");
     expect(container.querySelector(".windows-titlebar-corner-mask")).toHaveStyle({
       left: "218px",
       width: "3px"
@@ -405,6 +433,12 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".native-titlebar")).toHaveClass("border-t");
     expect(container.querySelector(".native-titlebar")).not.toHaveClass("border-l");
     expect(container.querySelector(".native-titlebar")).not.toHaveClass("rounded-tl-md");
+    expect(container.querySelector(".native-titlebar")).not.toHaveClass("overflow-hidden");
+    expect(container.querySelector(".windows-titlebar-top-divider")).not.toBeInTheDocument();
+    expect(container.querySelector(".windows-titlebar-corner-divider")).not.toBeInTheDocument();
+    expect(container.querySelector(".windows-titlebar-sidebar-divider")).not.toBeInTheDocument();
+    expect(container.querySelector(".native-titlebar")).toHaveClass("transition-[left]");
+    expect(container.querySelector(".windows-titlebar-sidebar-surface")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title-slot")).toHaveClass("pl-3");
     expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
