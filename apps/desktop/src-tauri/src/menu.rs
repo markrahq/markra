@@ -315,6 +315,7 @@ fn application_about_metadata() -> AboutMetadata<'static> {
     }
 }
 
+#[cfg(any(windows, test))]
 fn native_about_full_version(metadata: &AboutMetadata<'_>) -> Option<String> {
     match (&metadata.version, &metadata.short_version) {
         (Some(version), Some(short_version)) => Some(format!("{version} ({short_version})")),
@@ -323,10 +324,12 @@ fn native_about_full_version(metadata: &AboutMetadata<'_>) -> Option<String> {
     }
 }
 
+#[cfg(any(windows, test))]
 fn native_about_dialog_title(metadata: &AboutMetadata<'_>) -> String {
     format!("About {}", metadata.name.as_deref().unwrap_or("Markra"))
 }
 
+#[cfg(any(windows, test))]
 fn native_about_dialog_message(metadata: &AboutMetadata<'_>) -> String {
     use std::fmt::Write;
 

@@ -1,5 +1,5 @@
 import * as matchers from "@testing-library/jest-dom/matchers";
-import { expect } from "vitest";
+import { expect, vi } from "vitest";
 
 expect.extend(matchers);
 
@@ -44,6 +44,14 @@ if (typeof Range !== "undefined" && !Range.prototype.getClientRects) {
 
 if (typeof Range !== "undefined" && !Range.prototype.getBoundingClientRect) {
   Range.prototype.getBoundingClientRect = getBoundingClientRect;
+}
+
+if (typeof window !== "undefined") {
+  Object.defineProperty(window, "scrollBy", {
+    configurable: true,
+    writable: true,
+    value: vi.fn()
+  });
 }
 
 type SvgLayoutPrototype = SVGElement & {
