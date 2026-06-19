@@ -35,6 +35,7 @@ export type MarkdownSourceEditorProps = {
   onContentWidthResizeStart?: () => unknown;
   onScroll?: (event: UIEvent<HTMLElement>) => unknown;
   onRedo?: () => unknown;
+  onSelectionTextChange?: (text: string | null) => unknown;
   onUndo?: () => unknown;
   readOnly?: boolean;
   searchActiveIndex?: number;
@@ -117,6 +118,16 @@ function markdownSourceSearchExtension(matches: SearchRange[] = [], activeIndex 
   });
 }
 
+function selectedSourceTextFromState(state: EditorState) {
+  const text = state.selection.ranges
+    .filter((range) => !range.empty)
+    .map((range) => state.sliceDoc(range.from, range.to))
+    .join("\n")
+    .trim();
+
+  return text ? text : null;
+}
+
 function markdownSourceTheme(): Extension {
   return EditorView.theme({
     "&": {
@@ -176,6 +187,7 @@ export function MarkdownSourceEditor({
   onContentWidthResizeStart,
   onScroll,
   onRedo,
+  onSelectionTextChange,
   onUndo,
   readOnly = false,
   searchActiveIndex = -1,
@@ -187,6 +199,7 @@ export function MarkdownSourceEditor({
   const initialContentRef = useRef(content);
   const onChangeRef = useRef(onChange);
   const onRedoRef = useRef(onRedo);
+  const onSelectionTextChangeRef = useRef(onSelectionTextChange);
   const onUndoRef = useRef(onUndo);
   const viewRef = useRef<EditorView | null>(null);
   const contentAttributesCompartmentRef = useRef(new Compartment());
@@ -217,6 +230,10 @@ export function MarkdownSourceEditor({
   }, [onRedo]);
 
   useEffect(() => {
+    onSelectionTextChangeRef.current = onSelectionTextChange;
+  }, [onSelectionTextChange]);
+
+  useEffect(() => {
     onUndoRef.current = onUndo;
   }, [onUndo]);
 
@@ -233,6 +250,10 @@ export function MarkdownSourceEditor({
       editableCompartmentRef.current.of(EditorView.editable.of(!readOnly)),
       searchCompartmentRef.current.of(markdownSourceSearchExtension(searchMatches, searchActiveIndex)),
       EditorView.updateListener.of((update) => {
+        if (update.selectionSet || update.docChanged) {
+          onSelectionTextChangeRef.current?.(selectedSourceTextFromState(update.state));
+        }
+
         if (!update.docChanged) return;
         if (update.transactions.some((transaction) => transaction.annotation(externalSourceUpdate))) return;
 
@@ -260,6 +281,7 @@ export function MarkdownSourceEditor({
     if (autoFocus) view.focus();
 
     return () => {
+      onSelectionTextChangeRef.current?.(null);
       view.destroy();
       viewRef.current = null;
     };

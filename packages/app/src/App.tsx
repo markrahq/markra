@@ -88,7 +88,7 @@ import {
   type I18nKey
 } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
-import { createMarkdownImageSrcResolver } from "@markra/markdown";
+import { createMarkdownImageSrcResolver, getWordCount } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
 import { saveEditorImage } from "./lib/image-upload";
@@ -247,6 +247,7 @@ function WorkspaceApp() {
   const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [imageTabs, setImageTabs] = useState<ImageDocumentTab[]>([]);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
+  const [selectedWordCount, setSelectedWordCount] = useState<number | null>(null);
   const [aiCommandOverlayInset, setAiCommandOverlayInset] = useState(0);
   const [aiSelectionToolbarAnchor, setAiSelectionToolbarAnchor] = useState<SelectionAnchor | null>(null);
   const [aiSelectionToolbarActiveActions, setAiSelectionToolbarActiveActions] = useState<SelectionFormattingAction[]>([]);
@@ -522,6 +523,9 @@ function WorkspaceApp() {
     path: document.path,
     sizeBytes: document.sizeBytes ?? null
   };
+  useEffect(() => {
+    setSelectedWordCount(null);
+  }, [activeImageFile?.path, activeTabId, editorMode]);
   const handleMainVisualEditorReady = useCallback((
     tabId: string,
     readyEditor: MilkdownEditor | null,
@@ -783,6 +787,10 @@ function WorkspaceApp() {
     await openNativeExternalUrl(href);
   }, [captureActiveDocumentViewState, document.path, fileTreeFiles, openTreeMarkdownFile]);
   const getActiveAiSelection = useCallback(() => activeAiSelectionRef.current, []);
+  const updateSelectedWordCount = useCallback((selectedText: string | null | undefined) => {
+    const count = selectedText?.trim() ? getWordCount(selectedText) : 0;
+    setSelectedWordCount(count > 0 ? count : null);
+  }, []);
   const updateActiveAiSelection = useCallback((selection: AiSelectionContext | null) => {
     activeAiSelectionRef.current = selection;
     setActiveAiSelection(selection);
@@ -1056,6 +1064,7 @@ function WorkspaceApp() {
   const handleTextSelectionChange = useCallback((selection: AiSelectionContext | null) => {
     const automaticSelection = automaticAiSelection(selection);
 
+    updateSelectedWordCount(selection?.source === "selection" ? selection.text : null);
     updateActiveAiSelection(automaticSelection);
     clearAiSelectionToolbarCopySuccess();
     setAiSelectionToolbarActiveActions([]);
@@ -1147,6 +1156,7 @@ function WorkspaceApp() {
     clearAiSelectionToolbarCopySuccess,
     readOnlyMode,
     setAiSelectionToolbarAnchorIfChanged,
+    updateSelectedWordCount,
     updateActiveAiSelection
   ]);
   const getEditorSelection = editor.getSelection;
@@ -3420,6 +3430,7 @@ function WorkspaceApp() {
                           onContentWidthChange={handleEditorContentWidthChange}
                           onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                           onScroll={handleSourcePaneScroll}
+                          onSelectionTextChange={updateSelectedWordCount}
                           readOnly={readOnlyMode}
                           searchActiveIndex={normalizedDocumentSearchActiveIndex}
                           searchMatches={visibleSourceDocumentSearchMatches}
@@ -3448,6 +3459,7 @@ function WorkspaceApp() {
                           onContentWidthChange={handleEditorContentWidthChange}
                           onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
                           onScroll={handleSourcePaneScroll}
+                          onSelectionTextChange={updateSelectedWordCount}
                           readOnly={readOnlyMode}
                           searchActiveIndex={normalizedDocumentSearchActiveIndex}
                           searchMatches={visibleSourceDocumentSearchMatches}
@@ -3462,6 +3474,7 @@ function WorkspaceApp() {
                     dirty={document.dirty}
                     language={appLanguage.language}
                     readOnly={readOnlyMode}
+                    selectedWordCount={selectedWordCount}
                     showWordCount={editorPreferences.preferences.showWordCount}
                     syncLabel={syncStatusLabel}
                     wordCount={wordCount}
