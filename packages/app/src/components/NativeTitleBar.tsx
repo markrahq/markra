@@ -114,6 +114,12 @@ function mergeClassNames(...classNames: Array<string | false | null | undefined>
   return classNames.filter(Boolean).join(" ");
 }
 
+function isWindowsTitlebarInteractiveTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false;
+
+  return Boolean(target.closest("a, button, input, select, textarea, [role='button'], [role='tab'], [role='menuitem'], [data-titlebar-action]"));
+}
+
 export function NativeTitleBar({
   aiAgentOpen,
   aiAgentResizing = false,
@@ -375,6 +381,24 @@ export function NativeTitleBar({
         y: rect.bottom
       }
     });
+  };
+  const runToggleWindowMaximized = () => {
+    if (!onToggleWindowMaximized) return;
+
+    try {
+      Promise.resolve(onToggleWindowMaximized()).catch(() => {});
+    } catch {
+      // Native window state can change while the app is closing; keep the titlebar inert.
+    }
+  };
+  const handleWindowsTitlebarMouseDownCapture = (event: ReactMouseEvent<HTMLElement>) => {
+    if (!nativeWindowChrome || !onToggleWindowMaximized || isWindowsTitlebarInteractiveTarget(event.target)) return;
+    if (event.button !== 0 || event.detail !== 2) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.nativeEvent.stopImmediatePropagation();
+    runToggleWindowMaximized();
   };
 
   const renderFixedOpenAction = (className = dimTitlebarIconButtonClassName) => {
@@ -708,6 +732,7 @@ export function NativeTitleBar({
         className={`windows-app-chrome fixed inset-x-0 top-0 z-20 grid h-10 grid-cols-[auto_minmax(0,1fr)_auto] select-none items-center ${windowsAppChromeSurfaceClassName} [-webkit-user-select:none]`}
         aria-label={label("app.windowDragRegion")}
         data-tauri-drag-region={nativeWindowChrome ? true : undefined}
+        onMouseDownCapture={handleWindowsTitlebarMouseDownCapture}
       >
         <div
           className="relative z-20 flex h-10 min-w-0 items-center gap-1 px-2 text-[12px] leading-none text-(--text-primary)"
@@ -784,6 +809,7 @@ export function NativeTitleBar({
             className={`native-titlebar group/titlebar fixed inset-x-0 ${windowsTitlebarTopClassName} z-10 grid h-10 select-none items-center ${windowsTitlebarSurfaceClassName} ${windowsTitlebarEdgeClassName} [-webkit-user-select:none]`}
             style={windowsTitlebarStyle}
             aria-label={label("app.windowDragRegion")}
+            onMouseDownCapture={handleWindowsTitlebarMouseDownCapture}
           >
             {renderTitleContent(`native-title-slot min-w-0 h-10 pr-3 ${windowsTitleSlotPaddingClassName}`)}
             <div
@@ -820,6 +846,7 @@ export function NativeTitleBar({
           style={windowsTitlebarStyle}
           aria-label={label("app.windowDragRegion")}
           data-tauri-drag-region={nativeWindowChrome ? true : undefined}
+          onMouseDownCapture={handleWindowsTitlebarMouseDownCapture}
         >
           {showWindowsDocumentTitle ? (
             <h1

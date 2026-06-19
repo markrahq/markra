@@ -614,6 +614,36 @@ describe("NativeTitleBar", () => {
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 
+  it("toggles the Windows window state from self-drawn titlebar double-click mouse downs", () => {
+    const toggleWindowMaximized = vi.fn();
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        platform="windows"
+        theme="light"
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+        onToggleWindowMaximized={toggleWindowMaximized}
+      />
+    );
+
+    fireEvent.mouseDown(container.querySelector(".windows-app-chrome") as HTMLElement, { button: 0, detail: 2 });
+    fireEvent.mouseDown(container.querySelector(".native-titlebar") as HTMLElement, { button: 0, detail: 2 });
+
+    expect(toggleWindowMaximized).toHaveBeenCalledTimes(2);
+  });
+
   it("reserves AI panel width as a separate Windows titlebar column so action hitboxes stay narrow", () => {
     const { container } = render(
       <NativeTitleBar
