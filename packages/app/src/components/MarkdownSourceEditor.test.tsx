@@ -133,6 +133,40 @@ describe("MarkdownSourceEditor", () => {
     expect(view.state.doc.toString()).toBe("# External");
   });
 
+  it("notifies selected source text changes", () => {
+    const handleSelectionTextChange = vi.fn();
+    const { container } = render(
+      <MarkdownSourceEditor
+        content="alpha beta gamma"
+        onChange={() => {}}
+        onSelectionTextChange={handleSelectionTextChange}
+      />
+    );
+    const view = getMarkdownSourceView(container);
+
+    act(() => {
+      view.dispatch({
+        selection: {
+          anchor: 6,
+          head: 10
+        }
+      });
+    });
+
+    expect(handleSelectionTextChange).toHaveBeenLastCalledWith("beta");
+
+    act(() => {
+      view.dispatch({
+        selection: {
+          anchor: 10,
+          head: 10
+        }
+      });
+    });
+
+    expect(handleSelectionTextChange).toHaveBeenLastCalledWith(null);
+  });
+
   it("keeps source edits undoable and redoable", () => {
     const handleChange = vi.fn();
     const { container } = render(

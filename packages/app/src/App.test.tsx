@@ -350,6 +350,30 @@ describe("Markra workspace", () => {
     expect(shell).toHaveClass("overscroll-none");
   });
 
+  it("replaces the document word count with the selected word count in the quiet status line", async () => {
+    const { container } = renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    const view = getMarkdownSourceView(sourceEditor);
+    const start = view.state.doc.toString().indexOf("Welcome");
+
+    act(() => {
+      view.dispatch({
+        selection: {
+          anchor: start,
+          head: start + "Welcome to Markra".length
+        }
+      });
+    });
+
+    await waitFor(() => expect(container.querySelector(".quiet-status")).toHaveTextContent("3 words"));
+    expect(container.querySelector(".quiet-status")).not.toHaveTextContent("75 words");
+  });
+
   it("restores a selected history version into the current document", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockOpenMarkdownFile({

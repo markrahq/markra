@@ -5,6 +5,7 @@ type QuietStatusProps = {
   dirty: boolean;
   language?: AppLanguage;
   readOnly?: boolean;
+  selectedWordCount?: number | null;
   showWordCount?: boolean;
   syncLabel?: string | null;
   wordCount: number;
@@ -15,11 +16,13 @@ export function QuietStatus({
   dirty,
   language = "en",
   readOnly = false,
+  selectedWordCount = null,
   showWordCount = true,
   syncLabel = null,
   wordCount
 }: QuietStatusProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
+  const wordCountText = `${selectedWordCount ?? wordCount}`;
 
   return (
     <footer
@@ -28,7 +31,7 @@ export function QuietStatus({
     >
       {showWordCount ? (
         <span>
-          {wordCount} {label("app.words")}
+          {wordCountText} {label("app.words")}
         </span>
       ) : null}
       {backupLabel ? <span>{backupLabel}</span> : null}
