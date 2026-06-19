@@ -25,7 +25,6 @@ import {
   type RenderedMarkdownExport,
   type MarkdownExportSnapshot
 } from "./components/MarkdownExportDocument";
-import { MarkdownFileTreeDrawer } from "./components/MarkdownFileTreeDrawer";
 import { MarkdownPaper } from "./components/MarkdownPaper";
 import { LazyMarkdownSourceEditor } from "./components/LazyMarkdownSourceEditor";
 import {
@@ -38,17 +37,23 @@ import { QuietStatus } from "./components/QuietStatus";
 import { QuickOpenPanel } from "./components/QuickOpenPanel";
 import { SideDocumentPane } from "./components/SideDocumentPane";
 import { SettingsWindow } from "./components/SettingsWindow";
+import { WorkspaceLayout } from "./components/WorkspaceLayout";
 import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useAiCommandUi } from "./hooks/useAiCommandUi";
 import {
-  shouldCloseAiCommandOnAgentPanelOpen,
   shouldHideAiCommandForAiAgentPanel,
   shouldHideSelectionToolbarForAiAgentPanel
 } from "./hooks/ai-agent-panel-visibility";
+import {
+  aiAgentPanelMaxWidth,
+  aiAgentPanelMinWidth,
+  useAiAgentPanelState
+} from "./hooks/useAiAgentPanelState";
 import { useAiAgentSessionList } from "./hooks/useAiAgentSessionList";
 import { useAiAgentSession } from "./hooks/useAiAgentSession";
 import { useAiSettings } from "./hooks/useAiSettings";
+import { useDocumentSearchState } from "./hooks/useDocumentSearchState";
 import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { useDeferredAiSelectionReveal } from "./hooks/ai-selection-reveal";
 import { useExportSettings } from "./hooks/useExportSettings";
@@ -78,11 +83,8 @@ import {
   aiTranslationLanguageName,
   clampNumber,
   debug,
-  findSearchRanges,
-  normalizeSearchIndex,
   t,
-  type I18nKey,
-  type SearchRange
+  type I18nKey
 } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver } from "@markra/markdown";
@@ -182,9 +184,6 @@ import {
   type ImageDocumentTab
 } from "./app/workspace-model";
 
-const aiAgentPanelDefaultWidth = 384;
-const aiAgentPanelMinWidth = 320;
-const aiAgentPanelMaxWidth = 760;
 const splitPaneKeyboardStepPercent = 5;
 const aiSelectionCopySuccessMs = 1600;
 const sideDocumentPaneKeyboardStepPercent = 5;
@@ -244,9 +243,6 @@ function WorkspaceApp() {
   const webSearchSettings = useWebSearchSettings();
   const [markdownTemplates, setMarkdownTemplates] = useState<MarkdownTemplate[]>([]);
   const [aiAgentSessionId, setAiAgentSessionId] = useState<string | null>(null);
-  const [aiAgentOpen, setAiAgentOpen] = useState(false);
-  const [aiAgentPanelWidth, setAiAgentPanelWidth] = useState(aiAgentPanelDefaultWidth);
-  const [aiAgentPanelResizing, setAiAgentPanelResizing] = useState(false);
   const [editorContentWidth, setEditorContentWidth] = useState<EditorContentWidth>("default");
   const [editorContentWidthPx, setEditorContentWidthPx] = useState<number | null>(null);
   const [aiResults, setAiResults] = useState<AiDiffResult[]>([]);
@@ -268,14 +264,6 @@ function WorkspaceApp() {
   const [editorMode, setEditorMode] = useState<EditorMode>("visual");
   const [activeEditorSurface, setActiveEditorSurface] = useState<EditorSurface>("visual");
   const [readOnlyMode, setReadOnlyMode] = useState(false);
-  const [documentSearchOpen, setDocumentSearchOpen] = useState(false);
-  const [documentSearchReplaceOpen, setDocumentSearchReplaceOpen] = useState(false);
-  const [documentSearchQuery, setDocumentSearchQuery] = useState("");
-  const [documentSearchReplacement, setDocumentSearchReplacement] = useState("");
-  const [documentSearchCaseSensitive, setDocumentSearchCaseSensitive] = useState(false);
-  const [documentSearchActiveIndex, setDocumentSearchActiveIndex] = useState(0);
-  const [documentSearchRevealRevision, setDocumentSearchRevealRevision] = useState(0);
-  const [visualDocumentSearchMatches, setVisualDocumentSearchMatches] = useState<SearchRange[]>([]);
   const [quickOpenOpen, setQuickOpenOpen] = useState(false);
   const [documentHistoryOpen, setDocumentHistoryOpen] = useState(false);
   const [documentHistoryRefreshKey, setDocumentHistoryRefreshKey] = useState(0);
@@ -610,34 +598,36 @@ function WorkspaceApp() {
   const documentSearchAvailable = hasOpenDocument && !activeImageFile;
   const documentSearchSurface: EditorSurface =
     sourceSurfaceActive || largeMarkdownVisualBlocked ? "source" : "visual";
-  const sourceDocumentSearchMatches = useMemo(
-    () =>
-      documentSearchOpen && documentSearchSurface === "source"
-        ? findSearchRanges(document.content, documentSearchQuery, {
-            caseSensitive: documentSearchCaseSensitive
-          })
-        : [],
-    [
-      document.content,
-      documentSearchCaseSensitive,
-      documentSearchOpen,
-      documentSearchQuery,
-      documentSearchSurface
-    ]
-  );
-  const documentSearchMatches =
-    documentSearchSurface === "source" ? sourceDocumentSearchMatches : visualDocumentSearchMatches;
-  const documentSearchMatchCount = documentSearchMatches.length;
-  const normalizedDocumentSearchActiveIndex = normalizeSearchIndex(
-    documentSearchActiveIndex,
-    documentSearchMatchCount
-  );
-  const activeDocumentSearchMatch =
-    normalizedDocumentSearchActiveIndex >= 0
-      ? documentSearchMatches[normalizedDocumentSearchActiveIndex] ?? null
-      : null;
-  const visibleSourceDocumentSearchMatches =
-    documentSearchOpen && documentSearchSurface === "source" ? sourceDocumentSearchMatches : [];
+  const {
+    activeIndex: normalizedDocumentSearchActiveIndex,
+    activeMatch: activeDocumentSearchMatch,
+    caseSensitive: documentSearchCaseSensitive,
+    close: closeDocumentSearch,
+    hide: hideDocumentSearch,
+    matchCount: documentSearchMatchCount,
+    matches: documentSearchMatches,
+    navigate: navigateDocumentSearch,
+    open: documentSearchOpen,
+    openReplace: openDocumentReplace,
+    openSearch: openDocumentSearch,
+    query: documentSearchQuery,
+    replacement: documentSearchReplacement,
+    replaceOpen: documentSearchReplaceOpen,
+    resetActiveIndex: resetDocumentSearchActiveIndex,
+    revealRevision: documentSearchRevealRevision,
+    selectMatch: selectDocumentSearchMatch,
+    setCaseSensitive: setDocumentSearchCaseSensitive,
+    setReplacement: setDocumentSearchReplacement,
+    setReplaceOpen: setDocumentSearchReplaceOpen,
+    setQuery: setDocumentSearchQuery,
+    setVisualMatches: setVisualDocumentSearchMatches,
+    visibleSourceMatches: visibleSourceDocumentSearchMatches,
+    visualMatches: visualDocumentSearchMatches
+  } = useDocumentSearchState({
+    available: documentSearchAvailable,
+    sourceContent: document.content,
+    surface: documentSearchSurface
+  });
   const {
     isApplyingSourceToVisualSync,
     markSourceEditForHistory,
@@ -800,12 +790,6 @@ function WorkspaceApp() {
     settings: webSearchSettings.settings,
     settingsLoading: webSearchSettings.loading
   });
-  const aiAgentInset = aiFeatureEnabled && aiAgentOpen ? `${aiAgentPanelWidth}px` : "0px";
-  const editorAgentLayoutClassName = `editor-agent-layout grid min-h-0 ${
-    aiAgentPanelResizing
-      ? "transition-none"
-      : "transition-[grid-template-columns] duration-220 ease-out motion-reduce:transition-none"
-  }`;
   const handleAiResult = useCallback(
     (result: AiDiffResult, previewId?: string) => {
       editor.clearAiSelection();
@@ -830,12 +814,6 @@ function WorkspaceApp() {
   const handleAiPreviewReady = useCallback((result: AiDiffResult, previewId?: string) => {
     editor.scrollToAiPreview(result, { previewId });
   }, [editor]);
-  const handleAiAgentSessionRestore = useCallback((session: { panelOpen: boolean; panelWidth: number | null }) => {
-    if (!aiFeatureEnabled) return;
-
-    setAiAgentOpen(session.panelOpen);
-    setAiAgentPanelWidth(clampNumber(session.panelWidth, aiAgentPanelMinWidth, aiAgentPanelMaxWidth) ?? aiAgentPanelDefaultWidth);
-  }, [aiFeatureEnabled]);
   const handleAiAgentSessionModelRestore = useCallback((selection: { agentModelId: string | null; agentProviderId: string | null }) => {
     if (!selection.agentProviderId || !selection.agentModelId) return;
     if (selection.agentProviderId === aiSettings.agentProviderId && selection.agentModelId === aiSettings.agentModelId) return;
@@ -856,6 +834,40 @@ function WorkspaceApp() {
     workspaceFiles: fileTreeFiles
   });
   const aiCommandVisible = aiCommand.open && (hasAiCommandContext || Boolean(aiResult) || aiContextMenuActionPending);
+  const closeAiCommand = aiCommand.closeAiCommand;
+  const restoreAiCommand = aiCommand.restoreAiCommand;
+  const closeInlineAiCommandForAgentPanel = useCallback(() => {
+    aiContextMenuActionIdRef.current += 1;
+    setAiContextMenuActionPending(false);
+    closeAiCommand();
+    editor.clearAiSelection();
+  }, [closeAiCommand, editor]);
+  const {
+    closePanel: closeAiAgentPanel,
+    enabledOpen: aiAgentPanelEnabledOpen,
+    endResize: endAiAgentPanelResize,
+    open: aiAgentOpen,
+    openPanel: openAiAgentPanel,
+    resizing: aiAgentPanelResizing,
+    restoreSession: restoreAiAgentPanelSession,
+    setWidth: setAiAgentPanelWidth,
+    startResize: startAiAgentPanelResize,
+    togglePanel: toggleAiAgentPanel,
+    width: aiAgentPanelWidth
+  } = useAiAgentPanelState({
+    closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
+    enabled: aiFeatureEnabled,
+    onCloseInlineAiCommand: closeInlineAiCommandForAgentPanel
+  });
+  const handleAiAgentSessionRestore = useCallback((session: { panelOpen: boolean; panelWidth: number | null }) => {
+    restoreAiAgentPanelSession(session);
+  }, [restoreAiAgentPanelSession]);
+  const aiAgentInset = aiFeatureEnabled && aiAgentOpen ? `${aiAgentPanelWidth}px` : "0px";
+  const editorAgentLayoutClassName = `editor-agent-layout grid min-h-0 ${
+    aiAgentPanelResizing
+      ? "transition-none"
+      : "transition-[grid-template-columns] duration-220 ease-out motion-reduce:transition-none"
+  }`;
   const aiAgent = useAiAgentSession({
     documentPath: document.path,
     getDocumentContent: getAiDocumentContent,
@@ -869,7 +881,7 @@ function WorkspaceApp() {
     onAiResult: handleAiResult,
     onSessionModelRestore: handleAiAgentSessionModelRestore,
     onSessionRestore: handleAiAgentSessionRestore,
-    panelOpen: aiFeatureEnabled && aiAgentOpen,
+    panelOpen: aiAgentPanelEnabledOpen,
     panelWidth: aiAgentPanelWidth,
     provider: aiSettings.agentProvider,
     readDocumentImage: readAiDocumentImage,
@@ -946,18 +958,10 @@ function WorkspaceApp() {
     selectWorkspaceSession,
     workspaceKey
   ]);
-  const closeAiCommand = aiCommand.closeAiCommand;
-  const restoreAiCommand = aiCommand.restoreAiCommand;
   const handleAiCommandClose = useCallback(() => {
     aiContextMenuActionIdRef.current += 1;
     setAiContextMenuActionPending(false);
     setAiSelectionToolbarAnchor(null);
-    closeAiCommand();
-    editor.clearAiSelection();
-  }, [closeAiCommand, editor]);
-  const closeInlineAiCommandForAgentPanel = useCallback(() => {
-    aiContextMenuActionIdRef.current += 1;
-    setAiContextMenuActionPending(false);
     closeAiCommand();
     editor.clearAiSelection();
   }, [closeAiCommand, editor]);
@@ -967,29 +971,6 @@ function WorkspaceApp() {
 
     if (nextReadOnlyMode) handleAiCommandClose();
   }, [handleAiCommandClose, readOnlyMode]);
-  const shouldCloseAiCommandForAiAgentOpen = useCallback(
-    (nextOpen: boolean) => shouldCloseAiCommandOnAgentPanelOpen({
-      closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen,
-      currentOpen: aiAgentOpen,
-      nextOpen
-    }),
-    [aiAgentOpen, editorPreferences.preferences.closeAiCommandOnAgentPanelOpen]
-  );
-  const setAiAgentPanelOpen = useCallback((nextOpen: boolean) => {
-    if (!aiFeatureEnabled) return;
-
-    if (shouldCloseAiCommandForAiAgentOpen(nextOpen)) closeInlineAiCommandForAgentPanel();
-    setAiAgentOpen(nextOpen);
-  }, [aiFeatureEnabled, closeInlineAiCommandForAgentPanel, shouldCloseAiCommandForAiAgentOpen]);
-  const openAiAgentPanel = useCallback(() => {
-    setAiAgentPanelOpen(true);
-  }, [setAiAgentPanelOpen]);
-  const closeAiAgentPanel = useCallback(() => {
-    setAiAgentPanelOpen(false);
-  }, [setAiAgentPanelOpen]);
-  const toggleAiAgentPanel = useCallback(() => {
-    setAiAgentPanelOpen(!aiAgentOpen);
-  }, [aiAgentOpen, setAiAgentPanelOpen]);
   useEffect(() => {
     if (!shouldHideAiCommandForAiAgentPanel({
       aiAgentOpen,
@@ -1896,9 +1877,9 @@ function WorkspaceApp() {
   }, [captureActiveDocumentViewState, openImageTab, openTreeMarkdownFile]);
   const handleQuickOpenOpen = useCallback(() => {
     hideGlobalSearch();
-    setDocumentSearchOpen(false);
+    hideDocumentSearch();
     setQuickOpenOpen(true);
-  }, [hideGlobalSearch]);
+  }, [hideDocumentSearch, hideGlobalSearch]);
   const handleQuickOpenClose = useCallback(() => {
     setQuickOpenOpen(false);
   }, []);
@@ -1924,9 +1905,18 @@ function WorkspaceApp() {
     setDocumentSearchQuery(globalSearchQuery.trim());
     setDocumentSearchCaseSensitive(globalSearchCaseSensitive);
     setDocumentSearchReplaceOpen(false);
-    setDocumentSearchActiveIndex(result.matchIndex);
-    setDocumentSearchRevealRevision((current) => current + 1);
-  }, [documentSearchOpen, globalSearchCaseSensitive, globalSearchQuery, handleOpenTreeFile, hideGlobalSearch]);
+    selectDocumentSearchMatch(result.matchIndex);
+  }, [
+    documentSearchOpen,
+    globalSearchCaseSensitive,
+    globalSearchQuery,
+    handleOpenTreeFile,
+    hideGlobalSearch,
+    selectDocumentSearchMatch,
+    setDocumentSearchCaseSensitive,
+    setDocumentSearchQuery,
+    setDocumentSearchReplaceOpen
+  ]);
   const handleOpenTreeFileToSide = useCallback(async (file: NativeMarkdownFolderFile) => {
     captureActiveDocumentViewState();
 
@@ -2382,40 +2372,20 @@ function WorkspaceApp() {
       .catch(() => {});
   }, [activeAiSelection]);
   const handleDocumentSearchOpen = useCallback(() => {
-    if (!documentSearchAvailable) return;
-
-    setDocumentSearchOpen(true);
-    setDocumentSearchReplaceOpen(false);
-    setDocumentSearchActiveIndex(0);
-  }, [documentSearchAvailable]);
+    openDocumentSearch();
+  }, [openDocumentSearch]);
   const handleDocumentReplaceOpen = useCallback(() => {
-    if (!documentSearchAvailable) return;
-
-    setDocumentSearchOpen(true);
-    setDocumentSearchReplaceOpen(true);
-    setDocumentSearchActiveIndex(0);
-  }, [documentSearchAvailable]);
+    openDocumentReplace();
+  }, [openDocumentReplace]);
   const handleDocumentSearchClose = useCallback(() => {
-    setDocumentSearchOpen(false);
-    setDocumentSearchReplaceOpen(false);
-    setDocumentSearchActiveIndex(0);
-  }, []);
+    closeDocumentSearch();
+  }, [closeDocumentSearch]);
   const handleDocumentSearchQueryChange = useCallback((query: string) => {
     setDocumentSearchQuery(query);
-    setDocumentSearchActiveIndex(0);
-  }, []);
+  }, [setDocumentSearchQuery]);
   const handleDocumentSearchCaseSensitiveChange = useCallback((caseSensitive: boolean) => {
     setDocumentSearchCaseSensitive(caseSensitive);
-    setDocumentSearchActiveIndex(0);
-  }, []);
-  const navigateDocumentSearch = useCallback((direction: 1 | -1) => {
-    if (documentSearchMatchCount <= 0) return;
-
-    setDocumentSearchActiveIndex((current) =>
-      normalizeSearchIndex((current < 0 ? 0 : current) + direction, documentSearchMatchCount)
-    );
-    setDocumentSearchRevealRevision((current) => current + 1);
-  }, [documentSearchMatchCount]);
+  }, [setDocumentSearchCaseSensitive]);
   const handleDocumentSearchNext = useCallback(() => {
     navigateDocumentSearch(1);
   }, [navigateDocumentSearch]);
@@ -2445,12 +2415,12 @@ function WorkspaceApp() {
 
     if (documentSearchSurface === "source") {
       handleSourceMarkdownChange(replaceTextRanges(document.content, documentSearchMatches, documentSearchReplacement));
-      setDocumentSearchActiveIndex(0);
+      resetDocumentSearchActiveIndex();
       return;
     }
 
     replaceAllEditorSearchMatches(documentSearchMatches, documentSearchReplacement);
-    setDocumentSearchActiveIndex(0);
+    resetDocumentSearchActiveIndex();
   }, [
     document.content,
     documentSearchMatches,
@@ -2458,14 +2428,9 @@ function WorkspaceApp() {
     documentSearchSurface,
     handleSourceMarkdownChange,
     replaceAllEditorSearchMatches,
-    readOnlyMode
+    readOnlyMode,
+    resetDocumentSearchActiveIndex
   ]);
-  useEffect(() => {
-    if (documentSearchAvailable) return;
-
-    setDocumentSearchOpen(false);
-    setDocumentSearchReplaceOpen(false);
-  }, [documentSearchAvailable]);
   useEffect(() => {
     if (!documentSearchOpen || !documentSearchAvailable || documentSearchSurface !== "visual") {
       setVisualDocumentSearchMatches([]);
@@ -2487,10 +2452,6 @@ function WorkspaceApp() {
     findEditorSearchMatches,
     visualEditorReadySequence
   ]);
-  useEffect(() => {
-    const nextIndex = normalizeSearchIndex(documentSearchActiveIndex, documentSearchMatchCount);
-    if (nextIndex !== documentSearchActiveIndex) setDocumentSearchActiveIndex(nextIndex);
-  }, [documentSearchActiveIndex, documentSearchMatchCount]);
   useEffect(() => {
     if (!documentSearchOpen || documentSearchSurface !== "visual") {
       showEditorSearchMatches([], -1, { suppressEditorChrome: false });
@@ -3202,6 +3163,54 @@ function WorkspaceApp() {
       })}
     </>
   );
+  const aiAgentPanel = aiFeatureEnabled ? (
+    <AiAgentPanel
+      activeSessionId={activeAiAgentSessionId}
+      availableModels={aiSettings.availableTextModels}
+      context={aiAgentContext}
+      documentAvailable={hasOpenDocument && !activeImageFile}
+      draft={aiAgent.draft}
+      language={appLanguage.language}
+      messages={aiAgent.messages}
+      modelName={aiAgentModelName}
+      open={aiAgentOpen}
+      providerName={aiAgentProviderName}
+      sessions={aiAgentSessions.sessions}
+      selectedModelId={aiSettings.agentModelId}
+      selectedProviderId={aiSettings.agentProviderId}
+      status={aiAgent.status}
+      thinkingEnabled={aiAgent.thinkingEnabled}
+      webSearchAvailable={webSearchAvailable}
+      webSearchEnabled={aiAgent.webSearchEnabled}
+      maxWidth={aiAgentPanelMaxWidth}
+      minWidth={aiAgentPanelMinWidth}
+      width={aiAgentPanelWidth}
+      onArchiveSession={(sessionId, archived) => {
+        handleArchiveAiAgentSession(sessionId, archived).catch(() => {});
+      }}
+      onClose={closeAiAgentPanel}
+      onCreateSession={handleCreateAiAgentSession}
+      onDeleteSession={(sessionId) => {
+        handleDeleteAiAgentSession(sessionId).catch(() => {});
+      }}
+      onDisableThinking={() => aiAgent.setSessionThinkingEnabled(false)}
+      onDraftChange={aiAgent.setDraft}
+      onInterrupt={aiAgent.interrupt}
+      onRenameSession={(sessionId, title) => {
+        handleRenameAiAgentSession(sessionId, title).catch(() => {});
+      }}
+      onResize={setAiAgentPanelWidth}
+      onResizeEnd={endAiAgentPanelResize}
+      onResizeStart={startAiAgentPanelResize}
+      onRetryMessage={aiAgent.retryMessage}
+      onSelectSession={handleSelectAiAgentSession}
+      onSelectModel={aiSettings.selectAgentModel}
+      onSubmit={aiAgent.submit}
+      onSubmitEditedMessage={aiAgent.submitEditedMessage}
+      onToggleThinking={() => aiAgent.setThinkingEnabled((enabled) => !enabled)}
+      onToggleWebSearch={() => aiAgent.setWebSearchEnabled((enabled) => !enabled)}
+    />
+  ) : null;
 
   return (
     <>
@@ -3259,69 +3268,59 @@ function WorkspaceApp() {
 
         <span className="screen-reader-title sr-only">{titleDocumentName}</span>
 
-        <div
-          className={`${workspaceLayoutClassName} ${windowsSelfDrawnChromeEnabled ? "pt-10" : ""}`}
-          style={workspaceLayoutStyle}
+        <WorkspaceLayout
+          aiAgentPanel={aiAgentPanel}
+          documentSearchAvailable={documentSearchAvailable}
+          documentSearchOpen={documentSearchOpen}
+          editorAgentLayoutClassName={editorAgentLayoutClassName}
+          editorAgentLayoutStyle={{ gridTemplateColumns: `minmax(0,1fr) ${aiAgentInset}` }}
+          editorDropTargetActive={editorTabDropTargetActive}
+          fileTree={{
+            activeOutlineIndex: activeDocumentOutlineIndex,
+            currentPath: activeImageFile?.path ?? (hasOpenDocument ? document.path : null),
+            customTemplates: markdownTemplates,
+            files: fileTreeFiles,
+            folderOpen: Boolean(fileTree.sourcePath),
+            language: appLanguage.language,
+            maxWidth: fileTreeMaxWidth,
+            minWidth: fileTreeMinWidth,
+            open: fileTreeOpen,
+            outlineItems,
+            recentFolders: recentMarkdownFolders,
+            recentFoldersOpen: recentMarkdownFoldersOpen,
+            rootPath: fileTree.sourcePath,
+            rootName: fileTreeRootName,
+            sidebarLayoutMode: editorPreferences.preferences.sidebarLayoutMode,
+            width: fileTreeWidth,
+            onCreateFile: handleCreateMarkdownTreeFile,
+            onCreateFolder: handleCreateMarkdownTreeFolder,
+            onDeleteFile: handleDeleteMarkdownTreeFile,
+            onMoveFile: handleMoveMarkdownTreeFile,
+            onOpenContainingFolder: handleOpenContainingFolder,
+            onOpenFile: handleOpenTreeFile,
+            onOpenFileToSide: editorPreferences.preferences.showDocumentTabs
+              ? handleOpenTreeFileToSide
+              : undefined,
+            onOpenFolder: handleOpenMarkdownFolder,
+            onOpenRecentFolder: handleOpenRecentMarkdownFolder,
+            onOpenSettings: handleOpenSettings,
+            onRecentFoldersOpenChange: setRecentMarkdownFoldersOpen,
+            onRemoveRecentFolder: removeRecentFolder,
+            onRenameFile: handleRenameMarkdownTreeFile,
+            onResize: resizeFileTree,
+            onResizeEnd: endFileTreeResize,
+            onResizeStart: startFileTreeResize,
+            onSaveFileAsTemplate: handleSaveMarkdownFileAsTemplate,
+            onSelectOutlineItem: editor.selectOutlineItem,
+            onToggleMarkdownFiles: handleFileTreeToggle
+          }}
+          windowsSelfDrawnChrome={windowsSelfDrawnChromeEnabled}
+          workspaceLayoutClassName={workspaceLayoutClassName}
+          workspaceLayoutStyle={workspaceLayoutStyle}
+          onEditorContentDragLeave={handleEditorContentDragLeave}
+          onEditorContentDragOver={handleEditorContentDragOver}
+          onEditorContentDrop={handleEditorContentDrop}
         >
-          <div className="markdown-file-tree-slot min-h-0 overflow-hidden">
-            <MarkdownFileTreeDrawer
-              activeOutlineIndex={activeDocumentOutlineIndex}
-              currentPath={activeImageFile?.path ?? (hasOpenDocument ? document.path : null)}
-              customTemplates={markdownTemplates}
-              files={fileTreeFiles}
-              folderOpen={Boolean(fileTree.sourcePath)}
-              language={appLanguage.language}
-              maxWidth={fileTreeMaxWidth}
-              minWidth={fileTreeMinWidth}
-              open={fileTreeOpen}
-              outlineItems={outlineItems}
-              recentFolders={recentMarkdownFolders}
-              recentFoldersOpen={recentMarkdownFoldersOpen}
-              rootPath={fileTree.sourcePath}
-              rootName={fileTreeRootName}
-              sidebarLayoutMode={editorPreferences.preferences.sidebarLayoutMode}
-              width={fileTreeWidth}
-              onCreateFile={handleCreateMarkdownTreeFile}
-              onCreateFolder={handleCreateMarkdownTreeFolder}
-              onDeleteFile={handleDeleteMarkdownTreeFile}
-              onMoveFile={handleMoveMarkdownTreeFile}
-              onOpenContainingFolder={handleOpenContainingFolder}
-              onOpenFile={handleOpenTreeFile}
-              onOpenFileToSide={
-                editorPreferences.preferences.showDocumentTabs
-                  ? handleOpenTreeFileToSide
-                  : undefined
-              }
-              onOpenFolder={handleOpenMarkdownFolder}
-              onOpenRecentFolder={handleOpenRecentMarkdownFolder}
-              onOpenSettings={handleOpenSettings}
-              onRecentFoldersOpenChange={setRecentMarkdownFoldersOpen}
-              onRemoveRecentFolder={removeRecentFolder}
-              onRenameFile={handleRenameMarkdownTreeFile}
-              onResize={resizeFileTree}
-              onResizeEnd={endFileTreeResize}
-              onResizeStart={startFileTreeResize}
-              onSaveFileAsTemplate={handleSaveMarkdownFileAsTemplate}
-              onSelectOutlineItem={editor.selectOutlineItem}
-              onToggleMarkdownFiles={handleFileTreeToggle}
-            />
-          </div>
-
-          <div
-            className={editorAgentLayoutClassName}
-            style={{ gridTemplateColumns: `minmax(0,1fr) ${aiAgentInset}` }}
-          >
-            <div
-              className={`editor-content-slot relative h-full min-h-0 overflow-hidden transition-shadow duration-150 ease-out ${
-                editorTabDropTargetActive ? "ring-2 ring-(--accent)/30 ring-inset" : ""
-              }`}
-              data-document-search-open={documentSearchOpen && documentSearchAvailable ? "true" : undefined}
-              data-document-tab-editor-drop-target="true"
-              data-document-tab-drop-target={editorTabDropTargetActive ? "true" : undefined}
-              onDragLeave={handleEditorContentDragLeave}
-              onDragOver={handleEditorContentDragOver}
-              onDrop={handleEditorContentDrop}
-            >
               {globalSearchOpen ? (
                 <GlobalSearchPanel
                   caseSensitive={globalSearchCaseSensitive}
@@ -3521,59 +3520,7 @@ function WorkspaceApp() {
                   ) : null}
                 </div>
               ) : null}
-            </div>
-            <div className="ai-agent-panel-slot relative z-20 min-h-0 overflow-hidden">
-              {aiFeatureEnabled ? (
-                <AiAgentPanel
-                activeSessionId={activeAiAgentSessionId}
-                availableModels={aiSettings.availableTextModels}
-                context={aiAgentContext}
-                documentAvailable={hasOpenDocument && !activeImageFile}
-                draft={aiAgent.draft}
-                language={appLanguage.language}
-                messages={aiAgent.messages}
-                modelName={aiAgentModelName}
-                open={aiAgentOpen}
-                providerName={aiAgentProviderName}
-                sessions={aiAgentSessions.sessions}
-                selectedModelId={aiSettings.agentModelId}
-                selectedProviderId={aiSettings.agentProviderId}
-                status={aiAgent.status}
-                thinkingEnabled={aiAgent.thinkingEnabled}
-                webSearchAvailable={webSearchAvailable}
-                webSearchEnabled={aiAgent.webSearchEnabled}
-                maxWidth={aiAgentPanelMaxWidth}
-                minWidth={aiAgentPanelMinWidth}
-                width={aiAgentPanelWidth}
-                onArchiveSession={(sessionId, archived) => {
-                  handleArchiveAiAgentSession(sessionId, archived).catch(() => {});
-                }}
-                onClose={closeAiAgentPanel}
-                onCreateSession={handleCreateAiAgentSession}
-                onDeleteSession={(sessionId) => {
-                  handleDeleteAiAgentSession(sessionId).catch(() => {});
-                }}
-                onDisableThinking={() => aiAgent.setSessionThinkingEnabled(false)}
-                onDraftChange={aiAgent.setDraft}
-                onInterrupt={aiAgent.interrupt}
-                onRenameSession={(sessionId, title) => {
-                  handleRenameAiAgentSession(sessionId, title).catch(() => {});
-                }}
-                onResize={setAiAgentPanelWidth}
-                onResizeEnd={() => setAiAgentPanelResizing(false)}
-                onResizeStart={() => setAiAgentPanelResizing(true)}
-                onRetryMessage={aiAgent.retryMessage}
-                onSelectSession={handleSelectAiAgentSession}
-                onSelectModel={aiSettings.selectAgentModel}
-                onSubmit={aiAgent.submit}
-                onSubmitEditedMessage={aiAgent.submitEditedMessage}
-                onToggleThinking={() => aiAgent.setThinkingEnabled((enabled) => !enabled)}
-                onToggleWebSearch={() => aiAgent.setWebSearchEnabled((enabled) => !enabled)}
-              />
-              ) : null}
-            </div>
-          </div>
-        </div>
+        </WorkspaceLayout>
 
         {aiFeatureEnabled ? (
           <AiSelectionToolbar
