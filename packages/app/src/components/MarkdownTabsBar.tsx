@@ -7,7 +7,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent
 } from "react";
-import { Columns2, FileText, ImageIcon, Pencil, Plus, X } from "lucide-react";
+import { Columns2, FileText, ImageIcon, LocateFixed, Pencil, Plus, X } from "lucide-react";
 import { IconButton } from "@markra/ui";
 import { t, type AppLanguage } from "@markra/shared";
 import type { MarkdownDocumentTab } from "../hooks/useMarkdownDocument";
@@ -30,6 +30,7 @@ type MarkdownTabsBarProps = {
   onCloseTab: (tabId: string) => unknown;
   onNewTab: () => unknown;
   onOpenTabToSide?: (tabId: string, primaryTabId?: string) => unknown;
+  onRevealTabInFileTree?: (path: string) => unknown;
   onRenameTab?: (tab: MarkdownTabsBarDocumentItem, name: string) => unknown;
   onSelectTab: (tabId: string) => unknown;
 };
@@ -67,6 +68,7 @@ export function MarkdownTabsBar({
   onCloseTab,
   onNewTab,
   onOpenTabToSide,
+  onRevealTabInFileTree,
   onRenameTab,
   onSelectTab
 }: MarkdownTabsBarProps) {
@@ -364,6 +366,17 @@ export function MarkdownTabsBar({
             kind: "item" as const,
             label: label("app.openDocumentToSide"),
             onSelect: () => runTabContextMenuAction(() => onOpenTabToSide(contextMenuTab.id))
+          }
+        ]
+      : []),
+    ...(onRevealTabInFileTree && contextMenuTab.path && contextMenuTab.displayKind !== "image"
+      ? [
+          {
+            icon: <LocateFixed aria-hidden="true" size={14} />,
+            id: "markra:tab:reveal-in-file-tree",
+            kind: "item" as const,
+            label: label("app.revealActiveFile"),
+            onSelect: () => runTabContextMenuAction(() => onRevealTabInFileTree(contextMenuTab.path as string))
           }
         ]
       : []),

@@ -1,4 +1,5 @@
 import type { NativeMarkdownFolderFile } from "../../lib/tauri";
+import { sameNativePath } from "../../lib/path-move";
 
 export type FolderNode = {
   type: "folder";
@@ -232,6 +233,26 @@ export function collectMarkdownFolderTargetPaths(nodes: TreeNode[]) {
 
   collect(nodes);
   return paths;
+}
+
+export function expandedFolderPathsForFileTreePath(nodes: TreeNode[], path: string | null | undefined) {
+  if (!path?.trim()) return null;
+
+  const findPath = (treeNodes: TreeNode[], parents: string[]): string[] | null => {
+    for (const node of treeNodes) {
+      if (node.type === "file") {
+        if (sameNativePath(node.file.path, path)) return parents;
+        continue;
+      }
+
+      const result = findPath(node.children, [...parents, node.relativePath]);
+      if (result) return result;
+    }
+
+    return null;
+  };
+
+  return findPath(nodes, []);
 }
 
 export function folderNodeAsFile(node: FolderNode): NativeMarkdownFolderFile {

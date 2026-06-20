@@ -88,6 +88,28 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("toggles automatic active file reveal from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          autoRevealActiveFile: true
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("switch", { name: "Reveal active file automatically" }));
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      autoRevealActiveFile: false
+    });
+  });
+
   it("toggles code block line wrapping from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

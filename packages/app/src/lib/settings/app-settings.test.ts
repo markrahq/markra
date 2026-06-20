@@ -1,6 +1,7 @@
 import { createSettingsStoreHarness, resetSettingsStoreRuntime, setupSettingsStoreHarness } from "../../test/settings-store";
 import {
   darkEditorThemeOptions,
+  defaultEditorPreferences,
   getStoredThemePreferences,
   appThemeOptions,
   consumeWelcomeDocumentState,
@@ -12,6 +13,7 @@ import {
   isAppTheme,
   lightEditorThemeOptions,
   resetWelcomeDocumentState,
+  normalizeEditorPreferences,
   resolveAppAppearanceTheme,
   resolveAppThemePreferencesAppearance,
   resolveAppThemePreferencesEditorTheme,
@@ -219,6 +221,12 @@ describe("app settings", () => {
 
     expect(store.set).toHaveBeenCalledWith("language", "ja");
     expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("normalizes the automatic active file reveal preference", () => {
+    expect(defaultEditorPreferences.autoRevealActiveFile).toBe(false);
+    expect(normalizeEditorPreferences({ autoRevealActiveFile: false }).autoRevealActiveFile).toBe(false);
+    expect(normalizeEditorPreferences({ autoRevealActiveFile: "sometimes" }).autoRevealActiveFile).toBe(false);
   });
 
   it("resets the welcome document state for the next launch", async () => {

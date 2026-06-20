@@ -2078,6 +2078,20 @@ function WorkspaceApp() {
     updateActiveAiSelection
   ]);
   const handleFileTreeToggle = useCallback(() => toggleFileTree(document.path), [document.path, toggleFileTree]);
+  const [fileTreeRevealPathRequest, setFileTreeRevealPathRequest] = useState<{ id: number; path: string } | null>(null);
+  const fileTreeRevealPathRequestIdRef = useRef(0);
+  const handleRevealPathInFileTree = useCallback((path: string | null | undefined) => {
+    const targetPath = path?.trim();
+    if (!targetPath) return;
+
+    if (!fileTreeOpen) toggleFileTree(targetPath);
+
+    fileTreeRevealPathRequestIdRef.current += 1;
+    setFileTreeRevealPathRequest({
+      id: fileTreeRevealPathRequestIdRef.current,
+      path: targetPath
+    });
+  }, [fileTreeOpen, toggleFileTree]);
   const handleDocumentHistoryOpen = useCallback(() => {
     if (!documentHistoryAvailable) return;
 
@@ -3099,6 +3113,7 @@ function WorkspaceApp() {
         createBlankDocument().catch(() => {});
       }}
       onOpenTabToSide={handleOpenTitlebarTabToSide}
+      onRevealTabInFileTree={handleRevealPathInFileTree}
       onRenameTab={handleRenameTitlebarTab}
       onSelectTab={handleSelectTitlebarTab}
     />
@@ -3309,6 +3324,7 @@ function WorkspaceApp() {
           editorDropTargetActive={editorTabDropTargetActive}
           fileTree={{
             activeOutlineIndex: activeDocumentOutlineIndex,
+            autoRevealActiveFile: editorPreferences.preferences.autoRevealActiveFile,
             currentPath: activeImageFile?.path ?? (hasOpenDocument ? document.path : null),
             customTemplates: markdownTemplates,
             fileTreeSort,
@@ -3321,6 +3337,7 @@ function WorkspaceApp() {
             outlineItems,
             recentFolders: recentMarkdownFolders,
             recentFoldersOpen: recentMarkdownFoldersOpen,
+            revealPathRequest: fileTreeRevealPathRequest,
             rootPath: fileTree.sourcePath,
             rootName: fileTreeRootName,
             sidebarLayoutMode: editorPreferences.preferences.sidebarLayoutMode,

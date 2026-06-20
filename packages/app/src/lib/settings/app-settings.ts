@@ -308,6 +308,7 @@ export type ExtendedSyntaxPreferences = {
 };
 export type EditorPreferences = {
   aiQuickActionPrompts: AiQuickActionPrompts;
+  autoRevealActiveFile: boolean;
   autoSaveEnabled: boolean;
   autoSaveIntervalMinutes: number;
   autoUpdateEnabled: boolean;
@@ -423,6 +424,7 @@ export const defaultExtendedSyntaxPreferences: ExtendedSyntaxPreferences = {
 
 export const defaultEditorPreferences: EditorPreferences = {
   aiQuickActionPrompts: { ...defaultAiQuickActionPrompts },
+  autoRevealActiveFile: false,
   autoSaveEnabled: true,
   autoSaveIntervalMinutes: defaultAutoSaveIntervalMinutes,
   autoUpdateEnabled: true,
@@ -1293,6 +1295,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
 
   return {
     aiQuickActionPrompts: normalizeAiQuickActionPrompts(preferences.aiQuickActionPrompts),
+    autoRevealActiveFile:
+      typeof preferences.autoRevealActiveFile === "boolean"
+        ? preferences.autoRevealActiveFile
+        : defaultEditorPreferences.autoRevealActiveFile,
     autoSaveEnabled:
       typeof preferences.autoSaveEnabled === "boolean"
         ? preferences.autoSaveEnabled
