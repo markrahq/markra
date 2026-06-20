@@ -691,6 +691,81 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(openFile).toHaveBeenCalledWith(markdownFiles[2]);
   });
 
+  it("reveals a requested file path in the tree", () => {
+    const { rerender } = render(
+      <MarkdownFileTreeDrawer
+        autoRevealActiveFile={false}
+        currentPath="/vault/deploy/deploy.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        revealPathRequest={null}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "deploy/deploy.md" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reveal active file" })).not.toBeInTheDocument();
+
+    rerender(
+      <MarkdownFileTreeDrawer
+        autoRevealActiveFile={false}
+        currentPath="/vault/deploy/deploy.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        revealPathRequest={{ id: 1, path: "/vault/deploy/deploy.md" }}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "deploy/deploy.md" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("automatically reveals the active file when the current path changes", () => {
+    const { rerender } = render(
+      <MarkdownFileTreeDrawer
+        autoRevealActiveFile
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "deploy/deploy.md" })).not.toBeInTheDocument();
+
+    rerender(
+      <MarkdownFileTreeDrawer
+        autoRevealActiveFile
+        currentPath="/vault/deploy/deploy.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "deploy/deploy.md" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("toggles all folders from the root file row", () => {
     const { container } = render(
       <MarkdownFileTreeDrawer
@@ -708,6 +783,7 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "false");
     expect(screen.queryByRole("button", { name: "deploy/deploy.md" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "More file actions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reveal active file" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Expand folders" })).toContainElement(container.querySelector(".lucide-list-chevrons-up-down"));
     expect(
       within(screen.getByText("Obsidian Vault").parentElement?.parentElement as HTMLElement)

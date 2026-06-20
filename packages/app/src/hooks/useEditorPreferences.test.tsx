@@ -107,6 +107,7 @@ describe("useEditorPreferences", () => {
     let onPreferencesChanged: Parameters<typeof listenAppEditorPreferencesChanged>[0] | null = null;
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
@@ -204,6 +205,7 @@ describe("useEditorPreferences", () => {
     act(() => {
       onPreferencesChanged?.({
         aiQuickActionPrompts: defaultAiQuickActionPrompts,
+        autoRevealActiveFile: true,
         autoSaveEnabled: true,
         autoSaveIntervalMinutes: 10,
         autoUpdateEnabled: true,

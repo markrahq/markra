@@ -755,6 +755,22 @@ export function EditorSettings({
           }
         />
         <SettingsRow
+          title={translate("settings.editor.autoRevealActiveFile")}
+          description={translate("settings.editor.autoRevealActiveFileDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.autoRevealActiveFile}
+              label={translate("settings.editor.autoRevealActiveFile")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  autoRevealActiveFile: !preferences.autoRevealActiveFile
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.editor.sidebarLayoutMode")}
           description={translate("settings.editor.sidebarLayoutModeDescription")}
           action={

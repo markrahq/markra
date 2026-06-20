@@ -25,6 +25,7 @@ describe("editor preferences", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoRevealActiveFile: false,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
@@ -137,6 +138,7 @@ describe("editor preferences", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoRevealActiveFile: false,
       autoSaveEnabled: false,
       autoSaveIntervalMinutes: 30,
       autoUpdateEnabled: true,
@@ -564,6 +566,7 @@ describe("editor preferences", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoRevealActiveFile: false,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
@@ -627,6 +630,7 @@ describe("editor preferences", () => {
   it("persists editor preferences", async () => {
     await saveStoredEditorPreferences({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
@@ -698,6 +702,7 @@ describe("editor preferences", () => {
 
     expect(store.set).toHaveBeenCalledWith("editorPreferences", {
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,

@@ -547,6 +547,39 @@ describe("MarkdownTabsBar", () => {
     expect(document.querySelector("[data-markra-context-menu]")).not.toBeNull();
   });
 
+  it("reveals a markdown tab in the file tree from the tab actions menu", () => {
+    const onRevealTabInFileTree = vi.fn();
+
+    render(
+      <MarkdownTabsBar
+        activeTabId="tab-a"
+        items={[
+          {
+            dirty: false,
+            id: "tab-a",
+            name: "Alpha.md",
+            path: "/synthetic/alpha.md"
+          },
+          {
+            dirty: false,
+            id: "tab-b",
+            name: "Beta.md",
+            path: "/synthetic/beta.md"
+          }
+        ]}
+        onCloseTab={() => {}}
+        onNewTab={() => {}}
+        onRevealTabInFileTree={onRevealTabInFileTree}
+        onSelectTab={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /Beta\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reveal active file" }));
+
+    expect(onRevealTabInFileTree).toHaveBeenCalledWith("/synthetic/beta.md");
+  });
+
   it("opens a markdown tab to the side from the tab actions menu", () => {
     const onOpenTabToSide = vi.fn();
 
