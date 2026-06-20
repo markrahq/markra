@@ -69,6 +69,24 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("background-clip: content-box");
   });
 
+  it("keeps editor scrollbars below the titlebar tab area", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const scrollRuleStart = styles.indexOf(".editor-content-slot .paper-scroll {");
+    const scrollRuleEnd = styles.indexOf(".editor-content-slot .markdown-paper,", scrollRuleStart);
+    const scrollRule = styles.slice(scrollRuleStart, scrollRuleEnd);
+    const paperRuleStart = styles.indexOf(".editor-content-slot .markdown-paper,");
+    const paperRuleEnd = styles.indexOf("@media (max-width: 900px)", paperRuleStart);
+    const paperRule = styles.slice(paperRuleStart, paperRuleEnd);
+
+    expect(scrollRuleStart).toBeGreaterThanOrEqual(0);
+    expect(scrollRuleEnd).toBeGreaterThan(scrollRuleStart);
+    expect(scrollRule).toContain("height: calc(100% - 2.5rem);");
+    expect(scrollRule).toContain("margin-top: 2.5rem;");
+    expect(paperRuleStart).toBeGreaterThanOrEqual(0);
+    expect(paperRuleEnd).toBeGreaterThan(paperRuleStart);
+    expect(paperRule).toContain("padding-top: 1rem;");
+  });
+
   it("keeps visible scrollbars for the macOS 27 WebKit scrolling workaround", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const workaroundStart = styles.indexOf('html[data-webkit-scroll-workaround="macos-27"]');

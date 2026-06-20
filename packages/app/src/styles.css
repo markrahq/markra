@@ -728,6 +728,24 @@
     background-color: color-mix(in srgb, var(--accent) 42%, transparent);
   }
 
+  .editor-content-slot .paper-scroll {
+    height: calc(100% - 2.5rem);
+    margin-top: 2.5rem;
+  }
+
+  .editor-content-slot .markdown-paper,
+  .editor-content-slot .markdown-source-paper {
+    min-height: calc(100vh - 2.5rem);
+    padding-top: 1rem;
+  }
+
+  @media (max-width: 900px) {
+    .editor-content-slot .markdown-paper,
+    .editor-content-slot .markdown-source-paper {
+      padding-top: 0;
+    }
+  }
+
   .markra-slash-menu {
     @apply fixed z-[60] w-60 rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 text-[13px] leading-5 text-(--text-primary);
     box-shadow: var(--ai-command-popover-shadow);
