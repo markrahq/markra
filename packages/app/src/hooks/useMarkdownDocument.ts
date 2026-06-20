@@ -126,6 +126,8 @@ function calculateMarkdownDocumentSummary(
 }
 
 type UseMarkdownDocumentOptions = {
+  autoSaveEnabled?: boolean;
+  autoSaveIntervalMinutes?: number;
   beforeNativeAppExit?: () => unknown | Promise<unknown>;
   confirmDiscardUnsavedChanges?: (document: DocumentState) => boolean | Promise<boolean>;
   defaultSaveDirectory?: string | null;
@@ -189,6 +191,8 @@ function workspaceRootForSource(sourcePath: string | null | undefined, currentFi
 }
 
 export function useMarkdownDocument({
+  autoSaveEnabled = false,
+  autoSaveIntervalMinutes = 10,
   beforeNativeAppExit,
   confirmDiscardUnsavedChanges,
   defaultSaveDirectory,
@@ -218,6 +222,7 @@ export function useMarkdownDocument({
   const workspaceSessionIdRef = useRef<string | null>(null);
   const openedFromNativeRef = useRef(false);
   const startupWorkspaceRestoreAttemptedRef = useRef(false);
+  const dirtyFileSavePromiseRef = useRef<Promise<unknown> | null>(null);
   const largeDocumentSummariesBlocked = useMemo(
     () => shouldBlockLargeMarkdownVisual(document.content, { sizeBytes: document.sizeBytes }),
     [document.content, document.sizeBytes]
@@ -1145,6 +1150,34 @@ export function useMarkdownDocument({
     [applySavedCurrentDocument, currentMarkdown, defaultSaveDirectory]
   );
 
+  const saveMarkdownTabContent = useCallback(
+    async (
+      tab: MarkdownDocumentTab,
+      contents: string,
+      options: SaveCurrentDocumentContentOptions = {}
+    ) => {
+      const savePath = tab.path;
+      const savedFile = await saveNativeMarkdownFile({
+        ...defaultSaveDirectoryInput(defaultSaveDirectory, savePath),
+        historyCursorId: options.historyCursorId,
+        path: savePath,
+        skipHistorySnapshot: options.skipHistorySnapshot,
+        suggestedName: tab.name || "Untitled.md",
+        contents
+      });
+
+      if (!savedFile) return null;
+
+      applySavedCurrentDocument(savedFile, contents, {
+        retargetWorkspaceRoot: tab.path === null,
+        sourceContent: tab.content,
+        targetTabId: tab.id
+      });
+      return savedFile;
+    },
+    [applySavedCurrentDocument, defaultSaveDirectory]
+  );
+
   const saveCurrentDocumentContent = useCallback(
     async (contents: string, options: SaveCurrentDocumentContentOptions = {}) => {
       const current = documentRef.current;
@@ -1270,6 +1303,33 @@ export function useMarkdownDocument({
     saveCurrentDocument(false);
   }, [saveCurrentDocument]);
 
+  const saveDirtyMarkdownFiles = useCallback(() => {
+    if (dirtyFileSavePromiseRef.current) return dirtyFileSavePromiseRef.current;
+
+    const savePromise = (async () => {
+      syncActiveDocumentFromEditor();
+      const dirtyTabs = tabsRef.current.filter((tab) => tab.open && tab.dirty && tab.path !== null);
+      for (const tab of dirtyTabs) {
+        await saveMarkdownTabContent(tab, tab.content, { skipHistorySnapshot: true });
+      }
+    })().finally(() => {
+      if (dirtyFileSavePromiseRef.current === savePromise) dirtyFileSavePromiseRef.current = null;
+    });
+
+    dirtyFileSavePromiseRef.current = savePromise;
+    return savePromise;
+  }, [saveMarkdownTabContent, syncActiveDocumentFromEditor]);
+
+  const autoSaveDirtyMarkdownTabs = useCallback(async () => {
+    try {
+      await saveDirtyMarkdownFiles();
+    } catch (error: unknown) {
+      debug(() => ["[markra-autosave] save failed", {
+        error: error instanceof Error ? error.message : String(error)
+      }]);
+    }
+  }, [saveDirtyMarkdownFiles]);
+
   const selectMarkdownTab = useCallback((tabId: string) => {
     syncActiveDocumentFromEditor();
     const tab = tabsRef.current.find((candidate) => candidate.id === tabId);
@@ -1394,6 +1454,22 @@ export function useMarkdownDocument({
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [hasDiscardableTabChanges, syncActiveDocumentFromEditor]);
+
+  useEffect(() => {
+    if (!autoSaveEnabled) return;
+
+    const intervalMinutes = Number.isFinite(autoSaveIntervalMinutes)
+      ? Math.max(1, Math.round(autoSaveIntervalMinutes))
+      : 10;
+    const intervalMs = intervalMinutes * 60_000;
+    const timer = window.setInterval(() => {
+      autoSaveDirtyMarkdownTabs().catch(() => {});
+    }, intervalMs);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [autoSaveDirtyMarkdownTabs, autoSaveEnabled, autoSaveIntervalMinutes]);
 
   useEffect(() => {
     let active = true;
@@ -1793,6 +1869,7 @@ export function useMarkdownDocument({
     restoreDocumentContent,
     saveCurrentDocumentContent,
     saveCurrentDocument,
+    saveDirtyMarkdownFiles,
     saveMarkdownTab,
     selectMarkdownTab,
     selectWorkspaceSession,

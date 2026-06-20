@@ -1201,6 +1201,8 @@ export function installAppTestHarness() {
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: testAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",

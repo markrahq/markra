@@ -33,6 +33,42 @@ describe("GeneralSettings", () => {
     });
   });
 
+  it("updates automatic save preferences", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <GeneralSettings
+        appVersion="0.0.7"
+        language="en"
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        welcomeReset={false}
+        onCheckForUpdates={vi.fn()}
+        onResetWelcomeDocument={vi.fn()}
+        onSelectLanguage={vi.fn()}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const autoSaveSwitch = screen.getByRole("switch", { name: "Auto-save" });
+    const autoSaveInterval = screen.getByRole("spinbutton", { name: "Save interval" });
+
+    expect(autoSaveSwitch).toHaveAttribute("aria-checked", "true");
+    expect(autoSaveInterval).toHaveValue(10);
+
+    fireEvent.click(autoSaveSwitch);
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      autoSaveEnabled: false
+    });
+
+    fireEvent.change(autoSaveInterval, { target: { value: "30" } });
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      autoSaveIntervalMinutes: 30
+    });
+  });
+
   it("installs, repairs, and uninstalls the command line tool from general settings", () => {
     const onInstallShellCommand = vi.fn();
     const onUninstallShellCommand = vi.fn();

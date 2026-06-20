@@ -101,6 +101,8 @@ describe("Markra AI workspace", () => {
   it("moves structurally complex inline prompts into the Markra AI panel", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -183,6 +185,8 @@ describe("Markra AI workspace", () => {
   it("hides the complex inline prompt panel suggestion when the experimental setting is off", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",

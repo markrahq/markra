@@ -25,6 +25,8 @@ describe("editor preferences", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -88,6 +90,8 @@ describe("editor preferences", () => {
   it("normalizes partial editor preferences from older settings files", async () => {
     store.get.mockResolvedValue({
       autoUpdateEnabled: true,
+      autoSaveEnabled: false,
+      autoSaveIntervalMinutes: 30,
       bodyFontSize: 99,
       clipboardImageFolder: "media/screenshots",
       closeAiCommandOnAgentPanelOpen: true,
@@ -133,6 +137,8 @@ describe("editor preferences", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: false,
+      autoSaveIntervalMinutes: 30,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "media/screenshots",
@@ -225,6 +231,16 @@ describe("editor preferences", () => {
     expect(normalizeEditorPreferences({}).autoUpdateEnabled).toBe(true);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: false }).autoUpdateEnabled).toBe(false);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: "no" }).autoUpdateEnabled).toBe(true);
+  });
+
+  it("normalizes the automatic save preferences", () => {
+    expect(normalizeEditorPreferences({}).autoSaveEnabled).toBe(true);
+    expect(normalizeEditorPreferences({ autoSaveEnabled: false }).autoSaveEnabled).toBe(false);
+    expect(normalizeEditorPreferences({ autoSaveEnabled: "no" }).autoSaveEnabled).toBe(true);
+    expect(normalizeEditorPreferences({ autoSaveIntervalMinutes: 30 }).autoSaveIntervalMinutes).toBe(30);
+    expect(normalizeEditorPreferences({ autoSaveIntervalMinutes: 0 }).autoSaveIntervalMinutes).toBe(1);
+    expect(normalizeEditorPreferences({ autoSaveIntervalMinutes: 240 }).autoSaveIntervalMinutes).toBe(120);
+    expect(normalizeEditorPreferences({ autoSaveIntervalMinutes: "often" }).autoSaveIntervalMinutes).toBe(10);
   });
 
   it("normalizes the editor font family preference", () => {
@@ -548,6 +564,8 @@ describe("editor preferences", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -609,6 +627,8 @@ describe("editor preferences", () => {
   it("persists editor preferences", async () => {
     await saveStoredEditorPreferences({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 18,
       clipboardImageFolder: "images",
@@ -678,6 +698,8 @@ describe("editor preferences", () => {
 
     expect(store.set).toHaveBeenCalledWith("editorPreferences", {
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 18,
       clipboardImageFolder: "images",

@@ -152,6 +152,8 @@ describe("settings events", () => {
 
     const preferences: EditorPreferences = {
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 18,
       clipboardImageFolder: "images",

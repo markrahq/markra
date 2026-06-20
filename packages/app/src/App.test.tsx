@@ -197,6 +197,8 @@ function createStoredEditorPreferences(
 ): Parameters<typeof mockedSaveStoredEditorPreferences>[0] {
   return {
     aiQuickActionPrompts: defaultAiQuickActionPrompts,
+    autoSaveEnabled: true,
+    autoSaveIntervalMinutes: 10,
     autoUpdateEnabled: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -585,6 +587,8 @@ describe("Markra workspace", () => {
   it("persists titlebar action order changes by holding and dragging", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -633,6 +637,8 @@ describe("Markra workspace", () => {
     await waitFor(() =>
       expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith({
         aiQuickActionPrompts: defaultAiQuickActionPrompts,
+        autoSaveEnabled: true,
+        autoSaveIntervalMinutes: 10,
         autoUpdateEnabled: true,
         bodyFontSize: 16,
         clipboardImageFolder: "assets",
@@ -669,6 +675,8 @@ describe("Markra workspace", () => {
     await waitFor(() =>
       expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith({
         aiQuickActionPrompts: defaultAiQuickActionPrompts,
+        autoSaveEnabled: true,
+        autoSaveIntervalMinutes: 10,
         autoUpdateEnabled: true,
         bodyFontSize: 16,
         clipboardImageFolder: "assets",
@@ -1316,6 +1324,8 @@ describe("Markra workspace", () => {
     });
     const initialPreferences = {
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -1439,6 +1449,8 @@ describe("Markra workspace", () => {
   it("updates markdown shortcuts from the dedicated settings tab", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -3599,6 +3611,8 @@ describe("Markra workspace", () => {
   it("does not expose side-open file tree actions when document tabs are hidden", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -3735,6 +3749,8 @@ describe("Markra workspace", () => {
   it("keeps dirty editor content when opening another markdown file is cancelled", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",

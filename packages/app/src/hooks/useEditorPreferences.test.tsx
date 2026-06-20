@@ -13,6 +13,8 @@ vi.mock("../lib/settings/app-settings", () => ({
       summarize: "",
       translate: ""
     },
+    autoSaveEnabled: true,
+    autoSaveIntervalMinutes: 10,
     autoUpdateEnabled: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -105,6 +107,8 @@ describe("useEditorPreferences", () => {
     let onPreferencesChanged: Parameters<typeof listenAppEditorPreferencesChanged>[0] | null = null;
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      autoSaveEnabled: true,
+      autoSaveIntervalMinutes: 10,
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
@@ -200,6 +204,8 @@ describe("useEditorPreferences", () => {
     act(() => {
       onPreferencesChanged?.({
         aiQuickActionPrompts: defaultAiQuickActionPrompts,
+        autoSaveEnabled: true,
+        autoSaveIntervalMinutes: 10,
         autoUpdateEnabled: true,
         bodyFontSize: 18,
         clipboardImageFolder: "images",

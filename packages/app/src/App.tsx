@@ -490,6 +490,8 @@ function WorkspaceApp() {
     translate
   });
   const markdownDocument = useMarkdownDocument({
+    autoSaveEnabled: editorPreferences.preferences.autoSaveEnabled,
+    autoSaveIntervalMinutes: editorPreferences.preferences.autoSaveIntervalMinutes,
     beforeNativeAppExit: beforeNativeAppExitBackup,
     confirmDiscardUnsavedChanges,
     defaultSaveDirectory: defaultMarkdownSaveDirectory,
@@ -529,6 +531,7 @@ function WorkspaceApp() {
     restoreDocumentContent,
     saveCurrentDocumentContent,
     saveCurrentDocument,
+    saveDirtyMarkdownFiles,
     saveMarkdownTab,
     selectMarkdownTab,
     selectWorkspaceSession,
@@ -2777,6 +2780,7 @@ function WorkspaceApp() {
   ]);
   const appUpdater = useAutoUpdater(appLanguage.language, updaterFeatureEnabled && appLanguage.ready && !editorPreferences.loading, {
     autoCheck: updaterFeatureEnabled && editorPreferences.preferences.autoUpdateEnabled,
+    beforeRestart: saveDirtyMarkdownFiles,
     confirmRestart: confirmCanDiscardCurrentDocument
   });
   const nativeMenuHandlers = useNativeMenuHandlers({

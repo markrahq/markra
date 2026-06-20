@@ -4,6 +4,7 @@ import type { EditorPreferences } from "../../lib/settings/app-settings";
 import type { NativeShellCommandStatus } from "../../lib/tauri/shell-command";
 import {
   SettingsButton,
+  SettingsNumberInput,
   SettingsRow,
   SettingsSection,
   SettingsSwitch
@@ -206,6 +207,44 @@ export function GeneralSettings({
           {translate("settings.welcome.status")}
         </p>
       ) : null}
+
+      <SettingsSection label={translate("settings.sections.saving")}>
+        <SettingsRow
+          title={translate("settings.editor.autoSave")}
+          description={translate("settings.editor.autoSaveDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.autoSaveEnabled}
+              label={translate("settings.editor.autoSave")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  autoSaveEnabled: !preferences.autoSaveEnabled
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.autoSaveInterval")}
+          description={translate("settings.editor.autoSaveIntervalDescription")}
+          action={
+            <SettingsNumberInput
+              label={translate("settings.editor.autoSaveInterval")}
+              min={1}
+              max={120}
+              unit={translate("settings.editor.autoSaveIntervalUnit")}
+              value={preferences.autoSaveIntervalMinutes}
+              onChange={(autoSaveIntervalMinutes) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  autoSaveIntervalMinutes
+                })
+              }
+            />
+          }
+        />
+      </SettingsSection>
 
       {shellCommandEnabled ? (
         <SettingsSection label={translate("settings.sections.commandLine")}>

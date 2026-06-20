@@ -22,16 +22,18 @@ type ClickableToastAction = {
 
 function AutoUpdaterHarness({
   autoCheck,
+  beforeRestart,
   checkIntervalMs,
   confirmRestart,
   language = "en"
 }: {
   autoCheck?: boolean;
+  beforeRestart?: () => Promise<unknown>;
   checkIntervalMs?: number;
   confirmRestart?: () => Promise<boolean>;
   language?: "en" | "zh-CN";
 }) {
-  const updater = useAutoUpdater(language, true, { autoCheck, checkIntervalMs, confirmRestart });
+  const updater = useAutoUpdater(language, true, { autoCheck, beforeRestart, checkIntervalMs, confirmRestart });
 
   return (
     <button type="button" onClick={updater.checkForUpdates}>
@@ -166,6 +168,44 @@ describe("useAutoUpdater", () => {
 
     await waitFor(() => expect(confirmRestart).toHaveBeenCalledTimes(1));
     expect(restart).not.toHaveBeenCalled();
+  });
+
+  it("runs restart preparation before confirming and relaunching", async () => {
+    const calls: string[] = [];
+    const beforeRestart = vi.fn(async () => {
+      calls.push("beforeRestart");
+    });
+    const confirmRestart = vi.fn(async () => {
+      calls.push("confirmRestart");
+      return true;
+    });
+    const restart = vi.fn(async () => {
+      calls.push("restart");
+    });
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate({ restart }));
+
+    render(
+      <AutoUpdaterHarness
+        autoCheck={false}
+        beforeRestart={beforeRestart}
+        confirmRestart={confirmRestart}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Manual check" }));
+    await waitFor(() => expect(mockedShowAppToast).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        action: expect.objectContaining({ label: "Restart now" })
+      })
+    ));
+
+    const action = getToastAction(mockedShowAppToast.mock.calls.length - 1);
+    action.onClick();
+
+    await waitFor(() => expect(restart).toHaveBeenCalledTimes(1));
+    expect(beforeRestart).toHaveBeenCalledTimes(1);
+    expect(confirmRestart).toHaveBeenCalledTimes(1);
+    expect(calls).toEqual(["beforeRestart", "confirmRestart", "restart"]);
   });
 
   it("keeps background check failures quiet during startup", async () => {

@@ -9,6 +9,7 @@ const defaultAutoUpdateCheckIntervalMs = 6 * 60 * 60 * 1000;
 
 export type AutoUpdaterOptions = {
   autoCheck?: boolean;
+  beforeRestart?: () => unknown | Promise<unknown>;
   checkIntervalMs?: number;
   confirmInstall?: () => boolean | Promise<boolean>;
   confirmRestart?: () => boolean | Promise<boolean>;
@@ -28,15 +29,17 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
   const downloadingRef = useRef(false);
   const downloadedUpdateRef = useRef<NativeAppUpdate | null>(null);
   const autoCheck = options.autoCheck ?? true;
+  const beforeRestart = options.beforeRestart;
   const checkIntervalMs = options.checkIntervalMs ?? defaultAutoUpdateCheckIntervalMs;
   const confirmInstall = options.confirmInstall;
   const confirmRestart = options.confirmRestart;
 
   const restartUpdate = useCallback(async (update: NativeAppUpdate) => {
-    const canRestart = await (confirmRestart ?? confirmInstall)?.();
-    if (canRestart === false) return;
-
     try {
+      await beforeRestart?.();
+      const canRestart = await (confirmRestart ?? confirmInstall)?.();
+      if (canRestart === false) return;
+
       showAppToast({
         id: appUpdateToastId,
         message: t(language, "app.updateRestarting"),
@@ -50,7 +53,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
         status: "error"
       });
     }
-  }, [confirmInstall, confirmRestart, language]);
+  }, [beforeRestart, confirmInstall, confirmRestart, language]);
 
   const showReadyToRestart = useCallback((update: NativeAppUpdate) => {
     downloadedUpdateRef.current = update;
