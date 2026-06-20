@@ -2212,6 +2212,11 @@ function WorkspaceApp() {
     editorPreferences.preferences.showDocumentTabs &&
     (hasOpenDocument || Boolean(activeImageFile)) &&
     titlebarTabs.some((tab) => titlebarTabs.length > 1 || tab.path !== null || tab.dirty);
+  const currentFileTreePath = activeImageFile?.path ?? (
+    focusedSideDocumentTabId && sideDocumentTab?.path
+      ? sideDocumentTab.path
+      : hasOpenDocument ? document.path : null
+  );
   const titleDocumentName = activeImageFile ? activeImageFile.name : hasOpenDocument ? document.name : fileTreeRootName;
   const titleDocumentKind = activeImageFile ? "image" : hasOpenDocument ? "file" : "folder";
   const sourceModeAvailable = hasOpenDocument && !activeImageFile;
@@ -3370,7 +3375,7 @@ function WorkspaceApp() {
           fileTree={{
             activeOutlineIndex: activeDocumentOutlineIndex,
             autoRevealActiveFile: editorPreferences.preferences.autoRevealActiveFile,
-            currentPath: activeImageFile?.path ?? (hasOpenDocument ? document.path : null),
+            currentPath: currentFileTreePath,
             customTemplates: markdownTemplates,
             fileTreeSort,
             files: fileTreeFiles,
@@ -3437,7 +3442,7 @@ function WorkspaceApp() {
               ) : null}
               {quickOpenOpen ? (
                 <QuickOpenPanel
-                  currentPath={activeImageFile?.path ?? (hasOpenDocument ? document.path : null)}
+                  currentPath={currentFileTreePath}
                   files={fileTreeFiles}
                   language={appLanguage.language}
                   openFilePaths={quickOpenFilePaths}

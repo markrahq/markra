@@ -730,6 +730,47 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(screen.getByRole("button", { name: "deploy/deploy.md" })).toHaveAttribute("aria-current", "page");
   });
 
+  it("scrolls the requested file into view instead of an earlier active file", async () => {
+    const scrollIntoViewCalls: string[] = [];
+    const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value(this: HTMLElement) {
+        scrollIntoViewCalls.push(this.dataset.fileTreePath ?? "");
+      }
+    });
+
+    try {
+      render(
+        <MarkdownFileTreeDrawer
+          autoRevealActiveFile={false}
+          currentPath="/vault/docs/1.md"
+          files={[
+            { name: "1.md", path: "/vault/docs/1.md", relativePath: "docs/1.md" },
+            { name: "2.md", path: "/vault/docs/2.md", relativePath: "docs/2.md" }
+          ]}
+          open
+          outlineItems={[]}
+          revealPathRequest={{ id: 1, path: "/vault/docs/2.md" }}
+          rootPath="/vault"
+          rootName="Obsidian Vault"
+          onOpenFile={() => {}}
+          onSelectOutlineItem={() => {}}
+        />
+      );
+
+      expect(await screen.findByRole("button", { name: "docs/1.md" })).toHaveAttribute("aria-current", "page");
+      expect(screen.getByRole("button", { name: "docs/2.md" })).toBeInTheDocument();
+      await waitFor(() => expect(scrollIntoViewCalls).toContain("/vault/docs/2.md"));
+      expect(scrollIntoViewCalls).not.toContain("/vault/docs/1.md");
+    } finally {
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+        configurable: true,
+        value: originalScrollIntoView
+      });
+    }
+  });
+
   it("automatically reveals the active file when the current path changes", () => {
     const { rerender } = render(
       <MarkdownFileTreeDrawer

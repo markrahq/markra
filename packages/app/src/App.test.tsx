@@ -3189,6 +3189,65 @@ describe("Markra workspace", () => {
     );
   });
 
+  it("uses the focused side-by-side document as the active file tree path", async () => {
+    const firstPath = "/mock-files/vault/docs/1.md";
+    const secondPath = "/mock-files/vault/docs/2.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "1.md", path: firstPath, relativePath: "docs/1.md" },
+      { name: "2.md", path: secondPath, relativePath: "docs/2.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === firstPath) {
+        return {
+          content: "# First",
+          name: "1.md",
+          path: firstPath
+        };
+      }
+
+      return {
+        content: "# Second",
+        name: "2.md",
+        path: secondPath
+      };
+    });
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs" }));
+    fireEvent.click(await screen.findByRole("button", { name: "docs/1.md" }));
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "docs/2.md" }));
+    expect(await screen.findByText("Second")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: /1\.md/ }));
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /2\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+    await waitFor(() => expect(container.querySelector(".editor-side-by-side-surface")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch to source mode" }));
+    const sidePane = container.querySelector(".side-document-pane") as HTMLElement;
+    const sideSource = await within(sidePane).findByRole("textbox", { name: "Markdown source" });
+
+    expect(screen.getByRole("button", { name: "docs/1.md" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "docs/2.md" })).not.toHaveAttribute("aria-current");
+
+    fireEvent.focus(sideSource);
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "docs/2.md" })).toHaveAttribute("aria-current", "page"));
+    expect(screen.getByRole("button", { name: "docs/1.md" })).not.toHaveAttribute("aria-current");
+  });
+
   it("returns save actions to the main document after switching away from a focused side editor", async () => {
     const firstPath = "/mock-files/vault/docs/1.md";
     const secondPath = "/mock-files/vault/docs/2.md";

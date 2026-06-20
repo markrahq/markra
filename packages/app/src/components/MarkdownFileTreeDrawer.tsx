@@ -784,8 +784,9 @@ export function MarkdownFileTreeDrawer({
     }
 
     if (!virtualFileTreeEnabled) {
-      const activeFileTreeRow = fileTreeBodyRef.current
-        ?.querySelector<HTMLElement>("[data-reveal-file-tree-row='true'], [data-active-file-tree-row='true']");
+      const activeFileTreeRow =
+        fileTreeBodyRef.current?.querySelector<HTMLElement>("[data-reveal-file-tree-row='true']") ??
+        fileTreeBodyRef.current?.querySelector<HTMLElement>("[data-active-file-tree-row='true']");
 
       if (typeof activeFileTreeRow?.scrollIntoView === "function") {
         activeFileTreeRow.scrollIntoView({ block: "nearest", inline: "nearest" });
