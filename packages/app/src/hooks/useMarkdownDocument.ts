@@ -11,7 +11,9 @@ import {
   saveStoredRecentMarkdownFile,
   saveStoredWorkspaceState,
   type RecentMarkdownFile,
-  type StoredWorkspaceDraftTab
+  type StoredWorkspaceDraftTab,
+  type StoredWorkspaceState,
+  type StoredWorkspaceWindow
 } from "../lib/settings/app-settings";
 import { getMarkdownOutline, getWordCount, type MarkdownOutlineItem } from "@markra/markdown";
 import {
@@ -189,6 +191,24 @@ function workspaceRootForSource(sourcePath: string | null | undefined, currentFi
 
   const normalizedCurrentFilePath = normalizeComparablePath(currentFilePath);
   return normalizedCurrentFilePath ? parentPathFromPath(normalizedCurrentFilePath) : null;
+}
+
+function workspaceHasCurrentWindowRestoreState(workspace: StoredWorkspaceState) {
+  return Boolean(
+    workspace.filePath ||
+    workspace.folderPath ||
+    workspace.openFilePaths.length > 0 ||
+    workspace.draftTabs?.length
+  );
+}
+
+function additionalEditorWindowsForRestore(
+  restoreWindows: readonly StoredWorkspaceWindow[],
+  currentWindowHasRestoreState: boolean
+) {
+  return currentWindowHasRestoreState
+    ? restoreWindows.filter((window) => window.label !== "main")
+    : restoreWindows.slice(1);
 }
 
 export function useMarkdownDocument({
@@ -1679,7 +1699,8 @@ export function useMarkdownDocument({
           const workspace = await getStoredWorkspaceState();
           const sessionId = workspace.aiAgentSessionId ?? createAiAgentSessionId();
           const restoreWindows = workspace.openWindows ?? [];
-          const primaryRestoreWindow = restoreWindows[0] ?? null;
+          const currentWindowHasRestoreState = workspaceHasCurrentWindowRestoreState(workspace);
+          const primaryRestoreWindow = currentWindowHasRestoreState ? null : restoreWindows[0] ?? null;
           const primaryRestoreWindowFilePath = primaryRestoreWindow
             ? activeFilePathFromWindowRestore(primaryRestoreWindow)
             : null;
@@ -1696,8 +1717,7 @@ export function useMarkdownDocument({
             );
           const activeRestoreFilePath = primaryRestoreWindow ? primaryRestoreWindowFilePath : workspace.filePath;
           const additionalRestoreWindowFilePaths = normalizeOpenFilePaths(
-            restoreWindows
-              .slice(1)
+            additionalEditorWindowsForRestore(restoreWindows, currentWindowHasRestoreState)
               .map(activeFilePathFromWindowRestore)
           ).filter((path) => !restoreFilePaths.includes(path));
 

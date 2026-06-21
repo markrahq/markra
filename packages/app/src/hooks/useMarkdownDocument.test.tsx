@@ -1667,6 +1667,73 @@ describe("useMarkdownDocument", () => {
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
 
+  it("prefers the current window tabs over a stale update-restart snapshot", async () => {
+    const guidePath = "/mock-files/vault/guide.md";
+    const notesPath = "/mock-files/vault/notes.md";
+    const stalePath = "/mock-files/vault/stale.md";
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-current-tabs",
+      filePath: notesPath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: [guidePath, notesPath],
+      openWindows: [
+        {
+          filePath: stalePath,
+          label: "main",
+          openFilePaths: [stalePath]
+        }
+      ]
+    });
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === guidePath) {
+        return {
+          content: "# Guide",
+          name: "guide.md",
+          path
+        };
+      }
+      if (path === notesPath) {
+        return {
+          content: "# Notes",
+          name: "notes.md",
+          path
+        };
+      }
+
+      return {
+        content: "# Stale",
+        name: "stale.md",
+        path
+      };
+    });
+
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: true,
+        restoreWorkspaceOnStartup: true
+      })
+    );
+
+    await waitFor(() => expect(result.current.tabs.map((tab) => tab.name)).toEqual(["guide.md", "notes.md"]));
+
+    expect(result.current.document).toMatchObject({
+      content: "# Notes",
+      dirty: false,
+      name: "notes.md",
+      path: notesPath
+    });
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(notesPath);
+    expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalledWith(stalePath);
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({ openWindows: [] });
+  });
+
   it("keeps the saved folder root when restoring tabs with the file tree collapsed", async () => {
     const guidePath = "/mock-files/vault/docs/guide.md";
     const onTreeRootFromFilePath = vi.fn();
