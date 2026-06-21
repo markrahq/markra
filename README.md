@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  English | <a href="README.zh-CN.md">简体中文</a> | <a href="https://editor.markra.app/">Web Editor</a> | <a href="#download">Download</a> | <a href="#key-features">Key Features</a> | <a href="#contributing">Contributing</a> | <a href="#license">License</a>
+  English | <a href="README.zh-CN.md">简体中文</a> | <a href="https://editor.markra.app/">Web Editor</a> | <a href="#download">Download</a> | <a href="#key-features">Key Features</a> | <a href="#contributing">Contributing</a> | <a href="#contributors">Contributors</a> | <a href="#license">License</a>
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@
 
 Markra is a local-first, open-source Markdown editor that brings AI into the writing flow. Edit in WYSIWYG or source mode, keep everything as plain `.md` files on disk, and let AI polish, rewrite, or expand your content — with full preview before any change lands.
 
-No cloud sync, no account required. AI calls only go where you point them.
+No account required. Files stay on disk by default; optional WebDAV sync, remote image storage, and AI requests only contact the services you configure.
 
 ## Screenshots
 
@@ -76,9 +76,15 @@ Download the latest desktop builds from [GitHub Releases](https://github.com/mur
 
 ### Local Workspace
 
-- Open a single file or an entire folder; browse, create, rename, and delete from the file tree.
-- Document tabs, outline navigation, and double-bracket link completion.
-- Paste images to local storage, S3, or WebDAV.
+- Open a single file or an entire folder; browse, create, rename, move, delete, sort, and reveal files from the file tree.
+- Document tabs, side-by-side panes, quick open, workspace search, outline navigation, and double-bracket link completion.
+- Auto-save existing files, restore tabs and workspace state, and show document or selected-text word counts.
+
+### Storage, Backup, and Sync
+
+- Paste or drop images to local storage, WebDAV, PicGo/PicList, or S3-compatible storage.
+- Create one-way local backups manually, on exit, or on a schedule.
+- Optional WebDAV sync keeps notes aligned across devices and preserves conflict copies.
 
 ### Blocks, Tables, and Code
 
@@ -105,7 +111,7 @@ Product docs · Blog posts · Research notes · Technical writing with tables, c
 
 ## Philosophy
 
-- **Local first** — files and workspace data stay on your disk.
+- **Local first** — files and workspace data stay on your disk unless you opt into WebDAV sync or remote image storage.
 - **Open and free** — core features are inspectable and never paywalled.
 - **Writing first** — AI, file management, and settings serve the document, not the other way around.
 - **Confirm before apply** — AI edits are previews until you say yes.
@@ -114,7 +120,7 @@ Product docs · Blog posts · Research notes · Technical writing with tables, c
 
 - More stable workspace behavior and edge-case handling
 - Smarter AI edit previews and conflict resolution
-- Full-text search and knowledge organization
+- Deeper knowledge organization and link workflows
 - Richer export templates and sharing workflows
 
 ## Getting Started
@@ -127,6 +133,16 @@ Product docs · Blog posts · Research notes · Technical writing with tables, c
 ## Contributing
 
 Contributions are welcome — whether it's product experience, Markdown editing, AI workflows, cross-platform fixes, or docs. See [issues](https://github.com/murongg/markra/issues) for open tasks or start a discussion.
+
+## Contributors
+
+Thanks to everyone who has helped shape Markra through code, docs, design, testing, and feedback.
+
+<p align="center">
+  <a href="https://github.com/murongg/markra/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=murongg/markra" alt="Markra contributors" />
+  </a>
+</p>
 
 ## Sponsors
 
