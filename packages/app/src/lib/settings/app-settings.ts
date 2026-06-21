@@ -1113,6 +1113,8 @@ export async function saveStoredWorkspaceState(
   }
 
   if (workspacePatchHasWindowState(patch)) {
+    current.openWindows = [];
+
     const windowLabel = await resolveStoredWorkspaceWindowLabel(options);
     const targetLabel = windowLabel === settingsWorkspaceWindowLabel ? mainWorkspaceWindowLabel : windowLabel;
     const currentWindowState = workspaceStateForWindowLabel(current, targetLabel);

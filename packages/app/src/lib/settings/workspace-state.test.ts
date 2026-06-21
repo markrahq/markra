@@ -179,6 +179,54 @@ describe("workspace state settings", () => {
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 
+  it("clears a transient open window snapshot when persisting current window state", async () => {
+    store.get.mockResolvedValue({
+      openWindows: [
+        {
+          filePath: "/mock-files/stale.md",
+          label: "main",
+          openFilePaths: ["/mock-files/stale.md"]
+        }
+      ],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-main",
+          filePath: "/mock-files/current.md",
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: ["/mock-files/current.md"]
+        }
+      }
+    });
+
+    await saveStoredWorkspaceState({
+      filePath: "/mock-files/current.md",
+      openFilePaths: [
+        "/mock-files/current.md",
+        "/mock-files/notes.md"
+      ]
+    });
+
+    expect(store.set).toHaveBeenCalledWith("workspace", {
+      openWindows: [],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-main",
+          filePath: "/mock-files/current.md",
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: [
+            "/mock-files/current.md",
+            "/mock-files/notes.md"
+          ]
+        }
+      }
+    });
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
   it("loads normalized file tree sort preferences by workspace path", async () => {
     store.get.mockResolvedValue({
       "/mock-workspaces/notes": {
