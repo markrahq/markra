@@ -2390,6 +2390,14 @@
     background: color-mix(in srgb, var(--accent) 28%, transparent);
   }
 
+  .markdown-paper .ProseMirror-hideselection .markra-image-node-source {
+    caret-color: var(--text-primary) !important;
+  }
+
+  .markdown-paper .ProseMirror-hideselection .markra-image-node-source::selection {
+    background: color-mix(in srgb, var(--accent) 28%, transparent) !important;
+  }
+
   .markdown-paper .markra-image-node-source-invalid .markra-image-node-source {
     @apply text-red-600;
   }

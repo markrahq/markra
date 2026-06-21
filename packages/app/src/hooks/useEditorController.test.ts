@@ -1,4 +1,5 @@
 import {
+  markdownImageInsertionForSelection,
   markdownLinkInsertionForSelection,
   scrollElementToContainerTop,
   scrollElementsAboveContainerBottomInset,
@@ -154,6 +155,30 @@ describe("editor controller link insertion", () => {
       cursorOffset: "[text".length,
       insertedText: "[text](https://)",
       kind: "snippet"
+    });
+  });
+});
+
+describe("editor controller image insertion", () => {
+  it("uses a local asset path placeholder and selects the image source", () => {
+    expect(markdownImageInsertionForSelection("Synthetic alt")).toEqual({
+      alt: "Synthetic alt",
+      insertedText: "![Synthetic alt](assets/image.png)",
+      selectionFromOffset: "![Synthetic alt](".length,
+      selectionToOffset: "![Synthetic alt](assets/image.png".length,
+      src: "assets/image.png"
+    });
+  });
+
+  it("escapes selected text before using it as image alt markdown", () => {
+    const insertion = markdownImageInsertionForSelection(String.raw`A ] bracket \ slash`);
+
+    expect(insertion).toEqual({
+      alt: String.raw`A ] bracket \ slash`,
+      insertedText: String.raw`![A \] bracket \\ slash](assets/image.png)`,
+      selectionFromOffset: String.raw`![A \] bracket \\ slash](`.length,
+      selectionToOffset: String.raw`![A \] bracket \\ slash](assets/image.png`.length,
+      src: "assets/image.png"
     });
   });
 });

@@ -1,4 +1,5 @@
 export { markraLinkImageLivePlugin } from "./link-image/plugin.ts";
+export { clearFinalizedImageSourceEditing } from "./link-image/images.ts";
 export {
   normalizeLinkImageLiveMarkdownDocument,
   serializeLinkImageLiveMarkdown

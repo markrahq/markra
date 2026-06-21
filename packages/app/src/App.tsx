@@ -380,6 +380,7 @@ function WorkspaceApp() {
   const findEditorSearchMatches = editor.findSearchMatches;
   const getEditorCurrentMarkdown = editor.getCurrentMarkdown;
   const handleMilkdownEditorReady = editor.handleEditorReady;
+  const insertEditorMarkdownImage = editor.insertMarkdownImage;
   const insertEditorMarkdownLink = editor.insertMarkdownLink;
   const insertEditorMarkdownSnippet = editor.insertMarkdownSnippet;
   const insertEditorMarkdownTable = editor.insertMarkdownTable;
@@ -2324,6 +2325,12 @@ function WorkspaceApp() {
     insertEditorMarkdownSnippet(...args);
     syncVisualMarkdownAfterEditorCommand();
   }, [insertEditorMarkdownSnippet, readOnlyMode, syncVisualMarkdownAfterEditorCommand]);
+  const handleInsertMarkdownImage = useCallback(() => {
+    if (readOnlyMode) return;
+
+    insertEditorMarkdownImage();
+    syncVisualMarkdownAfterEditorCommand();
+  }, [insertEditorMarkdownImage, readOnlyMode, syncVisualMarkdownAfterEditorCommand]);
   const handleInsertMarkdownLink = useCallback(() => {
     runEditorLinkCommand({
       insertMarkdownLink: insertEditorMarkdownLink,
@@ -2812,6 +2819,7 @@ function WorkspaceApp() {
     exportHtml: exportFeatureEnabled ? exportHtmlDocument : undefined,
     exportLatex: exportFeatureEnabled && pandocFeatureEnabled ? exportLatexDocument : undefined,
     exportPdf: exportFeatureEnabled ? exportPdfDocument : undefined,
+    insertMarkdownImage: handleInsertMarkdownImage,
     insertMarkdownLink: handleInsertMarkdownLink,
     insertMarkdownSnippet: handleInsertMarkdownSnippet,
     insertMarkdownTable: handleInsertMarkdownTable,

@@ -51,6 +51,17 @@ function pastedExternalUrl(event: ClipboardEvent) {
   return normalizedExternalAutolinkUrl(text);
 }
 
+function selectionIsInsideActiveRawImageSource(state: EditorState) {
+  const range = findActiveRawMarkdownRange(state);
+  if (range?.kind !== "image") return false;
+
+  const { from, to } = state.selection;
+  const sourceFrom = range.from + range.alt.length + 4;
+  const sourceTo = sourceFrom + range.src.length;
+
+  return sourceFrom <= from && to <= sourceTo;
+}
+
 export function markraLinkImageLivePlugin(resolveImageSrc?: ResolveMarkdownImageSrc) {
   return $prose((ctx) => {
     const link = linkSchema.type(ctx);
@@ -150,6 +161,11 @@ export function markraLinkImageLivePlugin(resolveImageSrc?: ResolveMarkdownImage
           if (!href) return false;
 
           const { from, to } = view.state.selection;
+          if (selectionIsInsideActiveRawImageSource(view.state)) {
+            view.dispatch(view.state.tr.insertText(href, from, to).scrollIntoView());
+            return true;
+          }
+
           const selectedText = view.state.selection.empty ? "" : view.state.doc.textBetween(from, to, " ");
           const pastedText = event.clipboardData?.getData("text/plain") ?? "";
           const label = selectedText.trim() || pastedText.trim() || href;

@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef } from "react";
 import { editorViewCtx, parserCtx, serializerCtx, type Editor } from "@milkdown/kit/core";
 import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
-import { Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
-import { TextSelection } from "@milkdown/kit/prose/state";
+import { Slice, type Node as ProseNode, type NodeType } from "@milkdown/kit/prose/model";
+import { NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "@markra/ai";
 import {
   applyAiEditorResult,
+  clearFinalizedImageSourceEditing,
   clearAiSelectionHold,
   clearAiEditorPreview,
   confirmAiEditorResultApplied,
@@ -67,6 +68,14 @@ type MarkdownLinkInsertion =
       selectionFromOffset: number;
       selectionToOffset: number;
     };
+
+type MarkdownImageInsertion = {
+  alt: string;
+  insertedText: string;
+  selectionFromOffset: number;
+  selectionToOffset: number;
+  src: string;
+};
 
 function comparableSerializedMarkdown(markdown: string) {
   return markdown
@@ -168,6 +177,59 @@ export function markdownLinkInsertionForSelection(selectedText: string): Markdow
     insertedText,
     kind: "snippet"
   };
+}
+
+export function markdownImageInsertionForSelection(selectedText: string): MarkdownImageInsertion {
+  const alt = selectedText || "alt";
+  const markdownAlt = alt.replace(/\\/gu, "\\\\").replace(/\]/gu, "\\]");
+  const src = "assets/image.png";
+  const insertedText = `![${markdownAlt}](${src})`;
+  const selectionFromOffset = markdownAlt.length + 4;
+
+  return {
+    alt,
+    insertedText,
+    selectionFromOffset,
+    selectionToOffset: selectionFromOffset + src.length,
+    src
+  };
+}
+
+function findInsertedImageNodePosition(
+  doc: ProseNode,
+  image: NodeType,
+  insertion: MarkdownImageInsertion,
+  preferredPosition: number
+) {
+  let bestPosition: number | null = null;
+  let bestDistance = Number.POSITIVE_INFINITY;
+
+  doc.descendants((node, position) => {
+    if (node.type !== image) return true;
+    if (String(node.attrs.alt ?? "") !== insertion.alt) return true;
+    if (String(node.attrs.src ?? "") !== insertion.src) return true;
+
+    const distance = Math.abs(position - preferredPosition);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestPosition = position;
+    }
+
+    return true;
+  });
+
+  return bestPosition;
+}
+
+function focusInsertedImageSource(view: EditorView, insertion: MarkdownImageInsertion) {
+  const source = view.dom.querySelector<HTMLInputElement>(".markra-image-node-source");
+  if (!source) {
+    view.focus();
+    return;
+  }
+
+  source.focus();
+  source.setSelectionRange(insertion.selectionFromOffset, insertion.selectionToOffset);
 }
 
 export function readAiSelectionContextFromView(view: EditorView): AiSelectionContext {
@@ -655,6 +717,7 @@ export function useEditorController() {
       const view = editorRef.current?.action((ctx) => ctx.get(editorViewCtx));
       if (!view) return;
 
+      if (options.suppressEditorChrome) clearFinalizedImageSourceEditing(view);
       updateSearchDecorations(view, matches, activeIndex, options);
     } catch {
       // Search decoration is a transient affordance; failing to draw it should not interrupt editing.
@@ -726,6 +789,32 @@ export function useEditorController() {
 
     view.dispatch(tr);
     view.focus();
+  }, []);
+
+  const insertMarkdownImage = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const image = imageSchema.type(ctx);
+      const parseMarkdown = ctx.get(parserCtx);
+      const { from, to } = view.state.selection;
+      const selectedText = view.state.doc.textBetween(from, to, " ");
+      const insertion = markdownImageInsertionForSelection(selectedText);
+      const parsedDocument = parseMarkdown(insertion.insertedText);
+      const tr = view.state.tr.replaceRange(from, to, new Slice(parsedDocument.content, 0, 0));
+      const imagePosition = findInsertedImageNodePosition(tr.doc, image, insertion, from);
+
+      if (imagePosition !== null) {
+        tr.setSelection(NodeSelection.create(tr.doc, imagePosition)).scrollIntoView();
+      } else {
+        tr.scrollIntoView();
+      }
+
+      view.dispatch(tr);
+      focusInsertedImageSource(view, insertion);
+    });
   }, []);
 
   const insertMarkdownLink = useCallback(() => {
@@ -982,6 +1071,7 @@ export function useEditorController() {
     getTableAnchors,
     handleEditorReady,
     holdAiSelection,
+    insertMarkdownImage,
     insertMarkdownLink,
     insertMarkdownSnippet,
     insertMarkdownTable,

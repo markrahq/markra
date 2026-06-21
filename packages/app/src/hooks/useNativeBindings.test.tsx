@@ -4,6 +4,7 @@ import { useApplicationShortcuts, useNativeMenuHandlers } from "./useNativeBindi
 
 describe("useNativeMenuHandlers", () => {
   const baseOptions = {
+    insertMarkdownImage: vi.fn(),
     insertMarkdownLink: vi.fn(),
     insertMarkdownSnippet: vi.fn(),
     insertMarkdownTable: vi.fn(),
@@ -16,10 +17,12 @@ describe("useNativeMenuHandlers", () => {
 
   it("routes the insert table menu command to the editor table insertion", () => {
     const insertMarkdownLink = vi.fn();
+    const insertMarkdownImage = vi.fn();
     const insertMarkdownSnippet = vi.fn();
     const insertMarkdownTable = vi.fn();
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
+        insertMarkdownImage,
         insertMarkdownLink,
         insertMarkdownSnippet,
         insertMarkdownTable,
@@ -34,7 +37,25 @@ describe("useNativeMenuHandlers", () => {
     result.current.insertTable?.();
 
     expect(insertMarkdownTable).toHaveBeenCalledTimes(1);
+    expect(insertMarkdownImage).not.toHaveBeenCalled();
     expect(insertMarkdownLink).not.toHaveBeenCalled();
+    expect(insertMarkdownSnippet).not.toHaveBeenCalled();
+  });
+
+  it("routes the insert image menu command to the editor image insertion", () => {
+    const insertMarkdownImage = vi.fn();
+    const insertMarkdownSnippet = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        insertMarkdownImage,
+        insertMarkdownSnippet
+      })
+    );
+
+    result.current.insertImage?.();
+
+    expect(insertMarkdownImage).toHaveBeenCalledTimes(1);
     expect(insertMarkdownSnippet).not.toHaveBeenCalled();
   });
 

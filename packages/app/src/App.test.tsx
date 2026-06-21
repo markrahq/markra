@@ -4629,7 +4629,7 @@ describe("Markra workspace", () => {
   it("keeps visual undo history after switching to source mode and back", async () => {
     const { container } = renderApp();
 
-    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+    await expectVisibleMilkdownText(container, "Welcome to Markra");
     await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
     const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
 
@@ -4656,6 +4656,48 @@ describe("Markra workspace", () => {
       menuHandlers.editRedo?.();
     });
     await waitFor(() => expect(container.querySelector(".ProseMirror table")).toBeInTheDocument());
+  });
+
+  it("inserts the default menu image as an immediately clickable image block", async () => {
+    const { container } = renderApp();
+
+    await expectVisibleMilkdownText(container, "Welcome to Markra");
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
+
+    act(() => {
+      menuHandlers.insertImage?.();
+    });
+
+    const image = await waitFor(() => {
+      const insertedImage = container.querySelector<HTMLImageElement>(
+        '.ProseMirror .markra-image-node img[src="assets/image.png"]'
+      );
+      expect(insertedImage).toBeInTheDocument();
+      return insertedImage!;
+    });
+
+    expect(image).toHaveAttribute("alt", "alt");
+    expect(container.querySelector(".ProseMirror .markra-live-image-preview")).not.toBeInTheDocument();
+
+    const initialSource = await waitFor(() => {
+      const sourceInput = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
+      expect(sourceInput).toBeInTheDocument();
+      return sourceInput!;
+    });
+    expect(initialSource).toHaveFocus();
+    expect(initialSource.selectionStart).toBe("![alt](".length);
+    expect(initialSource.selectionEnd).toBe("![alt](assets/image.png".length);
+
+    expect(fireEvent.mouseDown(image)).toBe(false);
+    fireEvent.click(image);
+
+    const source = await waitFor(() => {
+      const sourceInput = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
+      expect(sourceInput).toBeInTheDocument();
+      return sourceInput!;
+    });
+    expect(source).toHaveValue("![alt](assets/image.png)");
   });
 
   it("keeps source edits undoable after switching back to visual mode", async () => {
@@ -5486,13 +5528,14 @@ describe("Markra workspace", () => {
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
     expect(image).toBeInTheDocument();
     expect(fireEvent.mouseDown(image!)).toBe(false);
+    fireEvent.click(image!);
 
     const sourceInput = await waitFor(() => {
       const input = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
       expect(input).toBeInTheDocument();
       return input!;
     });
-    await waitFor(() => expect(sourceInput).toHaveFocus());
+    expect(sourceInput).not.toHaveFocus();
     expect(image?.closest(".markra-image-node")).toHaveClass("markra-image-node-selected");
 
     fireEvent.keyDown(window, { key: "f", metaKey: true });

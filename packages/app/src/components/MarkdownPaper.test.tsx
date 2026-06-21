@@ -156,6 +156,12 @@ function selectText(view: EditorView, from: number, to: number) {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
 }
 
+function clickFinalizedImage(target: Element) {
+  const mouseDownResult = fireEvent.mouseDown(target);
+  fireEvent.click(target);
+  return mouseDownResult;
+}
+
 function findFirstTextBlockCursor(view: EditorView) {
   let position: number | null = null;
 
@@ -1380,9 +1386,195 @@ describe("MarkdownPaper editing", () => {
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
     expect(image).toBeInTheDocument();
 
-    fireEvent.mouseDown(image!);
+    clickFinalizedImage(image!);
 
     expect(container.querySelector(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
+  });
+
+  it("selects the finalized image block before editing its source input", async () => {
+    const { container, editor, view } = await renderEditor(
+      ["Intro", "", "![Screenshot](assets/pasted-image.png)", "", "Following content"].join("\n")
+    );
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+
+    expect(image).toBeInTheDocument();
+
+    moveCursor(view, findTextPosition(view, "Following content", "Following".length));
+    fireEvent.mouseDown(image!);
+
+    await waitFor(() => expect(view.state.selection).toBeInstanceOf(NodeSelection));
+    expect(view.state.selection.from).toBe(findNodeStartPosition(view, "image"));
+    expect(view.dom).toHaveFocus();
+    expect(container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
+
+    fireEvent.click(image!);
+
+    const sourceInput = await waitFor(() => {
+      const input = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
+      expect(input).toBeInTheDocument();
+      return input!;
+    });
+    expect(sourceInput).not.toHaveFocus();
+
+    const sourceCursor = sourceInput.value.length;
+    sourceInput.setSelectionRange(sourceCursor, sourceCursor);
+    fireEvent.mouseDown(sourceInput);
+
+    await waitFor(() => expect(sourceInput).toHaveFocus());
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 0);
+    });
+    expect(sourceInput.selectionStart).toBe(sourceCursor);
+    expect(sourceInput.selectionEnd).toBe(sourceCursor);
+
+    moveCursor(view, findTextPosition(view, "Following content", "Following".length));
+    expect(sourceInput).toBeInTheDocument();
+    expect(sourceInput).toHaveFocus();
+
+    fireEvent.input(sourceInput, { target: { value: "" } });
+
+    await waitFor(() =>
+      expect(
+        container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]')
+      ).not.toBeInTheDocument()
+    );
+    expect(serializeMarkdown(view.state.doc)).toContain("Following content");
+    expect(serializeMarkdown(view.state.doc)).not.toContain("assets/pasted-image.png");
+  });
+
+  it("focuses the finalized image source input when its source row is clicked", async () => {
+    const { container } = await renderEditor("![Screenshot](assets/pasted-image.png)");
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+
+    expect(image).toBeInTheDocument();
+
+    clickFinalizedImage(image!);
+
+    const sourceRow = await waitFor(() => {
+      const row = container.querySelector<HTMLElement>(".ProseMirror .markra-image-node-source-row");
+      expect(row).toBeInTheDocument();
+      return row!;
+    });
+    const sourceInput = sourceRow.querySelector<HTMLInputElement>(".markra-image-node-source");
+
+    expect(sourceInput).toBeInTheDocument();
+    expect(sourceRow).toHaveAttribute("contenteditable", "true");
+    expect(sourceInput).toHaveAttribute("contenteditable", "true");
+    expect(sourceInput).not.toHaveFocus();
+
+    fireEvent.mouseDown(sourceRow);
+
+    await waitFor(() => expect(sourceInput).toHaveFocus());
+    expect(sourceInput?.selectionStart).toBe(sourceInput?.value.length);
+    expect(sourceInput?.selectionEnd).toBe(sourceInput?.value.length);
+  });
+
+  it("can select a finalized image block after another text range was selected", async () => {
+    const { container, view } = await renderEditor(
+      ["Intro text", "", "![Screenshot](assets/pasted-image.png)", "", "Following content"].join("\n")
+    );
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+
+    expect(image).toBeInTheDocument();
+
+    const from = findTextPosition(view, "Following");
+    const to = findTextPosition(view, "Following", "Following".length);
+    const followingText = Array.from(container.querySelectorAll(".ProseMirror p"))
+      .find((paragraph) => paragraph.textContent?.includes("Following"))
+      ?.firstChild;
+
+    expect(followingText).toBeInstanceOf(Text);
+
+    const range = document.createRange();
+    range.setStart(followingText!, 0);
+    range.setEnd(followingText!, "Following".length);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(range);
+    selectText(view, from, to);
+    expect(view.state.selection.empty).toBe(false);
+    expect(document.getSelection()?.toString()).toBe("Following");
+
+    fireEvent.mouseDown(image!);
+
+    await waitFor(() => expect(view.state.selection).toBeInstanceOf(NodeSelection));
+    expect(view.state.selection.from).toBe(findNodeStartPosition(view, "image"));
+    expect(document.getSelection()?.toString()).toBe("");
+    expect(container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
+
+    fireEvent.click(image!);
+
+    expect(container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source")).toBeInTheDocument();
+  });
+
+  it("clears the native text caret when a finalized image block is selected", async () => {
+    const { container, view } = await renderEditor(
+      ["Intro text", "", "![Screenshot](assets/pasted-image.png)", "", "Following content"].join("\n")
+    );
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    const introText = Array.from(container.querySelectorAll(".ProseMirror p"))
+      .find((paragraph) => paragraph.textContent?.includes("Intro text"))
+      ?.firstChild;
+
+    expect(image).toBeInTheDocument();
+    expect(introText).toBeInstanceOf(Text);
+
+    const range = document.createRange();
+    range.setStart(introText!, "Intro text".length);
+    range.collapse(true);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(range);
+    moveCursor(view, findTextPosition(view, "Intro text", "Intro text".length));
+    expect(document.getSelection()?.anchorNode).toBe(introText);
+
+    fireEvent.mouseDown(image!);
+
+    await waitFor(() => expect(view.state.selection).toBeInstanceOf(NodeSelection));
+    expect(view.state.selection.from).toBe(findNodeStartPosition(view, "image"));
+    await waitFor(() => expect(document.getSelection()?.rangeCount).toBe(0));
+    expect(document.getSelection()?.anchorNode).not.toBe(introText);
+    expect(container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
+  });
+
+  it("selects a finalized image block when its outer block surface is pressed after text focus", async () => {
+    const { container, view } = await renderEditor(
+      ["Intro text", "", "![Screenshot](assets/pasted-image.png)"].join("\n")
+    );
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+    const imageNode = image?.closest<HTMLElement>(".markra-image-node");
+
+    expect(image).toBeInTheDocument();
+    expect(imageNode).toBeInTheDocument();
+
+    moveCursor(view, findTextPosition(view, "Intro", "Intro".length));
+    expect(view.state.selection.empty).toBe(true);
+
+    fireEvent.mouseDown(imageNode!);
+
+    await waitFor(() => expect(view.state.selection).toBeInstanceOf(NodeSelection));
+    expect(view.state.selection.from).toBe(findNodeStartPosition(view, "image"));
+    expect(container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
+
+    fireEvent.click(imageNode!);
+
+    expect(container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source")).toBeInTheDocument();
+  });
+
+  it("waits until the image click completes before showing finalized image source controls", async () => {
+    const { container } = await renderEditor("Intro text\n\n![Screenshot](assets/pasted-image.png)");
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+
+    expect(image).toBeInTheDocument();
+
+    fireEvent.mouseDown(image!);
+
+    expect(container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source")).not.toBeInTheDocument();
+
+    fireEvent.click(image!);
+
+    await waitFor(() =>
+      expect(container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source")).toBeInTheDocument()
+    );
   });
 
   it("hides open finalized image source controls when read-only is enabled", async () => {
@@ -1403,7 +1595,7 @@ describe("MarkdownPaper editing", () => {
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
     expect(image).toBeInTheDocument();
 
-    fireEvent.mouseDown(image!);
+    clickFinalizedImage(image!);
     expect(container.querySelector(".ProseMirror .markra-image-node-source")).toBeInTheDocument();
 
     rerender(
@@ -8078,6 +8270,15 @@ describe("MarkdownPaper editing", () => {
     expect(imageNode?.parentElement).toBe(container.querySelector(".ProseMirror"));
   });
 
+  it("renders escaped image alt text as a finalized image node", async () => {
+    const { container, view } = await renderEditor(String.raw`![A \] bracket \\ slash](assets/image.png)`);
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/image.png"]');
+
+    expect(image).toBeInTheDocument();
+    expect(image).toHaveAttribute("alt", String.raw`A ] bracket \ slash`);
+    expect(view.state.doc.child(0).type.name).toBe("image");
+  });
+
   it("splits paragraph image markdown into block image nodes", async () => {
     const { container, view } = await renderEditor("Before ![Screenshot](assets/pasted-image.png) after");
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
@@ -8114,7 +8315,7 @@ describe("MarkdownPaper editing", () => {
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
     expect(image).toBeInTheDocument();
 
-    expect(fireEvent.mouseDown(image!)).toBe(false);
+    expect(clickFinalizedImage(image!)).toBe(false);
 
     const sourceRow = container.querySelector<HTMLElement>(".ProseMirror .markra-image-node-source-row");
     expect(sourceRow?.querySelector(".markra-image-node-source-icon")).toHaveAttribute("aria-hidden", "true");
@@ -8140,10 +8341,13 @@ describe("MarkdownPaper editing", () => {
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
     expect(image).toBeInTheDocument();
 
-    expect(fireEvent.mouseDown(image!)).toBe(false);
+    expect(clickFinalizedImage(image!)).toBe(false);
 
     const source = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
     expect(source).toHaveValue("![Screenshot](assets/pasted-image.png)");
+
+    fireEvent.mouseDown(source!);
+    await waitFor(() => expect(source).toHaveFocus());
 
     expect(fireEvent.keyDown(source!, { key: "Enter" })).toBe(false);
 
@@ -8163,7 +8367,7 @@ describe("MarkdownPaper editing", () => {
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
     expect(image).toBeInTheDocument();
 
-    expect(fireEvent.mouseDown(image!)).toBe(false);
+    expect(clickFinalizedImage(image!)).toBe(false);
 
     const source = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
     expect(source).toHaveValue("![Screenshot](assets/pasted-image.png)");
@@ -8177,13 +8381,35 @@ describe("MarkdownPaper editing", () => {
     expect(view.state.selection).toBeInstanceOf(NodeSelection);
   });
 
+  it("deletes the selected finalized image block on Backspace", async () => {
+    const { container, editor, view } = await renderEditor(
+      ["Intro", "", "![Screenshot](assets/pasted-image.png)", "", "Outro"].join("\n")
+    );
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
+
+    expect(image).toBeInTheDocument();
+
+    clickFinalizedImage(image!);
+    await waitFor(() => expect(view.state.selection).toBeInstanceOf(NodeSelection));
+
+    expect(fireEvent.keyDown(view.dom, { key: "Backspace", bubbles: true, cancelable: true })).toBe(false);
+
+    expect(
+      container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]')
+    ).not.toBeInTheDocument();
+    expect(serializeMarkdown(view.state.doc)).toContain("Intro");
+    expect(serializeMarkdown(view.state.doc)).toContain("Outro");
+    expect(serializeMarkdown(view.state.doc)).not.toContain("assets/pasted-image.png");
+  });
+
   it("deletes a finalized image when its markdown source is cleared", async () => {
     const { container, editor, view } = await renderEditor("Intro\n\n![Screenshot](assets/pasted-image.png)");
 
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
     expect(image).toBeInTheDocument();
 
-    expect(fireEvent.mouseDown(image!)).toBe(false);
+    expect(clickFinalizedImage(image!)).toBe(false);
 
     const source = container.querySelector<HTMLInputElement>(".ProseMirror .markra-image-node-source");
     expect(source).toHaveValue("![Screenshot](assets/pasted-image.png)");
@@ -8204,7 +8430,7 @@ describe("MarkdownPaper editing", () => {
     const image = container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/pasted-image.png"]');
     expect(image).toBeInTheDocument();
 
-    expect(fireEvent.mouseDown(image!)).toBe(false);
+    expect(clickFinalizedImage(image!)).toBe(false);
     expect(container.querySelector(".ProseMirror .markra-image-node-source")).toBeInTheDocument();
 
     fireEvent.mouseDown(document.body);
@@ -8237,6 +8463,23 @@ describe("MarkdownPaper editing", () => {
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toContain("<https://example.test/articles/about>");
     await settleMarkdownListener();
+  });
+
+  it("pastes URLs over a selected raw image source as plain text", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", { onMarkdownChange });
+    const pastedSrc = "https://cdn.example.test/images/pasted.png";
+
+    insertTextDirectly(view, "![alt](assets/image.png)");
+    const sourceFrom = findTextPosition(view, "assets/image.png");
+    selectText(view, sourceFrom, sourceFrom + "assets/image.png".length);
+
+    expect(pasteText(view, pastedSrc)).toBe(true);
+
+    expect(container.querySelector<HTMLAnchorElement>(`.ProseMirror a[href="${pastedSrc}"]`)).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror")?.textContent).toBe(`![alt](${pastedSrc})`);
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining(`![alt](${pastedSrc})`)));
   });
 
   it("keeps typed image markdown editable until it folds into a live preview", async () => {

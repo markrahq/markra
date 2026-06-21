@@ -211,6 +211,19 @@ describe("editor stylesheet", () => {
     expect(imageSelectionStyles).not.toContain("outline-none");
   });
 
+  it("keeps finalized image source text selection visible while the image block is selected", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const sourceSelectionStart = styles.indexOf(".markdown-paper .ProseMirror-hideselection .markra-image-node-source");
+    const sourceSelectionEnd = styles.indexOf(".markdown-paper .markra-image-node-source-invalid", sourceSelectionStart);
+    const sourceSelectionStyles = styles.slice(sourceSelectionStart, sourceSelectionEnd);
+
+    expect(sourceSelectionStart).toBeGreaterThanOrEqual(0);
+    expect(sourceSelectionEnd).toBeGreaterThan(sourceSelectionStart);
+    expect(sourceSelectionStyles).toContain("caret-color: var(--text-primary) !important");
+    expect(sourceSelectionStyles).toContain(".markdown-paper .ProseMirror-hideselection .markra-image-node-source::selection");
+    expect(sourceSelectionStyles).toContain("background: color-mix(in srgb, var(--accent) 28%, transparent)");
+  });
+
   it("gives horizontal rules a forgiving hit target without heavy selected-node feedback", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const ruleStart = styles.indexOf(".markdown-paper hr {");
