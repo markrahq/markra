@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  English | <a href="README.zh-CN.md">简体中文</a> | <a href="https://editor.markra.app/">Web Editor</a> | <a href="#download">Download</a> | <a href="#key-features">Key Features</a> | <a href="#contributing">Contributing</a> | <a href="#contributors">Contributors</a> | <a href="#license">License</a>
+  English | <a href="README.zh-CN.md">简体中文</a> | <a href="https://editor.markra.app/">Web Editor</a> | <a href="#download">Download</a> | <a href="#demo">Demo</a> | <a href="#documentation">Docs</a> | <a href="#comparison">Comparison</a> | <a href="#key-features">Key Features</a> | <a href="#contributing">Contributing</a> | <a href="#contributors">Contributors</a> | <a href="#license">License</a>
 </p>
 
 <p align="center">
@@ -59,6 +59,49 @@ Use the web editor at [editor.markra.app](https://editor.markra.app/).
 
 Download the latest desktop builds from [GitHub Releases](https://github.com/murongg/markra/releases/latest): macOS Apple Silicon/Intel, Windows installer/portable, and Linux AppImage.
 
+## Demo
+
+<p align="center">
+  <video src="assets/videos/home_video.mp4" poster="assets/videos/home_video_poster.jpg" controls muted playsinline width="100%"></video>
+</p>
+
+<p align="center">
+  <a href="assets/videos/home_video.mp4">Open the demo video</a>
+</p>
+
+## Documentation
+
+- [Changelog](CHANGELOG.md)
+- [Privacy and data flow](docs/privacy.md)
+- [Contributing guide](CONTRIBUTING.md)
+
+## Desktop And Web
+
+| Capability | Desktop app | Web editor |
+| --- | --- | --- |
+| WYSIWYG and source editing | Full editor experience | Full editor experience |
+| Open local files and folders | Native dialogs, file paths, and watchers | Browser file picker, folder picker, and file handles |
+| File tree operations | Create, rename, move, delete, sort, reveal, and multi-select | Create, rename, move, and delete where browser permissions allow |
+| Auto-save and restore | Existing files, tabs, drafts, workspace windows | Browser file handles and IndexedDB state where available |
+| AI providers | Native runtime requests with app proxy settings | Browser requests subject to provider CORS support |
+| Image storage | Local folders, WebDAV, PicGo/PicList, and S3-compatible storage | Local/browser handles and WebDAV where CORS permits |
+| Backup and sync | Local backups and WebDAV sync | Not available in the web runtime |
+| Export | HTML, PDF, and Pandoc formats when configured | HTML download and browser print/PDF |
+
+## Comparison
+
+Markra is not trying to replace every Markdown tool. It is closest to a calm document editor with native AI and local files.
+
+| Focus | Markra | Typora | Obsidian |
+| --- | --- | --- | --- |
+| Primary fit | Local-first Markdown writing with built-in AI editing | Minimal live-preview Markdown writing | Personal knowledge base and linked notes |
+| Editing model | WYSIWYG document surface plus source mode | Seamless live preview with Markdown syntax hidden while writing | Markdown notes with reading/live-preview editing modes |
+| AI workflow | Native inline actions and side panel, with preview before applying edits | Not a core product workflow | Not a core product workflow; plugins may vary |
+| File model | Plain `.md` files, single-file or folder workspaces | Plain Markdown files and folder/file tree workflows | Local vaults using open file formats |
+| Knowledge features | Tabs, outline, workspace search, and double-bracket link completion | Outline, file tree, internal links, and export-oriented writing tools | Backlinks, graph view, Canvas, and large plugin ecosystem |
+| Sync and storage | Optional WebDAV sync, local backups, and configurable image storage | Uses local files; external sync services can be used | Optional paid Obsidian Sync and Publish services |
+| Openness and cost | Free and AGPL-3.0 open source | Paid app after trial | Free app with optional paid services and licenses |
+
 ## Key Features
 
 ### WYSIWYG Markdown
@@ -76,7 +119,7 @@ Download the latest desktop builds from [GitHub Releases](https://github.com/mur
 
 ### Local Workspace
 
-- Open a single file or an entire folder; browse, create, rename, move, delete, sort, and reveal files from the file tree.
+- Open a single file or an entire folder; browse, create, rename, move, delete, sort, reveal, and multi-select files from the file tree.
 - Document tabs, side-by-side panes, quick open, workspace search, outline navigation, and double-bracket link completion.
 - Auto-save existing files, restore tabs and workspace state, and show document or selected-text word counts.
 
