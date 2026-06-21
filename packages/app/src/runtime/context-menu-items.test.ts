@@ -163,4 +163,31 @@ describe("markdown file tree context menu entries", () => {
     expect(openContainingFolder).toHaveBeenCalledTimes(1);
     expect(openContainingFolder.mock.calls[0]).toEqual([]);
   });
+
+  it("disables single-file actions for a multi-selected markdown file context", () => {
+    const file = {
+      name: "guide.md",
+      path: "/mock-project/docs/guide.md",
+      relativePath: "docs/guide.md"
+    };
+    const entries = createMarkdownFileTreeContextMenuEntries(
+      {
+        canOpenFileToSide: () => true,
+        deleteFile: vi.fn(),
+        multiSelect: true,
+        openContainingFolder: vi.fn(),
+        openFileToSide: vi.fn(),
+        renameFile: vi.fn(),
+        saveFileAsTemplate: vi.fn()
+      },
+      "en",
+      file
+    );
+
+    expect(menuItemById(entries, "markra:file-tree:open-to-side").disabled).toBe(true);
+    expect(menuItemById(entries, "markra:file-tree:delete").disabled).toBe(false);
+    expect(menuItemById(entries, "markra:file-tree:save-as-template").disabled).toBe(true);
+    expect(menuItemById(entries, "markra:file-tree:open-containing-folder").disabled).toBe(true);
+    expect(menuItemById(entries, "markra:file-tree:rename").disabled).toBe(true);
+  });
 });

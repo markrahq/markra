@@ -691,6 +691,171 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(openFile).toHaveBeenCalledWith(markdownFiles[2]);
   });
 
+  it("supports modifier-based multi-selection in the visible file tree", () => {
+    const openFile = vi.fn();
+    const { container } = render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={[
+          ...markdownFiles,
+          { name: "Architecture.md", path: "/vault/Architecture.md", relativePath: "Architecture.md" }
+        ]}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={openFile}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const architecture = screen.getByRole("button", { name: "Architecture.md" });
+    const aws = screen.getByRole("button", { name: "AWS.md" });
+    const untitled = screen.getByRole("button", { name: "Untitled.md" });
+    const folder = screen.getByRole("button", { name: "deploy" });
+
+    fireEvent.click(aws, { metaKey: true });
+
+    expect(openFile).not.toHaveBeenCalled();
+    expect(aws).toHaveAttribute("aria-selected", "true");
+    expect(architecture).not.toHaveAttribute("aria-selected");
+
+    fireEvent.click(architecture, { ctrlKey: true });
+
+    expect(openFile).not.toHaveBeenCalled();
+    expect(architecture).toHaveAttribute("aria-selected", "true");
+    expect(aws).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(untitled, { shiftKey: true });
+
+    expect(openFile).not.toHaveBeenCalled();
+    expect(architecture).toHaveAttribute("aria-selected", "true");
+    expect(aws).toHaveAttribute("aria-selected", "true");
+    expect(untitled).toHaveAttribute("aria-selected", "true");
+    expect(folder).not.toHaveAttribute("aria-selected");
+
+    fireEvent.click(aws, { ctrlKey: true });
+
+    expect(aws).not.toHaveAttribute("aria-selected");
+    expect(architecture).toHaveAttribute("aria-selected", "true");
+    expect(untitled).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.mouseDown(container.querySelector(".file-tree-scroll") as HTMLElement);
+
+    expect(architecture).not.toHaveAttribute("aria-selected");
+    expect(untitled).not.toHaveAttribute("aria-selected");
+
+    fireEvent.click(architecture, { metaKey: true });
+    fireEvent.click(untitled, { metaKey: true });
+
+    expect(architecture).toHaveAttribute("aria-selected", "true");
+    expect(untitled).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(untitled);
+
+    expect(openFile).toHaveBeenCalledWith(markdownFiles[0]);
+    expect(architecture).not.toHaveAttribute("aria-selected");
+    expect(untitled).not.toHaveAttribute("aria-selected");
+  });
+
+  it("clears file multi-selection when clicking outside file rows", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={[
+          ...markdownFiles,
+          { name: "Architecture.md", path: "/vault/Architecture.md", relativePath: "Architecture.md" }
+        ]}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const architecture = screen.getByRole("button", { name: "Architecture.md" });
+    const aws = screen.getByRole("button", { name: "AWS.md" });
+
+    fireEvent.click(aws, { metaKey: true });
+    fireEvent.click(architecture, { metaKey: true });
+
+    expect(architecture).toHaveAttribute("aria-selected", "true");
+    expect(aws).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.pointerDown(screen.getByText("Files"));
+
+    expect(architecture).not.toHaveAttribute("aria-selected");
+    expect(aws).not.toHaveAttribute("aria-selected");
+
+    fireEvent.click(aws, { metaKey: true });
+    fireEvent.click(architecture, { metaKey: true });
+    fireEvent.pointerDown(screen.getByRole("button", { name: "deploy" }));
+
+    expect(architecture).not.toHaveAttribute("aria-selected");
+    expect(aws).not.toHaveAttribute("aria-selected");
+  });
+
+  it("uses selected file rows for supported file tree context menu actions", () => {
+    const deleteFile = vi.fn();
+    const openFileToSide = vi.fn();
+    const architectureFile = {
+      name: "Architecture.md",
+      path: "/vault/Architecture.md",
+      relativePath: "Architecture.md"
+    };
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={[...markdownFiles, architectureFile]}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onDeleteFile={deleteFile}
+        onOpenFile={() => {}}
+        onOpenFileToSide={openFileToSide}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const architecture = screen.getByRole("button", { name: "Architecture.md" });
+    const aws = screen.getByRole("button", { name: "AWS.md" });
+    const untitled = screen.getByRole("button", { name: "Untitled.md" });
+
+    fireEvent.click(aws, { metaKey: true });
+    fireEvent.click(architecture, { metaKey: true });
+    fireEvent.contextMenu(aws);
+
+    const selectedContextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+    expect(selectedContextHandlers).toEqual(expect.objectContaining({ multiSelect: true }));
+    selectedContextHandlers?.openFileToSide?.(markdownFiles[1]);
+
+    expect(openFileToSide).toHaveBeenCalledWith(markdownFiles[1]);
+    expect(openFileToSide).toHaveBeenCalledWith(architectureFile);
+    expect(openFileToSide).toHaveBeenCalledTimes(2);
+
+    selectedContextHandlers?.deleteFile?.(markdownFiles[1]);
+
+    expect(deleteFile).toHaveBeenCalledWith(markdownFiles[1], {
+      files: expect.arrayContaining([markdownFiles[1], architectureFile])
+    });
+    expect(deleteFile.mock.calls[0]?.[1]?.files).toHaveLength(2);
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+
+    deleteFile.mockClear();
+    openFileToSide.mockClear();
+    fireEvent.contextMenu(untitled);
+
+    const singleContextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+    expect(singleContextHandlers).toEqual(expect.objectContaining({ multiSelect: false }));
+    singleContextHandlers?.openFileToSide?.(markdownFiles[0]);
+    singleContextHandlers?.deleteFile?.(markdownFiles[0]);
+
+    expect(openFileToSide).not.toHaveBeenCalled();
+    expect(deleteFile).toHaveBeenCalledWith(markdownFiles[0]);
+    expect(deleteFile).toHaveBeenCalledTimes(1);
+  });
+
   it("reveals a requested file path in the tree", () => {
     const { rerender } = render(
       <MarkdownFileTreeDrawer
@@ -2292,9 +2457,15 @@ describe("MarkdownFileTreeDrawer", () => {
     fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
 
     const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
-    expect(contextHandlers?.openFileToSide).toBe(openFileToSide);
+    expect(contextHandlers?.openFileToSide).toEqual(expect.any(Function));
     expect(contextHandlers?.canOpenFileToSide?.(markdownFiles[0])).toBe(false);
     expect(contextHandlers?.canOpenFileToSide?.(markdownFiles[1])).toBe(true);
+
+    contextHandlers?.openFileToSide?.(markdownFiles[0]);
+    contextHandlers?.openFileToSide?.(markdownFiles[1]);
+
+    expect(openFileToSide).toHaveBeenCalledWith(markdownFiles[1]);
+    expect(openFileToSide).toHaveBeenCalledTimes(1);
   });
 
   it("keeps file tree context-menu rows from selecting text", () => {

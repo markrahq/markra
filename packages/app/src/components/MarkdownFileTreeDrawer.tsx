@@ -135,7 +135,10 @@ type MarkdownFileTreeDrawerProps = {
   width?: number;
   onCreateFile?: (fileName: string, parentPath?: string | null, contents?: string) => unknown | Promise<unknown>;
   onCreateFolder?: (folderName: string, parentPath?: string | null) => unknown | Promise<unknown>;
-  onDeleteFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
+  onDeleteFile?: (
+    file: NativeMarkdownFolderFile,
+    context?: { files: readonly NativeMarkdownFolderFile[] }
+  ) => unknown | Promise<unknown>;
   onFileTreeSortChange?: (sort: FileTreeSort) => unknown;
   onOpenFile: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onOpenContainingFolder?: (path: string) => unknown | Promise<unknown>;
@@ -444,6 +447,8 @@ export function MarkdownFileTreeDrawer({
   const [activeDragFile, setActiveDragFile] = useState<NativeMarkdownFolderFile | null>(null);
   const [collapsedOutlineKeys, setCollapsedOutlineKeys] = useState<Set<string>>(() => new Set());
   const [pendingRevealPath, setPendingRevealPath] = useState<string | null>(null);
+  const [selectedFileTreePaths, setSelectedFileTreePaths] = useState<Set<string>>(() => new Set());
+  const [fileTreeSelectionAnchorPath, setFileTreeSelectionAnchorPath] = useState<string | null>(null);
   const lastRevealRequestIdRef = useRef<number | null>(null);
   const lastAutoRevealedPathRef = useRef<string | null>(null);
   renamingPathRef.current = renamingPath;
@@ -497,6 +502,38 @@ export function MarkdownFileTreeDrawer({
     [fileTreeScrollOffset, fileTreeViewportHeight, getFileTreeRowKey, visibleFileTreeRows]
   );
   const virtualFileTreeHeight = visibleFileTreeRows.length * fileTreeRowHeight;
+  const visibleFileTreeFilePaths = useMemo(
+    () => visibleFileTreeRows.flatMap((row) =>
+      row.type === "node" && row.node.type === "file" ? [row.node.file.path] : []
+    ),
+    [visibleFileTreeRows]
+  );
+  const allFileTreeFilePaths = useMemo(
+    () => files.filter((file) => file.kind !== "folder").map((file) => file.path),
+    [files]
+  );
+  const pathInFileTree = useCallback((path: string | null | undefined, paths: readonly string[]) => (
+    paths.some((candidatePath) => sameNativePath(candidatePath, path))
+  ), []);
+  const fileTreePathSelected = useCallback((path: string) => (
+    Array.from(selectedFileTreePaths).some((selectedPath) => sameNativePath(selectedPath, path))
+  ), [selectedFileTreePaths]);
+  const clearFileTreeSelection = useCallback(() => {
+    setSelectedFileTreePaths((current) => current.size === 0 ? current : new Set());
+  }, []);
+  const clearFileTreeMultiSelection = useCallback(() => {
+    clearFileTreeSelection();
+    setFileTreeSelectionAnchorPath(null);
+  }, [clearFileTreeSelection]);
+  const fileTreeSelectionRange = useCallback((anchorPath: string, targetPath: string) => {
+    const anchorIndex = visibleFileTreeFilePaths.findIndex((path) => sameNativePath(path, anchorPath));
+    const targetIndex = visibleFileTreeFilePaths.findIndex((path) => sameNativePath(path, targetPath));
+    if (anchorIndex < 0 || targetIndex < 0) return [targetPath];
+
+    const startIndex = Math.min(anchorIndex, targetIndex);
+    const endIndex = Math.max(anchorIndex, targetIndex);
+    return visibleFileTreeFilePaths.slice(startIndex, endIndex + 1);
+  }, [visibleFileTreeFilePaths]);
   const setFileTreeScrollRef = useCallback((element: HTMLDivElement | null) => {
     fileTreeScrollNodeRef.current = element;
     if (!element) return undefined;
@@ -655,6 +692,39 @@ export function MarkdownFileTreeDrawer({
       resizeObserver.disconnect();
     };
   }, [fileTreeScrollElement, measureFileTreeViewport]);
+
+  useEffect(() => {
+    setSelectedFileTreePaths((current) => {
+      const next = new Set(Array.from(current).filter((path) => pathInFileTree(path, allFileTreeFilePaths)));
+      return next.size === current.size ? current : next;
+    });
+    setFileTreeSelectionAnchorPath((current) => (
+      pathInFileTree(current, allFileTreeFilePaths) ? current : null
+    ));
+  }, [allFileTreeFilePaths, pathInFileTree]);
+
+  useEffect(() => {
+    if (selectedFileTreePaths.size === 0) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const eventTarget = event.target;
+      const target = eventTarget instanceof Element
+        ? eventTarget
+        : eventTarget instanceof Node
+          ? eventTarget.parentElement
+          : null;
+      if (!target) return;
+      if (target.closest("[data-file-tree-path], [data-markra-context-menu-root], [data-markra-context-menu]")) return;
+
+      clearFileTreeMultiSelection();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [clearFileTreeMultiSelection, selectedFileTreePaths.size]);
 
   useEffect(() => {
     if (!fileTreeSortMenuOpen && !createMenuOpen && !outlineLevelMenuOpen) return;
@@ -995,6 +1065,7 @@ export function MarkdownFileTreeDrawer({
     if (target?.closest("button, input")) return;
 
     cancelFileTreeInputs();
+    clearFileTreeMultiSelection();
   };
 
   useEffect(() => {
@@ -1029,6 +1100,22 @@ export function MarkdownFileTreeDrawer({
     return file.kind === "folder" ? file.path : parentPathFromPath(file.path);
   };
 
+  const fileTreeContextTargets = (targetFile: NativeMarkdownFolderFile | undefined) => {
+    if (!targetFile) return [];
+    if (targetFile.kind === "folder" || !fileTreePathSelected(targetFile.path)) return [targetFile];
+
+    const selectedTargets = visibleFileTreeFilePaths
+      .filter((path) => fileTreePathSelected(path))
+      .map((path) => files.find((candidate) => candidate.kind !== "folder" && sameNativePath(candidate.path, path)) ?? null)
+      .filter((candidate): candidate is NativeMarkdownFolderFile => candidate !== null);
+
+    return selectedTargets.length > 0 ? selectedTargets : [targetFile];
+  };
+
+  const canOpenFileTreeContextTargetToSide = (targetFile: NativeMarkdownFolderFile) => (
+    targetFile.kind !== "asset" && !sameNativePath(targetFile.path, currentPath)
+  );
+
   const openContextMenu = (
     event: ReactMouseEvent,
     file?: NativeMarkdownFolderFile,
@@ -1039,10 +1126,13 @@ export function MarkdownFileTreeDrawer({
     if (!backgroundContextMenuAvailable && !file) return;
 
     const createTargetFolderPath = normalizeCreateParentPath(targetFolderPath ?? targetFolderPathForFile(file));
+    const contextTargets = fileTreeContextTargets(file);
+    const multiSelect = contextTargets.length > 1;
 
     showNativeMarkdownFileTreeContextMenu(
       {
-        canOpenFileToSide: (targetFile) => targetFile.path !== currentPath,
+        canOpenFileToSide: (targetFile) =>
+          Boolean(onOpenFileToSide && fileTreeContextTargets(targetFile).some(canOpenFileTreeContextTargetToSide)),
         createFile: fileCreationAvailable ? () => startCreatingFile(createTargetFolderPath) : undefined,
         createFileFromTemplates: fileCreationAvailable
           ? availableMarkdownTemplates.map((template) => ({
@@ -1053,7 +1143,10 @@ export function MarkdownFileTreeDrawer({
           : undefined,
         createFolder: folderCreationAvailable ? () => startCreatingFolder(createTargetFolderPath) : undefined,
         deleteFile: (targetFile) => {
-          onDeleteFile?.(targetFile);
+          const targetFiles = fileTreeContextTargets(targetFile);
+          if (targetFiles.length > 1) return onDeleteFile?.(targetFile, { files: targetFiles });
+
+          return onDeleteFile?.(targetFile);
         },
         openContainingFolder: onOpenContainingFolder
           ? (targetFile) => {
@@ -1063,7 +1156,15 @@ export function MarkdownFileTreeDrawer({
             return onOpenContainingFolder(path);
           }
           : undefined,
-        openFileToSide: onOpenFileToSide,
+        openFileToSide: onOpenFileToSide
+          ? (targetFile) =>
+            Promise.all(
+              fileTreeContextTargets(targetFile)
+                .filter(canOpenFileTreeContextTargetToSide)
+                .map((target) => Promise.resolve(onOpenFileToSide(target)))
+            )
+          : undefined,
+        multiSelect,
         renameFile: startRenamingFile,
         saveFileAsTemplate: onSaveFileAsTemplate
       },
@@ -1552,8 +1653,63 @@ export function MarkdownFileTreeDrawer({
     );
   };
 
+  const handleFileRowClick = (
+    event: ReactMouseEvent<HTMLButtonElement>,
+    file: NativeMarkdownFolderFile
+  ) => {
+    const additiveSelection = event.metaKey || event.ctrlKey;
+    const rangeSelection = event.shiftKey;
+
+    setSelectedCreateParentPath(null);
+
+    if (!additiveSelection && !rangeSelection) {
+      clearFileTreeSelection();
+      setFileTreeSelectionAnchorPath(file.path);
+      onOpenFile(file);
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    if (rangeSelection) {
+      const anchorPath =
+        fileTreeSelectionAnchorPath && pathInFileTree(fileTreeSelectionAnchorPath, visibleFileTreeFilePaths)
+          ? fileTreeSelectionAnchorPath
+          : currentPath && pathInFileTree(currentPath, visibleFileTreeFilePaths)
+            ? currentPath
+            : file.path;
+      const rangePaths = fileTreeSelectionRange(anchorPath, file.path);
+
+      setSelectedFileTreePaths((current) => {
+        if (!additiveSelection) return new Set(rangePaths);
+
+        const next = new Set(current);
+        rangePaths.forEach((path) => next.add(path));
+        return next;
+      });
+      setFileTreeSelectionAnchorPath(anchorPath);
+      return;
+    }
+
+    setSelectedFileTreePaths((current) => {
+      const next = new Set(current);
+      const selectedPath = Array.from(next).find((path) => sameNativePath(path, file.path));
+
+      if (selectedPath) {
+        next.delete(selectedPath);
+      } else {
+        next.add(file.path);
+      }
+
+      return next;
+    });
+    setFileTreeSelectionAnchorPath(file.path);
+  };
+
   const renderFileRowContent = (node: FileNode, depth: number, mode: FileTreeRowRenderMode) => {
     const active = sameNativePath(node.file.path, currentPath);
+    const selected = fileTreePathSelected(node.file.path);
     const renaming = renamingPath === node.file.path;
     const asset = node.file.kind === "asset";
     const FileIcon = asset ? ImageIcon : FileText;
@@ -1568,10 +1724,11 @@ export function MarkdownFileTreeDrawer({
         {(dragSource) => (
           <button
             ref={dragSource.setNodeRef}
-            className={`relative grid h-8 w-full cursor-pointer touch-none grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) ${dragSource.isDragging ? "opacity-70" : ""} ${fileTreeContextRowSelectionClassName} ${rowIndentClass} ${rowBranchClass}`}
+            className={`relative grid h-8 w-full cursor-pointer touch-none grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) aria-[selected=true]:bg-(--accent-soft) aria-[selected=true]:text-(--text-heading) aria-[selected=true]:shadow-[inset_3px_0_0_var(--accent)] ${dragSource.isDragging ? "opacity-70" : ""} ${fileTreeContextRowSelectionClassName} ${rowIndentClass} ${rowBranchClass}`}
             style={rowIndentStyle}
             type="button"
             aria-current={active ? "page" : undefined}
+            aria-selected={selected ? "true" : undefined}
             aria-label={node.relativePath}
             data-active-file-tree-row={active ? "true" : undefined}
             data-file-tree-path={node.file.path}
@@ -1580,10 +1737,7 @@ export function MarkdownFileTreeDrawer({
             }
             title={node.file.path}
             onContextMenu={(event) => openContextMenu(event, node.file)}
-            onClick={() => {
-              setSelectedCreateParentPath(null);
-              onOpenFile(node.file);
-            }}
+            onClick={(event) => handleFileRowClick(event, node.file)}
             {...dragSource.attributes}
             {...dragSource.listeners}
           >
@@ -1617,6 +1771,7 @@ export function MarkdownFileTreeDrawer({
         className={depth === 0 ? "m-0 list-none p-0" : `ml-5 list-none border-l border-(--border-default) p-0 ${listDropTarget ? fileTreeDropListTargetClassName : ""}`}
         role={depth === 0 ? "tree" : "group"}
         aria-label={treeLabel}
+        aria-multiselectable={depth === 0 ? "true" : undefined}
       >
         {renderCreateRows(parentPath, depth)}
         {nodes.map((node) => {
@@ -1658,6 +1813,7 @@ export function MarkdownFileTreeDrawer({
       className="relative m-0 list-none p-0"
       role="tree"
       aria-label={label("app.markdownFiles")}
+      aria-multiselectable="true"
       style={{ height: `${virtualFileTreeHeight}px` }}
     >
       {virtualFileTreeRows.map((virtualRow) => {

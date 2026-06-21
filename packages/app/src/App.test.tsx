@@ -2279,6 +2279,48 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedDeleteNativeMarkdownTreeFile).toHaveBeenCalledWith(mockFolderPath, docsPath));
   });
 
+  it("uses plural confirmation copy when deleting selected sidebar files", async () => {
+    const alphaFile = { name: "alpha.md", path: `${mockFolderPath}/alpha.md`, relativePath: "alpha.md" };
+    const betaFile = { name: "beta.md", path: `${mockFolderPath}/beta.md`, relativePath: "beta.md" };
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([alphaFile, betaFile]);
+    mockedConfirmNativeMarkdownFileDelete.mockResolvedValue(true);
+    mockedDeleteNativeMarkdownTreeFile.mockResolvedValue(undefined);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    const alphaButton = await screen.findByRole("button", { name: "alpha.md" });
+    const betaButton = await screen.findByRole("button", { name: "beta.md" });
+    fireEvent.click(alphaButton, { metaKey: true });
+    fireEvent.click(betaButton, { metaKey: true });
+    fireEvent.contextMenu(alphaButton);
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+
+    await act(async () => {
+      await contextHandlers?.deleteFile?.(alphaFile);
+    });
+
+    await waitFor(() =>
+      expect(mockedConfirmNativeMarkdownFileDelete).toHaveBeenCalledWith("2 files", {
+        cancelLabel: "Cancel",
+        message: "Delete these 2 files?",
+        okLabel: "Confirm"
+      })
+    );
+    await waitFor(() => expect(mockedDeleteNativeMarkdownTreeFile).toHaveBeenCalledWith(mockFolderPath, alphaFile.path));
+    await waitFor(() => expect(mockedDeleteNativeMarkdownTreeFile).toHaveBeenCalledWith(mockFolderPath, betaFile.path));
+    expect(mockedConfirmNativeMarkdownFileDelete).toHaveBeenCalledTimes(1);
+  });
+
   it("saves a sidebar markdown file as a custom template", async () => {
     const templatePath = `${mockFolderPath}/standup.md`;
     const templateFile = { name: "standup.md", path: templatePath, relativePath: "standup.md" };

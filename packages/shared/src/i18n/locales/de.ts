@@ -341,6 +341,7 @@ const messages: LocaleMessages = {
   "app.renameMarkdownFolder": "Ordner umbenennen",
   "app.deleteMarkdownFile": "Datei löschen",
   "app.confirmDeleteMarkdownFile": "Diese Datei löschen?",
+  "app.confirmDeleteSelectedMarkdownFiles": "Diese {count} Dateien löschen?",
   "app.cancelDeleteMarkdownFile": "Abbrechen",
   "app.confirmDeleteMarkdownFileAction": "Bestätigen",
   "app.deleteMarkdownFolder": "Ordner löschen",

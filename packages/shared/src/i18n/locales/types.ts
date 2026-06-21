@@ -562,6 +562,7 @@ export type I18nKey =
   | "app.renameMarkdownFolder"
   | "app.deleteMarkdownFile"
   | "app.confirmDeleteMarkdownFile"
+  | "app.confirmDeleteSelectedMarkdownFiles"
   | "app.cancelDeleteMarkdownFile"
   | "app.confirmDeleteMarkdownFileAction"
   | "app.deleteMarkdownFolder"

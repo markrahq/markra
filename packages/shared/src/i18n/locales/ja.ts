@@ -349,6 +349,7 @@ const messages: LocaleMessages = {
   "app.renameMarkdownFolder": "フォルダ名を変更",
   "app.deleteMarkdownFile": "ファイルを削除",
   "app.confirmDeleteMarkdownFile": "このファイルを削除しますか？",
+  "app.confirmDeleteSelectedMarkdownFiles": "選択した {count} 件のファイルを削除しますか？",
   "app.cancelDeleteMarkdownFile": "キャンセル",
   "app.confirmDeleteMarkdownFileAction": "確認",
   "app.deleteMarkdownFolder": "フォルダを削除",

@@ -283,6 +283,7 @@ export function createMarkdownFileTreeContextMenuEntries(
   const label = (key: I18nKey) => menuLabel(language, key);
   const fileIsFolder = file?.kind === "folder";
   const fileIsAsset = file?.kind === "asset";
+  const multiSelect = Boolean(handlers.multiSelect);
   const templateItems = handlers.createFileFromTemplates?.map((template) =>
     contextMenuItem(fileTreeId(`new-from-template:${template.id}`), template.name, undefined, template.create)
   ) ?? [];
@@ -319,13 +320,14 @@ export function createMarkdownFileTreeContextMenuEntries(
   entries.push(contextMenuSeparator());
   if (!fileIsAsset && handlers.openFileToSide) {
     const canOpenFileToSide = handlers.canOpenFileToSide?.(file) ?? true;
+    const openFileToSideEnabled = canOpenFileToSide && !multiSelect;
     entries.push(
       contextMenuItem(
         fileTreeId("open-to-side"),
         label("app.openDocumentToSide"),
         undefined,
-        canOpenFileToSide ? () => handlers.openFileToSide?.(file) : undefined,
-        !canOpenFileToSide
+        openFileToSideEnabled ? () => handlers.openFileToSide?.(file) : undefined,
+        !openFileToSideEnabled
       )
     );
   }
@@ -335,13 +337,14 @@ export function createMarkdownFileTreeContextMenuEntries(
         fileTreeId("save-as-template"),
         label("app.saveMarkdownFileAsTemplate"),
         undefined,
-        () => handlers.saveFileAsTemplate?.(file)
+        () => handlers.saveFileAsTemplate?.(file),
+        multiSelect
       )
     );
   }
   entries.push(
-    contextMenuItem(fileTreeId("open-containing-folder"), label("app.openContainingFolder"), undefined, () => handlers.openContainingFolder?.(file), !handlers.openContainingFolder),
-    contextMenuItem(fileTreeId("rename"), label("app.renameMarkdownFile"), undefined, () => handlers.renameFile?.(file), !handlers.renameFile),
+    contextMenuItem(fileTreeId("open-containing-folder"), label("app.openContainingFolder"), undefined, () => handlers.openContainingFolder?.(file), multiSelect || !handlers.openContainingFolder),
+    contextMenuItem(fileTreeId("rename"), label("app.renameMarkdownFile"), undefined, () => handlers.renameFile?.(file), multiSelect || !handlers.renameFile),
     contextMenuItem(fileTreeId("delete"), label("app.deleteMarkdownFile"), undefined, () => handlers.deleteFile?.(file), !handlers.deleteFile)
   );
 

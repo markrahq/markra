@@ -95,7 +95,7 @@ import { saveEditorImage } from "./lib/image-upload";
 import { aiCommandSelection, automaticAiSelection } from "./lib/ai-selection";
 import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
 import { markAppPerformance } from "./lib/performance-marks";
-import { replaceMovedPath } from "./lib/path-move";
+import { replaceMovedPath, sameNativePath } from "./lib/path-move";
 import {
   resolveDesktopOsVersion,
   resolveDesktopPlatform,
@@ -1834,20 +1834,34 @@ function WorkspaceApp() {
       // Keep the existing tree state if the native move fails.
     }
   }, [applyMovedTreeFile, moveMarkdownTreeFile]);
-  const handleDeleteMarkdownTreeFile = useCallback(async (file: NativeMarkdownFolderFile) => {
+  const handleDeleteMarkdownTreeFile = useCallback(async (
+    file: NativeMarkdownFolderFile,
+    context?: { files: readonly NativeMarkdownFolderFile[] }
+  ) => {
+    const deleteTargets = context?.files?.length ? context.files : [file];
+    const uniqueDeleteTargets = deleteTargets.filter((target, index, targets) =>
+      targets.findIndex((candidate) => sameNativePath(candidate.path, target.path)) === index
+    );
+    const deletingMultipleFiles = uniqueDeleteTargets.length > 1;
     const fileIsFolder = file.kind === "folder";
-    const confirmed = await confirmNativeMarkdownFileDelete(file.name, {
+    const deleteCount = String(uniqueDeleteTargets.length);
+    const deleteCountLabel = translate("app.workspaceSearch.fileCountPlural").replace("{count}", deleteCount);
+    const confirmed = await confirmNativeMarkdownFileDelete(deletingMultipleFiles ? deleteCountLabel : file.name, {
       cancelLabel: translate(fileIsFolder ? "app.cancelDeleteMarkdownFolder" : "app.cancelDeleteMarkdownFile"),
-      message: translate(fileIsFolder ? "app.confirmDeleteMarkdownFolder" : "app.confirmDeleteMarkdownFile"),
+      message: deletingMultipleFiles
+        ? translate("app.confirmDeleteSelectedMarkdownFiles").replace("{count}", deleteCount)
+        : translate(fileIsFolder ? "app.confirmDeleteMarkdownFolder" : "app.confirmDeleteMarkdownFile"),
       okLabel: translate(fileIsFolder ? "app.confirmDeleteMarkdownFolderAction" : "app.confirmDeleteMarkdownFileAction")
     });
     if (!confirmed) return;
 
-    try {
-      const deleted = await deleteMarkdownTreeFile(file);
-      if (deleted) detachDeletedDocumentFile(file.path);
-    } catch {
-      // Leave the file visible when native deletion fails.
+    for (const targetFile of uniqueDeleteTargets) {
+      try {
+        const deleted = await deleteMarkdownTreeFile(targetFile);
+        if (deleted) detachDeletedDocumentFile(targetFile.path);
+      } catch {
+        // Leave the file visible when native deletion fails.
+      }
     }
   }, [deleteMarkdownTreeFile, detachDeletedDocumentFile, translate]);
   const handleSaveMarkdownFileAsTemplate = useCallback(async (file: NativeMarkdownFolderFile) => {

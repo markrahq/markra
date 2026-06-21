@@ -341,6 +341,7 @@ const messages: LocaleMessages = {
   "app.renameMarkdownFolder": "폴더 이름 변경",
   "app.deleteMarkdownFile": "파일 삭제",
   "app.confirmDeleteMarkdownFile": "이 파일을 삭제할까요?",
+  "app.confirmDeleteSelectedMarkdownFiles": "선택한 {count}개 파일을 삭제할까요?",
   "app.cancelDeleteMarkdownFile": "취소",
   "app.confirmDeleteMarkdownFileAction": "확인",
   "app.deleteMarkdownFolder": "폴더 삭제",

@@ -551,6 +551,7 @@ const messages: BaseLocaleMessages = {
   "app.renameMarkdownFolder": "Rename folder",
   "app.deleteMarkdownFile": "Delete file",
   "app.confirmDeleteMarkdownFile": "Delete this file?",
+  "app.confirmDeleteSelectedMarkdownFiles": "Delete these {count} files?",
   "app.cancelDeleteMarkdownFile": "Cancel",
   "app.confirmDeleteMarkdownFileAction": "Confirm",
   "app.deleteMarkdownFolder": "Delete folder",

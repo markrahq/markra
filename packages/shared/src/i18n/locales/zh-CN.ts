@@ -551,6 +551,7 @@ const messages: LocaleMessages = {
   "app.renameMarkdownFolder": "重命名文件夹",
   "app.deleteMarkdownFile": "删除文件",
   "app.confirmDeleteMarkdownFile": "确定删除这个文件吗？",
+  "app.confirmDeleteSelectedMarkdownFiles": "确定删除这 {count} 个文件吗？",
   "app.cancelDeleteMarkdownFile": "取消",
   "app.confirmDeleteMarkdownFileAction": "确认",
   "app.deleteMarkdownFolder": "删除文件夹",
