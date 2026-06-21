@@ -2294,6 +2294,215 @@ describe("useMarkdownDocument", () => {
     }
   });
 
+  it("allows native close after automatic save when the visual editor exposes previous clean content", async () => {
+    vi.useFakeTimers();
+
+    try {
+      let closeRequestHandler: ((event: MockWindowCloseRequestEvent) => unknown | Promise<unknown>) | null = null;
+      const guidePath = "/mock-files/vault/guide.md";
+      let editorMarkdown = "# Guide\n\nOriginal";
+      const confirmDiscardUnsavedChanges = vi.fn(() => false);
+      mockedListenNativeWindowCloseRequested.mockImplementation(async (handler) => {
+        closeRequestHandler = handler;
+        return () => {};
+      });
+      mockedReadNativeMarkdownFile.mockResolvedValue({
+        content: "# Guide\n\nOriginal",
+        name: "guide.md",
+        path: guidePath
+      });
+      mockedSaveNativeMarkdownFile.mockResolvedValue({
+        name: "guide.md",
+        path: guidePath
+      });
+      const { result } = renderHook(() =>
+        useMarkdownDocument({
+          autoSaveEnabled: true,
+          autoSaveIntervalMinutes: 1,
+          confirmDiscardUnsavedChanges,
+          getCurrentMarkdown: () => editorMarkdown,
+          isCurrentMarkdownEquivalent: (markdown) => markdown === editorMarkdown,
+          onTreeRootFromFilePath: vi.fn(),
+          onTreeRootFromFolderPath: vi.fn(),
+          preferencesReady: false,
+          restoreWorkspaceOnStartup: false
+        })
+      );
+
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(mockedListenNativeWindowCloseRequested).toHaveBeenCalled();
+
+      await act(async () => {
+        await result.current.openTreeMarkdownFile({
+          name: "guide.md",
+          path: guidePath,
+          relativePath: "guide.md"
+        });
+      });
+
+      editorMarkdown = "# Guide\n\nAutosaved edit.";
+      act(() => {
+        result.current.handleMarkdownChange(editorMarkdown, { surface: "visual" });
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+        await Promise.resolve();
+      });
+
+      expect(result.current.document).toMatchObject({
+        content: "# Guide\n\nAutosaved edit.",
+        dirty: false,
+        name: "guide.md",
+        path: guidePath
+      });
+
+      editorMarkdown = "# Guide\n\nOriginal";
+      const preventDefault = vi.fn();
+      await act(async () => {
+        if (!closeRequestHandler) throw new Error("native close request handler was not registered");
+        await closeRequestHandler({ preventDefault });
+      });
+
+      expect(confirmDiscardUnsavedChanges).not.toHaveBeenCalled();
+      expect(preventDefault).not.toHaveBeenCalled();
+      expect(result.current.document).toMatchObject({
+        content: "# Guide\n\nAutosaved edit.",
+        dirty: false,
+        name: "guide.md",
+        path: guidePath
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("prompts after automatic save when the visual editor explicitly changes back to previous content", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const guidePath = "/mock-files/vault/guide.md";
+      const confirmDiscardUnsavedChanges = vi.fn(() => false);
+      mockedReadNativeMarkdownFile.mockResolvedValue({
+        content: "# Guide\n\nOriginal",
+        name: "guide.md",
+        path: guidePath
+      });
+      mockedSaveNativeMarkdownFile.mockResolvedValue({
+        name: "guide.md",
+        path: guidePath
+      });
+      const { result } = renderHook(() =>
+        useMarkdownDocument({
+          autoSaveEnabled: true,
+          autoSaveIntervalMinutes: 1,
+          confirmDiscardUnsavedChanges,
+          getCurrentMarkdown: (fallbackContent) => fallbackContent,
+          onTreeRootFromFilePath: vi.fn(),
+          onTreeRootFromFolderPath: vi.fn(),
+          preferencesReady: false,
+          restoreWorkspaceOnStartup: false
+        })
+      );
+
+      await act(async () => {
+        await result.current.openTreeMarkdownFile({
+          name: "guide.md",
+          path: guidePath,
+          relativePath: "guide.md"
+        });
+      });
+
+      act(() => {
+        result.current.handleMarkdownChange("# Guide\n\nAutosaved edit.", { surface: "visual" });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+        await Promise.resolve();
+      });
+      act(() => {
+        result.current.handleMarkdownChange("# Guide\n\nOriginal", { surface: "visual" });
+      });
+
+      await act(async () => {
+        const canDiscard = await result.current.confirmCanDiscardCurrentDocument();
+        expect(canDiscard).toBe(false);
+      });
+
+      expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({
+        content: "# Guide\n\nOriginal",
+        dirty: true,
+        name: "guide.md",
+        path: guidePath
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("uses the clean document state when saving while the visual editor exposes previous clean content", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const guidePath = "/mock-files/vault/guide.md";
+      let editorMarkdown = "# Guide\n\nOriginal";
+      mockedReadNativeMarkdownFile.mockResolvedValue({
+        content: "# Guide\n\nOriginal",
+        name: "guide.md",
+        path: guidePath
+      });
+      mockedSaveNativeMarkdownFile.mockResolvedValue({
+        name: "guide.md",
+        path: guidePath
+      });
+      const { result } = renderHook(() =>
+        useMarkdownDocument({
+          autoSaveEnabled: true,
+          autoSaveIntervalMinutes: 1,
+          getCurrentMarkdown: () => editorMarkdown,
+          isCurrentMarkdownEquivalent: (markdown) => markdown === editorMarkdown,
+          onTreeRootFromFilePath: vi.fn(),
+          onTreeRootFromFolderPath: vi.fn(),
+          preferencesReady: false,
+          restoreWorkspaceOnStartup: false
+        })
+      );
+
+      await act(async () => {
+        await result.current.openTreeMarkdownFile({
+          name: "guide.md",
+          path: guidePath,
+          relativePath: "guide.md"
+        });
+      });
+
+      editorMarkdown = "# Guide\n\nAutosaved edit.";
+      act(() => {
+        result.current.handleMarkdownChange(editorMarkdown, { surface: "visual" });
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(60_000);
+        await Promise.resolve();
+      });
+
+      mockedSaveNativeMarkdownFile.mockClear();
+      editorMarkdown = "# Guide\n\nOriginal";
+      await act(async () => {
+        await result.current.saveCurrentDocument();
+      });
+
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledWith(expect.objectContaining({
+        contents: "# Guide\n\nAutosaved edit.",
+        path: guidePath,
+        suggestedName: "guide.md"
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not automatically prompt to save untitled documents", async () => {
     vi.useFakeTimers();
 
