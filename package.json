@@ -6,6 +6,8 @@
   "packageManager": "pnpm@10.30.3",
   "type": "module",
   "scripts": {
+    "changelog": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s",
+    "changelog:all": "conventional-changelog -p conventionalcommits -i CHANGELOG.md -s -r 0",
     "release": "node scripts/release/run-release.mjs",
     "dev": "pnpm --filter @markra/desktop dev",
     "build": "pnpm -r --if-present build",
@@ -16,6 +18,8 @@
     "tauri": "pnpm --filter @markra/desktop tauri"
   },
   "devDependencies": {
-    "bumpp": "^11.1.0"
+    "bumpp": "^11.1.0",
+    "conventional-changelog": "^7.2.0",
+    "conventional-changelog-conventionalcommits": "^9.3.1"
   }
 }

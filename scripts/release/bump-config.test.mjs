@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import config, { bumppFilePaths, updateCargoPackageVersion } from "../../bump.config.mjs";
+import config, { bumppFilePaths, syncChangelog, updateCargoPackageVersion } from "../../bump.config.mjs";
 
 test("bumpp only updates package manifests directly", () => {
   assert.deepEqual(bumppFilePaths, ["package.json", "apps/desktop/package.json"]);
@@ -36,4 +36,32 @@ objc2-app-kit = { version = "0.3.0", default-features = false }
 objc2-foundation = { version = "0.3.0", default-features = false }
 `,
   );
+});
+
+test("changelog sync runs the generator and tracks the changelog file", () => {
+  const calls = [];
+  const operation = {
+    options: {
+      cwd: "/mock-project",
+    },
+    state: {
+      newVersion: "1.2.3",
+      updatedFiles: [],
+    },
+    update(patch) {
+      this.state = {
+        ...this.state,
+        ...patch,
+      };
+    },
+  };
+
+  syncChangelog(operation, {
+    generateChangelog(options) {
+      calls.push(options);
+    },
+  });
+
+  assert.deepEqual(calls, [{ cwd: "/mock-project", version: "1.2.3" }]);
+  assert.deepEqual(operation.state.updatedFiles, ["/mock-project/CHANGELOG.md"]);
 });
