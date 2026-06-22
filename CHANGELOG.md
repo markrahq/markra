@@ -1,3 +1,14 @@
+## [0.13.2](https://github.com/murongg/markra/compare/v0.13.1...v0.13.2) (2026-06-22)
+
+### Features
+
+* **app:** add file tree multi-selection ([#371](https://github.com/murongg/markra/issues/371)) ([92b1850](https://github.com/murongg/markra/commit/92b18502743324b29d5103e701ff959bd5edcd8f)), closes [#364](https://github.com/murongg/markra/issues/364)
+* **app:** add local image import workflows ([#375](https://github.com/murongg/markra/issues/375)) ([2f3e79d](https://github.com/murongg/markra/commit/2f3e79d8e68403773f5ee84d293430ac4d29ed34))
+
+### Bug Fixes
+
+* **app:** swap conflicting keyboard shortcuts ([#376](https://github.com/murongg/markra/issues/376)) ([9da2746](https://github.com/murongg/markra/commit/9da27462179b04100c77a90b356fcbee57a10ba7))
+* **editor:** restore horizontal rule selection ([#374](https://github.com/murongg/markra/issues/374)) ([5477360](https://github.com/murongg/markra/commit/547736024dca93110da2e29dbb68efa3ecc2d147))
 
 ## [0.13.1](https://github.com/murongg/markra/compare/v0.13.0...v0.13.1) (2026-06-21)
 
