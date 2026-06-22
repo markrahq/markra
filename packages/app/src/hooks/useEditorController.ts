@@ -731,7 +731,7 @@ export function useEditorController() {
   const runEditorShortcut = useCallback(
     (
       key: string,
-      modifiers: Pick<KeyboardEventInit, "altKey" | "shiftKey"> = {},
+      modifiers: Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey"> = {},
       options: { focusEditor?: boolean } = {}
     ) => {
       const editor = editorRef.current;

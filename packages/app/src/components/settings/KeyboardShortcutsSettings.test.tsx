@@ -89,6 +89,87 @@ describe("KeyboardShortcutsSettings", () => {
     });
   });
 
+  it("records shifted digit and punctuation shortcuts from physical keys", () => {
+    const onUpdatePreferences = vi.fn();
+    const preferences: EditorPreferences = {
+      ...defaultEditorPreferences,
+      markdownShortcuts: defaultMarkdownShortcuts
+    };
+
+    render(
+      <KeyboardShortcutsSettings
+        preferences={preferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bullet List shortcut" }));
+    fireEvent.keyDown(window, {
+      code: "Digit8",
+      key: "*",
+      metaKey: true,
+      shiftKey: true
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...preferences,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bulletList: "Mod+Shift+8"
+      }
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Link shortcut" }));
+    fireEvent.keyDown(window, {
+      code: "Slash",
+      key: "?",
+      metaKey: true,
+      shiftKey: true
+    });
+
+    expect(onUpdatePreferences).toHaveBeenLastCalledWith({
+      ...preferences,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        link: "Mod+Shift+/"
+      }
+    });
+  });
+
+  it("swaps existing shortcuts when recording a chord already used by another action", () => {
+    const onUpdatePreferences = vi.fn();
+    const preferences: EditorPreferences = {
+      ...defaultEditorPreferences,
+      markdownShortcuts: defaultMarkdownShortcuts
+    };
+
+    render(
+      <KeyboardShortcutsSettings
+        preferences={preferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Link shortcut" }));
+    fireEvent.keyDown(window, {
+      code: "Digit8",
+      key: "*",
+      metaKey: true,
+      shiftKey: true
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...preferences,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bulletList: "Mod+K",
+        link: "Mod+Shift+8"
+      }
+    });
+  });
+
   it("uses Ctrl labels for markdown shortcuts on Windows and Linux", () => {
     render(
       <KeyboardShortcutsSettings

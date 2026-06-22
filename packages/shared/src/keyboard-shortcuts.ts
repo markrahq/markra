@@ -107,6 +107,10 @@ export type ParsedKeyboardShortcut = {
   shift: boolean;
 };
 
+export type KeyboardShortcutEventInit = Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey"> & {
+  key: string;
+};
+
 export function isKeyboardShortcutModKey(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey">) {
   return event.metaKey || event.ctrlKey;
 }
@@ -124,12 +128,87 @@ export function matchesKeyboardShortcut(
   );
 }
 
+const shortcutKeyByPhysicalCode: Record<string, string> = {
+  Backquote: "`",
+  Backslash: "\\",
+  BracketLeft: "[",
+  BracketRight: "]",
+  Comma: ",",
+  Digit0: "0",
+  Digit1: "1",
+  Digit2: "2",
+  Digit3: "3",
+  Digit4: "4",
+  Digit5: "5",
+  Digit6: "6",
+  Digit7: "7",
+  Digit8: "8",
+  Digit9: "9",
+  Equal: "=",
+  Minus: "-",
+  Period: ".",
+  Quote: "'",
+  Semicolon: ";",
+  Slash: "/"
+};
+
+const shiftedKeyByPhysicalCode: Record<string, string> = {
+  Backquote: "~",
+  Backslash: "|",
+  BracketLeft: "{",
+  BracketRight: "}",
+  Comma: "<",
+  Digit0: ")",
+  Digit1: "!",
+  Digit2: "@",
+  Digit3: "#",
+  Digit4: "$",
+  Digit5: "%",
+  Digit6: "^",
+  Digit7: "&",
+  Digit8: "*",
+  Digit9: "(",
+  Equal: "+",
+  Minus: "_",
+  Period: ">",
+  Quote: "\"",
+  Semicolon: ":",
+  Slash: "?"
+};
+
+const physicalCodeByShortcutKey = Object.fromEntries(
+  Object.entries(shortcutKeyByPhysicalCode).map(([code, key]) => [key, code])
+) as Record<string, string>;
+
+const punctuationShortcutKeys = new Set([
+  "`",
+  "\\",
+  "[",
+  "]",
+  ",",
+  "=",
+  "-",
+  ".",
+  "'",
+  ";",
+  "/"
+]);
+
 function normalizeShortcutKey(key: string) {
   if (/^[a-z]$/iu.test(key)) return key.toUpperCase();
   if (/^[0-9]$/u.test(key)) return key;
-  if (key === ",") return key;
+  if (punctuationShortcutKeys.has(key)) return key;
 
   return null;
+}
+
+function shortcutKeyFromKeyboardEvent(
+  event: Pick<KeyboardEvent, "key"> & Partial<Pick<KeyboardEvent, "code">>
+) {
+  const physicalKey = event.code ? shortcutKeyByPhysicalCode[event.code] : null;
+  if (physicalKey) return physicalKey;
+
+  return normalizeShortcutKey(event.key);
 }
 
 export function parseKeyboardShortcut(shortcut: unknown): ParsedKeyboardShortcut | null {
@@ -192,30 +271,37 @@ export function formatKeyboardShortcut(shortcut: unknown) {
   ].filter((part): part is string => Boolean(part)).join("+");
 }
 
-export function keyboardShortcutToKeyboardEventInit(shortcut: unknown) {
+export function keyboardShortcutToKeyboardEventInit(shortcut: unknown): KeyboardShortcutEventInit | null {
   const parsed = parseKeyboardShortcut(shortcut);
   if (!parsed) return null;
 
-  return {
+  const code = physicalCodeByShortcutKey[parsed.key];
+  const eventInit: KeyboardShortcutEventInit = {
     altKey: parsed.alt,
-    key: parsed.key,
+    key: parsed.shift && code ? shiftedKeyByPhysicalCode[code] ?? parsed.key : parsed.key,
     shiftKey: parsed.shift
-  } satisfies Pick<KeyboardEventInit, "altKey" | "key" | "shiftKey">;
+  };
+  if (code) eventInit.code = code;
+
+  return eventInit;
 }
 
 export function keyboardShortcutFromKeyboardEvent(
-  event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey">
+  event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey"> & Partial<Pick<KeyboardEvent, "code">>
 ) {
   if (!event.metaKey && !event.ctrlKey) return null;
   if (event.key === "Alt" || event.key === "Control" || event.key === "Meta" || event.key === "Shift") {
     return null;
   }
 
+  const key = shortcutKeyFromKeyboardEvent(event);
+  if (!key) return null;
+
   return formatKeyboardShortcut([
     "Mod",
     event.shiftKey ? "Shift" : null,
     event.altKey ? "Alt" : null,
-    event.key
+    key
   ].filter((part): part is string => Boolean(part)).join("+"));
 }
 
@@ -259,15 +345,17 @@ export function normalizeKeyboardShortcuts(value: unknown): KeyboardShortcutBind
 }
 
 export function matchesKeyboardShortcutEvent(
-  event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey">,
+  event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey"> & Partial<Pick<KeyboardEvent, "code">>,
   shortcut: string
 ) {
   const parsed = parseKeyboardShortcut(shortcut);
   if (!parsed) return false;
+  const key = shortcutKeyFromKeyboardEvent(event);
+  if (!key) return false;
 
   return (
     isKeyboardShortcutModKey(event) &&
-    event.key.toLowerCase() === parsed.key.toLowerCase() &&
+    key.toLowerCase() === parsed.key.toLowerCase() &&
     event.altKey === parsed.alt &&
     event.shiftKey === parsed.shift
   );

@@ -5,7 +5,8 @@ import {
   markdownShortcutFromKeyboardEvent,
   normalizeMarkdownShortcuts,
   parseMarkdownShortcut,
-  type MarkdownShortcutAction
+  type MarkdownShortcutAction,
+  type MarkdownShortcutBindings
 } from "@markra/editor";
 import type { I18nKey } from "@markra/shared";
 import type { EditorPreferences } from "../../lib/settings/app-settings";
@@ -84,6 +85,27 @@ const keyboardShortcutSections: Array<{
 
 function keyboardShortcutActionAvailable(action: MarkdownShortcutAction, aiEnabled: boolean) {
   return aiEnabled || (action !== "toggleAiAgent" && action !== "toggleAiCommand");
+}
+
+function assignKeyboardShortcut(
+  shortcuts: MarkdownShortcutBindings,
+  action: MarkdownShortcutAction,
+  nextShortcut: string
+) {
+  const nextShortcuts: MarkdownShortcutBindings = {
+    ...shortcuts,
+    [action]: nextShortcut
+  };
+  const previousShortcut = shortcuts[action];
+  const conflictingAction = (Object.keys(shortcuts) as MarkdownShortcutAction[]).find(
+    (candidate) => candidate !== action && shortcuts[candidate] === nextShortcut
+  );
+
+  if (conflictingAction) {
+    nextShortcuts[conflictingAction] = previousShortcut;
+  }
+
+  return normalizeMarkdownShortcuts(nextShortcuts);
 }
 
 function formatShortcutForPlatform(shortcut: string, platform: DesktopPlatform) {
@@ -189,10 +211,7 @@ export function KeyboardShortcutsSettings({
       event.stopPropagation();
       onUpdatePreferences({
         ...preferences,
-        markdownShortcuts: normalizeMarkdownShortcuts({
-          ...shortcuts,
-          [activeAction]: nextShortcut
-        })
+        markdownShortcuts: assignKeyboardShortcut(shortcuts, activeAction, nextShortcut)
       });
       setActiveAction(null);
     };

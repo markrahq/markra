@@ -340,7 +340,7 @@ function pressArrowDown(view: EditorView) {
 function pressShortcut(
   view: EditorView,
   key: string,
-  modifiers: Pick<KeyboardEventInit, "altKey" | "ctrlKey" | "metaKey" | "shiftKey"> = {}
+  modifiers: Pick<KeyboardEventInit, "altKey" | "code" | "ctrlKey" | "metaKey" | "shiftKey"> = {}
 ) {
   const event = new KeyboardEvent("keydown", {
     key,
@@ -6296,14 +6296,14 @@ describe("MarkdownPaper editing", () => {
     const bullet = await renderEditor();
     typeText(bullet.view, "Bullet");
 
-    expect(pressShortcut(bullet.view, "8", { metaKey: true, shiftKey: true })).toBe(true);
+    expect(pressShortcut(bullet.view, "*", { code: "Digit8", metaKey: true, shiftKey: true })).toBe(true);
 
     expect(bullet.container.querySelector(".ProseMirror ul li")).toHaveTextContent("Bullet");
 
     const ordered = await renderEditor();
     typeText(ordered.view, "Ordered");
 
-    expect(pressShortcut(ordered.view, "7", { metaKey: true, shiftKey: true })).toBe(true);
+    expect(pressShortcut(ordered.view, "&", { code: "Digit7", metaKey: true, shiftKey: true })).toBe(true);
 
     expect(ordered.container.querySelector(".ProseMirror ol li")).toHaveTextContent("Ordered");
 

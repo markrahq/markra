@@ -2557,6 +2557,7 @@ function WorkspaceApp() {
 
     handleRunEditorShortcut(shortcut.key, {
       altKey: Boolean(shortcut.altKey),
+      code: shortcut.code,
       shiftKey: Boolean(shortcut.shiftKey)
     });
     syncAiSelectionToolbarFormattingState();

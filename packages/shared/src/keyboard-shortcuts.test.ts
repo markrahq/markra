@@ -1,6 +1,10 @@
 import {
   defaultKeyboardShortcuts,
+  formatKeyboardShortcut,
+  keyboardShortcutFromKeyboardEvent,
   keyboardShortcutActions,
+  keyboardShortcutToKeyboardEventInit,
+  matchesKeyboardShortcutEvent,
   normalizeKeyboardShortcuts
 } from "./keyboard-shortcuts";
 
@@ -48,5 +52,45 @@ describe("keyboard shortcuts", () => {
     expect(normalizeKeyboardShortcuts({
       toggleDocumentHistory: "Mod+H"
     }).toggleDocumentHistory).toBe(defaultKeyboardShortcuts.toggleDocumentHistory);
+  });
+
+  it("uses physical digit keys for shifted digit shortcuts", () => {
+    const event = new KeyboardEvent("keydown", {
+      code: "Digit8",
+      key: "*",
+      metaKey: true,
+      shiftKey: true
+    });
+
+    expect(keyboardShortcutFromKeyboardEvent(event)).toBe("Mod+Shift+8");
+    expect(matchesKeyboardShortcutEvent(event, "Mod+Shift+8")).toBe(true);
+  });
+
+  it("records and matches punctuation shortcuts", () => {
+    const event = new KeyboardEvent("keydown", {
+      code: "Slash",
+      ctrlKey: true,
+      key: "?",
+      shiftKey: true
+    });
+
+    expect(formatKeyboardShortcut("Mod+/")).toBe("Mod+/");
+    expect(keyboardShortcutFromKeyboardEvent(event)).toBe("Mod+Shift+/");
+    expect(matchesKeyboardShortcutEvent(event, "Mod+Shift+/")).toBe(true);
+  });
+
+  it("creates realistic keyboard event init values for shifted physical keys", () => {
+    expect(keyboardShortcutToKeyboardEventInit("Mod+Shift+8")).toEqual({
+      altKey: false,
+      code: "Digit8",
+      key: "*",
+      shiftKey: true
+    });
+    expect(keyboardShortcutToKeyboardEventInit("Mod+Shift+/")).toEqual({
+      altKey: false,
+      code: "Slash",
+      key: "?",
+      shiftKey: true
+    });
   });
 });

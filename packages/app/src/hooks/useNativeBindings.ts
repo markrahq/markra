@@ -46,7 +46,7 @@ type NativeMenuHandlerOptions = {
   openQuickOpen?: () => unknown | Promise<unknown>;
   openRecentFile?: (file: RecentMarkdownFile) => unknown | Promise<unknown>;
   runAiQuickAction?: (intent: NativeAiQuickActionIntent, prompt: string) => unknown | Promise<unknown>;
-  runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "shiftKey">) => unknown;
+  runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey">) => unknown;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
   toggleAiAgent?: () => unknown | Promise<unknown>;
@@ -276,6 +276,7 @@ export function useNativeMenuHandlers({
 
     latestOptionsRef.current.runEditorShortcut(shortcut.key, {
       altKey: Boolean(shortcut.altKey),
+      code: shortcut.code,
       shiftKey: Boolean(shortcut.shiftKey)
     });
   }

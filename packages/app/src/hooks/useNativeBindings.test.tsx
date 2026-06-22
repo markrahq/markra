@@ -149,6 +149,24 @@ describe("useNativeMenuHandlers", () => {
     });
   });
 
+  it("routes shifted digit formatting commands through physical key data", () => {
+    const runEditorShortcut = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        runEditorShortcut
+      })
+    );
+
+    result.current.formatBulletList?.();
+
+    expect(runEditorShortcut).toHaveBeenCalledWith("*", {
+      altKey: false,
+      code: "Digit8",
+      shiftKey: true
+    });
+  });
+
   it("routes native edit history commands through editor shortcuts", () => {
     const runEditorShortcut = vi.fn();
     const { result } = renderHook(() =>
