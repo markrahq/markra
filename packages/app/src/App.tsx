@@ -84,6 +84,8 @@ import {
   aiTranslationLanguageName,
   clampNumber,
   debug,
+  markdownImageDragPayloadForFile,
+  markdownImageDragSrcForDocument,
   t,
   type I18nKey
 } from "@markra/shared";
@@ -91,7 +93,7 @@ import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver, getWordCount } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
-import { saveEditorImage } from "./lib/image-upload";
+import { saveEditorImage, saveLocalEditorImage } from "./lib/image-upload";
 import { aiCommandSelection, automaticAiSelection } from "./lib/ai-selection";
 import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
 import { markAppPerformance } from "./lib/performance-marks";
@@ -156,6 +158,7 @@ import {
   confirmNativeUnsavedMarkdownDocumentDiscard,
   downloadNativeWebImage,
   openNativeContainingFolder,
+  openNativeLocalImages,
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
   readNativeMarkdownTemplateFile,
@@ -164,6 +167,7 @@ import {
   saveNativePdfFile,
   showNativePandocSetup,
   writeNativeMarkdownTemplateFile,
+  type NativeMarkdownDroppedTarget,
   type NativeMarkdownFolderFile,
   type NativePandocExportFormat
 } from "./lib/tauri";
@@ -381,6 +385,8 @@ function WorkspaceApp() {
   const getEditorCurrentMarkdown = editor.getCurrentMarkdown;
   const handleMilkdownEditorReady = editor.handleEditorReady;
   const insertEditorMarkdownImage = editor.insertMarkdownImage;
+  const insertEditorMarkdownImages = editor.insertMarkdownImages;
+  const insertEditorMarkdownImagesAtPoint = editor.insertMarkdownImagesAtPoint;
   const insertEditorMarkdownLink = editor.insertMarkdownLink;
   const insertEditorMarkdownSnippet = editor.insertMarkdownSnippet;
   const insertEditorMarkdownTable = editor.insertMarkdownTable;
@@ -2333,6 +2339,161 @@ function WorkspaceApp() {
       documentRevision: document.revision
     });
   }, [document.content, document.revision, getEditorCurrentMarkdown, handleVisualMarkdownChange, readOnlyMode, splitMode]);
+  const saveLocalEditorImageFiles = useCallback(async (images: File[]) => {
+    if (!document.path) {
+      showAppToast({
+        message: translate("app.clipboardImageRequiresSavedDocument"),
+        status: "error"
+      });
+      return [];
+    }
+    if (images.length === 0) return [];
+
+    const savedImages: Array<{ alt: string; src: string }> = [];
+    let refreshTree = false;
+
+    for (const image of images) {
+      const result = await saveLocalEditorImage({
+        documentPath: document.path,
+        image,
+        preferences: editorPreferences.preferences
+      }).catch(() => null);
+
+      if (!result) {
+        showAppToast({
+          message: translate("app.clipboardImageSaveFailed"),
+          status: "error"
+        });
+        continue;
+      }
+
+      if (result.status === "skipped") {
+        showAppToast({
+          message: translate("app.clipboardImageRequiresSavedDocument"),
+          status: "error"
+        });
+        continue;
+      }
+
+      savedImages.push(result.image);
+      refreshTree = refreshTree || result.refreshTree;
+    }
+
+    if (savedImages.length === 0) return [];
+
+    try {
+      if (refreshTree) {
+        await refreshMarkdownFileTree(document.path);
+      }
+    } catch {
+      showAppToast({
+        message: translate("app.clipboardImageSaveFailed"),
+        status: "error"
+      });
+      return [];
+    }
+
+    return savedImages;
+  }, [
+    document.path,
+    editorPreferences.preferences,
+    refreshMarkdownFileTree,
+    translate
+  ]);
+  const handleImportLocalImages = useCallback(async () => {
+    if (readOnlyMode) return;
+
+    if (!document.path) {
+      showAppToast({
+        message: translate("app.clipboardImageRequiresSavedDocument"),
+        status: "error"
+      });
+      return;
+    }
+
+    const images = await openNativeLocalImages({
+      title: translate("menu.importLocalImages")
+    }).catch(() => null);
+    if (!images) {
+      showAppToast({
+        message: translate("app.clipboardImageSaveFailed"),
+        status: "error"
+      });
+      return;
+    }
+
+    const savedImages = await saveLocalEditorImageFiles(images);
+    if (savedImages.length === 0) return;
+
+    insertEditorMarkdownImages(savedImages);
+    syncVisualMarkdownAfterEditorCommand();
+  }, [
+    document.path,
+    insertEditorMarkdownImages,
+    readOnlyMode,
+    saveLocalEditorImageFiles,
+    syncVisualMarkdownAfterEditorCommand,
+    translate
+  ]);
+  const handleDroppedLocalImage = useCallback(async (target: Extract<NativeMarkdownDroppedTarget, { kind: "image" }>) => {
+    if (readOnlyMode || activeImageFile || !document.path) return;
+
+    const payload = markdownImageDragPayloadForFile({
+      name: target.name,
+      path: target.path,
+      relativePath: target.path
+    });
+    const imageReference = {
+      alt: payload.alt,
+      src: markdownImageDragSrcForDocument(payload, document.path)
+    };
+
+    const insertedAtDropPoint = target.point
+      ? insertEditorMarkdownImagesAtPoint([imageReference], target.point)
+      : false;
+    if (!insertedAtDropPoint) {
+      insertEditorMarkdownImages([imageReference]);
+    }
+
+    syncVisualMarkdownAfterEditorCommand();
+  }, [
+    activeImageFile,
+    document.path,
+    insertEditorMarkdownImages,
+    insertEditorMarkdownImagesAtPoint,
+    readOnlyMode,
+    syncVisualMarkdownAfterEditorCommand
+  ]);
+  const handleInsertFileTreeImageAsset = useCallback((
+    file: NativeMarkdownFolderFile,
+    point: { left: number; top: number }
+  ) => {
+    if (readOnlyMode || activeImageFile || !document.path || file.kind !== "asset") return;
+
+    const payload = markdownImageDragPayloadForFile(file);
+    const inserted = insertEditorMarkdownImagesAtPoint(
+      [{
+        alt: payload.alt,
+        src: markdownImageDragSrcForDocument(payload, document.path)
+      }],
+      point
+    );
+    if (inserted) syncVisualMarkdownAfterEditorCommand();
+  }, [
+    activeImageFile,
+    document.path,
+    insertEditorMarkdownImagesAtPoint,
+    readOnlyMode,
+    syncVisualMarkdownAfterEditorCommand
+  ]);
+  const handleNativeMarkdownDrop = useCallback(async (target: NativeMarkdownDroppedTarget) => {
+    if (target.kind === "image") {
+      await handleDroppedLocalImage(target);
+      return;
+    }
+
+    await handleDroppedMarkdownPath(target);
+  }, [handleDroppedLocalImage, handleDroppedMarkdownPath]);
   const handleInsertMarkdownSnippet = useCallback((...args: Parameters<typeof insertEditorMarkdownSnippet>) => {
     if (readOnlyMode) return;
 
@@ -2833,6 +2994,7 @@ function WorkspaceApp() {
     exportHtml: exportFeatureEnabled ? exportHtmlDocument : undefined,
     exportLatex: exportFeatureEnabled && pandocFeatureEnabled ? exportLatexDocument : undefined,
     exportPdf: exportFeatureEnabled ? exportPdfDocument : undefined,
+    importLocalImages: handleImportLocalImages,
     insertMarkdownImage: handleInsertMarkdownImage,
     insertMarkdownLink: handleInsertMarkdownLink,
     insertMarkdownSnippet: handleInsertMarkdownSnippet,
@@ -2857,7 +3019,7 @@ function WorkspaceApp() {
     toggleSourceMode: handleEditorModeToggle
   });
 
-  useNativeMarkdownDrop(handleDroppedMarkdownPath);
+  useNativeMarkdownDrop(handleNativeMarkdownDrop);
   useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null, {
     getAiCommandsAvailable: aiFeatureEnabled ? getAiContextMenuAvailable : () => false,
     markdownShortcuts: editorPreferences.preferences.markdownShortcuts,
@@ -3418,6 +3580,7 @@ function WorkspaceApp() {
             onCreateFolder: handleCreateMarkdownTreeFolder,
             onDeleteFile: handleDeleteMarkdownTreeFile,
             onFileTreeSortChange: setFileTreeSort,
+            onInsertImageAsset: handleInsertFileTreeImageAsset,
             onMoveFile: handleMoveMarkdownTreeFile,
             onOpenContainingFolder: handleOpenContainingFolder,
             onOpenFile: handleOpenTreeFile,

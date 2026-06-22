@@ -730,6 +730,7 @@ const messages: LocaleMessages = {
   "menu.codeBlock": "程式碼區塊",
   "menu.link": "連結",
   "menu.image": "圖片",
+  "menu.importLocalImages": "匯入本機圖片...",
   "menu.table": "表格"
 };
 

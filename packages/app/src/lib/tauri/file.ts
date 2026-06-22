@@ -49,6 +49,11 @@ export type NativeMarkdownOpenTarget =
       folder: NativeMarkdownFolder;
     };
 
+export type NativeMarkdownDropPoint = {
+  left: number;
+  top: number;
+};
+
 export type CreateNativeMarkdownTreeFileOptions = {
   contents?: string | null;
   parentPath?: string | null;
@@ -64,6 +69,12 @@ export type NativeMarkdownDroppedTarget =
       kind: "folder";
       path: string;
       name: string;
+    }
+  | {
+      kind: "image";
+      path: string;
+      name: string;
+      point?: NativeMarkdownDropPoint;
     };
 
 export type SaveNativeMarkdownFileInput = {
@@ -245,6 +256,10 @@ export function readNativeMarkdownImageFile(input: ReadNativeMarkdownImageInput)
   return getAppRuntime().files.readMarkdownImageFile(input);
 }
 
+export function readNativeLocalImageFile(path: string) {
+  return getAppRuntime().files.readLocalImageFile(path);
+}
+
 export function listNativeMarkdownFilesForPath(path: string) {
   return getAppRuntime().files.listMarkdownFilesForPath(path);
 }
@@ -301,6 +316,10 @@ export function openNativeMarkdownFolderInNewWindow(path: string) {
 
 export function openNativeMarkdownFile(labels?: NativeMarkdownPickerLabels) {
   return getAppRuntime().files.openMarkdownFile(labels);
+}
+
+export function openNativeLocalImages(labels?: NativeMarkdownPickerLabels) {
+  return getAppRuntime().files.openLocalImages(labels);
 }
 
 export function openNativeMarkdownPath(labels?: NativeMarkdownPickerLabels) {

@@ -17,6 +17,7 @@ import {
   listNativeMarkdownFileHistory,
   listNativeMarkdownFilesForPath,
   moveNativeMarkdownTreeFile,
+  openNativeLocalImages,
   takeNativeOpenedMarkdownPaths,
   openNativeContainingFolder,
   openNativeMarkdownFolder,
@@ -188,6 +189,58 @@ describe("native file access", () => {
     mockedOpen.mockResolvedValue(null);
 
     await expect(openNativeMarkdownFile()).resolves.toBeNull();
+
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
+  it("opens local images through the native picker and reads them as files", async () => {
+    mockedOpen.mockResolvedValue([
+      "/mock-files/Local Diagram.png",
+      "/mock-files/chart.svg"
+    ]);
+    mockedInvoke
+      .mockResolvedValueOnce({
+        bytes: [1, 2, 3],
+        mimeType: "image/png",
+        path: "/mock-files/Local Diagram.png"
+      })
+      .mockResolvedValueOnce({
+        bytes: [60, 115, 118, 103, 62],
+        mimeType: "image/svg+xml",
+        path: "/mock-files/chart.svg"
+      });
+
+    const images = await openNativeLocalImages({ title: "Import local images" });
+
+    expect(images).toHaveLength(2);
+    expect(images[0]).toMatchObject({
+      name: "Local Diagram.png",
+      type: "image/png"
+    });
+    expect(images[1]).toMatchObject({
+      name: "chart.svg",
+      type: "image/svg+xml"
+    });
+    await expect(images[0]?.arrayBuffer()).resolves.toEqual(new Uint8Array([1, 2, 3]).buffer);
+
+    expect(mockedOpen).toHaveBeenCalledWith({
+      multiple: true,
+      fileAccessMode: "scoped",
+      filters: [{ name: "Images", extensions: ["avif", "bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"] }],
+      title: "Import local images"
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "read_local_image_file", {
+      path: "/mock-files/Local Diagram.png"
+    });
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "read_local_image_file", {
+      path: "/mock-files/chart.svg"
+    });
+  });
+
+  it("returns an empty image list when local image import is canceled", async () => {
+    mockedOpen.mockResolvedValue(null);
+
+    await expect(openNativeLocalImages()).resolves.toEqual([]);
 
     expect(mockedInvoke).not.toHaveBeenCalled();
   });
@@ -1224,7 +1277,7 @@ describe("native file access", () => {
     const cleanup = await installNativeMarkdownFileDrop(onDrop);
 
     emitDragDrop({ payload: { type: "enter", paths: [mockReadmePath] } });
-    emitDragDrop({ payload: { type: "drop", paths: ["/mock-files/image.png", mockReadmePath] } });
+    emitDragDrop({ payload: { type: "drop", paths: ["/mock-files/archive.zip", mockReadmePath] } });
     emitDragDrop({ payload: { type: "drop", paths: [mockFolderPath] } });
 
     await vi.waitFor(() => expect(onDrop).toHaveBeenCalledTimes(2));
@@ -1237,6 +1290,42 @@ describe("native file access", () => {
       kind: "folder",
       name: "vault",
       path: mockFolderPath
+    });
+
+    cleanup();
+
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes dropped image files with their native drop position", async () => {
+    const unlisten = vi.fn();
+    const onDrop = vi.fn();
+    let emitDragDrop: (event: unknown) => unknown = () => {};
+    onDragDropEvent.mockImplementation(async (handler) => {
+      emitDragDrop = handler;
+      return unlisten;
+    });
+    mockedInvoke.mockRejectedValueOnce(new Error("Unsupported path"));
+
+    const cleanup = await installNativeMarkdownFileDrop(onDrop);
+
+    emitDragDrop({
+      payload: {
+        type: "drop",
+        paths: ["/mock-files/Diagram.png"],
+        position: { x: 340, y: 160 }
+      }
+    });
+
+    await vi.waitFor(() => expect(onDrop).toHaveBeenCalledTimes(1));
+    expect(onDrop).toHaveBeenCalledWith({
+      kind: "image",
+      name: "Diagram.png",
+      path: "/mock-files/Diagram.png",
+      point: {
+        left: 340,
+        top: 160
+      }
     });
 
     cleanup();

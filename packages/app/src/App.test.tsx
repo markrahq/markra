@@ -51,11 +51,13 @@ import {
   mockedNotifyAppLanguageChanged,
   mockedNotifyAppThemeChanged,
   mockedOpenNativeMarkdownFileInNewWindow,
+  mockedOpenNativeLocalImages,
   mockedOpenNativeMarkdownFolder,
   mockedOpenNativeMarkdownFolderInNewWindow,
   mockedOpenNativeMarkdownPath,
   mockedOpenNativeExternalUrl,
   mockedOpenSettingsWindow,
+  mockedReadNativeLocalImageFile,
   mockedReadNativeMarkdownFile,
   mockedReadNativeMarkdownFileHistory,
   mockedRemoveStoredRecentMarkdownFolder,
@@ -63,6 +65,7 @@ import {
   mockedRenameNativeMarkdownTreeFile,
   mockedResolveDesktopOsVersion,
   mockedResolveDesktopPlatform,
+  mockedSaveNativeClipboardImage,
   mockedSaveNativeHtmlFile,
   mockedSaveNativeMarkdownFile,
   mockedSaveNativePandocFile,
@@ -119,6 +122,45 @@ const defaultImageUpload = {
 };
 
 const webKitScrollWorkaroundAttribute = "data-webkit-scroll-workaround";
+
+function domRect(rect: Omit<DOMRect, "toJSON">): DOMRect {
+  return {
+    ...rect,
+    toJSON: () => ({})
+  } as DOMRect;
+}
+
+function createDragDataTransfer() {
+  const data = new Map<string, string>();
+
+  return {
+    clearData: () => data.clear(),
+    dropEffect: "none",
+    effectAllowed: "copyMove",
+    files: [] as File[],
+    getData: (type: string) => data.get(type) ?? "",
+    setData: (type: string, value: string) => data.set(type, value),
+    setDragImage: vi.fn()
+  } as unknown as DataTransfer;
+}
+
+function dispatchDragEvent(
+  target: Element,
+  type: string,
+  options: { clientX: number; clientY: number; dataTransfer: DataTransfer }
+) {
+  const event = new Event(type, {
+    bubbles: true,
+    cancelable: true
+  }) as DragEvent;
+
+  Object.defineProperty(event, "clientX", { value: options.clientX });
+  Object.defineProperty(event, "clientY", { value: options.clientY });
+  Object.defineProperty(event, "dataTransfer", { value: options.dataTransfer });
+  target.dispatchEvent(event);
+
+  return event;
+}
 
 function mockElementFromPoint(element: Element) {
   const mock = vi.fn(() => element);
@@ -351,6 +393,90 @@ describe("Markra workspace", () => {
     expect(shell).toHaveClass("bg-(--bg-primary)");
     expect(shell).toHaveClass("grid-rows-[minmax(0,1fr)]");
     expect(shell).toHaveClass("overscroll-none");
+  });
+
+  it("imports local images through the native menu without replacing manual image insertion", async () => {
+    const localImage = new File([new Uint8Array([1, 2, 3])], "Local Diagram.png", { type: "image/png" });
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Native\n\nStart here.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedOpenNativeLocalImages.mockResolvedValue([localImage]);
+    mockedSaveNativeClipboardImage.mockResolvedValue({
+      alt: "Local Diagram",
+      src: "assets/local-diagram.png"
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Native")).toBeInTheDocument();
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.importLocalImages?.();
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector('img[src="assets/local-diagram.png"]')).toBeInTheDocument();
+    });
+    expect(mockedOpenNativeLocalImages).toHaveBeenCalledWith({
+      title: "Import Local Images..."
+    });
+    expect(mockedSaveNativeClipboardImage).toHaveBeenCalledWith({
+      documentPath: mockNativePath,
+      fileName: expect.stringMatching(/^pasted-image-\d+\.png$/u),
+      folder: "assets",
+      image: localImage
+    });
+  });
+
+  it("replaces an empty paragraph when importing a local image at the blank document cursor", async () => {
+    const localImage = new File([new Uint8Array([1, 2, 3])], "Blank Import.png", { type: "image/png" });
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedOpenNativeLocalImages.mockResolvedValue([localImage]);
+    mockedSaveNativeClipboardImage.mockResolvedValue({
+      alt: "Blank Import",
+      src: "assets/blank-import.png"
+    });
+
+    const { container } = renderApp();
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuInstallCountBeforeOpen = mockedInstallNativeApplicationMenu.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenCalledWith(
+      mockNativePath,
+      expect.any(Function),
+      expect.any(Function)
+    ));
+
+    await waitFor(() => {
+      expect(mockedInstallNativeApplicationMenu.mock.calls.length).toBeGreaterThan(menuInstallCountBeforeOpen);
+    });
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.importLocalImages?.();
+    });
+
+    expect(mockedOpenNativeLocalImages).toHaveBeenCalledWith({
+      title: "Import Local Images..."
+    });
+    await waitFor(() => {
+      const editor = container.querySelector(".ProseMirror");
+      expect(editor?.firstElementChild).toHaveClass("markra-image-node");
+    });
+    expect(container.querySelector(".ProseMirror > p")).not.toBeInTheDocument();
   });
 
   it("replaces the document word count with the selected word count in the quiet status line", async () => {
@@ -2498,6 +2624,347 @@ describe("Markra workspace", () => {
     expect(screen.queryByRole("img", { name: "pasted-image.png" })).not.toBeInTheDocument();
   });
 
+  it("inserts a dragged file-tree image asset at the editor drop point", async () => {
+    const imagePath = "/mock-files/assets/diagram.png";
+    mockOpenMarkdownFile({
+      content: "First\n\n\n\nSecond",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "native.md", path: mockNativePath, relativePath: "native.md" },
+      { kind: "folder", name: "assets", path: "/mock-files/assets", relativePath: "assets" },
+      { kind: "asset", name: "diagram.png", path: imagePath, relativePath: "assets/diagram.png" }
+    ]);
+
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("First")).toBeInTheDocument();
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockNativePath));
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    fireEvent.click(await screen.findByRole("button", { name: "assets" }));
+
+    const editorSurface = container.querySelector<HTMLElement>(".ProseMirror");
+    if (!editorSurface) throw new Error("Expected the visual editor surface.");
+    const emptyParagraph = Array.from(editorSurface.querySelectorAll<HTMLElement>("p"))
+      .find((paragraph) => paragraph.textContent === "");
+    if (!emptyParagraph) throw new Error("Expected an empty paragraph drop target.");
+
+    const editorRect = domRect({
+      bottom: 360,
+      height: 260,
+      left: 260,
+      right: 920,
+      top: 100,
+      width: 660,
+      x: 260,
+      y: 100
+    });
+    const emptyParagraphRect = domRect({
+      bottom: 178,
+      height: 28,
+      left: 300,
+      right: 880,
+      top: 150,
+      width: 580,
+      x: 300,
+      y: 150
+    });
+    vi.spyOn(editorSurface, "getBoundingClientRect").mockReturnValue(editorRect);
+    vi.spyOn(editorSurface, "getClientRects").mockReturnValue([editorRect] as unknown as DOMRectList);
+    vi.spyOn(emptyParagraph, "getBoundingClientRect").mockReturnValue(emptyParagraphRect);
+    vi.spyOn(emptyParagraph, "getClientRects").mockReturnValue([emptyParagraphRect] as unknown as DOMRectList);
+
+    const range = document.createRange();
+    range.setStart(emptyParagraph, 0);
+    range.collapse(true);
+    const elementFromPoint = mockElementFromPoint(emptyParagraph);
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: undefined
+    });
+    Object.defineProperty(document, "caretRangeFromPoint", {
+      configurable: true,
+      value: vi.fn(() => range)
+    });
+
+    try {
+      const assetButton = await screen.findByRole("button", { name: "assets/diagram.png" });
+      const dataTransfer = createDragDataTransfer();
+
+      fireEvent.dragStart(assetButton, { dataTransfer });
+      dispatchDragEvent(editorSurface, "drop", {
+        clientX: 340,
+        clientY: 160,
+        dataTransfer
+      });
+      dispatchDragEvent(assetButton, "dragend", {
+        clientX: 340,
+        clientY: 160,
+        dataTransfer
+      });
+
+      const image = await waitFor(() => {
+        const insertedImage = editorSurface.querySelector<HTMLImageElement>('img[src="assets/diagram.png"]');
+        expect(insertedImage).toBeInTheDocument();
+        return insertedImage!;
+      });
+      expect(image).toHaveAttribute("alt", "diagram");
+
+      const topLevelBlocks = Array.from(editorSurface.children).filter(
+        (child) => child instanceof HTMLElement && !child.classList.contains("markra-trailing-paragraph")
+      );
+      expect(topLevelBlocks[0]).toHaveTextContent("First");
+      expect(topLevelBlocks[1]?.querySelector('img[src="assets/diagram.png"]')).toBeInTheDocument();
+      expect(topLevelBlocks[2]).toHaveTextContent("Second");
+      expect(editorSurface.querySelectorAll('img[src="assets/diagram.png"]')).toHaveLength(1);
+      expect(elementFromPoint).toHaveBeenCalledWith(340, 160);
+    } finally {
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+      Reflect.deleteProperty(document, "caretRangeFromPoint");
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
+  });
+
+  it("inserts a dragged file-tree image asset from the source drag end when editor drop is unavailable", async () => {
+    const imagePath = "/mock-files/assets/diagram.png";
+    mockOpenMarkdownFile({
+      content: "First\n\n\n\nSecond",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "native.md", path: mockNativePath, relativePath: "native.md" },
+      { kind: "folder", name: "assets", path: "/mock-files/assets", relativePath: "assets" },
+      { kind: "asset", name: "diagram.png", path: imagePath, relativePath: "assets/diagram.png" }
+    ]);
+
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("First")).toBeInTheDocument();
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockNativePath));
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    fireEvent.click(await screen.findByRole("button", { name: "assets" }));
+
+    const editorSurface = container.querySelector<HTMLElement>(".ProseMirror");
+    if (!editorSurface) throw new Error("Expected the visual editor surface.");
+    const emptyParagraph = Array.from(editorSurface.querySelectorAll<HTMLElement>("p"))
+      .find((paragraph) => paragraph.textContent === "");
+    if (!emptyParagraph) throw new Error("Expected an empty paragraph drop target.");
+
+    const editorRect = domRect({
+      bottom: 360,
+      height: 260,
+      left: 260,
+      right: 920,
+      top: 100,
+      width: 660,
+      x: 260,
+      y: 100
+    });
+    const emptyParagraphRect = domRect({
+      bottom: 178,
+      height: 28,
+      left: 300,
+      right: 880,
+      top: 150,
+      width: 580,
+      x: 300,
+      y: 150
+    });
+    vi.spyOn(editorSurface, "getBoundingClientRect").mockReturnValue(editorRect);
+    vi.spyOn(editorSurface, "getClientRects").mockReturnValue([editorRect] as unknown as DOMRectList);
+    vi.spyOn(emptyParagraph, "getBoundingClientRect").mockReturnValue(emptyParagraphRect);
+    vi.spyOn(emptyParagraph, "getClientRects").mockReturnValue([emptyParagraphRect] as unknown as DOMRectList);
+
+    const range = document.createRange();
+    range.setStart(emptyParagraph, 0);
+    range.collapse(true);
+    const elementFromPoint = mockElementFromPoint(emptyParagraph);
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: undefined
+    });
+    Object.defineProperty(document, "caretRangeFromPoint", {
+      configurable: true,
+      value: vi.fn(() => range)
+    });
+
+    try {
+      const assetButton = await screen.findByRole("button", { name: "assets/diagram.png" });
+      const dataTransfer = createDragDataTransfer();
+
+      fireEvent.dragStart(assetButton, { dataTransfer });
+      dispatchDragEvent(assetButton, "dragend", {
+        clientX: 340,
+        clientY: 160,
+        dataTransfer
+      });
+
+      const image = await waitFor(() => {
+        const insertedImage = editorSurface.querySelector<HTMLImageElement>('img[src="assets/diagram.png"]');
+        expect(insertedImage).toBeInTheDocument();
+        return insertedImage!;
+      });
+      expect(image).toHaveAttribute("alt", "diagram");
+
+      const topLevelBlocks = Array.from(editorSurface.children).filter(
+        (child) => child instanceof HTMLElement && !child.classList.contains("markra-trailing-paragraph")
+      );
+      expect(topLevelBlocks[0]).toHaveTextContent("First");
+      expect(topLevelBlocks[1]?.querySelector('img[src="assets/diagram.png"]')).toBeInTheDocument();
+      expect(topLevelBlocks[2]).toHaveTextContent("Second");
+      expect(elementFromPoint).toHaveBeenCalledWith(340, 160);
+    } finally {
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+      Reflect.deleteProperty(document, "caretRangeFromPoint");
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
+  });
+
+  it("inserts a system-dropped image file reference at the editor drop point", async () => {
+    mockOpenMarkdownFile({
+      content: "First\n\n\n\nSecond",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("First")).toBeInTheDocument();
+
+    const editorSurface = container.querySelector<HTMLElement>(".ProseMirror");
+    if (!editorSurface) throw new Error("Expected the visual editor surface.");
+    const emptyParagraph = Array.from(editorSurface.querySelectorAll<HTMLElement>("p"))
+      .find((paragraph) => paragraph.textContent === "");
+    if (!emptyParagraph) throw new Error("Expected an empty paragraph drop target.");
+
+    const editorRect = domRect({
+      bottom: 360,
+      height: 260,
+      left: 260,
+      right: 920,
+      top: 100,
+      width: 660,
+      x: 260,
+      y: 100
+    });
+    const emptyParagraphRect = domRect({
+      bottom: 178,
+      height: 28,
+      left: 300,
+      right: 880,
+      top: 150,
+      width: 580,
+      x: 300,
+      y: 150
+    });
+    vi.spyOn(editorSurface, "getBoundingClientRect").mockReturnValue(editorRect);
+    vi.spyOn(editorSurface, "getClientRects").mockReturnValue([editorRect] as unknown as DOMRectList);
+    vi.spyOn(emptyParagraph, "getBoundingClientRect").mockReturnValue(emptyParagraphRect);
+    vi.spyOn(emptyParagraph, "getClientRects").mockReturnValue([emptyParagraphRect] as unknown as DOMRectList);
+
+    const range = document.createRange();
+    range.setStart(emptyParagraph, 0);
+    range.collapse(true);
+    const elementFromPoint = mockElementFromPoint(emptyParagraph);
+    Object.defineProperty(document, "caretPositionFromPoint", {
+      configurable: true,
+      value: undefined
+    });
+    Object.defineProperty(document, "caretRangeFromPoint", {
+      configurable: true,
+      value: vi.fn(() => range)
+    });
+
+    try {
+      await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalled());
+      const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls.at(-1)?.[0];
+
+      await act(async () => {
+        await handleDrop?.({
+          kind: "image",
+          name: "System Drop.png",
+          path: "/mock-files/System Drop.png",
+          point: {
+            left: 340,
+            top: 160
+          }
+        });
+      });
+
+      await waitFor(() => {
+        expect(editorSurface.querySelector<HTMLImageElement>('img[src="System%20Drop.png"]')).toHaveAttribute(
+          "alt",
+          "System Drop"
+        );
+      });
+      expect(mockedReadNativeLocalImageFile).not.toHaveBeenCalled();
+      expect(mockedSaveNativeClipboardImage).not.toHaveBeenCalled();
+      expect(mockedOpenNativeMarkdownFileInNewWindow).not.toHaveBeenCalledWith("/mock-files/System Drop.png");
+      expect(elementFromPoint).toHaveBeenCalledWith(340, 160);
+    } finally {
+      Reflect.deleteProperty(document, "caretPositionFromPoint");
+      Reflect.deleteProperty(document, "caretRangeFromPoint");
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
+  });
+
+  it("falls back to the current cursor when a system image drop point cannot be resolved", async () => {
+    mockOpenMarkdownFile({
+      content: "",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalled());
+    const editorSurface = await waitFor(() => {
+      const surface = container.querySelector<HTMLElement>(".ProseMirror");
+      expect(surface).toBeInTheDocument();
+      return surface!;
+    });
+
+    Object.defineProperty(document, "elementFromPoint", {
+      configurable: true,
+      value: vi.fn(() => null)
+    });
+
+    try {
+      const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls.at(-1)?.[0];
+
+      await act(async () => {
+        await handleDrop?.({
+          kind: "image",
+          name: "System Drop.png",
+          path: "/mock-files/System Drop.png",
+          point: {
+            left: -1000,
+            top: -1000
+          }
+        });
+      });
+
+      await waitFor(() => {
+        expect(editorSurface.querySelector<HTMLImageElement>('img[src="System%20Drop.png"]')).toHaveAttribute(
+          "alt",
+          "System Drop"
+        );
+      });
+      expect(mockedReadNativeLocalImageFile).not.toHaveBeenCalled();
+      expect(mockedSaveNativeClipboardImage).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(document, "elementFromPoint");
+    }
+  });
+
   it("previews an image asset from a folder-only workspace", async () => {
     const imagePath = "/mock-files/vault/assets/pasted-image.png";
     mockedOpenNativeMarkdownPath.mockResolvedValue({
@@ -4444,8 +4911,8 @@ describe("Markra workspace", () => {
     });
 
     renderApp();
-    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
-    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
+    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalled());
+    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls.at(-1)?.[0];
 
     await act(async () => {
       await handleDrop?.({ kind: "file", name: "dropped.md", path: mockDroppedPath });
@@ -4460,8 +4927,8 @@ describe("Markra workspace", () => {
   it("opens a dropped markdown file in a new window when the current editor has content", async () => {
     renderApp();
     await screen.findByRole("heading", { name: "Welcome to Markra" });
-    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
-    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
+    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalled());
+    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls.at(-1)?.[0];
 
     await act(async () => {
       await handleDrop?.({ kind: "file", name: "dropped.md", path: mockDroppedPath });
@@ -4481,8 +4948,8 @@ describe("Markra workspace", () => {
     ]);
 
     renderApp();
-    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
-    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
+    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalled());
+    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls.at(-1)?.[0];
 
     await act(async () => {
       await handleDrop?.({ kind: "folder", name: "vault", path: mockFolderPath });
@@ -4506,8 +4973,8 @@ describe("Markra workspace", () => {
   it("opens a dropped markdown folder in a new window when the current editor has content", async () => {
     renderApp();
     await screen.findByRole("heading", { name: "Welcome to Markra" });
-    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalledTimes(1));
-    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls[0]?.[0];
+    await waitFor(() => expect(mockedInstallNativeMarkdownFileDrop).toHaveBeenCalled());
+    const handleDrop = mockedInstallNativeMarkdownFileDrop.mock.calls.at(-1)?.[0];
 
     await act(async () => {
       await handleDrop?.({ kind: "folder", name: "vault", path: mockFolderPath });

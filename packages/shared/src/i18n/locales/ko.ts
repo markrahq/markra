@@ -730,6 +730,7 @@ const messages: LocaleMessages = {
   "menu.codeBlock": "코드 블록",
   "menu.link": "링크",
   "menu.image": "이미지",
+  "menu.importLocalImages": "로컬 이미지 가져오기...",
   "menu.table": "표"
 };
 

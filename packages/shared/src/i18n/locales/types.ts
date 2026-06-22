@@ -741,6 +741,7 @@ export type I18nKey =
   | "menu.codeBlock"
   | "menu.link"
   | "menu.image"
+  | "menu.importLocalImages"
   | "menu.table";
 
 export type BaseLocaleMessages = Record<I18nKey, string>;

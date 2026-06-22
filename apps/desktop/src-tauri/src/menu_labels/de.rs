@@ -54,5 +54,6 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     code_block: "Codeblock",
     link: "Link",
     image: "Bild",
+    import_local_images: "Lokale Bilder importieren...",
     table: "Tabelle",
 };

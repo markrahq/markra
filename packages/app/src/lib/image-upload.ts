@@ -52,6 +52,13 @@ export type SaveEditorImageInput = {
   uploadWebDavImage?: UploadWebDavImage;
 };
 
+export type SaveLocalEditorImageInput = {
+  documentPath: string | null;
+  image: File;
+  preferences: EditorPreferences;
+  saveLocalImage?: SaveLocalImage;
+};
+
 type ImageUploadFileNameOptions = {
   random?: () => string;
   timestamp?: () => string;
@@ -180,6 +187,20 @@ export async function saveEditorImage({
     };
   }
 
+  return saveLocalEditorImage({
+    documentPath,
+    image,
+    preferences,
+    saveLocalImage
+  });
+}
+
+export async function saveLocalEditorImage({
+  documentPath,
+  image,
+  preferences,
+  saveLocalImage = saveNativeClipboardImage
+}: SaveLocalEditorImageInput): Promise<SaveEditorImageResult> {
   if (!documentPath) {
     return {
       reason: "requires-saved-document",

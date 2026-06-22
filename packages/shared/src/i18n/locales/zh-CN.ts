@@ -730,6 +730,7 @@ const messages: LocaleMessages = {
   "menu.codeBlock": "代码块",
   "menu.link": "链接",
   "menu.image": "图片",
+  "menu.importLocalImages": "导入本地图片...",
   "menu.table": "表格"
 };
 

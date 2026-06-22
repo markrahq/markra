@@ -54,5 +54,6 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     code_block: "코드 블록",
     link: "링크",
     image: "이미지",
+    import_local_images: "로컬 이미지 가져오기...",
     table: "표",
 };

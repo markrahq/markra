@@ -1,5 +1,5 @@
 import { defaultEditorPreferences } from "./settings/app-settings";
-import { createImageUploadFileName, saveEditorImage } from "./image-upload";
+import { createImageUploadFileName, saveEditorImage, saveLocalEditorImage } from "./image-upload";
 
 describe("save editor image", () => {
   it("creates safe image file names from the configured pattern", async () => {
@@ -67,6 +67,50 @@ describe("save editor image", () => {
       image
     });
     expect(uploadWebDavImage).not.toHaveBeenCalled();
+  });
+
+  it("imports local images into the configured local image folder even when remote uploads are enabled", async () => {
+    const image = new File([new Uint8Array([1, 2, 3])], "Local Diagram.png", { type: "image/png" });
+    const saveLocalImage = vi.fn().mockResolvedValue({
+      alt: "Local Diagram",
+      src: "assets/imported-diagram.png"
+    });
+
+    await expect(
+      saveLocalEditorImage({
+        documentPath: "/mock-files/note.md",
+        image,
+        preferences: {
+          ...defaultEditorPreferences,
+          imageUpload: {
+            ...defaultEditorPreferences.imageUpload,
+            provider: "webdav",
+            webdav: {
+              password: "secret",
+              publicBaseUrl: "https://cdn.example.test/images",
+              serverUrl: "https://dav.example.test/images",
+              uploadPath: "notes",
+              username: "mock-user"
+            }
+          }
+        },
+        saveLocalImage
+      })
+    ).resolves.toEqual({
+      image: {
+        alt: "Local Diagram",
+        src: "assets/imported-diagram.png"
+      },
+      refreshTree: true,
+      status: "saved"
+    });
+
+    expect(saveLocalImage).toHaveBeenCalledWith({
+      documentPath: "/mock-files/note.md",
+      fileName: expect.stringMatching(/^pasted-image-\d+\.png$/u),
+      folder: "assets",
+      image
+    });
   });
 
   it("uploads directly to WebDAV without requiring a saved Markdown document", async () => {

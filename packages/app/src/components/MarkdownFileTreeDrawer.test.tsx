@@ -23,6 +23,69 @@ async function settleFileTreeDrag() {
   });
 }
 
+function createDragDataTransfer() {
+  const data = new Map<string, string>();
+
+  return {
+    dropEffect: "none",
+    effectAllowed: "uninitialized",
+    getData: (type: string) => data.get(type) ?? "",
+    setData: (type: string, value: string) => data.set(type, value)
+  } as unknown as DataTransfer;
+}
+
+function createPartiallyUnsupportedDragDataTransfer() {
+  const data = new Map<string, string>();
+
+  return {
+    dropEffect: "none",
+    effectAllowed: "uninitialized",
+    getData: (type: string) => data.get(type) ?? "",
+    setData: (type: string, value: string) => {
+      if (type === "application/x-markra-markdown-image") throw new Error("custom drag data unavailable");
+
+      data.set(type, value);
+    },
+    setDragImage: vi.fn(() => {
+      throw new Error("custom drag image unavailable");
+    })
+  } as unknown as DataTransfer;
+}
+
+function dispatchDragEvent(
+  target: Element | Document,
+  type: string,
+  options: { clientX: number; clientY: number; dataTransfer: DataTransfer }
+) {
+  const event = new Event(type, {
+    bubbles: true,
+    cancelable: true
+  }) as DragEvent;
+
+  Object.defineProperty(event, "clientX", { value: options.clientX });
+  Object.defineProperty(event, "clientY", { value: options.clientY });
+  Object.defineProperty(event, "dataTransfer", { value: options.dataTransfer });
+  target.dispatchEvent(event);
+
+  return event;
+}
+
+function dispatchDragEventWithoutPoint(
+  target: Element | Document,
+  type: string,
+  dataTransfer: DataTransfer
+) {
+  const event = new Event(type, {
+    bubbles: true,
+    cancelable: true
+  }) as DragEvent;
+
+  Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+  target.dispatchEvent(event);
+
+  return event;
+}
+
 describe("MarkdownFileTreeDrawer", () => {
   beforeEach(() => {
     mockedShowNativeMarkdownFileTreeContextMenu.mockReset();
@@ -1271,6 +1334,208 @@ describe("MarkdownFileTreeDrawer", () => {
     fireEvent.keyDown(renameInput, { key: "Enter" });
 
     expect(renameFile).toHaveBeenCalledWith(asset, "renamed-image.png");
+  });
+
+  it("starts native drags for image assets with a markdown image payload", () => {
+    const asset = {
+      kind: "asset" as const,
+      name: "diagram image.png",
+      path: "/vault/assets/diagram image.png",
+      relativePath: "assets/diagram image.png"
+    };
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/docs/note.md"
+        files={[
+          { kind: "folder", name: "assets", path: "/vault/assets", relativePath: "assets" },
+          asset
+        ]}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "assets" }));
+    const assetButton = screen.getByRole("button", { name: "assets/diagram image.png" });
+    const dataTransfer = createDragDataTransfer();
+
+    fireEvent.dragStart(assetButton, { dataTransfer });
+
+    expect(JSON.parse(dataTransfer.getData("application/x-markra-markdown-image"))).toEqual({
+      alt: "diagram image",
+      path: "/vault/assets/diagram image.png",
+      relativePath: "assets/diagram image.png"
+    });
+    expect(dataTransfer.getData("text/plain")).toBe("![diagram image](../assets/diagram%20image.png)");
+    expect(dataTransfer.effectAllowed).toBe("copy");
+  });
+
+  it("keeps image asset drags starting when optional drag APIs fail", () => {
+    const asset = {
+      kind: "asset" as const,
+      name: "diagram image.png",
+      path: "/vault/assets/diagram image.png",
+      relativePath: "assets/diagram image.png"
+    };
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/docs/note.md"
+        files={[
+          { kind: "folder", name: "assets", path: "/vault/assets", relativePath: "assets" },
+          asset
+        ]}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "assets" }));
+    const assetButton = screen.getByRole("button", { name: "assets/diagram image.png" });
+    const dataTransfer = createPartiallyUnsupportedDragDataTransfer();
+
+    expect(() => fireEvent.dragStart(assetButton, { dataTransfer })).not.toThrow();
+
+    expect(dataTransfer.getData("text/plain")).toBe("![diagram image](../assets/diagram%20image.png)");
+    expect(dataTransfer.effectAllowed).toBe("copy");
+  });
+
+  it("reports image asset native drag end points", () => {
+    const insertImageAsset = vi.fn();
+    const asset = {
+      kind: "asset" as const,
+      name: "diagram.png",
+      path: "/vault/assets/diagram.png",
+      relativePath: "assets/diagram.png"
+    };
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/docs/note.md"
+        files={[
+          { kind: "folder", name: "assets", path: "/vault/assets", relativePath: "assets" },
+          asset
+        ]}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onInsertImageAsset={insertImageAsset}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "assets" }));
+    const dataTransfer = createDragDataTransfer();
+    const assetButton = screen.getByRole("button", { name: "assets/diagram.png" });
+    fireEvent.dragStart(assetButton, {
+      dataTransfer
+    });
+    dispatchDragEvent(assetButton, "dragend", {
+      clientX: 340,
+      clientY: 160,
+      dataTransfer
+    });
+
+    expect(insertImageAsset).toHaveBeenCalledWith(asset, {
+      left: 340,
+      top: 160
+    });
+  });
+
+  it("does not reuse stale image asset drag points when the final drag end has no point", () => {
+    const insertImageAsset = vi.fn();
+    const asset = {
+      kind: "asset" as const,
+      name: "diagram.png",
+      path: "/vault/assets/diagram.png",
+      relativePath: "assets/diagram.png"
+    };
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/docs/note.md"
+        files={[
+          { kind: "folder", name: "assets", path: "/vault/assets", relativePath: "assets" },
+          asset
+        ]}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onInsertImageAsset={insertImageAsset}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "assets" }));
+    const dataTransfer = createDragDataTransfer();
+    const assetButton = screen.getByRole("button", { name: "assets/diagram.png" });
+    fireEvent.dragStart(assetButton, {
+      dataTransfer
+    });
+    dispatchDragEvent(document, "dragover", {
+      clientX: 340,
+      clientY: 160,
+      dataTransfer
+    });
+    dispatchDragEventWithoutPoint(assetButton, "dragend", dataTransfer);
+
+    expect(insertImageAsset).not.toHaveBeenCalled();
+  });
+
+  it("keeps image asset pointer movement out of file tree dnd", async () => {
+    const moveFile = vi.fn();
+    const asset = {
+      kind: "asset" as const,
+      name: "diagram.png",
+      path: "/vault/assets/diagram.png",
+      relativePath: "assets/diagram.png"
+    };
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/docs/note.md"
+        files={[
+          { kind: "folder", name: "assets", path: "/vault/assets", relativePath: "assets" },
+          asset
+        ]}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onMoveFile={moveFile}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "assets" }));
+    const assetButton = screen.getByRole("button", { name: "assets/diagram.png" });
+    vi.spyOn(assetButton, "getBoundingClientRect").mockReturnValue({
+      bottom: 64,
+      height: 32,
+      left: 0,
+      right: 260,
+      top: 32,
+      width: 260,
+      x: 0,
+      y: 32,
+      toJSON: () => ({})
+    } as DOMRect);
+
+    fireEvent.mouseDown(assetButton, { button: 0, clientX: 20, clientY: 48 });
+    fireEvent.mouseMove(document, { buttons: 1, clientX: 340, clientY: 160 });
+    fireEvent.mouseUp(document, { clientX: 340, clientY: 160 });
+    await settleFileTreeDrag();
+
+    expect(moveFile).not.toHaveBeenCalled();
   });
 
   it("supports creating and renaming markdown files from the file tree", () => {

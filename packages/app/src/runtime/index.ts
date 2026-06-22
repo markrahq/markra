@@ -153,11 +153,13 @@ export type AppFileRuntime = {
     targetParentPath?: string | null
   ) => Promise<NativeMarkdownFolderFile>;
   openContainingFolder: (path: string) => Promise<unknown>;
+  openLocalImages: (labels?: NativeMarkdownPickerLabels) => Promise<File[]>;
   openMarkdownFile: (labels?: NativeMarkdownPickerLabels) => Promise<NativeMarkdownFile | null>;
   openMarkdownFileInNewWindow: (path: string) => Promise<unknown>;
   openMarkdownFolder: (labels?: NativeMarkdownPickerLabels) => Promise<NativeMarkdownFolder | null>;
   openMarkdownFolderInNewWindow: (path: string) => Promise<unknown>;
   openMarkdownPath: (labels?: NativeMarkdownPickerLabels) => Promise<NativeMarkdownOpenTarget | null>;
+  readLocalImageFile: (path: string) => Promise<File>;
   readMarkdownFile: (path: string) => Promise<NativeMarkdownFile>;
   readMarkdownFileHistory: (path: string, id: string) => Promise<NativeMarkdownFileHistoryFile>;
   readMarkdownImageFile: (input: ReadNativeMarkdownImageInput) => Promise<NativeMarkdownImageFile>;
@@ -362,11 +364,13 @@ function createDefaultFileRuntime(): AppFileRuntime {
     listMarkdownFilesForPath: async () => [],
     moveMarkdownTreeFile: () => unsupportedFeature("moveMarkdownTreeFile"),
     openContainingFolder: () => unsupportedFeature("openContainingFolder"),
+    openLocalImages: async () => [],
     openMarkdownFile: async () => null,
     openMarkdownFileInNewWindow: () => unsupportedFeature("openMarkdownFileInNewWindow"),
     openMarkdownFolder: async () => null,
     openMarkdownFolderInNewWindow: () => unsupportedFeature("openMarkdownFolderInNewWindow"),
     openMarkdownPath: async () => null,
+    readLocalImageFile: () => unsupportedFeature("readLocalImageFile"),
     readMarkdownFile: () => unsupportedFeature("readMarkdownFile"),
     readMarkdownFileHistory: () => unsupportedFeature("readMarkdownFileHistory"),
     readMarkdownImageFile: () => unsupportedFeature("readMarkdownImageFile"),

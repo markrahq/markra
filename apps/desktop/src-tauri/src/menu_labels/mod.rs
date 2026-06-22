@@ -67,6 +67,7 @@ pub(crate) struct MenuLabels {
     pub(crate) code_block: &'static str,
     pub(crate) link: &'static str,
     pub(crate) image: &'static str,
+    pub(crate) import_local_images: &'static str,
     pub(crate) table: &'static str,
 }
 

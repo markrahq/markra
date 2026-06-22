@@ -1,8 +1,12 @@
 import { imageSchema } from "@milkdown/kit/preset/commonmark";
 import { Fragment, type Node as ProseNode, type NodeType, type Slice } from "@milkdown/kit/prose/model";
-import { Plugin, Selection, type SelectionBookmark } from "@milkdown/kit/prose/state";
+import { Plugin, Selection, TextSelection, type SelectionBookmark } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
+import {
+  markdownImageDragSrcForDocument,
+  readMarkdownImageDragPayload
+} from "@markra/shared";
 
 export type SavedClipboardImage = {
   alt: string;
@@ -20,6 +24,7 @@ export type RemoteClipboardImage = {
 export type SaveRemoteClipboardImage = (image: RemoteClipboardImage) => Promise<SavedClipboardImage | null>;
 
 export type ClipboardImagePluginOptions = {
+  documentPath?: () => string | null | undefined;
   saveRemoteImage?: SaveRemoteClipboardImage;
 };
 
@@ -31,6 +36,13 @@ type InsertedRange = {
 type PendingRemoteImage = RemoteClipboardImage & {
   position: number;
 };
+
+type ImageInsertionRange = {
+  from: number;
+  to: number;
+};
+
+const droppedPlainMarkdownImagePattern = /^!\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)$/u;
 
 function dataTransferImageFiles(dataTransfer: DataTransfer | null | undefined) {
   const files = dataTransfer?.files as (ArrayLike<File> & { item?: (index: number) => File | null }) | undefined;
@@ -57,6 +69,35 @@ function droppedImageFiles(event: DragEvent) {
   return dataTransferImageFiles(event.dataTransfer);
 }
 
+function unescapePlainMarkdownImageAlt(alt: string) {
+  return alt.replace(/\\([\\\]])/gu, "$1");
+}
+
+function droppedPlainMarkdownImage(event: DragEvent): SavedClipboardImage | null {
+  if (typeof event.dataTransfer?.getData !== "function") return null;
+
+  const rawMarkdown = event.dataTransfer.getData("text/plain")?.trim();
+  if (!rawMarkdown) return null;
+
+  const match = droppedPlainMarkdownImagePattern.exec(rawMarkdown);
+  if (!match) return null;
+
+  return {
+    alt: unescapePlainMarkdownImageAlt(match[1]),
+    src: match[2]
+  };
+}
+
+function droppedMarkdownImage(event: DragEvent, documentPath: string | null | undefined): SavedClipboardImage | null {
+  const payload = readMarkdownImageDragPayload(event.dataTransfer);
+  if (!payload) return droppedPlainMarkdownImage(event);
+
+  return {
+    alt: payload.alt,
+    src: markdownImageDragSrcForDocument(payload, documentPath)
+  };
+}
+
 function dropSelectionBookmark(view: EditorView, event: DragEvent) {
   const root = view.root as { elementFromPoint?: unknown };
   if (typeof root.elementFromPoint !== "function") return view.state.selection.getBookmark();
@@ -80,6 +121,19 @@ function createImageFragment(images: SavedClipboardImage[], image: NodeType) {
       })
     )
   );
+}
+
+function imageInsertionRangeForSelection(selection: Selection): ImageInsertionRange {
+  if (!(selection instanceof TextSelection) || !selection.empty) return selection;
+
+  const { $from } = selection;
+  if ($from.depth !== 1) return selection;
+  if ($from.parent.type.name !== "paragraph" || $from.parent.content.size > 0) return selection;
+
+  return {
+    from: $from.before(1),
+    to: $from.after(1)
+  };
 }
 
 function isRemoteImageSrc(value: unknown): value is string {
@@ -226,12 +280,22 @@ async function saveAndInsertClipboardImages(
 
   if (!savedImages.length) return;
 
+  insertSavedClipboardImages(view, savedImages, image, bookmark);
+}
+
+function insertSavedClipboardImages(
+  view: EditorView,
+  savedImages: SavedClipboardImage[],
+  image: NodeType,
+  bookmark: SelectionBookmark = view.state.selection.getBookmark()
+) {
   const selection = bookmark.resolve(view.state.doc);
   const fragment = createImageFragment(savedImages, image);
-  const transaction = view.state.tr.replaceWith(selection.from, selection.to, fragment).scrollIntoView();
-  const cursor = Math.min(transaction.doc.content.size, selection.from + fragment.size);
+  const range = imageInsertionRangeForSelection(selection);
+  const transaction = view.state.tr.replaceWith(range.from, range.to, fragment).scrollIntoView();
+  const cursor = Math.min(transaction.doc.content.size, range.from + fragment.size);
 
-  transaction.setSelection(Selection.near(transaction.doc.resolve(cursor)));
+  transaction.setSelection(Selection.near(transaction.doc.resolve(cursor), -1));
   view.dispatch(transaction);
   view.focus();
 }
@@ -282,6 +346,18 @@ export function markraClipboardImagePluginWithOptions(
           return true;
         },
         handleDrop: (view, event) => {
+          const droppedMarkdownImageReference = droppedMarkdownImage(event, options.documentPath?.());
+          if (droppedMarkdownImageReference) {
+            event.preventDefault();
+            insertSavedClipboardImages(
+              view,
+              [droppedMarkdownImageReference],
+              image,
+              dropSelectionBookmark(view, event)
+            );
+            return true;
+          }
+
           const files = droppedImageFiles(event);
           if (!files.length) return false;
 

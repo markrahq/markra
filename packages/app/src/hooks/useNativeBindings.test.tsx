@@ -4,6 +4,7 @@ import { useApplicationShortcuts, useNativeMenuHandlers } from "./useNativeBindi
 
 describe("useNativeMenuHandlers", () => {
   const baseOptions = {
+    importLocalImages: vi.fn(),
     insertMarkdownImage: vi.fn(),
     insertMarkdownLink: vi.fn(),
     insertMarkdownSnippet: vi.fn(),
@@ -22,6 +23,7 @@ describe("useNativeMenuHandlers", () => {
     const insertMarkdownTable = vi.fn();
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
+        importLocalImages: vi.fn(),
         insertMarkdownImage,
         insertMarkdownLink,
         insertMarkdownSnippet,
@@ -43,11 +45,13 @@ describe("useNativeMenuHandlers", () => {
   });
 
   it("routes the insert image menu command to the editor image insertion", () => {
+    const importLocalImages = vi.fn();
     const insertMarkdownImage = vi.fn();
     const insertMarkdownSnippet = vi.fn();
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
         ...baseOptions,
+        importLocalImages,
         insertMarkdownImage,
         insertMarkdownSnippet
       })
@@ -56,7 +60,25 @@ describe("useNativeMenuHandlers", () => {
     result.current.insertImage?.();
 
     expect(insertMarkdownImage).toHaveBeenCalledTimes(1);
+    expect(importLocalImages).not.toHaveBeenCalled();
     expect(insertMarkdownSnippet).not.toHaveBeenCalled();
+  });
+
+  it("routes the import local images menu command separately from image insertion", () => {
+    const importLocalImages = vi.fn();
+    const insertMarkdownImage = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        importLocalImages,
+        insertMarkdownImage
+      })
+    );
+
+    result.current.importLocalImages?.();
+
+    expect(importLocalImages).toHaveBeenCalledTimes(1);
+    expect(insertMarkdownImage).not.toHaveBeenCalled();
   });
 
   it("routes the insert link menu command to the editor link insertion", () => {

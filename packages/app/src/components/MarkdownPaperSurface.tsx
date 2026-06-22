@@ -388,6 +388,7 @@ function MilkdownEditorSurface({
           markraClipboardImagePluginWithOptions(
             (image) => onSaveClipboardImageRef.current?.(image) ?? Promise.resolve(null),
             {
+              documentPath: () => documentPathRef.current,
               saveRemoteImage: (image) => onSaveRemoteClipboardImageRef.current?.(image) ?? Promise.resolve(null)
             }
           )

@@ -154,6 +154,22 @@ fn read_markdown_image_file_for_document(
     })
 }
 
+fn read_local_image_file_for_import(path: String) -> Result<MarkdownImageFile, String> {
+    let canonical_path = PathBuf::from(path)
+        .canonicalize()
+        .map_err(|error| error.to_string())?;
+
+    if !canonical_path.is_file() || !is_markdown_tree_asset_file(&canonical_path) {
+        return Err("Path is not a supported image".to_string());
+    }
+
+    Ok(MarkdownImageFile {
+        bytes: fs::read(&canonical_path).map_err(|error| error.to_string())?,
+        mime_type: markdown_image_mime_type(&canonical_path)?.to_string(),
+        path: path_to_string(&canonical_path),
+    })
+}
+
 fn normalize_clipboard_image_folder(folder: &str) -> Result<PathBuf, String> {
     let normalized = folder.trim().replace('\\', "/");
     if normalized == "." {
@@ -308,6 +324,11 @@ pub(crate) fn read_markdown_image_file(
     read_markdown_image_file_for_document(document_path, src)
 }
 
+#[tauri::command]
+pub(crate) fn read_local_image_file(path: String) -> Result<MarkdownImageFile, String> {
+    read_local_image_file_for_import(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -426,6 +447,30 @@ mod tests {
         );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn reads_supported_local_images_for_import() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-read-local-image-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).expect("test folder should be created");
+        let image = root.join("Local Diagram.png");
+        fs::write(&image, [1, 2, 3]).expect("image file should be created");
+
+        let read = read_local_image_file_for_import(image.to_string_lossy().to_string())
+            .expect("local image should be readable for import");
+
+        assert_eq!(read.bytes, vec![1, 2, 3]);
+        assert_eq!(read.mime_type, "image/png");
+        assert_eq!(
+            read.path,
+            path_to_string(&image.canonicalize().expect("image should canonicalize"))
+        );
+
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

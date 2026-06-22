@@ -812,6 +812,8 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         labels.image,
         &menu_accelerator(accelerators, "insertImage", "CmdOrCtrl+Shift+I"),
     )?;
+    let import_local_images =
+        app_menu_item_without_accelerator(app, "importLocalImages", labels.import_local_images)?;
     let table = app_menu_item(
         app,
         "insertTable",
@@ -883,7 +885,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         .separator()
         .items(&[&bullet_list, &ordered_list, &quote, &code_block])
         .separator()
-        .items(&[&link, &image, &table])
+        .items(&[&link, &image, &import_local_images, &table])
         .build()?;
 
     let view_menu_builder = SubmenuBuilder::with_id(app, "markra:view", labels.view);
@@ -1042,6 +1044,7 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
             | "formatCodeBlock"
             | "insertLink"
             | "insertImage"
+            | "importLocalImages"
             | "insertTable"
             | "toggleFullscreen"
             | "toggleMarkdownFiles"
@@ -1087,6 +1090,7 @@ mod tests {
         assert!(is_frontend_menu_command("exportLatex"));
         assert!(is_frontend_menu_command("formatBold"));
         assert!(is_frontend_menu_command("insertImage"));
+        assert!(is_frontend_menu_command("importLocalImages"));
         assert!(is_frontend_menu_command("insertTable"));
         assert!(is_frontend_menu_command("toggleFullscreen"));
         assert!(is_frontend_menu_command("toggleMarkdownFiles"));

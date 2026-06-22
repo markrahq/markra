@@ -34,6 +34,7 @@ type NativeMenuHandlerOptions = {
   exportHtml?: () => unknown | Promise<unknown>;
   exportLatex?: () => unknown | Promise<unknown>;
   exportPdf?: () => unknown | Promise<unknown>;
+  importLocalImages: () => unknown | Promise<unknown>;
   insertMarkdownImage: () => unknown;
   insertMarkdownLink: () => unknown;
   insertMarkdownSnippet: (open: string, close: string, placeholder: string) => unknown;
@@ -109,6 +110,7 @@ export function useNativeMenuHandlers({
   exportHtml,
   exportLatex,
   exportPdf,
+  importLocalImages,
   insertMarkdownImage,
   insertMarkdownLink,
   insertMarkdownSnippet,
@@ -143,6 +145,7 @@ export function useNativeMenuHandlers({
     exportHtml,
     exportLatex,
     exportPdf,
+    importLocalImages,
     closeDocument,
     insertMarkdownImage,
     insertMarkdownLink,
@@ -174,6 +177,7 @@ export function useNativeMenuHandlers({
     exportHtml,
     exportLatex,
     exportPdf,
+    importLocalImages,
     closeDocument,
     insertMarkdownImage,
     insertMarkdownLink,
@@ -229,6 +233,7 @@ export function useNativeMenuHandlers({
         formatCodeBlock: () => runMarkdownShortcut("codeBlock"),
         insertLink: () => latestOptionsRef.current.insertMarkdownLink(),
         insertImage: () => latestOptionsRef.current.insertMarkdownImage(),
+        importLocalImages: () => latestOptionsRef.current.importLocalImages(),
         insertTable: () => latestOptionsRef.current.insertMarkdownTable(),
         toggleAllFolds: () => runMarkdownShortcut("toggleAllFolds")
       };

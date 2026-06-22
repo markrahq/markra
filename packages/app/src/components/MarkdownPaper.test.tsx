@@ -274,6 +274,23 @@ function findNodeStartPosition(view: EditorView, typeName: string) {
   return position;
 }
 
+function findTopLevelEmptyParagraphPosition(view: EditorView) {
+  let position: number | null = null;
+
+  view.state.doc.forEach((node, offset) => {
+    if (position !== null) return;
+    if (node.type.name !== "paragraph" || node.content.size > 0) return;
+
+    position = offset;
+  });
+
+  if (position === null) {
+    throw new Error("Could not find top-level empty paragraph in editor.");
+  }
+
+  return position;
+}
+
 function pressEnter(view: EditorView) {
   const event = new KeyboardEvent("keydown", {
     key: "Enter",
@@ -389,6 +406,37 @@ function dropImage(view: EditorView, image: File) {
       files: [image]
     }
   });
+
+  return view.someProp("handleDrop", (handler) => handler(view, event, view.state.selection.content(), false));
+}
+
+function dropMarkdownImageDragPayload(
+  view: EditorView,
+  payload: { alt: string; path: string; relativePath: string }
+) {
+  const dataTransfer = createDragDataTransfer();
+  dataTransfer.setData("application/x-markra-markdown-image", JSON.stringify(payload));
+  const event = new Event("drop", {
+    bubbles: true,
+    cancelable: true
+  }) as DragEvent;
+  Object.defineProperty(event, "clientX", { value: 20 });
+  Object.defineProperty(event, "clientY", { value: 20 });
+  Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
+
+  return view.someProp("handleDrop", (handler) => handler(view, event, view.state.selection.content(), false));
+}
+
+function dropPlainMarkdownImageText(view: EditorView, markdown: string) {
+  const dataTransfer = createDragDataTransfer();
+  dataTransfer.setData("text/plain", markdown);
+  const event = new Event("drop", {
+    bubbles: true,
+    cancelable: true
+  }) as DragEvent;
+  Object.defineProperty(event, "clientX", { value: 20 });
+  Object.defineProperty(event, "clientY", { value: 20 });
+  Object.defineProperty(event, "dataTransfer", { value: dataTransfer });
 
   return view.someProp("handleDrop", (handler) => handler(view, event, view.state.selection.content(), false));
 }
@@ -2845,6 +2893,117 @@ describe("MarkdownPaper editing", () => {
     });
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     expect(serializeMarkdown(view.state.doc)).toContain("![Diagram](https://cdn.example.com/notes/diagram.png)");
+  });
+
+  it("inserts existing file-tree image assets without saving them again", async () => {
+    const onSaveClipboardImage = vi.fn();
+    const { container, editor, view } = await renderEditor("", {
+      documentPath: "/vault/docs/note.md",
+      onSaveClipboardImage
+    });
+
+    expect(dropMarkdownImageDragPayload(view, {
+      alt: "Diagram",
+      path: "/vault/assets/diagram.png",
+      relativePath: "assets/diagram.png"
+    })).toBe(true);
+
+    await waitFor(() => {
+      expect(container.querySelector<HTMLImageElement>('img[src="../assets/diagram.png"]')).toHaveAttribute(
+        "alt",
+        "Diagram"
+      );
+    });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("![Diagram](../assets/diagram.png)");
+    expect(onSaveClipboardImage).not.toHaveBeenCalled();
+  });
+
+  it("inserts dragged image asset text when the custom drag payload is unavailable", async () => {
+    const onSaveClipboardImage = vi.fn();
+    const { container, editor, view } = await renderEditor("", {
+      documentPath: "/vault/docs/note.md",
+      onSaveClipboardImage
+    });
+
+    expect(dropPlainMarkdownImageText(view, "![Diagram](../assets/diagram.png)")).toBe(true);
+
+    await waitFor(() => {
+      expect(container.querySelector<HTMLImageElement>('img[src="../assets/diagram.png"]')).toHaveAttribute(
+        "alt",
+        "Diagram"
+      );
+    });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("![Diagram](../assets/diagram.png)");
+    expect(onSaveClipboardImage).not.toHaveBeenCalled();
+  });
+
+  it("replaces a blank line when dropping an existing file-tree image asset there", async () => {
+    const onSaveClipboardImage = vi.fn();
+    const { editor, view } = await renderEditor("First\n\n\n\nSecond", {
+      documentPath: "/vault/docs/note.md",
+      onSaveClipboardImage
+    });
+    const emptyParagraphPosition = findTopLevelEmptyParagraphPosition(view);
+
+    moveCursor(view, emptyParagraphPosition + 1);
+
+    expect(dropMarkdownImageDragPayload(view, {
+      alt: "Diagram",
+      path: "/vault/assets/diagram.png",
+      relativePath: "assets/diagram.png"
+    })).toBe(true);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe("First\n\n![Diagram](../assets/diagram.png)\n\nSecond\n");
+    expect(onSaveClipboardImage).not.toHaveBeenCalled();
+  });
+
+  it("does not select the image below after dropping an existing image asset", async () => {
+    const onSaveClipboardImage = vi.fn();
+    const { container, editor, view } = await renderEditor("First\n\n\n\n![Below](../assets/below.png)", {
+      documentPath: "/vault/docs/note.md",
+      onSaveClipboardImage
+    });
+    const emptyParagraphPosition = findTopLevelEmptyParagraphPosition(view);
+
+    moveCursor(view, emptyParagraphPosition + 1);
+
+    expect(dropMarkdownImageDragPayload(view, {
+      alt: "Dropped",
+      path: "/vault/assets/dropped.png",
+      relativePath: "assets/dropped.png"
+    })).toBe(true);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe(
+      "First\n\n![Dropped](../assets/dropped.png)\n\n![Below](../assets/below.png)\n"
+    );
+
+    const droppedImage = container.querySelector<HTMLImageElement>('img[src="../assets/dropped.png"]');
+    const belowImage = container.querySelector<HTMLImageElement>('img[src="../assets/below.png"]');
+    const droppedImageNode = droppedImage?.closest(".markra-image-node");
+    const belowImageNode = belowImage?.closest(".markra-image-node");
+    let belowImagePosition: number | null = null;
+    view.state.doc.descendants((node, nodePosition) => {
+      if (belowImagePosition !== null) return false;
+      if (node.type.name === "image" && node.attrs.src === "../assets/below.png") {
+        belowImagePosition = nodePosition;
+        return false;
+      }
+
+      return true;
+    });
+
+    expect(droppedImageNode).toBeInTheDocument();
+    expect(belowImagePosition).not.toBeNull();
+    if (view.state.selection instanceof NodeSelection) {
+      expect(view.state.selection.from).not.toBe(belowImagePosition);
+    }
+    expect(belowImageNode).not.toHaveClass("ProseMirror-selectednode");
+    expect(container.querySelector(".ProseMirror-selectednode")).not.toBe(belowImageNode);
+    expect(onSaveClipboardImage).not.toHaveBeenCalled();
   });
 
   it("reorders top-level blocks from the hover drag handle", async () => {

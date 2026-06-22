@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef } from "react";
 import { editorViewCtx, parserCtx, serializerCtx, type Editor } from "@milkdown/kit/core";
 import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
-import { Slice, type Node as ProseNode, type NodeType } from "@milkdown/kit/prose/model";
-import { NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
+import { Fragment, Slice, type Node as ProseNode, type NodeType } from "@milkdown/kit/prose/model";
+import { NodeSelection, Selection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "@markra/ai";
 import {
@@ -75,6 +75,16 @@ type MarkdownImageInsertion = {
   selectionFromOffset: number;
   selectionToOffset: number;
   src: string;
+};
+
+type MarkdownImageReference = {
+  alt: string;
+  src: string;
+};
+
+type EditorInsertionPoint = {
+  left: number;
+  top: number;
 };
 
 function comparableSerializedMarkdown(markdown: string) {
@@ -230,6 +240,55 @@ function focusInsertedImageSource(view: EditorView, insertion: MarkdownImageInse
 
   source.focus();
   source.setSelectionRange(insertion.selectionFromOffset, insertion.selectionToOffset);
+}
+
+function emptyTopLevelParagraphSelectionRange(view: EditorView, selection: Selection = view.state.selection) {
+  if (!selection.empty) return null;
+  let range: { from: number; to: number } | null = null;
+
+  view.state.doc.forEach((node, offset) => {
+    if (range) return;
+    if (node.type.name !== "paragraph" || node.content.size > 0) return;
+    if (selection.from < offset || selection.from > offset + node.nodeSize) return;
+
+    range = {
+      from: offset,
+      to: offset + node.nodeSize
+    };
+  });
+
+  return range;
+}
+
+function editorSelectionAtPoint(view: EditorView, point: EditorInsertionPoint) {
+  const position = view.posAtCoords(point);
+  if (!position) return null;
+
+  return Selection.near(view.state.doc.resolve(position.pos));
+}
+
+function insertMarkdownImageReferences(
+  view: EditorView,
+  image: NodeType,
+  images: MarkdownImageReference[],
+  selection: Selection
+) {
+  const range = emptyTopLevelParagraphSelectionRange(view, selection) ?? selection;
+  const fragment = Fragment.fromArray(
+    images.map((savedImage) =>
+      image.create({
+        alt: savedImage.alt || "image",
+        src: savedImage.src,
+        title: ""
+      })
+    )
+  );
+  const tr = view.state.tr.replaceWith(range.from, range.to, fragment).scrollIntoView();
+  const cursor = Math.min(tr.doc.content.size, range.from + fragment.size);
+
+  tr.setSelection(TextSelection.near(tr.doc.resolve(cursor), -1));
+  view.dispatch(tr);
+  view.focus();
 }
 
 export function readAiSelectionContextFromView(view: EditorView): AiSelectionContext {
@@ -817,6 +876,35 @@ export function useEditorController() {
     });
   }, []);
 
+  const insertMarkdownImages = useCallback((images: MarkdownImageReference[]) => {
+    const editor = editorRef.current;
+    if (!editor || images.length === 0) return;
+
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const image = imageSchema.type(ctx);
+      insertMarkdownImageReferences(view, image, images, view.state.selection);
+    });
+  }, []);
+
+  const insertMarkdownImagesAtPoint = useCallback((images: MarkdownImageReference[], point: EditorInsertionPoint) => {
+    const editor = editorRef.current;
+    if (!editor || images.length === 0) return false;
+
+    let inserted = false;
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const selection = editorSelectionAtPoint(view, point);
+      if (!selection) return;
+
+      const image = imageSchema.type(ctx);
+      insertMarkdownImageReferences(view, image, images, selection);
+      inserted = true;
+    });
+
+    return inserted;
+  }, []);
+
   const insertMarkdownLink = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -1072,6 +1160,8 @@ export function useEditorController() {
     handleEditorReady,
     holdAiSelection,
     insertMarkdownImage,
+    insertMarkdownImages,
+    insertMarkdownImagesAtPoint,
     insertMarkdownLink,
     insertMarkdownSnippet,
     insertMarkdownTable,

@@ -32,9 +32,10 @@ use markdown_files::{
     delete_markdown_template_file, delete_markdown_tree_file, detect_pandoc_path,
     export_pandoc_file, export_pdf_file, list_markdown_file_history, list_markdown_files_for_path,
     move_markdown_tree_file, open_containing_folder, open_markdown_file_in_new_window,
-    open_markdown_folder_in_new_window, open_markdown_path, read_markdown_file,
-    read_markdown_file_history, read_markdown_image_file, read_markdown_template_file,
-    rename_markdown_tree_file, resolve_markdown_path, save_clipboard_image,
+    open_markdown_folder_in_new_window, open_markdown_path, read_local_image_file,
+    read_markdown_file, read_markdown_file_history, read_markdown_image_file,
+    read_markdown_template_file, rename_markdown_tree_file, resolve_markdown_path,
+    save_clipboard_image,
     search_markdown_files_for_path, write_markdown_file, write_markdown_template_file,
 };
 use menu::{
@@ -237,6 +238,7 @@ pub fn run() {
             list_markdown_file_history,
             read_markdown_file_history,
             read_markdown_image_file,
+            read_local_image_file,
             read_markdown_template_file,
             write_markdown_template_file,
             delete_markdown_template_file,

@@ -103,6 +103,11 @@ export type NativeMarkdownOpenTarget =
       folder: NativeMarkdownFolder;
     };
 
+export type NativeMarkdownDropPoint = {
+  left: number;
+  top: number;
+};
+
 export type CreateNativeMarkdownTreeFileOptions = {
   contents?: string | null;
   parentPath?: string | null;
@@ -118,6 +123,12 @@ export type NativeMarkdownDroppedTarget =
       kind: "folder";
       path: string;
       name: string;
+    }
+  | {
+      kind: "image";
+      path: string;
+      name: string;
+      point?: NativeMarkdownDropPoint;
     };
 
 export type SaveNativeMarkdownFileInput = {
@@ -292,6 +303,14 @@ const htmlFilters = [
     extensions: ["html", "htm"]
   }
 ];
+
+const imageFilters = [
+  {
+    name: "Images",
+    extensions: ["avif", "bmp", "gif", "jpeg", "jpg", "png", "svg", "webp"]
+  }
+];
+const imageFileExtensions = new Set(imageFilters.flatMap((filter) => filter.extensions));
 
 const pdfFilters = [
   {
@@ -676,6 +695,38 @@ export async function openNativeMarkdownFile(labels?: NativeMarkdownPickerLabels
   return readNativeMarkdownFile(selectedPath);
 }
 
+function normalizeSelectedPaths(paths: string | string[] | null) {
+  if (!paths) return [];
+
+  return Array.isArray(paths) ? paths : [paths];
+}
+
+export async function openNativeLocalImages(labels?: NativeMarkdownPickerLabels): Promise<File[]> {
+  const selectedPaths = normalizeSelectedPaths(await open({
+    multiple: true,
+    fileAccessMode: "scoped",
+    filters: imageFilters,
+    ...pickerTitleOption(labels)
+  }));
+
+  const images: File[] = [];
+  for (const path of selectedPaths) {
+    images.push(await readNativeLocalImageFile(path));
+  }
+
+  return images;
+}
+
+export async function readNativeLocalImageFile(path: string): Promise<File> {
+  const image = await invoke<MarkdownImageFileResponse>("read_local_image_file", {
+    path
+  });
+
+  return new File([new Uint8Array(image.bytes)], fileNameFromPath(image.path), {
+    type: image.mimeType
+  });
+}
+
 export async function openNativeMarkdownPath(labels?: NativeMarkdownPickerLabels): Promise<NativeMarkdownOpenTarget | null> {
   const title = labels?.title.trim();
   const target = title
@@ -715,12 +766,43 @@ export async function resolveNativeMarkdownPath(path: string): Promise<NativeMar
   return droppedTargetFromResponse(target);
 }
 
-async function firstDroppedMarkdownTarget(paths: string[]) {
+function imageDropTargetFromPath(path: string, point?: NativeMarkdownDropPoint): NativeMarkdownDroppedTarget | null {
+  const extension = path.split(/[\\/]/u).pop()?.split(".").pop()?.toLocaleLowerCase();
+  if (!extension || !imageFileExtensions.has(extension)) return null;
+
+  return {
+    kind: "image",
+    name: fileNameFromPath(path),
+    path,
+    ...(point ? { point } : {})
+  };
+}
+
+function nativeDropPointFromPosition(position: unknown): NativeMarkdownDropPoint | undefined {
+  if (!position || typeof position !== "object") return undefined;
+  const { x, y } = position as { x?: unknown; y?: unknown };
+  if (typeof x !== "number" || typeof y !== "number") return undefined;
+
+  const scaleFactor = typeof window.devicePixelRatio === "number" && window.devicePixelRatio > 0
+    ? window.devicePixelRatio
+    : 1;
+
+  return {
+    left: x / scaleFactor,
+    top: y / scaleFactor
+  };
+}
+
+async function firstDroppedMarkdownTarget(paths: string[], point?: NativeMarkdownDropPoint) {
   for (const path of paths) {
     try {
-      return await resolveNativeMarkdownPath(path);
+      return droppedTargetFromResponse(await invoke<MarkdownOpenPathResponse>("resolve_markdown_path", {
+        path
+      }));
     } catch {
-      // Keep looking; drag payloads can contain images or other unsupported files.
+      const imageTarget = imageDropTargetFromPath(path, point);
+      if (imageTarget) return imageTarget;
+      // Keep looking; drag payloads can contain unsupported files.
     }
   }
 
@@ -1128,8 +1210,9 @@ export async function installNativeMarkdownFileDrop(onDrop: NativeMarkdownFileDr
   try {
     return await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type !== "drop") return;
+      const point = nativeDropPointFromPosition(event.payload.position);
 
-      firstDroppedMarkdownTarget(event.payload.paths).then((target) => {
+      firstDroppedMarkdownTarget(event.payload.paths, point).then((target) => {
         if (!target) return;
 
         onDrop(target);

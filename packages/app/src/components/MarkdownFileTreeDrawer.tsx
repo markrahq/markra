@@ -4,6 +4,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type DragEvent as ReactDragEvent,
   type Dispatch,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -45,7 +46,13 @@ import {
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
-import { clampNumber, t, type AppLanguage } from "@markra/shared";
+import {
+  clampNumber,
+  markdownImageDragPayloadForFile,
+  t,
+  writeMarkdownImageDragPayload,
+  type AppLanguage
+} from "@markra/shared";
 import { IconButton } from "@markra/ui";
 import { markraHighlightRemarkPlugin, type MarkdownOutlineItem } from "@markra/markdown";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
@@ -140,6 +147,10 @@ type MarkdownFileTreeDrawerProps = {
     context?: { files: readonly NativeMarkdownFolderFile[] }
   ) => unknown | Promise<unknown>;
   onFileTreeSortChange?: (sort: FileTreeSort) => unknown;
+  onInsertImageAsset?: (
+    file: NativeMarkdownFolderFile,
+    point: { left: number; top: number }
+  ) => unknown | Promise<unknown>;
   onOpenFile: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onOpenContainingFolder?: (path: string) => unknown | Promise<unknown>;
   onOpenFileToSide?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
@@ -159,6 +170,11 @@ type MarkdownFileTreeDrawerProps = {
 };
 
 type SidebarPanel = "files" | "outline";
+type ImageAssetDragTracker = {
+  cleanup: () => undefined;
+  file: NativeMarkdownFolderFile;
+  nativeDropHandled: boolean;
+};
 const outlineLevelFilters = ["all", 1, 2, 3] as const;
 type OutlineLevelFilter = typeof outlineLevelFilters[number];
 
@@ -389,6 +405,7 @@ export function MarkdownFileTreeDrawer({
   onCreateFolder,
   onDeleteFile,
   onFileTreeSortChange,
+  onInsertImageAsset,
   onOpenFile,
   onOpenContainingFolder,
   onOpenFileToSide,
@@ -414,6 +431,8 @@ export function MarkdownFileTreeDrawer({
   const fileTreeSortMenuRef = useRef<HTMLDivElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
   const outlineLevelMenuRef = useRef<HTMLDivElement | null>(null);
+  const imageAssetDragImageRef = useRef<HTMLDivElement | null>(null);
+  const imageAssetDragTrackerRef = useRef<ImageAssetDragTracker | null>(null);
   const [fileTreeScrollElement, setFileTreeScrollElement] = useState<HTMLDivElement | null>(null);
   const [fileTreeScrollOffset, setFileTreeScrollOffset] = useState(0);
   const [fileTreeViewportHeight, setFileTreeViewportHeight] = useState(fallbackFileTreeViewportHeight);
@@ -459,6 +478,11 @@ export function MarkdownFileTreeDrawer({
       }
     })
   );
+  const clearImageAssetDragTracking = useCallback(() => {
+    const tracker = imageAssetDragTrackerRef.current;
+    imageAssetDragTrackerRef.current = null;
+    tracker?.cleanup();
+  }, []);
   const fileTreeSort = controlledFileTreeSort ?? localFileTreeSort;
   const fileTreeSortKey = fileTreeSort.key;
   const fileTreeSortDirection = fileTreeSort.direction;
@@ -761,6 +785,14 @@ export function MarkdownFileTreeDrawer({
       return next.size === current.size ? current : next;
     });
   }, [collapsibleOutlineKeys]);
+
+  useEffect(() => {
+    return () => {
+      clearImageAssetDragTracking();
+      imageAssetDragImageRef.current?.remove();
+      imageAssetDragImageRef.current = null;
+    };
+  }, [clearImageAssetDragTracking]);
 
   const toggleFolder = (relativePath: string) => {
     setExpandedFolders((current) => {
@@ -1707,6 +1739,81 @@ export function MarkdownFileTreeDrawer({
     setFileTreeSelectionAnchorPath(file.path);
   };
 
+  const lightweightImageAssetDragImage = () => {
+    let dragImage = imageAssetDragImageRef.current;
+    if (dragImage) return dragImage;
+
+    dragImage = document.createElement("div");
+    dragImage.setAttribute("aria-hidden", "true");
+    Object.assign(dragImage.style, {
+      height: "1px",
+      left: "-1000px",
+      opacity: "0",
+      pointerEvents: "none",
+      position: "fixed",
+      top: "-1000px",
+      width: "1px"
+    });
+    document.body.append(dragImage);
+    imageAssetDragImageRef.current = dragImage;
+    return dragImage;
+  };
+
+  const imageAssetDragPointFromEvent = (event: Pick<DragEvent, "clientX" | "clientY">) => {
+    if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return null;
+
+    return {
+      left: event.clientX,
+      top: event.clientY
+    };
+  };
+
+  const startImageAssetDragTracking = (file: NativeMarkdownFolderFile) => {
+    clearImageAssetDragTracking();
+
+    const trackDropHandled = (dragEvent: DragEvent) => {
+      if (dragEvent.defaultPrevented && imageAssetDragTrackerRef.current) {
+        imageAssetDragTrackerRef.current.nativeDropHandled = true;
+      }
+    };
+    const finishDrag = (dragEvent: DragEvent) => {
+      const point = imageAssetDragPointFromEvent(dragEvent);
+      const tracker = imageAssetDragTrackerRef.current;
+      clearImageAssetDragTracking();
+      if (!tracker || tracker.nativeDropHandled || !point) return;
+
+      Promise.resolve(onInsertImageAsset?.(tracker.file, point)).catch(() => {});
+    };
+
+    document.addEventListener("drop", trackDropHandled);
+    document.addEventListener("dragend", finishDrag, true);
+    imageAssetDragTrackerRef.current = {
+      cleanup: () => {
+        document.removeEventListener("drop", trackDropHandled);
+        document.removeEventListener("dragend", finishDrag, true);
+        return undefined;
+      },
+      file,
+      nativeDropHandled: false
+    };
+  };
+
+  const handleFileRowDragStart = (
+    event: ReactDragEvent<HTMLButtonElement>,
+    file: NativeMarkdownFolderFile
+  ) => {
+    if (file.kind !== "asset") return;
+
+    const payload = markdownImageDragPayloadForFile(file);
+    writeMarkdownImageDragPayload(event.dataTransfer, payload, { documentPath: currentPath });
+    startImageAssetDragTracking(file);
+    try {
+      event.dataTransfer.setDragImage(lightweightImageAssetDragImage(), 0, 0);
+    } catch {
+      // Native image asset dragging still works without a custom preview.
+    }
+  };
+
   const renderFileRowContent = (node: FileNode, depth: number, mode: FileTreeRowRenderMode) => {
     const active = sameNativePath(node.file.path, currentPath);
     const selected = fileTreePathSelected(node.file.path);
@@ -1720,7 +1827,7 @@ export function MarkdownFileTreeDrawer({
     if (renaming) return renderRenameRowContent(node.file, depth, mode);
 
     return (
-      <FileTreeDragSource disabled={!dragMoveAvailable} file={node.file}>
+      <FileTreeDragSource disabled={!dragMoveAvailable || asset} file={node.file}>
         {(dragSource) => (
           <button
             ref={dragSource.setNodeRef}
@@ -1740,6 +1847,8 @@ export function MarkdownFileTreeDrawer({
             onClick={(event) => handleFileRowClick(event, node.file)}
             {...dragSource.attributes}
             {...dragSource.listeners}
+            draggable={asset}
+            onDragStart={(event) => handleFileRowDragStart(event, node.file)}
           >
             <FileIcon aria-hidden="true" className="shrink-0" size={15} />
             <span className="min-w-0 truncate leading-5">{node.name}</span>

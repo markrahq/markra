@@ -730,6 +730,7 @@ const messages: BaseLocaleMessages = {
   "menu.codeBlock": "Code Block",
   "menu.link": "Link",
   "menu.image": "Image",
+  "menu.importLocalImages": "Import Local Images...",
   "menu.table": "Table"
 };
 

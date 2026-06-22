@@ -82,6 +82,7 @@ export type NativeStaticMenuCommand =
   | "formatCodeBlock"
   | "insertLink"
   | "insertImage"
+  | "importLocalImages"
   | "insertTable"
   | "aiPolish"
   | "aiRewrite"
