@@ -2180,6 +2180,32 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(renameFile).not.toHaveBeenCalled();
   });
 
+  it("cancels create inputs when a pointer starts outside the file tree", () => {
+    const createFile = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onCreateFile={createFile}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New file" }));
+    expect(screen.getByRole("textbox", { name: "New file name" })).toBeInTheDocument();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(screen.queryByRole("textbox", { name: "New file name" })).not.toBeInTheDocument();
+    expect(createFile).not.toHaveBeenCalled();
+  });
+
   it("finishes active file tree inputs when another file row is clicked", async () => {
     const openFile = vi.fn();
     const createFile = vi.fn();

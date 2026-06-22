@@ -1391,6 +1391,10 @@ function WorkspaceApp() {
     layoutSignature: aiSelectionToolbarLayoutSignature,
     refresh: refreshAiSelectionToolbarAnchor
   });
+  const handleAiSelectionToolbarDismiss = useCallback(() => {
+    setAiSelectionToolbarAnchor(null);
+    clearAiSelectionToolbarCopySuccess();
+  }, [clearAiSelectionToolbarCopySuccess]);
   const handleAiSelectionToolbarOpenCommand = useCallback(() => {
     setAiSelectionToolbarAnchor(null);
     if (aiCommandVisible) return;
@@ -3863,6 +3867,7 @@ function WorkspaceApp() {
             open={aiSelectionToolbarVisible}
             quickActionPrompts={editorPreferences.preferences.aiQuickActionPrompts}
             onCopySelection={handleAiSelectionToolbarCopySelection}
+            onDismiss={handleAiSelectionToolbarDismiss}
             onInsertLink={handleAiSelectionToolbarInsertLink}
             onOpenCommand={handleAiSelectionToolbarOpenCommand}
             onRunFormattingAction={handleAiSelectionToolbarFormattingAction}

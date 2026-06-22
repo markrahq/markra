@@ -83,6 +83,7 @@ type AiSelectionToolbarProps = {
   activeHeadingLevel?: SelectionHeadingLevel | null;
   quickActionPrompts?: AiQuickActionPrompts;
   onCopySelection: () => unknown;
+  onDismiss?: () => unknown;
   onInsertLink: () => unknown;
   onOpenCommand: () => unknown;
   onRunFormattingAction: (action: SelectionFormattingToolbarAction) => unknown;
@@ -197,6 +198,7 @@ export function AiSelectionToolbar({
   activeHeadingLevel = null,
   quickActionPrompts = defaultAiQuickActionPrompts,
   onCopySelection,
+  onDismiss,
   onInsertLink,
   onOpenCommand,
   onRunFormattingAction,
@@ -205,6 +207,7 @@ export function AiSelectionToolbar({
 }: AiSelectionToolbarProps) {
   const [headingLevelMenuOpen, setHeadingLevelMenuOpen] = useState(false);
   const [headingLevelMenuStyle, setHeadingLevelMenuStyle] = useState<CSSProperties | null>(null);
+  const toolbarRef = useRef<HTMLElement | null>(null);
   const headingLevelButtonRef = useRef<HTMLButtonElement | null>(null);
   const headingLevelMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -271,6 +274,25 @@ export function AiSelectionToolbar({
       window.removeEventListener("scroll", handleLayoutChange, true);
     };
   }, [headingLevelMenuOpen]);
+
+  useEffect(() => {
+    if (!open || !anchor || !onDismiss) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      if (toolbarRef.current?.contains(target) || headingLevelMenuRef.current?.contains(target)) return;
+
+      onDismiss();
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [anchor, onDismiss, open]);
 
   if (!open || !anchor) return null;
 
@@ -340,6 +362,7 @@ export function AiSelectionToolbar({
   return (
     <section
       className="ai-selection-toolbar pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full animate-[markra-ai-float-in_160ms_ease-out_both] motion-reduce:animate-none"
+      ref={toolbarRef}
       style={style}
       role="toolbar"
       aria-label={label("app.aiQuickActions")}

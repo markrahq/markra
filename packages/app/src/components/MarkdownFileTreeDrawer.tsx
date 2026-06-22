@@ -1174,6 +1174,26 @@ export function MarkdownFileTreeDrawer({
     };
   }, [renamingPath, commitRenameFile]);
 
+  useEffect(() => {
+    if (!creatingFile && !creatingFolder) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      const fileTreeRoot = fileTreeBodyRef.current?.closest(".markdown-file-tree");
+      if (fileTreeRoot?.contains(target)) return;
+
+      cancelFileTreeInputs();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, true);
+
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown, true);
+    };
+  }, [creatingFile, creatingFolder, cancelFileTreeInputs]);
+
   const creatingAtParentPath = (parentPath: string | null | undefined, depth = 0) => {
     return creatingAtFileTreeParentPath(parentPath, depth, creatingParentPath);
   };

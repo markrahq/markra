@@ -362,6 +362,31 @@ describe("AiSelectionToolbar", () => {
     expect(onOpenCommand).toHaveBeenCalledTimes(1);
   });
 
+  it("dismisses when a pointer starts outside the toolbar", () => {
+    const onDismiss = vi.fn();
+
+    render(
+      <AiSelectionToolbar
+        anchor={anchor}
+        language="en"
+        open
+        onCopySelection={vi.fn()}
+        onDismiss={onDismiss}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
+        onRunAction={vi.fn()}
+      />
+    );
+
+    fireEvent.pointerDown(screen.getByRole("button", { name: "Polish" }));
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(document.body);
+
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
   it("does not render when there is no selected text anchor", () => {
     render(
       <AiSelectionToolbar
