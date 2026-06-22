@@ -995,6 +995,7 @@ export function createWebFileRuntime(
     async openContainingFolder() {
       throw new Error("Opening containing folders requires the desktop runtime.");
     },
+    openLocalImages: async () => [],
     async openMarkdownFolder() {
       if (showDirectoryPicker) {
         const handle = await showDirectoryPicker();
@@ -1026,6 +1027,9 @@ export function createWebFileRuntime(
         file,
         kind: "file"
       } satisfies NativeMarkdownOpenTarget;
+    },
+    async readLocalImageFile() {
+      throw new Error("Local image file reading requires the desktop runtime.");
     },
     async readMarkdownFile(path) {
       const { file } = await readFileFromPath(path);
