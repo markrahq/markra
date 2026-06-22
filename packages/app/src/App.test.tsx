@@ -2381,6 +2381,48 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("tab", { name: /Created\.md/ })).toHaveAttribute("aria-selected", "true");
   });
 
+  it("shows native file tree create and rename errors", async () => {
+    const indexPath = `${mockFolderPath}/index.md`;
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: mockFolderPath,
+      name: "mock-vault"
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "index.md", path: indexPath, relativePath: "index.md" },
+      { name: "notes.md", path: `${mockFolderPath}/notes.md`, relativePath: "notes.md" }
+    ]);
+    mockedCreateNativeMarkdownTreeFile.mockRejectedValue(new Error("File already exists"));
+    mockedRenameNativeMarkdownTreeFile.mockRejectedValue(new Error("File already exists"));
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("heading", { name: "mock-vault" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "New" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "New file" }));
+    const fileNameInput = screen.getByRole("textbox", { name: "New file name" });
+    fireEvent.change(fileNameInput, { target: { value: "index.md" } });
+    fireEvent.keyDown(fileNameInput, { key: "Enter" });
+
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Could not create file. File already exists"));
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "index.md" }));
+    const contextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[0];
+    act(() => {
+      contextHandlers?.renameFile?.({
+        name: "index.md",
+        path: indexPath,
+        relativePath: "index.md"
+      });
+    });
+    const renameInput = screen.getByRole("textbox", { name: "Rename file" });
+    fireEvent.change(renameInput, { target: { value: "notes.md" } });
+    fireEvent.keyDown(renameInput, { key: "Enter" });
+
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Could not rename file. File already exists"));
+  });
+
   it("deletes a sidebar folder from the context menu", async () => {
     const docsPath = `${mockFolderPath}/docs`;
     const docsFolder = { kind: "folder" as const, name: "docs", path: docsPath, relativePath: "docs" };

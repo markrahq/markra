@@ -50,6 +50,24 @@ describe("markdown templates", () => {
     ]);
   });
 
+  it("keeps templates with an empty suggested file name", () => {
+    expect(normalizeMarkdownTemplateEntries([
+      {
+        fileName: "blank-name.md",
+        id: "blank-name",
+        name: "Blank name",
+        suggestedName: " "
+      }
+    ])).toEqual([
+      {
+        fileName: "blank-name.md",
+        id: "blank-name",
+        name: "Blank name",
+        suggestedName: ""
+      }
+    ]);
+  });
+
   it("loads runtime templates from the persisted list and template files", async () => {
     const readTemplateFile = vi.fn(async (fileName: string) => {
       if (fileName === "standup.md") return "# Standup\n\n## Yesterday";
@@ -138,6 +156,27 @@ suggestedName: {{date}} daily
       id: "standup",
       name: "Daily review",
       suggestedName: "{{date}} daily",
+      content: "# {{title}}\n\n- [ ] Ship it"
+    });
+  });
+
+  it("allows custom template source frontmatter to clear the suggested file name", () => {
+    expect(updateMarkdownTemplateFromSource({
+      id: "standup",
+      name: "Standup",
+      suggestedName: "{{date}} standup",
+      content: "# {{title}}\n\n## Yesterday"
+    }, `---
+name: Daily review
+suggestedName:
+---
+
+# {{title}}
+
+- [ ] Ship it`)).toEqual({
+      id: "standup",
+      name: "Daily review",
+      suggestedName: "",
       content: "# {{title}}\n\n- [ ] Ship it"
     });
   });

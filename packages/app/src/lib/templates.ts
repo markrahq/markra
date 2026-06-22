@@ -195,7 +195,9 @@ export function markdownTemplateToSource(template: MarkdownTemplate) {
 export function updateMarkdownTemplateFromSource(template: MarkdownTemplate, source: string): MarkdownTemplate {
   const { content, metadata } = parseMarkdownTemplateMetadata(source);
   const name = metadata.name?.trim() || markdownTemplateNameFromContent(content) || template.name;
-  const suggestedName = metadata.suggestedName?.trim() || template.suggestedName;
+  const suggestedName = Object.hasOwn(metadata, "suggestedName")
+    ? metadata.suggestedName?.trim() ?? ""
+    : template.suggestedName;
 
   return {
     ...template,
@@ -373,7 +375,7 @@ export function normalizeMarkdownTemplateEntries(value: unknown): MarkdownTempla
     const suggestedName = typeof candidate.suggestedName === "string" ? candidate.suggestedName.trim() : "";
     const fileName = normalizeMarkdownTemplateFileName(candidate.fileName) ?? createMarkdownTemplateFileName(id, templates);
 
-    if (!id || usedIds.has(id) || !name || !suggestedName || usedFileNames.has(fileName.toLowerCase())) return;
+    if (!id || usedIds.has(id) || !name || usedFileNames.has(fileName.toLowerCase())) return;
 
     usedIds.add(id);
     usedFileNames.add(fileName.toLowerCase());

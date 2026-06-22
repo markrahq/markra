@@ -208,6 +208,16 @@ function editorBottomOverlayInset(aiCommandActive: boolean, aiCommandInset: numb
   return Math.max(quietStatusOverlayInset, aiCommandActive ? aiCommandInset : 0);
 }
 
+function nativeFileOperationFailureMessage(message: string, error: unknown) {
+  const detail = error instanceof Error
+    ? error.message.trim()
+    : typeof error === "string"
+      ? error.trim()
+      : "";
+
+  return detail ? `${message} ${detail}` : message;
+}
+
 type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 type EditorMode = "source" | "split" | "visual";
 type EditorSurface = "source" | "visual";
@@ -1765,10 +1775,13 @@ function WorkspaceApp() {
         setActiveImageFile(null);
         await openTreeMarkdownFile(file);
       }
-    } catch {
-      // Native file errors are surfaced by the platform operation when possible.
+    } catch (error) {
+      showAppToast({
+        message: nativeFileOperationFailureMessage(translate("app.markdownFileCreateFailed"), error),
+        status: "error"
+      });
     }
-  }, [captureActiveDocumentViewState, createBlankDocument, createMarkdownTreeFile, fileTree.sourcePath, openTreeMarkdownFile]);
+  }, [captureActiveDocumentViewState, createBlankDocument, createMarkdownTreeFile, fileTree.sourcePath, openTreeMarkdownFile, translate]);
   const handleQuickCreateMarkdownTreeFile = useCallback(() => {
     captureActiveDocumentViewState();
     setActiveImageFile(null);
@@ -1824,18 +1837,24 @@ function WorkspaceApp() {
   const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string, parentPath: string | null = null) => {
     try {
       await createMarkdownTreeFolder(folderName, parentPath);
-    } catch {
-      // Native folder errors are surfaced by the platform operation when possible.
+    } catch (error) {
+      showAppToast({
+        message: nativeFileOperationFailureMessage(translate("app.markdownFolderCreateFailed"), error),
+        status: "error"
+      });
     }
-  }, [createMarkdownTreeFolder]);
+  }, [createMarkdownTreeFolder, translate]);
   const handleRenameMarkdownTreeFile = useCallback(async (file: NativeMarkdownFolderFile, fileName: string) => {
     try {
       const renamedFile = await renameMarkdownTreeFile(file, fileName);
       if (renamedFile) applyRenamedTreeFile(file.path, renamedFile);
-    } catch {
-      // Keep the existing tree state if the native rename fails.
+    } catch (error) {
+      showAppToast({
+        message: nativeFileOperationFailureMessage(translate("app.markdownFileRenameFailed"), error),
+        status: "error"
+      });
     }
-  }, [applyRenamedTreeFile, renameMarkdownTreeFile]);
+  }, [applyRenamedTreeFile, renameMarkdownTreeFile, translate]);
   const handleMoveMarkdownTreeFile = useCallback(async (
     file: NativeMarkdownFolderFile,
     targetParentPath: string | null
@@ -3333,10 +3352,13 @@ function WorkspaceApp() {
     try {
       const renamedFile = await renameMarkdownTreeFile(file, fileName);
       if (renamedFile) applyRenamedTreeFile(file.path, renamedFile);
-    } catch {
-      // Keep the existing tab state if the native rename fails.
+    } catch (error) {
+      showAppToast({
+        message: nativeFileOperationFailureMessage(translate("app.markdownFileRenameFailed"), error),
+        status: "error"
+      });
     }
-  }, [applyRenamedTreeFile, renameMarkdownTreeFile]);
+  }, [applyRenamedTreeFile, renameMarkdownTreeFile, translate]);
 
   const titlebarDocumentTabs = documentTabsVisible ? (
     <MarkdownTabsBar

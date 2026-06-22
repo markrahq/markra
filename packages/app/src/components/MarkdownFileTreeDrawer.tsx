@@ -339,6 +339,14 @@ function restoreTextInputSelection(input: EditableTextInput, start: number, end 
   input.ownerDocument.defaultView?.setTimeout(restoreSelection, 0);
 }
 
+function fileNameSelectionEndBeforeExtension(fileName: string) {
+  const extensionSeparatorIndex = fileName.lastIndexOf(".");
+
+  return extensionSeparatorIndex > 0 && extensionSeparatorIndex < fileName.length - 1
+    ? extensionSeparatorIndex
+    : fileName.length;
+}
+
 function replaceTextInputSelection(
   input: EditableTextInput,
   setValue: TextInputValueSetter,
@@ -489,6 +497,18 @@ export function MarkdownFileTreeDrawer({
     const tracker = imageAssetDragTrackerRef.current;
     imageAssetDragTrackerRef.current = null;
     tracker?.cleanup();
+  }, []);
+  const selectAllPrefilledFileTreeInput = useCallback((input: HTMLInputElement | null) => {
+    if (!input || !input.value) return;
+
+    input.focus({ preventScroll: true });
+    input.select();
+  }, []);
+  const selectPrefilledFileNameInput = useCallback((input: HTMLInputElement | null) => {
+    if (!input || !input.value) return;
+
+    input.focus({ preventScroll: true });
+    input.setSelectionRange(0, fileNameSelectionEndBeforeExtension(input.value));
   }, []);
   const fileTreeSort = controlledFileTreeSort ?? localFileTreeSort;
   const fileTreeSortKey = fileTreeSort.key;
@@ -1113,6 +1133,16 @@ export function MarkdownFileTreeDrawer({
     setRenameFileName("");
   };
 
+  const finishFileTreeInputsBeforeRowNavigation = () => {
+    const renamingFile = renamingFileRef.current;
+    if (renamingFile) {
+      commitRenameFile(renamingFile);
+      return;
+    }
+
+    cancelFileTreeInputs();
+  };
+
   const cancelFileTreeInputsFromBlankArea = (event: ReactMouseEvent<HTMLDivElement>) => {
     const target = event.target instanceof Element ? event.target : null;
     if (target?.closest("button, input")) return;
@@ -1507,6 +1537,7 @@ export function MarkdownFileTreeDrawer({
             aria-label={label("app.newMarkdownFileName")}
             autoFocus
             className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-5 text-(--text-primary) outline-none"
+            ref={selectPrefilledFileNameInput}
             type="text"
             value={newFileName}
             placeholder="Untitled.md"
@@ -1625,6 +1656,7 @@ export function MarkdownFileTreeDrawer({
           aria-label={folder ? label("app.renameMarkdownFolder") : label("app.renameMarkdownFile")}
           autoFocus
           className="h-6 min-w-0 rounded-md border border-(--accent) bg-(--bg-primary) px-1.5 text-[13px] leading-5 text-(--text-primary) outline-none"
+          ref={folder ? selectAllPrefilledFileTreeInput : selectPrefilledFileNameInput}
           type="text"
           value={renameFileName}
           onChange={(event) => setRenameFileName(event.target.value)}
@@ -1685,6 +1717,7 @@ export function MarkdownFileTreeDrawer({
                 aria-expanded={expanded}
                 onContextMenu={(event) => openContextMenu(event, folderFile, node.path)}
                 onClick={() => {
+                  finishFileTreeInputsBeforeRowNavigation();
                   setSelectedCreateParentPath(normalizeTreeCreateParentPath(node.path));
                   toggleFolder(node.relativePath);
                 }}
@@ -1713,6 +1746,7 @@ export function MarkdownFileTreeDrawer({
     const additiveSelection = event.metaKey || event.ctrlKey;
     const rangeSelection = event.shiftKey;
 
+    finishFileTreeInputsBeforeRowNavigation();
     setSelectedCreateParentPath(null);
 
     if (!additiveSelection && !rangeSelection) {
