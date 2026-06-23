@@ -347,6 +347,41 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(removeRecentFolder).not.toHaveBeenCalled();
   });
 
+  it("toggles recent folders when clicking the full section header row", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        recentFolders={[
+          { name: "notes", path: "/mock-files/notes" },
+          { name: "test", path: "/mock-files/test" }
+        ]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onOpenRecentFolder={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const recentSection = screen.getByRole("region", { name: "Recently used directories" });
+    const recentHeader = within(recentSection)
+      .getByRole("heading", { name: "Recently used directories" })
+      .closest("div");
+
+    expect(recentHeader).toBeInTheDocument();
+    expect(within(recentSection).getByRole("button", { name: "notes" })).toBeInTheDocument();
+
+    fireEvent.click(recentHeader!);
+
+    expect(within(recentSection).queryByRole("button", { name: "notes" })).not.toBeInTheDocument();
+
+    fireEvent.click(recentHeader!);
+
+    expect(within(recentSection).getByRole("button", { name: "notes" })).toBeInTheDocument();
+  });
+
   it("disambiguates recent folders with the same name by path", () => {
     const openRecentFolder = vi.fn();
 

@@ -536,6 +536,15 @@ export function MarkdownFileTreeDrawer({
 
     onRecentFoldersOpenChange?.(openRecentFolders);
   }, [controlledRecentFoldersOpen, onRecentFoldersOpenChange]);
+  const toggleRecentFoldersExpanded = useCallback(() => {
+    setRecentFoldersExpanded(!recentFoldersOpen);
+  }, [recentFoldersOpen, setRecentFoldersExpanded]);
+  const handleRecentFoldersHeaderKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+
+    event.preventDefault();
+    toggleRecentFoldersExpanded();
+  }, [toggleRecentFoldersExpanded]);
   const visibleFileTreeRows = useMemo(
     () => buildVisibleFileTreeRows(
       tree,
@@ -2159,22 +2168,25 @@ export function MarkdownFileTreeDrawer({
             role="region"
             aria-label={label("app.recentMarkdownFolders")}
           >
-            <div className="flex h-8 items-center gap-1 px-3 pr-2 text-[12px] text-(--text-secondary)">
+            <div
+              aria-expanded={recentFoldersOpen}
+              aria-label={recentFoldersOpen ? label("app.hideRecentMarkdownFolders") : label("app.showRecentMarkdownFolders")}
+              className="flex h-8 cursor-pointer items-center gap-1 px-3 pr-2 text-[12px] text-(--text-secondary) transition-colors hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+              role="button"
+              tabIndex={0}
+              onClick={toggleRecentFoldersExpanded}
+              onKeyDown={handleRecentFoldersHeaderKeyDown}
+            >
               <h3 className="m-0 min-w-0 flex-1 truncate text-[12px] leading-5 font-[560] tracking-normal text-(--text-secondary)">
                 {label("app.recentMarkdownFolders")}
               </h3>
-              <IconButton
-                className="rounded-md"
-                label={recentFoldersOpen ? label("app.hideRecentMarkdownFolders") : label("app.showRecentMarkdownFolders")}
-                pressed={recentFoldersOpen}
-                onClick={() => setRecentFoldersExpanded(!recentFoldersOpen)}
-              >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md" aria-hidden="true">
                 {recentFoldersOpen ? (
-                  <ChevronDown aria-hidden="true" size={14} />
+                  <ChevronDown size={14} />
                 ) : (
-                  <ChevronRight aria-hidden="true" size={14} />
+                  <ChevronRight size={14} />
                 )}
-              </IconButton>
+              </span>
             </div>
             {recentFoldersOpen ? (
               <div className="space-y-0.5 px-2 pb-1">
