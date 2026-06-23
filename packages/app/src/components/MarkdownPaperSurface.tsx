@@ -61,7 +61,7 @@ import {
   type Spellchecker,
   type SlashCommandLabels
 } from "@markra/editor";
-import { t, type AppLanguage } from "@markra/shared";
+import { matchesKeyboardShortcutEvent, t, type AppLanguage } from "@markra/shared";
 import type { ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
 import type { MarkdownDocumentLinkFile } from "../lib/document-links";
 import { markraDocumentLinkCompletionPlugin } from "./document-link-completion";
@@ -177,12 +177,13 @@ function markraReadOnlyTransactionGuard(readOnlyRef: { current: boolean }) {
 }
 
 function markraSpellcheckMenuShortcutPlugin(
+  shortcut: string,
   openMenu: (match: SpellcheckMatch, view: EditorView) => unknown
 ) {
   return $prose(() => new Plugin({
     props: {
       handleKeyDown(view, event) {
-        if (!isSpellcheckSuggestionShortcut(event)) return false;
+        if (!matchesKeyboardShortcutEvent(event, shortcut)) return false;
 
         const match = getActiveSpellcheckMatch(view);
         if (!match) return false;
@@ -465,7 +466,10 @@ function MilkdownEditorSurface({
           ignoredWords: spellcheckIgnoredWordsRef.current,
           spellchecker
         }))
-        .use(markraSpellcheckMenuShortcutPlugin(openSpellcheckSuggestionMenu))
+        .use(markraSpellcheckMenuShortcutPlugin(
+          normalizedMarkdownShortcuts.openSpellcheckSuggestions,
+          openSpellcheckSuggestionMenu
+        ))
         .use(markraFootnotePreviewPlugin())
         .use(markraBlockGapPlugin)
         .use(markraBlockDragPlugin(blockDragLabels))
@@ -564,10 +568,6 @@ export function MarkdownPaperSurface(props: MarkdownPaperSurfaceProps) {
       <MilkdownEditorSurface {...props} />
     </MilkdownProvider>
   );
-}
-
-function isSpellcheckSuggestionShortcut(event: KeyboardEvent) {
-  return event.key === "." && (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
 }
 
 function spellcheckMenuPosition(view: EditorView, match: SpellcheckMatch) {

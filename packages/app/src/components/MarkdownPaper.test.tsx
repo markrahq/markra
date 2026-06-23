@@ -949,6 +949,28 @@ describe("MarkdownPaper editing", () => {
     expect(screen.queryByRole("menu", { name: "Spelling suggestions" })).not.toBeInTheDocument();
   });
 
+  it("opens spelling suggestions with the configured shortcut instead of the default", async () => {
+    const { container, view } = await renderEditor("This document mentions environment and acommodate word.", {
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        openSpellcheckSuggestions: "Mod+Alt+."
+      },
+      spellcheckEnabled: true,
+      spellchecker: syntheticSpellchecker
+    });
+
+    await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toHaveTextContent("acommodate"));
+    moveCursor(view, view.state.doc.textContent.indexOf("acommodate") + 3);
+    focusEditor(view);
+    fireEvent.keyDown(view.dom, { code: "Period", key: ".", metaKey: true });
+
+    expect(screen.queryByRole("menu", { name: "Spelling suggestions" })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(view.dom, { code: "Period", key: ".", altKey: true, metaKey: true });
+
+    expect(await screen.findByRole("menu", { name: "Spelling suggestions" })).toBeInTheDocument();
+  });
+
   it("lets the current misspelling be added to the personal whitelist from the spelling menu", async () => {
     const onAddSpellcheckIgnoredWord = vi.fn();
     const { container, view } = await renderEditor("This document mentions environment and acommodate word.", {

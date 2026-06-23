@@ -30,6 +30,7 @@ const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
   italic: "menu.italic",
   link: "menu.link",
   openQuickOpen: "app.quickOpen",
+  openSpellcheckSuggestions: "editor.spellcheckSuggestions",
   orderedList: "menu.orderedList",
   paragraph: "menu.paragraph",
   quote: "menu.quote",
@@ -78,7 +79,8 @@ const keyboardShortcutSections: Array<{
       "link",
       "image",
       "table",
-      "toggleAllFolds"
+      "toggleAllFolds",
+      "openSpellcheckSuggestions"
     ]
   }
 ];

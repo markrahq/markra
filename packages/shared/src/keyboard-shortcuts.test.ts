@@ -41,6 +41,14 @@ describe("keyboard shortcuts", () => {
     }).toggleAllFolds).toBe("Mod+Shift+Alt+F");
   });
 
+  it("includes spelling suggestions as a configurable editor shortcut", () => {
+    expect(keyboardShortcutActions).toContain("openSpellcheckSuggestions");
+    expect(defaultKeyboardShortcuts.openSpellcheckSuggestions).toBe("Mod+.");
+    expect(normalizeKeyboardShortcuts({
+      openSpellcheckSuggestions: "Mod+Alt+."
+    }).openSpellcheckSuggestions).toBe("Mod+Alt+.");
+  });
+
   it("migrates the previous table shortcut away from all folds", () => {
     expect(defaultKeyboardShortcuts.table).toBe("Mod+Shift+Alt+T");
     expect(normalizeKeyboardShortcuts({

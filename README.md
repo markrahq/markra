@@ -84,6 +84,7 @@ Download the latest desktop builds from [GitHub Releases](https://github.com/mar
 | File tree operations | Create, rename, move, delete, sort, reveal, and multi-select | Create, rename, move, and delete where browser permissions allow |
 | Auto-save and restore | Existing files, tabs, drafts, workspace windows | Browser file handles and IndexedDB state where available |
 | AI providers | Native runtime requests with app proxy settings | Browser requests subject to provider CORS support |
+| Spellcheck | Markra-managed local spellcheck with on-demand language packs and a personal dictionary | Not available yet |
 | Image storage | Local folders, WebDAV, PicGo/PicList, and S3-compatible storage | Local/browser handles and WebDAV where CORS permits |
 | Backup and sync | Local backups and WebDAV sync | Not available in the web runtime |
 | Export | HTML, PDF, and Pandoc formats when configured | HTML download and browser print/PDF |
@@ -97,6 +98,7 @@ Markra is not trying to replace every Markdown tool. It is closest to a calm doc
 | Primary fit | Local-first Markdown writing with built-in AI editing | Minimal live-preview Markdown writing | Personal knowledge base and linked notes |
 | Editing model | WYSIWYG document surface plus source mode | Seamless live preview with Markdown syntax hidden while writing | Markdown notes with reading/live-preview editing modes |
 | AI workflow | Native inline actions and side panel, with preview before applying edits | Not a core product workflow | Not a core product workflow; plugins may vary |
+| Spellcheck | Markra-managed local dictionaries, on-demand downloads, correction suggestions, and a personal dictionary | System spellcheck on supported platforms, with Hunspell dictionaries where needed | Electron/Chromium-style editor spellcheck with configurable languages |
 | File model | Plain `.md` files, single-file or folder workspaces | Plain Markdown files and folder/file tree workflows | Local vaults using open file formats |
 | Knowledge features | Tabs, outline, workspace search, and double-bracket link completion | Outline, file tree, internal links, and export-oriented writing tools | Backlinks, graph view, Canvas, and large plugin ecosystem |
 | Sync and storage | Optional WebDAV sync, local backups, and configurable image storage | Uses local files; external sync services can be used | Optional paid Obsidian Sync and Publish services |
@@ -109,6 +111,8 @@ Markra is not trying to replace every Markdown tool. It is closest to a calm doc
 - Render links, images, HTML, KaTeX math, Mermaid diagrams, and GFM tables inline — expand any element back to source when needed.
 - Slash commands and drag handles for block-level editing; full source mode one click away.
 - Adjustable writing width, font size, and line height.
+- Desktop spellcheck highlights likely mistakes, offers suggestions with the default `Ctrl/Cmd+.` shortcut, and keeps custom terms in a personal dictionary; the suggestion shortcut can be changed in keyboard shortcut settings.
+- Markra manages its own local dictionaries instead of relying on OS or Electron spellcheck, so behavior stays consistent across desktop platforms while language packs download on demand and stay out of the app bundle.
 
 ### Native AI
 

@@ -26,7 +26,8 @@ export const keyboardShortcutActions = [
   "link",
   "image",
   "table",
-  "toggleAllFolds"
+  "toggleAllFolds",
+  "openSpellcheckSuggestions"
 ] as const;
 
 export const markdownFormattingShortcutActions = [
@@ -71,6 +72,7 @@ export const defaultKeyboardShortcuts: KeyboardShortcutBindings = {
   toggleAllFolds: "Mod+Alt+T",
   toggleDocumentHistory: "Mod+Shift+H",
   toggleMarkdownFiles: "Mod+Shift+M",
+  openSpellcheckSuggestions: "Mod+.",
   toggleReadOnlyMode: "Mod+Alt+L",
   toggleSourceMode: "Mod+Alt+S"
 };

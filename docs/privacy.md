@@ -46,6 +46,12 @@ Web search is optional. When enabled, requests can go to:
 
 Search queries and fetched result content are sent to the configured search provider or instance.
 
+## Spellcheck Dictionaries
+
+Desktop spellcheck uses local dictionary files. Language packs are not bundled with the app; when you download or refresh one, Markra requests the spellcheck manifest and dictionary files from the Markra dictionaries GitHub Releases. Downloaded dictionaries are cached in the Tauri app data directory and verified with SHA-256 before use.
+
+Dictionary downloads do not include document content. Personal spellcheck words are stored locally with Markra settings.
+
 ## Remote Image Storage
 
 Pasted or dropped images can stay local, or they can be uploaded when you choose a remote storage provider.
@@ -77,4 +83,4 @@ The desktop app can access native file paths, watch files, open folders, run loc
 
 ## Network Settings
 
-Desktop network settings can apply to AI requests, web search, web image downloads, remote sync, remote image uploads, and update checks. Localhost, LAN, and private IP bypass settings exist for tools such as Ollama, PicGo, and NAS WebDAV.
+Desktop network settings can apply to AI requests, web search, web image downloads, spellcheck dictionary downloads, remote sync, remote image uploads, and update checks. Localhost, LAN, and private IP bypass settings exist for tools such as Ollama, PicGo, and NAS WebDAV.

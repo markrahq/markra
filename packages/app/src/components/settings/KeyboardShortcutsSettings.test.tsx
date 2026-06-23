@@ -30,6 +30,7 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.getByRole("button", { name: "History versions shortcut" })).toHaveTextContent("⌘+⇧+H");
     expect(screen.getByRole("button", { name: "Switch to source mode shortcut" })).toHaveTextContent("⌘+⌥+S");
     expect(screen.getByRole("button", { name: "Toggle read-only mode shortcut" })).toHaveTextContent("⌘+⌥+L");
+    expect(screen.getByRole("button", { name: "Spelling suggestions shortcut" })).toHaveTextContent("⌘+.");
     expect(screen.getByRole("button", { name: "Link shortcut" })).toHaveTextContent("⌘+K");
     expect(screen.getByRole("button", { name: "Bold shortcut" })).toHaveTextContent("⌘+B");
     expect(screen.queryByText("Mod+B")).not.toBeInTheDocument();
@@ -186,8 +187,41 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.getByRole("button", { name: "History versions shortcut" })).toHaveTextContent("Ctrl+Shift+H");
     expect(screen.getByRole("button", { name: "Switch to source mode shortcut" })).toHaveTextContent("Ctrl+Alt+S");
     expect(screen.getByRole("button", { name: "Toggle read-only mode shortcut" })).toHaveTextContent("Ctrl+Alt+L");
+    expect(screen.getByRole("button", { name: "Spelling suggestions shortcut" })).toHaveTextContent("Ctrl+.");
     expect(screen.getByRole("button", { name: "Link shortcut" })).toHaveTextContent("Ctrl+K");
     expect(screen.getByRole("button", { name: "Strikethrough shortcut" })).toHaveTextContent("Ctrl+Shift+X");
+  });
+
+  it("records the spelling suggestions shortcut from the keyboard shortcuts tab", () => {
+    const onUpdatePreferences = vi.fn();
+    const preferences: EditorPreferences = {
+      ...defaultEditorPreferences,
+      markdownShortcuts: defaultMarkdownShortcuts
+    };
+
+    render(
+      <KeyboardShortcutsSettings
+        preferences={preferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Spelling suggestions shortcut" }));
+    fireEvent.keyDown(window, {
+      code: "Period",
+      key: ".",
+      altKey: true,
+      metaKey: true
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...preferences,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        openSpellcheckSuggestions: "Mod+Alt+."
+      }
+    });
   });
 
   it("records app-level shortcuts from the keyboard shortcuts tab", () => {
