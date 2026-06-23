@@ -55,7 +55,7 @@ test("generate-updater-manifest writes latest.json for every updater platform", 
   fs.writeFileSync(notesPath, "Release notes");
 
   const result = runManifestScript({
-    GITHUB_REPOSITORY: "murongg/markra",
+    GITHUB_REPOSITORY: "markrahq/markra",
     RELEASE_ASSETS_ROOT: rootDir,
     RELEASE_NOTES_PATH: notesPath,
     RELEASE_VERSION: "0.0.8",
@@ -70,19 +70,19 @@ test("generate-updater-manifest writes latest.json for every updater platform", 
   assert.deepEqual(manifest.platforms, {
     "darwin-aarch64": {
       signature: "mac-arm-signature",
-      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_macos_arm64_updater.app.tar.gz",
+      url: "https://github.com/markrahq/markra/releases/latest/download/Markra_0.0.8_macos_arm64_updater.app.tar.gz",
     },
     "darwin-x86_64": {
       signature: "mac-intel-signature",
-      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_macos_x64_updater.app.tar.gz",
+      url: "https://github.com/markrahq/markra/releases/latest/download/Markra_0.0.8_macos_x64_updater.app.tar.gz",
     },
     "linux-x86_64": {
       signature: "linux-signature",
-      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_linux_x64.AppImage",
+      url: "https://github.com/markrahq/markra/releases/latest/download/Markra_0.0.8_linux_x64.AppImage",
     },
     "windows-x86_64": {
       signature: "windows-signature",
-      url: "https://github.com/murongg/markra/releases/latest/download/Markra_0.0.8_windows_x64_setup.exe",
+      url: "https://github.com/markrahq/markra/releases/latest/download/Markra_0.0.8_windows_x64_setup.exe",
     },
   });
 });
@@ -109,7 +109,7 @@ test("generate-updater-manifest fails when metadata points at a missing bundle",
   fs.writeFileSync(notesPath, "Release notes");
 
   const result = runManifestScript({
-    GITHUB_REPOSITORY: "murongg/markra",
+    GITHUB_REPOSITORY: "markrahq/markra",
     RELEASE_ASSETS_ROOT: rootDir,
     RELEASE_NOTES_PATH: notesPath,
     RELEASE_VERSION: "0.0.8",
@@ -128,7 +128,7 @@ test("generate-updater-manifest fails when an expected platform is missing", () 
 
   const result = runManifestScript({
     EXPECTED_UPDATER_PLATFORMS: "darwin-aarch64,windows-x86_64",
-    GITHUB_REPOSITORY: "murongg/markra",
+    GITHUB_REPOSITORY: "markrahq/markra",
     RELEASE_ASSETS_ROOT: rootDir,
     RELEASE_NOTES_PATH: notesPath,
     RELEASE_VERSION: "0.0.8",

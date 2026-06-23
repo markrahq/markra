@@ -30,7 +30,7 @@ env:
   NODE_VERSION: 24
   PNPM_VERSION: 10.30.3
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
-  TAURI_UPDATER_ENDPOINT: https://github.com/murongg/markra/releases/latest/download/latest.json
+  TAURI_UPDATER_ENDPOINT: https://github.com/markrahq/markra/releases/latest/download/latest.json
 
 jobs:
   build:
