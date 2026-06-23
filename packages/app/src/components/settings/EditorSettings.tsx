@@ -3,7 +3,6 @@ import {
   Code2,
   History,
   Moon,
-  PanelRight,
   RotateCcw,
   Save,
   Search,
@@ -79,11 +78,6 @@ const titlebarActionOptions: Array<{
     icon: Code2,
     id: "sourceMode",
     labelKey: "app.editorViewMode"
-  },
-  {
-    icon: PanelRight,
-    id: "splitMode",
-    labelKey: "app.switchToSplitMode"
   },
   {
     icon: History,

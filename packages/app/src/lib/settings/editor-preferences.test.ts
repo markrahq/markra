@@ -80,7 +80,6 @@ describe("editor preferences", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
@@ -206,7 +205,6 @@ describe("editor preferences", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
@@ -222,6 +220,7 @@ describe("editor preferences", () => {
         { id: "save", visible: false },
         { id: "theme", visible: true },
         { id: "save", visible: true },
+        { id: "splitMode", visible: true },
         { id: "unknown", visible: true },
         { id: "aiAgent", visible: "yes" },
         { id: "open", visible: true }
@@ -231,7 +230,6 @@ describe("editor preferences", () => {
       { id: "theme", visible: true },
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
-      { id: "splitMode", visible: true },
       { id: "history", visible: true }
     ]);
   });
@@ -362,7 +360,6 @@ describe("editor preferences", () => {
     const actions = [
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
-      { id: "splitMode", visible: true },
       { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
@@ -370,7 +367,6 @@ describe("editor preferences", () => {
 
     expect(reorderTitlebarActions(actions, "aiAgent", "save")).toEqual([
       { id: "sourceMode", visible: true },
-      { id: "splitMode", visible: true },
       { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "aiAgent", visible: true },
@@ -380,7 +376,6 @@ describe("editor preferences", () => {
       { id: "aiAgent", visible: true },
       { id: "save", visible: true },
       { id: "sourceMode", visible: true },
-      { id: "splitMode", visible: true },
       { id: "history", visible: true },
       { id: "theme", visible: true }
     ]);
@@ -643,7 +638,6 @@ describe("editor preferences", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
@@ -721,7 +715,6 @@ describe("editor preferences", () => {
         { id: "theme", visible: true },
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "aiAgent", visible: true },
         { id: "history", visible: true }
       ],
@@ -796,7 +789,6 @@ describe("editor preferences", () => {
         { id: "theme", visible: true },
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "aiAgent", visible: true },
         { id: "history", visible: true }
       ],

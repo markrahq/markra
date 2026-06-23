@@ -270,7 +270,7 @@ export const defaultAppThemePreferences: AppThemePreferences = {
   darkTheme: "dark",
   lightTheme: "light"
 };
-export type TitlebarActionId = "aiAgent" | "sourceMode" | "splitMode" | "history" | "save" | "theme";
+export type TitlebarActionId = "aiAgent" | "sourceMode" | "history" | "save" | "theme";
 export type TitlebarActionPreference = {
   id: TitlebarActionId;
   visible: boolean;
@@ -388,7 +388,6 @@ export const defaultCustomThemeCssValues: CustomThemeCssValues = {
 export const defaultTitlebarActions: readonly TitlebarActionPreference[] = [
   { id: "aiAgent", visible: true },
   { id: "sourceMode", visible: true },
-  { id: "splitMode", visible: true },
   { id: "history", visible: true },
   { id: "save", visible: true },
   { id: "theme", visible: true }

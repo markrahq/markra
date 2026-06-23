@@ -485,7 +485,6 @@ describe("EditorSettings", () => {
       titlebarActions: [
         { id: "theme", visible: true },
         { id: "save", visible: false },
-        { id: "splitMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "aiAgent", visible: true }
       ]
@@ -505,7 +504,6 @@ describe("EditorSettings", () => {
     expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
       "Switch to dark theme",
       "Save Markdown",
-      "Switch to preview and source split",
       "Editor view mode",
       "Toggle Markra AI"
     ]);
@@ -525,14 +523,13 @@ describe("EditorSettings", () => {
       titlebarActions: [
         { id: "theme", visible: true },
         { id: "save", visible: true },
-        { id: "splitMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "aiAgent", visible: true }
       ]
     });
 
     const themeButton = screen.getByRole("button", { name: "Switch to dark theme" });
-    mockTitlebarActionRects(["theme", "save", "splitMode", "sourceMode", "aiAgent"]);
+    mockTitlebarActionRects(["theme", "save", "sourceMode", "aiAgent"]);
 
     fireEvent.mouseDown(themeButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
@@ -545,7 +542,6 @@ describe("EditorSettings", () => {
       titlebarActions: [
         { id: "save", visible: false },
         { id: "theme", visible: true },
-        { id: "splitMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "aiAgent", visible: true },
         { id: "history", visible: true }
@@ -568,9 +564,8 @@ describe("EditorSettings", () => {
       ...preferences,
       titlebarActions: [
         { id: "theme", visible: true },
-        { id: "save", visible: false },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
+        { id: "save", visible: false },
         { id: "aiAgent", visible: true },
         { id: "history", visible: true }
       ]
@@ -583,7 +578,6 @@ describe("EditorSettings", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }

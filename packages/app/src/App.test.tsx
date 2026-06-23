@@ -97,12 +97,46 @@ import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests }
 installAppTestHarness();
 
 async function selectEditorViewMode(optionName: "Preview" | "Source code" | "Preview + Source") {
-  const targetLabel = `Editor view mode: ${optionName}`;
-  const targetButton = screen.getByRole("button", { name: targetLabel });
-  if (targetButton.getAttribute("aria-pressed") === "true") return;
+  const modeOrder = ["Preview", "Source code", "Preview + Source"] as const;
+  const currentMode = () => {
+    if (screen.queryByRole("button", { name: "Editor view mode: Preview" })) return "Preview";
+    if (screen.queryByRole("button", { name: "Editor view mode: Source code" })) return "Source code";
+    if (screen.queryByRole("button", { name: "Editor view mode: Preview + Source" })) return "Preview + Source";
 
-  fireEvent.click(targetButton);
-  await waitFor(() => expect(screen.getByRole("button", { name: targetLabel })).toHaveAttribute("aria-pressed", "true"));
+    throw new Error("Editor view mode button was not found.");
+  };
+  const switchSourcePreviewDirectly = async () => {
+    const mode = currentMode();
+    if (
+      !((mode === "Preview" && optionName === "Source code") || (mode === "Source code" && optionName === "Preview"))
+    ) return false;
+
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers | undefined;
+    if (!menuHandlers?.toggleSourceMode) return false;
+
+    await act(async () => {
+      await menuHandlers.toggleSourceMode?.();
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: `Editor view mode: ${optionName}` })).toBeInTheDocument()
+    );
+    return true;
+  };
+
+  if (await switchSourcePreviewDirectly()) return;
+
+  for (let attempts = 0; attempts < modeOrder.length; attempts += 1) {
+    const mode = currentMode();
+    if (mode === optionName) return;
+
+    const nextMode = modeOrder[(modeOrder.indexOf(mode) + 1) % modeOrder.length]!;
+    fireEvent.click(screen.getByRole("button", { name: `Editor view mode: ${mode}` }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: `Editor view mode: ${nextMode}` })).toBeInTheDocument()
+    );
+  }
+
+  throw new Error(`Editor view mode did not cycle to ${optionName}.`);
 }
 
 const defaultImageUpload = {
@@ -279,7 +313,6 @@ function createStoredEditorPreferences(
     titlebarActions: [
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
-      { id: "splitMode", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ],
@@ -777,7 +810,6 @@ describe("Markra workspace", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -789,7 +821,7 @@ describe("Markra workspace", () => {
     await screen.findByText("Welcome to Markra");
 
     const aiButton = screen.getByRole("button", { name: "Toggle Markra AI" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "splitMode", "save", "theme"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme"]);
 
     fireEvent.mouseDown(aiButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
@@ -830,10 +862,9 @@ describe("Markra workspace", () => {
         spellcheckLanguage: "en",
         titlebarActions: [
           { id: "sourceMode", visible: true },
-          { id: "splitMode", visible: true },
           { id: "save", visible: true },
-          { id: "aiAgent", visible: true },
-          { id: "theme", visible: true }
+          { id: "theme", visible: true },
+          { id: "aiAgent", visible: true }
         ],
         showWordCount: true,
         wrapCodeBlocks: true
@@ -872,10 +903,9 @@ describe("Markra workspace", () => {
         spellcheckLanguage: "en",
         titlebarActions: [
           { id: "sourceMode", visible: true },
-          { id: "splitMode", visible: true },
           { id: "save", visible: true },
-          { id: "aiAgent", visible: true },
-          { id: "theme", visible: true }
+          { id: "theme", visible: true },
+          { id: "aiAgent", visible: true }
         ],
         showWordCount: true,
         wrapCodeBlocks: true
@@ -1531,7 +1561,6 @@ describe("Markra workspace", () => {
       titlebarActions: [
         { id: "aiAgent" as const, visible: true },
         { id: "sourceMode" as const, visible: true },
-        { id: "splitMode" as const, visible: true },
         { id: "save" as const, visible: true },
         { id: "theme" as const, visible: true }
       ],
@@ -1549,7 +1578,6 @@ describe("Markra workspace", () => {
     expect(within(toolbarGroup).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
       "Toggle Markra AI",
       "Editor view mode",
-      "Switch to preview and source split",
       "Save Markdown",
       "Switch to dark theme",
       "Reset toolbar buttons"
@@ -1560,7 +1588,6 @@ describe("Markra workspace", () => {
         ...initialPreferences,
         titlebarActions: [
           { id: "sourceMode", visible: true },
-          { id: "splitMode", visible: true },
           { id: "save", visible: true },
           { id: "aiAgent", visible: true },
           { id: "theme", visible: true }
@@ -1570,7 +1597,6 @@ describe("Markra workspace", () => {
 
     expect(within(toolbarGroup).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
       "Editor view mode",
-      "Switch to preview and source split",
       "Save Markdown",
       "Toggle Markra AI",
       "Switch to dark theme",
@@ -1663,7 +1689,6 @@ describe("Markra workspace", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -4337,7 +4362,6 @@ describe("Markra workspace", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
@@ -4479,7 +4503,6 @@ describe("Markra workspace", () => {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],

@@ -393,7 +393,7 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
     expect(container.querySelector(".windows-app-chrome .windows-window-controls")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Editor view mode: Source code" }));
+    fireEvent.click(screen.getByRole("button", { name: "Editor view mode: Preview" }));
 
     expect(toggleSourceMode).toHaveBeenCalledTimes(1);
   });
@@ -796,7 +796,7 @@ describe("NativeTitleBar", () => {
     expect(showHistory).toHaveBeenCalledTimes(1);
   });
 
-  it("selects editor view modes directly from the titlebar action", () => {
+  it("cycles editor view modes from the titlebar action", () => {
     const selectEditorMode = vi.fn();
     const visualModeCase = render(
       <NativeTitleBar
@@ -815,16 +815,13 @@ describe("NativeTitleBar", () => {
       />
     );
 
-    const previewModeButton = screen.getByRole("button", { name: "Editor view mode: Preview" });
-    const sourceModeButton = screen.getByRole("button", { name: "Editor view mode: Source code" });
-    const splitModeButton = screen.getByRole("button", { name: "Editor view mode: Preview + Source" });
-    expect(previewModeButton).toContainElement(visualModeCase.container.querySelector(".lucide-eye"));
-    expect(sourceModeButton).toContainElement(visualModeCase.container.querySelector(".lucide-code-xml"));
-    expect(splitModeButton.querySelector(".lucide-panel-right")).toBeInTheDocument();
-    expect(previewModeButton).toHaveAttribute("aria-pressed", "true");
-    expect(sourceModeButton).toHaveAttribute("aria-pressed", "false");
-    expect(splitModeButton).toHaveAttribute("aria-pressed", "false");
-    expect(previewModeButton).not.toHaveAttribute("aria-haspopup");
+    const sourceModeButton = screen.getByRole("button", { name: "Editor view mode: Preview" });
+    expect(sourceModeButton).toContainElement(visualModeCase.container.querySelector(".lucide-eye"));
+    expect(sourceModeButton).not.toHaveAttribute("aria-pressed");
+    expect(sourceModeButton).not.toHaveAttribute("aria-haspopup");
+    expect(screen.queryByRole("button", { name: "Editor view mode: Source code" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Editor view mode: Preview + Source" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitemradio", { name: "Preview" })).not.toBeInTheDocument();
 
     fireEvent.click(sourceModeButton);
 
@@ -852,9 +849,8 @@ describe("NativeTitleBar", () => {
 
     const sourceViewModeButton = screen.getByRole("button", { name: "Editor view mode: Source code" });
     expect(sourceViewModeButton).toContainElement(sourceModeCase.container.querySelector(".lucide-code-xml"));
-    expect(sourceViewModeButton).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.click(screen.getByRole("button", { name: "Editor view mode: Preview + Source" }));
+    fireEvent.click(sourceViewModeButton);
 
     expect(selectEditorMode).toHaveBeenLastCalledWith("split");
 
@@ -880,9 +876,8 @@ describe("NativeTitleBar", () => {
 
     const splitViewModeButton = screen.getByRole("button", { name: "Editor view mode: Preview + Source" });
     expect(splitViewModeButton.querySelector(".lucide-panel-right")).toBeInTheDocument();
-    expect(splitViewModeButton).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.click(screen.getByRole("button", { name: "Editor view mode: Preview" }));
+    fireEvent.click(splitViewModeButton);
 
     expect(selectEditorMode).toHaveBeenLastCalledWith("visual");
   });
@@ -901,7 +896,7 @@ describe("NativeTitleBar", () => {
           { id: "splitMode", visible: true },
           { id: "aiAgent", visible: true },
           { id: "sourceMode", visible: true }
-        ]}
+        ] as any}
         onToggleAiAgent={() => {}}
         onOpenMarkdown={() => {}}
         onSaveMarkdown={() => {}}
@@ -918,11 +913,8 @@ describe("NativeTitleBar", () => {
 
     expect(actionLabels).toEqual([
       "Switch to dark theme",
-      "Switch to preview and source split",
       "Toggle Markra AI",
       "Editor view mode: Preview",
-      "Editor view mode: Source code",
-      "Editor view mode: Preview + Source",
       "Show history"
     ]);
     expect(screen.getByRole("button", { name: "Open Markdown or Folder" }).closest(".titlebar-spacer")).toBeInTheDocument();
@@ -955,7 +947,7 @@ describe("NativeTitleBar", () => {
     );
 
     const aiButton = screen.getByRole("button", { name: "Toggle Markra AI" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "splitMode", "history"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "history"]);
 
     fireEvent.mouseDown(aiButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
@@ -968,7 +960,6 @@ describe("NativeTitleBar", () => {
       { id: "save", visible: true },
       { id: "aiAgent", visible: true },
       { id: "theme", visible: true },
-      { id: "splitMode", visible: true },
       { id: "history", visible: true }
     ]);
   });
@@ -999,7 +990,7 @@ describe("NativeTitleBar", () => {
     );
 
     const saveButton = screen.getByRole("button", { name: "Save Markdown" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "splitMode", "history"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "history"]);
 
     fireEvent.mouseDown(saveButton, { button: 0, clientX: 80, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 70, clientY: 10 });
@@ -1012,7 +1003,6 @@ describe("NativeTitleBar", () => {
       { id: "save", visible: true },
       { id: "sourceMode", visible: true },
       { id: "theme", visible: true },
-      { id: "splitMode", visible: true },
       { id: "history", visible: true }
     ]);
   });

@@ -366,68 +366,33 @@ export function NativeTitleBar({
     }
 
     if (id === "sourceMode") {
-      if (!onSelectEditorMode && !onToggleSourceMode) return null;
+      if (!onSelectEditorMode && !onToggleSourceMode && !onToggleSplitMode) return null;
 
       const editorViewModeOptions = [
         { Icon: Eye, label: label("app.editorViewPreview"), mode: "visual" as const },
         { Icon: Code2, label: label("app.editorViewSource"), mode: "source" as const },
         { Icon: PanelRight, label: label("app.editorViewSplit"), mode: "split" as const }
       ];
-
-      return (
-        <div
-          aria-label={label("app.editorViewMode")}
-          className={mergeClassNames(
-            "inline-flex h-7 items-center overflow-hidden rounded-lg border border-transparent bg-transparent",
-            sourceModeDisabled ? "opacity-35" : "",
-            sortable.actionClassName
-          )}
-          role="group"
-        >
-          {editorViewModeOptions.map(({ Icon, label: optionLabel, mode }) => {
-            const selected = editorViewMode === mode;
-
-            return (
-              <button
-                key={mode}
-                aria-label={`${label("app.editorViewMode")}: ${optionLabel}`}
-                aria-pressed={selected}
-                className={mergeClassNames(
-                  "inline-flex size-7 shrink-0 cursor-pointer items-center justify-center border-0 bg-transparent p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) disabled:cursor-default disabled:opacity-60 disabled:hover:bg-transparent disabled:hover:text-(--text-secondary) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
-                  selected ? "bg-(--bg-active) text-(--text-heading) opacity-100" : ""
-                )}
-                disabled={sourceModeDisabled}
-                type="button"
-                onClick={(event) => handleTitlebarActionClick("sourceMode", event, () => selectEditorViewMode(mode))}
-                {...sortable.actionAttributes}
-                {...sortable.actionListeners}
-              >
-                <Icon aria-hidden="true" size={15} />
-              </button>
-            );
-          })}
-        </div>
-      );
-    }
-
-    if (id === "splitMode") {
-      if (!onToggleSplitMode) return null;
-
+      const currentEditorViewModeOption =
+        editorViewModeOptions.find((option) => option.mode === editorViewMode) ?? editorViewModeOptions[0]!;
+      const CurrentIcon = currentEditorViewModeOption.Icon;
+      const nextEditorViewMode = editorViewMode === "visual" ? "source" : editorViewMode === "source" ? "split" : "visual";
       return (
         <IconButton
           className={mergeClassNames(
-            splitMode ? "bg-(--bg-active) text-(--text-heading) opacity-100" : "",
+            editorViewMode === "visual" ? "" : "bg-(--bg-active) text-(--text-heading) opacity-100",
             "disabled:opacity-35",
             sortable.actionClassName
           )}
           disabled={sourceModeDisabled}
-          label={splitMode ? label("app.closeSplitMode") : label("app.switchToSplitMode")}
-          pressed={splitMode}
-          onClick={(event) => handleTitlebarActionClick("splitMode", event, onToggleSplitMode)}
+          label={`${label("app.editorViewMode")}: ${currentEditorViewModeOption.label}`}
+          onClick={(event) => {
+            handleTitlebarActionClick("sourceMode", event, () => selectEditorViewMode(nextEditorViewMode));
+          }}
           {...sortable.actionAttributes}
           {...sortable.actionListeners}
         >
-          <PanelRight aria-hidden="true" size={15} />
+          <CurrentIcon aria-hidden="true" size={15} />
         </IconButton>
       );
     }

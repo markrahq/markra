@@ -303,7 +303,6 @@ vi.mock("../lib/settings/app-settings", () => ({
     titlebarActions: [
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
-      { id: "splitMode", visible: true },
       { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
@@ -455,7 +454,6 @@ vi.mock("../lib/settings/app-settings", () => ({
   defaultTitlebarActions: [
     { id: "aiAgent", visible: true },
     { id: "sourceMode", visible: true },
-    { id: "splitMode", visible: true },
     { id: "history", visible: true },
     { id: "save", visible: true },
     { id: "theme", visible: true }
@@ -570,7 +568,6 @@ vi.mock("../lib/settings/app-settings", () => ({
     titlebarActions: [
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
-      { id: "splitMode", visible: true },
       { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
@@ -591,7 +588,6 @@ vi.mock("../lib/settings/app-settings", () => ({
   normalizeTitlebarActions: vi.fn((actions) => Array.isArray(actions) ? actions : [
     { id: "aiAgent", visible: true },
     { id: "sourceMode", visible: true },
-    { id: "splitMode", visible: true },
     { id: "save", visible: true },
     { id: "theme", visible: true }
   ]),
@@ -603,7 +599,6 @@ vi.mock("../lib/settings/app-settings", () => ({
     const normalized = Array.isArray(actions) ? actions : [
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
-      { id: "splitMode", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ];
@@ -1277,7 +1272,6 @@ export function installAppTestHarness() {
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }

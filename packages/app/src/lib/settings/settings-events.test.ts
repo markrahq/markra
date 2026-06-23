@@ -210,7 +210,6 @@ describe("settings events", () => {
         { id: "theme", visible: true },
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
-        { id: "splitMode", visible: true },
         { id: "aiAgent", visible: true },
         { id: "history", visible: true }
       ],

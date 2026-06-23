@@ -30,12 +30,27 @@ vi.mock("./hooks/useEditorController", async (importOriginal) => {
 installAppTestHarness();
 
 async function selectEditorViewMode(optionName: "Preview" | "Source code" | "Preview + Source") {
-  const targetLabel = `Editor view mode: ${optionName}`;
-  const targetButton = screen.getByRole("button", { name: targetLabel });
-  if (targetButton.getAttribute("aria-pressed") === "true") return;
+  const modeOrder = ["Preview", "Source code", "Preview + Source"] as const;
+  const currentMode = () => {
+    if (screen.queryByRole("button", { name: "Editor view mode: Preview" })) return "Preview";
+    if (screen.queryByRole("button", { name: "Editor view mode: Source code" })) return "Source code";
+    if (screen.queryByRole("button", { name: "Editor view mode: Preview + Source" })) return "Preview + Source";
 
-  fireEvent.click(targetButton);
-  await waitFor(() => expect(screen.getByRole("button", { name: targetLabel })).toHaveAttribute("aria-pressed", "true"));
+    throw new Error("Editor view mode button was not found.");
+  };
+
+  for (let attempts = 0; attempts < modeOrder.length; attempts += 1) {
+    const mode = currentMode();
+    if (mode === optionName) return;
+
+    const nextMode = modeOrder[(modeOrder.indexOf(mode) + 1) % modeOrder.length]!;
+    fireEvent.click(screen.getByRole("button", { name: `Editor view mode: ${mode}` }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: `Editor view mode: ${nextMode}` })).toBeInTheDocument()
+    );
+  }
+
+  throw new Error(`Editor view mode did not cycle to ${optionName}.`);
 }
 
 function replaceMarkdownSource(sourceEditor: HTMLElement, value: string) {
