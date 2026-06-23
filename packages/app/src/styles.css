@@ -999,6 +999,14 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
   }
 
+  .markra-spellcheck-error {
+    text-decoration-line: underline;
+    text-decoration-style: wavy;
+    text-decoration-color: var(--danger);
+    text-decoration-thickness: 1.2px;
+    text-underline-offset: 3px;
+  }
+
   .markdown-paper {
     --editor-paper-bg: var(--bg-primary);
     --editor-text-primary: var(--text-primary);

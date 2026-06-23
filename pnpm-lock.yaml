@@ -284,6 +284,9 @@ importers:
       codemirror:
         specifier: 6.0.2
         version: 6.0.2
+      cspell-trie-lib:
+        specifier: 10.0.1
+        version: 10.0.1(@cspell/cspell-types@10.0.1)
       katex:
         specifier: 0.16.45
         version: 0.16.45
@@ -351,6 +354,9 @@ importers:
 
   packages/editor:
     dependencies:
+      '@cspell/cspell-types':
+        specifier: 10.0.1
+        version: 10.0.1
       '@markra/ai':
         specifier: workspace:*
         version: link:../ai
@@ -360,6 +366,9 @@ importers:
       '@milkdown/kit':
         specifier: ^7.20.0
         version: 7.20.0(@codemirror/language@6.12.3)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1)(typescript@6.0.3)
+      cspell-trie-lib:
+        specifier: 10.0.1
+        version: 10.0.1(@cspell/cspell-types@10.0.1)
       katex:
         specifier: 0.16.45
         version: 0.16.45
@@ -876,6 +885,10 @@ packages:
         optional: true
       conventional-commits-parser:
         optional: true
+
+  '@cspell/cspell-types@10.0.1':
+    resolution: {integrity: sha512-kLgLShnWADDVreKC63pBrWkcvxgZzFIfO34Jhx/SWfuOIA3cD8AXT+HjyuLfoGJ7mUb58hv2kUziKzEy4INb1w==}
+    engines: {node: '>=22.18.0'}
 
   '@csstools/color-helpers@6.0.2':
     resolution: {integrity: sha512-LMGQLS9EuADloEFkcTBR3BwV/CGHV7zyDxVRtVDTwdI2Ca4it0CCVTT9wCkxSgokjE5Ho41hEPgb8OEUwoXr6Q==}
@@ -1955,6 +1968,12 @@ packages:
 
   crelt@1.0.6:
     resolution: {integrity: sha512-VQ2MBenTq1fWZUH9DJNGti7kKv6EeAuYr3cLwxUWhIu1baTaXh4Ib5W2CqHVqib4/MqbYGJqiL3Zb8GJZr3l4g==}
+
+  cspell-trie-lib@10.0.1:
+    resolution: {integrity: sha512-BFvhalSkRQFjKrZ//FKK7fRGrZFpifnxB5AwCkzsIsBZqicsfafcQ1xP21qpb0QqyV/IomjNgviG+tRJs+0rMw==}
+    engines: {node: '>=22.18.0'}
+    peerDependencies:
+      '@cspell/cspell-types': 10.0.1
 
   css-tree@3.2.1:
     resolution: {integrity: sha512-X7sjQzceUhu1u7Y/ylrRZFU2FS6LRiFVp6rKLPg23y3x3c3DOKAwuXGDp+PAGjh6CSnCjYeAul8pcT8bAl+lSA==}
@@ -3946,6 +3965,8 @@ snapshots:
       conventional-commits-filter: 5.0.0
       conventional-commits-parser: 6.4.0
 
+  '@cspell/cspell-types@10.0.1': {}
+
   '@csstools/color-helpers@6.0.2': {}
 
   '@csstools/css-calc@3.2.0(@csstools/css-parser-algorithms@4.0.0(@csstools/css-tokenizer@4.0.0))(@csstools/css-tokenizer@4.0.0)':
@@ -5246,6 +5267,10 @@ snapshots:
       layout-base: 2.0.1
 
   crelt@1.0.6: {}
+
+  cspell-trie-lib@10.0.1(@cspell/cspell-types@10.0.1):
+    dependencies:
+      '@cspell/cspell-types': 10.0.1
 
   css-tree@3.2.1:
     dependencies:

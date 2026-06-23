@@ -59,6 +59,12 @@ import type {
 } from "../lib/tauri/window";
 import type { NativePandocSetupAction } from "../lib/tauri/dialog";
 import type { NativeShellCommandStatus } from "../lib/tauri/shell-command";
+import type {
+  NativeSpellcheckDictionary,
+  NativeSpellcheckDictionaryLoadOptions,
+  NativeSpellcheckDictionaryManifest,
+  NativeSpellcheckDictionaryStatus
+} from "../lib/tauri/spellcheck";
 import type { NativeWebResourceRequest, NativeWebResourceResponse } from "../lib/tauri/web-resource";
 import type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../lib/workspace-search";
 
@@ -257,6 +263,17 @@ export type AppWebResourceRuntime = {
   requestWebResource: (request: NativeWebResourceRequest) => Promise<NativeWebResourceResponse>;
 };
 
+export type AppSpellcheckRuntime = {
+  deleteSpellcheckDictionary: (manifest: NativeSpellcheckDictionaryManifest) => Promise<unknown>;
+  getSpellcheckDictionaryStatus: (
+    manifest: NativeSpellcheckDictionaryManifest
+  ) => Promise<NativeSpellcheckDictionaryStatus>;
+  loadSpellcheckDictionary: (
+    manifest: NativeSpellcheckDictionaryManifest,
+    options?: NativeSpellcheckDictionaryLoadOptions
+  ) => Promise<NativeSpellcheckDictionary>;
+};
+
 export type AppFeatureRuntime = {
   ai: boolean;
   export: boolean;
@@ -264,6 +281,7 @@ export type AppFeatureRuntime = {
   networkProxy: boolean;
   pandoc: boolean;
   s3ImageUpload: boolean;
+  spellcheck: boolean;
   updater: boolean;
 };
 
@@ -297,6 +315,7 @@ export type AppRuntime = {
   platform: AppPlatformRuntime;
   settings: AppSettingsRuntime;
   shellCommand: AppShellCommandRuntime;
+  spellcheck: AppSpellcheckRuntime;
   systemFonts: AppSystemFontsRuntime;
   updater: AppUpdaterRuntime;
   webResource: AppWebResourceRuntime;
@@ -417,6 +436,7 @@ export function createDefaultAppRuntime(): AppRuntime {
       networkProxy: true,
       pandoc: true,
       s3ImageUpload: true,
+      spellcheck: true,
       updater: true
     },
     files: createDefaultFileRuntime(),
@@ -438,6 +458,11 @@ export function createDefaultAppRuntime(): AppRuntime {
       getShellCommandStatus: async () => ({ commandPath: null, targetPath: null, status: "unavailable" }),
       installShellCommand: async () => ({ commandPath: null, targetPath: null, status: "unavailable" }),
       uninstallShellCommand: async () => ({ commandPath: null, targetPath: null, status: "unavailable" })
+    },
+    spellcheck: {
+      deleteSpellcheckDictionary: () => unsupportedFeature("deleteSpellcheckDictionary"),
+      getSpellcheckDictionaryStatus: async () => ({ downloaded: false }),
+      loadSpellcheckDictionary: () => unsupportedFeature("loadSpellcheckDictionary")
     },
     systemFonts: {
       listFontFamilies: async () => []
@@ -567,6 +592,8 @@ export type { NativeAiChatRequest, NativeAiHttpRequest, NativeAiHttpResponse, Na
 export type { NativeAppUpdate, NativeAppUpdateProgress } from "../lib/tauri/updater";
 export type { NativePandocSetupAction } from "../lib/tauri/dialog";
 export type { NativeShellCommandStatus } from "../lib/tauri/shell-command";
+export type { NativeSpellcheckDictionary, NativeSpellcheckDictionaryManifest } from "../lib/tauri/spellcheck";
+export type { NativeSpellcheckDictionaryLoadOptions, NativeSpellcheckDictionaryStatus } from "../lib/tauri/spellcheck";
 export type { NativeWebResourceRequest, NativeWebResourceResponse } from "../lib/tauri/web-resource";
 export type {
   NativeEditorWindowRestoreState,

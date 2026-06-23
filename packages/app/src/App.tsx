@@ -98,6 +98,7 @@ import { aiCommandSelection, automaticAiSelection } from "./lib/ai-selection";
 import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
 import { markAppPerformance } from "./lib/performance-marks";
 import { replaceMovedPath, sameNativePath } from "./lib/path-move";
+import { createAppSpellcheckerForLanguage } from "./lib/spellcheck";
 import {
   resolveDesktopOsVersion,
   resolveDesktopPlatform,
@@ -138,6 +139,7 @@ import {
   deleteStoredAiAgentSession,
   getStoredWorkspaceState,
   initializeStoredAiAgentSession,
+  normalizeSpellcheckIgnoredWords,
   splitVisualPanePercentMax,
   splitVisualPanePercentMin,
   saveStoredEditorPreferences,
@@ -257,6 +259,7 @@ function WorkspaceApp() {
   const windowsSelfDrawnChromeEnabled = nativeWindowChromeEnabled && desktopPlatform === "windows";
   const pandocFeatureEnabled = appFeatures.pandoc;
   const s3ImageUploadFeatureEnabled = appFeatures.s3ImageUpload;
+  const spellcheckFeatureEnabled = appFeatures.spellcheck;
   const updaterFeatureEnabled = appFeatures.updater;
   const appTheme = useAppTheme();
   const appLanguage = useAppLanguage();
@@ -264,6 +267,13 @@ function WorkspaceApp() {
   const backupSettings = useBackupSettings();
   const syncSettings = useSyncSettings();
   const editorPreferences = useEditorPreferences();
+  const appSpellchecker = useMemo(
+    () =>
+      spellcheckFeatureEnabled
+        ? createAppSpellcheckerForLanguage(editorPreferences.preferences.spellcheckLanguage)
+        : undefined,
+    [editorPreferences.preferences.spellcheckLanguage, spellcheckFeatureEnabled]
+  );
   const exportSettings = useExportSettings();
   const webSearchSettings = useWebSearchSettings();
   const [markdownTemplates, setMarkdownTemplates] = useState<MarkdownTemplate[]>([]);
@@ -706,6 +716,22 @@ function WorkspaceApp() {
       ...editorPreferences.preferences,
       contentWidth: nextWidth.contentWidth,
       contentWidthPx: nextWidth.contentWidthPx
+    };
+
+    saveStoredEditorPreferences(nextPreferences)
+      .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
+      .catch(() => {});
+  }, [editorPreferences.preferences]);
+  const handleAddSpellcheckIgnoredWord = useCallback((word: string) => {
+    const nextIgnoredWords = normalizeSpellcheckIgnoredWords([
+      ...editorPreferences.preferences.spellcheckIgnoredWords,
+      word
+    ]);
+    if (nextIgnoredWords.join("\n") === editorPreferences.preferences.spellcheckIgnoredWords.join("\n")) return;
+
+    const nextPreferences = {
+      ...editorPreferences.preferences,
+      spellcheckIgnoredWords: nextIgnoredWords
     };
 
     saveStoredEditorPreferences(nextPreferences)
@@ -3471,6 +3497,10 @@ function WorkspaceApp() {
               revision={tab.revision}
               onScroll={tabActive ? handleVisualPaneScroll : undefined}
               scrollRef={tabActive ? visualScrollRef : undefined}
+              spellcheckEnabled={spellcheckFeatureEnabled && editorPreferences.preferences.spellcheckEnabled}
+              spellcheckIgnoredWords={editorPreferences.preferences.spellcheckIgnoredWords}
+              spellchecker={appSpellchecker}
+              onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
               topInset="titlebar"
               workspaceFiles={fileTreeFiles}
               wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
@@ -3846,6 +3876,10 @@ function WorkspaceApp() {
                         resolveImageSrc={resolveSideDocumentImageSrc}
                         revision={sideDocumentTab.revision}
                         sizeBytes={sideDocumentTab.sizeBytes}
+                        spellcheckEnabled={spellcheckFeatureEnabled && editorPreferences.preferences.spellcheckEnabled}
+                        spellcheckIgnoredWords={editorPreferences.preferences.spellcheckIgnoredWords}
+                        spellchecker={appSpellchecker}
+                        onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
                         workspaceFiles={fileTreeFiles}
                         onChange={handleSideDocumentChange}
                         onContentWidthChange={handleEditorContentWidthChange}

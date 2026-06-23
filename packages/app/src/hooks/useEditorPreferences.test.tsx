@@ -83,6 +83,9 @@ vi.mock("../lib/settings/app-settings", () => ({
     showAiSelectionToolbarOnSelection: false,
     showDocumentTabs: true,
     splitVisualPanePercent: 50,
+    spellcheckEnabled: false,
+    spellcheckIgnoredWords: [],
+    spellcheckLanguage: "en",
     showWordCount: true,
     wrapCodeBlocks: true
   },
@@ -182,6 +185,9 @@ describe("useEditorPreferences", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -280,6 +286,9 @@ describe("useEditorPreferences", () => {
         suggestAiPanelForComplexInlinePrompts: true,
         showDocumentTabs: false,
         splitVisualPanePercent: 64,
+        spellcheckEnabled: true,
+        spellcheckIgnoredWords: ["exampleterm"],
+        spellcheckLanguage: "en",
         titlebarActions: [
           { id: "theme", visible: true },
           { id: "save", visible: false },

@@ -32,6 +32,7 @@ export function createWebRuntime(options: WebRuntimeOptions = {}): AppRuntime {
       networkProxy: false,
       pandoc: false,
       s3ImageUpload: false,
+      spellcheck: false,
       updater: false
     },
     files: createWebFileRuntime(settings, options),

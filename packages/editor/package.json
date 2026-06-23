@@ -17,9 +17,11 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
+    "@cspell/cspell-types": "10.0.1",
     "@markra/ai": "workspace:*",
     "@markra/shared": "workspace:*",
     "@milkdown/kit": "^7.20.0",
+    "cspell-trie-lib": "10.0.1",
     "katex": "0.16.45",
     "lowlight": "3.3.0",
     "mermaid": "11.15.0",

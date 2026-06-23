@@ -28,6 +28,11 @@ import {
   normalizeAiQuickActionPrompts,
   type AiQuickActionPrompts
 } from "../ai-actions";
+import {
+  defaultSpellcheckLanguage,
+  isSpellcheckLanguage,
+  type SpellcheckLanguage
+} from "../spellcheck-languages";
 import { getAppRuntime } from "../../runtime";
 import {
   defaultBackupSettings,
@@ -330,6 +335,9 @@ export type EditorPreferences = {
   suggestAiPanelForComplexInlinePrompts: boolean;
   showDocumentTabs: boolean;
   splitVisualPanePercent: number;
+  spellcheckEnabled: boolean;
+  spellcheckIgnoredWords: string[];
+  spellcheckLanguage: SpellcheckLanguage;
   titlebarActions: TitlebarActionPreference[];
   showWordCount: boolean;
   wrapCodeBlocks: boolean;
@@ -446,6 +454,9 @@ export const defaultEditorPreferences: EditorPreferences = {
   suggestAiPanelForComplexInlinePrompts: false,
   showDocumentTabs: true,
   splitVisualPanePercent: defaultSplitVisualPanePercent,
+  spellcheckEnabled: false,
+  spellcheckIgnoredWords: [],
+  spellcheckLanguage: defaultSpellcheckLanguage,
   titlebarActions: [...defaultTitlebarActions],
   showWordCount: true,
   wrapCodeBlocks: true
@@ -1347,12 +1358,38 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
         ? preferences.showDocumentTabs
         : defaultEditorPreferences.showDocumentTabs,
     splitVisualPanePercent: normalizeSplitVisualPanePercent(preferences.splitVisualPanePercent),
+    spellcheckEnabled:
+      typeof preferences.spellcheckEnabled === "boolean"
+        ? preferences.spellcheckEnabled
+        : defaultEditorPreferences.spellcheckEnabled,
+    spellcheckLanguage: isSpellcheckLanguage(preferences.spellcheckLanguage)
+      ? preferences.spellcheckLanguage
+      : defaultEditorPreferences.spellcheckLanguage,
+    spellcheckIgnoredWords: normalizeSpellcheckIgnoredWords(preferences.spellcheckIgnoredWords),
     titlebarActions: normalizeTitlebarActions(preferences.titlebarActions),
     showWordCount:
       typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount,
     wrapCodeBlocks:
       typeof preferences.wrapCodeBlocks === "boolean" ? preferences.wrapCodeBlocks : defaultEditorPreferences.wrapCodeBlocks
   };
+}
+
+export function normalizeSpellcheckIgnoredWords(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  const ignoredWords: string[] = [];
+  const seenWords = new Set<string>();
+
+  for (const item of value) {
+    if (typeof item !== "string") continue;
+    const word = item.trim().toLocaleLowerCase();
+    if (!word || seenWords.has(word)) continue;
+
+    seenWords.add(word);
+    ignoredWords.push(word);
+  }
+
+  return ignoredWords;
 }
 
 function normalizeExtendedSyntaxPreferences(value: unknown): ExtendedSyntaxPreferences {

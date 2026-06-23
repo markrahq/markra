@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   defaultValueCtx,
   Editor,
@@ -11,6 +11,7 @@ import {
 import { history } from "@milkdown/kit/plugin/history";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { Plugin } from "@milkdown/kit/prose/state";
+import type { EditorView } from "@milkdown/kit/prose/view";
 import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
 import { Milkdown, MilkdownProvider, useEditor, useInstance } from "@milkdown/react";
 import { $prose } from "@milkdown/kit/utils";
@@ -43,15 +44,21 @@ import {
   markraRawHtmlPlugin,
   markraSearchPlugin,
   markraSlashCommands,
+  markraSpellcheckPlugin,
   markraTableControlsPlugin,
   markraTaskListPlugin,
   markraTrailingParagraphPlugin,
   markraTaskListSchema,
+  getActiveSpellcheckMatch,
   normalizeMarkdownShortcuts,
+  replaceSpellcheckMatch,
   serializeLinkImageLiveMarkdown,
+  updateSpellcheckOptions,
   type MarkdownShortcutMap,
   type SaveClipboardImage,
   type SaveRemoteClipboardImage,
+  type SpellcheckMatch,
+  type Spellchecker,
   type SlashCommandLabels
 } from "@markra/editor";
 import { t, type AppLanguage } from "@markra/shared";
@@ -64,6 +71,7 @@ import {
   markraGfm,
   markraTextSelectionObserverPlugin
 } from "./markdown-paper-plugins";
+import { SpellcheckSuggestionMenu, type SpellcheckSuggestionMenuState } from "./SpellcheckSuggestionMenu";
 
 export type MarkdownPaperSurfaceProps = {
   autoFocus: boolean;
@@ -81,8 +89,14 @@ export type MarkdownPaperSurfaceProps = {
   readOnly?: boolean;
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
   resolveImageSrc?: (src: string) => string;
+  spellcheckEnabled?: boolean;
+  spellcheckIgnoredWords?: readonly string[];
+  spellchecker?: Spellchecker;
+  onAddSpellcheckIgnoredWord?: (word: string) => unknown;
   workspaceFiles?: MarkdownDocumentLinkFile[];
 };
+
+const emptySpellcheckIgnoredWords: readonly string[] = [];
 
 function markdownShortcutSignature(shortcuts: MarkdownShortcutMap | undefined) {
   return JSON.stringify(normalizeMarkdownShortcuts(shortcuts));
@@ -134,10 +148,50 @@ function MilkdownReadOnlyBridge({ readOnly = false }: Pick<MarkdownPaperSurfaceP
   return null;
 }
 
+function MilkdownSpellcheckBridge({
+  spellcheckEnabled = false,
+  spellcheckIgnoredWords = emptySpellcheckIgnoredWords
+}: Pick<MarkdownPaperSurfaceProps, "spellcheckEnabled" | "spellcheckIgnoredWords">) {
+  const [loading, getEditor] = useInstance();
+
+  useEffect(() => {
+    if (loading) return;
+
+    getEditor()?.action((ctx) => {
+      updateSpellcheckOptions(ctx.get(editorViewCtx), {
+        enabled: spellcheckEnabled,
+        ignoredWords: spellcheckIgnoredWords
+      });
+    });
+  }, [getEditor, loading, spellcheckEnabled, spellcheckIgnoredWords]);
+
+  return null;
+}
+
 function markraReadOnlyTransactionGuard(readOnlyRef: { current: boolean }) {
   return $prose(() => new Plugin({
     filterTransaction(transaction) {
       return !readOnlyRef.current || !transaction.docChanged;
+    }
+  }));
+}
+
+function markraSpellcheckMenuShortcutPlugin(
+  openMenu: (match: SpellcheckMatch, view: EditorView) => unknown
+) {
+  return $prose(() => new Plugin({
+    props: {
+      handleKeyDown(view, event) {
+        if (!isSpellcheckSuggestionShortcut(event)) return false;
+
+        const match = getActiveSpellcheckMatch(view);
+        if (!match) return false;
+
+        event.preventDefault();
+        openMenu(match, view);
+
+        return true;
+      }
     }
   }));
 }
@@ -158,6 +212,10 @@ function MilkdownEditorSurface({
   readOnly = false,
   onTextSelectionChange,
   resolveImageSrc,
+  spellcheckEnabled = false,
+  spellcheckIgnoredWords = emptySpellcheckIgnoredWords,
+  spellchecker,
+  onAddSpellcheckIgnoredWord,
   workspaceFiles
 }: MarkdownPaperSurfaceProps) {
   const initialContentRef = useRef(initialContent);
@@ -170,7 +228,12 @@ function MilkdownEditorSurface({
   const onTextSelectionChangeRef = useRef(onTextSelectionChange);
   const readOnlyRef = useRef(readOnly);
   const resolveImageSrcRef = useRef(resolveImageSrc);
+  const spellcheckEnabledRef = useRef(spellcheckEnabled);
+  const spellcheckIgnoredWordsRef = useRef(spellcheckIgnoredWords);
+  const spellcheckMenuViewRef = useRef<EditorView | null>(null);
+  const onAddSpellcheckIgnoredWordRef = useRef(onAddSpellcheckIgnoredWord);
   const workspaceFilesRef = useRef(workspaceFiles ?? []);
+  const [spellcheckMenu, setSpellcheckMenu] = useState<SpellcheckSuggestionMenuState | null>(null);
   const externalLinkOpeningEnabled = Boolean(openExternalUrl);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
   const githubAlertsEnabled = extendedSyntax?.githubAlerts ?? true;
@@ -255,6 +318,10 @@ function MilkdownEditorSurface({
   }, [onTextSelectionChange]);
 
   useEffect(() => {
+    onAddSpellcheckIgnoredWordRef.current = onAddSpellcheckIgnoredWord;
+  }, [onAddSpellcheckIgnoredWord]);
+
+  useEffect(() => {
     readOnlyRef.current = readOnly;
   }, [readOnly]);
 
@@ -262,13 +329,67 @@ function MilkdownEditorSurface({
     resolveImageSrcRef.current = resolveImageSrc;
   }, [resolveImageSrc]);
 
+  spellcheckEnabledRef.current = spellcheckEnabled;
+
+  useEffect(() => {
+    spellcheckIgnoredWordsRef.current = spellcheckIgnoredWords;
+  }, [spellcheckIgnoredWords]);
+
   useEffect(() => {
     workspaceFilesRef.current = workspaceFiles ?? [];
   }, [workspaceFiles]);
 
+  useEffect(() => {
+    if (!spellcheckMenu) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSpellcheckMenu(null);
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [spellcheckMenu]);
+
   const resolveCurrentImageSrc = useCallback((src: string) => {
     return resolveImageSrcRef.current?.(src) ?? src;
   }, []);
+
+  const openSpellcheckSuggestionMenu = useCallback((match: SpellcheckMatch, view: EditorView) => {
+    spellcheckMenuViewRef.current = view;
+    setSpellcheckMenu({
+      ...spellcheckMenuPosition(view, match),
+      match
+    });
+  }, []);
+
+  const handleReplaceSpellcheckSuggestion = useCallback((suggestion: string) => {
+    const view = spellcheckMenuViewRef.current;
+    if (!view || !spellcheckMenu) return;
+
+    const transaction = replaceSpellcheckMatch(view.state, spellcheckMenu.match, suggestion);
+    if (transaction) {
+      view.dispatch(transaction);
+      view.focus();
+    }
+    setSpellcheckMenu(null);
+  }, [spellcheckMenu]);
+
+  const handleAddSpellcheckIgnoredWord = useCallback(() => {
+    const view = spellcheckMenuViewRef.current;
+    if (!spellcheckMenu) return;
+
+    const nextIgnoredWords = mergeSpellcheckIgnoredWords(spellcheckIgnoredWordsRef.current, spellcheckMenu.match.word);
+    spellcheckIgnoredWordsRef.current = nextIgnoredWords;
+    if (view) {
+      updateSpellcheckOptions(view, { ignoredWords: nextIgnoredWords });
+      view.focus();
+    }
+    onAddSpellcheckIgnoredWordRef.current?.(spellcheckMenu.match.word);
+    setSpellcheckMenu(null);
+  }, [spellcheckMenu]);
 
   const createEditor = useCallback(
     (root: HTMLElement) => {
@@ -339,6 +460,12 @@ function MilkdownEditorSurface({
         .use(markraAiSelectionHoldPlugin)
         .use(markraAiEditorPreviewPlugin)
         .use(markraSearchPlugin())
+        .use(markraSpellcheckPlugin({
+          enabled: spellcheckEnabledRef.current,
+          ignoredWords: spellcheckIgnoredWordsRef.current,
+          spellchecker
+        }))
+        .use(markraSpellcheckMenuShortcutPlugin(openSpellcheckSuggestionMenu))
         .use(markraFootnotePreviewPlugin())
         .use(markraBlockGapPlugin)
         .use(markraBlockDragPlugin(blockDragLabels))
@@ -405,7 +532,9 @@ function MilkdownEditorSurface({
       markdownDocumentLabel,
       normalizedMarkdownShortcuts,
       resolveCurrentImageSrc,
-      slashCommandLabels
+      slashCommandLabels,
+      openSpellcheckSuggestionMenu,
+      spellchecker
     ]
   );
 
@@ -415,7 +544,16 @@ function MilkdownEditorSurface({
     <>
       <Milkdown />
       <MilkdownReadOnlyBridge readOnly={readOnly} />
+      <MilkdownSpellcheckBridge spellcheckEnabled={spellcheckEnabled} spellcheckIgnoredWords={spellcheckIgnoredWords} />
       <MilkdownInstanceBridge autoFocus={autoFocus} onEditorReady={onEditorReady} />
+      {spellcheckMenu ? (
+        <SpellcheckSuggestionMenu
+          language={language}
+          menu={spellcheckMenu}
+          onAddIgnoredWord={handleAddSpellcheckIgnoredWord}
+          onReplace={handleReplaceSpellcheckSuggestion}
+        />
+      ) : null}
     </>
   );
 }
@@ -426,4 +564,39 @@ export function MarkdownPaperSurface(props: MarkdownPaperSurfaceProps) {
       <MilkdownEditorSurface {...props} />
     </MilkdownProvider>
   );
+}
+
+function isSpellcheckSuggestionShortcut(event: KeyboardEvent) {
+  return event.key === "." && (event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey;
+}
+
+function spellcheckMenuPosition(view: EditorView, match: SpellcheckMatch) {
+  try {
+    const coordinates = view.coordsAtPos(match.to);
+
+    return {
+      left: Math.max(8, coordinates.left),
+      top: Math.max(8, coordinates.bottom + 6)
+    };
+  } catch {
+    return {
+      left: 8,
+      top: 8
+    };
+  }
+}
+
+function mergeSpellcheckIgnoredWords(currentWords: readonly string[], word: string) {
+  const ignoredWords: string[] = [];
+  const seenWords = new Set<string>();
+
+  for (const item of [...currentWords, word]) {
+    const normalizedWord = item.trim().toLocaleLowerCase();
+    if (!normalizedWord || seenWords.has(normalizedWord)) continue;
+
+    seenWords.add(normalizedWord);
+    ignoredWords.push(normalizedWord);
+  }
+
+  return ignoredWords;
 }

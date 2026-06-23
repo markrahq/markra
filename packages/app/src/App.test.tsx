@@ -273,6 +273,9 @@ function createStoredEditorPreferences(
     suggestAiPanelForComplexInlinePrompts: false,
     showDocumentTabs: true,
     splitVisualPanePercent: 50,
+    spellcheckEnabled: overrides.spellcheckEnabled ?? false,
+    spellcheckIgnoredWords: overrides.spellcheckIgnoredWords ?? [],
+    spellcheckLanguage: overrides.spellcheckLanguage ?? "en",
     titlebarActions: [
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
@@ -580,6 +583,7 @@ describe("Markra workspace", () => {
         networkProxy: false,
         pandoc: false,
         s3ImageUpload: false,
+        spellcheck: false,
         updater: false
       }
     });
@@ -631,6 +635,7 @@ describe("Markra workspace", () => {
     expect(screen.queryByRole("button", { name: "AI" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Export" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Providers" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Spellcheck" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Web" })).not.toBeInTheDocument();
     expect(screen.queryByText("Updates")).not.toBeInTheDocument();
     expect(screen.queryByRole("switch", { name: "Automatically check for updates" })).not.toBeInTheDocument();
@@ -652,6 +657,7 @@ describe("Markra workspace", () => {
         networkProxy: false,
         pandoc: false,
         s3ImageUpload: false,
+        spellcheck: false,
         updater: false
       }
     });
@@ -693,6 +699,7 @@ describe("Markra workspace", () => {
         networkProxy: true,
         pandoc: true,
         s3ImageUpload: true,
+        spellcheck: true,
         updater: true
       },
       platform: {
@@ -764,6 +771,9 @@ describe("Markra workspace", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en" as const,
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -815,6 +825,9 @@ describe("Markra workspace", () => {
         suggestAiPanelForComplexInlinePrompts: true,
         showDocumentTabs: true,
         splitVisualPanePercent: 50,
+        spellcheckEnabled: false,
+        spellcheckIgnoredWords: [],
+        spellcheckLanguage: "en",
         titlebarActions: [
           { id: "sourceMode", visible: true },
           { id: "splitMode", visible: true },
@@ -854,6 +867,9 @@ describe("Markra workspace", () => {
         suggestAiPanelForComplexInlinePrompts: true,
         showDocumentTabs: true,
         splitVisualPanePercent: 50,
+        spellcheckEnabled: false,
+        spellcheckIgnoredWords: [],
+        spellcheckLanguage: "en",
         titlebarActions: [
           { id: "sourceMode", visible: true },
           { id: "splitMode", visible: true },
@@ -1333,6 +1349,7 @@ describe("Markra workspace", () => {
       "Sync",
       "Appearance",
       "Editor",
+      "Spellcheck",
       "Templates",
       "Keyboard shortcuts",
       "Export",
@@ -1508,6 +1525,9 @@ describe("Markra workspace", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en" as const,
       titlebarActions: [
         { id: "aiAgent" as const, visible: true },
         { id: "sourceMode" as const, visible: true },
@@ -1637,6 +1657,9 @@ describe("Markra workspace", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -1962,6 +1985,7 @@ describe("Markra workspace", () => {
         networkProxy: true,
         pandoc: true,
         s3ImageUpload: true,
+        spellcheck: true,
         updater: true
       }
     });
@@ -4307,6 +4331,9 @@ describe("Markra workspace", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -4446,6 +4473,9 @@ describe("Markra workspace", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -6367,6 +6397,7 @@ describe("Markra workspace", () => {
       ...runtime,
       features: {
         ...runtime.features,
+        spellcheck: true,
         updater: false
       },
       files: {

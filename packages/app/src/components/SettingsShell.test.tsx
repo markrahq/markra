@@ -116,6 +116,29 @@ describe("SettingsShell", () => {
     expect(onCategoryChange).toHaveBeenCalledWith("templates");
   });
 
+  it("shows spellcheck as its own settings category", () => {
+    const onCategoryChange = renderSettingsSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Spellcheck" }));
+
+    expect(onCategoryChange).toHaveBeenCalledWith("spellcheck");
+  });
+
+  it("hides spellcheck when configured as a hidden settings category", () => {
+    render(
+      <SettingsSidebar
+        activeCategory="general"
+        appVersion="9.9.9"
+        hiddenCategories={["spellcheck"]}
+        platform="macos"
+        translate={translate}
+        onCategoryChange={() => {}}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Spellcheck" })).not.toBeInTheDocument();
+  });
+
   it("shows AI and providers as separate settings categories", () => {
     const onCategoryChange = renderSettingsSidebar();
 
@@ -184,6 +207,16 @@ describe("SettingsShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Templates" })).toBeInTheDocument();
+  });
+
+  it("uses the spellcheck category title for the active panel", () => {
+    render(
+      <SettingsContent activeCategory="spellcheck" translate={translate}>
+        <div />
+      </SettingsContent>
+    );
+
+    expect(screen.getByRole("heading", { name: "Spellcheck" })).toBeInTheDocument();
   });
 
   it("uses the provider category title for the provider panel", () => {

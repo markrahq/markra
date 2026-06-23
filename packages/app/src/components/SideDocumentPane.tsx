@@ -1,5 +1,5 @@
 import { t, type AppLanguage } from "@markra/shared";
-import type { MarkdownShortcutMap } from "@markra/editor";
+import type { MarkdownShortcutMap, Spellchecker } from "@markra/editor";
 import type { EditorContentWidth } from "../lib/editor-width";
 import type { EditorFontFamilyPreference } from "../lib/editor-font";
 import type { EditorTheme, ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
@@ -28,6 +28,10 @@ type SideDocumentPaneProps = {
   resolveImageSrc?: (src: string) => string;
   revision: number;
   sizeBytes?: number;
+  spellcheckEnabled?: boolean;
+  spellcheckIgnoredWords?: readonly string[];
+  spellchecker?: Spellchecker;
+  onAddSpellcheckIgnoredWord?: (word: string) => unknown;
   workspaceFiles?: MarkdownDocumentLinkFile[];
   wrapCodeBlocks?: boolean;
   onChange: (content: string) => unknown;
@@ -59,6 +63,10 @@ export function SideDocumentPane({
   resolveImageSrc,
   revision,
   sizeBytes,
+  spellcheckEnabled = false,
+  spellcheckIgnoredWords,
+  spellchecker,
+  onAddSpellcheckIgnoredWord,
   workspaceFiles,
   wrapCodeBlocks = true,
   onChange,
@@ -116,6 +124,10 @@ export function SideDocumentPane({
           readOnly={readOnly}
           resolveImageSrc={resolveImageSrc}
           revision={revision}
+          spellcheckEnabled={spellcheckEnabled}
+          spellcheckIgnoredWords={spellcheckIgnoredWords}
+          spellchecker={spellchecker}
+          onAddSpellcheckIgnoredWord={onAddSpellcheckIgnoredWord}
           topInset="titlebar"
           workspaceFiles={workspaceFiles}
           wrapCodeBlocks={wrapCodeBlocks}

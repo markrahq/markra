@@ -1,16 +1,3 @@
-## [0.13.3](https://github.com/murongg/markra/compare/v0.13.2...v0.13.3) (2026-06-23)
-
-### Features
-
-* **app:** add editor view mode switcher ([#382](https://github.com/murongg/markra/issues/382)) ([c70bab5](https://github.com/murongg/markra/commit/c70bab529767062d396067417015e21d4ced7f16))
-* **app:** add file tree image asset toggle ([#378](https://github.com/murongg/markra/issues/378)) ([02ad627](https://github.com/murongg/markra/commit/02ad6274367740f61baa16c1236202aff9b32d91)), closes [#276](https://github.com/murongg/markra/issues/276)
-
-### Bug Fixes
-
-* **app:** dismiss transient state across panes ([#381](https://github.com/murongg/markra/issues/381)) ([00b67c9](https://github.com/murongg/markra/commit/00b67c90ce5895811ff92aa2c8099e9c5301bc86)), closes [#379](https://github.com/murongg/markra/issues/379)
-* **app:** improve file tree naming flow ([#380](https://github.com/murongg/markra/issues/380)) ([b012372](https://github.com/murongg/markra/commit/b0123729c94c4ab6b6d8abba35fa9e70bd3413da)), closes [#267](https://github.com/murongg/markra/issues/267)
-* **app:** keep editor content above quiet status ([#377](https://github.com/murongg/markra/issues/377)) ([952255e](https://github.com/murongg/markra/commit/952255ea19db171cb3a7a99f281ed1c193f3e24b))
-
 ## [0.13.2](https://github.com/murongg/markra/compare/v0.13.1...v0.13.2) (2026-06-22)
 
 ### Features

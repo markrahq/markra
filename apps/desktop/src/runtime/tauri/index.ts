@@ -4,6 +4,7 @@ export * from "./fonts.ts";
 export * from "./menu.ts";
 export * from "./native-ai.ts";
 export * from "./shell-command.ts";
+export * from "./spellcheck.ts";
 export * from "./updater.ts";
 export * from "./web-resource.ts";
 export * from "./window.ts";

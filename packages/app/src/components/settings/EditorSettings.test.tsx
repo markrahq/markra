@@ -136,6 +136,18 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("keeps spellcheck controls out of the editor tab", () => {
+    render(
+      <EditorSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("switch", { name: "Check spelling" })).not.toBeInTheDocument();
+  });
+
   it("searches and switches the editor font family from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

@@ -297,6 +297,9 @@ vi.mock("../lib/settings/app-settings", () => ({
     suggestAiPanelForComplexInlinePrompts: false,
     showDocumentTabs: true,
     splitVisualPanePercent: 50,
+    spellcheckEnabled: false,
+    spellcheckIgnoredWords: [],
+    spellcheckLanguage: "en",
     titlebarActions: [
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
@@ -561,6 +564,9 @@ vi.mock("../lib/settings/app-settings", () => ({
     suggestAiPanelForComplexInlinePrompts: false,
     showDocumentTabs: true,
     splitVisualPanePercent: 50,
+    spellcheckEnabled: preferences?.spellcheckEnabled ?? false,
+    spellcheckIgnoredWords: preferences?.spellcheckIgnoredWords ?? [],
+    spellcheckLanguage: preferences?.spellcheckLanguage ?? "en",
     titlebarActions: [
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
@@ -1265,6 +1271,9 @@ export function installAppTestHarness() {
       suggestAiPanelForComplexInlinePrompts: false,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },

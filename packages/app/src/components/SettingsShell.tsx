@@ -10,6 +10,7 @@ import {
   Palette,
   PenLine,
   SlidersHorizontal,
+  SpellCheck,
   Sparkles,
   Wifi,
   X,
@@ -73,6 +74,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: PenLine,
     id: "editor",
     labelKey: "settings.categories.editor"
+  },
+  {
+    icon: SpellCheck,
+    id: "spellcheck",
+    labelKey: "settings.categories.spellcheck"
   },
   {
     icon: LayoutTemplate,

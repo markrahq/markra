@@ -92,6 +92,7 @@ export type SettingsCategory =
   | "sync"
   | "appearance"
   | "editor"
+  | "spellcheck"
   | "templates"
   | "keyboardShortcuts"
   | "export";

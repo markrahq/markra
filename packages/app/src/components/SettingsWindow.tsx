@@ -9,6 +9,7 @@ import {
   GeneralSettings,
   KeyboardShortcutsSettings,
   NetworkSettings,
+  SpellcheckSettings,
   SyncSettings,
   StorageSettings,
   TemplatesSettings,
@@ -80,7 +81,8 @@ export function SettingsWindow() {
   const hiddenCategories: SettingsCategory[] = [
     ...(appFeatures.ai ? [] : (["ai", "providers", "web"] as SettingsCategory[])),
     ...(appFeatures.networkProxy ? [] : (["network"] as SettingsCategory[])),
-    ...(appFeatures.export ? [] : (["export"] as SettingsCategory[]))
+    ...(appFeatures.export ? [] : (["export"] as SettingsCategory[])),
+    ...(appFeatures.spellcheck ? [] : (["spellcheck"] as SettingsCategory[]))
   ];
   const activeSettingsCategory = hiddenCategories.includes(activeCategory) ? "general" : activeCategory;
   const platform = resolveDesktopPlatform();
@@ -252,6 +254,13 @@ export function SettingsWindow() {
               preferences={editorPreferences}
               s3ImageUploadEnabled={appFeatures.s3ImageUpload}
               systemFontFamilies={systemFontFamilies}
+              translate={translate}
+              onUpdatePreferences={handleUpdateEditorPreferences}
+            />
+          ) : null}
+          {appFeatures.spellcheck && activeSettingsCategory === "spellcheck" ? (
+            <SpellcheckSettings
+              preferences={editorPreferences}
               translate={translate}
               onUpdatePreferences={handleUpdateEditorPreferences}
             />

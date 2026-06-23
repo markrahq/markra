@@ -48,6 +48,7 @@
     "@noble/hashes": "^2.2.0",
     "@tanstack/react-virtual": "3.14.2",
     "codemirror": "6.0.2",
+    "cspell-trie-lib": "10.0.1",
     "katex": "0.16.45",
     "lucide-react": "1.14.0",
     "react": "19.2.5",

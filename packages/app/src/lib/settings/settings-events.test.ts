@@ -203,6 +203,9 @@ describe("settings events", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
       splitVisualPanePercent: 64,
+      spellcheckEnabled: true,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "theme", visible: true },
         { id: "save", visible: false },

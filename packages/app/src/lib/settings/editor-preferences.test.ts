@@ -2,6 +2,7 @@ import { defaultMarkdownShortcuts } from "@markra/editor";
 import { createSettingsStoreHarness, resetSettingsStoreRuntime, setupSettingsStoreHarness } from "../../test/settings-store";
 import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../ai-actions";
 import {
+  defaultEditorPreferences,
   getStoredEditorPreferences,
   normalizeEditorPreferences,
   reorderTitlebarActions,
@@ -73,6 +74,9 @@ describe("editor preferences", () => {
       suggestAiPanelForComplexInlinePrompts: false,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -196,6 +200,9 @@ describe("editor preferences", () => {
       suggestAiPanelForComplexInlinePrompts: false,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -416,6 +423,22 @@ describe("editor preferences", () => {
     expect(normalizeEditorPreferences({ sidebarLayoutMode: "paged" }).sidebarLayoutMode).toBe("stacked");
   });
 
+  it("normalizes the custom spellcheck preference", () => {
+    expect(defaultEditorPreferences.spellcheckEnabled).toBe(false);
+    expect(defaultEditorPreferences.spellcheckLanguage).toBe("en");
+    expect(defaultEditorPreferences.spellcheckIgnoredWords).toEqual([]);
+    expect(normalizeEditorPreferences({ spellcheckEnabled: true }).spellcheckEnabled).toBe(true);
+    expect(normalizeEditorPreferences({ spellcheckEnabled: false }).spellcheckEnabled).toBe(false);
+    expect(normalizeEditorPreferences({ spellcheckEnabled: "native" }).spellcheckEnabled).toBe(false);
+    expect(normalizeEditorPreferences({ spellcheckLanguage: "fr" }).spellcheckLanguage).toBe("fr");
+    expect(normalizeEditorPreferences({ spellcheckLanguage: "zh-CN" }).spellcheckLanguage).toBe("en");
+    expect(normalizeEditorPreferences({ spellcheckLanguage: "native" }).spellcheckLanguage).toBe("en");
+    expect(normalizeEditorPreferences({
+      spellcheckIgnoredWords: ["MarkraTerm", "markraterm", "  CustomTerm  ", "", 42]
+    }).spellcheckIgnoredWords).toEqual(["markraterm", "customterm"]);
+    expect(normalizeEditorPreferences({ spellcheckIgnoredWords: "MarkraTerm" }).spellcheckIgnoredWords).toEqual([]);
+  });
+
   it("migrates previous app shortcut defaults to the current defaults", () => {
     expect(normalizeEditorPreferences({
       markdownShortcuts: {
@@ -614,6 +637,9 @@ describe("editor preferences", () => {
       suggestAiPanelForComplexInlinePrompts: false,
       showDocumentTabs: true,
       splitVisualPanePercent: 50,
+      spellcheckEnabled: false,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -688,6 +714,9 @@ describe("editor preferences", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       splitVisualPanePercent: 64,
+      spellcheckEnabled: true,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "theme", visible: true },
         { id: "save", visible: false },
@@ -760,6 +789,9 @@ describe("editor preferences", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: false,
       splitVisualPanePercent: 64,
+      spellcheckEnabled: true,
+      spellcheckIgnoredWords: [],
+      spellcheckLanguage: "en",
       titlebarActions: [
         { id: "theme", visible: true },
         { id: "save", visible: false },

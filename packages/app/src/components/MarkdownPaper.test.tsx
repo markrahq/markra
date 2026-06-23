@@ -26,6 +26,7 @@ import {
   clearAiEditorPreview,
   clearAiSelectionHold,
   confirmAiEditorResultApplied,
+  createWordSetSpellchecker,
   defaultMarkdownShortcuts,
   findSearchMatchesInDoc,
   findVisibleSearchMatchesInState,
@@ -34,7 +35,8 @@ import {
   showAiEditorPreview,
   showAiSelectionHold,
   updateSearchDecorations,
-  type MarkdownShortcutMap
+  type MarkdownShortcutMap,
+  type Spellchecker
 } from "@markra/editor";
 import {
   readAiSectionAnchorsFromView,
@@ -66,6 +68,10 @@ async function renderEditor(
       path: string;
       relativePath: string;
     }>;
+    spellcheckEnabled?: boolean;
+    spellcheckIgnoredWords?: readonly string[];
+    spellchecker?: Spellchecker;
+    onAddSpellcheckIgnoredWord?: (word: string) => unknown;
     wrapCodeBlocks?: boolean;
   } = {}
 ) {
@@ -90,6 +96,10 @@ async function renderEditor(
       onTextSelectionChange={options.onTextSelectionChange}
       resolveImageSrc={options.resolveImageSrc}
       revision={0}
+      spellcheckEnabled={options.spellcheckEnabled}
+      spellcheckIgnoredWords={options.spellcheckIgnoredWords}
+      spellchecker={options.spellchecker}
+      onAddSpellcheckIgnoredWord={options.onAddSpellcheckIgnoredWord}
       workspaceFiles={options.workspaceFiles}
       wrapCodeBlocks={options.wrapCodeBlocks}
     />
@@ -126,6 +136,16 @@ function insertTextDirectly(view: EditorView, text: string) {
   const { from, to } = view.state.selection;
   view.dispatch(view.state.tr.insertText(text, from, to).scrollIntoView());
 }
+
+const syntheticSpellchecker = createWordSetSpellchecker([
+  "accommodate",
+  "and",
+  "document",
+  "environment",
+  "mentions",
+  "this",
+  "word"
+]);
 
 function insertTextThroughInputHandler(view: EditorView, text: string) {
   const { from, to } = view.state.selection;
@@ -865,6 +885,142 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelectorAll(".markra-search-match")).toHaveLength(2);
     expect(container.querySelector(".markra-search-match-current")).toHaveTextContent(",");
+  });
+
+  it("underlines misspelled words with the custom spellcheck plugin", async () => {
+    const { container } = await renderEditor("This document mentions environment and acommodate word.", {
+      spellcheckEnabled: true,
+      spellchecker: syntheticSpellchecker
+    });
+
+    await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toHaveTextContent("acommodate"));
+    expect(Array.from(container.querySelectorAll(".markra-spellcheck-error"), (element) => element.textContent)).toEqual([
+      "acommodate"
+    ]);
+  });
+
+  it("updates custom spellcheck decorations after typing", async () => {
+    const { container, view } = await renderEditor("", {
+      spellcheckEnabled: true,
+      spellchecker: syntheticSpellchecker
+    });
+
+    typeText(view, "environment acommodate");
+
+    await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toHaveTextContent("acommodate"));
+    expect(Array.from(container.querySelectorAll(".markra-spellcheck-error"), (element) => element.textContent)).toEqual([
+      "acommodate"
+    ]);
+  });
+
+  it("does not underline words from the personal spellcheck whitelist", async () => {
+    const { container } = await renderEditor("This document mentions environment and acommodate word.", {
+      spellcheckEnabled: true,
+      spellcheckIgnoredWords: ["acommodate"],
+      spellchecker: syntheticSpellchecker
+    });
+
+    await settleMarkdownListener();
+    expect(container.querySelector(".markra-spellcheck-error")).toBeNull();
+  });
+
+  it("opens spelling suggestions with Mod+Period and replaces the current misspelling", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("This document mentions environment and acommodate word.", {
+      onMarkdownChange,
+      spellcheckEnabled: true,
+      spellchecker: syntheticSpellchecker
+    });
+
+    await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toHaveTextContent("acommodate"));
+    moveCursor(view, view.state.doc.textContent.indexOf("acommodate") + 3);
+    focusEditor(view);
+    fireEvent.keyDown(view.dom, { key: ".", metaKey: true });
+
+    expect(await screen.findByRole("menu", { name: "Spelling suggestions" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Replace with accommodate" }));
+
+    await waitFor(() =>
+      expect(view.state.doc.textContent).toBe("This document mentions environment and accommodate word.")
+    );
+    await settleMarkdownListener();
+    expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("accommodate"));
+    await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toBeNull());
+    expect(screen.queryByRole("menu", { name: "Spelling suggestions" })).not.toBeInTheDocument();
+  });
+
+  it("lets the current misspelling be added to the personal whitelist from the spelling menu", async () => {
+    const onAddSpellcheckIgnoredWord = vi.fn();
+    const { container, view } = await renderEditor("This document mentions environment and acommodate word.", {
+      onAddSpellcheckIgnoredWord,
+      spellcheckEnabled: true,
+      spellchecker: syntheticSpellchecker
+    });
+
+    await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toHaveTextContent("acommodate"));
+    moveCursor(view, view.state.doc.textContent.indexOf("acommodate") + 3);
+    focusEditor(view);
+    fireEvent.keyDown(view.dom, { key: ".", ctrlKey: true });
+
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Add \"acommodate\" to whitelist" }));
+
+    expect(onAddSpellcheckIgnoredWord).toHaveBeenCalledWith("acommodate");
+    await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toBeNull());
+    expect(screen.queryByRole("menu", { name: "Spelling suggestions" })).not.toBeInTheDocument();
+  });
+
+  it("keeps locally ignored spelling words while adding another word before preferences sync back", async () => {
+    const { container, view } = await renderEditor("acommodate enviroment", {
+      spellcheckEnabled: true,
+      spellchecker: syntheticSpellchecker
+    });
+
+    await waitFor(() => expect(container.querySelectorAll(".markra-spellcheck-error")).toHaveLength(2));
+    moveCursor(view, view.state.doc.textContent.indexOf("acommodate") + 3);
+    focusEditor(view);
+    fireEvent.keyDown(view.dom, { key: ".", metaKey: true });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Add \"acommodate\" to whitelist" }));
+    await waitFor(() => expect(Array.from(container.querySelectorAll(".markra-spellcheck-error"), (element) => element.textContent)).toEqual([
+      "enviroment"
+    ]));
+
+    moveCursor(view, view.state.doc.textContent.indexOf("enviroment") + 3);
+    focusEditor(view);
+    fireEvent.keyDown(view.dom, { key: ".", metaKey: true });
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Add \"enviroment\" to whitelist" }));
+
+    await settleMarkdownListener();
+    await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toBeNull());
+  });
+
+  it("moves through spelling menu actions with arrow keys", async () => {
+    const onAddSpellcheckIgnoredWord = vi.fn();
+    const { container, view } = await renderEditor("This document mentions environment and acommodate word.", {
+      onAddSpellcheckIgnoredWord,
+      spellcheckEnabled: true,
+      spellchecker: syntheticSpellchecker
+    });
+
+    await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toHaveTextContent("acommodate"));
+    moveCursor(view, view.state.doc.textContent.indexOf("acommodate") + 3);
+    focusEditor(view);
+    fireEvent.keyDown(view.dom, { key: ".", metaKey: true });
+
+    const replaceItem = await screen.findByRole("menuitem", { name: "Replace with accommodate" });
+    const whitelistItem = screen.getByRole("menuitem", { name: "Add \"acommodate\" to whitelist" });
+    await waitFor(() => expect(replaceItem).toHaveFocus());
+
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Spelling suggestions" }), { key: "ArrowDown" });
+    expect(whitelistItem).toHaveFocus();
+
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Spelling suggestions" }), { key: "ArrowUp" });
+    expect(replaceItem).toHaveFocus();
+
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Spelling suggestions" }), { key: "ArrowDown" });
+    fireEvent.keyDown(screen.getByRole("menu", { name: "Spelling suggestions" }), { key: "Enter" });
+
+    expect(onAddSpellcheckIgnoredWord).toHaveBeenCalledWith("acommodate");
+    expect(screen.queryByRole("menu", { name: "Spelling suggestions" })).not.toBeInTheDocument();
   });
 
   it("keeps the writing surface from macOS-style scroll dragging without pane-level horizontal scroll", async () => {

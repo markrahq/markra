@@ -13,6 +13,7 @@ mod network;
 mod opened_files;
 mod remote_sync;
 mod shell_command;
+mod spellcheck_dictionary;
 mod watcher;
 mod web_http;
 mod window_state;
@@ -52,6 +53,9 @@ use opened_files::{
 };
 use remote_sync::sync_webdav_markdown_folder;
 use shell_command::{get_shell_command_status, install_shell_command, uninstall_shell_command};
+use spellcheck_dictionary::{
+    delete_spellcheck_dictionary, get_spellcheck_dictionary_status, load_spellcheck_dictionary,
+};
 use tauri::Manager;
 use tauri_plugin_window_state::StateFlags;
 use watcher::{
@@ -273,7 +277,10 @@ pub fn run() {
             uninstall_shell_command,
             set_editor_window_restore_state,
             list_editor_window_restore_states,
-            list_system_font_families
+            list_system_font_families,
+            delete_spellcheck_dictionary,
+            get_spellcheck_dictionary_status,
+            load_spellcheck_dictionary
         ])
         .build(tauri::generate_context!())
         .expect("error while building Markra")

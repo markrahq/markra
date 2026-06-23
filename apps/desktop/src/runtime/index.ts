@@ -9,6 +9,7 @@ import * as files from "./tauri/file";
 import * as fonts from "./tauri/fonts";
 import * as menu from "./tauri/menu";
 import * as shellCommand from "./tauri/shell-command";
+import * as spellcheck from "./tauri/spellcheck";
 import * as updater from "./tauri/updater";
 import * as webResource from "./tauri/web-resource";
 import * as windowRuntime from "./tauri/window";
@@ -62,6 +63,7 @@ export const desktopRuntime = {
     networkProxy: true,
     pandoc: true,
     s3ImageUpload: true,
+    spellcheck: true,
     updater: true
   },
   files: {
@@ -128,6 +130,11 @@ export const desktopRuntime = {
     getShellCommandStatus: shellCommand.getNativeShellCommandStatus,
     installShellCommand: shellCommand.installNativeShellCommand,
     uninstallShellCommand: shellCommand.uninstallNativeShellCommand
+  },
+  spellcheck: {
+    deleteSpellcheckDictionary: spellcheck.deleteNativeSpellcheckDictionary,
+    getSpellcheckDictionaryStatus: spellcheck.getNativeSpellcheckDictionaryStatus,
+    loadSpellcheckDictionary: spellcheck.loadNativeSpellcheckDictionary
   },
   systemFonts: {
     listFontFamilies: fonts.listNativeSystemFontFamilies

@@ -46,12 +46,16 @@ type MarkdownPaperProps = {
   onScroll?: (event: UIEvent<HTMLElement>) => unknown;
   onSaveClipboardImage?: MarkdownPaperSurfaceProps["onSaveClipboardImage"];
   onSaveRemoteClipboardImage?: MarkdownPaperSurfaceProps["onSaveRemoteClipboardImage"];
+  onAddSpellcheckIgnoredWord?: MarkdownPaperSurfaceProps["onAddSpellcheckIgnoredWord"];
   openExternalUrl?: MarkdownPaperSurfaceProps["openExternalUrl"];
   readOnly?: MarkdownPaperSurfaceProps["readOnly"];
   onTextSelectionChange?: MarkdownPaperSurfaceProps["onTextSelectionChange"];
   resolveImageSrc?: MarkdownPaperSurfaceProps["resolveImageSrc"];
   revision: number;
   scrollRef?: Ref<HTMLElement>;
+  spellcheckEnabled?: MarkdownPaperSurfaceProps["spellcheckEnabled"];
+  spellcheckIgnoredWords?: MarkdownPaperSurfaceProps["spellcheckIgnoredWords"];
+  spellchecker?: MarkdownPaperSurfaceProps["spellchecker"];
   topInset?: "tabs" | "titlebar";
   workspaceFiles?: MarkdownPaperSurfaceProps["workspaceFiles"];
   wrapCodeBlocks?: boolean;
@@ -104,12 +108,16 @@ export function MarkdownPaper({
   onScroll,
   onSaveClipboardImage,
   onSaveRemoteClipboardImage,
+  onAddSpellcheckIgnoredWord,
   openExternalUrl,
   readOnly = false,
   onTextSelectionChange,
   resolveImageSrc,
   revision,
   scrollRef,
+  spellcheckEnabled = false,
+  spellcheckIgnoredWords,
+  spellchecker,
   topInset = "titlebar",
   workspaceFiles,
   wrapCodeBlocks = true
@@ -169,10 +177,14 @@ export function MarkdownPaper({
             onMarkdownChange={onMarkdownChange}
             onSaveClipboardImage={onSaveClipboardImage}
             onSaveRemoteClipboardImage={onSaveRemoteClipboardImage}
+            onAddSpellcheckIgnoredWord={onAddSpellcheckIgnoredWord}
             openExternalUrl={openExternalUrl}
             readOnly={readOnly}
             onTextSelectionChange={onTextSelectionChange}
             resolveImageSrc={resolveImageSrc}
+            spellcheckEnabled={spellcheckEnabled}
+            spellcheckIgnoredWords={spellcheckIgnoredWords}
+            spellchecker={spellchecker}
             workspaceFiles={workspaceFiles}
           />
         </Suspense>
