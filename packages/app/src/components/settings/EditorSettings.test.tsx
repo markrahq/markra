@@ -531,9 +531,9 @@ describe("EditorSettings", () => {
     ]);
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveAttribute("data-visible", "true");
-    expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveClass("aria-[pressed=true]:bg-(--bg-active)");
-    expect(screen.getByRole("button", { name: "Switch to dark theme" })).not.toHaveClass("aria-[pressed=true]:border-(--accent)");
-    expect(screen.getByRole("button", { name: "Switch to dark theme" })).not.toHaveClass("aria-[pressed=true]:shadow-[inset_0_0_0_1px_var(--accent)]");
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveClass("aria-pressed:bg-(--bg-active)");
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).not.toHaveClass("aria-pressed:border-(--accent)");
+    expect(screen.getByRole("button", { name: "Switch to dark theme" })).not.toHaveClass("aria-pressed:shadow-[inset_0_0_0_1px_var(--accent)]");
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveClass("transition-transform");
     expect(screen.getByRole("button", { name: "Save Markdown" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Save Markdown" })).toHaveAttribute("data-visible", "false");

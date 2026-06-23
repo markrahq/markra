@@ -221,7 +221,7 @@ const outlineTitleMarkdownComponents = {
     }
 
     return (
-      <code className="rounded-sm bg-(--bg-active) px-0.75 py-0.25 font-mono text-[0.92em] text-(--text-heading)">
+      <code className="rounded-sm bg-(--bg-active) px-0.75 py-px font-mono text-[0.92em] text-(--text-heading)">
         {children}
       </code>
     );
@@ -2050,7 +2050,7 @@ export function MarkdownFileTreeDrawer({
         {(dragSource) => (
           <button
             ref={dragSource.setNodeRef}
-            className={`relative grid h-8 w-full cursor-pointer touch-none grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) aria-[selected=true]:bg-(--accent-soft) aria-[selected=true]:text-(--text-heading) aria-[selected=true]:shadow-[inset_3px_0_0_var(--accent)] ${dragSource.isDragging ? "opacity-70" : ""} ${fileTreeContextRowSelectionClassName} ${rowIndentClass} ${rowBranchClass}`}
+            className={`relative grid h-8 w-full cursor-pointer touch-none grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) aria-selected:bg-(--accent-soft) aria-selected:text-(--text-heading) aria-selected:shadow-[inset_3px_0_0_var(--accent)] ${dragSource.isDragging ? "opacity-70" : ""} ${fileTreeContextRowSelectionClassName} ${rowIndentClass} ${rowBranchClass}`}
             style={rowIndentStyle}
             type="button"
             aria-current={active ? "page" : undefined}

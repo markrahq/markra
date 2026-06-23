@@ -120,7 +120,7 @@ const sidebarLayoutOptions: Array<{
   }
 ];
 const titlebarActionVisibleClassName =
-  "aria-[pressed=true]:border-transparent aria-[pressed=true]:bg-(--bg-active) aria-[pressed=true]:text-(--text-heading) aria-[pressed=true]:opacity-100 aria-[pressed=true]:hover:bg-(--bg-active)";
+  "aria-pressed:border-transparent aria-pressed:bg-(--bg-active) aria-pressed:text-(--text-heading) aria-pressed:opacity-100 aria-pressed:hover:bg-(--bg-active)";
 const titlebarActionHiddenClassName = "text-(--text-secondary) opacity-55 hover:opacity-100";
 const editorFontFamilyListboxId = "settings-editor-font-family-options";
 
