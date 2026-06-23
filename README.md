@@ -18,7 +18,7 @@
   <img alt="WYSIWYG Markdown" src="https://img.shields.io/badge/Markdown-WYSIWYG-000000" />
   <img alt="Native AI" src="https://img.shields.io/badge/AI-Native-7C3AED" />
   <img alt="Free" src="https://img.shields.io/badge/Free-Open_Source-16A34A" />
-  <img alt="Downloads" src="https://img.shields.io/github/downloads/murongg/markra/total?label=Downloads&amp;color=0EA5E9&amp;cacheSeconds=3600" />
+  <img alt="Downloads" src="https://img.shields.io/github/downloads/markrahq/markra/total?label=Downloads&amp;color=0EA5E9&amp;cacheSeconds=3600" />
   <img alt="License" src="https://img.shields.io/badge/License-AGPL--3.0-important" />
 </p>
 
@@ -57,7 +57,7 @@ No account required. Files stay on disk by default; optional WebDAV sync, remote
 
 Use the web editor at [editor.markra.app](https://editor.markra.app/).
 
-Download the latest desktop builds from [GitHub Releases](https://github.com/murongg/markra/releases/latest): macOS Apple Silicon/Intel, Windows installer/portable, and Linux AppImage.
+Download the latest desktop builds from [GitHub Releases](https://github.com/markrahq/markra/releases/latest): macOS Apple Silicon/Intel, Windows installer/portable, and Linux AppImage.
 
 ## Demo
 
@@ -168,22 +168,22 @@ Product docs · Blog posts · Research notes · Technical writing with tables, c
 
 ## Getting Started
 
-1. Open the [web editor](https://editor.markra.app/) or [download](https://github.com/murongg/markra/releases/latest) the latest desktop release for your platform.
+1. Open the [web editor](https://editor.markra.app/) or [download](https://github.com/markrahq/markra/releases/latest) the latest desktop release for your platform.
 2. Open a Markdown file or folder.
 3. Write — use WYSIWYG, slash commands, or source mode.
 4. Configure AI providers in settings when you're ready for AI assistance.
 
 ## Contributing
 
-Contributions are welcome — whether it's product experience, Markdown editing, AI workflows, cross-platform fixes, or docs. See [issues](https://github.com/murongg/markra/issues) for open tasks or start a discussion.
+Contributions are welcome — whether it's product experience, Markdown editing, AI workflows, cross-platform fixes, or docs. See [issues](https://github.com/markrahq/markra/issues) for open tasks or start a discussion.
 
 ## Contributors
 
 Thanks to everyone who has helped shape Markra through code, docs, design, testing, and feedback.
 
 <p align="center">
-  <a href="https://github.com/murongg/markra/graphs/contributors">
-    <img src="https://contrib.rocks/image?repo=murongg/markra" alt="Markra contributors" />
+  <a href="https://github.com/markrahq/markra/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=markrahq/markra" alt="Markra contributors" />
   </a>
 </p>
 
@@ -194,8 +194,8 @@ Thanks to everyone who has helped shape Markra through code, docs, design, testi
 ## Star History
 
 <p align="center">
-  <a href="https://star-history.com/#murongg/markra&Date">
-    <img alt="Markra star history chart" src="https://api.star-history.com/svg?repos=murongg/markra&type=Date" />
+  <a href="https://star-history.com/#markrahq/markra&Date">
+    <img alt="Markra star history chart" src="https://api.star-history.com/svg?repos=markrahq/markra&type=Date" />
   </a>
 </p>
 

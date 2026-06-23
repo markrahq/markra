@@ -19,7 +19,7 @@ const SETTINGS_WINDOW_COMMAND: &str = "openSettings";
 const CHECK_FOR_UPDATES_COMMAND: &str = "checkForUpdates";
 const EDIT_UNDO_COMMAND: &str = "editUndo";
 const EDIT_REDO_COMMAND: &str = "editRedo";
-const MARKRA_GITHUB_URL: &str = "https://github.com/murongg/markra";
+const MARKRA_GITHUB_URL: &str = "https://github.com/markrahq/markra";
 const OPEN_RECENT_FILE_SUBMENU_ID: &str = "markra:file:open-recent";
 const EMPTY_OPEN_RECENT_FILE_COMMAND: &str = "markra:file:open-recent:empty";
 
@@ -1129,13 +1129,13 @@ mod tests {
         assert_eq!(metadata.version.as_deref(), Some(env!("CARGO_PKG_VERSION")));
         assert_eq!(
             metadata.website.as_deref(),
-            Some("https://github.com/murongg/markra")
+            Some("https://github.com/markrahq/markra")
         );
         assert_eq!(metadata.website_label.as_deref(), Some("GitHub"));
         assert!(metadata
             .credits
             .as_deref()
-            .is_some_and(|credits| credits.contains("https://github.com/murongg/markra")));
+            .is_some_and(|credits| credits.contains("https://github.com/markrahq/markra")));
     }
 
     #[test]
