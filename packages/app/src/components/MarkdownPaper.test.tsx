@@ -2460,6 +2460,14 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("Where $A$ is the final amount.");
   });
 
+  it("preserves escaped underscore math source in inline formulas", async () => {
+    const source = String.raw`> **Synthetic material Si$\\\_3$N$\\\_4$ remains stable.**`;
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe(source);
+  });
+
   it("renders Hugo-style inline and display math formulas while preserving markdown source", async () => {
     const inlineFormula = String.raw`\(a^2 + b^2 = c^2\)`;
     const displayFormula = [
