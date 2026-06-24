@@ -543,21 +543,29 @@ mod tests {
                     "assets/reference.docx",
                 ),
                 (&MarkdownFolderEntryKind::File, "AWS.md"),
-                (&MarkdownFolderEntryKind::Folder, "build"),
-                (&MarkdownFolderEntryKind::File, "build/output.md"),
-                (&MarkdownFolderEntryKind::Folder, "dist"),
-                (&MarkdownFolderEntryKind::File, "dist/bundle.md"),
                 (&MarkdownFolderEntryKind::Folder, "docs"),
                 (&MarkdownFolderEntryKind::File, "docs/guide.markdown"),
                 (&MarkdownFolderEntryKind::Folder, "empty"),
                 (&MarkdownFolderEntryKind::Attachment, "notes.txt"),
-                (&MarkdownFolderEntryKind::Folder, "target"),
-                (&MarkdownFolderEntryKind::File, "target/cache.md"),
                 (&MarkdownFolderEntryKind::File, "Untitled.md"),
             ]
         );
         assert!(files.iter().all(|file| file.created_at.is_some()));
         assert!(files.iter().all(|file| file.modified_at.is_some()));
+        assert_eq!(
+            files
+                .iter()
+                .find(|file| file.relative_path == "Untitled.md")
+                .and_then(|file| file.size_bytes),
+            Some("# Untitled".len() as u64)
+        );
+        assert_eq!(
+            files
+                .iter()
+                .find(|file| file.relative_path == "assets")
+                .and_then(|file| file.size_bytes),
+            None
+        );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }
@@ -643,6 +651,101 @@ mod tests {
                 (&MarkdownFolderEntryKind::File, "index.md"),
             ]
         );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn skips_tool_metadata_directories_when_listing_markdown_files() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-tool-metadata-tree-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let obsidian_plugin = root.join(".obsidian").join("plugins").join("mock-plugin");
+        let codex_sessions = root.join(".codex").join("sessions");
+        let sync_metadata = root.join(".markra-sync").join("objects");
+
+        fs::create_dir_all(&obsidian_plugin).expect("obsidian plugin folder should be created");
+        fs::create_dir_all(&codex_sessions).expect("codex sessions folder should be created");
+        fs::create_dir_all(&sync_metadata).expect("sync metadata folder should be created");
+        fs::write(root.join("index.md"), "# Index").expect("markdown file should be created");
+        fs::write(obsidian_plugin.join("data.json"), "{}")
+            .expect("obsidian plugin data should be created");
+        fs::write(obsidian_plugin.join("readme.md"), "# Plugin")
+            .expect("obsidian plugin markdown should be created");
+        fs::write(codex_sessions.join("session.json"), "{}")
+            .expect("codex session should be created");
+        fs::write(sync_metadata.join("entry.md"), "# Metadata")
+            .expect("sync metadata markdown should be created");
+
+        let files = list_markdown_files_for_path_with_asset_scope(
+            root.to_string_lossy().to_string(),
+            Some("assets"),
+            |_| Ok(()),
+        )
+        .expect("markdown tree should be listed");
+
+        assert_eq!(
+            files
+                .iter()
+                .map(|file| (&file.kind, file.relative_path.as_str()))
+                .collect::<Vec<_>>(),
+            vec![(&MarkdownFolderEntryKind::File, "index.md")]
+        );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn skips_build_artifact_directories_when_listing_markdown_files() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-build-artifact-tree-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let rust_target_deps = root
+            .join("src-tauri")
+            .join("target")
+            .join("debug")
+            .join("deps");
+        let vite_dist_assets = root.join("web").join("dist").join("assets");
+        let generated_build = root.join("site").join("build").join("static");
+
+        fs::create_dir_all(&rust_target_deps).expect("target folder should be created");
+        fs::create_dir_all(&vite_dist_assets).expect("dist folder should be created");
+        fs::create_dir_all(&generated_build).expect("build folder should be created");
+        fs::write(root.join("index.md"), "# Index").expect("markdown file should be created");
+        fs::write(rust_target_deps.join("compiled-artifact.d"), "compiled")
+            .expect("target artifact should be created");
+        fs::write(vite_dist_assets.join("bundle.js"), "compiled")
+            .expect("dist artifact should be created");
+        fs::write(generated_build.join("page.md"), "# Generated")
+            .expect("build artifact markdown should be created");
+
+        let files = list_markdown_files_for_path_with_asset_scope(
+            root.to_string_lossy().to_string(),
+            Some("assets"),
+            |_| Ok(()),
+        )
+        .expect("markdown tree should be listed");
+
+        let relative_paths = files
+            .iter()
+            .map(|file| file.relative_path.as_str())
+            .collect::<Vec<_>>();
+
+        assert!(relative_paths.contains(&"index.md"));
+        assert!(relative_paths.contains(&"site"));
+        assert!(relative_paths.contains(&"src-tauri"));
+        assert!(relative_paths.contains(&"web"));
+        assert!(!relative_paths.iter().any(|path| path
+            .split('/')
+            .any(|part| matches!(part, "build" | "dist" | "target"))));
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }

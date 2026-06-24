@@ -100,6 +100,34 @@ function leadingDelimitedFrontmatterRange(markdown: string): ProtectedRange | nu
   return null;
 }
 
+function lineStartOffsets(markdown: string) {
+  const offsets = [0];
+
+  for (let index = 0; index < markdown.length; index += 1) {
+    if (markdown[index] === "\n") offsets.push(index + 1);
+  }
+
+  return offsets;
+}
+
+function lineStartIndexForOffset(lineStarts: readonly number[], offset: number) {
+  let low = 0;
+  let high = lineStarts.length - 1;
+
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const lineStart = lineStarts[middle] ?? 0;
+
+    if (lineStart <= offset) {
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+
+  return Math.max(0, high);
+}
+
 function markdownNodeStart(node: MarkdownNode) {
   return node.position?.start?.offset;
 }
@@ -108,16 +136,16 @@ function markdownNodeEnd(node: MarkdownNode) {
   return node.position?.end?.offset;
 }
 
-function lineInfoForOffset(markdown: string, offset: number) {
+function lineInfoForOffset(markdown: string, offset: number, lineStarts: readonly number[]) {
   const safeOffset = Math.max(0, Math.min(offset, markdown.length));
-  const lineStart = markdown.lastIndexOf("\n", Math.max(0, safeOffset - 1)) + 1;
-  const lineEndIndex = markdown.indexOf("\n", safeOffset);
-  const lineEnd = lineEndIndex >= 0 ? lineEndIndex : markdown.length;
-  const lineNumber = markdown.slice(0, safeOffset).split("\n").length;
+  const lineIndex = lineStartIndexForOffset(lineStarts, safeOffset);
+  const lineStart = lineStarts[lineIndex] ?? 0;
+  const nextLineStart = lineStarts[lineIndex + 1];
+  const lineEnd = typeof nextLineStart === "number" ? nextLineStart - 1 : markdown.length;
 
   return {
     columnNumber: safeOffset - lineStart + 1,
-    lineNumber,
+    lineNumber: lineIndex + 1,
     lineText: markdown.slice(lineStart, lineEnd)
   };
 }
@@ -160,7 +188,12 @@ function isWikiDocumentHref(href: string) {
   return !extensionMatch || markdownDocumentExtensionPattern.test(target);
 }
 
-function wikiReferenceFromSource(markdown: string, source: string, absoluteOffset: number) {
+function wikiReferenceFromSource(
+  markdown: string,
+  source: string,
+  absoluteOffset: number,
+  lineStarts: readonly number[]
+) {
   const wikiLinks: MarkdownLinkReference[] = [];
 
   wikiLinkPattern.lastIndex = 0;
@@ -176,7 +209,7 @@ function wikiReferenceFromSource(markdown: string, source: string, absoluteOffse
     const text = rawLabel?.trim() || href;
     const from = absoluteOffset + (match.index ?? 0);
     const to = from + matchText.length;
-    const line = lineInfoForOffset(markdown, from);
+    const line = lineInfoForOffset(markdown, from, lineStarts);
 
     wikiLinks.push({
       columnNumber: line.columnNumber,
@@ -203,7 +236,7 @@ function overlapsProtectedRange(from: number, to: number, protectedRange: Protec
   return Boolean(protectedRange && from < protectedRange.to && to > protectedRange.from);
 }
 
-function splitTextNodeLines(markdown: string, text: string, start: number) {
+function splitTextNodeLines(markdown: string, text: string, start: number, lineStarts: readonly number[]) {
   const ranges: MarkdownMentionRange[] = [];
   let cursor = 0;
 
@@ -211,7 +244,7 @@ function splitTextNodeLines(markdown: string, text: string, start: number) {
     const from = start + cursor;
     const to = from + lineText.length;
     if (lineText) {
-      const line = lineInfoForOffset(markdown, from);
+      const line = lineInfoForOffset(markdown, from, lineStarts);
       ranges.push({
         columnNumber: line.columnNumber,
         from,
@@ -289,6 +322,7 @@ function hasWordBoundary(text: string, from: number, to: number, title: string) 
 export function parseMarkdownLinkReferences(markdown: string): MarkdownLinkReference[] {
   const tree = parseMarkdown(markdown);
   const frontmatterRange = leadingDelimitedFrontmatterRange(markdown);
+  const lineStarts = lineStartOffsets(markdown);
   const links: MarkdownLinkReference[] = [];
 
   traverseMarkdownNode(tree, (node, parents) => {
@@ -298,7 +332,7 @@ export function parseMarkdownLinkReferences(markdown: string): MarkdownLinkRefer
       if (typeof from !== "number" || typeof to !== "number") return;
       if (overlapsProtectedRange(from, to, frontmatterRange)) return;
 
-      const line = lineInfoForOffset(markdown, from);
+      const line = lineInfoForOffset(markdown, from, lineStarts);
       links.push({
         columnNumber: line.columnNumber,
         from,
@@ -317,7 +351,7 @@ export function parseMarkdownLinkReferences(markdown: string): MarkdownLinkRefer
     if (start === null) return;
     if (overlapsProtectedRange(start, start + node.value.length, frontmatterRange)) return;
 
-    links.push(...wikiReferenceFromSource(markdown, node.value, start));
+    links.push(...wikiReferenceFromSource(markdown, node.value, start, lineStarts));
   });
 
   return links.sort((left, right) => left.from - right.from);
@@ -326,6 +360,7 @@ export function parseMarkdownLinkReferences(markdown: string): MarkdownLinkRefer
 export function parseMarkdownMentionRanges(markdown: string): MarkdownMentionRange[] {
   const tree = parseMarkdown(markdown);
   const frontmatterRange = leadingDelimitedFrontmatterRange(markdown);
+  const lineStarts = lineStartOffsets(markdown);
   const ranges: MarkdownMentionRange[] = [];
 
   traverseMarkdownNode(tree, (node, parents) => {
@@ -335,7 +370,7 @@ export function parseMarkdownMentionRanges(markdown: string): MarkdownMentionRan
     if (start === null) return;
     if (overlapsProtectedRange(start, start + node.value.length, frontmatterRange)) return;
 
-    splitTextNodeLines(markdown, node.value, start).forEach((range) => {
+    splitTextNodeLines(markdown, node.value, start, lineStarts).forEach((range) => {
       ranges.push(...removeWikiSourceRanges(range));
     });
   });

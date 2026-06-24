@@ -141,6 +141,7 @@ type MarkdownFileTreeDrawerProps = {
   files: NativeMarkdownFolderFile[];
   language?: AppLanguage;
   linkIndex?: WorkspaceLinkIndex | null;
+  linkIndexLoading?: boolean;
   maxWidth?: number;
   minWidth?: number;
   folderOpen?: boolean;
@@ -438,6 +439,7 @@ export function MarkdownFileTreeDrawer({
   files,
   language = "en",
   linkIndex = null,
+  linkIndexLoading = false,
   maxWidth = 440,
   minWidth = 220,
   folderOpen = true,
@@ -735,12 +737,14 @@ export function MarkdownFileTreeDrawer({
   const documentLinksOpen = controlledDocumentLinksOpen ?? localDocumentLinksOpen;
   const recentFolderAreaVisible = recentFolderChoices.length > 0 && Boolean(onOpenRecentFolder);
   const tabbedSidebarLayout = sidebarLayoutMode === "tabs";
-  const linkPanelAvailable = Boolean(
-    documentLinksVisible &&
-    linkIndex &&
-    currentPath &&
-    linkIndex.files.some((file) => file.file.path === currentPath)
+  const activeFileInLinkIndex = Boolean(
+    linkIndex && currentPath && linkIndex.files.some((file) => file.file.path === currentPath)
   );
+  const linkPanelAvailable = Boolean(documentLinksVisible && currentPath && (
+    activeFileInLinkIndex ||
+    linkIndexLoading ||
+    (!tabbedSidebarLayout && !documentLinksOpen)
+  ));
   const activeBacklinks = linkIndex && currentPath ? workspaceBacklinksForPath(linkIndex, currentPath) : [];
   const activeUnlinkedMentions = linkIndex && currentPath ? workspaceUnlinkedMentionsForPath(linkIndex, currentPath) : [];
   const filePanelAvailable = folderOpen || (open && fileCreationAvailable);

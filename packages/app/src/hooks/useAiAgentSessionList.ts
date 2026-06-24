@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { listStoredAiAgentSessions, type StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
 
-export function useAiAgentSessionList(workspaceKey: string | null, refreshKey: string) {
+export function useAiAgentSessionList(workspaceKey: string | null, refreshKey: string, enabled = true) {
   const [sessions, setSessions] = useState<StoredAiAgentSessionSummary[]>([]);
   const [readyWorkspaceKey, setReadyWorkspaceKey] = useState<string | null | undefined>();
 
@@ -16,11 +16,17 @@ export function useAiAgentSessionList(workspaceKey: string | null, refreshKey: s
   }, [workspaceKey]);
 
   useEffect(() => {
+    if (!enabled) {
+      setReadyWorkspaceKey(undefined);
+      return undefined;
+    }
+
     setReadyWorkspaceKey(undefined);
     refresh().catch(() => {});
-  }, [refresh]);
+  }, [enabled, refresh]);
 
   useEffect(() => {
+    if (!enabled) return undefined;
     if (readyWorkspaceKey !== workspaceKey) return undefined;
 
     const timer = window.setTimeout(() => {
@@ -30,11 +36,11 @@ export function useAiAgentSessionList(workspaceKey: string | null, refreshKey: s
     return () => {
       window.clearTimeout(timer);
     };
-  }, [readyWorkspaceKey, refresh, refreshKey, workspaceKey]);
+  }, [enabled, readyWorkspaceKey, refresh, refreshKey, workspaceKey]);
 
   return {
     refresh,
-    ready: readyWorkspaceKey === workspaceKey,
+    ready: enabled && readyWorkspaceKey === workspaceKey,
     sessions
   };
 }

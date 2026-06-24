@@ -792,6 +792,7 @@ mod tests {
             modified_at: Some(1),
             path: "/synthetic/first.md".to_string(),
             relative_path: "first.md".to_string(),
+            size_bytes: Some(10),
         };
         let second = MarkdownFolderFile {
             created_at: None,
@@ -799,6 +800,7 @@ mod tests {
             modified_at: Some(1),
             path: "/synthetic/second.md".to_string(),
             relative_path: "second.md".to_string(),
+            size_bytes: Some(20),
         };
         let mut index = WorkspaceSearchIndex::default();
         let mut first_signature = WorkspaceSearchFileSignature {

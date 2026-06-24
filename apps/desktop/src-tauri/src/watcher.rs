@@ -5,6 +5,8 @@ use std::sync::Mutex;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::Emitter;
 
+use crate::markdown_files::should_skip_markdown_tree_component;
+
 const MARKDOWN_FILE_CHANGED_EVENT: &str = "markra://file-changed";
 const MARKDOWN_TREE_CHANGED_EVENT: &str = "markra://tree-changed";
 
@@ -50,12 +52,6 @@ fn is_target_file_event(event: &Event, watched_path: &Path) -> bool {
     })
 }
 
-fn is_ignored_tree_component(component: &std::ffi::OsStr) -> bool {
-    component
-        .to_str()
-        .is_some_and(|name| matches!(name, ".git" | "node_modules" | "target" | "dist" | "build"))
-}
-
 fn is_markdown_tree_path(_path: &Path) -> bool {
     true
 }
@@ -75,7 +71,7 @@ fn markdown_tree_event_path<'a>(event: &'a Event, root: &Path) -> Option<&'a Pat
 
         let has_ignored_component = relative_path
             .components()
-            .any(|component| is_ignored_tree_component(component.as_os_str()));
+            .any(|component| should_skip_markdown_tree_component(component.as_os_str()));
 
         !has_ignored_component && is_markdown_tree_path(event_path)
     })
@@ -318,6 +314,16 @@ mod tests {
         let root = PathBuf::from("/mock-files");
         let event = Event::new(EventKind::Create(CreateKind::File))
             .add_path(PathBuf::from("/mock-files/node_modules/pkg/readme.md"));
+
+        assert!(markdown_tree_event_path(&event, &root).is_none());
+    }
+
+    #[test]
+    fn ignores_tool_metadata_folder_tree_events() {
+        let root = PathBuf::from("/mock-files");
+        let event = Event::new(EventKind::Modify(ModifyKind::Data(DataChange::Content))).add_path(
+            PathBuf::from("/mock-files/.obsidian/plugins/mock-plugin/data.json"),
+        );
 
         assert!(markdown_tree_event_path(&event, &root).is_none());
     }

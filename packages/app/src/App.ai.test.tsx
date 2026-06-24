@@ -56,7 +56,7 @@ describe("Markra AI workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
 
     expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "true");
-    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    const agentPanel = await screen.findByRole("complementary", { name: "Markra AI" });
     expect(agentPanel).toBeInTheDocument();
     expect(within(agentPanel).getAllByText("OpenAI · GPT-5.5")[0]).toBeInTheDocument();
     expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveTextContent("OpenAI · GPT-5.5");
@@ -80,7 +80,7 @@ describe("Markra AI workspace", () => {
     fireEvent.keyDown(window, { key: "j", altKey: true, metaKey: true });
 
     expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("complementary", { name: "Markra AI" })).toBeInTheDocument();
+    expect(await screen.findByRole("complementary", { name: "Markra AI" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "j", altKey: true, metaKey: true });
 

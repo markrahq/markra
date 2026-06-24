@@ -38,6 +38,7 @@ export type NativeMarkdownFolderFile = {
   path: string;
   name: string;
   relativePath: string;
+  sizeBytes?: number;
 };
 
 export type ListNativeMarkdownFilesOptions = {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   createAiAgentSessionId,
   defaultStoredFileTreeSort,
@@ -31,6 +31,7 @@ import { clampNumber, folderNameFromDocumentPath, isMarkdownPath, parentPathFrom
 export const markdownFileTreeDefaultWidth = 288;
 export const markdownFileTreeMinWidth = 220;
 export const markdownFileTreeMaxWidth = 440;
+const openFolderLoadCoalesceMs = 120;
 
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
   saveStoredWorkspaceState(patch).catch(() => {});
@@ -44,6 +45,9 @@ type UseMarkdownFileTreeOptions = {
 type OpenMarkdownFolderOptions = {
   beforeOpenFolder?: () => unknown | Promise<unknown>;
   pickerTitle?: string;
+};
+type OpenFolderPathOptions = {
+  coalesce?: boolean;
 };
 
 function normalizeTreeParentPath(path: string | null | undefined) {
@@ -85,6 +89,10 @@ type LoadedFileTreeRequest = {
   managedAttachmentFolder: string;
   path: string;
 };
+type PendingOpenFolderLoad = {
+  cancel: () => undefined;
+  timeoutId: number;
+};
 
 function filterManagedAttachmentFiles(
   files: readonly NativeMarkdownFolderFile[],
@@ -122,6 +130,9 @@ export function useMarkdownFileTree({
   const [width, setWidth] = useState(markdownFileTreeDefaultWidth);
   const [resizing, setResizing] = useState(false);
   const loadedFileTreeRequestRef = useRef<LoadedFileTreeRequest | null>(null);
+  const openFolderRequestIdRef = useRef(0);
+  const openingFolderPathRef = useRef<string | null>(null);
+  const pendingOpenFolderLoadRef = useRef<PendingOpenFolderLoad | null>(null);
   const openChangedBeforeWorkspaceRestoreRef = useRef(false);
   const normalizedManagedAttachmentFolder = useMemo(
     () => normalizeManagedAttachmentFolder(managedAttachmentFolder),
@@ -165,6 +176,7 @@ export function useMarkdownFileTree({
   const refresh = useCallback(
     async (fallbackPath: string | null = null) => {
       const path = sourcePath ?? fallbackPath;
+      const requestId = openFolderRequestIdRef.current;
       if (!path) {
         setFiles([]);
         return;
@@ -174,9 +186,17 @@ export function useMarkdownFileTree({
         const nextFiles = await listNativeMarkdownFilesForPath(path, {
           managedAttachmentFolder: normalizedManagedAttachmentFolder
         });
+        if (openFolderRequestIdRef.current !== requestId) return;
+        if (openingFolderPathRef.current && openingFolderPathRef.current !== path) return;
+
         loadedFileTreeRequestRef.current = { managedAttachmentFolder: normalizedManagedAttachmentFolder, path };
-        setFiles(nextFiles);
+        startTransition(() => {
+          setFiles(nextFiles);
+        });
       } catch {
+        if (openFolderRequestIdRef.current !== requestId) return;
+        if (openingFolderPathRef.current && openingFolderPathRef.current !== path) return;
+
         setFiles([]);
       }
     },
@@ -184,8 +204,35 @@ export function useMarkdownFileTree({
   );
 
   const setRootFromMarkdownFilePath = useCallback((path: string) => {
+    openFolderRequestIdRef.current += 1;
+    openingFolderPathRef.current = null;
+    pendingOpenFolderLoadRef.current?.cancel();
+    pendingOpenFolderLoadRef.current = null;
     setSourcePath(path);
     setRootName(folderNameFromDocumentPath(path));
+  }, []);
+
+  const waitForLatestOpenFolderLoad = useCallback((requestId: number) => {
+    pendingOpenFolderLoadRef.current?.cancel();
+
+    return new Promise<boolean>((resolve) => {
+      const timeoutId = window.setTimeout(() => {
+        if (pendingOpenFolderLoadRef.current?.timeoutId === timeoutId) {
+          pendingOpenFolderLoadRef.current = null;
+        }
+
+        resolve(openFolderRequestIdRef.current === requestId);
+      }, openFolderLoadCoalesceMs);
+
+      pendingOpenFolderLoadRef.current = {
+        cancel: () => {
+          window.clearTimeout(timeoutId);
+          resolve(false);
+          return undefined;
+        },
+        timeoutId
+      };
+    });
   }, []);
 
   const rememberFolder = useCallback((folder: RecentMarkdownFolder) => {
@@ -203,17 +250,39 @@ export function useMarkdownFileTree({
     name = pathNameFromPath(path),
     preferredSessionId?: string | null,
     clearFilePath = true,
-    openTree = true
+    openTree = true,
+    options: OpenFolderPathOptions = {}
   ) => {
     const folderName = name || pathNameFromPath(path);
     const sessionId = preferredSessionId?.trim() ? preferredSessionId : createAiAgentSessionId();
+    const requestId = openFolderRequestIdRef.current + 1;
     let nextFiles: NativeMarkdownFolderFile[];
+
+    openFolderRequestIdRef.current = requestId;
+    openingFolderPathRef.current = path;
+
+    if (options.coalesce) {
+      setRootName(folderName);
+      openChangedBeforeWorkspaceRestoreRef.current = true;
+
+      const latestRequestStillActive = await waitForLatestOpenFolderLoad(requestId);
+      if (!latestRequestStillActive) {
+        if (openingFolderPathRef.current === path) openingFolderPathRef.current = null;
+        return null;
+      }
+    } else {
+      pendingOpenFolderLoadRef.current?.cancel();
+      pendingOpenFolderLoadRef.current = null;
+    }
 
     try {
       nextFiles = await listNativeMarkdownFilesForPath(path, {
         managedAttachmentFolder: normalizedManagedAttachmentFolder
       });
     } catch {
+      if (openFolderRequestIdRef.current !== requestId) return null;
+
+      openingFolderPathRef.current = null;
       forgetRecentFolder(path);
 
       if (!sourcePath || sourcePath === path) {
@@ -223,17 +292,25 @@ export function useMarkdownFileTree({
         loadedFileTreeRequestRef.current = null;
         openChangedBeforeWorkspaceRestoreRef.current = true;
         setOpen(false);
+      } else {
+        setRootName(rootName);
+        setOpen(open);
       }
 
       return null;
     }
 
+    if (openFolderRequestIdRef.current !== requestId) return null;
+
+    openingFolderPathRef.current = null;
     setSourcePath(path);
     setRootName(folderName);
     openChangedBeforeWorkspaceRestoreRef.current = true;
     setOpen(openTree);
     loadedFileTreeRequestRef.current = { managedAttachmentFolder: normalizedManagedAttachmentFolder, path };
-    setFiles(nextFiles);
+    startTransition(() => {
+      setFiles(nextFiles);
+    });
     rememberFolder({ name: folderName, path });
     onWorkspaceSessionChange?.(sessionId);
     // Opening a folder replaces the startup workspace, so clear the previous file path in the same write.
@@ -245,7 +322,24 @@ export function useMarkdownFileTree({
       folderPath: path
     });
     return { name: folderName, path };
-  }, [forgetRecentFolder, normalizedManagedAttachmentFolder, onWorkspaceSessionChange, rememberFolder, sourcePath]);
+  }, [
+    forgetRecentFolder,
+    normalizedManagedAttachmentFolder,
+    onWorkspaceSessionChange,
+    open,
+    rememberFolder,
+    rootName,
+    sourcePath,
+    waitForLatestOpenFolderLoad
+  ]);
+
+  useEffect(() => {
+    return () => {
+      openingFolderPathRef.current = null;
+      pendingOpenFolderLoadRef.current?.cancel();
+      pendingOpenFolderLoadRef.current = null;
+    };
+  }, []);
 
   const openMarkdownFolder = useCallback(async (options: OpenMarkdownFolderOptions = {}) => {
     const folder = await openNativeMarkdownFolder(
@@ -256,11 +350,11 @@ export function useMarkdownFileTree({
     const beforeOpenResult = await options.beforeOpenFolder?.();
     if (beforeOpenResult === false) return null;
 
-    return openFolderPath(folder.path, folder.name);
+    return openFolderPath(folder.path, folder.name, undefined, true, true, { coalesce: true });
   }, [openFolderPath]);
 
   const openRecentFolder = useCallback(async (folder: RecentMarkdownFolder, preferredSessionId?: string | null) => {
-    return openFolderPath(folder.path, folder.name, preferredSessionId);
+    return openFolderPath(folder.path, folder.name, preferredSessionId, true, true, { coalesce: true });
   }, [openFolderPath]);
 
   const removeRecentFolder = useCallback((folder: RecentMarkdownFolder) => {
