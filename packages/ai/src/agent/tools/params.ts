@@ -78,7 +78,32 @@ export type SearchDocumentArgs = {
 
 export type SearchWorkspaceArgs = {
   maxResults?: number;
-  query: string;
+  query?: string;
+};
+
+export type WorkspaceChangeKind =
+  | "add_links"
+  | "add_tags"
+  | "create_note"
+  | "move_note"
+  | "rename_note"
+  | "update_note";
+
+export type WorkspaceChangePlanChange = {
+  content?: string;
+  from?: string;
+  links?: string[];
+  path?: string;
+  reason?: string;
+  summary?: string;
+  tags?: string[];
+  to?: string;
+  type: WorkspaceChangeKind;
+};
+
+export type WorkspaceChangePlanArgs = {
+  changes: WorkspaceChangePlanChange[];
+  summary?: string;
 };
 
 export type ValidateEditArgs = {
@@ -209,7 +234,18 @@ export function typedSearchWorkspaceArgs(params: unknown): SearchWorkspaceArgs {
 
   return {
     maxResults: typeof args.maxResults === "number" ? args.maxResults : undefined,
-    query: args.query.trim()
+    query: args.query?.trim() ?? ""
+  };
+}
+
+export function typedWorkspaceChangePlanArgs(params: unknown): WorkspaceChangePlanArgs {
+  const args = params as { changes?: WorkspaceChangePlanChange[]; summary?: string };
+
+  return {
+    changes: Array.isArray(args.changes)
+      ? args.changes.map((change) => typedWorkspaceChangePlanChange(change))
+      : [],
+    summary: args.summary?.trim() || undefined
   };
 }
 
@@ -219,6 +255,39 @@ export function typedValidateEditArgs(params: unknown): ValidateEditArgs {
   return {
     content: args.content
   };
+}
+
+function typedWorkspaceChangePlanChange(change: WorkspaceChangePlanChange): WorkspaceChangePlanChange {
+  return {
+    content: change.content,
+    from: change.from?.trim() || undefined,
+    links: Array.isArray(change.links)
+      ? change.links.map((link) => String(link).trim()).filter(Boolean)
+      : undefined,
+    path: change.path?.trim() || undefined,
+    reason: change.reason?.trim() || undefined,
+    summary: change.summary?.trim() || undefined,
+    tags: Array.isArray(change.tags)
+      ? change.tags.map((tag) => String(tag).trim()).filter(Boolean)
+      : undefined,
+    to: change.to?.trim() || undefined,
+    type: typedWorkspaceChangeKind(change.type)
+  };
+}
+
+function typedWorkspaceChangeKind(value: unknown): WorkspaceChangeKind {
+  if (
+    value === "add_links" ||
+    value === "add_tags" ||
+    value === "create_note" ||
+    value === "move_note" ||
+    value === "rename_note" ||
+    value === "update_note"
+  ) {
+    return value;
+  }
+
+  return "update_note";
 }
 
 export function typedViewAssetArgs(params: unknown): ViewAssetArgs {

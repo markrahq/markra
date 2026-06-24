@@ -58,6 +58,112 @@ describe("AiAgentPanel", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a compact workspace plan confirmation above the composer without the runner panel", () => {
+    renderAgentPanel({
+      workspacePlanEvents: [
+        {
+          totalSteps: 1,
+          type: "plan_validating"
+        },
+        {
+          action: "create_note",
+          afterContent: "# Alpha",
+          index: 0,
+          label: "Create note: topics/alpha.md",
+          path: "topics/alpha.md",
+          target: "file_tree",
+          type: "step_previewed"
+        }
+      ]
+    });
+
+    const confirmation = screen.getByRole("region", { name: "Workspace plan confirmation" });
+
+    expect(confirmation).toBeInTheDocument();
+    expect(confirmation.closest("form")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "AI workspace actions" })).not.toBeInTheDocument();
+    expect(screen.queryByText("AI cursor")).not.toBeInTheDocument();
+    expect(confirmation).toHaveTextContent("Create note: topics/alpha.md");
+  });
+
+  it("offers a confirmed apply action for prepared workspace plans", () => {
+    const applyWorkspacePlan = vi.fn();
+
+    renderAgentPanel({
+      workspacePlanApplyStatus: "idle",
+      workspacePlanEvents: [
+        {
+          totalSteps: 1,
+          type: "plan_validating"
+        },
+        {
+          action: "create_note",
+          afterContent: "# Alpha",
+          index: 0,
+          label: "Create note: topics/alpha.md",
+          path: "topics/alpha.md",
+          target: "file_tree",
+          type: "step_previewed"
+        }
+      ],
+      onApplyWorkspacePlan: applyWorkspacePlan
+    } as Partial<AiAgentPanelProps>);
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply workspace plan" }));
+
+    expect(applyWorkspacePlan).toHaveBeenCalledTimes(1);
+  });
+
+  it("disables workspace plan apply while execution is running", () => {
+    renderAgentPanel({
+      workspacePlanApplyStatus: "applying",
+      workspacePlanEvents: [
+        {
+          totalSteps: 1,
+          type: "plan_validating"
+        },
+        {
+          action: "update_note",
+          index: 0,
+          label: "Update note: alpha.md",
+          path: "alpha.md",
+          target: "editor",
+          type: "step_started"
+        }
+      ],
+      onApplyWorkspacePlan: () => {}
+    } as Partial<AiAgentPanelProps>);
+
+    expect(screen.getByRole("button", { name: "Apply workspace plan" })).toBeDisabled();
+    expect(screen.getByText("Applying")).toBeInTheDocument();
+  });
+
+  it("lets users dismiss the completed workspace plan confirmation", () => {
+    renderAgentPanel({
+      workspacePlanApplyStatus: "applied",
+      workspacePlanEvents: [
+        {
+          totalSteps: 1,
+          type: "plan_validating"
+        },
+        {
+          action: "move_note",
+          index: 0,
+          label: "Move note: drafts/example.md -> notes/example.md",
+          target: "file_tree",
+          type: "step_applied"
+        }
+      ]
+    });
+
+    expect(screen.getByRole("region", { name: "Workspace plan confirmation" })).toHaveTextContent("Applied");
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss workspace plan confirmation" }));
+
+    expect(screen.queryByRole("region", { name: "Workspace plan confirmation" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Markra AI message" })).toBeInTheDocument();
+  });
+
   it("shows the current turn context in a collapsible panel", () => {
     renderAgentPanel({
       context: {
@@ -389,6 +495,35 @@ describe("AiAgentPanel", () => {
 
     expect(updateDraft).not.toHaveBeenCalled();
     expect(submit).not.toHaveBeenCalled();
+  });
+
+  it("allows freeform AI chat when only a workspace is available", () => {
+    const submit = vi.fn();
+    const updateDraft = vi.fn();
+
+    renderAgentPanel({
+      documentAvailable: false,
+      draft: "List workspace notes",
+      onDraftChange: updateDraft,
+      onSubmit: submit,
+      workspaceAvailable: true
+    });
+
+    const input = screen.getByRole("textbox", { name: "Markra AI message" });
+    const sendButton = screen.getByRole("button", { name: "Send message" });
+    const suggestion = screen.getByRole("button", { name: "Summarize this document" });
+
+    expect(screen.getByText("Ready when you are")).toBeInTheDocument();
+    expect(input).toHaveAttribute("placeholder", "Ask Markra AI...");
+    expect(input).toBeEnabled();
+    expect(sendButton).toBeEnabled();
+    expect(suggestion).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: "Show markdown files" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(updateDraft).toHaveBeenCalledWith("Show markdown files");
+    expect(submit).toHaveBeenCalledTimes(1);
   });
 
   it("does not send when Enter confirms an IME composition", () => {

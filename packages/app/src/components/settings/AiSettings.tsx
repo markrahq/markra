@@ -101,6 +101,22 @@ export function AiSettings({
           }
         />
         <SettingsRow
+          title={translate("settings.editor.aiWorkspaceAnimation")}
+          description={translate("settings.editor.aiWorkspaceAnimationDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.aiWorkspaceAnimationEnabled}
+              label={translate("settings.editor.aiWorkspaceAnimation")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  aiWorkspaceAnimationEnabled: !preferences.aiWorkspaceAnimationEnabled
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.editor.suggestAiPanelForComplexInlinePrompts")}
           description={translate("settings.editor.suggestAiPanelForComplexInlinePromptsDescription")}
           action={

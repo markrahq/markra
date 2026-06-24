@@ -81,6 +81,10 @@ describe("useAiAgentSession", () => {
     mockedSaveStoredAiAgentSessionTitle.mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("streams an assistant reply into the transcript", async () => {
     mockedRunDocumentAiAgent.mockImplementation(async ({ onTextDelta }) => {
       onTextDelta?.("Hello");
@@ -856,6 +860,175 @@ describe("useAiAgentSession", () => {
       role: "assistant",
       text: "Done"
     });
+  });
+
+  it("exposes prepared workspace plan events from agent tool results", async () => {
+    mockedRunDocumentAiAgent.mockImplementation(async ({ onEvent, onTextDelta }) => {
+      onEvent?.({
+        isError: false,
+        result: {
+          details: {
+            changes: [
+              {
+                content: "# Alpha",
+                label: "Create note: topics/alpha.md",
+                path: "topics/alpha.md",
+                type: "create_note"
+              }
+            ],
+            count: 1,
+            summary: "Organize synthetic notes."
+          }
+        },
+        toolCallId: "tool-plan",
+        toolName: "prepare_workspace_change_plan",
+        type: "tool_execution_end"
+      });
+      onTextDelta?.("Prepared plan.");
+
+      return {
+        content: "Prepared plan.",
+        finishReason: "stop"
+      };
+    });
+
+    const { result } = renderAiAgentSession({
+      documentPath: "/vault/README.md",
+      sessionId: "session-a"
+    });
+
+    await act(async () => {
+      await result.current.submit("Organize this workspace");
+    });
+
+    expect(result.current.workspacePlanEvents.map((event) => event.type)).toEqual([
+      "plan_validating",
+      "step_started",
+      "step_previewed"
+    ]);
+    expect(result.current.workspacePlanEvents[1]).toEqual(expect.objectContaining({
+      action: "create_note",
+      path: "topics/alpha.md",
+      target: "file_tree"
+    }));
+  });
+
+  it("applies the latest prepared workspace plan through a confirmed delayed executor", async () => {
+    vi.useFakeTimers();
+    mockedRunDocumentAiAgent.mockImplementation(async ({ onEvent, onTextDelta }) => {
+      onEvent?.({
+        isError: false,
+        result: {
+          details: {
+            changes: [
+              {
+                content: "# Alpha",
+                label: "Create note: topics/alpha.md",
+                path: "topics/alpha.md",
+                type: "create_note"
+              }
+            ],
+            count: 1,
+            summary: "Organize synthetic notes."
+          }
+        },
+        toolCallId: "tool-plan",
+        toolName: "prepare_workspace_change_plan",
+        type: "tool_execution_end"
+      });
+      onTextDelta?.("Prepared plan.");
+
+      return {
+        content: "Prepared plan.",
+        finishReason: "stop"
+      };
+    });
+    const applyWorkspacePlan = vi.fn(async (plan, options) => {
+      expect(plan).toEqual({
+        changes: [
+          {
+            content: "# Alpha",
+            label: "Create note: topics/alpha.md",
+            path: "topics/alpha.md",
+            type: "create_note"
+          }
+        ],
+        summary: "Organize synthetic notes."
+      });
+
+      options.onVisualEvent({
+        totalSteps: 1,
+        type: "plan_validating"
+      });
+      options.onVisualEvent({
+        action: "create_note",
+        afterContent: "# Alpha",
+        index: 0,
+        label: "Create note: topics/alpha.md",
+        path: "topics/alpha.md",
+        target: "file_tree",
+        type: "step_applied"
+      });
+
+      return {
+        count: 1,
+        journal: {
+          changes: [
+            {
+              afterContent: "# Alpha",
+              path: "topics/alpha.md",
+              type: "create_note" as const
+            }
+          ]
+        },
+        summary: "Organize synthetic notes."
+      };
+    });
+
+    const { result } = renderAiAgentSession({
+      applyWorkspacePlan,
+      documentPath: "/vault/README.md",
+      sessionId: "session-a"
+    });
+
+    await act(async () => {
+      await result.current.submit("Organize this workspace");
+    });
+
+    expect(result.current.workspacePlanApplyStatus).toBe("idle");
+
+    let applyPromise: Promise<unknown> | null = null;
+    act(() => {
+      applyPromise = result.current.applyWorkspacePlan();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(applyWorkspacePlan).toHaveBeenCalledTimes(1);
+    expect(result.current.workspacePlanApplyStatus).toBe("applying");
+    expect(result.current.workspacePlanEvents.map((event) => event.type)).toEqual(["plan_validating"]);
+
+    await act(async () => {
+      vi.advanceTimersByTime(420);
+      await Promise.resolve();
+    });
+
+    expect(result.current.workspacePlanEvents.map((event) => event.type)).toEqual([
+      "plan_validating",
+      "step_applied"
+    ]);
+
+    await act(async () => {
+      await applyPromise;
+    });
+
+    expect(result.current.workspacePlanApplyStatus).toBe("applied");
+    expect(result.current.workspacePlanApplyError).toBeNull();
+    expect(result.current.workspacePlanEvents.at(-1)).toEqual(expect.objectContaining({
+      path: "topics/alpha.md",
+      type: "step_applied"
+    }));
   });
 
   it("restores and persists a stored session for the active document", async () => {

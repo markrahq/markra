@@ -18,6 +18,7 @@ type WorkspaceLayoutProps = {
   editorDropTargetActive: boolean;
   fileTree: MarkdownFileTreeDrawerProps;
   windowsSelfDrawnChrome: boolean;
+  workspaceOperationOverlay?: ReactNode;
   workspaceLayoutClassName: string;
   workspaceLayoutStyle: CSSProperties;
   onEditorContentDragLeave: () => unknown;
@@ -35,6 +36,7 @@ export function WorkspaceLayout({
   editorDropTargetActive,
   fileTree,
   windowsSelfDrawnChrome,
+  workspaceOperationOverlay = null,
   workspaceLayoutClassName,
   workspaceLayoutStyle,
   onEditorContentDragLeave,
@@ -61,6 +63,7 @@ export function WorkspaceLayout({
           data-document-search-open={documentSearchOpen && documentSearchAvailable ? "true" : undefined}
           data-document-tab-editor-drop-target="true"
           data-document-tab-drop-target={editorDropTargetActive ? "true" : undefined}
+          data-ai-workspace-editor="true"
           onDragLeave={onEditorContentDragLeave}
           onDragOver={onEditorContentDragOver}
           onDrop={onEditorContentDrop}
@@ -72,6 +75,8 @@ export function WorkspaceLayout({
           {aiAgentPanel}
         </div>
       </div>
+
+      {workspaceOperationOverlay}
     </div>
   );
 }

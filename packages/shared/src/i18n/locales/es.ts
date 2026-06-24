@@ -102,6 +102,8 @@ const messages: LocaleMessages = {
   "settings.editor.autoSaveIntervalUnit": "min",
   "settings.editor.closeAiCommandOnAgentPanelOpen": "Cerrar IA en línea al abrir Markra AI",
   "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "Oculta la entrada de comandos de IA inferior cuando se abre el panel de IA derecho.",
+  "settings.editor.aiWorkspaceAnimation": "Animación de IA en el espacio de trabajo",
+  "settings.editor.aiWorkspaceAnimationDescription": "Experimental. Muestra un cursor de IA y resaltados en el espacio de trabajo mientras se aplican cambios de archivos.",
   "settings.editor.suggestAiPanelForComplexInlinePrompts": "Sugerir Markra AI para solicitudes en línea complejas",
   "settings.editor.suggestAiPanelForComplexInlinePromptsDescription": "Experimental. Sugiere Markra AI para solicitudes en línea complejas según la estructura local de la entrada. Desactívalo si la sugerencia aparece demasiado.",
   "settings.ai.addProvider": "Añadir proveedor",

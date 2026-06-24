@@ -101,6 +101,7 @@ describe("Markra AI workspace", () => {
   it("moves structurally complex inline prompts into the Markra AI panel", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: false,
       autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
@@ -191,6 +192,7 @@ describe("Markra AI workspace", () => {
   it("hides the complex inline prompt panel suggestion when the experimental setting is off", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: false,
       autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
@@ -272,7 +274,7 @@ describe("Markra AI workspace", () => {
     expect(screen.queryByRole("button", { name: "Use Markra AI" })).not.toBeInTheDocument();
   });
 
-  it("does not allow agent messages until a markdown document is open", async () => {
+  it("allows agent messages when a workspace is open without a markdown document", async () => {
     mockedOpenNativeMarkdownPath.mockResolvedValue({
       kind: "folder",
       folder: {
@@ -293,10 +295,14 @@ describe("Markra AI workspace", () => {
     const sendButton = within(agentPanel).getByRole("button", { name: "Send message" });
     const suggestion = within(agentPanel).getByRole("button", { name: "Summarize this document" });
 
-    expect(within(agentPanel).getByText("Open a Markdown document to chat")).toBeInTheDocument();
-    expect(input).toBeDisabled();
-    expect(sendButton).toBeDisabled();
+    expect(within(agentPanel).getByText("Ready when you are")).toBeInTheDocument();
+    expect(input).toHaveAttribute("placeholder", "Ask Markra AI...");
+    expect(input).toBeEnabled();
     expect(suggestion).toBeDisabled();
+
+    fireEvent.change(input, { target: { value: "List markdown files in this workspace" } });
+
+    expect(sendButton).toBeEnabled();
   });
 
   it("restores the pending AI suggestion without reopening the command input when an applied suggestion is undone", async () => {

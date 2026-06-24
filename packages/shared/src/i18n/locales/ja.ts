@@ -110,6 +110,8 @@ const messages: LocaleMessages = {
   "settings.editor.autoSaveIntervalUnit": "分",
   "settings.editor.closeAiCommandOnAgentPanelOpen": "Markra AI を開くときにインライン AI を閉じる",
   "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "右側の AI パネルを開くと、下部の AI コマンド入力を隠します。",
+  "settings.editor.aiWorkspaceAnimation": "AI ワークスペースアニメーション",
+  "settings.editor.aiWorkspaceAnimationDescription": "実験的機能。AI がファイル変更を適用している間、ワークスペースに AI カーソルとハイライトを表示します。",
   "settings.editor.suggestAiPanelForComplexInlinePrompts": "複雑なインライン依頼に Markra AI を提案",
   "settings.editor.suggestAiPanelForComplexInlinePromptsDescription": "実験的機能。入力の長さ、改行、リストなどローカルの構造シグナルから Markra AI を提案します。提案が多すぎる場合はオフにできます。",
   "settings.ai.addProvider": "プロバイダーを追加",

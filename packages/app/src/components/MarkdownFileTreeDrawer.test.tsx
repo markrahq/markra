@@ -173,6 +173,50 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(container.querySelector(".markdown-file-tree-content")).toHaveClass("opacity-0");
   });
 
+  it("marks file rows as AI workspace operation targets", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const awsFileRow = screen.getByRole("button", { name: "AWS.md" });
+    const awsFileLabel = within(awsFileRow).getByText("AWS.md");
+
+    expect(awsFileRow).toHaveAttribute("data-ai-workspace-file-path", "/vault/AWS.md");
+    expect(awsFileRow).toHaveAttribute("data-ai-workspace-file-relative-path", "AWS.md");
+    expect(awsFileLabel).toHaveAttribute("data-ai-workspace-file-label-path", "/vault/AWS.md");
+    expect(awsFileLabel).toHaveAttribute("data-ai-workspace-file-label-relative-path", "AWS.md");
+  });
+
+  it("marks folder rows as AI workspace operation fallback targets", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const deployFolderRow = screen.getByRole("button", { name: "deploy" });
+    const deployFolderLabel = within(deployFolderRow).getByText("deploy");
+
+    expect(deployFolderRow).toHaveAttribute("data-ai-workspace-folder-path", "deploy");
+    expect(deployFolderRow).toHaveAttribute("data-ai-workspace-folder-relative-path", "deploy");
+    expect(deployFolderLabel).toHaveAttribute("data-ai-workspace-folder-label-path", "deploy");
+    expect(deployFolderLabel).toHaveAttribute("data-ai-workspace-folder-label-relative-path", "deploy");
+  });
+
   it("shows file and outline panels together", () => {
     const { container } = render(
       <MarkdownFileTreeDrawer
@@ -1424,6 +1468,64 @@ describe("MarkdownFileTreeDrawer", () => {
 
     expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("button", { name: "deploy/deploy.md" })).toHaveAttribute("aria-current", "page");
+  });
+
+  it("temporarily expands parent folders for workspace operation targets", () => {
+    const renderDrawer = (operationRevealPaths: readonly string[]) => (
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        operationRevealPaths={operationRevealPaths}
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+    const { rerender } = render(renderDrawer([]));
+
+    expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "deploy/deploy.md" })).not.toBeInTheDocument();
+
+    rerender(renderDrawer(["/vault/deploy/new-note.md"]));
+
+    expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "deploy/deploy.md" })).toBeInTheDocument();
+
+    rerender(renderDrawer([]));
+
+    expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("button", { name: "deploy/deploy.md" })).not.toBeInTheDocument();
+  });
+
+  it("does not collapse folders the user opened before a workspace operation", () => {
+    const renderDrawer = (operationRevealPaths: readonly string[]) => (
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        operationRevealPaths={operationRevealPaths}
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+    const { rerender } = render(renderDrawer([]));
+    const deployFolder = screen.getByRole("button", { name: "deploy" });
+
+    fireEvent.click(deployFolder);
+
+    expect(deployFolder).toHaveAttribute("aria-expanded", "true");
+
+    rerender(renderDrawer(["/vault/deploy/new-note.md"]));
+    rerender(renderDrawer([]));
+
+    expect(screen.getByRole("button", { name: "deploy" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("button", { name: "deploy/deploy.md" })).toBeInTheDocument();
   });
 
   it("toggles all folders from the root file row", () => {

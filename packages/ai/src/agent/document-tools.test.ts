@@ -78,6 +78,41 @@ describe("documentAgentTools", () => {
     });
   });
 
+  it("lists workspace image files even when the current document does not reference them", async () => {
+    const tools = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      selection: null,
+      workspaceFiles: [
+        {
+          kind: "asset",
+          name: "diagram.png",
+          path: "/vault/assets/diagram.png",
+          relativePath: "assets/diagram.png"
+        },
+        {
+          name: "notes.md",
+          path: "/vault/notes.md",
+          relativePath: "notes.md"
+        }
+      ]
+    });
+    const listTool = tools.find((item) => item.name === "list_assets");
+
+    expect(listTool).toBeTruthy();
+    expect(tools.map((tool) => tool.name)).not.toContain("view_asset");
+
+    const result = await listTool?.execute("tool_list_assets", {});
+
+    expect(toolText(result)).toContain("Workspace image files:");
+    expect(toolText(result)).toContain("assets/diagram.png");
+    expect(result?.details).toEqual(expect.objectContaining({
+      count: 1,
+      workspaceImageCount: 1
+    }));
+  });
+
   it("rejects document image reads that are not referenced by the current document", async () => {
     const readDocumentImage = vi.fn(async () => ({
       dataUrl: "data:image/png;base64,aGVsbG8=",
@@ -206,6 +241,32 @@ describe("documentAgentTools", () => {
     expect(readWorkspaceFile).not.toHaveBeenCalled();
   });
 
+  it("rejects workspace file reads for non-Markdown assets", async () => {
+    const readWorkspaceFile = vi.fn(async () => "image bytes");
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      readWorkspaceFile,
+      selection: null,
+      workspaceFiles: [
+        {
+          kind: "asset",
+          name: "diagram.png",
+          path: "/vault/assets/diagram.png",
+          relativePath: "assets/diagram.png"
+        }
+      ]
+    }).find((item) => item.name === "read_workspace_file");
+
+    await expect(tool?.execute("tool_read_workspace_file", {
+      relativePath: "assets/diagram.png"
+    })).rejects.toThrow(
+      "Cannot read that file because it is not in the current Markdown workspace."
+    );
+    expect(readWorkspaceFile).not.toHaveBeenCalled();
+  });
+
   it("searches nearby workspace Markdown files by path and content", async () => {
     const readWorkspaceFile = vi.fn(async (path: string) =>
       path.endsWith("install.md") ? "# Install\n\nUse pnpm install." : "# Notes\n\nOther content."
@@ -243,7 +304,48 @@ describe("documentAgentTools", () => {
     }));
   });
 
-  it("rejects workspace searches with an empty normalized query", async () => {
+  it("does not search workspace image file contents", async () => {
+    const readWorkspaceFile = vi.fn(async (path: string) =>
+      path.endsWith("diagram.png") ? "pnpm install screenshot" : "# Install\n\nUse pnpm install."
+    );
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      readWorkspaceFile,
+      selection: null,
+      workspaceFiles: [
+        {
+          kind: "asset",
+          name: "diagram.png",
+          path: "/vault/assets/diagram.png",
+          relativePath: "assets/diagram.png"
+        },
+        {
+          name: "install.md",
+          path: "/vault/docs/install.md",
+          relativePath: "docs/install.md"
+        }
+      ]
+    }).find((item) => item.name === "search_workspace");
+
+    const result = await tool?.execute("tool_search_workspace", {
+      query: "pnpm install"
+    });
+
+    expect(readWorkspaceFile).toHaveBeenCalledWith("/vault/docs/install.md");
+    expect(readWorkspaceFile).not.toHaveBeenCalledWith("/vault/assets/diagram.png");
+    expect(result?.details).toEqual(expect.objectContaining({
+      count: 1,
+      matches: [
+        expect.objectContaining({
+          relativePath: "docs/install.md"
+        })
+      ]
+    }));
+  });
+
+  it("lists workspace Markdown files when the workspace search query is empty", async () => {
     const readWorkspaceFile = vi.fn(async () => "# Alpha");
     const tool = createDocumentAgentTools({
       documentContent: "# Current",
@@ -256,14 +358,118 @@ describe("documentAgentTools", () => {
           name: "alpha.md",
           path: "/vault/alpha.md",
           relativePath: "alpha.md"
+        },
+        {
+          name: "diagram.png",
+          path: "/vault/assets/diagram.png",
+          relativePath: "assets/diagram.png",
+          kind: "asset"
+        },
+        {
+          name: "docs",
+          path: "/vault/docs",
+          relativePath: "docs",
+          kind: "folder"
         }
       ]
     }).find((item) => item.name === "search_workspace");
 
-    await expect(tool?.execute("tool_search_workspace", {
+    const result = await tool?.execute("tool_search_workspace", {
       query: "!!!"
-    })).rejects.toThrow("Cannot search workspace because the query is empty.");
+    });
+
+    expect(toolText(result)).toContain("Workspace has 1 Markdown file:");
+    expect(toolText(result)).toContain("alpha.md");
+    expect(result?.details).toEqual(expect.objectContaining({
+      count: 1,
+      files: [
+        expect.objectContaining({
+          relativePath: "alpha.md"
+        })
+      ],
+      query: ""
+    }));
     expect(readWorkspaceFile).not.toHaveBeenCalled();
+  });
+
+  it("prepares a workspace change plan without applying file changes", async () => {
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      selection: null,
+      workspaceFiles: [
+        {
+          name: "current.md",
+          path: "/vault/current.md",
+          relativePath: "current.md"
+        }
+      ]
+    }).find((item) => item.name === "prepare_workspace_change_plan");
+
+    const result = await tool?.execute("tool_prepare_workspace_change_plan", {
+      changes: [
+        {
+          content: "# Alpha\n\nSynthetic note.",
+          path: "topics/alpha.md",
+          reason: "Split a reusable topic into its own note.",
+          type: "create_note"
+        },
+        {
+          path: "current.md",
+          reason: "Add topic metadata.",
+          tags: ["alpha", "planning"],
+          type: "add_tags"
+        }
+      ],
+      summary: "Organize the current note into the workspace."
+    });
+
+    expect(toolText(result)).toContain("Prepared workspace change plan: Organize the current note into the workspace.");
+    expect(toolText(result)).toContain("1. Create note: topics/alpha.md");
+    expect(toolText(result)).toContain("2. Add tags: current.md");
+    expect(toolText(result)).toContain("No files were changed.");
+    expect(result?.details).toEqual(expect.objectContaining({
+      changes: [
+        expect.objectContaining({
+          path: "topics/alpha.md",
+          type: "create_note"
+        }),
+        expect.objectContaining({
+          path: "current.md",
+          tags: ["alpha", "planning"],
+          type: "add_tags"
+        })
+      ],
+      count: 2,
+      summary: "Organize the current note into the workspace."
+    }));
+  });
+
+  it("rejects workspace change plans with unsafe paths", async () => {
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      selection: null,
+      workspaceFiles: [
+        {
+          name: "current.md",
+          path: "/vault/current.md",
+          relativePath: "current.md"
+        }
+      ]
+    }).find((item) => item.name === "prepare_workspace_change_plan");
+
+    await expect(tool?.execute("tool_prepare_workspace_change_plan", {
+      changes: [
+        {
+          content: "# Unsafe",
+          path: "../outside.md",
+          type: "create_note"
+        }
+      ]
+    })).rejects.toThrow("Workspace change path must stay inside the workspace.");
   });
 
   it("returns the current heading outline with editor anchors", async () => {
@@ -1728,7 +1934,7 @@ describe("documentAgentTools", () => {
     }));
   });
 
-  it("exposes the consolidated document tool surface", () => {
+  it("exposes the consolidated core document tool surface", () => {
     const toolNames = createDocumentAgentTools({
       documentContent: "# Title",
       documentEndPosition: 7,
@@ -1778,11 +1984,83 @@ describe("documentAgentTools", () => {
       "delete_content",
       "move_content",
       "batch_edit",
-      "search_workspace",
-      "read_workspace_file",
-      "list_assets",
-      "view_asset",
       "validate_edit"
     ]);
+  });
+
+  it("exposes optional workspace, asset, and web tools only when their capabilities are available", () => {
+    const baseContext = {
+      documentContent: "# Title",
+      documentEndPosition: 7,
+      documentPath: "/vault/README.md",
+      selection: null,
+      workspaceFiles: []
+    };
+    const baseToolNames = createDocumentAgentTools(baseContext).map((tool) => tool.name);
+
+    expect(baseToolNames).not.toContain("search_workspace");
+    expect(baseToolNames).not.toContain("read_workspace_file");
+    expect(baseToolNames).not.toContain("list_assets");
+    expect(baseToolNames).not.toContain("view_asset");
+    expect(baseToolNames).not.toContain("web_search");
+
+    const workspaceAssetToolNames = createDocumentAgentTools({
+      ...baseContext,
+      workspaceFiles: [
+        {
+          kind: "asset",
+          name: "diagram.png",
+          path: "/vault/assets/diagram.png",
+          relativePath: "assets/diagram.png"
+        }
+      ]
+    }).map((tool) => tool.name);
+
+    expect(workspaceAssetToolNames).toContain("list_assets");
+    expect(workspaceAssetToolNames).not.toContain("view_asset");
+
+    const workspaceSearchToolNames = createDocumentAgentTools({
+      ...baseContext,
+      workspaceFiles: [
+        {
+          name: "notes.md",
+          path: "/vault/notes.md",
+          relativePath: "notes.md"
+        }
+      ]
+    }).map((tool) => tool.name);
+
+    expect(workspaceSearchToolNames).toContain("search_workspace");
+    expect(workspaceSearchToolNames).not.toContain("read_workspace_file");
+
+    const fullToolNames = createDocumentAgentTools({
+      ...baseContext,
+      documentContent: "# Title\n\n![Diagram](assets/diagram.png)",
+      documentEndPosition: 38,
+      readDocumentImage: vi.fn(),
+      readWorkspaceFile: vi.fn(),
+      webSearch: {
+        settings: {
+          contentMaxChars: 12000,
+          enabled: true,
+          maxResults: 5,
+          providerId: "local-bing",
+          searxngApiHost: ""
+        }
+      },
+      workspaceFiles: [
+        {
+          name: "notes.md",
+          path: "/vault/notes.md",
+          relativePath: "notes.md"
+        }
+      ]
+    }).map((tool) => tool.name);
+
+    expect(fullToolNames).toContain("search_workspace");
+    expect(fullToolNames).toContain("read_workspace_file");
+    expect(fullToolNames).toContain("list_assets");
+    expect(fullToolNames).toContain("view_asset");
+    expect(fullToolNames).toContain("web_search");
   });
 });

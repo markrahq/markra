@@ -13,6 +13,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       summarize: "",
       translate: ""
     },
+    aiWorkspaceAnimationEnabled: false,
     autoSaveEnabled: true,
     autoSaveIntervalMinutes: 10,
     autoUpdateEnabled: true,
@@ -112,6 +113,7 @@ describe("useEditorPreferences", () => {
     let onPreferencesChanged: Parameters<typeof listenAppEditorPreferencesChanged>[0] | null = null;
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: false,
       autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
@@ -216,6 +218,7 @@ describe("useEditorPreferences", () => {
     act(() => {
       onPreferencesChanged?.({
         aiQuickActionPrompts: defaultAiQuickActionPrompts,
+        aiWorkspaceAnimationEnabled: false,
         autoRevealActiveFile: true,
         autoSaveEnabled: true,
         autoSaveIntervalMinutes: 10,
@@ -317,7 +320,7 @@ describe("useEditorPreferences", () => {
 
   it("keeps a live preference update when the initial stored preferences resolve later", async () => {
     let onPreferencesChanged: Parameters<typeof listenAppEditorPreferencesChanged>[0] | null = null;
-    let resolveStoredPreferences: (preferences: Awaited<ReturnType<typeof getStoredEditorPreferences>>) => void = () => {};
+    let resolveStoredPreferences: (preferences: Awaited<ReturnType<typeof getStoredEditorPreferences>>) => unknown = () => {};
     mockedGetStoredEditorPreferences.mockReturnValue(new Promise((resolve) => {
       resolveStoredPreferences = resolve;
     }));

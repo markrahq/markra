@@ -284,6 +284,39 @@ export function expandedFolderPathsForFileTreePath(nodes: TreeNode[], path: stri
   return findPath(nodes, []);
 }
 
+export function expandedFolderPathsForFileTreeTarget(
+  nodes: TreeNode[],
+  path: string | null | undefined
+) {
+  const filePathFolders = expandedFolderPathsForFileTreePath(nodes, path);
+  if (filePathFolders !== null) return filePathFolders;
+  if (!path?.trim()) return null;
+
+  const parentCandidates = parentFolderPathCandidates(path);
+  if (parentCandidates.length === 0) return [];
+
+  const findDeepestFolder = (treeNodes: TreeNode[], parents: string[]): string[] | null => {
+    let deepest: string[] | null = null;
+
+    for (const node of treeNodes) {
+      if (node.type !== "folder") continue;
+
+      const folderParents = [...parents, node.relativePath];
+      const folderMatches = parentCandidates.some((candidate) =>
+        sameNativePath(node.relativePath, candidate) || sameNativePath(node.path, candidate)
+      );
+      if (folderMatches) deepest = folderParents;
+
+      const childMatch = findDeepestFolder(node.children, folderParents);
+      if (childMatch) deepest = childMatch;
+    }
+
+    return deepest;
+  };
+
+  return findDeepestFolder(nodes, []);
+}
+
 export function folderNodeAsFile(node: FolderNode): NativeMarkdownFolderFile {
   return {
     createdAt: node.createdAt,
@@ -446,4 +479,18 @@ export function fileTreeRowIndentStyle(depth: number, mode: FileTreeRowRenderMod
 
 export function fileTreeRowIndentClass(mode: FileTreeRowRenderMode) {
   return mode === "virtual" ? "" : "pl-8";
+}
+
+function parentFolderPathCandidates(path: string) {
+  const normalizedPath = path.replace(/\\/gu, "/").replace(/\/+$/u, "");
+  const parts = normalizedPath.split("/").filter(Boolean);
+  const absolutePrefix = normalizedPath.startsWith("/") ? "/" : "";
+  if (parts.length <= 1) return [];
+
+  const folders: string[] = [];
+  for (let count = parts.length - 1; count > 0; count -= 1) {
+    folders.push(`${absolutePrefix}${parts.slice(0, count).join("/")}`);
+  }
+
+  return folders;
 }

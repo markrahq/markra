@@ -102,6 +102,8 @@ const messages: LocaleMessages = {
   "settings.editor.autoSaveIntervalUnit": "분",
   "settings.editor.closeAiCommandOnAgentPanelOpen": "Markra AI를 열 때 인라인 AI 닫기",
   "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "오른쪽 AI 패널을 열면 하단 AI 명령 입력창을 숨깁니다.",
+  "settings.editor.aiWorkspaceAnimation": "AI 작업 공간 애니메이션",
+  "settings.editor.aiWorkspaceAnimationDescription": "실험적 기능입니다. AI가 파일 변경을 적용하는 동안 작업 공간에 AI 커서와 강조 표시를 보여 줍니다.",
   "settings.editor.suggestAiPanelForComplexInlinePrompts": "복잡한 인라인 요청에 Markra AI 제안",
   "settings.editor.suggestAiPanelForComplexInlinePromptsDescription": "실험적 기능입니다. 입력 길이, 줄바꿈, 목록 같은 로컬 구조 신호로 Markra AI를 제안합니다. 제안이 너무 적극적이면 끌 수 있습니다.",
   "settings.ai.addProvider": "제공자 추가",

@@ -245,6 +245,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   splitVisualPanePercentMax: 75,
   defaultEditorPreferences: {
     aiQuickActionPrompts: testAiQuickActionPrompts,
+    aiWorkspaceAnimationEnabled: false,
     autoUpdateEnabled: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -512,6 +513,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   listStoredAiAgentSessions: vi.fn(),
   normalizeEditorPreferences: vi.fn((preferences) => ({
     aiQuickActionPrompts: testAiQuickActionPrompts,
+    aiWorkspaceAnimationEnabled: false,
     autoUpdateEnabled: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
@@ -1220,6 +1222,7 @@ export function installAppTestHarness() {
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: testAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: false,
       autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,

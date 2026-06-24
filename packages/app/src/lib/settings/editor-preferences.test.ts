@@ -26,6 +26,7 @@ describe("editor preferences", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: false,
       autoRevealActiveFile: false,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
@@ -143,6 +144,7 @@ describe("editor preferences", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: false,
       autoRevealActiveFile: false,
       autoSaveEnabled: false,
       autoSaveIntervalMinutes: 30,
@@ -242,6 +244,13 @@ describe("editor preferences", () => {
     expect(normalizeEditorPreferences({}).autoUpdateEnabled).toBe(true);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: false }).autoUpdateEnabled).toBe(false);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: "no" }).autoUpdateEnabled).toBe(true);
+  });
+
+  it("normalizes the experimental AI workspace animation preference", () => {
+    expect(defaultEditorPreferences.aiWorkspaceAnimationEnabled).toBe(false);
+    expect(normalizeEditorPreferences({}).aiWorkspaceAnimationEnabled).toBe(false);
+    expect(normalizeEditorPreferences({ aiWorkspaceAnimationEnabled: true }).aiWorkspaceAnimationEnabled).toBe(true);
+    expect(normalizeEditorPreferences({ aiWorkspaceAnimationEnabled: "yes" }).aiWorkspaceAnimationEnabled).toBe(false);
   });
 
   it("normalizes the automatic save preferences", () => {
@@ -588,6 +597,7 @@ describe("editor preferences", () => {
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: false,
       autoRevealActiveFile: false,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
@@ -656,6 +666,7 @@ describe("editor preferences", () => {
   it("persists editor preferences", async () => {
     await saveStoredEditorPreferences({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: false,
       autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,
@@ -732,6 +743,7 @@ describe("editor preferences", () => {
 
     expect(store.set).toHaveBeenCalledWith("editorPreferences", {
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: false,
       autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,

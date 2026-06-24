@@ -1,4 +1,5 @@
 export type AgentWorkspaceFile = {
+  kind?: "asset" | "folder";
   name: string;
   path: string;
   relativePath: string;
