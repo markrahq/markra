@@ -4,6 +4,7 @@ import {
   workspaceUnlinkedMentionsForPath,
   type WorkspaceLinkFile
 } from "./workspace-links";
+import { largeMarkdownVisualLimitBytes, largeMarkdownVisualLimitChars } from "./large-markdown";
 
 const files = [
   { name: "Alpha.md", path: "/mock-vault/Alpha.md", relativePath: "Alpha.md" },
@@ -82,5 +83,44 @@ describe("workspace links", () => {
 
     expect(workspaceUnlinkedMentionsForPath(index, "/mock-vault/Alpha.md")).toEqual([]);
     expect(workspaceUnlinkedMentionsForPath(index, "/mock-vault/nested/Alpha.md")).toEqual([]);
+  });
+
+  it("keeps oversized markdown files as link targets without scanning their contents", async () => {
+    const bigFile = {
+      name: "Big.md",
+      path: "/mock-vault/Big.md",
+      relativePath: "Big.md",
+      sizeBytes: largeMarkdownVisualLimitBytes
+    };
+    const alphaFile = { name: "Alpha.md", path: "/mock-vault/Alpha.md", relativePath: "Alpha.md" };
+    const noteFile = { name: "Note.md", path: "/mock-vault/Note.md", relativePath: "Note.md" };
+    const readFile = vi.fn(async (path: string) => ({
+      content: path.endsWith("Big.md")
+        ? `[Alpha](./Alpha.md)\nAlpha\n${"x".repeat(largeMarkdownVisualLimitChars)}`
+        : path.endsWith("Note.md")
+          ? "Big appears here."
+          : "# Alpha",
+      path
+    }));
+    const index = await buildWorkspaceLinkIndex([bigFile, alphaFile, noteFile], {
+      readFile
+    });
+
+    expect(readFile).not.toHaveBeenCalledWith("/mock-vault/Big.md");
+    expect(workspaceBacklinksForPath(index, "/mock-vault/Alpha.md")).toEqual([]);
+    expect(workspaceUnlinkedMentionsForPath(index, "/mock-vault/Alpha.md")).toEqual([]);
+    expect(workspaceUnlinkedMentionsForPath(index, "/mock-vault/Big.md").map((mention) => ({
+      relativePath: mention.sourceFile.relativePath,
+      text: mention.text
+    }))).toEqual([
+      {
+        relativePath: "Note.md",
+        text: "Big"
+      }
+    ]);
+    expect(index.files.find((file) => file.file.path === "/mock-vault/Big.md")).toMatchObject({
+      mentionRanges: [],
+      titleCandidates: ["Big"]
+    });
   });
 });

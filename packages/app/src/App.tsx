@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -13,7 +15,6 @@ import {
 import { flushSync } from "react-dom";
 import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
-import { AiAgentPanel } from "./components/AiAgentPanel";
 import { AiSelectionToolbar } from "./components/AiSelectionToolbar";
 import { DocumentHistoryDialog } from "./components/DocumentHistoryDialog";
 import { DocumentSearchBar } from "./components/DocumentSearchBar";
@@ -36,7 +37,6 @@ import { NativeTitleBar } from "./components/NativeTitleBar";
 import { QuietStatus } from "./components/QuietStatus";
 import { QuickOpenPanel } from "./components/QuickOpenPanel";
 import { SideDocumentPane } from "./components/SideDocumentPane";
-import { SettingsWindow } from "./components/SettingsWindow";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
 import { WorkspaceOperationOverlay } from "./components/WorkspaceOperationOverlay";
 import { useAppLanguage } from "./hooks/useAppLanguage";
@@ -255,6 +255,18 @@ type PendingEditorModeScroll = {
 export { runEditorLinkCommand } from "./app/editor-link-command";
 export { globalSearchDebounceMs } from "./hooks/useWorkspaceSearch";
 
+const AiAgentPanel = lazy(async () => {
+  const module = await import("./components/AiAgentPanel");
+
+  return { default: module.AiAgentPanel };
+});
+const SettingsWindow = lazy(async () => {
+  const module = await import("./components/SettingsWindow");
+
+  return { default: module.SettingsWindow };
+});
+const workspaceLinkIndexDeferMs = 320;
+
 export default function App() {
   const isSettingsRoute = useSettingsWindowRoute();
 
@@ -264,7 +276,11 @@ export default function App() {
 function SettingsRouteApp() {
   useStartupWindowReveal({ ready: true });
 
-  return <SettingsWindow />;
+  return (
+    <Suspense fallback={null}>
+      <SettingsWindow />
+    </Suspense>
+  );
 }
 
 function WorkspaceApp() {
@@ -610,10 +626,14 @@ function WorkspaceApp() {
   };
   const documentLinksOpen = editorPreferences.preferences.documentLinksOpen;
   const documentLinksVisible = editorPreferences.preferences.documentLinksVisible;
+  const documentLinksIndexEnabled = documentLinksVisible === true && (
+    editorPreferences.preferences.sidebarLayoutMode === "tabs" || documentLinksOpen === true
+  );
   const workspaceLinkIndex = useWorkspaceLinkIndex({
+    deferMs: workspaceLinkIndexDeferMs,
     documentContent: document.content,
     documentPath: document.path,
-    enabled: documentLinksVisible === true,
+    enabled: documentLinksIndexEnabled,
     fileTreeFiles
   });
   const handleDocumentLinksOpenChange = useCallback((openDocumentLinks: boolean) => {
@@ -1198,7 +1218,7 @@ function WorkspaceApp() {
     aiAgent.draft.trim().slice(0, 24),
     aiAgent.titleVersion
   ].join(":");
-  const aiAgentSessions = useAiAgentSessionList(workspaceKey, aiAgentSessionRefreshKey);
+  const aiAgentSessions = useAiAgentSessionList(workspaceKey, aiAgentSessionRefreshKey, aiAgentPanelEnabledOpen);
   useEffect(() => {
     if (!aiFeatureEnabled) return;
     if (!workspaceKey || !activeAiAgentSessionId || !aiAgentSessions.ready) return;
@@ -3717,60 +3737,62 @@ function WorkspaceApp() {
       })}
     </>
   );
-  const aiAgentPanel = aiFeatureEnabled ? (
-    <AiAgentPanel
-      activeSessionId={activeAiAgentSessionId}
-      availableModels={aiSettings.availableTextModels}
-      context={aiAgentContext}
-      documentAvailable={hasOpenDocument && !activeImageFile}
-      draft={aiAgent.draft}
-      language={appLanguage.language}
-      messages={aiAgent.messages}
-      modelName={aiAgentModelName}
-      open={aiAgentOpen}
-      providerName={aiAgentProviderName}
-      sessions={aiAgentSessions.sessions}
-      selectedModelId={aiSettings.agentModelId}
-      selectedProviderId={aiSettings.agentProviderId}
-      status={aiAgent.status}
-      thinkingEnabled={aiAgent.thinkingEnabled}
-      webSearchAvailable={webSearchAvailable}
-      webSearchEnabled={aiAgent.webSearchEnabled}
-      workspaceAvailable={Boolean(fileTree.sourcePath)}
-      workspacePlanApplyError={aiAgent.workspacePlanApplyError}
-      workspacePlanApplyStatus={aiAgent.workspacePlanApplyStatus}
-      workspacePlanEvents={aiAgent.workspacePlanEvents}
-      maxWidth={aiAgentPanelMaxWidth}
-      minWidth={aiAgentPanelMinWidth}
-      width={aiAgentPanelWidth}
-      onArchiveSession={(sessionId, archived) => {
-        handleArchiveAiAgentSession(sessionId, archived).catch(() => {});
-      }}
-      onApplyWorkspacePlan={() => {
-        aiAgent.applyWorkspacePlan().catch(() => {});
-      }}
-      onClose={closeAiAgentPanel}
-      onCreateSession={handleCreateAiAgentSession}
-      onDeleteSession={(sessionId) => {
-        handleDeleteAiAgentSession(sessionId).catch(() => {});
-      }}
-      onDisableThinking={() => aiAgent.setSessionThinkingEnabled(false)}
-      onDraftChange={aiAgent.setDraft}
-      onInterrupt={aiAgent.interrupt}
-      onRenameSession={(sessionId, title) => {
-        handleRenameAiAgentSession(sessionId, title).catch(() => {});
-      }}
-      onResize={setAiAgentPanelWidth}
-      onResizeEnd={endAiAgentPanelResize}
-      onResizeStart={startAiAgentPanelResize}
-      onRetryMessage={aiAgent.retryMessage}
-      onSelectSession={handleSelectAiAgentSession}
-      onSelectModel={aiSettings.selectAgentModel}
-      onSubmit={aiAgent.submit}
-      onSubmitEditedMessage={aiAgent.submitEditedMessage}
-      onToggleThinking={() => aiAgent.setThinkingEnabled((enabled) => !enabled)}
-      onToggleWebSearch={() => aiAgent.setWebSearchEnabled((enabled) => !enabled)}
-    />
+  const aiAgentPanel = aiFeatureEnabled && aiAgentOpen ? (
+    <Suspense fallback={null}>
+      <AiAgentPanel
+        activeSessionId={activeAiAgentSessionId}
+        availableModels={aiSettings.availableTextModels}
+        context={aiAgentContext}
+        documentAvailable={hasOpenDocument && !activeImageFile}
+        draft={aiAgent.draft}
+        language={appLanguage.language}
+        messages={aiAgent.messages}
+        modelName={aiAgentModelName}
+        open={aiAgentOpen}
+        providerName={aiAgentProviderName}
+        sessions={aiAgentSessions.sessions}
+        selectedModelId={aiSettings.agentModelId}
+        selectedProviderId={aiSettings.agentProviderId}
+        status={aiAgent.status}
+        thinkingEnabled={aiAgent.thinkingEnabled}
+        webSearchAvailable={webSearchAvailable}
+        webSearchEnabled={aiAgent.webSearchEnabled}
+        workspaceAvailable={Boolean(fileTree.sourcePath)}
+        workspacePlanApplyError={aiAgent.workspacePlanApplyError}
+        workspacePlanApplyStatus={aiAgent.workspacePlanApplyStatus}
+        workspacePlanEvents={aiAgent.workspacePlanEvents}
+        maxWidth={aiAgentPanelMaxWidth}
+        minWidth={aiAgentPanelMinWidth}
+        width={aiAgentPanelWidth}
+        onArchiveSession={(sessionId, archived) => {
+          handleArchiveAiAgentSession(sessionId, archived).catch(() => {});
+        }}
+        onApplyWorkspacePlan={() => {
+          aiAgent.applyWorkspacePlan().catch(() => {});
+        }}
+        onClose={closeAiAgentPanel}
+        onCreateSession={handleCreateAiAgentSession}
+        onDeleteSession={(sessionId) => {
+          handleDeleteAiAgentSession(sessionId).catch(() => {});
+        }}
+        onDisableThinking={() => aiAgent.setSessionThinkingEnabled(false)}
+        onDraftChange={aiAgent.setDraft}
+        onInterrupt={aiAgent.interrupt}
+        onRenameSession={(sessionId, title) => {
+          handleRenameAiAgentSession(sessionId, title).catch(() => {});
+        }}
+        onResize={setAiAgentPanelWidth}
+        onResizeEnd={endAiAgentPanelResize}
+        onResizeStart={startAiAgentPanelResize}
+        onRetryMessage={aiAgent.retryMessage}
+        onSelectSession={handleSelectAiAgentSession}
+        onSelectModel={aiSettings.selectAgentModel}
+        onSubmit={aiAgent.submit}
+        onSubmitEditedMessage={aiAgent.submitEditedMessage}
+        onToggleThinking={() => aiAgent.setThinkingEnabled((enabled) => !enabled)}
+        onToggleWebSearch={() => aiAgent.setWebSearchEnabled((enabled) => !enabled)}
+      />
+    </Suspense>
   ) : null;
   const workspaceOperationEvents = useMemo(
     () => workspaceOperationEventsFromPlanEvents(aiAgent.workspacePlanEvents),
@@ -3874,6 +3896,7 @@ function WorkspaceApp() {
             folderOpen: Boolean(fileTree.sourcePath),
             language: appLanguage.language,
             linkIndex: workspaceLinkIndex.index,
+            linkIndexLoading: workspaceLinkIndex.loading,
             maxWidth: fileTreeMaxWidth,
             minWidth: fileTreeMinWidth,
             open: fileTreeOpen,

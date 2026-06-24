@@ -71,6 +71,8 @@ pub(crate) struct MarkdownFolderFile {
     pub(crate) modified_at: Option<u64>,
     pub(crate) path: String,
     pub(crate) relative_path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) size_bytes: Option<u64>,
 }
 
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]

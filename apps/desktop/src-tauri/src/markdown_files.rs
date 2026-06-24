@@ -22,7 +22,7 @@ pub(crate) use open::{
     open_containing_folder, open_markdown_attachment, open_markdown_file_in_new_window,
     open_markdown_folder_in_new_window, open_markdown_path, resolve_markdown_path,
 };
-pub(crate) use path::markdown_open_path_for_path;
+pub(crate) use path::{markdown_open_path_for_path, should_skip_markdown_tree_component};
 pub(crate) use search::search_markdown_files_for_path;
 pub(crate) use template::{
     delete_markdown_template_file, read_markdown_template_file, write_markdown_template_file,

@@ -96,4 +96,27 @@ describe("markdown links", () => {
       }
     ]);
   });
+
+  it("parses mention ranges from long line-oriented documents without quadratic line counting", () => {
+    const markdown = Array.from(
+      { length: 15_000 },
+      (_, index) => `Synthetic line ${index} mentions Alpha and Beta.`
+    ).join("\n");
+    const startedAt = performance.now();
+    const ranges = parseMarkdownMentionRanges(markdown);
+    const elapsedMs = performance.now() - startedAt;
+
+    expect(ranges).toHaveLength(15_000);
+    expect(ranges.at(0)).toMatchObject({
+      columnNumber: 1,
+      lineNumber: 1,
+      text: "Synthetic line 0 mentions Alpha and Beta."
+    });
+    expect(ranges.at(-1)).toMatchObject({
+      columnNumber: 1,
+      lineNumber: 15_000,
+      text: "Synthetic line 14999 mentions Alpha and Beta."
+    });
+    expect(elapsedMs).toBeLessThan(12_000);
+  }, 15_000);
 });

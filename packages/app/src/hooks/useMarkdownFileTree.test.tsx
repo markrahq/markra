@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   createNativeMarkdownTreeFile,
   createNativeMarkdownTreeFolder,
@@ -69,6 +69,19 @@ const mockedRemoveStoredRecentMarkdownFolder = vi.mocked(removeStoredRecentMarkd
 const mockedSaveStoredFileTreeSortForWorkspace = vi.mocked(saveStoredFileTreeSortForWorkspace);
 const mockedSaveStoredRecentMarkdownFolder = vi.mocked(saveStoredRecentMarkdownFolder);
 const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
+type ListedMarkdownFiles = Awaited<ReturnType<typeof listNativeMarkdownFilesForPath>>;
+
+function createDeferredMarkdownFileList() {
+  let resolve!: (files: ListedMarkdownFiles) => undefined;
+  const promise = new Promise<ListedMarkdownFiles>((resolvePromise) => {
+    resolve = (files) => {
+      resolvePromise(files);
+      return undefined;
+    };
+  });
+
+  return { promise, resolve };
+}
 
 function mockWorkspaceState(
   patch: Partial<Awaited<ReturnType<typeof getStoredWorkspaceState>>> = {}
@@ -447,6 +460,116 @@ describe("useMarkdownFileTree", () => {
     expect(screen.getByText("docs/added.md")).toBeInTheDocument();
   });
 
+  it("ignores stale native tree refreshes after switching folders", async () => {
+    let emitTreeChange: (path: string) => unknown | Promise<unknown> = () => {};
+    const staleVaultRefresh = createDeferredMarkdownFileList();
+    const docsLoad = createDeferredMarkdownFileList();
+
+    mockedListNativeMarkdownFilesForPath
+      .mockResolvedValueOnce([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" }
+      ])
+      .mockReturnValueOnce(staleVaultRefresh.promise)
+      .mockReturnValueOnce(docsLoad.promise);
+    mockedWatchNativeMarkdownTree.mockImplementation(async (_rootPath, onTreeChange) => {
+      emitTreeChange = onTreeChange;
+      return () => {};
+    });
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore collapsed folder" }));
+
+    expect(await screen.findByText("index.md")).toBeInTheDocument();
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function)));
+
+    const staleRefreshPromise = emitTreeChange("/vault/index.md");
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith("/vault", {
+      managedAttachmentFolder: "assets"
+    }));
+
+    fireEvent.click(screen.getByRole("button", { name: "Open second docs folder" }));
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith("/mock-workspaces/beta/docs", {
+      managedAttachmentFolder: "assets"
+    }));
+
+    await act(async () => {
+      docsLoad.resolve([
+        { path: "/mock-workspaces/beta/docs/current.md", name: "current.md", relativePath: "current.md" }
+      ]);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("current.md")).toBeInTheDocument();
+
+    await act(async () => {
+      staleVaultRefresh.resolve([
+        { path: "/vault/stale.md", name: "stale.md", relativePath: "stale.md" }
+      ]);
+      await staleRefreshPromise;
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("stale.md")).not.toBeInTheDocument();
+    expect(screen.getByText("current.md")).toBeInTheDocument();
+  });
+
+  it("ignores previous-folder refreshes while a new folder is loading", async () => {
+    let emitTreeChange: (path: string) => unknown | Promise<unknown> = () => {};
+    const staleVaultRefresh = createDeferredMarkdownFileList();
+    const docsLoad = createDeferredMarkdownFileList();
+
+    mockedListNativeMarkdownFilesForPath
+      .mockResolvedValueOnce([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" }
+      ])
+      .mockReturnValueOnce(staleVaultRefresh.promise)
+      .mockReturnValueOnce(docsLoad.promise);
+    mockedWatchNativeMarkdownTree.mockImplementation(async (_rootPath, onTreeChange) => {
+      emitTreeChange = onTreeChange;
+      return () => {};
+    });
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore collapsed folder" }));
+
+    expect(await screen.findByText("index.md")).toBeInTheDocument();
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function)));
+
+    fireEvent.click(screen.getByRole("button", { name: "Open second docs folder" }));
+    const staleRefreshPromise = emitTreeChange("/vault/index.md");
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith("/vault", {
+      managedAttachmentFolder: "assets"
+    }));
+
+    await act(async () => {
+      staleVaultRefresh.resolve([
+        { path: "/vault/stale.md", name: "stale.md", relativePath: "stale.md" }
+      ]);
+      await staleRefreshPromise;
+      await Promise.resolve();
+    });
+
+    expect(screen.queryByText("stale.md")).not.toBeInTheDocument();
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith("/mock-workspaces/beta/docs", {
+      managedAttachmentFolder: "assets"
+    }));
+
+    await act(async () => {
+      docsLoad.resolve([
+        { path: "/mock-workspaces/beta/docs/current.md", name: "current.md", relativePath: "current.md" }
+      ]);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("current.md")).toBeInTheDocument();
+    expect(screen.queryByText("stale.md")).not.toBeInTheDocument();
+  });
+
   it("loads recent markdown folders from settings", async () => {
     mockedGetStoredRecentMarkdownFolders.mockResolvedValue([
       { name: "notes", path: "/recent/notes" }
@@ -621,6 +744,104 @@ describe("useMarkdownFileTree", () => {
     });
   });
 
+  it("coalesces rapid folder selections before starting a native folder load", async () => {
+    vi.useFakeTimers();
+
+    try {
+      mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+        { path: "/mock-workspaces/beta/docs/current.md", name: "current.md", relativePath: "current.md" }
+      ]);
+
+      render(<FileTreeProbe />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Open recent folder" }));
+      fireEvent.click(screen.getByRole("button", { name: "Open second docs folder" }));
+
+      expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(150);
+        await Promise.resolve();
+      });
+
+      expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledTimes(1);
+      expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/mock-workspaces/beta/docs", {
+        managedAttachmentFolder: "assets"
+      });
+      expect(screen.getByText("current.md")).toBeInTheDocument();
+      expect(screen.getByTestId("root-name")).toHaveTextContent("docs");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps the latest folder selection when folder loads finish out of order", async () => {
+    vi.useFakeTimers();
+    const notesLoad = createDeferredMarkdownFileList();
+    const docsLoad = createDeferredMarkdownFileList();
+
+    try {
+      mockedListNativeMarkdownFilesForPath
+        .mockReturnValueOnce(notesLoad.promise)
+        .mockReturnValueOnce(docsLoad.promise);
+
+      render(<FileTreeProbe />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Open recent folder" }));
+
+      await act(async () => {
+        vi.advanceTimersByTime(150);
+        await Promise.resolve();
+      });
+
+      expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/recent/notes", {
+        managedAttachmentFolder: "assets"
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Open second docs folder" }));
+
+      await act(async () => {
+        vi.advanceTimersByTime(150);
+        await Promise.resolve();
+      });
+
+      expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/mock-workspaces/beta/docs", {
+        managedAttachmentFolder: "assets"
+      });
+
+      await act(async () => {
+        docsLoad.resolve([
+          { path: "/mock-workspaces/beta/docs/current.md", name: "current.md", relativePath: "current.md" }
+        ]);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText("current.md")).toBeInTheDocument();
+      expect(screen.getByTestId("root-name")).toHaveTextContent("docs");
+
+      await act(async () => {
+        notesLoad.resolve([
+          { path: "/recent/notes/stale.md", name: "stale.md", relativePath: "stale.md" }
+        ]);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText("stale.md")).not.toBeInTheDocument();
+      expect(screen.getByText("current.md")).toBeInTheDocument();
+      expect(screen.getByTestId("root-name")).toHaveTextContent("docs");
+      expect(mockedSaveStoredRecentMarkdownFolder).toHaveBeenCalledWith({
+        name: "docs",
+        path: "/mock-workspaces/beta/docs"
+      });
+      expect(mockedSaveStoredRecentMarkdownFolder).not.toHaveBeenCalledWith({
+        name: "notes",
+        path: "/recent/notes"
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("restores a markdown folder root without reopening a collapsed tree", async () => {
     mockedListNativeMarkdownFilesForPath.mockResolvedValue([
       { path: "/vault/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" }
@@ -639,6 +860,26 @@ describe("useMarkdownFileTree", () => {
       folderName: "vault",
       folderPath: "/vault"
     });
+  });
+
+  it("loads an explicit folder path immediately for workspace restoration", () => {
+    vi.useFakeTimers();
+
+    try {
+      mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+        { path: "/vault/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" }
+      ]);
+
+      render(<FileTreeProbe currentPath="/vault/docs/guide.md" />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Restore collapsed folder" }));
+
+      expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault", {
+        managedAttachmentFolder: "assets"
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not open a remembered markdown folder after it was deleted outside Markra", async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   buildWorkspaceLinkIndex,
   type WorkspaceLinkFile,
@@ -7,6 +7,7 @@ import {
 import { readNativeMarkdownFile } from "../lib/tauri";
 
 type UseWorkspaceLinkIndexInput = {
+  deferMs?: number;
   documentContent: string;
   documentPath: string | null;
   enabled?: boolean;
@@ -22,6 +23,7 @@ const emptyWorkspaceLinkIndex = {
 } satisfies WorkspaceLinkIndex;
 
 export function useWorkspaceLinkIndex({
+  deferMs = 0,
   documentContent,
   documentPath,
   enabled = true,
@@ -29,8 +31,12 @@ export function useWorkspaceLinkIndex({
 }: UseWorkspaceLinkIndexInput) {
   const [index, setIndex] = useState<WorkspaceLinkIndex>(emptyWorkspaceLinkIndex);
   const [loading, setLoading] = useState(() => enabled);
+  const previousEnabledRef = useRef(enabled);
+  const enabling = enabled && !previousEnabledRef.current;
 
   useEffect(() => {
+    previousEnabledRef.current = enabled;
+
     if (!enabled) {
       setIndex(emptyWorkspaceLinkIndex);
       setLoading(false);
@@ -38,39 +44,49 @@ export function useWorkspaceLinkIndex({
     }
 
     let active = true;
+    let buildTimer: number | null = null;
 
     setLoading(true);
 
-    buildWorkspaceLinkIndex(fileTreeFiles, {
-      currentDocument: documentPath
-        ? {
-            content: documentContent,
-            path: documentPath
-          }
-        : null,
-      readFile: async (path) => {
-        const file = await readNativeMarkdownFile(path);
+    const buildIndex = () => {
+      buildWorkspaceLinkIndex(fileTreeFiles, {
+        currentDocument: documentPath
+          ? {
+              content: documentContent,
+              path: documentPath
+            }
+          : null,
+        readFile: async (path) => {
+          const file = await readNativeMarkdownFile(path);
 
-        return {
-          content: file.content,
-          path: file.path
-        };
-      }
-    }).then((nextIndex) => {
-      if (active) setIndex(nextIndex);
-    }).catch(() => {
-      if (active) setIndex(emptyWorkspaceLinkIndex);
-    }).finally(() => {
-      if (active) setLoading(false);
-    });
+          return {
+            content: file.content,
+            path: file.path
+          };
+        }
+      }).then((nextIndex) => {
+        if (active) setIndex(nextIndex);
+      }).catch(() => {
+        if (active) setIndex(emptyWorkspaceLinkIndex);
+      }).finally(() => {
+        if (active) setLoading(false);
+      });
+    };
+
+    if (deferMs > 0) {
+      buildTimer = window.setTimeout(buildIndex, deferMs);
+    } else {
+      buildIndex();
+    }
 
     return () => {
       active = false;
+      if (buildTimer !== null) window.clearTimeout(buildTimer);
     };
-  }, [documentContent, documentPath, enabled, fileTreeFiles]);
+  }, [deferMs, documentContent, documentPath, enabled, fileTreeFiles]);
 
   return {
     index,
-    loading
+    loading: enabled && (loading || enabling)
   };
 }

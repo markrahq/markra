@@ -6,6 +6,7 @@ import {
   type MarkdownMentionRange
 } from "@markra/markdown";
 import { resolveMarkdownDocumentLinkFile } from "./document-links";
+import { shouldBlockLargeMarkdownVisual } from "./large-markdown";
 
 export type WorkspaceLinkFile = {
   createdAt?: number;
@@ -14,6 +15,7 @@ export type WorkspaceLinkFile = {
   name: string;
   path: string;
   relativePath: string;
+  sizeBytes?: number;
 };
 
 export type WorkspaceLinkReadResult = {
@@ -108,6 +110,10 @@ function titleCandidatesForFile(file: WorkspaceLinkFile, content: string) {
   return uniqueValues([markdownFileTitle(file), firstHeading ?? ""]);
 }
 
+function fallbackTitleCandidatesForFile(file: WorkspaceLinkFile) {
+  return uniqueValues([markdownFileTitle(file)]);
+}
+
 function relativePathWithoutMarkdownExtension(file: WorkspaceLinkFile) {
   return normalizePathSeparators(file.relativePath).replace(markdownDocumentExtensionPattern, "");
 }
@@ -177,9 +183,27 @@ export async function buildWorkspaceLinkIndex(
   let unreadableFileCount = 0;
   const indexedFiles = await Promise.all(markdownFiles.map(async (file) => {
     try {
+      if (shouldBlockLargeMarkdownVisual("", { sizeBytes: file.sizeBytes })) {
+        return {
+          content: "",
+          file,
+          mentionRanges: [],
+          titleCandidates: fallbackTitleCandidatesForFile(file)
+        };
+      }
+
       const read = options.currentDocument?.path === file.path
         ? options.currentDocument
         : await options.readFile(file.path);
+
+      if (shouldBlockLargeMarkdownVisual(read.content)) {
+        return {
+          content: "",
+          file,
+          mentionRanges: [],
+          titleCandidates: fallbackTitleCandidatesForFile(file)
+        };
+      }
 
       return {
         content: read.content,

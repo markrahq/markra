@@ -1,4 +1,4 @@
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { readNativeMarkdownFile } from "../lib/tauri";
 import { workspaceBacklinksForPath, workspaceUnlinkedMentionsForPath } from "../lib/workspace-links";
 import { useWorkspaceLinkIndex } from "./useWorkspaceLinkIndex";
@@ -81,5 +81,107 @@ describe("useWorkspaceLinkIndex", () => {
       unreadableFileCount: 0
     });
     expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalled();
+  });
+
+  it("defers workspace reads until the lazy index delay elapses", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const { result } = renderHook(() => useWorkspaceLinkIndex({
+        deferMs: 200,
+        documentContent: "See [Alpha](./Alpha.md).",
+        documentPath: "/mock-vault/Beta.md",
+        fileTreeFiles: files
+      }));
+
+      expect(result.current.loading).toBe(true);
+      expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(199);
+      });
+
+      expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.loading).toBe(false);
+      expect(mockedReadNativeMarkdownFile).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("cancels pending deferred reads when disabled before the delay elapses", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender, result } = renderHook(
+        ({ enabled }) => useWorkspaceLinkIndex({
+          deferMs: 200,
+          documentContent: "See [Alpha](./Alpha.md).",
+          documentPath: "/mock-vault/Beta.md",
+          enabled,
+          fileTreeFiles: files
+        }),
+        { initialProps: { enabled: true } }
+      );
+
+      expect(result.current.loading).toBe(true);
+      expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalled();
+
+      rerender({ enabled: false });
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+
+      expect(result.current.loading).toBe(false);
+      expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("reports loading immediately when a disabled deferred index is enabled", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const { rerender, result } = renderHook(
+        ({ enabled }) => useWorkspaceLinkIndex({
+          deferMs: 200,
+          documentContent: "See [Alpha](./Alpha.md).",
+          documentPath: "/mock-vault/Beta.md",
+          enabled,
+          fileTreeFiles: files
+        }),
+        { initialProps: { enabled: false } }
+      );
+
+      expect(result.current.loading).toBe(false);
+
+      rerender({ enabled: true });
+
+      expect(result.current.loading).toBe(true);
+      expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(result.current.loading).toBe(false);
+      expect(mockedReadNativeMarkdownFile).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
