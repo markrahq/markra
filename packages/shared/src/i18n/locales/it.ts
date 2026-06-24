@@ -586,6 +586,8 @@ const messages: LocaleMessages = {
   "settings.sync.never": "Never",
   "settings.editor.clipboardImageFolder": "Cartella immagini dagli appunti",
   "settings.editor.clipboardImageFolderDescription": "Salva le immagini incollate in questa cartella accanto al file Markdown corrente.",
+  "settings.editor.copyExternalFilesToStorage": "Copia file incollati nello storage",
+  "settings.editor.copyExternalFilesToStorageDescription": "Copia immagini e file incollati o trascinati nella destinazione di storage selezionata invece di collegare la posizione originale.",
   "settings.editor.titlebarActions": "Pulsanti della barra strumenti",
   "settings.editor.titlebarActionsDescription": "Scegli quali pulsanti appaiono in alto a destra e in quale ordine.",
   "settings.editor.titlebarActionsReset": "Ripristina pulsanti della barra strumenti",

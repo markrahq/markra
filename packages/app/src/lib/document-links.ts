@@ -1,5 +1,5 @@
 export type MarkdownDocumentLinkFile = {
-  kind?: "asset" | "folder";
+  kind?: "asset" | "attachment" | "folder";
   name: string;
   path: string;
   relativePath: string;

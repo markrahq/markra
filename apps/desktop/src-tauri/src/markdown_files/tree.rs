@@ -3,9 +3,9 @@ use std::path::{Path, PathBuf};
 
 use super::asset::allow_asset_directory;
 use super::path::{
-    is_markdown_tree_asset_file, is_markdown_tree_file, markdown_folder_file,
-    markdown_tree_file_kind, markdown_tree_root_for_path, normalize_markdown_tree_single_file_name,
-    should_skip_markdown_tree_directory,
+    is_markdown_tree_asset_file, is_markdown_tree_attachment_file, is_markdown_tree_file,
+    markdown_folder_file, markdown_tree_file_kind, markdown_tree_root_for_path,
+    normalize_markdown_tree_single_file_name, should_skip_markdown_tree_directory,
 };
 use super::types::{MarkdownFolderEntryKind, MarkdownFolderFile};
 
@@ -55,11 +55,64 @@ fn collect_markdown_tree_files(
                     &path,
                     MarkdownFolderEntryKind::Asset,
                 )?);
+            } else if is_markdown_tree_attachment_file(&path) {
+                files.push(markdown_folder_file(
+                    root,
+                    &path,
+                    MarkdownFolderEntryKind::Attachment,
+                )?);
             }
         }
     }
 
     Ok(())
+}
+
+fn normalize_managed_attachment_folder(folder: Option<&str>) -> Option<String> {
+    let normalized = folder?.trim().replace('\\', "/");
+    let parts = normalized
+        .split('/')
+        .map(str::trim)
+        .filter(|part| !part.is_empty() && *part != ".")
+        .collect::<Vec<_>>();
+
+    Some(if parts.is_empty() {
+        ".".to_string()
+    } else {
+        parts.join("/")
+    })
+}
+
+fn normalize_tree_relative_path(path: &str) -> String {
+    path.trim()
+        .replace('\\', "/")
+        .split('/')
+        .filter(|part| !part.is_empty() && *part != ".")
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+fn tree_relative_path_is_below_folder(path: &str, folder: &str) -> bool {
+    if folder == "." {
+        return true;
+    }
+
+    let normalized_path = normalize_tree_relative_path(path);
+    normalized_path == folder || normalized_path.starts_with(&format!("{folder}/"))
+}
+
+fn should_include_markdown_tree_file(
+    file: &MarkdownFolderFile,
+    managed_attachment_folder: Option<&str>,
+) -> bool {
+    if !matches!(&file.kind, MarkdownFolderEntryKind::Attachment) {
+        return true;
+    }
+
+    match managed_attachment_folder {
+        Some(folder) => tree_relative_path_is_below_folder(&file.relative_path, folder),
+        None => true,
+    }
 }
 
 fn normalize_markdown_tree_file_name(file_name: &str) -> Result<String, String> {
@@ -96,6 +149,14 @@ fn normalize_markdown_tree_rename_file_name(
             .ok_or_else(|| "Image file extension is invalid".to_string())?;
 
         format!("{trimmed_name}.{extension}")
+    } else if is_markdown_tree_attachment_file(source_path) {
+        match source_path
+            .extension()
+            .and_then(|extension| extension.to_str())
+        {
+            Some(extension) => format!("{trimmed_name}.{extension}"),
+            None => trimmed_name,
+        }
     } else {
         format!("{trimmed_name}.md")
     };
@@ -109,6 +170,12 @@ fn normalize_markdown_tree_rename_file_name(
         && !is_markdown_tree_asset_file(normalized_candidate)
     {
         return Err("Image file must use a supported image extension".to_string());
+    }
+
+    if is_markdown_tree_attachment_file(source_path)
+        && !is_markdown_tree_attachment_file(normalized_candidate)
+    {
+        return Err("Attachment file must not use a Markdown or image extension".to_string());
     }
 
     Ok(normalized_name)
@@ -160,11 +227,12 @@ fn canonical_markdown_tree_entry(root: &Path, path: &Path) -> Result<PathBuf, St
         || (canonical_path.is_file()
             && (is_markdown_tree_file(&canonical_path)
                 || is_markdown_tree_asset_file(&canonical_path)))
+        || (canonical_path.is_file() && is_markdown_tree_attachment_file(&canonical_path))
     {
         return Ok(canonical_path);
     }
 
-    Err("Path is not a Markdown file, supported image asset, or folder".to_string())
+    Err("Path is not a Markdown file, supported image asset, attachment, or folder".to_string())
 }
 
 fn canonical_movable_markdown_tree_entry(root: &Path, path: &Path) -> Result<PathBuf, String> {
@@ -182,11 +250,12 @@ fn canonical_movable_markdown_tree_entry(root: &Path, path: &Path) -> Result<Pat
         || (canonical_path.is_file()
             && (is_markdown_tree_file(&canonical_path)
                 || is_markdown_tree_asset_file(&canonical_path)))
+        || (canonical_path.is_file() && is_markdown_tree_attachment_file(&canonical_path))
     {
         return Ok(canonical_path);
     }
 
-    Err("Path is not a Markdown file, supported image asset, or folder".to_string())
+    Err("Path is not a Markdown file, supported image asset, attachment, or folder".to_string())
 }
 
 fn markdown_tree_entry_kind(path: &Path) -> Result<MarkdownFolderEntryKind, String> {
@@ -239,14 +308,20 @@ fn markdown_tree_target_parent(
 
 fn list_markdown_files_for_path_with_asset_scope(
     path: String,
+    managed_attachment_folder: Option<&str>,
     allow_root_assets: impl FnOnce(&Path) -> Result<(), String>,
 ) -> Result<Vec<MarkdownFolderFile>, String> {
     let source_path = PathBuf::from(path);
     let root = markdown_tree_root_for_path(&source_path)?;
     let mut files = Vec::new();
+    let normalized_managed_attachment_folder =
+        normalize_managed_attachment_folder(managed_attachment_folder);
 
     allow_root_assets(&root)?;
     collect_markdown_tree_files(&root, &root, &mut files)?;
+    files.retain(|file| {
+        should_include_markdown_tree_file(file, normalized_managed_attachment_folder.as_deref())
+    });
     files.sort_by(|a, b| {
         a.relative_path
             .to_lowercase()
@@ -260,8 +335,13 @@ fn list_markdown_files_for_path_with_asset_scope(
 pub(crate) fn list_markdown_files_for_path(
     app: tauri::AppHandle,
     path: String,
+    managed_attachment_folder: Option<String>,
 ) -> Result<Vec<MarkdownFolderFile>, String> {
-    list_markdown_files_for_path_with_asset_scope(path, |root| allow_asset_directory(&app, root))
+    list_markdown_files_for_path_with_asset_scope(
+        path,
+        managed_attachment_folder.as_deref(),
+        |root| allow_asset_directory(&app, root),
+    )
 }
 
 #[tauri::command]
@@ -412,25 +492,39 @@ mod tests {
         ));
         let docs = root.join("docs");
         let assets = root.join("assets");
+        let build = root.join("build");
+        let dist = root.join("dist");
         let ignored = root.join("node_modules").join("package");
+        let target = root.join("target");
 
         fs::create_dir_all(&assets).expect("assets folder should be created");
+        fs::create_dir_all(&build).expect("build folder should be created");
+        fs::create_dir_all(&dist).expect("dist folder should be created");
         fs::create_dir_all(&docs).expect("docs folder should be created");
         fs::create_dir_all(root.join("empty")).expect("empty folder should be created");
         fs::create_dir_all(&ignored).expect("ignored folder should be created");
+        fs::create_dir_all(&target).expect("target folder should be created");
         fs::write(root.join("Untitled.md"), "# Untitled").expect("root markdown should be created");
         fs::write(root.join("AWS.md"), "# AWS").expect("root markdown should be created");
         fs::write(assets.join("pasted-image.png"), [1, 2, 3])
             .expect("asset image should be created");
-        fs::write(assets.join("raw.txt"), "raw").expect("non-asset should be created");
+        fs::write(assets.join("reference.docx"), [4, 5, 6]).expect("attachment should be created");
+        fs::write(assets.join("raw.txt"), "raw").expect("attachment should be created");
+        fs::write(build.join("output.md"), "# Build output")
+            .expect("build markdown should be created");
+        fs::write(dist.join("bundle.md"), "# Dist bundle")
+            .expect("dist markdown should be created");
         fs::write(root.join("notes.txt"), "notes").expect("non-markdown should be created");
         fs::write(docs.join("guide.markdown"), "# Guide")
             .expect("nested markdown should be created");
         fs::write(ignored.join("dependency.md"), "# Dependency")
             .expect("ignored markdown should be created");
+        fs::write(target.join("cache.md"), "# Target cache")
+            .expect("target markdown should be created");
 
         let files = list_markdown_files_for_path_with_asset_scope(
             root.join("Untitled.md").to_string_lossy().to_string(),
+            None,
             |_| Ok(()),
         )
         .expect("markdown tree should be listed");
@@ -443,10 +537,22 @@ mod tests {
             vec![
                 (&MarkdownFolderEntryKind::Folder, "assets"),
                 (&MarkdownFolderEntryKind::Asset, "assets/pasted-image.png"),
+                (&MarkdownFolderEntryKind::Attachment, "assets/raw.txt"),
+                (
+                    &MarkdownFolderEntryKind::Attachment,
+                    "assets/reference.docx",
+                ),
                 (&MarkdownFolderEntryKind::File, "AWS.md"),
+                (&MarkdownFolderEntryKind::Folder, "build"),
+                (&MarkdownFolderEntryKind::File, "build/output.md"),
+                (&MarkdownFolderEntryKind::Folder, "dist"),
+                (&MarkdownFolderEntryKind::File, "dist/bundle.md"),
                 (&MarkdownFolderEntryKind::Folder, "docs"),
                 (&MarkdownFolderEntryKind::File, "docs/guide.markdown"),
                 (&MarkdownFolderEntryKind::Folder, "empty"),
+                (&MarkdownFolderEntryKind::Attachment, "notes.txt"),
+                (&MarkdownFolderEntryKind::Folder, "target"),
+                (&MarkdownFolderEntryKind::File, "target/cache.md"),
                 (&MarkdownFolderEntryKind::File, "Untitled.md"),
             ]
         );
@@ -473,6 +579,7 @@ mod tests {
 
         let files = list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
+            None,
             |_| Ok(()),
         )
         .expect("selected folder tree should be listed");
@@ -490,6 +597,52 @@ mod tests {
         );
         assert!(files.iter().all(|file| file.created_at.is_some()));
         assert!(files.iter().all(|file| file.modified_at.is_some()));
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn filters_managed_attachments_without_hiding_folders() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-managed-attachment-tree-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let assets = root.join("assets");
+        let downloads = root.join("downloads");
+
+        fs::create_dir_all(&assets).expect("assets folder should be created");
+        fs::create_dir_all(&downloads).expect("downloads folder should be created");
+        fs::write(assets.join("reference.docx"), [1, 2, 3])
+            .expect("managed attachment should be created");
+        fs::write(downloads.join("export.docx"), [4, 5, 6])
+            .expect("external attachment should be created");
+        fs::write(root.join("index.md"), "# Index").expect("markdown file should be created");
+
+        let files = list_markdown_files_for_path_with_asset_scope(
+            root.to_string_lossy().to_string(),
+            Some("assets"),
+            |_| Ok(()),
+        )
+        .expect("markdown tree should be listed");
+
+        assert_eq!(
+            files
+                .iter()
+                .map(|file| (&file.kind, file.relative_path.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                (&MarkdownFolderEntryKind::Folder, "assets"),
+                (
+                    &MarkdownFolderEntryKind::Attachment,
+                    "assets/reference.docx",
+                ),
+                (&MarkdownFolderEntryKind::Folder, "downloads"),
+                (&MarkdownFolderEntryKind::File, "index.md"),
+            ]
+        );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }
@@ -518,6 +671,7 @@ mod tests {
 
         assert!(list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
+            None,
             |_| Ok(()),
         )
         .is_err());
@@ -547,6 +701,7 @@ mod tests {
         let mut allowed_paths = Vec::new();
         list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
+            None,
             |path: &Path| {
                 allowed_paths.push(path.to_path_buf());
                 Ok(())

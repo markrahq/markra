@@ -402,6 +402,23 @@ describe("EditorSettings", () => {
         provider: "picgo"
       }
     });
+
+    const copyExternalFilesSwitch = screen.getByRole("switch", { name: "Copy pasted files to storage" });
+    const storageTypeRow = screen.getByText("Storage type").closest(".settings-row") as HTMLElement | null;
+    const copyExternalFilesRow = copyExternalFilesSwitch.closest(".settings-row") as HTMLElement | null;
+    expect(storageTypeRow).not.toBeNull();
+    expect(copyExternalFilesRow).not.toBeNull();
+    expect(
+      (storageTypeRow as HTMLElement).compareDocumentPosition(copyExternalFilesRow as HTMLElement)
+        & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    expect(copyExternalFilesSwitch).toBeChecked();
+
+    fireEvent.click(copyExternalFilesSwitch);
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      copyExternalFilesToStorage: false
+    });
   });
 
   it("hides S3 storage choices when the runtime cannot upload through S3", () => {

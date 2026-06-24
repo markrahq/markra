@@ -20,6 +20,7 @@ import {
   openNativeLocalImages,
   takeNativeOpenedMarkdownPaths,
   openNativeContainingFolder,
+  openNativeMarkdownAttachment,
   openNativeMarkdownFolder,
   openNativeMarkdownFile,
   openNativeMarkdownFolderInNewWindow,
@@ -33,6 +34,7 @@ import {
   resolveNativeMarkdownPath,
   backupNativeMarkdownFolder,
   syncNativeMarkdownFolder,
+  saveNativeClipboardAttachment,
   saveNativeClipboardImage,
   saveNativeHtmlFile,
   saveNativePandocFile,
@@ -468,6 +470,7 @@ describe("native file access", () => {
     mockedInvoke.mockResolvedValue([
       { path: "/mock-files/docs", relativePath: "docs", createdAt: 10, modifiedAt: 20 },
       { kind: "asset", path: "/mock-files/assets/pasted-image.png", relativePath: "assets/pasted-image.png", createdAt: 30, modifiedAt: 40 },
+      { kind: "attachment", path: "/mock-files/assets/reference.docx", relativePath: "assets/reference.docx", createdAt: 35, modifiedAt: 45 },
       { path: "/mock-files/readme.md", relativePath: "readme.md", createdAt: 50, modifiedAt: 60 },
       { path: "/mock-files/docs/guide.md", relativePath: "docs/guide.md", createdAt: 70, modifiedAt: 80 }
     ]);
@@ -482,11 +485,29 @@ describe("native file access", () => {
         createdAt: 30,
         modifiedAt: 40
       },
+      {
+        kind: "attachment",
+        path: "/mock-files/assets/reference.docx",
+        name: "reference.docx",
+        relativePath: "assets/reference.docx",
+        createdAt: 35,
+        modifiedAt: 45
+      },
       { path: "/mock-files/readme.md", name: "readme.md", relativePath: "readme.md", createdAt: 50, modifiedAt: 60 },
       { path: "/mock-files/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md", createdAt: 70, modifiedAt: 80 }
     ]);
 
     expect(mockedInvoke).toHaveBeenCalledWith("list_markdown_files_for_path", {
+      path: mockReadmePath
+    });
+
+    mockedInvoke.mockResolvedValueOnce([]);
+
+    await expect(listNativeMarkdownFilesForPath(mockReadmePath, {
+      managedAttachmentFolder: "media/files"
+    })).resolves.toEqual([]);
+    expect(mockedInvoke).toHaveBeenLastCalledWith("list_markdown_files_for_path", {
+      managedAttachmentFolder: "media/files",
       path: mockReadmePath
     });
   });
@@ -960,6 +981,78 @@ describe("native file access", () => {
     });
   });
 
+  it("creates an absolute clipboard image link without copying through Tauri", async () => {
+    const image = new File([new Uint8Array([1, 2, 3])], "Screenshot 1.png", { type: "image/png" });
+    Object.defineProperty(image, "path", {
+      value: "C:\\mock-files\\Screenshot 1.png"
+    });
+
+    await expect(
+      saveNativeClipboardImage({
+        copyToStorage: false,
+        documentPath: null,
+        fileName: "custom-image.png",
+        folder: "assets",
+        image
+      })
+    ).resolves.toEqual({
+      alt: "Screenshot 1",
+      src: "file:///C:/mock-files/Screenshot%201.png"
+    });
+
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
+  it("saves a clipboard attachment next to the current markdown file through Tauri", async () => {
+    const attachment = new File([new Uint8Array([4, 5, 6])], "Reference Doc.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    });
+    mockedInvoke.mockResolvedValue({
+      relativePath: "assets/Reference Doc.docx"
+    });
+
+    await expect(
+      saveNativeClipboardAttachment({
+        attachment,
+        documentPath: mockReadmePath,
+        folder: "assets"
+      })
+    ).resolves.toEqual({
+      label: "Reference Doc.docx",
+      src: "assets/Reference%20Doc.docx"
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("save_clipboard_attachment", {
+      bytes: [4, 5, 6],
+      documentPath: mockReadmePath,
+      fileName: "Reference Doc.docx",
+      folder: "assets"
+    });
+  });
+
+  it("creates an absolute clipboard attachment link without copying through Tauri", async () => {
+    const attachment = new File([new Uint8Array([4, 5, 6])], "Reference Doc.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    });
+    Object.defineProperty(attachment, "path", {
+      value: "C:\\mock-files\\Reference Doc.docx"
+    });
+
+    await expect(
+      saveNativeClipboardAttachment({
+        attachment,
+        copyToStorage: false,
+        documentPath: null,
+        folder: "assets"
+      })
+    ).resolves.toEqual({
+      label: "Reference Doc.docx",
+      src: "file:///C:/mock-files/Reference%20Doc.docx"
+    });
+
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
   it("downloads a web image through Tauri and returns a File", async () => {
     mockedInvoke.mockResolvedValue({
       bytes: [1, 2, 3],
@@ -1404,6 +1497,22 @@ describe("native file access", () => {
 
     expect(mockedInvoke).toHaveBeenCalledWith("open_containing_folder", {
       path: mockReadmePath
+    });
+  });
+
+  it("opens markdown attachments through Tauri with root and document context", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await openNativeMarkdownAttachment({
+      documentPath: "/mock-files/vault/docs/note.md",
+      rootPath: mockFolderPath,
+      src: "../assets/Reference%20Doc.docx"
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("open_markdown_attachment", {
+      documentPath: "/mock-files/vault/docs/note.md",
+      rootPath: mockFolderPath,
+      src: "../assets/Reference%20Doc.docx"
     });
   });
 });

@@ -85,8 +85,14 @@ function mockWorkspaceState(
   };
 }
 
-function FileTreeProbe({ currentPath = null }: { currentPath?: string | null }) {
-  const tree = useMarkdownFileTree();
+function FileTreeProbe({
+  currentPath = null,
+  managedAttachmentFolder
+}: {
+  currentPath?: string | null;
+  managedAttachmentFolder?: string;
+}) {
+  const tree = useMarkdownFileTree({ managedAttachmentFolder });
 
   return (
     <section>
@@ -279,7 +285,9 @@ describe("useMarkdownFileTree", () => {
     expect(await screen.findByText("index.md")).toBeInTheDocument();
     expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
     expect(screen.getByTestId("open-state")).toHaveTextContent("open");
-    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault");
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault", {
+      managedAttachmentFolder: "assets"
+    });
     expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
       aiAgentSessionId: "session-folder",
       filePath: null,
@@ -292,6 +300,97 @@ describe("useMarkdownFileTree", () => {
       name: "vault",
       path: "/vault"
     });
+  });
+
+  it("hides attachment files outside the managed attachment folder while keeping folders visible", async () => {
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { kind: "folder", path: "/vault/assets", name: "assets", relativePath: "assets" },
+      { kind: "asset", path: "/vault/assets/image.png", name: "image.png", relativePath: "assets/image.png" },
+      { kind: "attachment", path: "/vault/assets/reference.docx", name: "reference.docx", relativePath: "assets/reference.docx" },
+      { kind: "folder", path: "/vault/downloads", name: "downloads", relativePath: "downloads" },
+      { kind: "attachment", path: "/vault/downloads/export.docx", name: "export.docx", relativePath: "downloads/export.docx" },
+      { kind: "folder", path: "/vault/empty", name: "empty", relativePath: "empty" },
+      { kind: "folder", path: "/vault/notes", name: "notes", relativePath: "notes" },
+      { path: "/vault/notes/daily.md", name: "daily.md", relativePath: "notes/daily.md" },
+      { kind: "attachment", path: "/vault/todo.txt", name: "todo.txt", relativePath: "todo.txt" }
+    ]);
+
+    render(<FileTreeProbe managedAttachmentFolder="assets" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    expect(await screen.findByText("assets/reference.docx")).toBeInTheDocument();
+    expect(screen.getByText("assets/image.png")).toBeInTheDocument();
+    expect(screen.getByText("downloads")).toBeInTheDocument();
+    expect(screen.getByText("empty")).toBeInTheDocument();
+    expect(screen.getByText("notes/daily.md")).toBeInTheDocument();
+    expect(screen.queryByText("downloads/export.docx")).not.toBeInTheDocument();
+    expect(screen.queryByText("todo.txt")).not.toBeInTheDocument();
+  });
+
+  it("uses the configured managed attachment folder when filtering attachments", async () => {
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { kind: "folder", path: "/vault/assets", name: "assets", relativePath: "assets" },
+      { kind: "attachment", path: "/vault/assets/reference.docx", name: "reference.docx", relativePath: "assets/reference.docx" },
+      { kind: "folder", path: "/vault/media", name: "media", relativePath: "media" },
+      { kind: "folder", path: "/vault/media/files", name: "files", relativePath: "media/files" },
+      { kind: "attachment", path: "/vault/media/files/spec.pdf", name: "spec.pdf", relativePath: "media/files/spec.pdf" }
+    ]);
+
+    render(<FileTreeProbe managedAttachmentFolder="media/files" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    expect(await screen.findByText("media/files/spec.pdf")).toBeInTheDocument();
+    expect(screen.getByText("media")).toBeInTheDocument();
+    expect(screen.getByText("media/files")).toBeInTheDocument();
+    expect(screen.getByText("assets")).toBeInTheDocument();
+    expect(screen.queryByText("assets/reference.docx")).not.toBeInTheDocument();
+  });
+
+  it("refreshes files when the managed attachment folder changes", async () => {
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedListNativeMarkdownFilesForPath
+      .mockResolvedValueOnce([
+        { kind: "folder", path: "/vault/assets", name: "assets", relativePath: "assets" },
+        { kind: "attachment", path: "/vault/assets/reference.docx", name: "reference.docx", relativePath: "assets/reference.docx" },
+        { kind: "folder", path: "/vault/media", name: "media", relativePath: "media" },
+        { kind: "folder", path: "/vault/media/files", name: "files", relativePath: "media/files" }
+      ])
+      .mockResolvedValueOnce([
+        { kind: "folder", path: "/vault/assets", name: "assets", relativePath: "assets" },
+        { kind: "folder", path: "/vault/media", name: "media", relativePath: "media" },
+        { kind: "folder", path: "/vault/media/files", name: "files", relativePath: "media/files" },
+        { kind: "attachment", path: "/vault/media/files/spec.pdf", name: "spec.pdf", relativePath: "media/files/spec.pdf" }
+      ]);
+
+    const { rerender } = render(<FileTreeProbe managedAttachmentFolder="assets" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    expect(await screen.findByText("assets/reference.docx")).toBeInTheDocument();
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith("/vault", {
+      managedAttachmentFolder: "assets"
+    });
+
+    rerender(<FileTreeProbe managedAttachmentFolder="media/files" />);
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith("/vault", {
+      managedAttachmentFolder: "media/files"
+    }));
+    expect(await screen.findByText("media/files/spec.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("assets/reference.docx")).not.toBeInTheDocument();
   });
 
   it("does not switch the tree root when the pre-open hook rejects the selected folder", async () => {
@@ -479,7 +578,9 @@ describe("useMarkdownFileTree", () => {
     expect(await screen.findByText("index.md")).toBeInTheDocument();
     expect(screen.getByTestId("root-name")).toHaveTextContent("notes");
     expect(mockedOpenNativeMarkdownFolder).not.toHaveBeenCalled();
-    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/recent/notes");
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/recent/notes", {
+      managedAttachmentFolder: "assets"
+    });
     expect(mockedSaveStoredRecentMarkdownFolder).toHaveBeenCalledWith({
       name: "notes",
       path: "/recent/notes"
@@ -511,7 +612,9 @@ describe("useMarkdownFileTree", () => {
       "/mock-workspaces/beta/docs",
       "/mock-workspaces/alpha/docs"
     ]);
-    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/mock-workspaces/beta/docs");
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/mock-workspaces/beta/docs", {
+      managedAttachmentFolder: "assets"
+    });
     expect(mockedSaveStoredRecentMarkdownFolder).toHaveBeenCalledWith({
       name: "docs",
       path: "/mock-workspaces/beta/docs"
@@ -550,7 +653,9 @@ describe("useMarkdownFileTree", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open recent folder" }));
 
-    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/recent/notes"));
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/recent/notes", {
+      managedAttachmentFolder: "assets"
+    }));
     await waitFor(() => expect(screen.queryByText("/recent/notes")).not.toBeInTheDocument());
     expect(screen.getByTestId("root-name")).toHaveTextContent("No folder");
     expect(screen.getByTestId("open-state")).toHaveTextContent("closed");
@@ -603,7 +708,9 @@ describe("useMarkdownFileTree", () => {
     await waitFor(() =>
       expect(mockedCreateNativeMarkdownTreeFolder).toHaveBeenCalledWith("/vault", "Sprint", "/vault/docs")
     );
-    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault");
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault", {
+      managedAttachmentFolder: "assets"
+    });
   });
 
   it("refreshes from the current document path when toggled open without an explicit folder", async () => {
@@ -615,7 +722,9 @@ describe("useMarkdownFileTree", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
 
-    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault/readme.md"));
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault/readme.md", {
+      managedAttachmentFolder: "assets"
+    }));
     expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
     expect(screen.getByTestId("open-state")).toHaveTextContent("open");
     expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({ fileTreeOpen: true });
@@ -631,7 +740,9 @@ describe("useMarkdownFileTree", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
 
-    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault/readme.md"));
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith("/vault/readme.md", {
+      managedAttachmentFolder: "assets"
+    }));
     expect(screen.getByTestId("layout-columns")).toHaveTextContent("288px minmax(0,1fr)");
 
     fireEvent.click(screen.getByRole("button", { name: "Resize wide" }));

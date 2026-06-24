@@ -586,6 +586,8 @@ const messages: LocaleMessages = {
   "settings.sync.never": "Never",
   "settings.editor.clipboardImageFolder": "Dossier des images du presse-papiers",
   "settings.editor.clipboardImageFolderDescription": "Enregistre les images collées dans ce dossier à côté du fichier Markdown actuel.",
+  "settings.editor.copyExternalFilesToStorage": "Copier les fichiers collés vers le stockage",
+  "settings.editor.copyExternalFilesToStorageDescription": "Copie les images et fichiers collés ou déposés vers la cible de stockage choisie au lieu de lier leur emplacement d’origine.",
   "settings.editor.titlebarActions": "Boutons de barre d’outils",
   "settings.editor.titlebarActionsDescription": "Choisissez les boutons affichés en haut à droite et leur ordre.",
   "settings.editor.titlebarActionsReset": "Réinitialiser les boutons de barre d’outils",

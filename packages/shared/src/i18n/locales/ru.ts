@@ -586,6 +586,8 @@ const messages: LocaleMessages = {
   "settings.sync.never": "Never",
   "settings.editor.clipboardImageFolder": "Папка для изображений из буфера обмена",
   "settings.editor.clipboardImageFolderDescription": "Сохранять вставленные изображения в этой папке рядом с текущим файлом Markdown.",
+  "settings.editor.copyExternalFilesToStorage": "Копировать вставленные файлы в хранилище",
+  "settings.editor.copyExternalFilesToStorageDescription": "Копировать вставленные или перетащенные изображения и файлы в выбранное хранилище вместо ссылки на исходное расположение.",
   "settings.editor.titlebarActions": "Кнопки панели инструментов",
   "settings.editor.titlebarActionsDescription": "Выберите, какие кнопки показывать справа вверху и в каком порядке.",
   "settings.editor.titlebarActionsReset": "Сбросить кнопки панели инструментов",

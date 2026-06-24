@@ -23,6 +23,7 @@ type SideDocumentPaneProps = {
   lineHeight: number;
   markdownShortcuts?: MarkdownShortcutMap;
   mode: "source" | "visual";
+  openLocalAttachment?: (src: string) => unknown;
   openExternalUrl?: (url: string) => unknown;
   readOnly?: boolean;
   resolveImageSrc?: (src: string) => string;
@@ -32,6 +33,7 @@ type SideDocumentPaneProps = {
   spellcheckIgnoredWords?: readonly string[];
   spellchecker?: Spellchecker;
   onAddSpellcheckIgnoredWord?: (word: string) => unknown;
+  onSaveClipboardAttachment?: (attachment: File) => Promise<{ label: string; src: string } | null>;
   workspaceFiles?: MarkdownDocumentLinkFile[];
   wrapCodeBlocks?: boolean;
   onChange: (content: string) => unknown;
@@ -58,6 +60,7 @@ export function SideDocumentPane({
   lineHeight,
   markdownShortcuts,
   mode,
+  openLocalAttachment,
   openExternalUrl,
   readOnly = false,
   resolveImageSrc,
@@ -67,6 +70,7 @@ export function SideDocumentPane({
   spellcheckIgnoredWords,
   spellchecker,
   onAddSpellcheckIgnoredWord,
+  onSaveClipboardAttachment,
   workspaceFiles,
   wrapCodeBlocks = true,
   onChange,
@@ -120,6 +124,8 @@ export function SideDocumentPane({
           onMarkdownChange={onChange}
           onContentWidthChange={onContentWidthChange}
           onContentWidthResizeEnd={onContentWidthResizeEnd}
+          onSaveClipboardAttachment={onSaveClipboardAttachment}
+          openLocalAttachment={openLocalAttachment}
           openExternalUrl={openExternalUrl}
           readOnly={readOnly}
           resolveImageSrc={resolveImageSrc}

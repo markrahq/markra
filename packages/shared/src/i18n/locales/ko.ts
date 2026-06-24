@@ -586,6 +586,8 @@ const messages: LocaleMessages = {
   "settings.sync.never": "Never",
   "settings.editor.clipboardImageFolder": "클립보드 이미지 폴더",
   "settings.editor.clipboardImageFolderDescription": "붙여넣은 이미지를 현재 Markdown 파일 옆의 이 폴더에 저장합니다.",
+  "settings.editor.copyExternalFilesToStorage": "붙여넣은 파일을 저장소로 복사",
+  "settings.editor.copyExternalFilesToStorageDescription": "붙여넣거나 드롭한 이미지와 파일을 원본 위치에 연결하는 대신 선택한 저장 대상에 복사합니다.",
   "settings.editor.titlebarActions": "도구 모음 버튼",
   "settings.editor.titlebarActionsDescription": "오른쪽 위에 표시할 버튼과 순서를 선택합니다.",
   "settings.editor.titlebarActionsReset": "도구 모음 버튼 초기화",

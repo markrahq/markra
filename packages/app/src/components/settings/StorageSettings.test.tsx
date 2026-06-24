@@ -106,6 +106,7 @@ describe("StorageSettings", () => {
       ...defaultEditorPreferences,
       clipboardImageFolder: "media"
     });
+    expect(screen.queryByRole("switch", { name: "Copy pasted files to storage" })).not.toBeInTheDocument();
 
     fireEvent.click(within(settingsType).getByRole("button", { name: "Show WebDAV settings" }));
     expect(within(settingsType).getByRole("button", { name: "Show WebDAV settings" })).toHaveAttribute(

@@ -37,6 +37,7 @@ function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState
 }
 
 type UseMarkdownFileTreeOptions = {
+  managedAttachmentFolder?: string | null;
   onWorkspaceSessionChange?: (sessionId: string) => unknown;
 };
 
@@ -57,7 +58,59 @@ function fileTreeSortWorkspacePathFromSourcePath(path: string | null | undefined
   return isMarkdownPath(normalizedPath) ? parentPathFromPath(normalizedPath) : normalizedPath;
 }
 
-export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFileTreeOptions = {}) {
+function normalizeManagedAttachmentFolder(folder: string | null | undefined) {
+  const normalized = folder?.trim().replace(/\\/gu, "/").replace(/\/+/gu, "/") ?? "";
+  if (!normalized || normalized === ".") return ".";
+
+  const parts = normalized
+    .split("/")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && part !== ".");
+
+  return parts.length ? parts.join("/") : ".";
+}
+
+function normalizedTreeRelativePath(path: string) {
+  return path.trim().replace(/\\/gu, "/").replace(/\/+/gu, "/").replace(/^\.\/+/u, "");
+}
+
+function treePathIsBelowFolder(path: string, folder: string) {
+  if (folder === ".") return true;
+
+  const normalizedPath = normalizedTreeRelativePath(path);
+  return normalizedPath === folder || normalizedPath.startsWith(`${folder}/`);
+}
+
+type LoadedFileTreeRequest = {
+  managedAttachmentFolder: string;
+  path: string;
+};
+
+function filterManagedAttachmentFiles(
+  files: readonly NativeMarkdownFolderFile[],
+  managedAttachmentFolder: string | null | undefined
+) {
+  const normalizedManagedAttachmentFolder = normalizeManagedAttachmentFolder(managedAttachmentFolder);
+  const entries = files.map((file) => ({
+    file,
+    relativePath: normalizedTreeRelativePath(file.relativePath)
+  }));
+
+  return entries
+    .filter(({ file, relativePath }) => {
+      if (file.kind === "attachment") {
+        return treePathIsBelowFolder(relativePath, normalizedManagedAttachmentFolder);
+      }
+
+      return true;
+    })
+    .map(({ file }) => file);
+}
+
+export function useMarkdownFileTree({
+  managedAttachmentFolder = "assets",
+  onWorkspaceSessionChange
+}: UseMarkdownFileTreeOptions = {}) {
   const [files, setFiles] = useState<NativeMarkdownFolderFile[]>([]);
   const [rootName, setRootName] = useState("No folder");
   const [sourcePath, setSourcePath] = useState<string | null>(null);
@@ -68,14 +121,22 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
   const [fileTreeAssetsVisible, setFileTreeAssetsVisibleState] = useState(true);
   const [width, setWidth] = useState(markdownFileTreeDefaultWidth);
   const [resizing, setResizing] = useState(false);
-  const loadedSourcePathRef = useRef<string | null>(null);
+  const loadedFileTreeRequestRef = useRef<LoadedFileTreeRequest | null>(null);
   const openChangedBeforeWorkspaceRestoreRef = useRef(false);
+  const normalizedManagedAttachmentFolder = useMemo(
+    () => normalizeManagedAttachmentFolder(managedAttachmentFolder),
+    [managedAttachmentFolder]
+  );
   const fileTreeWorkspacePath = fileTreeSortWorkspacePathFromSourcePath(sourcePath);
   const fileTreeSort = useMemo(
     () => fileTreeWorkspacePath
       ? fileTreeSortByWorkspace[fileTreeWorkspacePath] ?? defaultStoredFileTreeSort
       : defaultStoredFileTreeSort,
     [fileTreeSortByWorkspace, fileTreeWorkspacePath]
+  );
+  const visibleFiles = useMemo(
+    () => filterManagedAttachmentFiles(files, normalizedManagedAttachmentFolder),
+    [files, normalizedManagedAttachmentFolder]
   );
   const workspaceLayoutClassName = `workspace-layout grid h-full min-h-0 overflow-hidden ${
     resizing
@@ -110,12 +171,16 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
       }
 
       try {
-        setFiles(await listNativeMarkdownFilesForPath(path));
+        const nextFiles = await listNativeMarkdownFilesForPath(path, {
+          managedAttachmentFolder: normalizedManagedAttachmentFolder
+        });
+        loadedFileTreeRequestRef.current = { managedAttachmentFolder: normalizedManagedAttachmentFolder, path };
+        setFiles(nextFiles);
       } catch {
         setFiles([]);
       }
     },
-    [sourcePath]
+    [normalizedManagedAttachmentFolder, sourcePath]
   );
 
   const setRootFromMarkdownFilePath = useCallback((path: string) => {
@@ -145,7 +210,9 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     let nextFiles: NativeMarkdownFolderFile[];
 
     try {
-      nextFiles = await listNativeMarkdownFilesForPath(path);
+      nextFiles = await listNativeMarkdownFilesForPath(path, {
+        managedAttachmentFolder: normalizedManagedAttachmentFolder
+      });
     } catch {
       forgetRecentFolder(path);
 
@@ -153,6 +220,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
         setFiles([]);
         setSourcePath(null);
         setRootName("No folder");
+        loadedFileTreeRequestRef.current = null;
         openChangedBeforeWorkspaceRestoreRef.current = true;
         setOpen(false);
       }
@@ -164,7 +232,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     setRootName(folderName);
     openChangedBeforeWorkspaceRestoreRef.current = true;
     setOpen(openTree);
-    loadedSourcePathRef.current = path;
+    loadedFileTreeRequestRef.current = { managedAttachmentFolder: normalizedManagedAttachmentFolder, path };
     setFiles(nextFiles);
     rememberFolder({ name: folderName, path });
     onWorkspaceSessionChange?.(sessionId);
@@ -177,7 +245,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
       folderPath: path
     });
     return { name: folderName, path };
-  }, [forgetRecentFolder, onWorkspaceSessionChange, rememberFolder, sourcePath]);
+  }, [forgetRecentFolder, normalizedManagedAttachmentFolder, onWorkspaceSessionChange, rememberFolder, sourcePath]);
 
   const openMarkdownFolder = useCallback(async (options: OpenMarkdownFolderOptions = {}) => {
     const folder = await openNativeMarkdownFolder(
@@ -343,25 +411,30 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     let active = true;
 
     if (!sourcePath) {
-      loadedSourcePathRef.current = null;
+      loadedFileTreeRequestRef.current = null;
       setFiles([]);
       return () => {
         active = false;
       };
     }
 
-    if (loadedSourcePathRef.current === sourcePath) {
+    if (
+      loadedFileTreeRequestRef.current?.path === sourcePath &&
+      loadedFileTreeRequestRef.current.managedAttachmentFolder === normalizedManagedAttachmentFolder
+    ) {
       return () => {
         active = false;
       };
     }
 
-    loadedSourcePathRef.current = sourcePath;
-    listNativeMarkdownFilesForPath(sourcePath).then((nextFiles) => {
+    loadedFileTreeRequestRef.current = { managedAttachmentFolder: normalizedManagedAttachmentFolder, path: sourcePath };
+    listNativeMarkdownFilesForPath(sourcePath, {
+      managedAttachmentFolder: normalizedManagedAttachmentFolder
+    }).then((nextFiles) => {
       if (active) setFiles(nextFiles);
     }).catch(() => {
       if (active) {
-        loadedSourcePathRef.current = null;
+        loadedFileTreeRequestRef.current = null;
         setFiles([]);
       }
     });
@@ -369,7 +442,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     return () => {
       active = false;
     };
-  }, [sourcePath]);
+  }, [normalizedManagedAttachmentFolder, sourcePath]);
 
   useEffect(() => {
     if (!sourcePath) return;
@@ -400,7 +473,7 @@ export function useMarkdownFileTree({ onWorkspaceSessionChange }: UseMarkdownFil
     createFile,
     createFolder,
     deleteFile,
-    files,
+    files: visibleFiles,
     fileTreeAssetsVisible,
     fileTreeSort,
     recentFolders,

@@ -1,5 +1,5 @@
-import { imageSchema } from "@milkdown/kit/preset/commonmark";
-import { Fragment, type Node as ProseNode, type NodeType, type Slice } from "@milkdown/kit/prose/model";
+import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
+import { Fragment, type MarkType, type Node as ProseNode, type NodeType, type Schema, type Slice } from "@milkdown/kit/prose/model";
 import { Plugin, Selection, TextSelection, type SelectionBookmark } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
@@ -15,6 +15,13 @@ export type SavedClipboardImage = {
 
 export type SaveClipboardImage = (image: File) => Promise<SavedClipboardImage | null>;
 
+export type SavedClipboardAttachment = {
+  label: string;
+  src: string;
+};
+
+export type SaveClipboardAttachment = (attachment: File) => Promise<SavedClipboardAttachment | null>;
+
 export type RemoteClipboardImage = {
   alt: string;
   src: string;
@@ -25,6 +32,7 @@ export type SaveRemoteClipboardImage = (image: RemoteClipboardImage) => Promise<
 
 export type ClipboardImagePluginOptions = {
   documentPath?: () => string | null | undefined;
+  saveAttachment?: SaveClipboardAttachment;
   saveRemoteImage?: SaveRemoteClipboardImage;
 };
 
@@ -57,8 +65,25 @@ function dataTransferImageFiles(dataTransfer: DataTransfer | null | undefined) {
   return images;
 }
 
+function dataTransferAttachmentFiles(dataTransfer: DataTransfer | null | undefined) {
+  const files = dataTransfer?.files as (ArrayLike<File> & { item?: (index: number) => File | null }) | undefined;
+  if (!files?.length) return [];
+
+  const attachments: File[] = [];
+  for (let index = 0; index < files.length; index += 1) {
+    const file = typeof files.item === "function" ? files.item(index) : files[index];
+    if (file && !file.type.startsWith("image/")) attachments.push(file);
+  }
+
+  return attachments;
+}
+
 function clipboardImageFiles(event: ClipboardEvent) {
   return dataTransferImageFiles(event.clipboardData);
+}
+
+function clipboardAttachmentFiles(event: ClipboardEvent) {
+  return dataTransferAttachmentFiles(event.clipboardData);
 }
 
 function clipboardHtml(event: ClipboardEvent) {
@@ -67,6 +92,10 @@ function clipboardHtml(event: ClipboardEvent) {
 
 function droppedImageFiles(event: DragEvent) {
   return dataTransferImageFiles(event.dataTransfer);
+}
+
+function droppedAttachmentFiles(event: DragEvent) {
+  return dataTransferAttachmentFiles(event.dataTransfer);
 }
 
 function unescapePlainMarkdownImageAlt(alt: string) {
@@ -121,6 +150,23 @@ function createImageFragment(images: SavedClipboardImage[], image: NodeType) {
       })
     )
   );
+}
+
+function createAttachmentFragment(attachments: SavedClipboardAttachment[], schema: Schema, link: MarkType) {
+  const nodes: ProseNode[] = [];
+
+  attachments.forEach((attachment, index) => {
+    if (index > 0) nodes.push(schema.text(" "));
+
+    nodes.push(schema.text(attachment.label || attachment.src, [
+      link.create({
+        href: attachment.src,
+        title: ""
+      })
+    ]));
+  });
+
+  return Fragment.fromArray(nodes);
 }
 
 function imageInsertionRangeForSelection(selection: Selection): ImageInsertionRange {
@@ -283,6 +329,25 @@ async function saveAndInsertClipboardImages(
   insertSavedClipboardImages(view, savedImages, image, bookmark);
 }
 
+async function saveAndInsertClipboardAttachments(
+  view: EditorView,
+  files: File[],
+  saveClipboardAttachment: SaveClipboardAttachment,
+  link: MarkType,
+  bookmark: SelectionBookmark = view.state.selection.getBookmark()
+) {
+  const savedAttachments: SavedClipboardAttachment[] = [];
+
+  for (const file of files) {
+    const savedAttachment = await saveClipboardAttachment(file);
+    if (savedAttachment) savedAttachments.push(savedAttachment);
+  }
+
+  if (!savedAttachments.length) return;
+
+  insertSavedClipboardAttachments(view, savedAttachments, link, bookmark);
+}
+
 function insertSavedClipboardImages(
   view: EditorView,
   savedImages: SavedClipboardImage[],
@@ -300,6 +365,22 @@ function insertSavedClipboardImages(
   view.focus();
 }
 
+function insertSavedClipboardAttachments(
+  view: EditorView,
+  savedAttachments: SavedClipboardAttachment[],
+  link: MarkType,
+  bookmark: SelectionBookmark = view.state.selection.getBookmark()
+) {
+  const selection = bookmark.resolve(view.state.doc);
+  const fragment = createAttachmentFragment(savedAttachments, view.state.schema, link);
+  const transaction = view.state.tr.replaceWith(selection.from, selection.to, fragment).scrollIntoView();
+  const cursor = Math.min(transaction.doc.content.size, selection.from + fragment.size);
+
+  transaction.setSelection(TextSelection.near(transaction.doc.resolve(cursor), -1));
+  view.dispatch(transaction);
+  view.focus();
+}
+
 export function markraClipboardImagePlugin(saveClipboardImage: SaveClipboardImage) {
   return markraClipboardImagePluginWithOptions(saveClipboardImage);
 }
@@ -310,6 +391,7 @@ export function markraClipboardImagePluginWithOptions(
 ) {
   return $prose((ctx) => {
     const image = imageSchema.type(ctx);
+    const link = linkSchema.type(ctx);
 
     return new Plugin({
       props: {
@@ -319,6 +401,15 @@ export function markraClipboardImagePluginWithOptions(
             event.preventDefault();
             saveAndInsertClipboardImages(view, files, saveClipboardImage, image).catch((error: unknown) => {
               console.error("[markra-clipboard-images] failed to insert pasted image", error);
+            });
+            return true;
+          }
+
+          const attachmentFiles = clipboardAttachmentFiles(event);
+          if (attachmentFiles.length && options.saveAttachment) {
+            event.preventDefault();
+            saveAndInsertClipboardAttachments(view, attachmentFiles, options.saveAttachment, link).catch((error: unknown) => {
+              console.error("[markra-clipboard-images] failed to insert pasted attachment", error);
             });
             return true;
           }
@@ -359,17 +450,32 @@ export function markraClipboardImagePluginWithOptions(
           }
 
           const files = droppedImageFiles(event);
-          if (!files.length) return false;
+          if (files.length) {
+            event.preventDefault();
+            saveAndInsertClipboardImages(
+              view,
+              files,
+              saveClipboardImage,
+              image,
+              dropSelectionBookmark(view, event)
+            ).catch((error: unknown) => {
+              console.error("[markra-clipboard-images] failed to insert dropped image", error);
+            });
+            return true;
+          }
+
+          const attachmentFiles = droppedAttachmentFiles(event);
+          if (!attachmentFiles.length || !options.saveAttachment) return false;
 
           event.preventDefault();
-          saveAndInsertClipboardImages(
+          saveAndInsertClipboardAttachments(
             view,
-            files,
-            saveClipboardImage,
-            image,
+            attachmentFiles,
+            options.saveAttachment,
+            link,
             dropSelectionBookmark(view, event)
           ).catch((error: unknown) => {
-            console.error("[markra-clipboard-images] failed to insert dropped image", error);
+            console.error("[markra-clipboard-images] failed to insert dropped attachment", error);
           });
           return true;
         }

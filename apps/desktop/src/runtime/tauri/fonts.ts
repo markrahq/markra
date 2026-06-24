@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AppSystemFontFamily } from "@markra/app/runtime";
 
+const fontFamilySorter = new Intl.Collator("en", { sensitivity: "base" });
+
 function normalizeSystemFontFamilyEntry(value: unknown): AppSystemFontFamily | null {
   if (typeof value === "string") {
     const family = value.trim();
@@ -35,7 +37,7 @@ export function normalizeNativeSystemFontFamilies(value: unknown) {
   }
 
   return Array.from(entries.values()).sort((first, second) =>
-    first.label.localeCompare(second.label) || first.family.localeCompare(second.family)
+    fontFamilySorter.compare(first.label, second.label) || fontFamilySorter.compare(first.family, second.family)
   );
 }
 

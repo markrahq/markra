@@ -56,25 +56,8 @@ fn is_ignored_tree_component(component: &std::ffi::OsStr) -> bool {
         .is_some_and(|name| matches!(name, ".git" | "node_modules" | "target" | "dist" | "build"))
 }
 
-fn is_markdown_tree_path(path: &Path) -> bool {
-    path.extension()
-        .and_then(|extension| extension.to_str())
-        .map(|extension| {
-            matches!(
-                extension.to_ascii_lowercase().as_str(),
-                "avif"
-                    | "bmp"
-                    | "gif"
-                    | "jpg"
-                    | "jpeg"
-                    | "md"
-                    | "markdown"
-                    | "png"
-                    | "svg"
-                    | "webp"
-            )
-        })
-        .unwrap_or(true)
+fn is_markdown_tree_path(_path: &Path) -> bool {
+    true
 }
 
 fn markdown_tree_event_path<'a>(event: &'a Event, root: &Path) -> Option<&'a Path> {

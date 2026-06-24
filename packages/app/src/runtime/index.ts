@@ -13,6 +13,7 @@ import type {
   CreateNativeMarkdownTreeFileOptions,
   BackupNativeMarkdownFolderInput,
   DownloadNativeWebImageInput,
+  ListNativeMarkdownFilesOptions,
   NativeMarkdownDroppedTarget,
   NativeMarkdownFile,
   NativeMarkdownFileChangeHandler,
@@ -29,13 +30,16 @@ import type {
   NativeSettingsFile,
   NativeMarkdownTreeChangeHandler,
   NativePandocExportFormat,
+  OpenNativeMarkdownAttachmentInput,
   ReadNativeMarkdownImageInput,
+  SavedNativeClipboardAttachment,
   SavedNativeClipboardImage,
   SavedNativeHtmlFile,
   SavedNativeMarkdownFile,
   SavedNativePandocFile,
   SavedNativePdfFile,
   SavedNativeSettingsFile,
+  SaveNativeClipboardAttachmentInput,
   SaveNativeClipboardImageInput,
   SaveNativeHtmlFileInput,
   SaveNativeMarkdownFileInput,
@@ -155,7 +159,10 @@ export type AppFileRuntime = {
     onPaths: (paths: string[]) => unknown | Promise<unknown>
   ) => Promise<RuntimeCleanup>;
   listMarkdownFileHistory: (path: string) => Promise<NativeMarkdownFileHistoryEntry[]>;
-  listMarkdownFilesForPath: (path: string) => Promise<NativeMarkdownFolderFile[]>;
+  listMarkdownFilesForPath: (
+    path: string,
+    options?: ListNativeMarkdownFilesOptions
+  ) => Promise<NativeMarkdownFolderFile[]>;
   moveMarkdownTreeFile: (
     rootPath: string,
     path: string,
@@ -163,6 +170,7 @@ export type AppFileRuntime = {
   ) => Promise<NativeMarkdownFolderFile>;
   openContainingFolder: (path: string) => Promise<unknown>;
   openLocalImages: (labels?: NativeMarkdownPickerLabels) => Promise<File[]>;
+  openMarkdownAttachment: (input: OpenNativeMarkdownAttachmentInput) => Promise<unknown>;
   openMarkdownFile: (labels?: NativeMarkdownPickerLabels) => Promise<NativeMarkdownFile | null>;
   openMarkdownFileInNewWindow: (path: string) => Promise<unknown>;
   openMarkdownFolder: (labels?: NativeMarkdownPickerLabels) => Promise<NativeMarkdownFolder | null>;
@@ -181,6 +189,7 @@ export type AppFileRuntime = {
   ) => Promise<NativeMarkdownFolderFile>;
   resolveMarkdownPath: (path: string) => Promise<NativeMarkdownDroppedTarget>;
   saveClipboardImage: (input: SaveNativeClipboardImageInput) => Promise<SavedNativeClipboardImage>;
+  saveClipboardAttachment: (input: SaveNativeClipboardAttachmentInput) => Promise<SavedNativeClipboardAttachment>;
   saveHtmlFile: (input: SaveNativeHtmlFileInput) => Promise<SavedNativeHtmlFile | null>;
   saveMarkdownFile: (input: SaveNativeMarkdownFileInput) => Promise<SavedNativeMarkdownFile | null>;
   savePandocFile: (input: SaveNativePandocFileInput) => Promise<SavedNativePandocFile | null>;
@@ -389,6 +398,7 @@ function createDefaultFileRuntime(): AppFileRuntime {
     moveMarkdownTreeFile: () => unsupportedFeature("moveMarkdownTreeFile"),
     openContainingFolder: () => unsupportedFeature("openContainingFolder"),
     openLocalImages: async () => [],
+    openMarkdownAttachment: () => unsupportedFeature("openMarkdownAttachment"),
     openMarkdownFile: async () => null,
     openMarkdownFileInNewWindow: () => unsupportedFeature("openMarkdownFileInNewWindow"),
     openMarkdownFolder: async () => null,
@@ -402,6 +412,7 @@ function createDefaultFileRuntime(): AppFileRuntime {
     readMarkdownTemplateFile: () => unsupportedFeature("readMarkdownTemplateFile"),
     renameMarkdownTreeFile: () => unsupportedFeature("renameMarkdownTreeFile"),
     resolveMarkdownPath: () => unsupportedFeature("resolveMarkdownPath"),
+    saveClipboardAttachment: () => unsupportedFeature("saveClipboardAttachment"),
     saveClipboardImage: () => unsupportedFeature("saveClipboardImage"),
     saveHtmlFile: async () => null,
     saveMarkdownFile: async () => null,
@@ -539,6 +550,7 @@ export type {
 export type {
   CreateNativeMarkdownTreeFileOptions,
   DownloadNativeWebImageInput,
+  ListNativeMarkdownFilesOptions,
   NativeMarkdownDroppedTarget,
   NativeMarkdownFile,
   NativeMarkdownFileChangeHandler,
@@ -552,13 +564,16 @@ export type {
   NativeSettingsFile,
   NativeMarkdownTreeChangeHandler,
   NativePandocExportFormat,
+  OpenNativeMarkdownAttachmentInput,
   ReadNativeMarkdownImageInput,
+  SavedNativeClipboardAttachment,
   SavedNativeClipboardImage,
   SavedNativeHtmlFile,
   SavedNativeMarkdownFile,
   SavedNativePandocFile,
   SavedNativePdfFile,
   SavedNativeSettingsFile,
+  SaveNativeClipboardAttachmentInput,
   SaveNativeClipboardImageInput,
   SaveNativeHtmlFileInput,
   SaveNativeMarkdownFileInput,

@@ -48,7 +48,7 @@ type WorkspaceSearchOptions = {
 const snippetMaxLength = 96;
 
 export function isWorkspaceSearchableFile(file: WorkspaceSearchFile) {
-  return file.kind !== "asset" && file.kind !== "folder";
+  return file.kind !== "asset" && file.kind !== "attachment" && file.kind !== "folder";
 }
 
 export async function searchWorkspaceFiles(

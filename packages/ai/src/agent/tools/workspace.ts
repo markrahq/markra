@@ -39,7 +39,7 @@ export function resolveWorkspaceFile(
 }
 
 export function isWorkspaceMarkdownFile(file: AgentWorkspaceFile) {
-  return file.kind !== "asset" && file.kind !== "folder" && (
+  return file.kind !== "asset" && file.kind !== "attachment" && file.kind !== "folder" && (
     markdownDocumentExtensionPattern.test(file.name) ||
     markdownDocumentExtensionPattern.test(file.relativePath)
   );

@@ -555,7 +555,43 @@ function linkOpenModifierIsPressed(event: MouseEvent) {
   return event.metaKey || event.ctrlKey;
 }
 
-export function markraExternalLinkClickPlugin(openExternalUrl: (url: string) => unknown) {
+type ExternalLinkClickPluginOptions = {
+  openExternalUrl?: (url: string) => unknown;
+  openLocalAttachment?: (src: string) => unknown;
+};
+
+const markdownDocumentHrefPattern = /\.(md|markdown)(?:[?#].*)?$/iu;
+const markdownImageHrefPattern = /\.(avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/iu;
+
+function isLocalAttachmentHref(href: string) {
+  const trimmed = href.trim();
+  if (!trimmed || trimmed.startsWith("#")) return false;
+
+  const normalized = trimmed.toLocaleLowerCase();
+  if (normalized.startsWith("file:")) {
+    return !markdownDocumentHrefPattern.test(trimmed) && !markdownImageHrefPattern.test(trimmed);
+  }
+
+  if (normalized.startsWith("data:") || normalized.startsWith("mailto:") || normalized.includes("://")) {
+    return false;
+  }
+
+  return !markdownDocumentHrefPattern.test(trimmed) && !markdownImageHrefPattern.test(trimmed);
+}
+
+function linkOpenerForHref(href: string, options: ExternalLinkClickPluginOptions) {
+  if (isLocalAttachmentHref(href) && options.openLocalAttachment) {
+    return () => options.openLocalAttachment?.(href);
+  }
+
+  if (options.openExternalUrl) {
+    return () => options.openExternalUrl?.(href);
+  }
+
+  return null;
+}
+
+export function markraExternalLinkClickPlugin(options: ExternalLinkClickPluginOptions) {
   return $prose(() => {
     return new Plugin({
       props: {
@@ -568,6 +604,8 @@ export function markraExternalLinkClickPlugin(openExternalUrl: (url: string) => 
               return false;
             }
 
+            if (!linkOpenerForHref(href, options)) return false;
+
             event.preventDefault();
             return true;
           },
@@ -579,10 +617,13 @@ export function markraExternalLinkClickPlugin(openExternalUrl: (url: string) => 
               return false;
             }
 
+            const openLink = linkOpenerForHref(href, options);
+            if (!openLink) return false;
+
             event.preventDefault();
 
             try {
-              Promise.resolve(openExternalUrl(href)).catch(() => {});
+              Promise.resolve(openLink()).catch(() => {});
             } catch {
               // Opening external links is best-effort; editing should not be interrupted by opener failures.
             }

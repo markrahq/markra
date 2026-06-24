@@ -155,6 +155,8 @@ const messages: LocaleMessages = {
   "settings.editor.imageUploadFileNamePatternDescription": "支持 {name}、{timestamp}、{random}、{md5}，图片扩展名会自动追加。",
   "settings.editor.clipboardImageFolder": "剪贴板图片文件夹",
   "settings.editor.clipboardImageFolderDescription": "粘贴图片时保存到当前 Markdown 文件旁边的这个文件夹。",
+  "settings.editor.copyExternalFilesToStorage": "复制粘贴文件到存储",
+  "settings.editor.copyExternalFilesToStorageDescription": "将粘贴或拖放的图片和文件复制到所选存储目标，而不是链接原始位置。",
   "settings.editor.webDavServerUrl": "WebDAV 服务器 URL",
   "settings.editor.webDavServerUrlDescription": "接收图片上传的 WebDAV 文件夹基础 URL。",
   "settings.editor.webDavUsername": "WebDAV 用户名",

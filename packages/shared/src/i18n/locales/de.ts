@@ -586,6 +586,8 @@ const messages: LocaleMessages = {
   "settings.sync.never": "Never",
   "settings.editor.clipboardImageFolder": "Ordner für Zwischenablagebilder",
   "settings.editor.clipboardImageFolderDescription": "Speichert eingefügte Bilder in diesem Ordner neben der aktuellen Markdown-Datei.",
+  "settings.editor.copyExternalFilesToStorage": "Eingefügte Dateien in Speicher kopieren",
+  "settings.editor.copyExternalFilesToStorageDescription": "Kopiert eingefügte oder abgelegte Bilder und Dateien in das gewählte Speicherziel, statt den Originalort zu verlinken.",
   "settings.editor.titlebarActions": "Symbolleisten-Schaltflächen",
   "settings.editor.titlebarActionsDescription": "Wählen Sie aus, welche Schaltflächen oben rechts erscheinen und in welcher Reihenfolge.",
   "settings.editor.titlebarActionsReset": "Symbolleisten-Schaltflächen zurücksetzen",

@@ -59,7 +59,7 @@ export function useWorkspaceSearch({
   useEffect(() => {
     const trimmedQuery = query.trim();
     const fileTreeSearchableFileCount = fileTreeFiles.filter((file) =>
-      file.kind !== "asset" && file.kind !== "folder"
+      file.kind !== "asset" && file.kind !== "attachment" && file.kind !== "folder"
     ).length;
 
     if (!open) {

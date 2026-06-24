@@ -56,6 +56,7 @@ export type SaveLocalEditorImageInput = {
   documentPath: string | null;
   image: File;
   preferences: EditorPreferences;
+  copyToStorage?: boolean;
   saveLocalImage?: SaveLocalImage;
 };
 
@@ -123,6 +124,16 @@ export async function saveEditorImage({
   uploadS3Image = uploadNativeS3Image,
   uploadWebDavImage = uploadNativeWebDavImage
 }: SaveEditorImageInput): Promise<SaveEditorImageResult> {
+  if (!preferences.copyExternalFilesToStorage) {
+    return saveLocalEditorImage({
+      copyToStorage: false,
+      documentPath,
+      image,
+      preferences,
+      saveLocalImage
+    });
+  }
+
   const provider = preferences.imageUpload.provider === "s3" && !s3ImageUploadEnabled
     ? "local"
     : preferences.imageUpload.provider;
@@ -196,11 +207,26 @@ export async function saveEditorImage({
 }
 
 export async function saveLocalEditorImage({
+  copyToStorage = true,
   documentPath,
   image,
   preferences,
   saveLocalImage = saveNativeClipboardImage
 }: SaveLocalEditorImageInput): Promise<SaveEditorImageResult> {
+  if (!copyToStorage) {
+    return {
+      image: await saveLocalImage({
+        copyToStorage: false,
+        documentPath,
+        fileName: await createImageUploadFileName(image, preferences.imageUpload.fileNamePattern),
+        folder: preferences.clipboardImageFolder,
+        image
+      }),
+      refreshTree: false,
+      status: "saved"
+    };
+  }
+
   if (!documentPath) {
     return {
       reason: "requires-saved-document",

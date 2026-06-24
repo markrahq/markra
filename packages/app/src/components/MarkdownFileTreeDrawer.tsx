@@ -1361,7 +1361,7 @@ export function MarkdownFileTreeDrawer({
   };
 
   const canOpenFileTreeContextTargetToSide = (targetFile: NativeMarkdownFolderFile) => (
-    targetFile.kind !== "asset" && !sameNativePath(targetFile.path, currentPath)
+    targetFile.kind !== "asset" && targetFile.kind !== "attachment" && !sameNativePath(targetFile.path, currentPath)
   );
 
   const openContextMenu = (

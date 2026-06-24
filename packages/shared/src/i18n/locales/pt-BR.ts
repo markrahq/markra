@@ -586,6 +586,8 @@ const messages: LocaleMessages = {
   "settings.sync.never": "Never",
   "settings.editor.clipboardImageFolder": "Pasta de imagens da área de transferência",
   "settings.editor.clipboardImageFolderDescription": "Salve imagens coladas nesta pasta ao lado do arquivo Markdown atual.",
+  "settings.editor.copyExternalFilesToStorage": "Copiar arquivos colados para o armazenamento",
+  "settings.editor.copyExternalFilesToStorageDescription": "Copia imagens e arquivos colados ou soltos para o armazenamento selecionado em vez de vincular o local original.",
   "settings.editor.titlebarActions": "Botões da barra de ferramentas",
   "settings.editor.titlebarActionsDescription": "Escolha quais botões aparecem no canto superior direito e em que ordem.",
   "settings.editor.titlebarActionsReset": "Redefinir botões da barra de ferramentas",

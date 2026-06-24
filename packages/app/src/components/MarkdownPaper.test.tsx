@@ -54,7 +54,9 @@ async function renderEditor(
     editorFontFamily?: EditorFontFamilyPreference;
     onMarkdownChange?: (content: string) => unknown;
     onSaveClipboardImage?: (image: File) => Promise<{ alt: string; src: string } | null>;
+    onSaveClipboardAttachment?: (attachment: File) => Promise<{ label: string; src: string } | null>;
     onSaveRemoteClipboardImage?: (image: RemoteClipboardImage) => Promise<{ alt: string; src: string } | null>;
+    openLocalAttachment?: (src: string) => unknown;
     openExternalUrl?: (url: string) => unknown;
     bottomOverlayInset?: number;
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
@@ -63,7 +65,7 @@ async function renderEditor(
     markdownShortcuts?: MarkdownShortcutMap;
     extendedSyntax?: ExtendedSyntaxPreferences;
     workspaceFiles?: Array<{
-      kind?: "asset" | "folder";
+      kind?: "asset" | "attachment" | "folder";
       name: string;
       path: string;
       relativePath: string;
@@ -89,8 +91,10 @@ async function renderEditor(
       extendedSyntax={options.extendedSyntax}
       markdownShortcuts={options.markdownShortcuts}
       onMarkdownChange={options.onMarkdownChange ?? (() => {})}
+      onSaveClipboardAttachment={options.onSaveClipboardAttachment}
       onSaveClipboardImage={options.onSaveClipboardImage}
       onSaveRemoteClipboardImage={options.onSaveRemoteClipboardImage}
+      openLocalAttachment={options.openLocalAttachment}
       openExternalUrl={options.openExternalUrl}
       readOnly={options.readOnly}
       onTextSelectionChange={options.onTextSelectionChange}
@@ -379,6 +383,21 @@ function pasteImage(view: EditorView, image: File) {
   Object.defineProperty(event, "clipboardData", {
     value: {
       files: [image],
+      getData: () => ""
+    }
+  });
+
+  return view.someProp("handlePaste", (handler) => handler(view, event, view.state.selection.content()));
+}
+
+function pasteFile(view: EditorView, file: File) {
+  const event = new Event("paste", {
+    bubbles: true,
+    cancelable: true
+  }) as ClipboardEvent;
+  Object.defineProperty(event, "clipboardData", {
+    value: {
+      files: [file],
       getData: () => ""
     }
   });
@@ -3000,6 +3019,34 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("![Screenshot](assets/pasted-image.png)");
     expect(serializeMarkdown(view.state.doc)).not.toContain("!\\[Screenshot\\]\\(assets/pasted-image.png\\)");
     await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("![Screenshot](assets/pasted-image.png)")));
+  });
+
+  it("saves pasted clipboard attachments and inserts markdown links", async () => {
+    const onMarkdownChange = vi.fn();
+    const onSaveClipboardAttachment = vi.fn().mockResolvedValue({
+      label: "Reference Doc.docx",
+      src: "assets/Reference%20Doc.docx"
+    });
+    const attachment = new File([new Uint8Array([4, 5, 6])], "Reference Doc.docx", {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    });
+    const { container, editor, view } = await renderEditor("", {
+      onMarkdownChange,
+      onSaveClipboardAttachment
+    });
+
+    expect(pasteFile(view, attachment)).toBe(true);
+
+    await waitFor(() => expect(onSaveClipboardAttachment).toHaveBeenCalledWith(attachment));
+    await waitFor(() => {
+      const insertedLink = container.querySelector<HTMLAnchorElement>('a[href="assets/Reference%20Doc.docx"]');
+      expect(insertedLink).toHaveTextContent("Reference Doc.docx");
+    });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("[Reference Doc.docx](assets/Reference%20Doc.docx)");
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(
+      expect.stringContaining("[Reference Doc.docx](assets/Reference%20Doc.docx)")
+    ));
   });
 
   it("transfers remote images from pasted web HTML through the image save pipeline", async () => {
@@ -8597,6 +8644,41 @@ describe("MarkdownPaper editing", () => {
     expect(editCase.container.querySelector(".ProseMirror")?.textContent).toBe("[Markra](https://example.com)");
     expectActiveSourceLinkLabel(editCase.container, "Markra");
     expect(editCase.container.querySelector(".ProseMirror .markra-live-link-mark-source-text")).not.toBeInTheDocument();
+  });
+
+  it("opens relative attachment links with the local attachment opener", async () => {
+    const openExternalUrl = vi.fn();
+    const openLocalAttachment = vi.fn();
+    const { container } = await renderEditor("[Reference Doc](assets/reference.docx)", {
+      openExternalUrl,
+      openLocalAttachment
+    });
+    const link = container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="assets/reference.docx"]');
+
+    expect(link).toBeInTheDocument();
+
+    expect(fireEvent.mouseDown(link!, { ctrlKey: true })).toBe(false);
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
+
+    expect(openLocalAttachment).toHaveBeenCalledWith("assets/reference.docx");
+    expect(openExternalUrl).not.toHaveBeenCalled();
+  });
+
+  it("opens absolute file attachment links with the local attachment opener", async () => {
+    const openExternalUrl = vi.fn();
+    const openLocalAttachment = vi.fn();
+    const { container } = await renderEditor("[Reference Doc](file:///C:/mock-files/reference.docx)", {
+      openExternalUrl,
+      openLocalAttachment
+    });
+    const link = container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="file:///C:/mock-files/reference.docx"]');
+
+    expect(link).toBeInTheDocument();
+
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
+
+    expect(openLocalAttachment).toHaveBeenCalledWith("file:///C:/mock-files/reference.docx");
+    expect(openExternalUrl).not.toHaveBeenCalled();
   });
 
   it("inserts a standard markdown document link from double-bracket completion", async () => {

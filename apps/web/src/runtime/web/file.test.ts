@@ -272,8 +272,23 @@ describe("web file runtime", () => {
       "assets": new FakeDirectoryHandle("assets", {
         "image.png": new FakeFileHandle("image.png", "png", "image/png")
       }),
+      "build": new FakeDirectoryHandle("build", {
+        "output.md": new FakeFileHandle("output.md", "# Build")
+      }),
+      "dist": new FakeDirectoryHandle("dist", {
+        "bundle.md": new FakeFileHandle("bundle.md", "# Dist")
+      }),
+      "downloads": new FakeDirectoryHandle("downloads", {
+        "export.docx": new FakeFileHandle("export.docx", "docx")
+      }),
       "notes": new FakeDirectoryHandle("notes", {
         "daily.md": new FakeFileHandle("daily.md", "# Daily")
+      }),
+      "node_modules": new FakeDirectoryHandle("node_modules", {
+        "ignored.md": new FakeFileHandle("ignored.md", "ignored")
+      }),
+      "target": new FakeDirectoryHandle("target", {
+        "cache.md": new FakeFileHandle("cache.md", "# Target")
       }),
       "todo.txt": new FakeFileHandle("todo.txt", "skip")
     });
@@ -291,14 +306,30 @@ describe("web file runtime", () => {
     expect(entries.map((entry) => ({ kind: entry.kind, relativePath: entry.relativePath }))).toEqual([
       { kind: "folder", relativePath: "assets" },
       { kind: "asset", relativePath: "assets/image.png" },
+      { kind: "folder", relativePath: "build" },
+      { kind: undefined, relativePath: "build/output.md" },
+      { kind: "folder", relativePath: "dist" },
+      { kind: undefined, relativePath: "dist/bundle.md" },
+      { kind: "folder", relativePath: "downloads" },
+      { kind: "attachment", relativePath: "downloads/export.docx" },
       { kind: "folder", relativePath: "notes" },
-      { kind: undefined, relativePath: "notes/daily.md" }
+      { kind: undefined, relativePath: "notes/daily.md" },
+      { kind: "folder", relativePath: "target" },
+      { kind: undefined, relativePath: "target/cache.md" },
+      { kind: "attachment", relativePath: "todo.txt" }
     ]);
 
-    await expect(runtime.files.readMarkdownFile(entries[3].path)).resolves.toMatchObject({
+    const dailyEntry = entries.find((entry) => entry.relativePath === "notes/daily.md");
+    expect(dailyEntry).toBeDefined();
+    await expect(runtime.files.readMarkdownFile(dailyEntry!.path)).resolves.toMatchObject({
       content: "# Daily",
       name: "daily.md"
     });
+    await expect(runtime.files.listMarkdownFilesForPath(folder!.path, {
+      managedAttachmentFolder: "assets"
+    })).resolves.toEqual(entries.filter((entry) =>
+      entry.kind !== "attachment" || entry.relativePath.startsWith("assets/")
+    ));
   });
 
   it("falls back to directory upload when the browser file system picker is unavailable", async () => {
@@ -321,7 +352,8 @@ describe("web file runtime", () => {
       { kind: "folder", relativePath: "assets" },
       { kind: "asset", relativePath: "assets/image.png" },
       { kind: "folder", relativePath: "notes" },
-      { kind: undefined, relativePath: "notes/daily.md" }
+      { kind: undefined, relativePath: "notes/daily.md" },
+      { kind: "attachment", relativePath: "todo.txt" }
     ]);
     await expect(runtime.files.readMarkdownFile(entries[3].path)).resolves.toMatchObject({
       content: "# Daily",

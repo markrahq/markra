@@ -586,6 +586,8 @@ const messages: LocaleMessages = {
   "settings.sync.never": "Never",
   "settings.editor.clipboardImageFolder": "クリップボード画像フォルダー",
   "settings.editor.clipboardImageFolderDescription": "貼り付けた画像を現在の Markdown ファイルの隣にあるこのフォルダーへ保存します。",
+  "settings.editor.copyExternalFilesToStorage": "貼り付けたファイルをストレージへコピー",
+  "settings.editor.copyExternalFilesToStorageDescription": "貼り付けまたはドロップした画像やファイルを、元の場所へリンクする代わりに選択中の保存先へコピーします。",
   "settings.editor.titlebarActions": "ツールバーボタン",
   "settings.editor.titlebarActionsDescription": "右上に表示するボタンと順序を選びます。",
   "settings.editor.titlebarActionsReset": "ツールバーボタンをリセット",

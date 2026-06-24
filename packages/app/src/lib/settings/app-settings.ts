@@ -347,6 +347,7 @@ export type EditorPreferences = {
   closeAiCommandOnAgentPanelOpen: boolean;
   contentWidth: EditorContentWidth;
   contentWidthPx: number | null;
+  copyExternalFilesToStorage: boolean;
   documentLinksOpen: boolean;
   documentLinksVisible: boolean;
   editorFontFamily: EditorFontFamilyPreference;
@@ -468,6 +469,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   closeAiCommandOnAgentPanelOpen: false,
   contentWidth: "default",
   contentWidthPx: null,
+  copyExternalFilesToStorage: true,
   documentLinksOpen: true,
   documentLinksVisible: false,
   editorFontFamily: { ...defaultEditorFontFamily },
@@ -1493,6 +1495,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       ? (preferences.contentWidth as EditorContentWidth)
       : defaultEditorPreferences.contentWidth,
     contentWidthPx: normalizeEditorContentWidthPx(preferences.contentWidthPx),
+    copyExternalFilesToStorage:
+      typeof preferences.copyExternalFilesToStorage === "boolean"
+        ? preferences.copyExternalFilesToStorage
+        : defaultEditorPreferences.copyExternalFilesToStorage,
     documentLinksOpen:
       typeof preferences.documentLinksOpen === "boolean"
         ? preferences.documentLinksOpen

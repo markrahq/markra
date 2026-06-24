@@ -175,10 +175,13 @@ import {
   confirmNativeUnsavedMarkdownDocumentDiscard,
   downloadNativeWebImage,
   openNativeContainingFolder,
+  openNativeMarkdownAttachment,
   openNativeLocalImages,
+  readNativeLocalImageFile,
   readNativeMarkdownImageFile,
   readNativeMarkdownFile,
   readNativeMarkdownTemplateFile,
+  saveNativeClipboardAttachment,
   saveNativeHtmlFile,
   saveNativeMarkdownFile,
   saveNativePandocFile,
@@ -296,6 +299,7 @@ function WorkspaceApp() {
   const [aiAgentSessionId, setAiAgentSessionId] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<AiDiffResult[]>([]);
   const [activeImageFile, setActiveImageFile] = useState<NativeMarkdownFolderFile | null>(null);
+  const [imagePreviewObjectUrl, setImagePreviewObjectUrl] = useState<string | null>(null);
   const [imageTabs, setImageTabs] = useState<ImageDocumentTab[]>([]);
   const [activeAiSelection, setActiveAiSelection] = useState<AiSelectionContext | null>(null);
   const [selectedWordCount, setSelectedWordCount] = useState<number | null>(null);
@@ -482,6 +486,7 @@ function WorkspaceApp() {
   }, []);
   useDefaultContextMenuBlocker();
   const fileTree = useMarkdownFileTree({
+    managedAttachmentFolder: editorPreferences.preferences.clipboardImageFolder,
     onWorkspaceSessionChange: setAiAgentSessionId
   });
   const {
@@ -804,11 +809,38 @@ function WorkspaceApp() {
     () => createMarkdownImageSrcResolver(document.path, { convertFileSrc: localFileUrlFromPath }),
     [document.path]
   );
-  const imagePreviewSrc = useMemo(() => {
+  const fallbackImagePreviewSrc = useMemo(() => {
     if (!activeImageFile) return "";
 
     return createMarkdownImageSrcResolver(activeImageFile.path)(activeImageFile.path);
   }, [activeImageFile]);
+  const imagePreviewSrc = imagePreviewObjectUrl ?? fallbackImagePreviewSrc;
+  useEffect(() => {
+    if (!activeImageFile) {
+      setImagePreviewObjectUrl(null);
+      return;
+    }
+
+    let disposed = false;
+    let objectUrl: string | null = null;
+    setImagePreviewObjectUrl(null);
+
+    readNativeLocalImageFile(activeImageFile.path)
+      .then((file) => {
+        if (disposed) return;
+
+        objectUrl = URL.createObjectURL(file);
+        setImagePreviewObjectUrl(objectUrl);
+      })
+      .catch(() => {
+        if (!disposed) setImagePreviewObjectUrl(null);
+      });
+
+    return () => {
+      disposed = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [activeImageFile?.path]);
   const titlebarTabs = useMemo<MarkdownTabsBarDocumentItem[]>(() => [
     ...documentTabs,
     ...imageTabs.map((tab) => ({
@@ -1698,6 +1730,13 @@ function WorkspaceApp() {
   const handleSaveRemoteClipboardImage = useCallback(async (image: RemoteClipboardImage) => {
     if (readOnlyMode) return null;
 
+    if (!editorPreferences.preferences.copyExternalFilesToStorage) {
+      return {
+        alt: image.alt || "image",
+        src: image.src
+      };
+    }
+
     const downloadedImage = await downloadNativeWebImage({ src: image.src }).catch(() => null);
     if (!downloadedImage) {
       showAppToast({
@@ -1708,7 +1747,66 @@ function WorkspaceApp() {
     }
 
     return handleSaveClipboardImage(downloadedImage);
-  }, [handleSaveClipboardImage, readOnlyMode, translate]);
+  }, [editorPreferences.preferences.copyExternalFilesToStorage, handleSaveClipboardImage, readOnlyMode, translate]);
+
+  const handleSaveClipboardAttachment = useCallback(async (
+    attachment: File,
+    targetDocumentPath: string | null | undefined = document.path
+  ) => {
+    if (readOnlyMode) return null;
+
+    const copyToStorage = editorPreferences.preferences.copyExternalFilesToStorage;
+    if (copyToStorage && !targetDocumentPath) {
+      showAppToast({
+        message: translate("app.clipboardImageRequiresSavedDocument"),
+        status: "error"
+      });
+      return null;
+    }
+
+    const savedAttachment = await saveNativeClipboardAttachment({
+      attachment,
+      copyToStorage,
+      documentPath: targetDocumentPath ?? null,
+      folder: editorPreferences.preferences.clipboardImageFolder
+    }).catch(() => null);
+    if (!savedAttachment) {
+      showAppToast({
+        message: translate("app.clipboardImageSaveFailed"),
+        status: "error"
+      });
+      return null;
+    }
+
+    if (copyToStorage && targetDocumentPath) {
+      await refreshMarkdownFileTree(targetDocumentPath).catch(() => {});
+    }
+
+    return savedAttachment;
+  }, [
+    document.path,
+    editorPreferences.preferences.copyExternalFilesToStorage,
+    editorPreferences.preferences.clipboardImageFolder,
+    readOnlyMode,
+    refreshMarkdownFileTree,
+    translate
+  ]);
+
+  const handleOpenLocalAttachment = useCallback(async (src: string, documentPath: string | null | undefined = document.path) => {
+    const rootPath = fileTree.sourcePath ?? documentPath ?? null;
+    if (!rootPath) return;
+
+    await openNativeMarkdownAttachment({
+      documentPath: documentPath ?? null,
+      rootPath,
+      src
+    }).catch(() => {
+      showAppToast({
+        message: translate("app.clipboardImageSaveFailed"),
+        status: "error"
+      });
+    });
+  }, [document.path, fileTree.sourcePath, translate]);
 
   useEffect(() => {
     setSplitVisualPanePercent(editorPreferences.preferences.splitVisualPanePercent);
@@ -2032,7 +2130,7 @@ function WorkspaceApp() {
     }
   }, [deleteMarkdownTreeFile, detachDeletedDocumentFile, translate]);
   const handleSaveMarkdownFileAsTemplate = useCallback(async (file: NativeMarkdownFolderFile) => {
-    if (file.kind === "asset" || file.kind === "folder") return;
+    if (file.kind === "asset" || file.kind === "attachment" || file.kind === "folder") return;
 
     try {
       const markdownFile = await readNativeMarkdownFile(file.path);
@@ -2087,9 +2185,14 @@ function WorkspaceApp() {
       return;
     }
 
+    if (file.kind === "attachment") {
+      await handleOpenLocalAttachment(file.relativePath, null);
+      return;
+    }
+
     setActiveImageFile(null);
     await openTreeMarkdownFile(file);
-  }, [captureActiveDocumentViewState, openImageTab, openTreeMarkdownFile]);
+  }, [captureActiveDocumentViewState, handleOpenLocalAttachment, openImageTab, openTreeMarkdownFile]);
   const handleQuickOpenOpen = useCallback(() => {
     hideGlobalSearch();
     hideDocumentSearch();
@@ -2140,6 +2243,11 @@ function WorkspaceApp() {
       return;
     }
 
+    if (file.kind === "attachment") {
+      await handleOpenLocalAttachment(file.relativePath, null);
+      return;
+    }
+
     if (!editorPreferences.preferences.showDocumentTabs || activeImageFile || !hasOpenDocument) {
       setActiveImageFile(null);
       await openTreeMarkdownFile(file);
@@ -2167,6 +2275,7 @@ function WorkspaceApp() {
     activeTabId,
     captureActiveDocumentViewState,
     handleAiCommandClose,
+    handleOpenLocalAttachment,
     hasOpenDocument,
     document.path,
     documentTabs,
@@ -3584,8 +3693,10 @@ function WorkspaceApp() {
               }}
               onContentWidthChange={handleEditorContentWidthChange}
               onContentWidthResizeEnd={handleEditorContentWidthResizeEnd}
+              onSaveClipboardAttachment={handleSaveClipboardAttachment}
               onSaveClipboardImage={handleSaveClipboardImage}
               onSaveRemoteClipboardImage={handleSaveRemoteClipboardImage}
+              openLocalAttachment={(src) => handleOpenLocalAttachment(src, tab.path)}
               openExternalUrl={handleOpenEditorLink}
               readOnly={readOnlyMode}
               onTextSelectionChange={tabActive ? handleTextSelectionChange : undefined}
@@ -4004,6 +4115,8 @@ function WorkspaceApp() {
                         lineHeight={editorPreferences.preferences.lineHeight}
                         markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
                         mode={sourceMode ? "source" : "visual"}
+                        onSaveClipboardAttachment={(attachment) => handleSaveClipboardAttachment(attachment, sideDocumentTab.path)}
+                        openLocalAttachment={(src) => handleOpenLocalAttachment(src, sideDocumentTab.path)}
                         openExternalUrl={handleOpenEditorLink}
                         readOnly={readOnlyMode}
                         resolveImageSrc={resolveSideDocumentImageSrc}

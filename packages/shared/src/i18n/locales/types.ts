@@ -184,6 +184,8 @@ export type I18nKey =
   | "settings.editor.imageUploadFileNamePatternDescription"
   | "settings.editor.clipboardImageFolder"
   | "settings.editor.clipboardImageFolderDescription"
+  | "settings.editor.copyExternalFilesToStorage"
+  | "settings.editor.copyExternalFilesToStorageDescription"
   | "settings.editor.webDavServerUrl"
   | "settings.editor.webDavServerUrlDescription"
   | "settings.editor.webDavUsername"

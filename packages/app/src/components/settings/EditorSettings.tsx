@@ -721,6 +721,22 @@ export function EditorSettings({
           onUpdatePreferences={onUpdatePreferences}
         />
         <SettingsRow
+          title={translate("settings.editor.copyExternalFilesToStorage")}
+          description={translate("settings.editor.copyExternalFilesToStorageDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.copyExternalFilesToStorage}
+              label={translate("settings.editor.copyExternalFilesToStorage")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  copyExternalFilesToStorage: !preferences.copyExternalFilesToStorage
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.editor.titlebarActions")}
           description={translate("settings.editor.titlebarActionsDescription")}
           action={

@@ -8,11 +8,14 @@ import type {
   NativeMarkdownImageFile,
   NativeMarkdownOpenTarget,
   NativeSettingsFile,
+  ListNativeMarkdownFilesOptions,
+  SavedNativeClipboardAttachment,
   SavedNativeClipboardImage,
   SavedNativeHtmlFile,
   SavedNativeMarkdownFile,
   SavedNativePdfFile,
   SavedNativeSettingsFile,
+  SaveNativeClipboardAttachmentInput,
   SaveNativeClipboardImageInput,
   SaveNativeHtmlFileInput,
   SaveNativeMarkdownFileInput,
@@ -64,7 +67,7 @@ const jsonFileType = "application/json;charset=utf-8";
 const markdownExtensions = new Set(["md", "markdown"]);
 const markdownOpenExtensions = new Set(["md", "markdown", "txt"]);
 const assetExtensions = new Set(["avif", "bmp", "gif", "jpg", "jpeg", "png", "svg", "webp"]);
-const skippedDirectoryNames = new Set([".git", "node_modules", "target", "dist", "build"]);
+const skippedDirectoryNames = new Set([".git", "node_modules"]);
 const fileHandleStorePath = "web-file-handles.json";
 const directoryHandleStorePath = "web-directory-handles.json";
 const settingsFilePickerTypes = [{
@@ -93,7 +96,33 @@ function isAssetFileName(name: string) {
 }
 
 function folderFileKindFromName(name: string) {
-  return isAssetFileName(name) ? { kind: "asset" as const } : {};
+  if (isAssetFileName(name)) return { kind: "asset" as const };
+  if (isMarkdownFileName(name)) return {};
+
+  return { kind: "attachment" as const };
+}
+
+function normalizeManagedAttachmentFolder(folder: string | null | undefined) {
+  const normalized = folder?.trim().replace(/\\/gu, "/").replace(/\/+/gu, "/") ?? "";
+  if (!normalized || normalized === ".") return null;
+
+  const parts = normalized
+    .split("/")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0 && part !== ".");
+
+  return parts.length ? parts.join("/") : null;
+}
+
+function relativePathIsBelowFolder(path: string, folder: string | null) {
+  if (folder === null) return true;
+
+  const normalizedPath = path.trim().replace(/\\/gu, "/").replace(/\/+/gu, "/").replace(/^\.\/+/u, "");
+  return normalizedPath === folder || normalizedPath.startsWith(`${folder}/`);
+}
+
+function shouldIncludeFolderFile(file: NativeMarkdownFolderFile, managedAttachmentFolder: string | null) {
+  return file.kind !== "attachment" || relativePathIsBelowFolder(file.relativePath, managedAttachmentFolder);
 }
 
 function encodePathSegments(path: string) {
@@ -102,6 +131,14 @@ function encodePathSegments(path: string) {
 
 function decodePathSegments(path: string) {
   return path.split("/").filter(Boolean).map(decodeURIComponent).join("/");
+}
+
+function decodeMarkdownLocalPath(path: string) {
+  try {
+    return decodeURI(path);
+  } catch {
+    return path;
+  }
 }
 
 function joinRelativePath(parent: string, name: string) {
@@ -720,7 +757,8 @@ export function createWebFileRuntime(
     id: string,
     directory: WebDirectoryHandle,
     parentRelativePath: string,
-    entries: NativeMarkdownFolderFile[]
+    entries: NativeMarkdownFolderFile[],
+    managedAttachmentFolder: string | null
   ) {
     const iterator = directory.entries?.() ?? fallbackDirectoryEntries(directory);
     if (!iterator) throw new Error("Browser directory handle cannot list files.");
@@ -735,19 +773,18 @@ export function createWebFileRuntime(
             path: createFolderPath(id, relativePath),
             relativePath
           });
-          await collectMarkdownEntries(id, handle, relativePath, entries);
+          await collectMarkdownEntries(id, handle, relativePath, entries, managedAttachmentFolder);
         }
         continue;
       }
 
-      if (isMarkdownFileName(name) || isAssetFileName(name)) {
-        entries.push({
-          ...(isAssetFileName(name) ? { kind: "asset" as const } : {}),
-          name,
-          path: createFolderPath(id, relativePath),
-          relativePath
-        });
-      }
+      const file = {
+        ...folderFileKindFromName(name),
+        name,
+        path: createFolderPath(id, relativePath),
+        relativePath
+      };
+      if (shouldIncludeFolderFile(file, managedAttachmentFolder)) entries.push(file);
     }
   }
 
@@ -951,14 +988,15 @@ export function createWebFileRuntime(
     },
     listenOpenedMarkdownPaths: async () => () => undefined,
     listMarkdownFileHistory: async () => [],
-    async listMarkdownFilesForPath(path) {
+    async listMarkdownFilesForPath(path, options: ListNativeMarkdownFilesOptions = {}) {
       const parsedPath = parseWebHandlePath(path);
       if (parsedPath?.kind !== "folder") return [];
       const root = await directoryHandleForId(parsedPath.id);
       if (!root) throw new Error("Web folder handle is no longer available.");
       const entries: NativeMarkdownFolderFile[] = [];
+      const managedAttachmentFolder = normalizeManagedAttachmentFolder(options.managedAttachmentFolder);
 
-      await collectMarkdownEntries(parsedPath.id, root, "", entries);
+      await collectMarkdownEntries(parsedPath.id, root, "", entries, managedAttachmentFolder);
 
       return entries.sort((left, right) => left.relativePath.toLowerCase().localeCompare(right.relativePath.toLowerCase()));
     },
@@ -1006,6 +1044,21 @@ export function createWebFileRuntime(
       throw new Error("Opening containing folders requires the desktop runtime.");
     },
     openLocalImages: async () => [],
+    async openMarkdownAttachment(input) {
+      const parsedDocumentPath = input.documentPath ? parseWebHandlePath(input.documentPath) : null;
+      if (parsedDocumentPath?.kind !== "folder" || !parsedDocumentPath.relativePath) {
+        throw new Error("Current document is not a web folder file.");
+      }
+
+      const documentSegments = parsedDocumentPath.relativePath.split("/").filter(Boolean);
+      documentSegments.pop();
+      const localSrc = decodeMarkdownLocalPath(input.src.split(/[?#]/u)[0] ?? "");
+      const attachmentPath = normalizeWebRelativePath(joinRelativePath(documentSegments.join("/"), localSrc));
+      const handle = await resolveFileFromFolderPath(parsedDocumentPath.id, attachmentPath);
+      const file = await handle.getFile();
+      const url = URL.createObjectURL(file);
+      window.open(url, "_blank", "noopener,noreferrer");
+    },
     async openMarkdownFolder() {
       if (showDirectoryPicker) {
         const handle = await showDirectoryPicker();
@@ -1139,7 +1192,14 @@ export function createWebFileRuntime(
       throw new Error("Path is not a web file system handle.");
     },
     async saveClipboardImage(input: SaveNativeClipboardImageInput): Promise<SavedNativeClipboardImage> {
-      const parsedDocumentPath = parseWebHandlePath(input.documentPath);
+      if (input.copyToStorage === false) {
+        return {
+          alt: imageAltFromFileName(input.image.name),
+          src: URL.createObjectURL(input.image)
+        };
+      }
+
+      const parsedDocumentPath = parseWebHandlePath(input.documentPath ?? "");
       if (parsedDocumentPath?.kind !== "folder" || !parsedDocumentPath.relativePath) {
         const url = URL.createObjectURL(input.image);
 
@@ -1163,6 +1223,41 @@ export function createWebFileRuntime(
 
       return {
         alt: imageAltFromFileName(input.image.name),
+        src: encodeMarkdownRelativePath(joinRelativePath(folder, fileName))
+      };
+    },
+    async saveClipboardAttachment(input: SaveNativeClipboardAttachmentInput): Promise<SavedNativeClipboardAttachment> {
+      if (input.copyToStorage === false) {
+        return {
+          label: input.attachment.name.trim() || "attachment",
+          src: URL.createObjectURL(input.attachment)
+        };
+      }
+
+      const parsedDocumentPath = parseWebHandlePath(input.documentPath ?? "");
+      if (parsedDocumentPath?.kind !== "folder" || !parsedDocumentPath.relativePath) {
+        const url = URL.createObjectURL(input.attachment);
+
+        return {
+          label: input.attachment.name.trim() || "attachment",
+          src: url
+        };
+      }
+
+      const root = await directoryHandleForId(parsedDocumentPath.id);
+      if (!root) throw new Error("Web folder handle is no longer available.");
+
+      const documentSegments = parsedDocumentPath.relativePath.split("/").filter(Boolean);
+      documentSegments.pop();
+      const documentDirectory = await resolveDirectory(root, documentSegments.join("/"));
+      const folder = normalizeClipboardImageFolder(input.folder);
+      const targetDirectory = await ensureDirectory(documentDirectory, folder);
+      const fileName = await uniqueFileName(targetDirectory, input.attachment.name.trim() || "attachment");
+
+      await copyFileHandle(createUploadedFileHandle(input.attachment), targetDirectory, fileName);
+
+      return {
+        label: input.attachment.name.trim() || fileName,
         src: encodeMarkdownRelativePath(joinRelativePath(folder, fileName))
       };
     },

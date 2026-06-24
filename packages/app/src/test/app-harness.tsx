@@ -249,6 +249,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     autoUpdateEnabled: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
+    copyExternalFilesToStorage: true,
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     contentWidthPx: null,
@@ -517,6 +518,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     autoUpdateEnabled: true,
     bodyFontSize: 16,
     clipboardImageFolder: "assets",
+    copyExternalFilesToStorage: true,
     closeAiCommandOnAgentPanelOpen: false,
     contentWidth: "default",
     contentWidthPx: null,
@@ -971,6 +973,7 @@ export function installAppTestHarness() {
     mockedOpenNativeMarkdownPath.mockReset();
     mockedListenNativeOpenedMarkdownPaths.mockReset();
     mockedListNativeMarkdownFileHistory.mockReset();
+    mockedReadNativeLocalImageFile.mockReset();
     mockedReadNativeMarkdownImageFile.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
     mockedReadNativeMarkdownFileHistory.mockReset();
@@ -1229,6 +1232,7 @@ export function installAppTestHarness() {
       autoUpdateEnabled: true,
       bodyFontSize: 16,
       clipboardImageFolder: "assets",
+      copyExternalFilesToStorage: true,
       closeAiCommandOnAgentPanelOpen: false,
       contentWidth: "default",
       contentWidthPx: null,

@@ -55,6 +55,7 @@ import {
   serializeLinkImageLiveMarkdown,
   updateSpellcheckOptions,
   type MarkdownShortcutMap,
+  type SaveClipboardAttachment,
   type SaveClipboardImage,
   type SaveRemoteClipboardImage,
   type SpellcheckMatch,
@@ -83,8 +84,10 @@ export type MarkdownPaperSurfaceProps = {
   onEditorReady: (editor: Editor | null, options?: { autoFocus?: boolean }) => unknown;
   onActiveOutlineIndexChange?: (index: number | null) => unknown;
   onMarkdownChange: (content: string) => unknown;
+  onSaveClipboardAttachment?: SaveClipboardAttachment;
   onSaveClipboardImage?: SaveClipboardImage;
   onSaveRemoteClipboardImage?: SaveRemoteClipboardImage;
+  openLocalAttachment?: (src: string) => unknown;
   openExternalUrl?: (url: string) => unknown;
   readOnly?: boolean;
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
@@ -207,8 +210,10 @@ function MilkdownEditorSurface({
   onEditorReady,
   onActiveOutlineIndexChange,
   onMarkdownChange,
+  onSaveClipboardAttachment,
   onSaveClipboardImage,
   onSaveRemoteClipboardImage,
+  openLocalAttachment,
   openExternalUrl,
   readOnly = false,
   onTextSelectionChange,
@@ -224,6 +229,8 @@ function MilkdownEditorSurface({
   const onMarkdownChangeRef = useRef(onMarkdownChange);
   const onActiveOutlineIndexChangeRef = useRef(onActiveOutlineIndexChange);
   const openExternalUrlRef = useRef(openExternalUrl);
+  const openLocalAttachmentRef = useRef(openLocalAttachment);
+  const onSaveClipboardAttachmentRef = useRef(onSaveClipboardAttachment);
   const onSaveClipboardImageRef = useRef(onSaveClipboardImage);
   const onSaveRemoteClipboardImageRef = useRef(onSaveRemoteClipboardImage);
   const onTextSelectionChangeRef = useRef(onTextSelectionChange);
@@ -235,7 +242,7 @@ function MilkdownEditorSurface({
   const onAddSpellcheckIgnoredWordRef = useRef(onAddSpellcheckIgnoredWord);
   const workspaceFilesRef = useRef(workspaceFiles ?? []);
   const [spellcheckMenu, setSpellcheckMenu] = useState<SpellcheckSuggestionMenuState | null>(null);
-  const externalLinkOpeningEnabled = Boolean(openExternalUrl);
+  const externalLinkOpeningEnabled = Boolean(openExternalUrl || openLocalAttachment);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
   const githubAlertsEnabled = extendedSyntax?.githubAlerts ?? true;
   const highlightSyntaxEnabled = extendedSyntax?.highlight ?? true;
@@ -295,6 +302,10 @@ function MilkdownEditorSurface({
   }, [onSaveClipboardImage]);
 
   useEffect(() => {
+    onSaveClipboardAttachmentRef.current = onSaveClipboardAttachment;
+  }, [onSaveClipboardAttachment]);
+
+  useEffect(() => {
     documentPathRef.current = documentPath;
   }, [documentPath]);
 
@@ -309,6 +320,10 @@ function MilkdownEditorSurface({
   useEffect(() => {
     openExternalUrlRef.current = openExternalUrl;
   }, [openExternalUrl]);
+
+  useEffect(() => {
+    openLocalAttachmentRef.current = openLocalAttachment;
+  }, [openLocalAttachment]);
 
   useEffect(() => {
     onSaveRemoteClipboardImageRef.current = onSaveRemoteClipboardImage;
@@ -508,18 +523,24 @@ function MilkdownEditorSurface({
 
       if (externalLinkOpeningEnabled) {
         editor.use(
-          markraExternalLinkClickPlugin((url) => {
-            return openExternalUrlRef.current?.(url);
+          markraExternalLinkClickPlugin({
+            openExternalUrl: (url) => {
+              return openExternalUrlRef.current?.(url);
+            },
+            openLocalAttachment: (src) => {
+              return openLocalAttachmentRef.current?.(src);
+            }
           })
         );
       }
 
-      if (onSaveClipboardImageRef.current || onSaveRemoteClipboardImageRef.current) {
+      if (onSaveClipboardImageRef.current || onSaveClipboardAttachmentRef.current || onSaveRemoteClipboardImageRef.current) {
         editor.use(
           markraClipboardImagePluginWithOptions(
             (image) => onSaveClipboardImageRef.current?.(image) ?? Promise.resolve(null),
             {
               documentPath: () => documentPathRef.current,
+              saveAttachment: (attachment) => onSaveClipboardAttachmentRef.current?.(attachment) ?? Promise.resolve(null),
               saveRemoteImage: (image) => onSaveRemoteClipboardImageRef.current?.(image) ?? Promise.resolve(null)
             }
           )

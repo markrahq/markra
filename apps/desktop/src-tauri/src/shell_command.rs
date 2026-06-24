@@ -505,7 +505,11 @@ mod tests {
 
         assert!(script.contains(MANAGED_MARKER));
         assert!(script.contains("target: /mock-app/Markra.app/Contents/MacOS/markra"));
-        assert!(script.contains("exec '/mock-app/Markra.app/Contents/MacOS/markra' \"$@\""));
+        if cfg!(windows) {
+            assert!(script.contains("\"/mock-app/Markra.app/Contents/MacOS/markra\" %*"));
+        } else {
+            assert!(script.contains("exec '/mock-app/Markra.app/Contents/MacOS/markra' \"$@\""));
+        }
     }
 
     #[test]

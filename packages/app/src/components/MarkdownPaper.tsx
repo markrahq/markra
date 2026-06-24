@@ -44,9 +44,11 @@ type MarkdownPaperProps = {
   onContentWidthResizeEnd?: () => unknown;
   onContentWidthResizeStart?: () => unknown;
   onScroll?: (event: UIEvent<HTMLElement>) => unknown;
+  onSaveClipboardAttachment?: MarkdownPaperSurfaceProps["onSaveClipboardAttachment"];
   onSaveClipboardImage?: MarkdownPaperSurfaceProps["onSaveClipboardImage"];
   onSaveRemoteClipboardImage?: MarkdownPaperSurfaceProps["onSaveRemoteClipboardImage"];
   onAddSpellcheckIgnoredWord?: MarkdownPaperSurfaceProps["onAddSpellcheckIgnoredWord"];
+  openLocalAttachment?: MarkdownPaperSurfaceProps["openLocalAttachment"];
   openExternalUrl?: MarkdownPaperSurfaceProps["openExternalUrl"];
   readOnly?: MarkdownPaperSurfaceProps["readOnly"];
   onTextSelectionChange?: MarkdownPaperSurfaceProps["onTextSelectionChange"];
@@ -106,9 +108,11 @@ export function MarkdownPaper({
   onContentWidthResizeEnd,
   onContentWidthResizeStart,
   onScroll,
+  onSaveClipboardAttachment,
   onSaveClipboardImage,
   onSaveRemoteClipboardImage,
   onAddSpellcheckIgnoredWord,
+  openLocalAttachment,
   openExternalUrl,
   readOnly = false,
   onTextSelectionChange,
@@ -175,9 +179,11 @@ export function MarkdownPaper({
             onActiveOutlineIndexChange={onActiveOutlineIndexChange}
             onEditorReady={onEditorReady}
             onMarkdownChange={onMarkdownChange}
+            onSaveClipboardAttachment={onSaveClipboardAttachment}
             onSaveClipboardImage={onSaveClipboardImage}
             onSaveRemoteClipboardImage={onSaveRemoteClipboardImage}
             onAddSpellcheckIgnoredWord={onAddSpellcheckIgnoredWord}
+            openLocalAttachment={openLocalAttachment}
             openExternalUrl={openExternalUrl}
             readOnly={readOnly}
             onTextSelectionChange={onTextSelectionChange}

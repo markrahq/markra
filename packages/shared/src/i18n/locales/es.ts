@@ -586,6 +586,8 @@ const messages: LocaleMessages = {
   "settings.sync.never": "Never",
   "settings.editor.clipboardImageFolder": "Carpeta de imágenes del portapapeles",
   "settings.editor.clipboardImageFolderDescription": "Guarda las imágenes pegadas en esta carpeta junto al archivo Markdown actual.",
+  "settings.editor.copyExternalFilesToStorage": "Copiar archivos pegados al almacenamiento",
+  "settings.editor.copyExternalFilesToStorageDescription": "Copia imágenes y archivos pegados o soltados al almacenamiento seleccionado en lugar de enlazar su ubicación original.",
   "settings.editor.titlebarActions": "Botones de la barra de herramientas",
   "settings.editor.titlebarActionsDescription": "Elige qué botones aparecen arriba a la derecha y en qué orden.",
   "settings.editor.titlebarActionsReset": "Restablecer botones de la barra de herramientas",

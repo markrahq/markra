@@ -33,11 +33,15 @@ export type NativeMarkdownFileHistoryFile = {
 
 export type NativeMarkdownFolderFile = {
   createdAt?: number;
-  kind?: "asset" | "folder";
+  kind?: "asset" | "attachment" | "folder";
   modifiedAt?: number;
   path: string;
   name: string;
   relativePath: string;
+};
+
+export type ListNativeMarkdownFilesOptions = {
+  managedAttachmentFolder?: string | null;
 };
 
 export type NativeMarkdownFolder = {
@@ -144,10 +148,24 @@ export type SavedNativePandocFile = {
 };
 
 export type SaveNativeClipboardImageInput = {
-  documentPath: string;
+  copyToStorage?: boolean;
+  documentPath: string | null;
   fileName: string;
   folder: string;
   image: File;
+};
+
+export type SaveNativeClipboardAttachmentInput = {
+  attachment: File;
+  copyToStorage?: boolean;
+  documentPath: string | null;
+  folder: string;
+};
+
+export type OpenNativeMarkdownAttachmentInput = {
+  documentPath?: string | null;
+  rootPath: string | null;
+  src: string;
 };
 
 export type DownloadNativeWebImageInput = {
@@ -208,6 +226,11 @@ export type NativeMarkdownPickerLabels = {
 
 export type SavedNativeClipboardImage = {
   alt: string;
+  src: string;
+};
+
+export type SavedNativeClipboardAttachment = {
+  label: string;
   src: string;
 };
 
@@ -276,8 +299,8 @@ export function readNativeLocalImageFile(path: string) {
   return getAppRuntime().files.readLocalImageFile(path);
 }
 
-export function listNativeMarkdownFilesForPath(path: string) {
-  return getAppRuntime().files.listMarkdownFilesForPath(path);
+export function listNativeMarkdownFilesForPath(path: string, options: ListNativeMarkdownFilesOptions = {}) {
+  return getAppRuntime().files.listMarkdownFilesForPath(path, options);
 }
 
 export function createNativeMarkdownTreeFile(
@@ -306,6 +329,10 @@ export function deleteNativeMarkdownTreeFile(rootPath: string, path: string) {
 
 export function openNativeContainingFolder(path: string) {
   return getAppRuntime().files.openContainingFolder(path);
+}
+
+export function openNativeMarkdownAttachment(input: OpenNativeMarkdownAttachmentInput) {
+  return getAppRuntime().files.openMarkdownAttachment(input);
 }
 
 export function confirmNativeMarkdownFileDelete(
@@ -380,6 +407,10 @@ export function detectNativePandocPath() {
 
 export function saveNativeClipboardImage(input: SaveNativeClipboardImageInput) {
   return getAppRuntime().files.saveClipboardImage(input);
+}
+
+export function saveNativeClipboardAttachment(input: SaveNativeClipboardAttachmentInput) {
+  return getAppRuntime().files.saveClipboardAttachment(input);
 }
 
 export function downloadNativeWebImage(input: DownloadNativeWebImageInput) {

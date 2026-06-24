@@ -34,6 +34,10 @@ pub(super) fn is_markdown_tree_asset_file(path: &Path) -> bool {
         })
 }
 
+pub(super) fn is_markdown_tree_attachment_file(path: &Path) -> bool {
+    !is_markdown_tree_file(path) && !is_markdown_tree_asset_file(path)
+}
+
 pub(super) fn markdown_tree_file_kind(path: &Path) -> Result<MarkdownFolderEntryKind, String> {
     if is_markdown_tree_file(path) {
         return Ok(MarkdownFolderEntryKind::File);
@@ -43,7 +47,7 @@ pub(super) fn markdown_tree_file_kind(path: &Path) -> Result<MarkdownFolderEntry
         return Ok(MarkdownFolderEntryKind::Asset);
     }
 
-    Err("File must be Markdown or a supported image asset".to_string())
+    Ok(MarkdownFolderEntryKind::Attachment)
 }
 
 pub(super) fn is_markdown_open_file(path: &Path) -> bool {
@@ -93,7 +97,7 @@ pub(crate) fn markdown_open_path_for_path(path: &Path) -> Result<MarkdownOpenPat
 pub(super) fn should_skip_markdown_tree_directory(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| matches!(name, ".git" | "node_modules" | "target" | "dist" | "build"))
+        .is_some_and(|name| matches!(name, ".git" | "node_modules"))
 }
 
 pub(super) fn markdown_tree_relative_path(root: &Path, path: &Path) -> Result<String, String> {

@@ -586,6 +586,8 @@ const messages: LocaleMessages = {
   "settings.sync.never": "尚未同步",
   "settings.editor.clipboardImageFolder": "剪貼簿圖片資料夾",
   "settings.editor.clipboardImageFolderDescription": "貼上圖片時，儲存到目前 Markdown 檔案旁邊的這個資料夾。",
+  "settings.editor.copyExternalFilesToStorage": "複製貼上檔案到儲存空間",
+  "settings.editor.copyExternalFilesToStorageDescription": "將貼上或拖放的圖片與檔案複製到所選儲存目標，而不是連結原始位置。",
   "settings.editor.titlebarActions": "工具列按鈕",
   "settings.editor.titlebarActionsDescription": "選擇右上角顯示的按鈕與排列順序。",
   "settings.editor.titlebarActionsReset": "重置工具列按鈕",

@@ -56,6 +56,7 @@ impl PandocExportFormat {
 #[serde(rename_all = "camelCase")]
 pub(crate) enum MarkdownFolderEntryKind {
     Asset,
+    Attachment,
     File,
     Folder,
 }
@@ -75,6 +76,12 @@ pub(crate) struct MarkdownFolderFile {
 #[derive(Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct ClipboardImageFile {
+    pub(crate) relative_path: String,
+}
+
+#[derive(Debug, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ClipboardAttachmentFile {
     pub(crate) relative_path: String,
 }
 

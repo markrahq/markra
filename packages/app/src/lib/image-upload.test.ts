@@ -69,6 +69,48 @@ describe("save editor image", () => {
     expect(uploadWebDavImage).not.toHaveBeenCalled();
   });
 
+  it("uses the original local image link when external file copying is disabled", async () => {
+    const image = new File([new Uint8Array([1, 2, 3])], "Screenshot.png", { type: "image/png" });
+    const saveLocalImage = vi.fn().mockResolvedValue({
+      alt: "Screenshot",
+      src: "file:///C:/mock-files/Screenshot.png"
+    });
+    const uploadWebDavImage = vi.fn();
+
+    await expect(
+      saveEditorImage({
+        documentPath: null,
+        image,
+        preferences: {
+          ...defaultEditorPreferences,
+          copyExternalFilesToStorage: false,
+          imageUpload: {
+            ...defaultEditorPreferences.imageUpload,
+            provider: "webdav"
+          }
+        },
+        saveLocalImage,
+        uploadWebDavImage
+      })
+    ).resolves.toEqual({
+      image: {
+        alt: "Screenshot",
+        src: "file:///C:/mock-files/Screenshot.png"
+      },
+      refreshTree: false,
+      status: "saved"
+    });
+
+    expect(saveLocalImage).toHaveBeenCalledWith({
+      copyToStorage: false,
+      documentPath: null,
+      fileName: expect.stringMatching(/^pasted-image-\d+\.png$/u),
+      folder: "assets",
+      image
+    });
+    expect(uploadWebDavImage).not.toHaveBeenCalled();
+  });
+
   it("imports local images into the configured local image folder even when remote uploads are enabled", async () => {
     const image = new File([new Uint8Array([1, 2, 3])], "Local Diagram.png", { type: "image/png" });
     const saveLocalImage = vi.fn().mockResolvedValue({

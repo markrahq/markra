@@ -82,7 +82,7 @@ export function quickOpenFiles(
 }
 
 function isQuickOpenFile(file: NativeMarkdownFolderFile) {
-  return file.kind !== "asset" && file.kind !== "folder";
+  return file.kind !== "asset" && file.kind !== "attachment" && file.kind !== "folder";
 }
 
 function normalizeDisplayPath(path: string) {

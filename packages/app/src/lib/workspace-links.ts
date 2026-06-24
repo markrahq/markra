@@ -9,7 +9,7 @@ import { resolveMarkdownDocumentLinkFile } from "./document-links";
 
 export type WorkspaceLinkFile = {
   createdAt?: number;
-  kind?: "asset" | "folder";
+  kind?: "asset" | "attachment" | "folder";
   modifiedAt?: number;
   name: string;
   path: string;
@@ -82,7 +82,7 @@ function markdownFileTitle(file: WorkspaceLinkFile) {
 }
 
 function isWorkspaceMarkdownLinkFile(file: WorkspaceLinkFile) {
-  return file.kind !== "asset" && file.kind !== "folder" && markdownDocumentExtensionPattern.test(file.name);
+  return file.kind !== "asset" && file.kind !== "attachment" && file.kind !== "folder" && markdownDocumentExtensionPattern.test(file.name);
 }
 
 function uniqueValues(values: readonly string[]) {

@@ -284,6 +284,7 @@ export function createMarkdownFileTreeContextMenuEntries(
   const label = (key: I18nKey) => menuLabel(language, key);
   const fileIsFolder = file?.kind === "folder";
   const fileIsAsset = file?.kind === "asset";
+  const fileIsAttachment = file?.kind === "attachment";
   const multiSelect = Boolean(handlers.multiSelect);
   const templateItems = handlers.createFileFromTemplates?.map((template) =>
     contextMenuItem(fileTreeId(`new-from-template:${template.id}`), template.name, undefined, template.create)
@@ -319,7 +320,7 @@ export function createMarkdownFileTreeContextMenuEntries(
   }
 
   entries.push(contextMenuSeparator());
-  if (!fileIsAsset && handlers.openFileToSide) {
+  if (!fileIsAsset && !fileIsAttachment && handlers.openFileToSide) {
     const canOpenFileToSide = handlers.canOpenFileToSide?.(file) ?? true;
     const openFileToSideEnabled = canOpenFileToSide && !multiSelect;
     entries.push(
@@ -332,7 +333,7 @@ export function createMarkdownFileTreeContextMenuEntries(
       )
     );
   }
-  if (!fileIsAsset && handlers.saveFileAsTemplate) {
+  if (!fileIsAsset && !fileIsAttachment && handlers.saveFileAsTemplate) {
     entries.push(
       contextMenuItem(
         fileTreeId("save-as-template"),

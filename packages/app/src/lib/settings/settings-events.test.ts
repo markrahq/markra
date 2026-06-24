@@ -159,6 +159,7 @@ describe("settings events", () => {
       autoUpdateEnabled: true,
       bodyFontSize: 18,
       clipboardImageFolder: "images",
+      copyExternalFilesToStorage: true,
       closeAiCommandOnAgentPanelOpen: true,
       contentWidth: "wide" as const,
       contentWidthPx: 1120,

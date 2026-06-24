@@ -42,7 +42,7 @@ type TextFileResponse = {
 
 type MarkdownFolderFileResponse = {
   createdAt?: number;
-  kind?: "asset" | "file" | "folder";
+  kind?: "asset" | "attachment" | "file" | "folder";
   modifiedAt?: number;
   path: string;
   relativePath: string;
@@ -92,7 +92,7 @@ export type NativeMarkdownFileHistoryFile = {
 
 export type NativeMarkdownFolderFile = {
   createdAt?: number;
-  kind?: "asset" | "folder";
+  kind?: "asset" | "attachment" | "folder";
   modifiedAt?: number;
   path: string;
   name: string;
@@ -203,10 +203,24 @@ export type SavedNativePandocFile = {
 };
 
 export type SaveNativeClipboardImageInput = {
-  documentPath: string;
+  copyToStorage?: boolean;
+  documentPath: string | null;
   fileName: string;
   folder: string;
   image: File;
+};
+
+export type SaveNativeClipboardAttachmentInput = {
+  attachment: File;
+  copyToStorage?: boolean;
+  documentPath: string | null;
+  folder: string;
+};
+
+export type OpenNativeMarkdownAttachmentInput = {
+  documentPath?: string | null;
+  rootPath: string | null;
+  src: string;
 };
 
 export type DownloadNativeWebImageInput = {
@@ -253,6 +267,11 @@ export type NativeMarkdownPickerLabels = {
 
 export type SavedNativeClipboardImage = {
   alt: string;
+  src: string;
+};
+
+export type SavedNativeClipboardAttachment = {
+  label: string;
   src: string;
 };
 
@@ -532,10 +551,22 @@ export async function readNativeMarkdownImageFile({
   };
 }
 
-export async function listNativeMarkdownFilesForPath(path: string): Promise<NativeMarkdownFolderFile[]> {
-  const files = await invoke<MarkdownFolderFileResponse[]>("list_markdown_files_for_path", {
-    path
-  });
+export type ListNativeMarkdownFilesOptions = {
+  managedAttachmentFolder?: string | null;
+};
+
+export async function listNativeMarkdownFilesForPath(
+  path: string,
+  options: ListNativeMarkdownFilesOptions = {}
+): Promise<NativeMarkdownFolderFile[]> {
+  const args: {
+    managedAttachmentFolder?: string | null;
+    path: string;
+  } = { path };
+  if (options.managedAttachmentFolder !== undefined) {
+    args.managedAttachmentFolder = options.managedAttachmentFolder;
+  }
+  const files = await invoke<MarkdownFolderFileResponse[]>("list_markdown_files_for_path", args);
 
   return files.map(markdownFolderFileFromResponse);
 }
@@ -584,6 +615,8 @@ function markdownFolderFileFromResponse(file: MarkdownFolderFileResponse): Nativ
 
   if (file.kind === "asset" || (!file.kind && isMarkdownTreeAssetPath(file.relativePath))) {
     mappedFile.kind = "asset";
+  } else if (file.kind === "attachment") {
+    mappedFile.kind = "attachment";
   } else if (file.kind === "folder" || (!file.kind && !isMarkdownTreeFilePath(file.relativePath))) {
     mappedFile.kind = "folder";
   }
@@ -702,6 +735,20 @@ export async function openNativeMarkdownFolderInNewWindow(path: string) {
 
 export async function openNativeContainingFolder(path: string) {
   await invoke("open_containing_folder", { path });
+}
+
+export async function openNativeMarkdownAttachment({
+  documentPath = null,
+  rootPath,
+  src
+}: OpenNativeMarkdownAttachmentInput) {
+  if (!rootPath) throw new Error("Markdown attachment root path is required.");
+
+  await invoke("open_markdown_attachment", {
+    documentPath,
+    rootPath,
+    src
+  });
 }
 
 function pickerTitleOption(labels: NativeMarkdownPickerLabels | undefined) {
@@ -1057,6 +1104,50 @@ function encodeMarkdownRelativePath(path: string) {
   return path.split("/").map(encodeMarkdownUrlSegment).join("/");
 }
 
+type NativeFilePath = File & {
+  path?: unknown;
+};
+
+function nativeFilePath(file: File) {
+  const path = (file as NativeFilePath).path;
+  return typeof path === "string" && path.trim().length > 0 ? path.trim() : null;
+}
+
+function encodeFileUrlPathSegments(segments: string[]) {
+  return segments.map(encodeMarkdownUrlSegment).join("/");
+}
+
+function fileUrlFromNativePath(path: string) {
+  const normalized = path.trim().replace(/\\/gu, "/");
+  if (!normalized) throw new Error("Clipboard file path is unavailable.");
+
+  if (normalized.startsWith("//")) {
+    const [host, ...segments] = normalized.slice(2).split("/");
+    if (!host) throw new Error("Clipboard file path is unavailable.");
+
+    return `file://${host}/${encodeFileUrlPathSegments(segments)}`;
+  }
+
+  if (/^[a-zA-Z]:\//u.test(normalized)) {
+    const [drive, ...segments] = normalized.split("/");
+    return `file:///${drive}/${encodeFileUrlPathSegments(segments)}`;
+  }
+
+  if (normalized.startsWith("/")) {
+    const [, ...segments] = normalized.split("/");
+    return `file:///${encodeFileUrlPathSegments(segments)}`;
+  }
+
+  throw new Error("Clipboard file path must be absolute.");
+}
+
+function fileUrlFromNativeFile(file: File) {
+  const path = nativeFilePath(file);
+  if (!path) throw new Error("Clipboard file path is unavailable.");
+
+  return fileUrlFromNativePath(path);
+}
+
 async function requestWithNetwork<TRequest extends Record<string, unknown>>(request: TRequest) {
   const network = await networkSettingsForNativeRequest();
 
@@ -1064,11 +1155,21 @@ async function requestWithNetwork<TRequest extends Record<string, unknown>>(requ
 }
 
 export async function saveNativeClipboardImage({
+  copyToStorage = true,
   documentPath,
   fileName,
   folder,
   image
 }: SaveNativeClipboardImageInput): Promise<SavedNativeClipboardImage> {
+  if (!copyToStorage) {
+    return {
+      alt: imageAltFromFileName(image.name),
+      src: fileUrlFromNativeFile(image)
+    };
+  }
+
+  if (!documentPath) throw new Error("Current document must be a saved Markdown file.");
+
   const bytes = Array.from(new Uint8Array(await image.arrayBuffer()));
   const savedImage = await invoke<ClipboardImageFileResponse>("save_clipboard_image", {
     bytes,
@@ -1081,6 +1182,35 @@ export async function saveNativeClipboardImage({
   return {
     alt: imageAltFromFileName(image.name),
     src: encodeMarkdownRelativePath(savedImage.relativePath)
+  };
+}
+
+export async function saveNativeClipboardAttachment({
+  attachment,
+  copyToStorage = true,
+  documentPath,
+  folder
+}: SaveNativeClipboardAttachmentInput): Promise<SavedNativeClipboardAttachment> {
+  if (!copyToStorage) {
+    return {
+      label: attachment.name.trim() || fileNameFromPath(nativeFilePath(attachment) ?? "") || "attachment",
+      src: fileUrlFromNativeFile(attachment)
+    };
+  }
+
+  if (!documentPath) throw new Error("Current document must be a saved Markdown file.");
+
+  const bytes = Array.from(new Uint8Array(await attachment.arrayBuffer()));
+  const savedAttachment = await invoke<ClipboardImageFileResponse>("save_clipboard_attachment", {
+    bytes,
+    documentPath,
+    fileName: attachment.name,
+    folder
+  });
+
+  return {
+    label: attachment.name.trim() || "attachment",
+    src: encodeMarkdownRelativePath(savedAttachment.relativePath)
   };
 }
 
