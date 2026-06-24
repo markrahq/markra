@@ -45,6 +45,8 @@ describe("editor stylesheet", () => {
 
     expect(styles).toContain('@import "@milkdown/kit/prose/tables/style/tables.css"');
     expect(styles).toContain(".markdown-paper table");
+    expect(styles).toContain("table-layout: auto");
+    expect(styles).not.toContain("table-layout: fixed");
     expect(styles).toContain(".markdown-paper th");
     expect(styles).toContain(".markdown-paper td");
     expect(styles).toContain("background: var(--editor-bg-secondary)");

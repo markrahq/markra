@@ -1935,7 +1935,7 @@
 
   .markdown-paper table {
     @apply my-6 w-full border-collapse overflow-hidden text-left text-[0.95em] leading-[1.55];
-    table-layout: fixed;
+    table-layout: auto;
   }
 
   .markdown-paper .markra-table-controls-wrapper > table {
