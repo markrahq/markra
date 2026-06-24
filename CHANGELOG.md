@@ -1,3 +1,10 @@
+## [0.15.1](https://github.com/markrahq/markra/compare/v0.15.0...v0.15.1) (2026-06-24)
+
+### Bug Fixes
+
+* **markdown:** preserve math source escapes ([#399](https://github.com/markrahq/markra/issues/399)) ([856d1bc](https://github.com/markrahq/markra/commit/856d1bc37b549f66d72a148599f29b5ddcacb64d))
+* **markdown:** resolve pasted images from Windows paths ([#398](https://github.com/markrahq/markra/issues/398)) ([bfa216a](https://github.com/markrahq/markra/commit/bfa216a7a8cf28f5d80632410b01b26e788af0a0))
+
 ## [0.15.0](https://github.com/markrahq/markra/compare/v0.14.0...v0.15.0) (2026-06-24)
 
 ### Features
