@@ -9,6 +9,26 @@ describe("local markdown image paths", () => {
     expect(resolveImageSrc("assets/pasted%20image.png")).toBe("asset:///Users/me/notes/assets/pasted image.png");
   });
 
+  it("resolves relative image paths beside Windows verbatim document paths", () => {
+    const resolveImageSrc = createMarkdownImageSrcResolver(String.raw`\\?\C:\mock-vault\notes\today.md`, {
+      convertFileSrc: (path) => `asset://${path}`
+    });
+
+    expect(resolveImageSrc("assets/pasted-image.png")).toBe(
+      String.raw`asset://C:\mock-vault\notes\assets\pasted-image.png`
+    );
+  });
+
+  it("preserves Windows UNC roots when resolving relative image paths", () => {
+    const resolveImageSrc = createMarkdownImageSrcResolver(String.raw`\\mock-server\share\notes\today.md`, {
+      convertFileSrc: (path) => `asset://${path}`
+    });
+
+    expect(resolveImageSrc("assets/pasted-image.png")).toBe(
+      String.raw`asset://\\mock-server\share\notes\assets\pasted-image.png`
+    );
+  });
+
   it("leaves remote and data image URLs unchanged", () => {
     const resolveImageSrc = createMarkdownImageSrcResolver("/Users/me/notes/today.md", {
       convertFileSrc: (path) => `asset://${path}`
