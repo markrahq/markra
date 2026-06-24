@@ -91,6 +91,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     spellcheckIgnoredWords: [],
     spellcheckLanguage: "en",
     showWordCount: true,
+    tableColumnWidthMode: "even",
     wrapCodeBlocks: true
   },
   getStoredEditorPreferences: vi.fn()
@@ -197,6 +198,7 @@ describe("useEditorPreferences", () => {
       spellcheckEnabled: false,
       spellcheckIgnoredWords: [],
       spellcheckLanguage: "en",
+      tableColumnWidthMode: "even",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -303,6 +305,7 @@ describe("useEditorPreferences", () => {
         spellcheckEnabled: true,
         spellcheckIgnoredWords: ["exampleterm"],
         spellcheckLanguage: "en",
+        tableColumnWidthMode: "even",
         titlebarActions: [
           { id: "theme", visible: true },
           { id: "save", visible: false },

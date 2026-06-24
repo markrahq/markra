@@ -42,9 +42,33 @@ describe("editor stylesheet", () => {
 
   it("includes readable Markdown table styles", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const autoTableRuleStart = styles.indexOf(
+      ".markdown-paper .markra-table-controls-wrapper[data-width-mode=\"auto\"] .markra-table-scroll > table"
+    );
+    const autoTableRuleEnd = styles.indexOf(
+      ".markdown-paper .markra-table-controls-wrapper[data-width-mode=\"auto\"][data-table-alignment=\"center\"]",
+      autoTableRuleStart
+    );
+    const autoTableRule = styles.slice(autoTableRuleStart, autoTableRuleEnd);
 
     expect(styles).toContain('@import "@milkdown/kit/prose/tables/style/tables.css"');
     expect(styles).toContain(".markdown-paper table");
+    expect(styles).toContain("table-layout: fixed");
+    expect(styles).toContain(".markdown-paper .markra-table-scroll");
+    expect(styles).toContain("@apply overflow-x-auto");
+    expect(styles).toContain(".markdown-paper .markra-table-controls-wrapper[data-width-mode=\"auto\"] .markra-table-scroll > table");
+    expect(styles).toContain("table-layout: auto");
+    expect(styles).toContain("width: 100%");
+    expect(styles).toContain("max-width: 100%");
+    expect(styles).toContain("margin-inline: auto");
+    expect(styles).toContain("margin-left: auto");
+    expect(styles).toContain("overflow-wrap: anywhere");
+    expect(styles).toContain("word-break: normal");
+    expect(styles).not.toContain("display: inline-table");
+    expect(autoTableRuleStart).toBeGreaterThanOrEqual(0);
+    expect(autoTableRuleEnd).toBeGreaterThan(autoTableRuleStart);
+    expect(autoTableRule).not.toContain("width: max-content");
+    expect(styles).not.toContain("markra-table-short-column");
     expect(styles).toContain(".markdown-paper th");
     expect(styles).toContain(".markdown-paper td");
     expect(styles).toContain("background: var(--editor-bg-secondary)");
@@ -178,6 +202,13 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .markra-table-align-controls");
     expect(styles).toContain(".markdown-paper .markra-table-size-controls");
     expect(styles).toContain(".markdown-paper .markra-table-size-button[aria-expanded=\"true\"]");
+    expect(styles).toContain(".markdown-paper .markra-table-width-button");
+    expect(styles).toContain(".markdown-paper .markra-table-width-icon");
+    expect(styles).toContain(".markdown-paper .markra-table-controls-wrapper[data-width-mode=\"auto\"]");
+    expect(styles).toContain("width: 100%");
+    expect(styles).toContain("max-width: 100%");
+    expect(styles).toContain("table-layout: auto");
+    expect(styles).toContain(".markdown-paper .markra-table-width-button[aria-pressed=\"true\"]");
     expect(styles).toContain(".markra-table-size-popover");
     expect(styles).toContain(".markra-table-size-grid");
     expect(styles).toContain("grid-template-columns: repeat(8, 0.875rem)");
@@ -190,7 +221,9 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .markra-table-delete-control");
     expect(styles).toContain(".markdown-paper .markra-table-delete-column");
     expect(styles).toContain(".markdown-paper .markra-table-delete-row");
-    expect(tableControlStyles).not.toContain("--accent");
+    expect(tableControlStyles).not.toContain("container-type");
+    expect(tableControlStyles).not.toContain("inline-table");
+    expect(tableControlStyles).toContain("--accent");
   });
 
   it("draws finalized image selection with the editor default selected-node color", () => {

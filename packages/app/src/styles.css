@@ -1933,19 +1933,48 @@
     @apply relative overflow-visible pt-7 pr-9 pb-9;
   }
 
+  .markdown-paper .markra-table-scroll {
+    @apply overflow-x-auto;
+  }
+
   .markdown-paper table {
     @apply my-6 w-full border-collapse overflow-hidden text-left text-[0.95em] leading-[1.55];
     table-layout: fixed;
   }
 
-  .markdown-paper .markra-table-controls-wrapper > table {
+  .markdown-paper .markra-table-scroll > table {
     @apply my-0;
+  }
+
+  .markdown-paper .markra-table-controls-wrapper[data-width-mode="auto"] .markra-table-scroll > table {
+    width: 100%;
+    max-width: 100%;
+    table-layout: auto;
+  }
+
+  .markdown-paper .markra-table-controls-wrapper[data-width-mode="auto"][data-table-alignment="center"]
+    .markra-table-scroll
+    > table {
+    margin-inline: auto;
+  }
+
+  .markdown-paper .markra-table-controls-wrapper[data-width-mode="auto"][data-table-alignment="right"]
+    .markra-table-scroll
+    > table {
+    margin-left: auto;
   }
 
   .markdown-paper th,
   .markdown-paper td {
     @apply border border-(--border-strong) px-3 py-2 align-top;
     border-color: var(--editor-border-strong);
+  }
+
+  .markdown-paper .markra-table-controls-wrapper[data-width-mode="auto"] .markra-table-scroll th,
+  .markdown-paper .markra-table-controls-wrapper[data-width-mode="auto"] .markra-table-scroll td {
+    max-width: 32rem;
+    overflow-wrap: anywhere;
+    word-break: normal;
   }
 
   .markdown-paper th {
@@ -2106,7 +2135,8 @@
     @apply text-sm text-(--text-secondary);
   }
 
-  .markdown-paper .markra-table-align-button {
+  .markdown-paper .markra-table-align-button,
+  .markdown-paper .markra-table-width-button {
     @apply static size-6 rounded-md border-transparent text-[0] shadow-none hover:border-(--border-default) focus-visible:border-(--border-default);
     background: transparent;
     box-shadow: none;
@@ -2114,10 +2144,65 @@
 
   .markdown-paper .markra-table-align-button:hover,
   .markdown-paper .markra-table-align-button:focus-visible,
-  .markdown-paper .markra-table-align-button[aria-pressed="true"] {
+  .markdown-paper .markra-table-align-button[aria-pressed="true"],
+  .markdown-paper .markra-table-width-button:hover,
+  .markdown-paper .markra-table-width-button:focus-visible,
+  .markdown-paper .markra-table-width-button[aria-pressed="true"] {
     background: var(--bg-hover);
     box-shadow: none;
     color: var(--text-heading);
+  }
+
+  .markdown-paper .markra-table-width-button {
+    @apply text-(--text-secondary);
+  }
+
+  .markdown-paper .markra-table-width-button[aria-pressed="true"] {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .markdown-paper .markra-table-width-icon {
+    @apply flex items-center gap-px;
+    width: 1.125rem;
+    height: 0.875rem;
+  }
+
+  .markdown-paper .markra-table-width-edge {
+    @apply h-3 w-px rounded-full bg-current;
+  }
+
+  .markdown-paper .markra-table-width-arrow {
+    @apply h-px flex-1 bg-current;
+    position: relative;
+  }
+
+  .markdown-paper .markra-table-width-arrow::before,
+  .markdown-paper .markra-table-width-arrow::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    width: 3px;
+    height: 3px;
+    border-color: currentColor;
+    border-style: solid;
+    transform: translateY(-50%) rotate(45deg);
+  }
+
+  .markdown-paper .markra-table-width-arrow::before {
+    left: 0;
+    border-width: 0 0 1px 1px;
+  }
+
+  .markdown-paper .markra-table-width-arrow::after {
+    right: 0;
+    border-width: 1px 1px 0 0;
+  }
+
+  .markdown-paper .markra-table-width-letter {
+    font-size: 0.55rem;
+    font-weight: 720;
+    line-height: 1;
   }
 
   .markdown-paper .markra-table-delete-table {

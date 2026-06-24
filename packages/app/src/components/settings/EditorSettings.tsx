@@ -714,6 +714,26 @@ export function EditorSettings({
             />
           }
         />
+        <SettingsRow
+          title={translate("settings.editor.tableColumnWidthMode")}
+          description={translate("settings.editor.tableColumnWidthModeDescription")}
+          action={
+            <SettingsSelect
+              label={translate("settings.editor.tableColumnWidthMode")}
+              value={preferences.tableColumnWidthMode}
+              options={[
+                { label: translate("settings.editor.tableColumnWidthMode.even"), value: "even" },
+                { label: translate("settings.editor.tableColumnWidthMode.auto"), value: "auto" }
+              ]}
+              onChange={(value) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  tableColumnWidthMode: value === "auto" ? "auto" : "even"
+                })
+              }
+            />
+          }
+        />
         <StorageTypeControlRow
           preferences={preferences}
           s3ImageUploadEnabled={s3ImageUploadEnabled}

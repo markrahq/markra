@@ -205,6 +205,7 @@ export const appAppearanceModeOptions = ["system", "light", "dark"] as const;
 export type AppAppearanceMode = typeof appAppearanceModeOptions[number];
 export type AiSelectionDisplayMode = "command" | "toolbar";
 export type SidebarLayoutMode = "stacked" | "tabs";
+export type TableColumnWidthModePreference = "auto" | "even";
 type LegacyEditorPreferences = {
   aiSelectionDisplayMode?: AiSelectionDisplayMode;
   autoOpenAiOnSelection?: boolean;
@@ -366,6 +367,7 @@ export type EditorPreferences = {
   spellcheckEnabled: boolean;
   spellcheckIgnoredWords: string[];
   spellcheckLanguage: SpellcheckLanguage;
+  tableColumnWidthMode: TableColumnWidthModePreference;
   titlebarActions: TitlebarActionPreference[];
   showWordCount: boolean;
   wrapCodeBlocks: boolean;
@@ -488,6 +490,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   spellcheckEnabled: false,
   spellcheckIgnoredWords: [],
   spellcheckLanguage: defaultSpellcheckLanguage,
+  tableColumnWidthMode: "even",
   titlebarActions: [...defaultTitlebarActions],
   showWordCount: true,
   wrapCodeBlocks: true
@@ -501,6 +504,7 @@ export const defaultAiAgentPreferences: AiAgentPreferences = {
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
 const sidebarLayoutModeOptions: readonly SidebarLayoutMode[] = ["stacked", "tabs"];
+const tableColumnWidthModeOptions: readonly TableColumnWidthModePreference[] = ["even", "auto"];
 
 function loadSettingsStore() {
   return getAppRuntime().settings.loadStore(settingsStorePath, { autoSave: false, defaults: {} });
@@ -1452,6 +1456,12 @@ function normalizeAutoSaveIntervalMinutes(value: unknown) {
   return Math.round(clamped);
 }
 
+function normalizeTableColumnWidthMode(value: unknown): TableColumnWidthModePreference {
+  return tableColumnWidthModeOptions.includes(value as TableColumnWidthModePreference)
+    ? (value as TableColumnWidthModePreference)
+    : defaultEditorPreferences.tableColumnWidthMode;
+}
+
 export function normalizeEditorPreferences(value: unknown): EditorPreferences {
   if (typeof value !== "object" || value === null) {
     return {
@@ -1539,6 +1549,7 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       ? preferences.spellcheckLanguage
       : defaultEditorPreferences.spellcheckLanguage,
     spellcheckIgnoredWords: normalizeSpellcheckIgnoredWords(preferences.spellcheckIgnoredWords),
+    tableColumnWidthMode: normalizeTableColumnWidthMode(preferences.tableColumnWidthMode),
     titlebarActions: normalizeTitlebarActions(preferences.titlebarActions),
     showWordCount:
       typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount,

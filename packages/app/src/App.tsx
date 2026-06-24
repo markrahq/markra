@@ -3727,6 +3727,7 @@ function WorkspaceApp() {
               spellcheckEnabled={spellcheckFeatureEnabled && editorPreferences.preferences.spellcheckEnabled}
               spellcheckIgnoredWords={editorPreferences.preferences.spellcheckIgnoredWords}
               spellchecker={appSpellchecker}
+              tableColumnWidthMode={editorPreferences.preferences.tableColumnWidthMode}
               onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
               topInset="titlebar"
               workspaceFiles={fileTreeFiles}
@@ -4148,6 +4149,7 @@ function WorkspaceApp() {
                         spellcheckEnabled={spellcheckFeatureEnabled && editorPreferences.preferences.spellcheckEnabled}
                         spellcheckIgnoredWords={editorPreferences.preferences.spellcheckIgnoredWords}
                         spellchecker={appSpellchecker}
+                        tableColumnWidthMode={editorPreferences.preferences.tableColumnWidthMode}
                         onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
                         workspaceFiles={fileTreeFiles}
                         onChange={handleSideDocumentChange}

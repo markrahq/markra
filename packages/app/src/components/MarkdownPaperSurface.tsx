@@ -63,7 +63,7 @@ import {
   type SlashCommandLabels
 } from "@markra/editor";
 import { matchesKeyboardShortcutEvent, t, type AppLanguage } from "@markra/shared";
-import type { ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
+import type { ExtendedSyntaxPreferences, TableColumnWidthModePreference } from "../lib/settings/app-settings";
 import type { MarkdownDocumentLinkFile } from "../lib/document-links";
 import { markraDocumentLinkCompletionPlugin } from "./document-link-completion";
 import {
@@ -95,6 +95,7 @@ export type MarkdownPaperSurfaceProps = {
   spellcheckEnabled?: boolean;
   spellcheckIgnoredWords?: readonly string[];
   spellchecker?: Spellchecker;
+  tableColumnWidthMode?: TableColumnWidthModePreference;
   onAddSpellcheckIgnoredWord?: (word: string) => unknown;
   workspaceFiles?: MarkdownDocumentLinkFile[];
 };
@@ -221,6 +222,7 @@ function MilkdownEditorSurface({
   spellcheckEnabled = false,
   spellcheckIgnoredWords = emptySpellcheckIgnoredWords,
   spellchecker,
+  tableColumnWidthMode,
   onAddSpellcheckIgnoredWord,
   workspaceFiles
 }: MarkdownPaperSurfaceProps) {
@@ -238,6 +240,7 @@ function MilkdownEditorSurface({
   const resolveImageSrcRef = useRef(resolveImageSrc);
   const spellcheckEnabledRef = useRef(spellcheckEnabled);
   const spellcheckIgnoredWordsRef = useRef(spellcheckIgnoredWords);
+  const tableColumnWidthModeRef = useRef(tableColumnWidthMode ?? "even");
   const spellcheckMenuViewRef = useRef<EditorView | null>(null);
   const onAddSpellcheckIgnoredWordRef = useRef(onAddSpellcheckIgnoredWord);
   const workspaceFilesRef = useRef(workspaceFiles ?? []);
@@ -257,6 +260,7 @@ function MilkdownEditorSurface({
     alignLeft: t(language, "editor.table.alignLeft"),
     alignCenter: t(language, "editor.table.alignCenter"),
     alignRight: t(language, "editor.table.alignRight"),
+    autoWidth: t(language, "editor.table.columnWidthMode"),
     deleteColumn: t(language, "editor.table.deleteColumn"),
     deleteRow: t(language, "editor.table.deleteRow"),
     deleteTable: t(language, "editor.table.deleteTable"),
@@ -350,6 +354,10 @@ function MilkdownEditorSurface({
   useEffect(() => {
     spellcheckIgnoredWordsRef.current = spellcheckIgnoredWords;
   }, [spellcheckIgnoredWords]);
+
+  useEffect(() => {
+    tableColumnWidthModeRef.current = tableColumnWidthMode ?? "even";
+  }, [tableColumnWidthMode]);
 
   useEffect(() => {
     workspaceFilesRef.current = workspaceFiles ?? [];
@@ -508,7 +516,10 @@ function MilkdownEditorSurface({
             }
           )
         )
-        .use(markraTableControlsPlugin(tableControlLabels))
+        .use(markraTableControlsPlugin(tableControlLabels, {
+          getDefaultWidthMode: () => tableColumnWidthModeRef.current,
+          getDocumentKey: () => documentPathRef.current
+        }))
         .use(markraTrailingParagraphPlugin)
         .use(markraLinkImageLivePlugin(resolveCurrentImageSrc))
         .use(markraHeadingLevelPlugin(headingLevelLabels))

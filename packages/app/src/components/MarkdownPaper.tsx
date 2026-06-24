@@ -11,6 +11,7 @@ import {
   type EditorFontFamilyPreference
 } from "../lib/editor-font";
 import type { EditorTheme } from "../lib/settings/app-settings";
+import type { TableColumnWidthModePreference } from "../lib/settings/app-settings";
 import { EditorWidthResizer } from "./EditorWidthResizer";
 import type { MarkdownPaperSurfaceProps } from "./MarkdownPaperSurface";
 
@@ -58,6 +59,7 @@ type MarkdownPaperProps = {
   spellcheckEnabled?: MarkdownPaperSurfaceProps["spellcheckEnabled"];
   spellcheckIgnoredWords?: MarkdownPaperSurfaceProps["spellcheckIgnoredWords"];
   spellchecker?: MarkdownPaperSurfaceProps["spellchecker"];
+  tableColumnWidthMode?: TableColumnWidthModePreference;
   topInset?: "tabs" | "titlebar";
   workspaceFiles?: MarkdownPaperSurfaceProps["workspaceFiles"];
   wrapCodeBlocks?: boolean;
@@ -122,6 +124,7 @@ export function MarkdownPaper({
   spellcheckEnabled = false,
   spellcheckIgnoredWords,
   spellchecker,
+  tableColumnWidthMode = "even",
   topInset = "titlebar",
   workspaceFiles,
   wrapCodeBlocks = true
@@ -191,6 +194,7 @@ export function MarkdownPaper({
             spellcheckEnabled={spellcheckEnabled}
             spellcheckIgnoredWords={spellcheckIgnoredWords}
             spellchecker={spellchecker}
+            tableColumnWidthMode={tableColumnWidthMode}
             workspaceFiles={workspaceFiles}
           />
         </Suspense>

@@ -210,6 +210,7 @@ describe("settings events", () => {
       spellcheckEnabled: true,
       spellcheckIgnoredWords: [],
       spellcheckLanguage: "en",
+      tableColumnWidthMode: "even",
       titlebarActions: [
         { id: "theme", visible: true },
         { id: "save", visible: false },

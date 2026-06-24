@@ -158,6 +158,30 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("updates the default table column width mode from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          tableColumnWidthMode: "even"
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Default table column width" }), {
+      target: { value: "auto" }
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      tableColumnWidthMode: "auto"
+    });
+  });
+
   it("keeps spellcheck controls out of the editor tab", () => {
     render(
       <EditorSettings

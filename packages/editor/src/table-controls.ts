@@ -11,6 +11,7 @@ type TableControlLabels = {
   alignLeft: string;
   alignCenter: string;
   alignRight: string;
+  autoWidth: string;
   deleteColumn: string;
   deleteRow: string;
   deleteTable: string;
@@ -21,6 +22,11 @@ type TableControlLabels = {
 };
 
 type TableAlignment = "left" | "center" | "right";
+type TableColumnWidthMode = "auto" | "even";
+type TableControlOptions = {
+  getDefaultWidthMode?: () => TableColumnWidthMode | null | undefined;
+  getDocumentKey?: () => string | null | undefined;
+};
 type TableSize = { columns: number; rows: number };
 
 const defaultTableControlLabels: TableControlLabels = {
@@ -29,6 +35,7 @@ const defaultTableControlLabels: TableControlLabels = {
   alignLeft: "Align table left",
   alignCenter: "Align table center",
   alignRight: "Align table right",
+  autoWidth: "Column width mode",
   deleteColumn: "Delete column",
   deleteRow: "Delete row",
   deleteTable: "Delete table",
@@ -42,6 +49,22 @@ const tableAlignments: TableAlignment[] = ["left", "center", "right"];
 const tableSizePickerColumns = 8;
 const tableSizePickerRows = 10;
 const tableSizePopoverFallbackSize = { height: 248, width: 184 };
+const tableWidthModeStoragePrefix = "markra:table-width-mode";
+const tableWidthModeMemoryStore = new Map<string, TableColumnWidthMode>();
+const tableWidthModeViews = new WeakMap<EditorView, Set<MarkraTableNodeView>>();
+const tableColumnMinUnits = 3;
+const tableReadableShortColumnUnits = 9;
+const tableColumnMaxUnits = 40;
+
+function tableTextUnits(text: string) {
+  let units = 0;
+
+  for (const char of Array.from(text.replace(/\s+/gu, ""))) {
+    units += /[\u1100-\u11ff\u2e80-\u9fff\uf900-\ufaff\uff00-\uffef]/u.test(char) ? 1 : 0.55;
+  }
+
+  return units;
+}
 
 function controlTargetFromEvent(event: Event) {
   return event.target instanceof Node ? event.target : null;
@@ -57,6 +80,44 @@ function tableCellFromEventTarget(target: EventTarget | null) {
 
 function isPrimaryMouseButton(event: MouseEvent) {
   return event.button === 0 && !event.ctrlKey;
+}
+
+function stableHash(value: string) {
+  let hash = 2166136261;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+function tableStorageDocumentKey(documentKey: string | null | undefined) {
+  const normalizedKey = documentKey?.trim();
+  return normalizedKey ? normalizedKey : "untitled";
+}
+
+function compactTableCellText(text: string) {
+  return text.trim().replace(/\s+/gu, " ");
+}
+
+function tableSignatureForNode(node: ProseNode) {
+  const rows: string[] = [];
+
+  for (let rowIndex = 0; rowIndex < node.childCount; rowIndex += 1) {
+    const row = node.child(rowIndex);
+    const cells: string[] = [];
+
+    for (let cellIndex = 0; cellIndex < row.childCount; cellIndex += 1) {
+      const cell = row.child(cellIndex);
+      cells.push(compactTableCellText(cell.textContent));
+    }
+
+    rows.push(cells.join("\u001f"));
+  }
+
+  return stableHash(rows.join("\u001e"));
 }
 
 function createTableControlButton(
@@ -110,6 +171,27 @@ function createTableSizeIcon(ownerDocument: Document) {
   return icon;
 }
 
+function createTableWidthIcon(ownerDocument: Document) {
+  const icon = ownerDocument.createElement("span");
+  icon.className = "markra-table-width-icon";
+  icon.ariaHidden = "true";
+
+  for (const className of [
+    "markra-table-width-edge",
+    "markra-table-width-arrow",
+    "markra-table-width-letter",
+    "markra-table-width-arrow",
+    "markra-table-width-edge"
+  ]) {
+    const part = ownerDocument.createElement("span");
+    part.className = className;
+    if (className === "markra-table-width-letter") part.textContent = "A";
+    icon.append(part);
+  }
+
+  return icon;
+}
+
 function createDeleteTableIcon(ownerDocument: Document) {
   const icon = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
   icon.setAttribute("class", "markra-table-delete-table-icon");
@@ -147,7 +229,9 @@ class MarkraTableNodeView {
   readonly contentDOM: HTMLElement;
 
   private node: ProseNode;
+  private readonly tableScroll: HTMLElement;
   private readonly table: HTMLTableElement;
+  private readonly colgroup: HTMLTableColElement;
   private readonly alignControls: HTMLElement;
   private readonly sizeControls: HTMLElement;
   private readonly sizeButton: HTMLButtonElement;
@@ -156,6 +240,7 @@ class MarkraTableNodeView {
   private readonly columnsInput: HTMLInputElement;
   private readonly rowsInput: HTMLInputElement;
   private readonly alignButtons: HTMLButtonElement[];
+  private readonly widthModeButton: HTMLButtonElement;
   private readonly addColumnButton: HTMLButtonElement;
   private readonly addRowButton: HTMLButtonElement;
   private readonly deleteColumnButton: HTMLButtonElement;
@@ -163,16 +248,22 @@ class MarkraTableNodeView {
   private readonly deleteTableButton: HTMLButtonElement;
   private hoveredCell: { column: number; row: number } | null = null;
   private pendingSize: TableSize = { columns: 1, rows: 1 };
+  private widthMode: TableColumnWidthMode = "even";
+  private lastWidthModeStorageKey: string | null = null;
+  private lastAppliedColumnWidthSignature: string | null = null;
 
   constructor(
     node: ProseNode,
     private readonly view: EditorView,
     private readonly getPos: (() => number | undefined) | boolean,
-    labels: TableControlLabels
+    private readonly labels: TableControlLabels,
+    private readonly options: TableControlOptions
   ) {
     this.node = node;
     this.dom = view.dom.ownerDocument.createElement("div");
+    this.tableScroll = view.dom.ownerDocument.createElement("div");
     this.table = view.dom.ownerDocument.createElement("table");
+    this.colgroup = view.dom.ownerDocument.createElement("colgroup");
     this.alignControls = view.dom.ownerDocument.createElement("div");
     this.sizeControls = view.dom.ownerDocument.createElement("div");
     this.sizePopover = view.dom.ownerDocument.createElement("div");
@@ -203,6 +294,15 @@ class MarkraTableNodeView {
       button.append(createTableAlignIcon(view.dom.ownerDocument, alignment));
       return button;
     });
+    this.widthModeButton = createTableControlButton(
+      view.dom.ownerDocument,
+      "markra-table-width-button",
+      labels.autoWidth,
+      "",
+      this.handleWidthModeMouseDown
+    );
+    this.widthModeButton.addEventListener("keydown", this.handleWidthModeKeyDown);
+    this.widthModeButton.append(createTableWidthIcon(view.dom.ownerDocument));
     this.addColumnButton = createTableControlButton(
       view.dom.ownerDocument,
       "markra-table-add-column",
@@ -241,6 +341,7 @@ class MarkraTableNodeView {
     this.deleteTableButton.append(createDeleteTableIcon(view.dom.ownerDocument));
 
     this.dom.className = "tableWrapper markra-table-controls-wrapper";
+    this.tableScroll.className = "markra-table-scroll";
     this.alignControls.className = "markra-table-align-controls";
     this.sizeControls.className = "markra-table-size-controls";
     this.sizePopover.className = "markra-table-size-popover";
@@ -251,25 +352,31 @@ class MarkraTableNodeView {
     this.deleteRowButton.hidden = true;
     this.dom.addEventListener("mousemove", this.handleMouseMove);
     this.dom.addEventListener("mouseleave", this.hideDeleteControls);
-    this.table.append(this.contentDOM);
+    this.table.append(this.colgroup, this.contentDOM);
+    this.tableScroll.append(this.table);
     this.sizeControls.append(this.sizeButton);
-    this.alignControls.append(this.sizeControls, ...this.alignButtons, this.deleteTableButton);
+    this.alignControls.append(this.sizeControls, ...this.alignButtons, this.widthModeButton, this.deleteTableButton);
     this.dom.append(
       this.alignControls,
-      this.table,
+      this.tableScroll,
       this.addColumnButton,
       this.addRowButton,
       this.deleteColumnButton,
       this.deleteRowButton
     );
     this.updateAlignmentButtons();
+    this.widthMode = this.readStoredWidthMode();
+    this.registerWidthModeView();
+    this.updateWidthMode();
   }
 
   update(nextNode: ProseNode) {
     if (nextNode.type !== this.node.type) return false;
 
     this.node = nextNode;
+    if (this.widthMode === "auto") this.writeStoredWidthMode("auto");
     this.updateAlignmentButtons();
+    this.updateWidthMode();
     if (!this.sizePopover.hidden) this.positionSizePopover();
     return true;
   }
@@ -282,6 +389,7 @@ class MarkraTableNodeView {
           this.sizeControls.contains(target) ||
           this.sizePopover.contains(target) ||
           this.alignControls.contains(target) ||
+          this.widthModeButton.contains(target) ||
           this.addRowButton.contains(target) ||
           this.deleteColumnButton.contains(target) ||
           this.deleteRowButton.contains(target) ||
@@ -291,12 +399,25 @@ class MarkraTableNodeView {
 
   ignoreMutation(mutation: ViewMutationRecord) {
     const target = mutation.target;
+    if (mutation.type === "attributes" && target instanceof Element) {
+      const attributeName = mutation.attributeName;
+      const isTableControlMutation =
+        attributeName === "class" || attributeName === "data-width-mode" || attributeName === "data-table-alignment";
+      if (
+        isTableControlMutation &&
+        (target === this.dom || target === this.tableScroll || target === this.table || this.table.contains(target))
+      ) {
+        return true;
+      }
+    }
+
     return (
       target instanceof Node &&
       (this.addColumnButton.contains(target) ||
         this.sizeControls.contains(target) ||
         this.sizePopover.contains(target) ||
         this.alignControls.contains(target) ||
+        this.widthModeButton.contains(target) ||
         this.addRowButton.contains(target) ||
         this.deleteColumnButton.contains(target) ||
         this.deleteRowButton.contains(target) ||
@@ -323,11 +444,14 @@ class MarkraTableNodeView {
     for (const button of this.alignButtons) {
       button.removeEventListener("mousedown", this.handleAlignMouseDown);
     }
+    this.widthModeButton.removeEventListener("mousedown", this.handleWidthModeMouseDown);
+    this.widthModeButton.removeEventListener("keydown", this.handleWidthModeKeyDown);
     this.addColumnButton.removeEventListener("mousedown", this.handleAddColumnMouseDown);
     this.addRowButton.removeEventListener("mousedown", this.handleAddRowMouseDown);
     this.deleteColumnButton.removeEventListener("mousedown", this.handleDeleteColumnMouseDown);
     this.deleteRowButton.removeEventListener("mousedown", this.handleDeleteRowMouseDown);
     this.deleteTableButton.removeEventListener("mousedown", this.handleDeleteTableMouseDown);
+    this.unregisterWidthModeView();
   }
 
   private createSizeInput(label: string, max: number) {
@@ -461,6 +585,22 @@ class MarkraTableNodeView {
     if (alignment !== "left" && alignment !== "center" && alignment !== "right") return;
 
     this.alignTable(alignment);
+  };
+
+  private readonly handleWidthModeMouseDown = (event: MouseEvent) => {
+    if (!isPrimaryMouseButton(event)) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.toggleWidthMode();
+  };
+
+  private readonly handleWidthModeKeyDown = (event: KeyboardEvent) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.toggleWidthMode();
   };
 
   private readonly handleAddRowMouseDown = (event: MouseEvent) => {
@@ -632,6 +772,86 @@ class MarkraTableNodeView {
     return tablePosition;
   }
 
+  private tableSignature() {
+    return tableSignatureForNode(this.node);
+  }
+
+  private widthModeStorageKey() {
+    const documentKey = tableStorageDocumentKey(this.options.getDocumentKey?.());
+    return `${tableWidthModeStoragePrefix}:${encodeURIComponent(documentKey)}`;
+  }
+
+  private registerWidthModeView() {
+    let views = tableWidthModeViews.get(this.view);
+    if (!views) {
+      views = new Set();
+      tableWidthModeViews.set(this.view, views);
+    }
+    views.add(this);
+  }
+
+  private unregisterWidthModeView() {
+    const views = tableWidthModeViews.get(this.view);
+    views?.delete(this);
+  }
+
+  private readStoredWidthMode(): TableColumnWidthMode {
+    const key = this.widthModeStorageKey();
+    this.lastWidthModeStorageKey = key;
+    const memoryMode = tableWidthModeMemoryStore.get(key);
+    if (memoryMode) return memoryMode;
+    const defaultMode = this.options.getDefaultWidthMode?.() === "auto" ? "auto" : "even";
+
+    try {
+      const storedMode = this.view.dom.ownerDocument.defaultView?.localStorage.getItem(key);
+      if (storedMode === "auto" || storedMode === "even") return storedMode;
+      return defaultMode;
+    } catch {
+      return defaultMode;
+    }
+  }
+
+  private writeStoredWidthMode(mode: TableColumnWidthMode) {
+    this.widthMode = mode;
+    const key = this.widthModeStorageKey();
+    const previousKey = this.lastWidthModeStorageKey;
+
+    if (previousKey && previousKey !== key) {
+      tableWidthModeMemoryStore.delete(previousKey);
+
+      try {
+        this.view.dom.ownerDocument.defaultView?.localStorage.removeItem(previousKey);
+      } catch {
+        // Ignore storage cleanup failures; the in-memory key has already been cleared.
+      }
+    }
+
+    this.lastWidthModeStorageKey = key;
+
+    tableWidthModeMemoryStore.set(key, mode);
+
+    try {
+      const storage = this.view.dom.ownerDocument.defaultView?.localStorage;
+      storage?.setItem(key, mode);
+    } catch {
+      return;
+    }
+  }
+
+  private applyWidthMode(mode: TableColumnWidthMode) {
+    this.widthMode = mode;
+    this.updateWidthMode();
+  }
+
+  private syncDocumentWidthMode(mode: TableColumnWidthMode) {
+    this.writeStoredWidthMode(mode);
+
+    const views = tableWidthModeViews.get(this.view);
+    for (const view of views ?? []) {
+      view.applyWidthMode(mode);
+    }
+  }
+
   private placeCursorInCell(tablePosition: number, row: number, column: number) {
     const map = TableMap.get(this.node);
     if (!map.width || !map.height) return false;
@@ -672,10 +892,88 @@ class MarkraTableNodeView {
 
   private updateAlignmentButtons() {
     const activeAlignment = this.tableAlignment();
+    const tableAlignment = activeAlignment ?? "left";
+
+    this.dom.dataset.tableAlignment = tableAlignment;
+    this.tableScroll.dataset.tableAlignment = tableAlignment;
+    this.table.dataset.tableAlignment = tableAlignment;
 
     for (const button of this.alignButtons) {
       button.ariaPressed = String(button.dataset.alignment === activeAlignment);
     }
+  }
+
+  private updateWidthMode() {
+    const isAuto = this.widthMode === "auto";
+
+    this.table.classList.toggle("markra-table-width-auto", isAuto);
+    this.dom.dataset.widthMode = this.widthMode;
+    this.table.dataset.widthMode = this.widthMode;
+    this.updateColumnWidthHints(isAuto);
+    this.widthModeButton.ariaPressed = String(isAuto);
+    this.widthModeButton.dataset.mode = this.widthMode;
+    this.widthModeButton.title = this.labels.autoWidth;
+    this.widthModeButton.ariaLabel = this.labels.autoWidth;
+  }
+
+  private updateColumnWidthHints(isAuto: boolean) {
+    if (!isAuto) {
+      this.colgroup.replaceChildren();
+      this.lastAppliedColumnWidthSignature = null;
+      return;
+    }
+
+    const signature = this.tableSignature();
+    if (signature === this.lastAppliedColumnWidthSignature && this.colgroup.childElementCount > 0) return;
+
+    const columnWidths = this.contentDrivenColumnWidths();
+    this.colgroup.replaceChildren(
+      ...columnWidths.map((width) => {
+        const column = this.view.dom.ownerDocument.createElement("col");
+        column.style.width = `${width}%`;
+        return column;
+      })
+    );
+    this.lastAppliedColumnWidthSignature = signature;
+  }
+
+  private contentDrivenColumnWidths() {
+    const map = TableMap.get(this.node);
+    const columnCount = Math.max(1, map.width);
+    const weights = Array.from({ length: columnCount }, () => tableColumnMinUnits);
+
+    for (let rowIndex = 0; rowIndex < this.node.childCount; rowIndex += 1) {
+      const row = this.node.child(rowIndex);
+      let columnIndex = 0;
+
+      for (let cellIndex = 0; cellIndex < row.childCount; cellIndex += 1) {
+        const cell = row.child(cellIndex);
+        const colspan = Math.max(1, Number(cell.attrs.colspan ?? 1));
+        const cellUnits = Math.max(tableColumnMinUnits, tableTextUnits(cell.textContent));
+        const unitsPerColumn = Math.min(tableColumnMaxUnits, cellUnits / colspan);
+
+        for (let offset = 0; offset < colspan && columnIndex + offset < columnCount; offset += 1) {
+          weights[columnIndex + offset] = Math.max(weights[columnIndex + offset], unitsPerColumn);
+        }
+
+        columnIndex += colspan;
+      }
+    }
+
+    for (let index = 0; index < weights.length; index += 1) {
+      if (weights[index] <= tableReadableShortColumnUnits) {
+        weights[index] = tableReadableShortColumnUnits;
+      }
+    }
+
+    const totalWeight = weights.reduce((total, weight) => total + weight, 0) || columnCount;
+    return weights.map((weight) => (weight / totalWeight) * 100);
+  }
+
+  private toggleWidthMode() {
+    const nextMode: TableColumnWidthMode = this.widthMode === "auto" ? "even" : "auto";
+    this.syncDocumentWidthMode(nextMode);
+    this.view.focus();
   }
 
   private alignTable(alignment: TableAlignment) {
@@ -852,7 +1150,7 @@ class MarkraTableNodeView {
   }
 }
 
-export function markraTableControlsPlugin(labels: Partial<TableControlLabels> = {}) {
+export function markraTableControlsPlugin(labels: Partial<TableControlLabels> = {}, options: TableControlOptions = {}) {
   const resolvedLabels = {
     ...defaultTableControlLabels,
     ...labels
@@ -862,7 +1160,7 @@ export function markraTableControlsPlugin(labels: Partial<TableControlLabels> = 
     return new Plugin({
       props: {
         nodeViews: {
-          table: (node, view, getPos) => new MarkraTableNodeView(node, view, getPos, resolvedLabels)
+          table: (node, view, getPos) => new MarkraTableNodeView(node, view, getPos, resolvedLabels, options)
         }
       }
     });
