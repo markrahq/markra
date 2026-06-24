@@ -1,17 +1,16 @@
 import { Type } from "@earendil-works/pi-ai";
 import { DocumentAgentToolFactory } from "./base";
 import { typedSearchWorkspaceArgs } from "./params";
-import { toolErrorResult } from "./results";
 import { normalizeText } from "./text";
-import { truncateWorkspaceFileContent } from "./workspace";
+import { truncateWorkspaceFileContent, workspaceMarkdownFiles } from "./workspace";
 
 export class SearchWorkspaceToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedSearchWorkspaceArgs>> {
-  protected readonly description = "Search nearby Markdown workspace files by filename, relative path, and readable content snippets when file reading is available.";
+  protected readonly description = "Inspect nearby Markdown workspace files. Omit query to list files, or pass query to search filenames, relative paths, and readable content snippets when file reading is available.";
   protected readonly label = "Search workspace";
   protected readonly name = "search_workspace";
   protected readonly parameters = Type.Object({
     maxResults: Type.Optional(Type.Number({ maximum: 100, minimum: 1 })),
-    query: Type.String({ minLength: 1 })
+    query: Type.Optional(Type.String())
   });
 
   protected parseParams(params: unknown) {
@@ -19,14 +18,13 @@ export class SearchWorkspaceToolFactory extends DocumentAgentToolFactory<ReturnT
   }
 
   protected async executeTool(_toolCallId: string, params: ReturnType<typeof typedSearchWorkspaceArgs>) {
-    const query = normalizeText(params.query);
-    if (!query) {
-      return toolErrorResult("Cannot search workspace because the query is empty.");
-    }
+    const rawQuery = params.query ?? "";
+    const query = normalizeText(rawQuery);
+    if (!query) return listWorkspaceMarkdownFiles(workspaceMarkdownFiles(this.context.workspaceFiles), params.maxResults);
 
     const matches = [];
 
-    for (const file of this.context.workspaceFiles) {
+    for (const file of workspaceMarkdownFiles(this.context.workspaceFiles)) {
       const pathText = normalizeText(`${file.relativePath} ${file.name}`);
       let contentSnippet: string | undefined;
       let score = pathText.includes(query) ? 4 : 0;
@@ -37,7 +35,7 @@ export class SearchWorkspaceToolFactory extends DocumentAgentToolFactory<ReturnT
           const readableContent = truncateWorkspaceFileContent(content).text;
           if (normalizeText(readableContent).includes(query)) {
             score += 8;
-            contentSnippet = snippetAround(readableContent, params.query);
+            contentSnippet = snippetAround(readableContent, rawQuery);
           }
         } catch {
           // Ignore unreadable workspace files during search; read_workspace_file reports exact read errors.
@@ -63,24 +61,56 @@ export class SearchWorkspaceToolFactory extends DocumentAgentToolFactory<ReturnT
         {
           text: limitedMatches.length
             ? [
-                `Found ${limitedMatches.length} workspace match${limitedMatches.length === 1 ? "" : "es"} for "${params.query}":`,
+                `Found ${limitedMatches.length} workspace match${limitedMatches.length === 1 ? "" : "es"} for "${rawQuery}":`,
                 ...limitedMatches.map((match, index) => [
                   `${index + 1}. ${match.relativePath}`,
                   match.snippet
                 ].filter(Boolean).join("\n"))
               ].join("\n")
-            : `No workspace matches found for "${params.query}".`,
+            : `No workspace matches found for "${rawQuery}".`,
           type: "text" as const
         }
       ],
       details: {
         count: limitedMatches.length,
         matches: limitedMatches,
-        query: params.query
+        query: rawQuery
       },
       terminate: false
     };
   }
+}
+
+function listWorkspaceMarkdownFiles(
+  files: ReturnType<typeof workspaceMarkdownFiles>,
+  maxResults: number | undefined
+) {
+  const sortedFiles = [...files].sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+  const limitedFiles = sortedFiles.slice(0, maxResults ?? 50);
+
+  return {
+    content: [
+      {
+        text: limitedFiles.length
+          ? [
+              `Workspace has ${limitedFiles.length} Markdown file${limitedFiles.length === 1 ? "" : "s"}:`,
+              ...limitedFiles.map((file, index) => `${index + 1}. ${file.relativePath}`)
+            ].join("\n")
+          : "No Markdown workspace files are available.",
+        type: "text" as const
+      }
+    ],
+    details: {
+      count: limitedFiles.length,
+      files: limitedFiles.map((file) => ({
+        name: file.name,
+        path: file.path,
+        relativePath: file.relativePath
+      })),
+      query: ""
+    },
+    terminate: false
+  };
 }
 
 function snippetAround(content: string, query: string) {

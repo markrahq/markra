@@ -5,7 +5,7 @@ import {
   formatSelectionSourceContext,
   resolveMarkdownSourceContext
 } from "../selection";
-import type { MarkdownImageReference } from "./images";
+import type { MarkdownImageReference, WorkspaceImageFile } from "./images";
 import type { LocatedMarkdownRegion, LocatedSection } from "./locate";
 
 export function formatHeadingOutlineText(headingAnchors: AiHeadingAnchor[]) {
@@ -88,6 +88,33 @@ export function formatDocumentImageReferencesText(references: MarkdownImageRefer
       `   file: ${reference.fileName || "(unknown)"}`,
       `   alt: ${reference.alt || "(empty)"}`
     ].join("\n"))
+  ].join("\n");
+}
+
+export function formatAssetInventoryText(
+  references: MarkdownImageReference[],
+  workspaceImages: WorkspaceImageFile[]
+) {
+  if (!references.length && !workspaceImages.length) return "No document image references or workspace image files are available.";
+
+  return [
+    ...(references.length
+      ? [
+          "Current document image references:",
+          ...references.map((reference, index) => [
+            `${index + 1}. src: ${reference.src}`,
+            `   file: ${reference.fileName || "(unknown)"}`,
+            `   alt: ${reference.alt || "(empty)"}`
+          ].join("\n"))
+        ]
+      : ["Current document image references: none"]),
+    "",
+    ...(workspaceImages.length
+      ? [
+          "Workspace image files:",
+          ...workspaceImages.map((file, index) => `${index + 1}. ${file.relativePath || file.name}`)
+        ]
+      : ["Workspace image files: none"])
   ].join("\n");
 }
 

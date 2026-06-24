@@ -298,6 +298,8 @@ const messages: LocaleMessages = {
   "settings.editor.aiSelectionDisplayMode.useToolbar": "显示选区浮动框",
   "settings.editor.closeAiCommandOnAgentPanelOpen": "打开 Markra AI 时关闭快捷输入框",
   "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "打开右侧 AI 面板时隐藏底部 AI 命令输入框。",
+  "settings.editor.aiWorkspaceAnimation": "AI 工作区动画",
+  "settings.editor.aiWorkspaceAnimationDescription": "实验性功能。AI 执行文件变更时，在工作区显示 AI 光标和高亮动画。",
   "settings.editor.suggestAiPanelForComplexInlinePrompts": "复杂快捷 AI 请求时建议转到 Markra AI",
   "settings.editor.suggestAiPanelForComplexInlinePromptsDescription": "实验性功能。根据输入长度、换行、列表等本地结构信号建议改用 Markra AI；如果提示过于积极，可以关闭。",
   "settings.editor.fontFamily": "编辑器字体",

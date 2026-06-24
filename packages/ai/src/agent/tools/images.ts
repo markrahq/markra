@@ -4,6 +4,14 @@ export type MarkdownImageReference = {
   src: string;
 };
 
+export type WorkspaceImageFile = {
+  name: string;
+  path: string;
+  relativePath: string;
+};
+
+const imageFileExtensionPattern = /\.(?:avif|gif|jpe?g|png|svg|webp)$/iu;
+
 export function extractMarkdownImageReferences(markdown: string): MarkdownImageReference[] {
   const references: MarkdownImageReference[] = [];
   const imagePattern = /!\[([^\]]*)\]\(([^)]+)\)/gu;
@@ -22,6 +30,10 @@ export function extractMarkdownImageReferences(markdown: string): MarkdownImageR
   }
 
   return references;
+}
+
+export function workspaceImageFiles(files: readonly WorkspaceImageFile[]) {
+  return files.filter((file) => imageFileExtensionPattern.test(file.name) || imageFileExtensionPattern.test(file.relativePath));
 }
 
 export function resolveMarkdownImageReference(references: MarkdownImageReference[], src: string) {

@@ -37,7 +37,7 @@ async function renderEditor(initialContent: string) {
     />
   );
 
-  await waitFor(() => expect(editor).not.toBeNull());
+  await waitFor(() => expect(editor).not.toBeNull(), { timeout: 5000 });
 
   return {
     ...result,

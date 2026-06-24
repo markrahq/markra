@@ -102,6 +102,8 @@ const messages: LocaleMessages = {
   "settings.editor.autoSaveIntervalUnit": "мин",
   "settings.editor.closeAiCommandOnAgentPanelOpen": "Закрывать встроенный ИИ при открытии Markra AI",
   "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "Скрывает нижнее поле команды ИИ, когда открывается правая панель ИИ.",
+  "settings.editor.aiWorkspaceAnimation": "Анимация ИИ в рабочей области",
+  "settings.editor.aiWorkspaceAnimationDescription": "Экспериментально. Показывает курсор ИИ и подсветку в рабочей области во время применения изменений файлов.",
   "settings.editor.suggestAiPanelForComplexInlinePrompts": "Предлагать Markra AI для сложных встроенных запросов",
   "settings.editor.suggestAiPanelForComplexInlinePromptsDescription": "Экспериментально. Предлагает Markra AI для сложных встроенных запросов по локальной структуре ввода. Отключите, если подсказка слишком настойчива.",
   "settings.ai.addProvider": "Добавить провайдера",

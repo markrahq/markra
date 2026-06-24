@@ -28,7 +28,8 @@ import { AiAgentProcessList } from "./AiAgentProcessList";
 import { useImeInputGuard } from "../hooks/useImeInputGuard";
 import { clampNumber, t, type AppLanguage, type I18nKey } from "@markra/shared";
 import type { AiModelCapability, AiProviderApiStyle, StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
-import type { AiAgentPanelMessage } from "../hooks/useAiAgentSession";
+import type { AiAgentPanelMessage, WorkspacePlanApplyStatus } from "../hooks/useAiAgentSession";
+import type { WorkspacePlanVisualEvent } from "@markra/ai";
 import { IconButton, RoundIconButton, ToggleButton } from "@markra/ui";
 
 type AiAgentModelOption = AiModelPickerOption & { capabilities: AiModelCapability[] };
@@ -60,11 +61,16 @@ type AiAgentPanelProps = {
   thinkingEnabled?: boolean;
   webSearchAvailable?: boolean;
   webSearchEnabled?: boolean;
+  workspaceAvailable?: boolean;
+  workspacePlanApplyError?: string | null;
+  workspacePlanApplyStatus?: WorkspacePlanApplyStatus;
+  workspacePlanEvents?: WorkspacePlanVisualEvent[];
   maxWidth?: number;
   minWidth?: number;
   width?: number;
   sessions?: StoredAiAgentSessionSummary[];
   onArchiveSession?: (sessionId: string, archived: boolean) => unknown;
+  onApplyWorkspacePlan?: () => unknown;
   onClose: () => unknown;
   onCreateSession?: () => unknown;
   onDeleteSession?: (sessionId: string) => unknown;
@@ -105,11 +111,16 @@ export function AiAgentPanel({
   thinkingEnabled = false,
   webSearchAvailable = false,
   webSearchEnabled = false,
+  workspaceAvailable = false,
+  workspacePlanApplyError = null,
+  workspacePlanApplyStatus = "idle",
+  workspacePlanEvents = [],
   maxWidth = defaultMaxWidth,
   minWidth = defaultMinWidth,
   sessions = [],
   width,
   onArchiveSession,
+  onApplyWorkspacePlan,
   onClose,
   onCreateSession,
   onDeleteSession,
@@ -136,6 +147,7 @@ export function AiAgentPanel({
   const transcriptShouldFollowRef = useRef(true);
   const [contextOpen, setContextOpen] = useState(false);
   const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
+  const [dismissedAppliedWorkspacePlanKey, setDismissedAppliedWorkspacePlanKey] = useState<string | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
   const [collapsedThinkingMessageIds, setCollapsedThinkingMessageIds] = useState<Set<string>>(() =>
     collectCompletedThinkingMessageKeys(messages, status, activeSessionId)
@@ -177,10 +189,15 @@ export function AiAgentPanel({
     }
   ];
   const submitting = status === "thinking" || status === "streaming";
-  const canSend = documentAvailable && draft.trim().length > 0 && !submitting;
-  const emptyTitle = documentAvailable ? label("app.aiAgentEmptyTitle") : label("app.aiAgentUnavailableTitle");
-  const emptyBody = documentAvailable ? label("app.aiAgentEmptyBody") : label("app.aiAgentUnavailableBody");
-  const composerPlaceholder = documentAvailable ? label("app.aiAgentPlaceholder") : label("app.aiAgentUnavailablePlaceholder");
+  const agentAvailable = documentAvailable || workspaceAvailable;
+  const canSend = agentAvailable && draft.trim().length > 0 && !submitting;
+  const emptyTitle = agentAvailable ? label("app.aiAgentEmptyTitle") : label("app.aiAgentUnavailableTitle");
+  const emptyBody = agentAvailable ? label("app.aiAgentEmptyBody") : label("app.aiAgentUnavailableBody");
+  const composerPlaceholder = agentAvailable ? label("app.aiAgentPlaceholder") : label("app.aiAgentUnavailablePlaceholder");
+  const workspacePlanConfirmationKey = workspacePlanKey(workspacePlanEvents);
+  const workspacePlanConfirmationDismissed =
+    workspacePlanApplyStatus === "applied" &&
+    dismissedAppliedWorkspacePlanKey === workspacePlanConfirmationKey;
   const contextDocumentName = context?.documentName?.trim() || "Untitled.md";
   const contextSelection =
     (context?.selectionChars ?? 0) > 0
@@ -197,6 +214,12 @@ export function AiAgentPanel({
     if (!supportsThinking && thinkingEnabled) onDisableThinking?.();
     if (!supportsWebSearch && webSearchEnabled) onToggleWebSearch?.();
   }, [onDisableThinking, onToggleWebSearch, supportsThinking, supportsWebSearch, thinkingEnabled, webSearchEnabled]);
+
+  useEffect(() => {
+    if (workspacePlanApplyStatus === "applied" || dismissedAppliedWorkspacePlanKey === null) return;
+
+    setDismissedAppliedWorkspacePlanKey(null);
+  }, [dismissedAppliedWorkspacePlanKey, workspacePlanApplyStatus]);
 
   useEffect(() => {
     return () => {
@@ -716,6 +739,17 @@ export function AiAgentPanel({
         </div>
 
         <form className="shrink-0 border-t border-(--border-default) p-3" onSubmit={handleSubmit}>
+          {workspacePlanEvents.length > 0 && !workspacePlanConfirmationDismissed ? (
+            <WorkspacePlanConfirmationBar
+              applyError={workspacePlanApplyError}
+              applyStatus={workspacePlanApplyStatus}
+              events={workspacePlanEvents}
+              onApply={onApplyWorkspacePlan}
+              onDismiss={workspacePlanApplyStatus === "applied" ? () => {
+                setDismissedAppliedWorkspacePlanKey(workspacePlanConfirmationKey);
+              } : undefined}
+            />
+          ) : null}
           <div
             className={`ai-agent-composer relative overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) px-3 pt-3 pb-2 transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-(--accent) focus-within:shadow-(--ai-command-shadow) ${
               submitting ? "ai-agent-composer-running" : ""
@@ -732,10 +766,10 @@ export function AiAgentPanel({
               placeholder={composerPlaceholder}
               rows={2}
               aria-label={label("app.aiAgentMessage")}
-              disabled={!documentAvailable}
+              disabled={!agentAvailable}
               readOnly={submitting}
               onChange={(event) => {
-                if (!documentAvailable) return;
+                if (!agentAvailable) return;
                 onDraftChange?.(event.target.value);
               }}
               onCompositionEnd={handleCompositionEnd}
@@ -780,6 +814,114 @@ export function AiAgentPanel({
       </div>
     </aside>
   );
+}
+
+type WorkspacePlanConfirmationBarProps = {
+  applyError?: string | null;
+  applyStatus: WorkspacePlanApplyStatus;
+  events: WorkspacePlanVisualEvent[];
+  onApply?: () => unknown;
+  onDismiss?: () => unknown;
+};
+
+function WorkspacePlanConfirmationBar({
+  applyError = null,
+  applyStatus,
+  events,
+  onApply,
+  onDismiss
+}: WorkspacePlanConfirmationBarProps) {
+  const latestStep = latestWorkspacePlanStep(events);
+  const stepCount = workspacePlanStepCount(events);
+  const applied = applyStatus === "applied";
+  const disabled = applyStatus === "applying" || applied || !onApply;
+  const labelText = latestStep?.label ?? "Workspace changes";
+  const detailText = applyError ?? (stepCount > 0 ? `${stepCount} workspace ${stepCount === 1 ? "action" : "actions"}` : "Workspace changes");
+
+  return (
+    <section
+      aria-label="Workspace plan confirmation"
+      className="mb-2 flex min-w-0 items-center gap-2 rounded-md border border-(--border-default) bg-(--bg-primary) px-2.5 py-2 shadow-(--ai-command-shadow)"
+    >
+      <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--accent)_10%,transparent)] text-(--accent)">
+        <WorkspacePlanConfirmationIcon status={applyStatus} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="m-0 truncate text-[12px] leading-4 font-[620] text-(--text-heading)">{labelText}</p>
+        <p
+          className={`m-0 truncate text-[11px] leading-4 ${applyError ? "text-(--danger)" : "text-(--text-secondary)"}`}
+          title={detailText}
+        >
+          {detailText}
+        </p>
+      </div>
+      {applied ? (
+        <span className="inline-flex h-7 shrink-0 items-center rounded-md bg-(--bg-active) px-2 text-[11px] leading-4 font-[620] text-(--text-heading)">
+          {workspacePlanApplyLabel(applyStatus)}
+        </span>
+      ) : (
+        <button
+          aria-label="Apply workspace plan"
+          className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-(--accent) bg-(--accent) px-2 text-[11px] leading-4 font-[620] text-(--bg-primary) transition-[background-color,border-color,color,opacity] duration-150 ease-out hover:border-(--accent-hover) hover:bg-(--accent-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 disabled:hover:border-(--accent) disabled:hover:bg-(--accent)"
+          disabled={disabled}
+          type="button"
+          onClick={onApply}
+        >
+          <span>{workspacePlanApplyLabel(applyStatus)}</span>
+        </button>
+      )}
+      {applied && onDismiss ? (
+        <button
+          aria-label="Dismiss workspace plan confirmation"
+          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+          title="Dismiss workspace plan confirmation"
+          type="button"
+          onClick={onDismiss}
+        >
+          <X aria-hidden="true" size={13} />
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+function WorkspacePlanConfirmationIcon({ status }: { status: WorkspacePlanApplyStatus }) {
+  if (status === "applied") return <Check aria-hidden="true" size={13} />;
+  if (status === "error") return <X aria-hidden="true" size={13} />;
+
+  return <PencilLine aria-hidden="true" size={13} />;
+}
+
+function workspacePlanApplyLabel(status: WorkspacePlanApplyStatus) {
+  if (status === "applying") return "Applying";
+  if (status === "applied") return "Applied";
+  if (status === "error") return "Retry";
+
+  return "Apply";
+}
+
+function latestWorkspacePlanStep(events: WorkspacePlanVisualEvent[]) {
+  return [...events].reverse().find(isWorkspacePlanStepEvent) ?? null;
+}
+
+function workspacePlanStepCount(events: WorkspacePlanVisualEvent[]) {
+  const planEvent = [...events].reverse().find((event) => event.type === "plan_validating");
+  if (planEvent?.type === "plan_validating") return planEvent.totalSteps;
+
+  return new Set(events.filter(isWorkspacePlanStepEvent).map((event) => event.index)).size;
+}
+
+function workspacePlanKey(events: WorkspacePlanVisualEvent[]) {
+  return JSON.stringify(events);
+}
+
+function isWorkspacePlanStepEvent(
+  event: WorkspacePlanVisualEvent
+): event is Extract<WorkspacePlanVisualEvent, { index: number }> {
+  return event.type === "step_applied" ||
+    event.type === "step_failed" ||
+    event.type === "step_previewed" ||
+    event.type === "step_started";
 }
 
 function messageThinkingSections(message: AiAgentPanelMessage) {

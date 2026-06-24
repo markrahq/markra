@@ -139,6 +139,8 @@ export type I18nKey =
   | "settings.editor.aiSelectionDisplayMode.useToolbar"
   | "settings.editor.closeAiCommandOnAgentPanelOpen"
   | "settings.editor.closeAiCommandOnAgentPanelOpenDescription"
+  | "settings.editor.aiWorkspaceAnimation"
+  | "settings.editor.aiWorkspaceAnimationDescription"
   | "settings.editor.suggestAiPanelForComplexInlinePrompts"
   | "settings.editor.suggestAiPanelForComplexInlinePromptsDescription"
   | "settings.editor.fontFamily"

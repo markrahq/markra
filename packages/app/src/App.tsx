@@ -38,6 +38,7 @@ import { QuickOpenPanel } from "./components/QuickOpenPanel";
 import { SideDocumentPane } from "./components/SideDocumentPane";
 import { SettingsWindow } from "./components/SettingsWindow";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
+import { WorkspaceOperationOverlay } from "./components/WorkspaceOperationOverlay";
 import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useAiCommandUi } from "./hooks/useAiCommandUi";
@@ -96,6 +97,11 @@ import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath
 import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
 import { saveEditorImage, saveLocalEditorImage } from "./lib/image-upload";
 import { aiCommandSelection, automaticAiSelection } from "./lib/ai-selection";
+import { createWorkspaceChangePlanOperations } from "./lib/workspace-plan-apply";
+import {
+  workspaceOperationEventsFromPlanEvents,
+  workspaceOperationRevealPaths as revealPathsForWorkspaceOperation
+} from "./lib/workspace-operation-animation";
 import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
 import { markAppPerformance } from "./lib/performance-marks";
 import { replaceMovedPath, sameNativePath } from "./lib/path-move";
@@ -122,7 +128,15 @@ import {
   toggleNativeWindowFullscreen,
   toggleNativeWindowMaximized
 } from "./lib/tauri";
-import { aiAgentWebSearchAvailable, type AiDiffResult, type AiEditIntent, type AiSelectionContext } from "@markra/ai";
+import {
+  aiAgentWebSearchAvailable,
+  applyWorkspaceChangePlan,
+  type AiDiffResult,
+  type AiEditIntent,
+  type AiSelectionContext,
+  type WorkspaceChangePlanArgs,
+  type WorkspacePlanVisualEvent
+} from "@markra/ai";
 import {
   AI_EDITOR_PREVIEW_APPLIED_EVENT,
   AI_EDITOR_PREVIEW_ACTION_EVENT,
@@ -166,6 +180,7 @@ import {
   readNativeMarkdownFile,
   readNativeMarkdownTemplateFile,
   saveNativeHtmlFile,
+  saveNativeMarkdownFile,
   saveNativePandocFile,
   saveNativePdfFile,
   showNativePandocSetup,
@@ -829,6 +844,44 @@ function WorkspaceApp() {
     restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup,
     titlebarTabs
   });
+  const applyRenamedTreeFile = useCallback((previousPath: string, renamedFile: NativeMarkdownFolderFile) => {
+    replaceOpenDocumentFile(previousPath, renamedFile);
+    persistSideDocumentGroupPathUpdate({
+      nextPath: renamedFile.path,
+      previousPath
+    });
+    setImageTabs((currentTabs) => currentTabs.map((tab) =>
+      tab.path === previousPath ? createImageDocumentTab(renamedFile) : tab
+    ));
+    setActiveImageFile((currentFile) => currentFile?.path === previousPath ? renamedFile : currentFile);
+  }, [persistSideDocumentGroupPathUpdate, replaceOpenDocumentFile]);
+  const applyMovedTreeFile = useCallback((
+    previousFile: NativeMarkdownFolderFile,
+    movedFile: NativeMarkdownFolderFile
+  ) => {
+    const moveFolderFile = (file: NativeMarkdownFolderFile): NativeMarkdownFolderFile => {
+      const nextPath = replaceMovedPath(file.path, previousFile.path, movedFile.path);
+      if (nextPath === file.path) return file;
+
+      return {
+        ...file,
+        name: file.path === previousFile.path ? movedFile.name : file.name,
+        path: nextPath,
+        relativePath: replaceMovedPath(file.relativePath, previousFile.relativePath, movedFile.relativePath)
+      };
+    };
+
+    replaceMovedOpenDocumentFile(previousFile.path, movedFile);
+    persistSideDocumentGroupPathUpdate({
+      nextPath: movedFile.path,
+      previousPath: previousFile.path
+    });
+    setImageTabs((currentTabs) => currentTabs.map((tab) => {
+      const movedTab = moveFolderFile(tab);
+      return movedTab === tab ? tab : createImageDocumentTab(movedTab);
+    }));
+    setActiveImageFile((currentFile) => currentFile ? moveFolderFile(currentFile) : currentFile);
+  }, [persistSideDocumentGroupPathUpdate, replaceMovedOpenDocumentFile]);
   const getAiDocumentContent = useCallback(
     () => (document.open ? readCurrentMarkdownForDocument(document.content) : document.content),
     [document.content, document.open, readCurrentMarkdownForDocument]
@@ -846,6 +899,65 @@ function WorkspaceApp() {
       src
     });
   }, [document.path]);
+  const applyAiWorkspacePlan = useCallback(async (
+    plan: WorkspaceChangePlanArgs,
+    options: { onVisualEvent: (event: WorkspacePlanVisualEvent) => unknown }
+  ) => {
+    if (!fileTreeSourcePath) {
+      throw new Error("Open a folder workspace before applying workspace changes.");
+    }
+
+    await saveDirtyMarkdownFiles();
+
+    const result = await applyWorkspaceChangePlan(plan, {
+      onVisualEvent: options.onVisualEvent,
+      operations: createWorkspaceChangePlanOperations({
+        createFile: createMarkdownTreeFile,
+        createFolder: createMarkdownTreeFolder,
+        moveFile: async (file, targetParentPath) => {
+          const movedFile = await moveMarkdownTreeFile(file, targetParentPath);
+          if (movedFile) applyMovedTreeFile(file, movedFile);
+
+          return movedFile;
+        },
+        readFile: readAiWorkspaceFile,
+        renameFile: async (file, fileName) => {
+          const renamedFile = await renameMarkdownTreeFile(file, fileName);
+          if (renamedFile) applyRenamedTreeFile(file.path, renamedFile);
+
+          return renamedFile;
+        },
+        workspaceFiles: fileTreeFiles,
+        writeFile: async (file, content) => {
+          const savedFile = await saveNativeMarkdownFile({
+            contents: content,
+            path: file.path,
+            suggestedName: file.name
+          });
+          if (!savedFile) {
+            throw new Error(`Workspace change could not write "${file.relativePath}".`);
+          }
+        }
+      }),
+      workspaceFiles: fileTreeFiles
+    });
+
+    await refreshMarkdownFileTree(document.path);
+    return result;
+  }, [
+    applyMovedTreeFile,
+    applyRenamedTreeFile,
+    createMarkdownTreeFile,
+    createMarkdownTreeFolder,
+    document.path,
+    fileTreeFiles,
+    fileTreeSourcePath,
+    moveMarkdownTreeFile,
+    readAiWorkspaceFile,
+    refreshMarkdownFileTree,
+    renameMarkdownTreeFile,
+    saveDirtyMarkdownFiles
+  ]);
   const saveDocumentTabViewState = useCallback((tabId: string | null | undefined, patch: DocumentTabViewState) => {
     if (!tabId) return;
 
@@ -1006,6 +1118,7 @@ function WorkspaceApp() {
       : "transition-[grid-template-columns] duration-220 ease-out motion-reduce:transition-none"
   }`;
   const aiAgent = useAiAgentSession({
+    applyWorkspacePlan: applyAiWorkspacePlan,
     documentPath: document.path,
     getDocumentContent: getAiDocumentContent,
     getDocumentEndPosition: editor.getDocumentEndPosition,
@@ -1856,44 +1969,6 @@ function WorkspaceApp() {
     );
     setActiveImageFile(file);
   }, []);
-  const applyRenamedTreeFile = useCallback((previousPath: string, renamedFile: NativeMarkdownFolderFile) => {
-    replaceOpenDocumentFile(previousPath, renamedFile);
-    persistSideDocumentGroupPathUpdate({
-      nextPath: renamedFile.path,
-      previousPath
-    });
-    setImageTabs((currentTabs) => currentTabs.map((tab) =>
-      tab.path === previousPath ? createImageDocumentTab(renamedFile) : tab
-    ));
-    setActiveImageFile((currentFile) => currentFile?.path === previousPath ? renamedFile : currentFile);
-  }, [persistSideDocumentGroupPathUpdate, replaceOpenDocumentFile]);
-  const applyMovedTreeFile = useCallback((
-    previousFile: NativeMarkdownFolderFile,
-    movedFile: NativeMarkdownFolderFile
-  ) => {
-    const moveFolderFile = (file: NativeMarkdownFolderFile): NativeMarkdownFolderFile => {
-      const nextPath = replaceMovedPath(file.path, previousFile.path, movedFile.path);
-      if (nextPath === file.path) return file;
-
-      return {
-        ...file,
-        name: file.path === previousFile.path ? movedFile.name : file.name,
-        path: nextPath,
-        relativePath: replaceMovedPath(file.relativePath, previousFile.relativePath, movedFile.relativePath)
-      };
-    };
-
-    replaceMovedOpenDocumentFile(previousFile.path, movedFile);
-    persistSideDocumentGroupPathUpdate({
-      nextPath: movedFile.path,
-      previousPath: previousFile.path
-    });
-    setImageTabs((currentTabs) => currentTabs.map((tab) => {
-      const movedTab = moveFolderFile(tab);
-      return movedTab === tab ? tab : createImageDocumentTab(movedTab);
-    }));
-    setActiveImageFile((currentFile) => currentFile ? moveFolderFile(currentFile) : currentFile);
-  }, [persistSideDocumentGroupPathUpdate, replaceMovedOpenDocumentFile]);
   const handleCreateMarkdownTreeFolder = useCallback(async (folderName: string, parentPath: string | null = null) => {
     try {
       await createMarkdownTreeFolder(folderName, parentPath);
@@ -3550,11 +3625,18 @@ function WorkspaceApp() {
       thinkingEnabled={aiAgent.thinkingEnabled}
       webSearchAvailable={webSearchAvailable}
       webSearchEnabled={aiAgent.webSearchEnabled}
+      workspaceAvailable={Boolean(fileTree.sourcePath)}
+      workspacePlanApplyError={aiAgent.workspacePlanApplyError}
+      workspacePlanApplyStatus={aiAgent.workspacePlanApplyStatus}
+      workspacePlanEvents={aiAgent.workspacePlanEvents}
       maxWidth={aiAgentPanelMaxWidth}
       minWidth={aiAgentPanelMinWidth}
       width={aiAgentPanelWidth}
       onArchiveSession={(sessionId, archived) => {
         handleArchiveAiAgentSession(sessionId, archived).catch(() => {});
+      }}
+      onApplyWorkspacePlan={() => {
+        aiAgent.applyWorkspacePlan().catch(() => {});
       }}
       onClose={closeAiAgentPanel}
       onCreateSession={handleCreateAiAgentSession}
@@ -3577,6 +3659,30 @@ function WorkspaceApp() {
       onSubmitEditedMessage={aiAgent.submitEditedMessage}
       onToggleThinking={() => aiAgent.setThinkingEnabled((enabled) => !enabled)}
       onToggleWebSearch={() => aiAgent.setWebSearchEnabled((enabled) => !enabled)}
+    />
+  ) : null;
+  const workspaceOperationEvents = useMemo(
+    () => workspaceOperationEventsFromPlanEvents(aiAgent.workspacePlanEvents),
+    [aiAgent.workspacePlanEvents]
+  );
+  const workspaceOperationRevealPaths = useMemo(
+    () => (
+      aiFeatureEnabled && editorPreferences.preferences.aiWorkspaceAnimationEnabled
+        ? revealPathsForWorkspaceOperation(workspaceOperationEvents, aiAgent.workspacePlanApplyStatus)
+        : []
+    ),
+    [
+      aiAgent.workspacePlanApplyStatus,
+      aiFeatureEnabled,
+      editorPreferences.preferences.aiWorkspaceAnimationEnabled,
+      workspaceOperationEvents
+    ]
+  );
+  const workspaceOperationOverlay = aiFeatureEnabled ? (
+    <WorkspaceOperationOverlay
+      enabled={editorPreferences.preferences.aiWorkspaceAnimationEnabled}
+      events={workspaceOperationEvents}
+      status={aiAgent.workspacePlanApplyStatus}
     />
   ) : null;
 
@@ -3660,6 +3766,7 @@ function WorkspaceApp() {
             maxWidth: fileTreeMaxWidth,
             minWidth: fileTreeMinWidth,
             open: fileTreeOpen,
+            operationRevealPaths: workspaceOperationRevealPaths,
             outlineItems,
             recentFolders: recentMarkdownFolders,
             recentFoldersOpen: recentMarkdownFoldersOpen,
@@ -3695,6 +3802,7 @@ function WorkspaceApp() {
             onToggleMarkdownFiles: handleFileTreeToggle
           }}
           windowsSelfDrawnChrome={windowsSelfDrawnChromeEnabled}
+          workspaceOperationOverlay={workspaceOperationOverlay}
           workspaceLayoutClassName={workspaceLayoutClassName}
           workspaceLayoutStyle={workspaceLayoutStyle}
           onEditorContentDragLeave={handleEditorContentDragLeave}

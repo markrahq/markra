@@ -102,6 +102,8 @@ const messages: LocaleMessages = {
   "settings.editor.autoSaveIntervalUnit": "min",
   "settings.editor.closeAiCommandOnAgentPanelOpen": "Fermer l’IA intégrée à l’ouverture de Markra AI",
   "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "Masque la saisie de commande IA du bas quand le panneau IA de droite s’ouvre.",
+  "settings.editor.aiWorkspaceAnimation": "Animation IA de l’espace de travail",
+  "settings.editor.aiWorkspaceAnimationDescription": "Expérimental. Affiche un curseur IA et des surbrillances dans l’espace de travail pendant l’application des changements de fichiers.",
   "settings.editor.suggestAiPanelForComplexInlinePrompts": "Suggérer Markra AI pour les demandes intégrées complexes",
   "settings.editor.suggestAiPanelForComplexInlinePromptsDescription": "Expérimental. Suggère Markra AI pour les demandes intégrées complexes d’après la structure locale de la saisie. Désactivez-le si l’invite apparaît trop souvent.",
   "settings.ai.addProvider": "Ajouter un fournisseur",

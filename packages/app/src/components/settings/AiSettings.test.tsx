@@ -22,6 +22,12 @@ describe("AiSettings", () => {
 
     expect(screen.getByRole("switch", { name: "Show AI quick input" })).toHaveAttribute("aria-checked", "true");
     expect(screen.getByRole("switch", { name: "Show floating toolbar" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "AI workspace animation" })).toHaveAttribute("aria-checked", "false");
+    expect(
+      screen.getByText(
+        "Experimental. Shows an AI cursor and highlights in the workspace while file changes are being applied."
+      )
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         "Experimental. Suggest Markra AI for complex inline requests based on local input structure. Turn it off if the prompt feels too eager."
@@ -49,6 +55,14 @@ describe("AiSettings", () => {
     expect(onUpdatePreferences).toHaveBeenCalledWith({
       ...defaultEditorPreferences,
       suggestAiPanelForComplexInlinePrompts: false
+    });
+
+    fireEvent.click(screen.getByRole("switch", { name: "AI workspace animation" }));
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      suggestAiPanelForComplexInlinePrompts: true,
+      aiWorkspaceAnimationEnabled: true
     });
   });
 

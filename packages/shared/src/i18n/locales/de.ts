@@ -102,6 +102,8 @@ const messages: LocaleMessages = {
   "settings.editor.autoSaveIntervalUnit": "Min.",
   "settings.editor.closeAiCommandOnAgentPanelOpen": "Inline-KI beim Öffnen von Markra AI schließen",
   "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "Blendet die untere KI-Befehlseingabe aus, wenn das rechte KI-Panel geöffnet wird.",
+  "settings.editor.aiWorkspaceAnimation": "KI-Arbeitsbereichsanimation",
+  "settings.editor.aiWorkspaceAnimationDescription": "Experimentell. Zeigt einen KI-Cursor und Hervorhebungen im Arbeitsbereich, während Dateiänderungen angewendet werden.",
   "settings.editor.suggestAiPanelForComplexInlinePrompts": "Markra AI für komplexe Inline-Anfragen vorschlagen",
   "settings.editor.suggestAiPanelForComplexInlinePromptsDescription": "Experimentell. Schlägt Markra AI für komplexe Inline-Anfragen anhand lokaler Eingabestruktur vor. Deaktivieren, wenn der Hinweis zu häufig erscheint.",
   "settings.ai.addProvider": "Anbieter hinzufügen",

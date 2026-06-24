@@ -152,6 +152,7 @@ describe("settings events", () => {
 
     const preferences: EditorPreferences = {
       aiQuickActionPrompts: defaultAiQuickActionPrompts,
+      aiWorkspaceAnimationEnabled: true,
       autoRevealActiveFile: true,
       autoSaveEnabled: true,
       autoSaveIntervalMinutes: 10,

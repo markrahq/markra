@@ -298,6 +298,8 @@ const messages: BaseLocaleMessages = {
   "settings.editor.aiSelectionDisplayMode.useToolbar": "Show floating toolbar",
   "settings.editor.closeAiCommandOnAgentPanelOpen": "Close inline AI when opening Markra AI",
   "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "Hide the bottom AI command input when the right-side AI panel opens.",
+  "settings.editor.aiWorkspaceAnimation": "AI workspace animation",
+  "settings.editor.aiWorkspaceAnimationDescription": "Experimental. Shows an AI cursor and highlights in the workspace while file changes are being applied.",
   "settings.editor.suggestAiPanelForComplexInlinePrompts": "Suggest Markra AI for complex inline requests",
   "settings.editor.suggestAiPanelForComplexInlinePromptsDescription": "Experimental. Suggest Markra AI for complex inline requests based on local input structure. Turn it off if the prompt feels too eager.",
   "settings.editor.fontFamily": "Editor font",

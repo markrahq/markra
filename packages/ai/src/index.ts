@@ -11,4 +11,6 @@ export * from "./agent/runtime.ts";
 export * from "./agent/session-state.ts";
 export * from "./agent/session-title.ts";
 export * from "./agent/tools/web-search.ts";
+export type { WorkspaceChangePlanArgs } from "./agent/tools/params.ts";
 export * from "./agent/web-search-availability.ts";
+export * from "./agent/workspace-change-plan.ts";

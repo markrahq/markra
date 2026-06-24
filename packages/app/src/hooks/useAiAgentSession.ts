@@ -9,6 +9,7 @@ import {
   finalizeAgentProcesses,
   generateAiAgentSessionTitle,
   runDocumentAiAgent,
+  type ApplyWorkspaceChangePlanResult,
   type AgentWorkspaceFile,
   type AiDiffResult,
   type AiDocumentAnchor,
@@ -19,7 +20,9 @@ import {
   type DocumentAiHistoryMessage,
   type DocumentAiImage,
   type WebSearchSettings,
-  type StoredAiAgentSessionState
+  type StoredAiAgentSessionState,
+  type WorkspaceChangePlanArgs,
+  type WorkspacePlanVisualEvent
 } from "@markra/ai";
 import { getProviderCapabilities, type AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
@@ -32,10 +35,18 @@ import {
   saveStoredAiAgentSession,
   saveStoredAiAgentSessionTitle
 } from "../lib/settings/app-settings";
+import {
+  workspaceChangePlanFromToolResult,
+  workspacePlanEventsFromToolResult
+} from "../lib/workspace-plan-events";
 
 export type AiAgentPanelMessage = AiAgentSessionMessage;
 
 type AiAgentSessionContext = {
+  applyWorkspacePlan?: (
+    plan: WorkspaceChangePlanArgs,
+    options: { onVisualEvent: (event: WorkspacePlanVisualEvent) => unknown }
+  ) => Promise<ApplyWorkspaceChangePlanResult>;
   documentPath?: string | null;
   getDocumentContent: () => string;
   getDocumentEndPosition?: () => number;
@@ -63,6 +74,10 @@ type AiAgentSessionContext = {
   workspaceFiles?: AgentWorkspaceFile[];
 };
 
+export type WorkspacePlanApplyStatus = "applied" | "applying" | "error" | "idle";
+
+const workspacePlanVisualEventDelayMs = 420;
+
 type RunningAiAgentRequest = {
   assistantMessageId: number;
   draft: string;
@@ -80,6 +95,10 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const [webSearchEnabled, setWebSearchEnabledState] = useState(false);
   const [status, setStatus] = useState<"idle" | "thinking" | "streaming" | "error">("idle");
   const [titleVersion, setTitleVersion] = useState(0);
+  const [workspacePlanEvents, setWorkspacePlanEvents] = useState<WorkspacePlanVisualEvent[]>([]);
+  const [workspacePlanApplyStatus, setWorkspacePlanApplyStatus] = useState<WorkspacePlanApplyStatus>("idle");
+  const [workspacePlanApplyError, setWorkspacePlanApplyError] = useState<string | null>(null);
+  const [latestWorkspacePlan, setLatestWorkspacePlan] = useState<WorkspaceChangePlanArgs | null>(null);
   const requestIdRef = useRef(0);
   const hydrationRequestIdRef = useRef(0);
   const activeSessionKeyRef = useRef<string | null>(null);
@@ -171,6 +190,10 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     const runningRequest = runningRequestsRef.current.get(sessionKey);
     hydratedSessionKeyRef.current = null;
     skipNextPersistRef.current = false;
+    setWorkspacePlanEvents([]);
+    setLatestWorkspacePlan(null);
+    setWorkspacePlanApplyError(null);
+    setWorkspacePlanApplyStatus("idle");
     sessionTitleSourceRef.current = null;
     titleGenerationSignatureRef.current = null;
     setStatus(runningRequest?.status ?? "idle");
@@ -488,6 +511,10 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
       webSearchEnabled: runWebSearchEnabled
     });
     setDraft("");
+    setWorkspacePlanEvents([]);
+    setLatestWorkspacePlan(null);
+    setWorkspacePlanApplyError(null);
+    setWorkspacePlanApplyStatus("idle");
     setStatus("thinking");
     let preparedEditorPreview = false;
     const latestPreparedEditorPreview: { current: { previewId?: string; result: AiDiffResult } | null } = {
@@ -533,6 +560,21 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
             ...currentMessage,
             activities: applyAgentEventToProcesses(currentMessage.activities ?? [], event, message)
           }));
+
+          if (
+            event.type === "tool_execution_end" &&
+            !event.isError &&
+            event.toolName === "prepare_workspace_change_plan"
+          ) {
+            const nextWorkspacePlanEvents = workspacePlanEventsFromToolResult(event.result);
+            const nextWorkspacePlan = workspaceChangePlanFromToolResult(event.result);
+            if (nextWorkspacePlanEvents.length > 0 && activeSessionKeyRef.current === runSessionKey) {
+              setLatestWorkspacePlan(nextWorkspacePlan);
+              setWorkspacePlanApplyError(null);
+              setWorkspacePlanApplyStatus("idle");
+              setWorkspacePlanEvents(nextWorkspacePlanEvents);
+            }
+          }
 
           if (event.type === "message_end" && event.message.role === "assistant") {
             const completedThinking = assistantThinkingFromAgentMessageContent(event.message.content);
@@ -685,7 +727,57 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     });
   }, [draft, messages, status, submit]);
 
+  const applyWorkspacePlan = useCallback(async () => {
+    if (!latestWorkspacePlan || !ctx.applyWorkspacePlan) return null;
+
+    const runSessionKey = sessionKey;
+    let queuedVisualEventCount = 0;
+    let visualEventQueue = Promise.resolve();
+    const queueVisualEvent = (event: WorkspacePlanVisualEvent) => {
+      const queuedIndex = queuedVisualEventCount;
+      queuedVisualEventCount += 1;
+      visualEventQueue = visualEventQueue.then(async () => {
+        if (queuedIndex > 0) {
+          await delayWorkspacePlanVisualEvent();
+        }
+        if (activeSessionKeyRef.current !== runSessionKey) return;
+
+        setWorkspacePlanEvents((currentEvents) =>
+          event.type === "plan_validating" ? [event] : [...currentEvents, event]
+        );
+      });
+
+      return visualEventQueue;
+    };
+
+    setWorkspacePlanApplyError(null);
+    setWorkspacePlanApplyStatus("applying");
+
+    try {
+      const result = await ctx.applyWorkspacePlan(latestWorkspacePlan, {
+        onVisualEvent: queueVisualEvent
+      });
+      await visualEventQueue;
+
+      if (activeSessionKeyRef.current === runSessionKey) {
+        setWorkspacePlanApplyStatus("applied");
+      }
+
+      return result;
+    } catch (error) {
+      await visualEventQueue.catch(() => {});
+
+      if (activeSessionKeyRef.current === runSessionKey) {
+        setWorkspacePlanApplyError(error instanceof Error ? error.message : "Workspace plan execution failed.");
+        setWorkspacePlanApplyStatus("error");
+      }
+
+      return null;
+    }
+  }, [ctx.applyWorkspacePlan, latestWorkspacePlan, sessionKey]);
+
   return {
+    applyWorkspacePlan,
     draft,
     interrupt,
     messages,
@@ -699,8 +791,17 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     submitEditedMessage,
     thinkingEnabled,
     titleVersion,
-    webSearchEnabled
+    webSearchEnabled,
+    workspacePlanApplyError,
+    workspacePlanApplyStatus,
+    workspacePlanEvents
   };
+}
+
+function delayWorkspacePlanVisualEvent() {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, workspacePlanVisualEventDelayMs);
+  });
 }
 
 function assistantThinkingFromAgentMessageContent(content: unknown) {

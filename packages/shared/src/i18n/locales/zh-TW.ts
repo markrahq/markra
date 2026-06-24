@@ -110,6 +110,8 @@ const messages: LocaleMessages = {
   "settings.editor.autoOpenAiOnSelectionDescription": "選中文本後自動開啟 AI 快捷輸入框。",
   "settings.editor.closeAiCommandOnAgentPanelOpen": "開啟 Markra AI 時關閉快捷輸入框",
   "settings.editor.closeAiCommandOnAgentPanelOpenDescription": "開啟右側 AI 面板時隱藏底部 AI 命令輸入框。",
+  "settings.editor.aiWorkspaceAnimation": "AI 工作區動畫",
+  "settings.editor.aiWorkspaceAnimationDescription": "實驗性功能。AI 執行檔案變更時，在工作區顯示 AI 游標和高亮動畫。",
   "settings.editor.suggestAiPanelForComplexInlinePrompts": "複雜快捷 AI 請求時建議轉到 Markra AI",
   "settings.editor.suggestAiPanelForComplexInlinePromptsDescription": "實驗性功能。根據輸入長度、換行、列表等本地結構訊號建議改用 Markra AI；如果提示過於積極，可以關閉。",
   "settings.ai.addProvider": "新增服務商",
