@@ -81,7 +81,7 @@ describe("editor preferences", () => {
       spellcheckEnabled: false,
       spellcheckIgnoredWords: [],
       spellcheckLanguage: "en",
-      tableColumnWidthMode: "even",
+      tableColumnWidthMode: "auto",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -212,7 +212,7 @@ describe("editor preferences", () => {
       spellcheckEnabled: false,
       spellcheckIgnoredWords: [],
       spellcheckLanguage: "en",
-      tableColumnWidthMode: "even",
+      tableColumnWidthMode: "auto",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },
@@ -657,7 +657,7 @@ describe("editor preferences", () => {
       spellcheckEnabled: false,
       spellcheckIgnoredWords: [],
       spellcheckLanguage: "en",
-      tableColumnWidthMode: "even",
+      tableColumnWidthMode: "auto",
       titlebarActions: [
         { id: "aiAgent", visible: true },
         { id: "sourceMode", visible: true },

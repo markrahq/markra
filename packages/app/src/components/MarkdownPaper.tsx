@@ -124,7 +124,7 @@ export function MarkdownPaper({
   spellcheckEnabled = false,
   spellcheckIgnoredWords,
   spellchecker,
-  tableColumnWidthMode = "even",
+  tableColumnWidthMode = "auto",
   topInset = "titlebar",
   workspaceFiles,
   wrapCodeBlocks = true

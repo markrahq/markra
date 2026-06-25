@@ -91,7 +91,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     spellcheckIgnoredWords: [],
     spellcheckLanguage: "en",
     showWordCount: true,
-    tableColumnWidthMode: "even",
+    tableColumnWidthMode: "auto",
     wrapCodeBlocks: true
   },
   getStoredEditorPreferences: vi.fn()

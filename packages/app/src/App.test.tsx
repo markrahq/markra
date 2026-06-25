@@ -334,7 +334,7 @@ function createStoredEditorPreferences(
     spellcheckEnabled: overrides.spellcheckEnabled ?? false,
     spellcheckIgnoredWords: overrides.spellcheckIgnoredWords ?? [],
     spellcheckLanguage: overrides.spellcheckLanguage ?? "en",
-    tableColumnWidthMode: overrides.tableColumnWidthMode ?? "even",
+    tableColumnWidthMode: overrides.tableColumnWidthMode ?? "auto",
     titlebarActions: [
       { id: "aiAgent", visible: true },
       { id: "sourceMode", visible: true },
