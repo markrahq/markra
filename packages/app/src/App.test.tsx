@@ -2233,7 +2233,7 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "980");
   });
 
-  it("scales the preset editor writing width when the workspace has extra room", async () => {
+  it("keeps the preset editor writing width fixed when the workspace has extra room", async () => {
     const restoreWindowInnerWidth = mockWindowInnerWidth(1688);
 
     try {
@@ -2241,15 +2241,15 @@ describe("Markra workspace", () => {
 
       expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
       expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
-        maxWidth: "1210px"
+        maxWidth: "860px"
       });
-      expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "1210");
+      expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "860");
     } finally {
       restoreWindowInnerWidth();
     }
   });
 
-  it("scales saved custom editor writing widths when the workspace has extra room", async () => {
+  it("keeps saved custom editor writing widths fixed when the workspace has extra room", async () => {
     const restoreWindowInnerWidth = mockWindowInnerWidth(1688);
     mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
       contentWidth: "default",
@@ -2261,15 +2261,15 @@ describe("Markra workspace", () => {
 
       expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
       expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
-        maxWidth: "1210px"
+        maxWidth: "860px"
       });
-      expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "1210");
+      expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "860");
     } finally {
       restoreWindowInnerWidth();
     }
   });
 
-  it("persists editor writing width resizes as a responsive base width", async () => {
+  it("persists editor writing width resizes as fixed custom widths", async () => {
     const restoreWindowInnerWidth = mockWindowInnerWidth(1688);
 
     try {
@@ -2278,16 +2278,16 @@ describe("Markra workspace", () => {
       expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
       const resizeHandle = await screen.findByRole("separator", { name: "Resize editor width" });
 
-      fireEvent.pointerDown(resizeHandle, { clientX: 1210, pointerId: 1 });
-      fireEvent.pointerMove(window, { clientX: 1280 });
+      fireEvent.pointerDown(resizeHandle, { clientX: 860, pointerId: 1 });
+      fireEvent.pointerMove(window, { clientX: 980 });
       fireEvent.pointerUp(window);
 
       expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
-        maxWidth: "1280px"
+        maxWidth: "980px"
       });
       await waitFor(() => expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(expect.objectContaining({
         contentWidth: "default",
-        contentWidthPx: 930
+        contentWidthPx: 980
       })));
     } finally {
       restoreWindowInnerWidth();

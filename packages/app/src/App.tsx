@@ -106,11 +106,7 @@ import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
 import { markAppPerformance } from "./lib/performance-marks";
 import { replaceMovedPath, sameNativePath } from "./lib/path-move";
 import { createAppSpellcheckerForLanguage } from "./lib/spellcheck";
-import {
-  resolveEditorContentWidthBasePx,
-  resolveResponsiveEditorContentWidthPx,
-  shouldShowEditorWidthResizer
-} from "./lib/editor-width";
+import { editorContentWidthPixels, shouldShowEditorWidthResizer } from "./lib/editor-width";
 import {
   resolveDesktopOsVersion,
   resolveDesktopPlatform,
@@ -1184,22 +1180,11 @@ function WorkspaceApp() {
   const editorAreaWidth = Math.max(0, viewportWidth -
     (fileTreeOpen ? fileTreeWidth : 0) -
     (aiFeatureEnabled && aiAgentOpen ? aiAgentPanelWidth : 0));
-  const responsiveEditorContentWidthPx = resolveResponsiveEditorContentWidthPx({
-    contentWidth: activeEditorContentWidth,
-    contentWidthPx: activeEditorContentWidthPx,
-    editorAreaWidth
-  });
-  const handleResponsiveEditorContentWidthChange = useCallback((nextWidthPx: number) => {
-    handleEditorContentWidthChange(resolveEditorContentWidthBasePx({
-      contentWidth: activeEditorContentWidth,
-      editorAreaWidth,
-      renderedContentWidthPx: nextWidthPx
-    }));
-  }, [activeEditorContentWidth, editorAreaWidth, handleEditorContentWidthChange]);
+  const activeEditorContentWidthValue = activeEditorContentWidthPx ?? editorContentWidthPixels[activeEditorContentWidth];
   const editorWidthResizerVisible = shouldShowEditorWidthResizer({
     aiAgentOpen: aiFeatureEnabled && aiAgentOpen,
     editorAreaWidth,
-    editorContentWidth: responsiveEditorContentWidthPx
+    editorContentWidth: activeEditorContentWidthValue
   });
   const editorAgentLayoutClassName = `editor-agent-layout grid min-h-0 ${
     aiAgentPanelResizing
@@ -1598,12 +1583,13 @@ function WorkspaceApp() {
     splitMode ? resolvedSplitVisualPanePercent : "split-closed",
     activeEditorSurface,
     activeEditorContentWidth,
-    responsiveEditorContentWidthPx,
+    activeEditorContentWidthPx ?? "auto",
     documentSearchOpen && documentSearchAvailable ? "search-open" : "search-closed",
     documentSearchReplaceOpen ? "replace-open" : "replace-closed",
     editorPreferences.preferences.showDocumentTabs ? "tabs-open" : "tabs-closed"
   ].join(":"), [
     activeEditorContentWidth,
+    activeEditorContentWidthPx,
     activeEditorSurface,
     aiAgentOpen,
     aiAgentPanelResizing,
@@ -1618,7 +1604,6 @@ function WorkspaceApp() {
     fileTreeWidth,
     resolvedSideDocumentMainPanePercent,
     resolvedSplitVisualPanePercent,
-    responsiveEditorContentWidthPx,
     sideDocumentOpen,
     splitMode
   ]);
@@ -3727,7 +3712,7 @@ function WorkspaceApp() {
               }
               bodyFontSize={editorPreferences.preferences.bodyFontSize}
               contentWidth={activeEditorContentWidth}
-              contentWidthPx={responsiveEditorContentWidthPx}
+              contentWidthPx={activeEditorContentWidthPx}
               documentKey={tab.id}
               documentPath={tab.path}
               editorFontFamily={editorPreferences.preferences.editorFontFamily}
@@ -3748,7 +3733,7 @@ function WorkspaceApp() {
 
                 handleMarkdownTabChange(tab.id, content, { ...options, surface: "visual" });
               }}
-              onContentWidthChange={editorWidthResizerVisible ? handleResponsiveEditorContentWidthChange : undefined}
+              onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
               onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
               onSaveClipboardAttachment={handleSaveClipboardAttachment}
               onSaveClipboardImage={handleSaveClipboardImage}
@@ -4085,7 +4070,7 @@ function WorkspaceApp() {
                           bodyFontSize={editorPreferences.preferences.bodyFontSize}
                           content={document.content}
                           contentWidth={activeEditorContentWidth}
-                          contentWidthPx={responsiveEditorContentWidthPx}
+                          contentWidthPx={activeEditorContentWidthPx}
                           editorFontFamily={editorPreferences.preferences.editorFontFamily}
                           extendedSyntax={editorPreferences.preferences.extendedSyntax}
                           language={appLanguage.language}
@@ -4093,7 +4078,7 @@ function WorkspaceApp() {
                           onChange={(content) => handleSourceMarkdownChange(content, {
                             documentRevision: document.revision
                           })}
-                          onContentWidthChange={editorWidthResizerVisible ? handleResponsiveEditorContentWidthChange : undefined}
+                          onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
                           onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
                           onScroll={handleSourcePaneScroll}
                           onSelectionTextChange={updateSelectedWordCount}
@@ -4115,7 +4100,7 @@ function WorkspaceApp() {
                           bodyFontSize={editorPreferences.preferences.bodyFontSize}
                           content={document.content}
                           contentWidth={activeEditorContentWidth}
-                          contentWidthPx={responsiveEditorContentWidthPx}
+                          contentWidthPx={activeEditorContentWidthPx}
                           editorFontFamily={editorPreferences.preferences.editorFontFamily}
                           extendedSyntax={editorPreferences.preferences.extendedSyntax}
                           language={appLanguage.language}
@@ -4123,7 +4108,7 @@ function WorkspaceApp() {
                           onChange={(content) => handleSourceMarkdownChange(content, {
                             documentRevision: document.revision
                           })}
-                          onContentWidthChange={editorWidthResizerVisible ? handleResponsiveEditorContentWidthChange : undefined}
+                          onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
                           onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
                           onScroll={handleSourcePaneScroll}
                           onSelectionTextChange={updateSelectedWordCount}
@@ -4167,7 +4152,7 @@ function WorkspaceApp() {
                         bodyFontSize={editorPreferences.preferences.bodyFontSize}
                         content={sideDocumentTab.content}
                         contentWidth={activeEditorContentWidth}
-                        contentWidthPx={responsiveEditorContentWidthPx}
+                        contentWidthPx={activeEditorContentWidthPx}
                         documentKey={sideDocumentTab.id}
                         documentPath={sideDocumentTab.path}
                         editorFontFamily={editorPreferences.preferences.editorFontFamily}
@@ -4191,7 +4176,7 @@ function WorkspaceApp() {
                         onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
                         workspaceFiles={fileTreeFiles}
                         onChange={handleSideDocumentChange}
-                        onContentWidthChange={editorWidthResizerVisible ? handleResponsiveEditorContentWidthChange : undefined}
+                        onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
                         onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
                         onFocus={handleSideDocumentPaneFocus}
                         wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
