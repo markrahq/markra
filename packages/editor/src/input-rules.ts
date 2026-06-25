@@ -82,6 +82,8 @@ const liveMarkdownVisibleMarkSelector = [
 const formattedInlineElementSelector = "strong, em, del, code";
 const visibleFormattedEdgeThreshold = 6;
 const maxVisibleFormattedEdgeThreshold = 14;
+const visibleDelimiterHitThreshold = 6;
+const visibleInlineYSlop = 2;
 type FormattedEdge = "left" | "right";
 type FormattedEdgePlacement = "inside" | "outside";
 
@@ -591,7 +593,7 @@ function numericDataAttribute(target: HTMLElement, name: string) {
 }
 
 function rectContainsY(rect: DOMRect, y: number) {
-  return rect.width > 0 && rect.height > 0 && y >= rect.top && y <= rect.bottom;
+  return rect.width > 0 && rect.height > 0 && y >= rect.top - visibleInlineYSlop && y <= rect.bottom + visibleInlineYSlop;
 }
 
 function visibleFormattedEdgeHitThreshold(target: HTMLElement, rect: DOMRect) {
@@ -605,6 +607,47 @@ function visibleFormattedEdgeHitThreshold(target: HTMLElement, rect: DOMRect) {
 function formattedEdgePlacementFromCoordinates(rect: DOMRect, edge: FormattedEdge, x: number): FormattedEdgePlacement {
   if (edge === "left") return x > rect.left ? "inside" : "outside";
   return x < rect.right ? "inside" : "outside";
+}
+
+function rectHorizontalDistance(rect: DOMRect, x: number) {
+  if (x >= rect.left && x <= rect.right) return 0;
+  return Math.min(Math.abs(x - rect.left), Math.abs(x - rect.right));
+}
+
+function visibleDelimiterCandidate(target: HTMLElement, event: MouseEvent) {
+  const rect = target.getBoundingClientRect();
+  if (!rectContainsY(rect, event.clientY)) return null;
+
+  const distance = rectHorizontalDistance(rect, event.clientX);
+  if (distance > visibleDelimiterHitThreshold) return null;
+
+  const position = liveMarkdownDelimiterPosition(target);
+  return position === null ? null : { distance, position };
+}
+
+function selectLiveMarkdownDelimiterByCoordinates(view: EditorView, event: MouseEvent) {
+  const targets = Array.from(view.dom.querySelectorAll<HTMLElement>(liveMarkdownDelimiterSelector));
+  let closestCandidate: { distance: number; position: number } | null = null;
+
+  for (const target of targets) {
+    const candidate = visibleDelimiterCandidate(target, event);
+    if (!candidate) continue;
+    if (!closestCandidate || candidate.distance < closestCandidate.distance) {
+      closestCandidate = candidate;
+    }
+  }
+
+  if (!closestCandidate || closestCandidate.position > view.state.doc.content.size) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  view.focus();
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, closestCandidate.position))
+      .scrollIntoView()
+  );
+  return true;
 }
 
 function edgePositionFromLiveMarkdownMark(
@@ -694,7 +737,8 @@ function visibleFormattedEdgeCandidate(
   const rightDistance = Math.abs(event.clientX - rect.right);
   const edge = leftDistance <= rightDistance ? "left" : "right";
   const distance = Math.min(leftDistance, rightDistance);
-  if (distance > visibleFormattedEdgeHitThreshold(target, rect)) return null;
+  const threshold = visibleFormattedEdgeHitThreshold(target, rect);
+  if (distance > threshold) return null;
 
   const placement = formattedEdgePlacementFromCoordinates(rect, edge, event.clientX);
   const position = edgePositionFromVisibleFormattedTarget(view, target, edge, placement);
@@ -737,7 +781,7 @@ function selectLiveMarkdownDelimiterEdge(view: EditorView, event: Event) {
   if (event.button !== 0) return false;
 
   const target = liveMarkdownDelimiterTarget(event.target);
-  if (!target) return selectVisibleFormattedEdge(view, event);
+  if (!target) return selectLiveMarkdownDelimiterByCoordinates(view, event) || selectVisibleFormattedEdge(view, event);
 
   const position = liveMarkdownDelimiterPosition(target);
   if (position === null || position > view.state.doc.content.size) return false;

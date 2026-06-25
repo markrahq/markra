@@ -7458,6 +7458,61 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("places the cursor outside active live markdown delimiters from parent-targeted marker clicks", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "**ABC**tail");
+
+    expectLiveMark(container, "strong", "ABC");
+
+    const sourceStart = findFirstTextBlockCursor(view);
+    const sourceEnd = findTextPosition(view, "tail");
+    const paragraph = container.querySelector<HTMLElement>(".ProseMirror p");
+
+    moveCursor(view, findTextPosition(view, "ABC", 1));
+
+    const delimiters = Array.from(container.querySelectorAll<HTMLElement>(".ProseMirror .markra-md-delimiter"));
+    expect(delimiters).toHaveLength(2);
+    const [openingDelimiter, closingDelimiter] = delimiters;
+
+    openingDelimiter!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 40,
+          height: 20,
+          left: 100,
+          right: 128,
+          top: 20,
+          width: 28,
+          x: 100,
+          y: 20
+        }) as DOMRect
+    );
+    closingDelimiter!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 40,
+          height: 20,
+          left: 188,
+          right: 216,
+          top: 20,
+          width: 28,
+          x: 188,
+          y: 20
+        }) as DOMRect
+    );
+
+    fireEvent.mouseDown(paragraph!, { button: 0, clientX: 104, clientY: 19.75 });
+
+    expect(view.state.selection.from).toBe(sourceStart);
+
+    moveCursor(view, findTextPosition(view, "ABC", 1));
+    fireEvent.mouseDown(paragraph!, { button: 0, clientX: 212, clientY: 19.75 });
+
+    expect(view.state.selection.from).toBe(sourceEnd);
+    await settleMarkdownListener();
+  });
+
   it("places the cursor before adjacent punctuation from live closing delimiter clicks", async () => {
     const { container, view } = await renderEditor();
 
