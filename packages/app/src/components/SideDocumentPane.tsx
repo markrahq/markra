@@ -70,7 +70,7 @@ export function SideDocumentPane({
   spellcheckEnabled = false,
   spellcheckIgnoredWords,
   spellchecker,
-  tableColumnWidthMode = "even",
+  tableColumnWidthMode = "auto",
   onAddSpellcheckIgnoredWord,
   onSaveClipboardAttachment,
   workspaceFiles,

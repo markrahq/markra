@@ -490,7 +490,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   spellcheckEnabled: false,
   spellcheckIgnoredWords: [],
   spellcheckLanguage: defaultSpellcheckLanguage,
-  tableColumnWidthMode: "even",
+  tableColumnWidthMode: "auto",
   titlebarActions: [...defaultTitlebarActions],
   showWordCount: true,
   wrapCodeBlocks: true

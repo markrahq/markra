@@ -4869,7 +4869,7 @@ describe("MarkdownPaper editing", () => {
     expect(screen.getByRole("button", { name: "Align table left" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("toggles table column width mode from the top-left controls and persists it for the current document", async () => {
+  it("defaults tables to auto column width and persists toggled width mode for the current document", async () => {
     window.localStorage.clear();
 
     const initialTable = [
@@ -4880,13 +4880,6 @@ describe("MarkdownPaper editing", () => {
     const firstRender = await renderEditor(initialTable, { documentPath: "/vault/current.md" });
     const wrapper = () => firstRender.container.querySelector(".ProseMirror .markra-table-controls-wrapper");
     const table = () => firstRender.container.querySelector(".ProseMirror table");
-
-    expect(wrapper()).toHaveAttribute("data-width-mode", "even");
-    expect(table()).toHaveAttribute("data-width-mode", "even");
-    expect(table()).not.toHaveClass("markra-table-width-auto");
-    expect(screen.getByRole("button", { name: tableColumnWidthModeLabel })).toHaveAttribute("aria-pressed", "false");
-
-    fireEvent.mouseDown(screen.getByRole("button", { name: tableColumnWidthModeLabel }));
 
     expect(wrapper()).toHaveAttribute("data-width-mode", "auto");
     expect(table()).toHaveAttribute("data-width-mode", "auto");
@@ -4900,23 +4893,31 @@ describe("MarkdownPaper editing", () => {
     });
     expect(screen.getByRole("button", { name: tableColumnWidthModeLabel })).toHaveAttribute("aria-pressed", "true");
 
+    fireEvent.mouseDown(screen.getByRole("button", { name: tableColumnWidthModeLabel }));
+
+    expect(wrapper()).toHaveAttribute("data-width-mode", "even");
+    expect(table()).toHaveAttribute("data-width-mode", "even");
+    expect(table()).not.toHaveClass("markra-table-width-auto");
+    expect(table()?.querySelectorAll("col")).toHaveLength(0);
+    expect(screen.getByRole("button", { name: tableColumnWidthModeLabel })).toHaveAttribute("aria-pressed", "false");
+
     firstRender.unmount();
 
     const secondRender = await renderEditor(initialTable, { documentPath: "/vault/current.md" });
-    expect(secondRender.container.querySelector(".ProseMirror table")).toHaveClass("markra-table-width-auto");
+    expect(secondRender.container.querySelector(".ProseMirror table")).not.toHaveClass("markra-table-width-auto");
 
     fireEvent.mouseDown(screen.getByRole("button", { name: tableColumnWidthModeLabel }));
 
-    const fixedTable = secondRender.container.querySelector<HTMLTableElement>(".ProseMirror table");
+    const autoTable = secondRender.container.querySelector<HTMLTableElement>(".ProseMirror table");
     expect(secondRender.container.querySelector(".ProseMirror .markra-table-controls-wrapper")).toHaveAttribute(
       "data-width-mode",
-      "even"
+      "auto"
     );
-    expect(fixedTable).not.toHaveClass("markra-table-width-auto");
-    expect(fixedTable?.querySelectorAll("col")).toHaveLength(0);
-    expect(fixedTable?.style.display).toBe("");
-    expect(fixedTable?.style.tableLayout).toBe("");
-    expect(fixedTable?.style.width).toBe("");
+    expect(autoTable).toHaveClass("markra-table-width-auto");
+    expect(autoTable?.querySelectorAll("col")).toHaveLength(2);
+    expect(autoTable?.style.display).toBe("");
+    expect(autoTable?.style.tableLayout).toBe("");
+    expect(autoTable?.style.width).toBe("");
     window.localStorage.clear();
   });
 
@@ -4950,11 +4951,16 @@ describe("MarkdownPaper editing", () => {
     const tables = firstRender.container.querySelectorAll(".ProseMirror table");
     const buttons = screen.getAllByRole("button", { name: tableColumnWidthModeLabel });
 
-    fireEvent.mouseDown(buttons[1]);
     expect(tables[0]).toHaveClass("markra-table-width-auto");
     expect(tables[1]).toHaveClass("markra-table-width-auto");
     expect(buttons[0]).toHaveAttribute("aria-pressed", "true");
     expect(buttons[1]).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.mouseDown(buttons[1]);
+    expect(tables[0]).not.toHaveClass("markra-table-width-auto");
+    expect(tables[1]).not.toHaveClass("markra-table-width-auto");
+    expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
+    expect(buttons[1]).toHaveAttribute("aria-pressed", "false");
     firstRender.unmount();
 
     const insertedTable = ["| Inserted | Table |", "| --- | --- |", "| Before | Saved content |"].join("\n");
@@ -4963,9 +4969,9 @@ describe("MarkdownPaper editing", () => {
     });
     const restoredTables = secondRender.container.querySelectorAll(".ProseMirror table");
 
-    expect(restoredTables[0]).toHaveClass("markra-table-width-auto");
-    expect(restoredTables[1]).toHaveClass("markra-table-width-auto");
-    expect(restoredTables[2]).toHaveClass("markra-table-width-auto");
+    expect(restoredTables[0]).not.toHaveClass("markra-table-width-auto");
+    expect(restoredTables[1]).not.toHaveClass("markra-table-width-auto");
+    expect(restoredTables[2]).not.toHaveClass("markra-table-width-auto");
 
     window.localStorage.clear();
   });
@@ -4992,13 +4998,16 @@ describe("MarkdownPaper editing", () => {
     });
 
     const buttons = screen.getAllByRole("button", { name: tableColumnWidthModeLabel });
+    expect(buttons[0]).toHaveAttribute("aria-pressed", "true");
+    expect(buttons[1]).toHaveAttribute("aria-pressed", "true");
+
     fireEvent.mouseDown(buttons[1]);
 
     const tables = firstRender.container.querySelectorAll(".ProseMirror table");
-    expect(tables[0]).toHaveClass("markra-table-width-auto");
-    expect(tables[1]).toHaveClass("markra-table-width-auto");
-    expect(buttons[0]).toHaveAttribute("aria-pressed", "true");
-    expect(buttons[1]).toHaveAttribute("aria-pressed", "true");
+    expect(tables[0]).not.toHaveClass("markra-table-width-auto");
+    expect(tables[1]).not.toHaveClass("markra-table-width-auto");
+    expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
+    expect(buttons[1]).toHaveAttribute("aria-pressed", "false");
 
     window.localStorage.clear();
   });
@@ -5011,15 +5020,18 @@ describe("MarkdownPaper editing", () => {
     const button = screen.getByRole("button", { name: tableColumnWidthModeLabel });
     const table = container.querySelector(".ProseMirror table");
 
-    fireEvent.keyDown(button, { key: " " });
-
     expect(table).toHaveClass("markra-table-width-auto");
     expect(button).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.keyDown(button, { key: " " });
 
     expect(table).not.toHaveClass("markra-table-width-auto");
     expect(button).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.keyDown(button, { key: "Enter" });
+
+    expect(table).toHaveClass("markra-table-width-auto");
+    expect(button).toHaveAttribute("aria-pressed", "true");
 
     window.localStorage.clear();
   });
@@ -5032,7 +5044,6 @@ describe("MarkdownPaper editing", () => {
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
 
     fireEvent.mouseDown(screen.getByRole("button", { name: "Align table center" }));
-    fireEvent.mouseDown(screen.getByRole("button", { name: tableColumnWidthModeLabel }));
 
     expect(container.querySelector(".ProseMirror .markra-table-controls-wrapper")).toHaveAttribute(
       "data-width-mode",

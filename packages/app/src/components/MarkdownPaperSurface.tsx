@@ -242,7 +242,7 @@ function MilkdownEditorSurface({
   const resolveImageSrcRef = useRef(resolveImageSrc);
   const spellcheckEnabledRef = useRef(spellcheckEnabled);
   const spellcheckIgnoredWordsRef = useRef(spellcheckIgnoredWords);
-  const tableColumnWidthModeRef = useRef(tableColumnWidthMode ?? "even");
+  const tableColumnWidthModeRef = useRef(tableColumnWidthMode ?? "auto");
   const spellcheckMenuViewRef = useRef<EditorView | null>(null);
   const onAddSpellcheckIgnoredWordRef = useRef(onAddSpellcheckIgnoredWord);
   const workspaceFilesRef = useRef(workspaceFiles ?? []);
@@ -358,7 +358,7 @@ function MilkdownEditorSurface({
   }, [spellcheckIgnoredWords]);
 
   useEffect(() => {
-    tableColumnWidthModeRef.current = tableColumnWidthMode ?? "even";
+    tableColumnWidthModeRef.current = tableColumnWidthMode ?? "auto";
   }, [tableColumnWidthMode]);
 
   useEffect(() => {
