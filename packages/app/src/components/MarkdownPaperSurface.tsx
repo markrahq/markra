@@ -71,7 +71,8 @@ import {
   markraCommonmark,
   markraExternalLinkClickPlugin,
   markraGfm,
-  markraTextSelectionObserverPlugin
+  markraTextSelectionObserverPlugin,
+  serializeMarkdownClipboardText
 } from "./markdown-paper-plugins";
 import { SpellcheckSuggestionMenu, type SpellcheckSuggestionMenuState } from "./SpellcheckSuggestionMenu";
 
@@ -438,7 +439,9 @@ function MilkdownEditorSurface({
               spellcheck: "false",
               writingsuggestions: "false"
             },
-            editable: () => !readOnlyRef.current
+            editable: () => !readOnlyRef.current,
+            clipboardTextSerializer: (slice, view) =>
+              serializeMarkdownClipboardText(slice, view, ctx.get(serializerCtx))
           }));
           ctx.get(listenerCtx).updated((editorCtx, doc) => {
             try {

@@ -20,7 +20,7 @@ import {
   schema as gfmSchema,
   strikethroughSchema
 } from "@milkdown/kit/preset/gfm";
-import type { ResolvedPos } from "@milkdown/kit/prose/model";
+import { Fragment, type Node as ProseNode, type ResolvedPos, type Slice } from "@milkdown/kit/prose/model";
 import type { Selection } from "@milkdown/kit/prose/state";
 import { Plugin } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
@@ -587,6 +587,75 @@ type ExternalLinkClickPluginOptions = {
 
 const markdownDocumentHrefPattern = /\.(md|markdown)(?:[?#].*)?$/iu;
 const markdownImageHrefPattern = /\.(avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/iu;
+const markdownClipboardTableRowNodeNames = new Set(["table_header_row", "table_row"]);
+
+type MarkdownSerializer = (doc: ProseNode) => string;
+
+function defaultClipboardText(slice: Slice) {
+  return slice.content.textBetween(0, slice.content.size, "\n\n");
+}
+
+function fragmentContainsTableMarkdown(fragment: Fragment) {
+  let containsTable = false;
+
+  fragment.forEach((node) => {
+    if (containsTable) return;
+    if (node.type.name === "table" || markdownClipboardTableRowNodeNames.has(node.type.name)) {
+      containsTable = true;
+      return;
+    }
+
+    if (node.content.size > 0) {
+      containsTable = fragmentContainsTableMarkdown(node.content);
+    }
+  });
+
+  return containsTable;
+}
+
+function fragmentIsTableRows(fragment: Fragment) {
+  if (fragment.childCount === 0) return false;
+
+  for (let index = 0; index < fragment.childCount; index += 1) {
+    if (!markdownClipboardTableRowNodeNames.has(fragment.child(index).type.name)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function markdownClipboardDocumentFromSlice(slice: Slice, view: EditorView) {
+  const { schema } = view.state;
+  const directDocument = schema.topNodeType.createAndFill(null, slice.content);
+  if (directDocument) return directDocument;
+
+  if (!fragmentIsTableRows(slice.content)) return null;
+
+  // Cell selections can provide table rows without the outer table node.
+  const tableType = schema.nodes.table;
+  if (!tableType) return null;
+
+  const table = tableType.createAndFill(null, slice.content);
+  if (!table) return null;
+
+  return schema.topNodeType.createAndFill(null, Fragment.from(table));
+}
+
+function trimSerializerDocumentNewline(markdown: string) {
+  return markdown.endsWith("\n") ? markdown.slice(0, -1) : markdown;
+}
+
+export function serializeMarkdownClipboardText(slice: Slice, view: EditorView, serializeMarkdown: MarkdownSerializer) {
+  if (!fragmentContainsTableMarkdown(slice.content)) {
+    return defaultClipboardText(slice);
+  }
+
+  const doc = markdownClipboardDocumentFromSlice(slice, view);
+  if (!doc) return defaultClipboardText(slice);
+
+  return trimSerializerDocumentNewline(serializeMarkdown(doc));
+}
 
 function isLocalAttachmentHref(href: string) {
   const trimmed = href.trim();

@@ -11,7 +11,7 @@ vi.mock("mermaid", () => ({
 
 import type { Editor } from "@milkdown/kit/core";
 import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/kit/core";
-import { Slice } from "@milkdown/kit/prose/model";
+import { Fragment, Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
 import { NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
@@ -191,6 +191,39 @@ function selectNode(view: EditorView, position: number) {
 
 function selectText(view: EditorView, from: number, to: number) {
   view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, to)));
+}
+
+function selectedPlainClipboardText(view: EditorView) {
+  return plainClipboardTextFromSlice(view, view.state.selection.content());
+}
+
+function plainClipboardTextFromSlice(view: EditorView, slice: Slice) {
+  let text: string | null = null;
+
+  view.someProp("clipboardTextSerializer", (serializer) => {
+    text = serializer(slice, view);
+    return true;
+  });
+
+  return text ?? slice.content.textBetween(0, slice.content.size, "\n\n");
+}
+
+function findFirstProseNode(view: EditorView, typeName: string): ProseNode {
+  const matches: ProseNode[] = [];
+
+  view.state.doc.descendants((node) => {
+    if (matches.length > 0 || node.type.name !== typeName) return true;
+
+    matches.push(node);
+    return false;
+  });
+
+  const result = matches[0];
+  if (!result) {
+    throw new Error(`Could not find node in editor: ${typeName}`);
+  }
+
+  return result;
 }
 
 function clickFinalizedImage(target: Element) {
@@ -9675,6 +9708,31 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelector(".ProseMirror table")).not.toHaveTextContent("Column 2");
     expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("/ta");
     await settleMarkdownListener();
+  });
+
+  it("copies selected tables as markdown plain text", async () => {
+    const tableMarkdown = ["| Alpha | Beta |", "| --- | --- |", "| Gamma | Delta |"].join("\n");
+    const { view } = await renderEditor(tableMarkdown);
+    const expectedClipboardMarkdown = ["| Alpha | Beta  |", "| ----- | ----- |", "| Gamma | Delta |"].join("\n");
+
+    selectNode(view, findNodeStartPosition(view, "table"));
+
+    expect(selectedPlainClipboardText(view)).toBe(expectedClipboardMarkdown);
+  });
+
+  it("copies table row clipboard slices as markdown plain text", async () => {
+    const tableMarkdown = ["| Alpha | Beta |", "| --- | --- |", "| Gamma | Delta |"].join("\n");
+    const { view } = await renderEditor(tableMarkdown);
+    const table = findFirstProseNode(view, "table");
+    const rows: ProseNode[] = [];
+
+    table.forEach((row: ProseNode) => rows.push(row));
+
+    const slice = new Slice(Fragment.from(rows), 1, 1);
+
+    expect(plainClipboardTextFromSlice(view, slice)).toBe(
+      ["| Alpha | Beta  |", "| ----- | ----- |", "| Gamma | Delta |"].join("\n")
+    );
   });
 
   it("runs slash commands from a callout body line", async () => {
