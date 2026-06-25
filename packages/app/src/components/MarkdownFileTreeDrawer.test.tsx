@@ -1145,6 +1145,27 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(container.querySelector(".markdown-file-tree-resizer-indicator")).not.toBeInTheDocument();
   });
 
+  it("keeps the file tree resize handle narrow so scrollbar clicks remain available", () => {
+    const { container } = render(
+      <MarkdownFileTreeDrawer
+        currentPath={null}
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        width={288}
+        onOpenFile={() => {}}
+        onResize={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const resizeHandle = container.querySelector(".markdown-file-tree-resizer");
+
+    expect(resizeHandle).toHaveClass("w-px");
+    expect(resizeHandle).not.toHaveClass("w-2");
+  });
+
   it("does not render a Windows sidebar toggle when the drawer is collapsed", () => {
     const toggleMarkdownFiles = vi.fn();
     const { container } = render(
