@@ -1,6 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { CaseSensitive, ChevronDown, ChevronUp, Replace, Search, X } from "lucide-react";
 import { t, type AppLanguage } from "@markra/shared";
+import { Tooltip } from "@markra/ui";
 
 type DocumentSearchBarProps = {
   activeIndex: number;
@@ -174,16 +175,17 @@ export function DocumentSearchBar({
         >
           <ChevronDown aria-hidden="true" size={14} />
         </button>
-        <button
-          className="document-search-icon-button"
-          aria-label={label.caseSensitive}
-          aria-pressed={caseSensitive}
-          title={label.caseSensitive}
-          type="button"
-          onClick={() => onCaseSensitiveChange(!caseSensitive)}
-        >
-          <CaseSensitive aria-hidden="true" size={14} />
-        </button>
+        <Tooltip content={label.caseSensitive}>
+          <button
+            className="document-search-icon-button"
+            aria-label={label.caseSensitive}
+            aria-pressed={caseSensitive}
+            type="button"
+            onClick={() => onCaseSensitiveChange(!caseSensitive)}
+          >
+            <CaseSensitive aria-hidden="true" size={14} />
+          </button>
+        </Tooltip>
         <button
           className="document-search-icon-button"
           aria-label={label.toggleReplace}

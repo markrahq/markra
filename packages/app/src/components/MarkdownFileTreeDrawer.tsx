@@ -55,7 +55,7 @@ import {
   writeMarkdownImageDragPayload,
   type AppLanguage
 } from "@markra/shared";
-import { IconButton } from "@markra/ui";
+import { IconButton, Tooltip } from "@markra/ui";
 import { markraHighlightRemarkPlugin, type MarkdownOutlineItem } from "@markra/markdown";
 import { DocumentLinksPanel } from "./DocumentLinksPanel";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
@@ -2139,6 +2139,7 @@ export function MarkdownFileTreeDrawer({
     return (
       <FileTreeDragSource disabled={!dragMoveAvailable || asset} file={node.file}>
         {(dragSource) => (
+          <Tooltip content={node.file.path}>
           <button
             ref={dragSource.setNodeRef}
             className={`relative grid h-8 w-full cursor-pointer touch-none grid-cols-[17px_minmax(0,1fr)] items-center gap-1.5 border-0 bg-transparent py-0 pr-2 text-left text-[13px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-[current=page]:border-l-[3px] aria-[current=page]:border-(--text-secondary) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--text-heading) aria-selected:bg-(--accent-soft) aria-selected:text-(--text-heading) aria-selected:shadow-[inset_3px_0_0_var(--accent)] ${dragSource.isDragging ? "opacity-70" : ""} ${fileTreeContextRowSelectionClassName} ${rowIndentClass} ${rowBranchClass}`}
@@ -2154,7 +2155,6 @@ export function MarkdownFileTreeDrawer({
             data-reveal-file-tree-row={
               pendingRevealPath && sameNativePath(node.file.path, pendingRevealPath) ? "true" : undefined
             }
-            title={node.file.path}
             onContextMenu={(event) => openContextMenu(event, node.file)}
             onClick={(event) => handleFileRowClick(event, node.file)}
             {...dragSource.attributes}
@@ -2171,6 +2171,7 @@ export function MarkdownFileTreeDrawer({
               {node.name}
             </span>
           </button>
+          </Tooltip>
         )}
       </FileTreeDragSource>
     );
@@ -2444,24 +2445,25 @@ export function MarkdownFileTreeDrawer({
                         setFocusedRecentFolderActionPath((path) => (path === folder.path ? null : path));
                       }}
                     >
-                      <button
-                        aria-label={folderActionLabel}
-                        aria-current={currentRecentFolder ? "page" : undefined}
-                        className={`flex ${duplicateName ? "h-10 items-center" : "h-7 items-center"} min-w-0 cursor-pointer gap-2 rounded-sm border-0 px-2 text-left text-[12px] leading-none focus-visible:outline-none ${recentFolderButtonStateClassName}`}
-                        type="button"
-                        title={folder.path}
-                        onClick={() => onOpenRecentFolder(folder)}
-                      >
-                        <RecentFolderIcon aria-hidden="true" className="shrink-0" size={14} />
-                        <span className="flex min-w-0 flex-col gap-0.5">
-                          <span className="min-w-0 truncate leading-4">{folder.name}</span>
-                          {duplicateName ? (
-                            <span className="min-w-0 truncate text-[10px] leading-4 text-(--text-tertiary)">
-                              {folderPathLabel}
-                            </span>
-                          ) : null}
-                        </span>
-                      </button>
+                      <Tooltip content={folder.path}>
+                        <button
+                          aria-label={folderActionLabel}
+                          aria-current={currentRecentFolder ? "page" : undefined}
+                          className={`flex ${duplicateName ? "h-10 items-center" : "h-7 items-center"} min-w-0 cursor-pointer gap-2 rounded-sm border-0 px-2 text-left text-[12px] leading-none focus-visible:outline-none ${recentFolderButtonStateClassName}`}
+                          type="button"
+                          onClick={() => onOpenRecentFolder(folder)}
+                        >
+                          <RecentFolderIcon aria-hidden="true" className="shrink-0" size={14} />
+                          <span className="flex min-w-0 flex-col gap-0.5">
+                            <span className="min-w-0 truncate leading-4">{folder.name}</span>
+                            {duplicateName ? (
+                              <span className="min-w-0 truncate text-[10px] leading-4 text-(--text-tertiary)">
+                                {folderPathLabel}
+                              </span>
+                            ) : null}
+                          </span>
+                        </button>
+                      </Tooltip>
                       {onRemoveRecentFolder ? (
                         (() => {
                           const actionVisible =

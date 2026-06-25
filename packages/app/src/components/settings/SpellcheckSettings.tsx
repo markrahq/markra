@@ -264,7 +264,7 @@ export function SpellcheckSettings({
                 <IconButton
                   label={removeLabel}
                   size="icon-xs"
-                  title={removeLabel}
+                  tooltip={removeLabel}
                   variant="ghost"
                   onClick={() => handleRemoveIgnoredWord(word)}
                 >
@@ -290,7 +290,7 @@ export function SpellcheckSettings({
               disabled={!canAddIgnoredWord}
               label={translate("settings.editor.spellcheckWhitelistAddLabel")}
               size="icon-xs"
-              title={translate("settings.editor.spellcheckWhitelistAddLabel")}
+              tooltip={translate("settings.editor.spellcheckWhitelistAddLabel")}
               type="submit"
               variant="ghost"
             >
@@ -355,7 +355,7 @@ export function SpellcheckSettings({
                   disabled={disabled}
                   label={actionLabel}
                   size="icon-xs"
-                  title={actionLabel}
+                  tooltip={actionLabel}
                   variant="ghost"
                   onClick={() => handleDownload(language.code, showRedownload ? { forceDownload: true } : {})}
                 >
@@ -365,7 +365,7 @@ export function SpellcheckSettings({
                   disabled={disabled}
                   label={deleteLabel}
                   size="icon-xs"
-                  title={deleteLabel}
+                  tooltip={deleteLabel}
                   variant="ghost"
                   onClick={() => handleDelete(language.code)}
                 >

@@ -7,6 +7,7 @@ import {
 import type { I18nKey } from "@markra/shared";
 import { mergeClassNames } from "./class-names";
 import { SettingsButton, SettingsTextarea } from "./SettingsControls";
+import { Tooltip } from "@markra/ui";
 
 type Translate = (key: I18nKey) => string;
 
@@ -258,47 +259,47 @@ export function ThemePreviewGrid<Theme extends EditorTheme>({
         const selected = theme === selectedTheme;
 
         return (
-          <button
-            key={theme}
-            className={mergeClassNames(
-              "relative flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border bg-(--bg-primary) p-0 transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
-              selected ? "border-(--accent) bg-(--accent-soft)" : "border-(--border-default)"
-            )}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            aria-label={label}
-            title={label}
-            style={createThemePreviewStyle(themePreviewSwatches[theme])}
-            onClick={() => onSelectTheme(theme)}
-          >
-            <span
-              className="relative h-6 w-6 overflow-hidden rounded-[5px] border"
-              style={{
-                background: "var(--theme-preview-bg)",
-                borderColor: "var(--theme-preview-border)"
-              }}
-              aria-hidden="true"
+          <Tooltip key={theme} content={label}>
+            <button
+              className={mergeClassNames(
+                "relative flex h-8 w-8 cursor-pointer items-center justify-center rounded-md border bg-(--bg-primary) p-0 transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)",
+                selected ? "border-(--accent) bg-(--accent-soft)" : "border-(--border-default)"
+              )}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={label}
+              style={createThemePreviewStyle(themePreviewSwatches[theme])}
+              onClick={() => onSelectTheme(theme)}
             >
               <span
-                className="absolute top-1 left-1 h-1 w-3 rounded-full"
-                style={{ background: "var(--theme-preview-text)" }}
-              />
-              <span
-                className="absolute top-2.5 left-1 h-1 w-3.5 rounded-full"
-                style={{ background: "var(--theme-preview-muted)" }}
-              />
-              <span
-                className="absolute right-1 bottom-1 h-2 w-2 rounded-full"
-                style={{ background: "var(--theme-preview-accent)" }}
-              />
-              <span
-                className="absolute bottom-1 left-1 h-1.5 w-3.5 rounded-sm"
-                style={{ background: "var(--theme-preview-panel)" }}
-              />
-            </span>
-            {selected ? <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-(--accent)" aria-hidden="true" /> : null}
-          </button>
+                className="relative h-6 w-6 overflow-hidden rounded-[5px] border"
+                style={{
+                  background: "var(--theme-preview-bg)",
+                  borderColor: "var(--theme-preview-border)"
+                }}
+                aria-hidden="true"
+              >
+                <span
+                  className="absolute top-1 left-1 h-1 w-3 rounded-full"
+                  style={{ background: "var(--theme-preview-text)" }}
+                />
+                <span
+                  className="absolute top-2.5 left-1 h-1 w-3.5 rounded-full"
+                  style={{ background: "var(--theme-preview-muted)" }}
+                />
+                <span
+                  className="absolute right-1 bottom-1 h-2 w-2 rounded-full"
+                  style={{ background: "var(--theme-preview-accent)" }}
+                />
+                <span
+                  className="absolute bottom-1 left-1 h-1.5 w-3.5 rounded-sm"
+                  style={{ background: "var(--theme-preview-panel)" }}
+                />
+              </span>
+              {selected ? <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-(--accent)" aria-hidden="true" /> : null}
+            </button>
+          </Tooltip>
         );
       })}
     </div>

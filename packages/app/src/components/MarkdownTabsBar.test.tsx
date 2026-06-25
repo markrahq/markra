@@ -1,8 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, vi } from "vitest";
 import { MarkdownTabsBar } from "./MarkdownTabsBar";
 
 describe("MarkdownTabsBar", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   function mockElementFromPoint(element: Element) {
     const mock = vi.fn(() => element);
 
@@ -187,7 +191,9 @@ describe("MarkdownTabsBar", () => {
     });
   });
 
-  it("uses the full tab path as the hover tooltip when available", () => {
+  it("uses a delayed themed tooltip for the full tab path when available", async () => {
+    vi.useFakeTimers();
+
     render(
       <MarkdownTabsBar
         activeTabId="tab-a"
@@ -206,10 +212,21 @@ describe("MarkdownTabsBar", () => {
       />
     );
 
-    expect(screen.getByRole("tab", { name: /Alpha\.md/ })).toHaveAttribute(
-      "title",
-      "/synthetic/workspace/docs/Alpha.md"
-    );
+    const tab = screen.getByRole("tab", { name: /Alpha\.md/ });
+    expect(tab).not.toHaveAttribute("title");
+
+    fireEvent.pointerEnter(tab);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveTextContent("/synthetic/workspace/docs/Alpha.md");
+    expect(tooltip).toHaveClass("bg-(--bg-primary)");
+
+    vi.useRealTimers();
   });
 
   it("uses the focused pane tab as the grouped tab active state", () => {

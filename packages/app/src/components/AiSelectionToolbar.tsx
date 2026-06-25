@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
+import { Tooltip } from "@markra/ui";
 import {
   Bold,
   Check,
@@ -328,18 +329,17 @@ export function AiSelectionToolbar({
               const selected = option.type === "heading" && option.level === activeHeadingLevel;
 
               return (
+                <Tooltip key={option.type === "paragraph" ? "paragraph" : option.level} content={optionLabel}>
                 <button
                   className={`inline-flex size-8 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
                     selected
                       ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
                       : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
                   }`}
-                  key={option.type === "paragraph" ? "paragraph" : option.level}
                   type="button"
                   role="menuitemradio"
                   aria-label={optionLabel}
                   aria-checked={selected}
-                  title={optionLabel}
                   onClick={() => {
                     setHeadingLevelMenuOpen(false);
                     if (option.type === "paragraph") {
@@ -352,6 +352,7 @@ export function AiSelectionToolbar({
                 >
                   <HeadingLevelIcon aria-hidden="true" size={15} />
                 </button>
+                </Tooltip>
               );
             })}
           </div>,
@@ -368,16 +369,17 @@ export function AiSelectionToolbar({
       aria-label={label("app.aiQuickActions")}
     >
       <div className="pointer-events-auto inline-flex max-w-[calc(100vw-24px)] items-center gap-1 overflow-x-auto rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 shadow-(--ai-command-popover-shadow)">
-        <button
-          className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-(--accent-soft) text-(--accent) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55"
-          type="button"
-          disabled={busy}
-          title={label("app.aiCommandInput")}
-          onClick={onOpenCommand}
-          aria-label={label("app.aiCommandInput")}
-        >
-          <WandSparkles aria-hidden="true" size={15} />
-        </button>
+        <Tooltip content={label("app.aiCommandInput")}>
+          <button
+            className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-(--accent-soft) text-(--accent) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55"
+            type="button"
+            disabled={busy}
+            onClick={onOpenCommand}
+            aria-label={label("app.aiCommandInput")}
+          >
+            <WandSparkles aria-hidden="true" size={15} />
+          </button>
+        </Tooltip>
         <span className="mx-0.5 h-5 w-px bg-(--border-default)" aria-hidden="true" />
         {aiSelectionActions.map((action) => {
           const Icon = action.icon;
@@ -389,17 +391,17 @@ export function AiSelectionToolbar({
           );
 
           return (
+            <Tooltip key={action.intent} content={actionLabel}>
             <button
               className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-(--text-primary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55"
-              key={action.intent}
               type="button"
               disabled={busy}
-              title={actionLabel}
               onClick={() => onRunAction(action.intent, actionPrompt)}
               aria-label={actionLabel}
             >
               <Icon aria-hidden="true" size={14} />
             </button>
+            </Tooltip>
           );
         })}
         <span className="mx-0.5 h-5 w-px bg-(--border-default)" aria-hidden="true" />
@@ -410,80 +412,84 @@ export function AiSelectionToolbar({
 
           return (
             <Fragment key={action.action}>
-              <button
-                className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 ${
-                  active
-                    ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
-                    : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
-                }`}
-                type="button"
-                disabled={busy}
-                title={actionLabel}
-                onClick={() => onRunFormattingAction(action.action)}
-                aria-label={actionLabel}
-                aria-pressed={active}
-              >
-                <Icon aria-hidden="true" size={14} />
-              </button>
+              <Tooltip content={actionLabel}>
+                <button
+                  className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 ${
+                    active
+                      ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
+                      : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
+                  }`}
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onRunFormattingAction(action.action)}
+                  aria-label={actionLabel}
+                  aria-pressed={active}
+                >
+                  <Icon aria-hidden="true" size={14} />
+                </button>
+              </Tooltip>
               {action.action === "highlight" ? (
                 <div className="relative inline-flex shrink-0">
-                  <button
-                    className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 ${
-                      activeHeadingLevelOption
-                        ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
-                        : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
-                    }`}
-                    ref={headingLevelButtonRef}
-                    type="button"
-                    disabled={busy}
-                    title={headingLevelLabel}
-                    onClick={(event) => {
-                      if (!headingLevelMenuOpen) {
-                        positionHeadingLevelMenu(event.currentTarget);
-                      }
-                      setHeadingLevelMenuOpen(!headingLevelMenuOpen);
-                    }}
-                    aria-label={headingLevelLabel}
-                    aria-haspopup="menu"
-                    aria-expanded={headingLevelMenuOpen}
-                  >
-                    <ActiveHeadingLevelIcon aria-hidden="true" size={15} />
-                  </button>
+                  <Tooltip content={headingLevelLabel}>
+                    <button
+                      className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 ${
+                        activeHeadingLevelOption
+                          ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
+                          : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
+                      }`}
+                      ref={headingLevelButtonRef}
+                      type="button"
+                      disabled={busy}
+                      onClick={(event) => {
+                        if (!headingLevelMenuOpen) {
+                          positionHeadingLevelMenu(event.currentTarget);
+                        }
+                        setHeadingLevelMenuOpen(!headingLevelMenuOpen);
+                      }}
+                      aria-label={headingLevelLabel}
+                      aria-haspopup="menu"
+                      aria-expanded={headingLevelMenuOpen}
+                    >
+                      <ActiveHeadingLevelIcon aria-hidden="true" size={15} />
+                    </button>
+                  </Tooltip>
                 </div>
               ) : null}
             </Fragment>
           );
         })}
-        <button
-          className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 ${
-            activeFormattingActionSet.has("link")
-              ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
-              : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
-          }`}
-          type="button"
-          disabled={busy}
-          title={label("menu.link")}
-          onClick={onInsertLink}
-          aria-label={label("menu.link")}
-          aria-pressed={activeFormattingActionSet.has("link")}
-        >
-          <Link aria-hidden="true" size={14} />
-        </button>
+        <Tooltip content={label("menu.link")}>
+          <button
+            className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 ${
+              activeFormattingActionSet.has("link")
+                ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
+                : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
+            }`}
+            type="button"
+            disabled={busy}
+            onClick={onInsertLink}
+            aria-label={label("menu.link")}
+            aria-pressed={activeFormattingActionSet.has("link")}
+          >
+            <Link aria-hidden="true" size={14} />
+          </button>
+        </Tooltip>
         <span className="mx-0.5 h-5 w-px bg-(--border-default)" aria-hidden="true" />
-        <button
-          className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 ${
-            copySucceeded
-              ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
-              : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
-          }`}
-          type="button"
-          disabled={busy}
-          title={copyLabel}
-          onClick={onCopySelection}
-          aria-label={copyLabel}
-        >
-          {copySucceeded ? <Check aria-hidden="true" size={14} /> : <Copy aria-hidden="true" size={14} />}
-        </button>
+        <Tooltip content={copyLabel}>
+          <button
+            className={`inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55 ${
+              copySucceeded
+                ? "bg-(--accent-soft) text-(--accent) hover:bg-(--accent-soft)"
+                : "bg-transparent text-(--text-primary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading)"
+            }`}
+            type="button"
+            disabled={busy}
+            onClick={onCopySelection}
+            aria-label={copyLabel}
+          >
+            {copySucceeded ? <Check aria-hidden="true" size={14} /> : <Copy aria-hidden="true" size={14} />}
+          </button>
+        </Tooltip>
       </div>
       {headingLevelMenu}
     </section>

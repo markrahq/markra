@@ -17,6 +17,7 @@ import {
 } from "./ThemeSettingsControls";
 import { mergeClassNames } from "./class-names";
 import type { SettingsTranslate } from "./translate";
+import { Tooltip } from "@markra/ui";
 
 const appearanceModeIcons: Record<AppAppearanceMode, LucideIcon> = {
   dark: Moon,
@@ -42,10 +43,15 @@ function AppearanceModeControl({
       {appAppearanceModeOptions.map((mode) => {
         const Icon = appearanceModeIcons[mode];
         const selected = mode === selectedAppearanceMode;
+        const tooltipLabel = translate(mode === "system"
+          ? "settings.theme.useSystemLabel"
+          : mode === "dark"
+            ? "settings.theme.useDarkLabel"
+            : "settings.theme.useLightLabel");
 
         return (
+          <Tooltip key={mode} content={tooltipLabel}>
           <button
-            key={mode}
             className={mergeClassNames(
               "inline-flex h-8 min-w-20 cursor-pointer items-center justify-center gap-1.5 border-0 border-r border-(--border-default) bg-transparent px-3 text-[12px] leading-5 font-[620] text-(--text-secondary) transition-colors duration-150 ease-out last:border-r-0 hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) focus-visible:ring-inset",
               selected ? "bg-(--bg-active) text-(--text-heading)" : ""
@@ -53,11 +59,6 @@ function AppearanceModeControl({
             type="button"
             role="radio"
             aria-checked={selected}
-            title={translate(mode === "system"
-              ? "settings.theme.useSystemLabel"
-              : mode === "dark"
-                ? "settings.theme.useDarkLabel"
-                : "settings.theme.useLightLabel")}
             onClick={() => onSelectAppearanceMode(mode)}
           >
             <Icon aria-hidden="true" size={13} />
@@ -67,6 +68,7 @@ function AppearanceModeControl({
                 ? "settings.theme.dark"
                 : "settings.theme.light")}
           </button>
+          </Tooltip>
         );
       })}
     </div>

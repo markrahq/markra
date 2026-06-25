@@ -28,7 +28,7 @@ import {
   type UniqueIdentifier
 } from "@dnd-kit/core";
 import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortable";
-import { IconButton, SegmentedControl, SegmentedControlItem } from "@markra/ui";
+import { IconButton, SegmentedControl, SegmentedControlItem, Tooltip } from "@markra/ui";
 import { clampNumber, type I18nKey } from "@markra/shared";
 import {
   defaultTitlebarActions,
@@ -383,26 +383,27 @@ function SettingsContentWidthInput({
           %
         </span>
       </div>
-      <button
-        className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center border-0 border-l border-(--border-default) bg-transparent text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-        type="button"
-        aria-label={resetLabel}
-        title={resetLabel}
-        onClick={() => {
-          setDraftRatio(String(contentWidthRatioValue({
-            ...preferences,
-            contentWidth: "default",
-            contentWidthPx: null
-          })));
-          onUpdatePreferences({
-            ...preferences,
-            contentWidth: "default",
-            contentWidthPx: null
-          });
-        }}
-      >
-        <RotateCcw aria-hidden="true" size={13} />
-      </button>
+      <Tooltip content={resetLabel}>
+        <button
+          className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center border-0 border-l border-(--border-default) bg-transparent text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+          type="button"
+          aria-label={resetLabel}
+          onClick={() => {
+            setDraftRatio(String(contentWidthRatioValue({
+              ...preferences,
+              contentWidth: "default",
+              contentWidthPx: null
+            })));
+            onUpdatePreferences({
+              ...preferences,
+              contentWidth: "default",
+              contentWidthPx: null
+            });
+          }}
+        >
+          <RotateCcw aria-hidden="true" size={13} />
+        </button>
+      </Tooltip>
     </div>
   );
 }
@@ -595,7 +596,7 @@ function SettingsTitlebarActionsControl({
                         data-visible={action.visible ? "true" : "false"}
                         label={label}
                         pressed={action.visible}
-                        title={label}
+                        tooltip={label}
                         size="icon-xs"
                         onClick={(event) => handleClick(action.id, event)}
                         {...sortable.actionAttributes}

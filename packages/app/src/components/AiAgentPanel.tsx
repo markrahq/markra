@@ -30,7 +30,7 @@ import { clampNumber, t, type AppLanguage, type I18nKey } from "@markra/shared";
 import type { AiModelCapability, AiProviderApiStyle, StoredAiAgentSessionSummary } from "../lib/settings/app-settings";
 import type { AiAgentPanelMessage, WorkspacePlanApplyStatus } from "../hooks/useAiAgentSession";
 import type { WorkspacePlanVisualEvent } from "@markra/ai";
-import { IconButton, RoundIconButton, ToggleButton } from "@markra/ui";
+import { IconButton, RoundIconButton, ToggleButton, Tooltip } from "@markra/ui";
 
 type AiAgentModelOption = AiModelPickerOption & { capabilities: AiModelCapability[] };
 
@@ -465,7 +465,7 @@ export function AiAgentPanel({
           disabled={!message.text.trim()}
           label={copied ? label("app.aiCopied") : label("app.aiAgentCopyMessage")}
           size="icon-xs"
-          title={copied ? label("app.aiCopied") : label("app.aiAgentCopyMessage")}
+          tooltip={copied ? label("app.aiCopied") : label("app.aiAgentCopyMessage")}
           onClick={() => handleCopyMessage(message)}
         >
           {copied ? <Check aria-hidden="true" size={13} /> : <Copy aria-hidden="true" size={13} />}
@@ -477,7 +477,7 @@ export function AiAgentPanel({
             label={editing ? label("app.aiAgentCancelEditMessage") : label("app.aiAgentEditMessage")}
             pressed={editing}
             size="icon-xs"
-            title={editing ? label("app.aiAgentCancelEditMessage") : label("app.aiAgentEditMessage")}
+            tooltip={editing ? label("app.aiAgentCancelEditMessage") : label("app.aiAgentEditMessage")}
             onClick={editing ? handleCancelEditMessage : () => handleEditMessage(message)}
           >
             {editing ? <X aria-hidden="true" size={13} /> : <Pencil aria-hidden="true" size={13} />}
@@ -488,7 +488,7 @@ export function AiAgentPanel({
             disabled={!documentAvailable || submitting}
             label={label("app.aiAgentRetryMessage")}
             size="icon-xs"
-            title={label("app.aiAgentRetryMessage")}
+            tooltip={label("app.aiAgentRetryMessage")}
             onClick={() => handleRetryMessage(message.id)}
           >
             <RefreshCcw aria-hidden="true" size={13} />
@@ -780,7 +780,7 @@ export function AiAgentPanel({
               <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5">
                 <ToggleButton
                   label={label("app.aiDeepThinking")}
-                  title={label("app.aiDeepThinking")}
+                  tooltip={label("app.aiDeepThinking")}
                   pressed={thinkingEnabled}
                   disabled={!supportsThinking}
                   onClick={onToggleThinking}
@@ -790,7 +790,7 @@ export function AiAgentPanel({
                 </ToggleButton>
                 <ToggleButton
                   label={label("app.aiWebSearch")}
-                  title={label("app.aiWebSearch")}
+                  tooltip={label("app.aiWebSearch")}
                   pressed={webSearchEnabled}
                   disabled={!supportsWebSearch}
                   onClick={onToggleWebSearch}
@@ -848,12 +848,13 @@ function WorkspacePlanConfirmationBar({
       </span>
       <div className="min-w-0 flex-1">
         <p className="m-0 truncate text-[12px] leading-4 font-[620] text-(--text-heading)">{labelText}</p>
-        <p
-          className={`m-0 truncate text-[11px] leading-4 ${applyError ? "text-(--danger)" : "text-(--text-secondary)"}`}
-          title={detailText}
-        >
-          {detailText}
-        </p>
+        <Tooltip content={detailText}>
+          <p
+            className={`m-0 truncate text-[11px] leading-4 ${applyError ? "text-(--danger)" : "text-(--text-secondary)"}`}
+          >
+            {detailText}
+          </p>
+        </Tooltip>
       </div>
       {applied ? (
         <span className="inline-flex h-7 shrink-0 items-center rounded-md bg-(--bg-active) px-2 text-[11px] leading-4 font-[620] text-(--text-heading)">
@@ -871,15 +872,16 @@ function WorkspacePlanConfirmationBar({
         </button>
       )}
       {applied && onDismiss ? (
-        <button
-          aria-label="Dismiss workspace plan confirmation"
-          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-          title="Dismiss workspace plan confirmation"
-          type="button"
-          onClick={onDismiss}
-        >
-          <X aria-hidden="true" size={13} />
-        </button>
+        <Tooltip content="Dismiss workspace plan confirmation">
+          <button
+            aria-label="Dismiss workspace plan confirmation"
+            className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent text-(--text-secondary) transition-[background-color,color] duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+            type="button"
+            onClick={onDismiss}
+          >
+            <X aria-hidden="true" size={13} />
+          </button>
+        </Tooltip>
       ) : null}
     </section>
   );

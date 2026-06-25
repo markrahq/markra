@@ -1,6 +1,7 @@
-import type { ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
 import { mergeClassNames } from "./classes";
+import { Tooltip, type TooltipSide } from "./Tooltip";
 
 export type ToggleButtonSize = "md" | "sm";
 
@@ -8,6 +9,8 @@ export type ToggleButtonProps = Omit<ComponentPropsWithoutRef<"button">, "aria-l
   label: string;
   pressed: boolean;
   size?: ToggleButtonSize;
+  tooltip?: ReactNode;
+  tooltipSide?: TooltipSide;
 };
 
 const toggleButtonSizeClassNames: Record<ToggleButtonSize, string> = {
@@ -21,10 +24,12 @@ export function ToggleButton({
   label,
   pressed,
   size = "md",
+  tooltip,
+  tooltipSide,
   type = "button",
   ...props
 }: ToggleButtonProps) {
-  return (
+  const button = (
     <button
       className={mergeClassNames(
         "inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 text-[12px] leading-5 font-[620] transition-[background-color,border-color,color,opacity] duration-150 ease-out focus-visible:outline-none disabled:cursor-default",
@@ -42,4 +47,10 @@ export function ToggleButton({
       {children}
     </button>
   );
+
+  return tooltip ? (
+    <Tooltip content={tooltip} side={tooltipSide}>
+      {button}
+    </Tooltip>
+  ) : button;
 }

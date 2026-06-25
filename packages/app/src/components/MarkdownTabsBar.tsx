@@ -8,7 +8,7 @@ import {
   type WheelEvent as ReactWheelEvent
 } from "react";
 import { Columns2, FileText, ImageIcon, LocateFixed, Pencil, Plus, X } from "lucide-react";
-import { IconButton } from "@markra/ui";
+import { IconButton, Tooltip } from "@markra/ui";
 import { t, type AppLanguage } from "@markra/shared";
 import type { MarkdownDocumentTab } from "../hooks/useMarkdownDocument";
 import { ContextMenu, type ContextMenuEntry } from "./ContextMenu";
@@ -490,7 +490,7 @@ export function MarkdownTabsBar({
     const renaming = tab.id === renamingTabId;
     const tabTitle = tab.path ?? (tab.name || "Untitled.md");
 
-    return renaming ? (
+    if (renaming) return (
       <div className="flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2">
         <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
         <input
@@ -515,30 +515,33 @@ export function MarkdownTabsBar({
           }}
         />
       </div>
-    ) : (
-      <button
-        className={`flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
-          active ? "text-(--text-heading)" : "text-(--text-secondary)"
-        }`}
-        draggable={false}
-        type="button"
-        role="tab"
-        aria-selected={active}
-        data-document-tab-id={tab.id}
-        data-document-tab-pane-focus={paneFocused ? "true" : undefined}
-        data-document-tab-drop-position={dropPosition ?? undefined}
-        title={tabTitle}
-        onClick={() => handleSelectTabClick(tab, selectTabId)}
-        onDoubleClick={() => startRenamingTab(tab)}
-        onDragStart={handlePreventNativeTabDrag}
-        onPointerDown={(event) => handleTabPointerDown(event, tab)}
-      >
-        <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
-        <span className="min-w-0 truncate">{tab.name || "Untitled.md"}</span>
-        {tab.dirty ? (
-          <span className="size-1.25 shrink-0 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
-        ) : null}
-      </button>
+    );
+
+    return (
+      <Tooltip content={tabTitle} side="bottom">
+        <button
+          className={`flex h-full min-w-0 items-center gap-1.5 rounded-l-md px-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) ${
+            active ? "text-(--text-heading)" : "text-(--text-secondary)"
+          }`}
+          draggable={false}
+          type="button"
+          role="tab"
+          aria-selected={active}
+          data-document-tab-id={tab.id}
+          data-document-tab-pane-focus={paneFocused ? "true" : undefined}
+          data-document-tab-drop-position={dropPosition ?? undefined}
+          onClick={() => handleSelectTabClick(tab, selectTabId)}
+          onDoubleClick={() => startRenamingTab(tab)}
+          onDragStart={handlePreventNativeTabDrag}
+          onPointerDown={(event) => handleTabPointerDown(event, tab)}
+        >
+          <TabIcon aria-hidden="true" className="shrink-0 opacity-65" size={13} />
+          <span className="min-w-0 truncate">{tab.name || "Untitled.md"}</span>
+          {tab.dirty ? (
+            <span className="size-1.25 shrink-0 rounded-full bg-(--accent)" aria-label={label("app.unsavedChanges")} />
+          ) : null}
+        </button>
+      </Tooltip>
     );
   };
   const renderCloseTabButton = (tab: MarkdownTabsBarDocumentItem, active: boolean, alwaysVisible = false) => (

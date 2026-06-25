@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { debug, t, type AppLanguage } from "@markra/shared";
+import { Tooltip } from "@markra/ui";
 import {
   listNativeMarkdownFileHistory,
   readNativeMarkdownFileHistory,
@@ -178,15 +179,16 @@ export function DocumentHistoryDialog({
         <h4 className="m-0 truncate text-[12px] leading-5 font-bold text-(--text-heading)">
           {label("app.documentHistory")}
         </h4>
-        <button
-          aria-label={label("app.closeDocumentHistory")}
-          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-          title={label("app.closeDocumentHistory")}
-          type="button"
-          onClick={onClose}
-        >
-          <X aria-hidden="true" size={15} strokeWidth={2} />
-        </button>
+        <Tooltip content={label("app.closeDocumentHistory")}>
+          <button
+            aria-label={label("app.closeDocumentHistory")}
+            className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md border border-transparent bg-transparent p-0 text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+            type="button"
+            onClick={onClose}
+          >
+            <X aria-hidden="true" size={15} strokeWidth={2} />
+          </button>
+        </Tooltip>
       </div>
       <div className="min-h-0 overflow-auto bg-(--bg-secondary) p-2">
         {entriesLoading ? (

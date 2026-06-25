@@ -52,7 +52,7 @@ function CapabilityPill({ capability, translate }: { capability: AiModelCapabili
     <Badge
       className={capabilityPillClasses[capability]}
       aria-label={label}
-      title={label}
+      tooltip={label}
     >
       <Icon aria-hidden="true" size={13} strokeWidth={2.1} />
       <span className="sr-only">{label}</span>

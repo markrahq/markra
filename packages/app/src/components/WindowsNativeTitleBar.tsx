@@ -14,6 +14,7 @@ import {
   type ContextMenuEntry
 } from "./ContextMenu";
 import { WindowsWindowControls } from "./WindowsWindowControls";
+import { Tooltip } from "@markra/ui";
 
 type WindowsAppMenuId = "app" | "file" | "edit" | "format" | "view";
 
@@ -284,16 +285,17 @@ export function WindowsNativeTitleBar({
     runToggleWindowMaximized();
   };
   const renderWindowsFolderContext = () => showWindowsFolderContext ? (
-    <span
-      className="windows-app-chrome-context flex h-7 min-w-0 max-w-72 shrink items-center justify-center gap-1.5 text-[12px] leading-none font-[620] text-(--text-heading)"
-      data-tauri-drag-region={nativeWindowChrome ? true : undefined}
-      title={windowsWorkspaceName}
-    >
-      <FolderOpen aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={13} />
-      <span className="min-w-0 truncate leading-4" data-tauri-drag-region={nativeWindowChrome ? true : undefined}>
-        {windowsWorkspaceName}
+    <Tooltip content={windowsWorkspaceName} side="bottom">
+      <span
+        className="windows-app-chrome-context flex h-7 min-w-0 max-w-72 shrink items-center justify-center gap-1.5 text-[12px] leading-none font-[620] text-(--text-heading)"
+        data-tauri-drag-region={nativeWindowChrome ? true : undefined}
+      >
+        <FolderOpen aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={13} />
+        <span className="min-w-0 truncate leading-4" data-tauri-drag-region={nativeWindowChrome ? true : undefined}>
+          {windowsWorkspaceName}
+        </span>
       </span>
-    </span>
+    </Tooltip>
   ) : null;
   const renderWindowsAppChrome = () => showWindowsAppChrome ? (
     <header

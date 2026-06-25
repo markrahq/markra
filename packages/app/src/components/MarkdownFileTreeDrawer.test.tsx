@@ -96,6 +96,10 @@ describe("MarkdownFileTreeDrawer", () => {
     mockedReadNativeClipboardText.mockResolvedValue(null);
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("keeps settings fixed in the lower-left", () => {
     const onOpenSettings = vi.fn();
     const { container } = render(
@@ -824,7 +828,9 @@ describe("MarkdownFileTreeDrawer", () => {
     });
   });
 
-  it("middle-truncates long duplicate recent folder paths while keeping the full path label", () => {
+  it("middle-truncates long duplicate recent folder paths while keeping the full path tooltip", async () => {
+    vi.useFakeTimers();
+
     const alphaPath = "/mock-workspaces/team-alpha/projects/handbook/content/docs";
     const betaPath = "/mock-workspaces/team-beta/projects/handbook/content/docs";
 
@@ -853,12 +859,21 @@ describe("MarkdownFileTreeDrawer", () => {
       name: `docs ${betaPath}`
     });
 
-    expect(alphaDocs).toHaveAttribute("title", alphaPath);
-    expect(betaDocs).toHaveAttribute("title", betaPath);
+    expect(alphaDocs).not.toHaveAttribute("title");
+    expect(betaDocs).not.toHaveAttribute("title");
     expect(within(alphaDocs).getByText("/mock-workspaces/team-alpha/.../content/docs")).toBeInTheDocument();
     expect(within(betaDocs).getByText("/mock-workspaces/team-beta/.../content/docs")).toBeInTheDocument();
     expect(alphaDocs).not.toHaveTextContent(alphaPath);
     expect(betaDocs).not.toHaveTextContent(betaPath);
+
+    fireEvent.pointerEnter(alphaDocs);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(screen.getByRole("tooltip")).toHaveTextContent(alphaPath);
   });
 
   it("collapses recent folders and removes a recent folder without opening it", () => {

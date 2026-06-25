@@ -18,3 +18,4 @@ export { Switch, type SwitchProps } from "./Switch";
 export { Textarea, type TextareaProps } from "./Textarea";
 export { TextInput, type TextInputProps } from "./TextInput";
 export { ToggleButton, type ToggleButtonProps, type ToggleButtonSize } from "./ToggleButton";
+export { Tooltip, type TooltipProps, type TooltipSide } from "./Tooltip";

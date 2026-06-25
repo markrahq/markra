@@ -5940,7 +5940,7 @@ describe("Markra workspace", () => {
     expect(searchInput).toHaveAttribute("autocapitalize", "none");
     expect(searchInput).toHaveAttribute("autocorrect", "off");
     expect(searchInput).toHaveAttribute("spellcheck", "false");
-    expect(screen.getByRole("button", { name: "Case sensitive" })).toHaveAttribute("title", "Case sensitive");
+    expect(screen.getByRole("button", { name: "Case sensitive" })).not.toHaveAttribute("title");
     expect(container.querySelector(".editor-content-slot")).toHaveAttribute("data-document-search-open", "true");
   });
 
