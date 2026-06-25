@@ -63,7 +63,17 @@ pub(super) fn is_markdown_open_file(path: &Path) -> bool {
 }
 
 pub(super) fn path_to_string(path: &Path) -> String {
-    path.to_string_lossy().to_string()
+    let path_text = path.to_string_lossy();
+
+    if let Some(unc_path) = path_text.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{unc_path}");
+    }
+
+    if let Some(local_path) = path_text.strip_prefix(r"\\?\") {
+        return local_path.to_string();
+    }
+
+    path_text.to_string()
 }
 
 fn system_time_millis(time: SystemTime) -> Option<u64> {
@@ -196,4 +206,21 @@ pub(super) fn normalize_markdown_tree_single_file_name(file_name: &str) -> Resul
     }
 
     Ok(trimmed_name.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn path_to_string_omits_windows_verbatim_prefixes() {
+        assert_eq!(
+            path_to_string(Path::new(r"\\?\C:\vault\Daily note.md")),
+            r"C:\vault\Daily note.md"
+        );
+        assert_eq!(
+            path_to_string(Path::new(r"\\?\UNC\server\share\Daily note.md")),
+            r"\\server\share\Daily note.md"
+        );
+    }
 }
