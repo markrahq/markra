@@ -72,6 +72,10 @@ type LiveMarkdownPluginState = {
 
 const liveMarkdownKey = new PluginKey("markra-live-markdown");
 const liveMarkdownDelimiterSelector = ".markra-md-delimiter[data-markra-live-delimiter-position]";
+const liveMarkdownVisibleMarkSelector =
+  ".markra-live-mark[data-markra-live-mark-from][data-markra-live-mark-to]";
+const formattedInlineElementSelector = "strong, em, del, code";
+const visibleFormattedEdgeThreshold = 6;
 
 function getLiveMarkdownKinds(spec: LiveMarkdownSpec) {
   return spec.kinds ?? spec.marks.map((mark) => mark.kind);
@@ -544,6 +548,14 @@ function createDelimiterWidget(marker: string, position: number | null = null) {
   return delimiter;
 }
 
+function liveMarkdownMarkAttrs(className: string, from: number, to: number) {
+  return {
+    class: className,
+    "data-markra-live-mark-from": String(from),
+    "data-markra-live-mark-to": String(to)
+  };
+}
+
 function liveMarkdownDelimiterAttrs(className: string, position: number | null) {
   if (position === null) return { class: className };
 
@@ -563,12 +575,104 @@ function liveMarkdownDelimiterPosition(target: HTMLElement) {
   return Number.isInteger(value) && value >= 0 ? value : null;
 }
 
+function numericDataAttribute(target: HTMLElement, name: string) {
+  const value = Number(target.dataset[name]);
+  return Number.isInteger(value) && value >= 0 ? value : null;
+}
+
+function rectContainsY(rect: DOMRect, y: number) {
+  return rect.width > 0 && rect.height > 0 && y >= rect.top && y <= rect.bottom;
+}
+
+function edgePositionFromLiveMarkdownMark(target: HTMLElement, edge: "left" | "right") {
+  return numericDataAttribute(target, edge === "left" ? "markraLiveMarkFrom" : "markraLiveMarkTo");
+}
+
+function edgeTextNode(target: Node, edge: "left" | "right"): Text | null {
+  if (target.nodeType === Node.TEXT_NODE) return target as Text;
+
+  const children = Array.from(target.childNodes);
+  const orderedChildren = edge === "left" ? children : children.reverse();
+
+  for (const child of orderedChildren) {
+    const textNode = edgeTextNode(child, edge);
+    if (textNode) return textNode;
+  }
+
+  return null;
+}
+
+function edgePositionFromFormattedElement(view: EditorView, target: HTMLElement, edge: "left" | "right") {
+  if (target.closest("pre")) return null;
+
+  const textNode = edgeTextNode(target, edge);
+  if (!textNode) return null;
+
+  try {
+    return view.posAtDOM(textNode, edge === "left" ? 0 : (textNode.textContent?.length ?? 0));
+  } catch {
+    return null;
+  }
+}
+
+function edgePositionFromVisibleFormattedTarget(view: EditorView, target: HTMLElement, edge: "left" | "right") {
+  if (target.matches(liveMarkdownVisibleMarkSelector)) return edgePositionFromLiveMarkdownMark(target, edge);
+  if (target.matches(formattedInlineElementSelector)) return edgePositionFromFormattedElement(view, target, edge);
+  return null;
+}
+
+function visibleFormattedEdgeCandidate(view: EditorView, target: HTMLElement, event: MouseEvent) {
+  const rect = target.getBoundingClientRect();
+  if (!rectContainsY(rect, event.clientY)) return null;
+
+  const leftDistance = Math.abs(event.clientX - rect.left);
+  const rightDistance = Math.abs(event.clientX - rect.right);
+  const edge = leftDistance <= rightDistance ? "left" : "right";
+  const distance = Math.min(leftDistance, rightDistance);
+  if (distance > visibleFormattedEdgeThreshold) return null;
+
+  const position = edgePositionFromVisibleFormattedTarget(view, target, edge);
+  if (position === null || position > view.state.doc.content.size) return null;
+
+  return { distance, position };
+}
+
+// Browser hit testing can land on the parent textblock just outside a formatted inline node.
+function selectVisibleFormattedEdge(view: EditorView, event: MouseEvent) {
+  if (!Number.isFinite(event.clientX) || !Number.isFinite(event.clientY)) return false;
+
+  const targets = Array.from(
+    view.dom.querySelectorAll<HTMLElement>(`${liveMarkdownVisibleMarkSelector}, ${formattedInlineElementSelector}`)
+  );
+  let closestCandidate: { distance: number; position: number } | null = null;
+
+  for (const target of targets) {
+    const candidate = visibleFormattedEdgeCandidate(view, target, event);
+    if (!candidate) continue;
+    if (!closestCandidate || candidate.distance < closestCandidate.distance) {
+      closestCandidate = candidate;
+    }
+  }
+
+  if (!closestCandidate) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, closestCandidate.position))
+      .scrollIntoView()
+  );
+  view.focus();
+  return true;
+}
+
 function selectLiveMarkdownDelimiterEdge(view: EditorView, event: Event) {
   if (!(event instanceof MouseEvent)) return false;
   if (event.button !== 0) return false;
 
   const target = liveMarkdownDelimiterTarget(event.target);
-  if (!target) return false;
+  if (!target) return selectVisibleFormattedEdge(view, event);
 
   const position = liveMarkdownDelimiterPosition(target);
   if (position === null || position > view.state.doc.content.size) return false;
@@ -623,9 +727,15 @@ function buildLiveMarkdownDecorations(
 
       if (range.contentFrom < range.contentTo) {
         decorations.push(
-          Decoration.inline(contentFrom, contentTo, {
-            class: ["markra-live-mark", ...range.kinds.map((kind) => `markra-live-mark-${kind}`)].join(" ")
-          })
+          Decoration.inline(
+            contentFrom,
+            contentTo,
+            liveMarkdownMarkAttrs(
+              ["markra-live-mark", ...range.kinds.map((kind) => `markra-live-mark-${kind}`)].join(" "),
+              from,
+              to
+            )
+          )
         );
       }
     }
