@@ -2249,6 +2249,51 @@ describe("Markra workspace", () => {
     }
   });
 
+  it("scales saved custom editor writing widths when the workspace has extra room", async () => {
+    const restoreWindowInnerWidth = mockWindowInnerWidth(1688);
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      contentWidth: "default",
+      contentWidthPx: 860
+    }));
+
+    try {
+      renderApp();
+
+      expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+      expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
+        maxWidth: "1210px"
+      });
+      expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "1210");
+    } finally {
+      restoreWindowInnerWidth();
+    }
+  });
+
+  it("persists editor writing width resizes as a responsive base width", async () => {
+    const restoreWindowInnerWidth = mockWindowInnerWidth(1688);
+
+    try {
+      renderApp();
+
+      expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+      const resizeHandle = await screen.findByRole("separator", { name: "Resize editor width" });
+
+      fireEvent.pointerDown(resizeHandle, { clientX: 1210, pointerId: 1 });
+      fireEvent.pointerMove(window, { clientX: 1280 });
+      fireEvent.pointerUp(window);
+
+      expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
+        maxWidth: "1280px"
+      });
+      await waitFor(() => expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(expect.objectContaining({
+        contentWidth: "default",
+        contentWidthPx: 910
+      })));
+    } finally {
+      restoreWindowInnerWidth();
+    }
+  });
+
   it("hides the editor writing width handle while the right AI sidebar leaves little editor space", async () => {
     const restoreWindowInnerWidth = mockWindowInnerWidth(1120);
     const { container } = renderApp();

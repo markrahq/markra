@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  resolveEditorContentWidthBasePx,
   resolveResponsiveEditorContentWidthPx,
   shouldShowEditorWidthResizer
 } from "./editor-width";
@@ -23,11 +24,22 @@ describe("editor width", () => {
     })).toBe(1280);
   });
 
-  it("keeps custom editor content widths exact", () => {
+  it("scales custom editor content widths from their stored base width", () => {
     expect(resolveResponsiveEditorContentWidthPx({
       contentWidth: "default",
       contentWidthPx: 980,
       editorAreaWidth: 1688
+    })).toBe(1280);
+  });
+
+  it("converts the displayed editor content width back to the stored base width", () => {
+    expect(resolveEditorContentWidthBasePx({
+      editorAreaWidth: 1688,
+      renderedContentWidthPx: 1210
+    })).toBe(860);
+    expect(resolveEditorContentWidthBasePx({
+      editorAreaWidth: 1024,
+      renderedContentWidthPx: 980
     })).toBe(980);
   });
 

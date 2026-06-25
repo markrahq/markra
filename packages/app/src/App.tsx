@@ -106,7 +106,11 @@ import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
 import { markAppPerformance } from "./lib/performance-marks";
 import { replaceMovedPath, sameNativePath } from "./lib/path-move";
 import { createAppSpellcheckerForLanguage } from "./lib/spellcheck";
-import { resolveResponsiveEditorContentWidthPx, shouldShowEditorWidthResizer } from "./lib/editor-width";
+import {
+  resolveEditorContentWidthBasePx,
+  resolveResponsiveEditorContentWidthPx,
+  shouldShowEditorWidthResizer
+} from "./lib/editor-width";
 import {
   resolveDesktopOsVersion,
   resolveDesktopPlatform,
@@ -1185,6 +1189,12 @@ function WorkspaceApp() {
     contentWidthPx: activeEditorContentWidthPx,
     editorAreaWidth
   });
+  const handleResponsiveEditorContentWidthChange = useCallback((nextWidthPx: number) => {
+    handleEditorContentWidthChange(resolveEditorContentWidthBasePx({
+      editorAreaWidth,
+      renderedContentWidthPx: nextWidthPx
+    }));
+  }, [editorAreaWidth, handleEditorContentWidthChange]);
   const editorWidthResizerVisible = shouldShowEditorWidthResizer({
     aiAgentOpen: aiFeatureEnabled && aiAgentOpen,
     editorAreaWidth,
@@ -3737,7 +3747,7 @@ function WorkspaceApp() {
 
                 handleMarkdownTabChange(tab.id, content, { ...options, surface: "visual" });
               }}
-              onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
+              onContentWidthChange={editorWidthResizerVisible ? handleResponsiveEditorContentWidthChange : undefined}
               onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
               onSaveClipboardAttachment={handleSaveClipboardAttachment}
               onSaveClipboardImage={handleSaveClipboardImage}
@@ -4082,7 +4092,7 @@ function WorkspaceApp() {
                           onChange={(content) => handleSourceMarkdownChange(content, {
                             documentRevision: document.revision
                           })}
-                          onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
+                          onContentWidthChange={editorWidthResizerVisible ? handleResponsiveEditorContentWidthChange : undefined}
                           onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
                           onScroll={handleSourcePaneScroll}
                           onSelectionTextChange={updateSelectedWordCount}
@@ -4112,7 +4122,7 @@ function WorkspaceApp() {
                           onChange={(content) => handleSourceMarkdownChange(content, {
                             documentRevision: document.revision
                           })}
-                          onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
+                          onContentWidthChange={editorWidthResizerVisible ? handleResponsiveEditorContentWidthChange : undefined}
                           onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
                           onScroll={handleSourcePaneScroll}
                           onSelectionTextChange={updateSelectedWordCount}
@@ -4180,7 +4190,7 @@ function WorkspaceApp() {
                         onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
                         workspaceFiles={fileTreeFiles}
                         onChange={handleSideDocumentChange}
-                        onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
+                        onContentWidthChange={editorWidthResizerVisible ? handleResponsiveEditorContentWidthChange : undefined}
                         onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
                         onFocus={handleSideDocumentPaneFocus}
                         wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}

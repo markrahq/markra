@@ -36,14 +36,26 @@ export function resolveResponsiveEditorContentWidthPx({
   contentWidthPx: number | null;
   editorAreaWidth: number;
 }) {
-  if (contentWidthPx !== null) return contentWidthPx;
-
-  const baseWidth = editorContentWidthPixels[contentWidth];
+  const baseWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
   const width = normalizeEditorContentWidthPx(Math.round(
     baseWidth * responsiveEditorContentWidthScale(Math.max(0, editorAreaWidth))
   ));
 
   return width ?? baseWidth;
+}
+
+export function resolveEditorContentWidthBasePx({
+  editorAreaWidth,
+  renderedContentWidthPx
+}: {
+  editorAreaWidth: number;
+  renderedContentWidthPx: number;
+}) {
+  const width = normalizeEditorContentWidthPx(Math.round(
+    renderedContentWidthPx / responsiveEditorContentWidthScale(Math.max(0, editorAreaWidth))
+  ));
+
+  return width ?? renderedContentWidthPx;
 }
 
 export function shouldShowEditorWidthResizer({
