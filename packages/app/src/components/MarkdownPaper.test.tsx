@@ -7484,11 +7484,11 @@ describe("MarkdownPaper editing", () => {
   it("places the cursor after live formatted text from clicks near the visible closing edge", async () => {
     const { container, view } = await renderEditor();
 
-    typeText(view, "**ABC** tail");
+    typeText(view, "**ABC**tail");
 
     const mark = container.querySelector<HTMLElement>(".ProseMirror .markra-live-mark-strong");
     const paragraph = container.querySelector<HTMLElement>(".ProseMirror p");
-    const tailPosition = findTextPosition(view, " tail");
+    const tailPosition = findTextPosition(view, "tail");
 
     mark!.getBoundingClientRect = vi.fn(
       () =>
@@ -7511,12 +7511,73 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps text typed from direct live formatted edge clicks inside the mark", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "**ABC**tail");
+
+    const mark = container.querySelector<HTMLElement>(".ProseMirror .markra-live-mark-strong");
+
+    mark!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 40,
+          height: 20,
+          left: 100,
+          right: 160,
+          top: 20,
+          width: 60,
+          x: 100,
+          y: 20
+        }) as DOMRect
+    );
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    fireEvent.mouseDown(mark!, { button: 0, clientX: 158, clientY: 30 });
+    typeText(view, "X");
+
+    expect(container.querySelector(".ProseMirror .markra-live-mark-strong")).toHaveTextContent("ABCX");
+    expect(container.querySelector(".ProseMirror p")?.textContent).toBe("**ABCX**tail");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed from parent-targeted live formatted inner edge clicks inside the mark", async () => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "**ABC**tail");
+
+    const mark = container.querySelector<HTMLElement>(".ProseMirror .markra-live-mark-strong");
+    const paragraph = container.querySelector<HTMLElement>(".ProseMirror p");
+
+    mark!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 40,
+          height: 20,
+          left: 100,
+          right: 160,
+          top: 20,
+          width: 60,
+          x: 100,
+          y: 20
+        }) as DOMRect
+    );
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    fireEvent.mouseDown(paragraph!, { button: 0, clientX: 158, clientY: 30 });
+    typeText(view, "X");
+
+    expect(container.querySelector(".ProseMirror .markra-live-mark-strong")).toHaveTextContent("ABCX");
+    expect(container.querySelector(".ProseMirror p")?.textContent).toBe("**ABCX**tail");
+    await settleMarkdownListener();
+  });
+
   it("places the cursor after finalized formatted text from clicks near the visible closing edge", async () => {
-    const { container, view } = await renderEditor("**ABC** tail");
+    const { container, view } = await renderEditor("**ABC**tail");
 
     const mark = container.querySelector<HTMLElement>(".ProseMirror strong");
     const paragraph = container.querySelector<HTMLElement>(".ProseMirror p");
-    const tailPosition = findTextPosition(view, " tail");
+    const tailPosition = findTextPosition(view, "tail");
 
     mark!.getBoundingClientRect = vi.fn(
       () =>
@@ -7536,6 +7597,63 @@ describe("MarkdownPaper editing", () => {
     fireEvent.mouseDown(paragraph!, { button: 0, clientX: 162, clientY: 30 });
 
     expect(view.state.selection.from).toBe(tailPosition);
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed from direct finalized formatted edge clicks inside the mark", async () => {
+    const { container, view } = await renderEditor("**ABC**tail");
+
+    const mark = container.querySelector<HTMLElement>(".ProseMirror strong");
+
+    mark!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 40,
+          height: 20,
+          left: 100,
+          right: 160,
+          top: 20,
+          width: 60,
+          x: 100,
+          y: 20
+        }) as DOMRect
+    );
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    fireEvent.mouseDown(mark!, { button: 0, clientX: 158, clientY: 30 });
+    typeText(view, "X");
+
+    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("ABCX");
+    expect(container.querySelector(".ProseMirror p")?.textContent).toBe("ABCXtail");
+    await settleMarkdownListener();
+  });
+
+  it("keeps text typed from parent-targeted finalized formatted inner edge clicks inside the mark", async () => {
+    const { container, view } = await renderEditor("**ABC**tail");
+
+    const mark = container.querySelector<HTMLElement>(".ProseMirror strong");
+    const paragraph = container.querySelector<HTMLElement>(".ProseMirror p");
+
+    mark!.getBoundingClientRect = vi.fn(
+      () =>
+        ({
+          bottom: 40,
+          height: 20,
+          left: 100,
+          right: 160,
+          top: 20,
+          width: 60,
+          x: 100,
+          y: 20
+        }) as DOMRect
+    );
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    fireEvent.mouseDown(paragraph!, { button: 0, clientX: 158, clientY: 30 });
+    typeText(view, "X");
+
+    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("ABCX");
+    expect(container.querySelector(".ProseMirror p")?.textContent).toBe("ABCXtail");
     await settleMarkdownListener();
   });
 

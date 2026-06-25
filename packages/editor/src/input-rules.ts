@@ -72,10 +72,17 @@ type LiveMarkdownPluginState = {
 
 const liveMarkdownKey = new PluginKey("markra-live-markdown");
 const liveMarkdownDelimiterSelector = ".markra-md-delimiter[data-markra-live-delimiter-position]";
-const liveMarkdownVisibleMarkSelector =
-  ".markra-live-mark[data-markra-live-mark-from][data-markra-live-mark-to]";
+const liveMarkdownVisibleMarkSelector = [
+  ".markra-live-mark",
+  "[data-markra-live-mark-from]",
+  "[data-markra-live-mark-to]",
+  "[data-markra-live-mark-content-from]",
+  "[data-markra-live-mark-content-to]"
+].join("");
 const formattedInlineElementSelector = "strong, em, del, code";
 const visibleFormattedEdgeThreshold = 6;
+type FormattedEdge = "left" | "right";
+type FormattedEdgePlacement = "inside" | "outside";
 
 function getLiveMarkdownKinds(spec: LiveMarkdownSpec) {
   return spec.kinds ?? spec.marks.map((mark) => mark.kind);
@@ -548,9 +555,11 @@ function createDelimiterWidget(marker: string, position: number | null = null) {
   return delimiter;
 }
 
-function liveMarkdownMarkAttrs(className: string, from: number, to: number) {
+function liveMarkdownMarkAttrs(className: string, from: number, to: number, contentFrom: number, contentTo: number) {
   return {
     class: className,
+    "data-markra-live-mark-content-from": String(contentFrom),
+    "data-markra-live-mark-content-to": String(contentTo),
     "data-markra-live-mark-from": String(from),
     "data-markra-live-mark-to": String(to)
   };
@@ -584,11 +593,28 @@ function rectContainsY(rect: DOMRect, y: number) {
   return rect.width > 0 && rect.height > 0 && y >= rect.top && y <= rect.bottom;
 }
 
-function edgePositionFromLiveMarkdownMark(target: HTMLElement, edge: "left" | "right") {
-  return numericDataAttribute(target, edge === "left" ? "markraLiveMarkFrom" : "markraLiveMarkTo");
+function formattedEdgePlacementFromCoordinates(rect: DOMRect, edge: FormattedEdge, x: number): FormattedEdgePlacement {
+  if (edge === "left") return x > rect.left ? "inside" : "outside";
+  return x < rect.right ? "inside" : "outside";
 }
 
-function edgeTextNode(target: Node, edge: "left" | "right"): Text | null {
+function edgePositionFromLiveMarkdownMark(
+  target: HTMLElement,
+  edge: FormattedEdge,
+  placement: FormattedEdgePlacement
+) {
+  const attribute =
+    placement === "inside"
+      ? edge === "left"
+        ? "markraLiveMarkContentFrom"
+        : "markraLiveMarkContentTo"
+      : edge === "left"
+        ? "markraLiveMarkFrom"
+        : "markraLiveMarkTo";
+  return numericDataAttribute(target, attribute);
+}
+
+function edgeTextNode(target: Node, edge: FormattedEdge): Text | null {
   if (target.nodeType === Node.TEXT_NODE) return target as Text;
 
   const children = Array.from(target.childNodes);
@@ -602,26 +628,56 @@ function edgeTextNode(target: Node, edge: "left" | "right"): Text | null {
   return null;
 }
 
-function edgePositionFromFormattedElement(view: EditorView, target: HTMLElement, edge: "left" | "right") {
+function formattedElementEdgeMarks(view: EditorView, position: number, edge: FormattedEdge) {
+  const $position = view.state.doc.resolve(position);
+  return edge === "left" ? ($position.nodeAfter?.marks ?? []) : ($position.nodeBefore?.marks ?? []);
+}
+
+function edgePositionFromFormattedElement(
+  view: EditorView,
+  target: HTMLElement,
+  edge: FormattedEdge,
+  placement: FormattedEdgePlacement
+) {
   if (target.closest("pre")) return null;
 
   const textNode = edgeTextNode(target, edge);
   if (!textNode) return null;
 
   try {
-    return view.posAtDOM(textNode, edge === "left" ? 0 : (textNode.textContent?.length ?? 0));
+    const position = view.posAtDOM(textNode, edge === "left" ? 0 : (textNode.textContent?.length ?? 0));
+    return {
+      marks: placement === "inside" ? formattedElementEdgeMarks(view, position, edge) : null,
+      position
+    };
   } catch {
     return null;
   }
 }
 
-function edgePositionFromVisibleFormattedTarget(view: EditorView, target: HTMLElement, edge: "left" | "right") {
-  if (target.matches(liveMarkdownVisibleMarkSelector)) return edgePositionFromLiveMarkdownMark(target, edge);
-  if (target.matches(formattedInlineElementSelector)) return edgePositionFromFormattedElement(view, target, edge);
+function edgePositionFromVisibleFormattedTarget(
+  view: EditorView,
+  target: HTMLElement,
+  edge: FormattedEdge,
+  placement: FormattedEdgePlacement
+) {
+  if (target.matches(liveMarkdownVisibleMarkSelector)) {
+    const position = edgePositionFromLiveMarkdownMark(target, edge, placement);
+    return position === null ? null : { marks: null, position };
+  }
+
+  if (target.matches(formattedInlineElementSelector)) {
+    return edgePositionFromFormattedElement(view, target, edge, placement);
+  }
+
   return null;
 }
 
-function visibleFormattedEdgeCandidate(view: EditorView, target: HTMLElement, event: MouseEvent) {
+function visibleFormattedEdgeCandidate(
+  view: EditorView,
+  target: HTMLElement,
+  event: MouseEvent
+) {
   const rect = target.getBoundingClientRect();
   if (!rectContainsY(rect, event.clientY)) return null;
 
@@ -631,10 +687,11 @@ function visibleFormattedEdgeCandidate(view: EditorView, target: HTMLElement, ev
   const distance = Math.min(leftDistance, rightDistance);
   if (distance > visibleFormattedEdgeThreshold) return null;
 
-  const position = edgePositionFromVisibleFormattedTarget(view, target, edge);
-  if (position === null || position > view.state.doc.content.size) return null;
+  const placement = formattedEdgePlacementFromCoordinates(rect, edge, event.clientX);
+  const position = edgePositionFromVisibleFormattedTarget(view, target, edge, placement);
+  if (!position || position.position > view.state.doc.content.size) return null;
 
-  return { distance, position };
+  return { distance, ...position };
 }
 
 // Browser hit testing can land on the parent textblock just outside a formatted inline node.
@@ -644,7 +701,7 @@ function selectVisibleFormattedEdge(view: EditorView, event: MouseEvent) {
   const targets = Array.from(
     view.dom.querySelectorAll<HTMLElement>(`${liveMarkdownVisibleMarkSelector}, ${formattedInlineElementSelector}`)
   );
-  let closestCandidate: { distance: number; position: number } | null = null;
+  let closestCandidate: { distance: number; marks: readonly Mark[] | null; position: number } | null = null;
 
   for (const target of targets) {
     const candidate = visibleFormattedEdgeCandidate(view, target, event);
@@ -658,11 +715,10 @@ function selectVisibleFormattedEdge(view: EditorView, event: MouseEvent) {
 
   event.preventDefault();
   event.stopPropagation();
-  view.dispatch(
-    view.state.tr
-      .setSelection(TextSelection.create(view.state.doc, closestCandidate.position))
-      .scrollIntoView()
-  );
+  const transaction = view.state.tr
+    .setSelection(TextSelection.create(view.state.doc, closestCandidate.position))
+    .scrollIntoView();
+  view.dispatch(closestCandidate.marks ? transaction.setStoredMarks(closestCandidate.marks) : transaction);
   view.focus();
   return true;
 }
@@ -733,7 +789,9 @@ function buildLiveMarkdownDecorations(
             liveMarkdownMarkAttrs(
               ["markra-live-mark", ...range.kinds.map((kind) => `markra-live-mark-${kind}`)].join(" "),
               from,
-              to
+              to,
+              contentFrom,
+              contentTo
             )
           )
         );
