@@ -1129,11 +1129,14 @@ export function useEditorController() {
       view.state.doc.descendants((node, position) => {
         if (node.type.name !== "heading") return true;
 
+        const headingTitle = node.textContent.trim();
+        if (!headingTitle) return true;
+
         headingIndex += 1;
         if (
           headingIndex === targetIndex &&
           Number(node.attrs.level) === targetItem.level &&
-          node.textContent.trim() === targetItem.title
+          headingTitle === targetItem.title
         ) {
           // Keep the cursor inside the matched heading while the DOM scroll aligns the heading itself.
           targetNodePosition = position;

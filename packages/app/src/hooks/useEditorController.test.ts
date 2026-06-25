@@ -3,8 +3,12 @@ import {
   markdownLinkInsertionForSelection,
   scrollElementToContainerTop,
   scrollElementsAboveContainerBottomInset,
-  selectionAnchorFromEditorView
+  selectionAnchorFromEditorView,
+  useEditorController
 } from "./useEditorController";
+import { act, renderHook } from "@testing-library/react";
+import type { Editor } from "@milkdown/kit/core";
+import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 
 function rect(overrides: Partial<DOMRect> = {}): DOMRect {
@@ -20,6 +24,30 @@ function rect(overrides: Partial<DOMRect> = {}): DOMRect {
     toJSON: () => ({}),
     ...overrides
   };
+}
+
+type MockOutlineNode = {
+  attrs: { level: number };
+  position: number;
+  textContent: string;
+  type: { name: string };
+};
+
+function mockOutlineHeading(position: number, level: number, textContent: string): MockOutlineNode {
+  return {
+    attrs: { level },
+    position,
+    textContent,
+    type: { name: "heading" }
+  };
+}
+
+function mockOutlineEditor(view: EditorView): Editor {
+  return {
+    action: (runner: (ctx: { get: () => EditorView }) => unknown) => runner({
+      get: () => view
+    })
+  } as unknown as Editor;
 }
 
 afterEach(() => {
@@ -127,6 +155,77 @@ describe("editor controller scrolling", () => {
 
     expect(scrollElementsAboveContainerBottomInset([target], container, 200, 24)).toBe(false);
     expect(scrollTo).not.toHaveBeenCalled();
+  });
+});
+
+describe("editor controller outline navigation", () => {
+  it("selects outline headings by their non-empty outline index", () => {
+    const paperScroll = document.createElement("div");
+    const editorDom = document.createElement("div");
+    const targetHeading = document.createElement("h4");
+    const scrollTo = vi.fn();
+    const selection = { synthetic: "selection" };
+    const transaction = { synthetic: "transaction" };
+    const setSelection = vi.fn(() => transaction);
+    const dispatch = vi.fn();
+    const focus = vi.fn();
+    const nodeDOM = vi.fn(() => targetHeading);
+    const resolve = vi.fn(() => ({ synthetic: "resolved-position" }));
+    const nodes = [
+      mockOutlineHeading(0, 4, "One"),
+      mockOutlineHeading(20, 4, "Two"),
+      mockOutlineHeading(40, 4, ""),
+      mockOutlineHeading(60, 4, "Three")
+    ];
+
+    paperScroll.className = "paper-scroll";
+    paperScroll.append(editorDom);
+    Object.defineProperty(paperScroll, "scrollTop", {
+      configurable: true,
+      value: 0
+    });
+    Object.defineProperty(paperScroll, "scrollTo", {
+      configurable: true,
+      value: scrollTo
+    });
+    vi.spyOn(paperScroll, "getBoundingClientRect").mockReturnValue(rect({ height: 700, top: 0 }));
+    vi.spyOn(targetHeading, "getBoundingClientRect").mockReturnValue(rect({ height: 32, top: 120 }));
+    vi.spyOn(TextSelection, "near").mockReturnValue(selection as never);
+
+    const view = {
+      dispatch,
+      dom: editorDom,
+      focus,
+      nodeDOM,
+      state: {
+        doc: {
+          descendants(callback: (node: MockOutlineNode, position: number) => boolean | undefined) {
+            for (const node of nodes) {
+              callback(node, node.position);
+            }
+          },
+          resolve
+        },
+        tr: {
+          setSelection
+        }
+      }
+    } as unknown as EditorView;
+    const { result } = renderHook(() => useEditorController());
+
+    act(() => result.current.handleEditorReady(mockOutlineEditor(view)));
+    act(() => result.current.selectOutlineItem({ level: 4, title: "Three" }, 2));
+
+    expect(resolve).toHaveBeenCalledWith(61);
+    expect(TextSelection.near).toHaveBeenCalledWith({ synthetic: "resolved-position" });
+    expect(setSelection).toHaveBeenCalledWith(selection);
+    expect(dispatch).toHaveBeenCalledWith(transaction);
+    expect(nodeDOM).toHaveBeenCalledWith(60);
+    expect(scrollTo).toHaveBeenCalledWith({
+      behavior: "auto",
+      top: 56
+    });
+    expect(focus).toHaveBeenCalled();
   });
 });
 
