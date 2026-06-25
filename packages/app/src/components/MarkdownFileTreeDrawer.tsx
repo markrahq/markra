@@ -152,6 +152,7 @@ type MarkdownFileTreeDrawerProps = {
   recentFolders?: readonly RecentMarkdownFolder[];
   recentFoldersOpen?: boolean;
   revealPathRequest?: { id: number; path: string | null } | null;
+  resizing?: boolean;
   rootPath?: string | null;
   rootName: string;
   sidebarLayoutMode?: SidebarLayoutMode;
@@ -450,6 +451,7 @@ export function MarkdownFileTreeDrawer({
   recentFolders = [],
   recentFoldersOpen: controlledRecentFoldersOpen,
   revealPathRequest = null,
+  resizing = false,
   rootPath = null,
   rootName,
   sidebarLayoutMode = "stacked",
@@ -682,6 +684,9 @@ export function MarkdownFileTreeDrawer({
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const drawerStateClass = open ? "" : "pointer-events-none";
   const drawerContentStateClass = open ? "opacity-100" : "opacity-0";
+  const drawerWidthTransitionClassName = resizing
+    ? "transition-none"
+    : "transition-[width,min-width,max-width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]";
   const resolvedMinWidth = Math.max(160, minWidth);
   const resolvedMaxWidth = Math.max(resolvedMinWidth, maxWidth);
   const resolvedWidth = clampNumber(width, resolvedMinWidth, resolvedMaxWidth);
@@ -2581,7 +2586,7 @@ export function MarkdownFileTreeDrawer({
       ) : null}
 
       <aside
-        className={`markdown-file-tree relative flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-(--border-default) ${fileTreeSurfaceClassName} ${drawerTopPaddingClassName} will-change-[width,min-width,max-width] transition-[width,min-width,max-width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] ${drawerStateClass}`}
+        className={`markdown-file-tree relative flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-(--border-default) ${fileTreeSurfaceClassName} ${drawerTopPaddingClassName} will-change-[width,min-width,max-width] ${drawerWidthTransitionClassName} ${drawerStateClass}`}
         aria-label={label("app.markdownFileTree")}
         aria-hidden={!open}
         inert={!open}

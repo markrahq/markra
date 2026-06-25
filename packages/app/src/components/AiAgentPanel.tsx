@@ -509,7 +509,7 @@ export function AiAgentPanel({
       style={resolvedWidth === null ? undefined : { maxWidth: resolvedWidth, minWidth: resolvedWidth, width: resolvedWidth }}
     >
       <div
-        className="absolute top-10 bottom-0 left-0 z-30 w-2 cursor-col-resize touch-none outline-none hover:[&>span]:bg-(--accent) focus-visible:[&>span]:bg-(--accent)"
+        className="absolute top-10 bottom-0 left-0 z-30 w-2 cursor-col-resize touch-none outline-none"
         role="separator"
         tabIndex={0}
         aria-label={label("app.resizeAiAgent")}
@@ -519,9 +519,7 @@ export function AiAgentPanel({
         aria-valuenow={resolvedWidth ?? undefined}
         onKeyDown={handleResizeKeyDown}
         onPointerDown={handleResizePointerDown}
-      >
-        <span className="pointer-events-none absolute top-2 bottom-2 left-0 w-px rounded-full bg-transparent transition-colors duration-150 ease-out" />
-      </div>
+      />
       <header className="relative z-20 min-h-12 shrink-0 border-b border-(--border-default) px-2 py-1.5">
         <IconButton
           className="absolute top-1.5 left-2"

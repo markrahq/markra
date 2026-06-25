@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { clampNumber, t, type AppLanguage } from "@markra/shared";
 
 type EditorWidthResizerProps = {
@@ -21,6 +21,7 @@ export function EditorWidthResizer({
   onResizeStart
 }: EditorWidthResizerProps) {
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
+  const [resizing, setResizing] = useState(false);
   const resolvedMinWidth = Math.max(480, minWidth);
   const resolvedMaxWidth = Math.max(resolvedMinWidth, maxWidth);
   const resolvedWidth = clampNumber(width, resolvedMinWidth, resolvedMaxWidth);
@@ -51,6 +52,7 @@ export function EditorWidthResizer({
 
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
+    setResizing(true);
     onResizeStart?.();
 
     const handlePointerMove = (moveEvent: PointerEvent) => {
@@ -64,6 +66,7 @@ export function EditorWidthResizer({
       document.body.style.cursor = previousCursor;
       document.body.style.userSelect = previousUserSelect;
       resizeCleanupRef.current = null;
+      setResizing(false);
       onResizeEnd?.();
     };
 
@@ -106,9 +109,12 @@ export function EditorWidthResizer({
       onResizeEnd?.();
     }
   };
+  const indicatorVisibilityClassName = resizing
+    ? "bg-(--accent) opacity-100"
+    : "bg-(--border-default) opacity-0 group-hover/width-resizer:bg-(--border-strong) group-hover/width-resizer:opacity-100 group-focus-within/width-resizer:bg-(--accent) group-focus-within/width-resizer:opacity-100";
 
   return (
-    <div className="editor-width-resizer-shell group/width-resizer absolute top-8 right-0 bottom-8 z-20 w-3 translate-x-1/2">
+    <div className="editor-width-resizer-shell group/width-resizer absolute top-8 right-0 bottom-8 z-20 w-8 translate-x-1/2">
       <div
         className="editor-width-resizer absolute inset-0 cursor-col-resize touch-none outline-none"
         role="separator"
@@ -122,7 +128,7 @@ export function EditorWidthResizer({
         onPointerDown={handleResizePointerDown}
       >
         <span
-          className="editor-width-resizer-indicator pointer-events-none absolute top-2 right-1.5 bottom-2 w-px bg-(--border-default) opacity-0 transition-colors duration-150 ease-out group-hover/width-resizer:bg-(--border-strong) group-hover/width-resizer:opacity-100 group-focus-within/width-resizer:bg-(--accent) group-focus-within/width-resizer:opacity-100"
+          className={`editor-width-resizer-indicator pointer-events-none absolute top-2 right-4 bottom-2 w-px transition-colors duration-150 ease-out ${indicatorVisibilityClassName}`}
         />
       </div>
     </div>

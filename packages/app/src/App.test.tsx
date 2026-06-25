@@ -218,6 +218,25 @@ function mockElementFromPoint(element: Element) {
   return mock;
 }
 
+function mockWindowInnerWidth(width: number) {
+  const descriptor = Object.getOwnPropertyDescriptor(window, "innerWidth");
+
+  act(() => {
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      value: width
+    });
+    window.dispatchEvent(new Event("resize"));
+  });
+
+  return () => {
+    act(() => {
+      if (descriptor) Object.defineProperty(window, "innerWidth", descriptor);
+      window.dispatchEvent(new Event("resize"));
+    });
+  };
+}
+
 function getMarkdownSourceView(sourceEditor: HTMLElement) {
   const view = EditorView.findFromDOM(sourceEditor);
   if (!view) {
@@ -2135,6 +2154,21 @@ describe("Markra workspace", () => {
 
     fireEvent.pointerDown(resizeHandle, { clientX: 288, pointerId: 1 });
     fireEvent.pointerMove(window, { clientX: 360 });
+
+    expect(container.querySelector(".workspace-layout")).toHaveStyle({
+      gridTemplateColumns: "360px minmax(0,1fr)"
+    });
+    expect(container.querySelector(".native-titlebar-sidebar-surface")).toHaveStyle({
+      width: "360px"
+    });
+    expect(container.querySelector(".native-title-slot")).toHaveStyle({
+      marginLeft: "196px"
+    });
+    expect(container.querySelector(".markdown-file-tree")).toHaveStyle({
+      width: "360px"
+    });
+    expect(container.querySelector(".markdown-file-tree")).toHaveClass("transition-none");
+
     fireEvent.pointerMove(window, { clientX: 680 });
     fireEvent.pointerMove(window, { clientX: 100 });
     fireEvent.pointerUp(window);
@@ -2154,7 +2188,7 @@ describe("Markra workspace", () => {
   });
 
   it("resizes the editor writing column and persists the custom width", async () => {
-    renderApp();
+    const { container } = renderApp();
 
     expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
@@ -2162,8 +2196,15 @@ describe("Markra workspace", () => {
     });
 
     const resizeHandle = await screen.findByRole("separator", { name: "Resize editor width" });
+    const resizeShell = container.querySelector(".editor-width-resizer-shell");
+    const resizeIndicator = container.querySelector(".editor-width-resizer-indicator");
+
+    expect(resizeShell).toHaveClass("w-8");
+    expect(resizeIndicator).toHaveClass("opacity-0");
+    expect(resizeIndicator).toHaveClass("group-hover/width-resizer:opacity-100");
 
     fireEvent.pointerDown(resizeHandle, { clientX: 860, pointerId: 1 });
+    await waitFor(() => expect(resizeIndicator).toHaveClass("opacity-100"));
     fireEvent.pointerMove(window, { clientX: 980 });
     fireEvent.pointerUp(window);
 
@@ -2192,25 +2233,59 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "980");
   });
 
-  it("keeps editor writing width controls out of the titlebar", async () => {
+  it("scales the preset editor writing width when the workspace has extra room", async () => {
+    const restoreWindowInnerWidth = mockWindowInnerWidth(1688);
+
+    try {
+      renderApp();
+
+      expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+      expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
+        maxWidth: "1210px"
+      });
+      expect(screen.getByRole("separator", { name: "Resize editor width" })).toHaveAttribute("aria-valuenow", "1210");
+    } finally {
+      restoreWindowInnerWidth();
+    }
+  });
+
+  it("hides the editor writing width handle while the right AI sidebar leaves little editor space", async () => {
+    const restoreWindowInnerWidth = mockWindowInnerWidth(1120);
     const { container } = renderApp();
 
-    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
-    expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
-      maxWidth: "860px"
-    });
+    try {
+      expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+      expect(screen.getByLabelText("Markdown editor")).toHaveStyle({
+        maxWidth: "860px"
+      });
+      expect(screen.getByRole("separator", { name: "Resize editor width" })).toBeInTheDocument();
 
-    const resizeHandle = screen.getByRole("separator", { name: "Resize editor width" });
-    const resizeIndicator = container.querySelector(".editor-width-resizer-indicator");
+      fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
 
-    expect(resizeIndicator).not.toHaveClass("rounded-full");
-    expect(resizeIndicator).toHaveClass("opacity-0");
-    expect(resizeIndicator).toHaveClass("group-hover/width-resizer:opacity-100");
-    expect(resizeIndicator).toHaveClass("group-focus-within/width-resizer:opacity-100");
-    expect(resizeHandle.closest(".editor-width-resizer-shell")?.querySelector(".editor-width-menu-popover")).not.toBeInTheDocument();
-    expect(container.querySelector(".document-actions")?.querySelector('[data-icon^="editor-width-"]')).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /Content width:/ })).not.toBeInTheDocument();
-    expect(screen.queryByRole("group", { name: "Content width" })).not.toBeInTheDocument();
+      expect(await screen.findByRole("complementary", { name: "Markra AI" })).toBeInTheDocument();
+      expect(screen.queryByRole("separator", { name: "Resize editor width" })).not.toBeInTheDocument();
+      expect(container.querySelector(".editor-width-resizer-indicator")).not.toBeInTheDocument();
+    } finally {
+      restoreWindowInnerWidth();
+    }
+  });
+
+  it("keeps the editor writing width handle visible with the right AI sidebar when the editor has wide gutters", async () => {
+    const restoreWindowInnerWidth = mockWindowInnerWidth(1600);
+    const { container } = renderApp();
+
+    try {
+      expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+
+      expect(await screen.findByRole("complementary", { name: "Markra AI" })).toBeInTheDocument();
+      expect(screen.getByRole("separator", { name: "Resize editor width" })).toBeInTheDocument();
+      expect(container.querySelector(".editor-width-resizer-shell")).toHaveClass("w-8");
+      expect(container.querySelector(".editor-width-resizer-indicator")).toHaveClass("opacity-0");
+    } finally {
+      restoreWindowInnerWidth();
+    }
   });
 
   it("removes the markdown file tree hit area when the sidebar is collapsed", async () => {

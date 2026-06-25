@@ -711,6 +711,8 @@ describe("AiAgentPanel", () => {
     expect(handle).toHaveAttribute("aria-valuemax", "640");
     expect(handle).toHaveAttribute("aria-valuenow", "420");
     expect(handle).toHaveClass("top-10", "bottom-0");
+    expect(handle).not.toHaveClass("hover:[&>span]:bg-(--accent)", "focus-visible:[&>span]:bg-(--accent)");
+    expect(handle.querySelector("span")).not.toBeInTheDocument();
   });
 
   it("switches models and toggles supported agent modes", () => {

@@ -12,9 +12,52 @@ export const editorContentWidthPixels = {
 
 export const editorCustomContentWidthMin = 640;
 export const editorCustomContentWidthMax = 1280;
+export const editorResponsiveContentWidthBaseArea = 1200;
+export const editorWidthResizeGutterMin = 48;
 
 export function normalizeEditorContentWidthPx(value: unknown) {
   const width = clampNumber(value, editorCustomContentWidthMin, editorCustomContentWidthMax);
 
   return width === null ? null : Math.round(width);
+}
+
+function responsiveEditorContentWidthScale(editorAreaWidth: number) {
+  if (editorAreaWidth <= editorResponsiveContentWidthBaseArea) return 1;
+
+  return editorAreaWidth / editorResponsiveContentWidthBaseArea;
+}
+
+export function resolveResponsiveEditorContentWidthPx({
+  contentWidth,
+  contentWidthPx,
+  editorAreaWidth
+}: {
+  contentWidth: EditorContentWidth;
+  contentWidthPx: number | null;
+  editorAreaWidth: number;
+}) {
+  if (contentWidthPx !== null) return contentWidthPx;
+
+  const baseWidth = editorContentWidthPixels[contentWidth];
+  const width = normalizeEditorContentWidthPx(Math.round(
+    baseWidth * responsiveEditorContentWidthScale(Math.max(0, editorAreaWidth))
+  ));
+
+  return width ?? baseWidth;
+}
+
+export function shouldShowEditorWidthResizer({
+  aiAgentOpen,
+  editorAreaWidth,
+  editorContentWidth,
+  gutterMin = editorWidthResizeGutterMin
+}: {
+  aiAgentOpen: boolean;
+  editorAreaWidth: number;
+  editorContentWidth: number;
+  gutterMin?: number;
+}) {
+  if (!aiAgentOpen) return true;
+
+  return editorAreaWidth - editorContentWidth >= gutterMin * 2;
 }
