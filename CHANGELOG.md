@@ -1,3 +1,10 @@
+## [0.16.2](https://github.com/markrahq/markra/compare/v0.16.1...v0.16.2) (2026-06-26)
+
+### Bug Fixes
+
+* **app:** ignore empty headings in outline jumps ([#423](https://github.com/markrahq/markra/issues/423)) ([cbd007e](https://github.com/markrahq/markra/commit/cbd007eb3daecb649cd733bede76a9d238eb5cf2))
+* **app:** keep file tree resize handle off scrollbar ([#422](https://github.com/markrahq/markra/issues/422)) ([e4e4179](https://github.com/markrahq/markra/commit/e4e41790393704228092f9473aadfedc6fee7680))
+
 ## [0.16.1](https://github.com/markrahq/markra/compare/v0.16.0...v0.16.1) (2026-06-25)
 
 ### Features
