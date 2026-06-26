@@ -331,6 +331,21 @@ describe("editor stylesheet", () => {
     expect(anchorStyles).not.toContain("opacity: 0");
   });
 
+  it("keeps hidden markdown delimiters available as zero-width caret anchors", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const delimiterStart = styles.indexOf(".markdown-paper .markra-md-hidden-delimiter {");
+    const delimiterEnd = styles.indexOf(".markdown-paper .markra-math-source-hidden-display.markra-md-hidden-delimiter {");
+    const delimiterStyles = styles.slice(delimiterStart, delimiterEnd);
+
+    expect(delimiterStart).toBeGreaterThanOrEqual(0);
+    expect(delimiterEnd).toBeGreaterThan(delimiterStart);
+    expect(delimiterStyles).toContain("display: inline-block");
+    expect(delimiterStyles).toContain("width: 0");
+    expect(delimiterStyles).toContain("overflow: hidden");
+    expect(delimiterStyles).toContain("-webkit-text-fill-color: transparent");
+    expect(delimiterStyles).not.toContain("@apply hidden");
+  });
+
   it("keeps hidden display math source available for the native caret", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const sourceStart = styles.indexOf(".markdown-paper .markra-math-source-hidden-display.markra-md-hidden-delimiter {");

@@ -2674,7 +2674,14 @@
   }
 
   .markdown-paper .markra-md-hidden-delimiter {
-    @apply hidden;
+    display: inline-block;
+    width: 0;
+    max-width: 0;
+    overflow: hidden;
+    color: transparent;
+    vertical-align: baseline;
+    white-space: pre;
+    -webkit-text-fill-color: transparent;
   }
 
   .markdown-paper .markra-math-source-hidden-display.markra-md-hidden-delimiter {

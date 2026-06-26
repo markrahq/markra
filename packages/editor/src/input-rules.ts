@@ -72,6 +72,17 @@ type LiveMarkdownPluginState = {
 
 const liveMarkdownKey = new PluginKey("markra-live-markdown");
 const liveMarkdownDelimiterSelector = ".markra-md-delimiter[data-markra-live-delimiter-position]";
+const formattedMarkEdgeSelector = "strong, em, del, code";
+const formattedMarkEdgeSnapPixels = 6;
+const formattedMarkEdgeVerticalTolerancePixels = 4;
+
+type FormattedMarkEdge = "start" | "end";
+
+type FormattedMarkEdgeHit = {
+  distance: number;
+  edge: FormattedMarkEdge;
+  element: HTMLElement;
+};
 
 function getLiveMarkdownKinds(spec: LiveMarkdownSpec) {
   return spec.kinds ?? spec.marks.map((mark) => mark.kind);
@@ -584,6 +595,113 @@ function selectLiveMarkdownDelimiterEdge(view: EditorView, event: Event) {
   return true;
 }
 
+function formattedMarkEdgeElement(target: EventTarget | null, root: HTMLElement) {
+  const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+  const markElement = element?.closest<HTMLElement>(formattedMarkEdgeSelector) ?? null;
+
+  return formattedMarkElementCandidate(markElement, root);
+}
+
+function formattedMarkElementCandidate(element: HTMLElement | null, root: HTMLElement) {
+  if (!element || !root.contains(element)) return null;
+  if (element.closest("pre")) return null;
+
+  return element;
+}
+
+function visibleClientRects(element: HTMLElement) {
+  const rects = Array.from(element.getClientRects()).filter((rect) => rect.width > 0 && rect.height > 0);
+  if (rects.length > 0) return rects;
+
+  const fallback = element.getBoundingClientRect();
+  return fallback.width > 0 && fallback.height > 0 ? [fallback] : [];
+}
+
+function pointIsVerticallyNearRect(event: MouseEvent, rect: DOMRect) {
+  return (
+    event.clientY >= rect.top - formattedMarkEdgeVerticalTolerancePixels &&
+    event.clientY <= rect.bottom + formattedMarkEdgeVerticalTolerancePixels
+  );
+}
+
+function horizontalEdgeDistance(event: MouseEvent, rect: DOMRect, edge: "left" | "right") {
+  if (!pointIsVerticallyNearRect(event, rect)) return null;
+
+  const edgePosition = edge === "left" ? rect.left : rect.right;
+  const tolerance = Math.min(formattedMarkEdgeSnapPixels, Math.max(2, rect.width / 3));
+  const distance = Math.abs(event.clientX - edgePosition);
+
+  return distance <= tolerance ? distance : null;
+}
+
+function formattedMarkEdgeHitFromElement(event: MouseEvent, element: HTMLElement): FormattedMarkEdgeHit | null {
+  const rects = visibleClientRects(element);
+  const firstRect = rects[0];
+  const lastRect = rects[rects.length - 1];
+  const startDistance = firstRect ? horizontalEdgeDistance(event, firstRect, "left") : null;
+  const endDistance = lastRect ? horizontalEdgeDistance(event, lastRect, "right") : null;
+
+  if (startDistance === null && endDistance === null) return null;
+  if (endDistance !== null && (startDistance === null || endDistance < startDistance)) {
+    return { distance: endDistance, edge: "end", element };
+  }
+
+  return { distance: startDistance ?? 0, edge: "start", element };
+}
+
+function directFormattedMarkEdgeHit(view: EditorView, event: MouseEvent) {
+  const target = formattedMarkEdgeElement(event.target, view.dom);
+  return target ? formattedMarkEdgeHitFromElement(event, target) : null;
+}
+
+function nearbyFormattedMarkEdgeHit(view: EditorView, event: MouseEvent) {
+  let bestHit: FormattedMarkEdgeHit | null = null;
+
+  for (const element of Array.from(view.dom.querySelectorAll<HTMLElement>(formattedMarkEdgeSelector))) {
+    const candidate = formattedMarkElementCandidate(element, view.dom);
+    if (!candidate) continue;
+
+    const hit = formattedMarkEdgeHitFromElement(event, candidate);
+    if (!hit) continue;
+    if (!bestHit || hit.distance < bestHit.distance) bestHit = hit;
+  }
+
+  return bestHit;
+}
+
+function formattedMarkEdgePosition(view: EditorView, element: HTMLElement, edge: FormattedMarkEdge) {
+  try {
+    const offset = edge === "start" ? 0 : element.childNodes.length;
+    const bias = edge === "start" ? -1 : 1;
+    const position = view.posAtDOM(element, offset, bias);
+
+    return position >= 0 && position <= view.state.doc.content.size ? position : null;
+  } catch {
+    return null;
+  }
+}
+
+function selectFormattedMarkEdge(view: EditorView, event: Event) {
+  if (!(event instanceof MouseEvent)) return false;
+  if (event.button !== 0) return false;
+
+  const hit = directFormattedMarkEdgeHit(view, event) ?? nearbyFormattedMarkEdgeHit(view, event);
+  if (!hit) return false;
+
+  const position = formattedMarkEdgePosition(view, hit.element, hit.edge);
+  if (position === null) return false;
+
+  event.preventDefault();
+  event.stopPropagation();
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, position))
+      .scrollIntoView()
+  );
+  view.focus();
+  return true;
+}
+
 function buildLiveMarkdownDecorations(
   doc: ProseNode,
   specs: LiveMarkdownSpec[],
@@ -1009,7 +1127,8 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
     },
     props: {
       handleDOMEvents: {
-        mousedown: selectLiveMarkdownDelimiterEdge
+        mousedown: (view, event) =>
+          selectLiveMarkdownDelimiterEdge(view, event) || selectFormattedMarkEdge(view, event)
       },
       decorations: (state) => {
         const pluginState = liveMarkdownKey.getState(state) as LiveMarkdownPluginState | undefined;

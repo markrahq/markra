@@ -232,6 +232,30 @@ function clickFinalizedImage(target: Element) {
   return mouseDownResult;
 }
 
+function testRect(rect: Pick<DOMRect, "bottom" | "left" | "right" | "top">): DOMRect {
+  return {
+    ...rect,
+    height: rect.bottom - rect.top,
+    width: rect.right - rect.left,
+    x: rect.left,
+    y: rect.top,
+    toJSON: () => ({})
+  } as DOMRect;
+}
+
+function mockInlineElementRect(element: HTMLElement, rect: Pick<DOMRect, "bottom" | "left" | "right" | "top">) {
+  const domRect = testRect(rect);
+
+  Object.defineProperty(element, "getBoundingClientRect", {
+    configurable: true,
+    value: () => domRect
+  });
+  Object.defineProperty(element, "getClientRects", {
+    configurable: true,
+    value: () => [domRect]
+  });
+}
+
 function findFirstTextBlockCursor(view: EditorView) {
   let position: number | null = null;
 
@@ -7353,6 +7377,150 @@ describe("MarkdownPaper editing", () => {
       expect(serializeMarkdown(view.state.doc).trimEnd()).toBe(expected);
     }
 
+    await settleMarkdownListener();
+  });
+
+  it("snaps finalized formatting edge clicks to the mark boundary", async () => {
+    const { container, editor, unmount, view } = await renderEditor("alpha **bold** omega");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const strong = container.querySelector<HTMLElement>(".ProseMirror strong");
+
+    expect(strong).toHaveTextContent("bold");
+    mockInlineElementRect(strong!, {
+      bottom: 32,
+      left: 100,
+      right: 148,
+      top: 12
+    });
+
+    moveCursor(view, findFirstTextBlockCursor(view));
+
+    const rightEdgeClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 147,
+      clientY: 22
+    });
+    Object.defineProperty(rightEdgeClick, "target", {
+      configurable: true,
+      value: strong
+    });
+    const handled = view.someProp("handleDOMEvents", (handlers) => handlers.mousedown?.(view, rightEdgeClick));
+
+    expect(handled).toBe(true);
+    expect(rightEdgeClick.defaultPrevented).toBe(true);
+    expect(view.state.selection.from).toBe(findTextPosition(view, " omega"));
+
+    typeText(view, "!");
+
+    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
+    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("alpha **bold**! omega");
+    unmount();
+
+    const before = await renderEditor("alpha **bold** omega");
+    const beforeSerializer = before.editor.action((ctx) => ctx.get(serializerCtx));
+    const beforeStrong = before.container.querySelector<HTMLElement>(".ProseMirror strong");
+    expect(beforeStrong).toHaveTextContent("bold");
+    mockInlineElementRect(beforeStrong!, {
+      bottom: 32,
+      left: 100,
+      right: 148,
+      top: 12
+    });
+
+    const leftEdgeClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 101,
+      clientY: 22
+    });
+    Object.defineProperty(leftEdgeClick, "target", {
+      configurable: true,
+      value: beforeStrong
+    });
+    const leftHandled = before.view.someProp(
+      "handleDOMEvents",
+      (handlers) => handlers.mousedown?.(before.view, leftEdgeClick)
+    );
+
+    expect(leftHandled).toBe(true);
+    expect(before.view.state.selection.from).toBe(findTextPosition(before.view, "bold"));
+
+    typeText(before.view, "!");
+
+    expect(before.container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
+    expect(beforeSerializer(before.view.state.doc).trimEnd()).toBe("alpha !**bold** omega");
+    await settleMarkdownListener();
+  });
+
+  it("leaves finalized formatting center clicks to the browser selection handler", async () => {
+    const { container, view } = await renderEditor("alpha **bold** omega");
+    const strong = container.querySelector<HTMLElement>(".ProseMirror strong");
+
+    expect(strong).toHaveTextContent("bold");
+    mockInlineElementRect(strong!, {
+      bottom: 32,
+      left: 100,
+      right: 148,
+      top: 12
+    });
+
+    const centerClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 124,
+      clientY: 22
+    });
+    Object.defineProperty(centerClick, "target", {
+      configurable: true,
+      value: strong
+    });
+
+    const handled = view.someProp("handleDOMEvents", (handlers) => handlers.mousedown?.(view, centerClick));
+
+    expect(handled).toBeUndefined();
+    expect(centerClick.defaultPrevented).toBe(false);
+    await settleMarkdownListener();
+  });
+
+  it("snaps finalized formatting edge clicks when the WebView reports a surrounding target", async () => {
+    const { container, editor, view } = await renderEditor("alpha **bold** omega");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const paragraph = container.querySelector<HTMLElement>(".ProseMirror p");
+    const strong = container.querySelector<HTMLElement>(".ProseMirror strong");
+
+    expect(paragraph).toBeInTheDocument();
+    expect(strong).toHaveTextContent("bold");
+    mockInlineElementRect(strong!, {
+      bottom: 32,
+      left: 100,
+      right: 148,
+      top: 12
+    });
+
+    const edgeClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 147,
+      clientY: 22
+    });
+    Object.defineProperty(edgeClick, "target", {
+      configurable: true,
+      value: paragraph
+    });
+
+    const handled = view.someProp("handleDOMEvents", (handlers) => handlers.mousedown?.(view, edgeClick));
+
+    expect(handled).toBe(true);
+    expect(view.state.selection.from).toBe(findTextPosition(view, " omega"));
+
+    typeText(view, "!");
+
+    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("alpha **bold**! omega");
     await settleMarkdownListener();
   });
 
