@@ -13,7 +13,7 @@ import {
   normalizeMarkdownShortcuts,
   type MarkdownShortcutAction,
   type MarkdownShortcutMap
-} from "@markra/editor";
+} from "@markra/editor-core";
 import {
   aiTranslationLanguageName,
   matchesKeyboardShortcutEvent,

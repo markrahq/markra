@@ -1,5 +1,5 @@
 import katexStyles from "katex/dist/katex.css?raw";
-import { isMarkraMathMacroDefinitionSource } from "@markra/editor";
+import { isMarkraMathMacroDefinitionSource } from "@markra/editor-core";
 
 export type ExportDocumentFormat = "html" | "pdf" | "docx" | "epub" | "latex";
 

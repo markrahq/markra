@@ -1,4 +1,5 @@
-type MarkraMermaidTheme = "base" | "dark" | "default" | "forest" | "neutral";
+export type MarkraMermaidTheme = "base" | "dark" | "default" | "forest" | "neutral";
+
 type MermaidRenderer = typeof import("mermaid")["default"];
 
 type RenderMermaidOptions = {

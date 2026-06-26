@@ -12,7 +12,42 @@ import {
   type PointerEvent as ReactPointerEvent,
   type UIEvent as ReactUIEvent
 } from "react";
+import { EditorView as CodeMirrorEditorView } from "@codemirror/view";
 import { flushSync } from "react-dom";
+import {
+  AI_EDITOR_PREVIEW_APPLIED_EVENT,
+  AI_EDITOR_PREVIEW_ACTION_EVENT,
+  AI_EDITOR_PREVIEW_RESTORE_EVENT,
+  markdownVisualFindSearchMatches,
+  markdownVisualGetMarkdown,
+  markdownVisualGetSelectionAnchor,
+  markdownVisualGetSelectionContext,
+  markdownVisualGetSelectionFormattingState,
+  markdownVisualInsertImage,
+  markdownVisualInsertImages,
+  markdownVisualInsertImagesAtPoint,
+  markdownVisualInsertLink,
+  markdownVisualInsertSnippet,
+  markdownVisualInsertTable,
+  markdownVisualClearSelectionFormatting,
+  markdownVisualIsMarkdownEquivalent,
+  markdownVisualRunShortcutAction,
+  markdownVisualSetSelectionHeadingLevel,
+  markdownVisualReplaceAllSearchMatches,
+  markdownVisualReplaceMarkdown,
+  markdownVisualReplaceSearchMatch,
+  markdownVisualRevealSearchMatch,
+  markdownVisualShowSearchMatches,
+  markdownVisualToggleSelectionHighlight,
+  markdownShortcutFromKeyboardEvent,
+  markdownShortcutToKeyboardEventInit,
+  normalizeMarkdownShortcuts,
+  type AiEditorPreviewAppliedDetail,
+  type AiEditorPreviewActionDetail,
+  type AiEditorPreviewRestoreDetail,
+  type MarkdownVisualShortcutAction,
+  type RemoteClipboardImage
+} from "@markra/editor-core";
 import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { AiSelectionToolbar } from "./components/AiSelectionToolbar";
@@ -59,7 +94,6 @@ import { useEditorContentWidthState } from "./hooks/useEditorContentWidthState";
 import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { useDeferredAiSelectionReveal } from "./hooks/ai-selection-reveal";
 import { useExportSettings } from "./hooks/useExportSettings";
-import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
 import { useSelectionToolbarAnchorRefresh } from "./hooks/useSelectionToolbarAnchorRefresh";
@@ -81,7 +115,6 @@ import {
   useNativeMenuHandlers,
   useNativeMenus
 } from "./hooks/useNativeBindings";
-import type { Editor as MilkdownEditor } from "@milkdown/kit/core";
 import {
   aiTranslationLanguageName,
   clampNumber,
@@ -113,14 +146,13 @@ import {
   webKitScrollWorkaroundForPlatform
 } from "./lib/platform";
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
-import { runEditorLinkCommand } from "./app/editor-link-command";
 import { isPandocSetupError, runPandocSetupAction } from "./app/pandoc-setup";
 import type { WorkspaceSearchResult } from "./lib/workspace-search";
 import type {
   SelectionHeadingLevel,
   SelectionFormattingAction,
   SelectionFormattingToolbarAction
-} from "./lib/selection-formatting";
+} from "./lib/selection-formatting-state";
 import {
   closeNativeWindow,
   openNativeExternalUrl,
@@ -132,23 +164,14 @@ import {
 import {
   aiAgentWebSearchAvailable,
   applyWorkspaceChangePlan,
+  type AiDocumentAnchor,
   type AiDiffResult,
   type AiEditIntent,
+  type AiHeadingAnchor,
   type AiSelectionContext,
   type WorkspaceChangePlanArgs,
   type WorkspacePlanVisualEvent
 } from "@markra/ai";
-import {
-  AI_EDITOR_PREVIEW_APPLIED_EVENT,
-  AI_EDITOR_PREVIEW_ACTION_EVENT,
-  AI_EDITOR_PREVIEW_RESTORE_EVENT,
-  markdownShortcutToKeyboardEventInit,
-  normalizeMarkdownShortcuts,
-  type AiEditorPreviewAppliedDetail,
-  type AiEditorPreviewActionDetail,
-  type AiEditorPreviewRestoreDetail,
-  type RemoteClipboardImage
-} from "@markra/editor";
 import {
   createAiAgentSessionId,
   defaultSplitVisualPanePercent,
@@ -240,6 +263,11 @@ function nativeFileOperationFailureMessage(message: string, error: unknown) {
   return detail ? `${message} ${detail}` : message;
 }
 
+function shouldFocusMarkdownVisualEditorOnReady(markdown = "") {
+  const params = new URLSearchParams(window.location.search);
+  return params.has("blank") || params.has("path") || markdown.trim() === "";
+}
+
 type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 type EditorMode = "source" | "split" | "visual";
 type EditorSurface = "source" | "visual";
@@ -253,7 +281,6 @@ type PendingEditorModeScroll = {
   targetSurface: EditorSurface;
 };
 
-export { runEditorLinkCommand } from "./app/editor-link-command";
 export { globalSearchDebounceMs } from "./hooks/useWorkspaceSearch";
 
 const AiAgentPanel = lazy(async () => {
@@ -346,8 +373,11 @@ function WorkspaceApp() {
   const sourceMode = editorMode === "source";
   const splitMode = editorMode === "split";
   const sourceSurfaceActive = sourceMode || (splitMode && activeEditorSurface === "source");
+  const codeMirrorVisualEditorActive = true;
   const aiResultsRef = useRef<AiDiffResult[]>([]);
+  const aiPreviewResultsRef = useRef<AiDiffResult[]>([]);
   const appliedAiPreviewKeysRef = useRef(new Set<string>());
+  const activeTabIdRef = useRef<string | null>(null);
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
   const aiContextMenuActionIdRef = useRef(0);
   const aiSelectionCopySuccessTimerRef = useRef<number | null>(null);
@@ -366,7 +396,7 @@ function WorkspaceApp() {
   const mainDocumentPaneRef = useRef<HTMLDivElement | null>(null);
   const sourceScrollRef = useRef<HTMLElement | null>(null);
   const visualScrollRef = useRef<HTMLElement | null>(null);
-  const mainVisualEditorsRef = useRef(new Map<string, MilkdownEditor>());
+  const mainVisualEditorsRef = useRef(new Map<string, CodeMirrorEditorView>());
   const documentTabViewStatesRef = useRef(new Map<string, DocumentTabViewState>());
   const pendingEditorModeScrollRef = useRef<PendingEditorModeScroll | null>(null);
   const splitSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -441,28 +471,143 @@ function WorkspaceApp() {
     };
   }, [editorPreferences.preferences.markdownTemplates]);
 
-  const editor = useEditorController();
-  const clearEditorSelectionFormatting = editor.clearSelectionFormatting;
-  const findEditorSearchMatches = editor.findSearchMatches;
-  const getEditorCurrentMarkdown = editor.getCurrentMarkdown;
-  const handleMilkdownEditorReady = editor.handleEditorReady;
-  const insertEditorMarkdownImage = editor.insertMarkdownImage;
-  const insertEditorMarkdownImages = editor.insertMarkdownImages;
-  const insertEditorMarkdownImagesAtPoint = editor.insertMarkdownImagesAtPoint;
-  const insertEditorMarkdownLink = editor.insertMarkdownLink;
-  const insertEditorMarkdownSnippet = editor.insertMarkdownSnippet;
-  const insertEditorMarkdownTable = editor.insertMarkdownTable;
-  const isEditorCurrentMarkdownEquivalent = editor.isCurrentMarkdownEquivalent;
-  const replaceAllEditorSearchMatches = editor.replaceAllSearchMatches;
-  const replaceEditorMarkdown = editor.replaceMarkdown;
-  const replaceEditorSearchMatch = editor.replaceSearchMatch;
-  const revealEditorSearchMatch = editor.revealSearchMatch;
-  const runEditorShortcut = editor.runEditorShortcut;
-  const getEditorSelectionAnchor = editor.getSelectionAnchor;
-  const getEditorSelectionFormattingState = editor.getSelectionFormattingState;
-  const setEditorSelectionHeadingLevel = editor.setSelectionHeadingLevel;
-  const showEditorSearchMatches = editor.showSearchMatches;
-  const toggleEditorSelectionHighlight = editor.toggleSelectionHighlight;
+  const getActiveCodeMirrorVisualEditorFromRef = useCallback(() => {
+    const activeTabId = activeTabIdRef.current;
+    if (!activeTabId) return null;
+
+    return mainVisualEditorsRef.current.get(activeTabId) ?? null;
+  }, []);
+  const getEditorCurrentMarkdown = useCallback((fallbackContent: string) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualGetMarkdown(codeMirrorEditor) : fallbackContent;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const isEditorCurrentMarkdownEquivalent = useCallback((markdown: string) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualIsMarkdownEquivalent(codeMirrorEditor, markdown) : undefined;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const replaceEditorMarkdown = useCallback((markdown: string) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualReplaceMarkdown(codeMirrorEditor, markdown) : false;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const insertEditorMarkdownSnippet = useCallback((open: string, close: string, placeholder: string) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    if (!codeMirrorEditor) return false;
+
+    markdownVisualInsertSnippet(codeMirrorEditor, open, close, placeholder);
+    return true;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const insertEditorMarkdownImage = useCallback(() => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    if (!codeMirrorEditor) return false;
+
+    markdownVisualInsertImage(codeMirrorEditor);
+    return true;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const insertEditorMarkdownImages = useCallback((images: Parameters<typeof markdownVisualInsertImages>[1]) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualInsertImages(codeMirrorEditor, images) : false;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const insertEditorMarkdownImagesAtPoint = useCallback((
+    images: Parameters<typeof markdownVisualInsertImagesAtPoint>[1],
+    point: Parameters<typeof markdownVisualInsertImagesAtPoint>[2]
+  ) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualInsertImagesAtPoint(codeMirrorEditor, images, point) : false;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const insertEditorMarkdownLink = useCallback(() => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    if (!codeMirrorEditor) return false;
+
+    markdownVisualInsertLink(codeMirrorEditor);
+    return true;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const insertEditorMarkdownTable = useCallback(() => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    if (!codeMirrorEditor) return false;
+
+    markdownVisualInsertTable(codeMirrorEditor);
+    return true;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const findEditorSearchMatches = useCallback((query: string, options: { caseSensitive?: boolean } = {}) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualFindSearchMatches(codeMirrorEditor, query, options) : [];
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const showEditorSearchMatches = useCallback((
+    matches: Parameters<typeof markdownVisualShowSearchMatches>[1],
+    activeIndex: number,
+    _options: { suppressEditorChrome?: boolean } = {}
+  ) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    if (codeMirrorEditor) markdownVisualShowSearchMatches(codeMirrorEditor, matches, activeIndex);
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const revealEditorSearchMatch = useCallback((match: Parameters<typeof markdownVisualRevealSearchMatch>[1]) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualRevealSearchMatch(codeMirrorEditor, match) : false;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const replaceEditorSearchMatch = useCallback((
+    match: Parameters<typeof markdownVisualReplaceSearchMatch>[1],
+    replacement: string
+  ) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualReplaceSearchMatch(codeMirrorEditor, match, replacement) : false;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const replaceAllEditorSearchMatches = useCallback((
+    matches: Parameters<typeof markdownVisualReplaceAllSearchMatches>[1],
+    replacement: string
+  ) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualReplaceAllSearchMatches(codeMirrorEditor, matches, replacement) : false;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const getEditorSelectionAnchor = useCallback(() => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualGetSelectionAnchor(codeMirrorEditor) : null;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const getEditorSelectionFormattingState = useCallback(() => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor
+      ? markdownVisualGetSelectionFormattingState(codeMirrorEditor)
+      : { actions: [], headingLevel: null };
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const setEditorSelectionHeadingLevel = useCallback((level: SelectionHeadingLevel) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualSetSelectionHeadingLevel(codeMirrorEditor, level) : false;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const toggleEditorSelectionHighlight = useCallback(() => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualToggleSelectionHighlight(codeMirrorEditor) : false;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const clearEditorSelectionFormatting = useCallback(() => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    return codeMirrorEditor ? markdownVisualClearSelectionFormatting(codeMirrorEditor) : false;
+  }, [getActiveCodeMirrorVisualEditorFromRef]);
+  const runEditorShortcut = useCallback((
+    key: string,
+    modifiers: Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey"> = {},
+    options: { focusEditor?: boolean } = {}
+  ) => {
+    const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+    if (!codeMirrorEditor) return false;
+
+    const shortcut = markdownShortcutFromKeyboardEvent({
+      altKey: Boolean(modifiers.altKey),
+      code: modifiers.code,
+      ctrlKey: false,
+      key,
+      metaKey: true,
+      shiftKey: Boolean(modifiers.shiftKey)
+    });
+    if (!shortcut) return false;
+
+    const normalizedShortcuts = normalizeMarkdownShortcuts(editorPreferences.preferences.markdownShortcuts);
+    const action = (Object.keys(normalizedShortcuts) as Array<keyof typeof normalizedShortcuts>)
+      .find((candidate) => normalizedShortcuts[candidate] === shortcut);
+    if (!action) return false;
+
+    const handled = markdownVisualRunShortcutAction(codeMirrorEditor, action as MarkdownVisualShortcutAction);
+    if (handled && options.focusEditor !== false) codeMirrorEditor.focus();
+
+    return handled;
+  }, [editorPreferences.preferences.markdownShortcuts, getActiveCodeMirrorVisualEditorFromRef]);
   const syncAiSelectionToolbarFormattingState = useCallback(() => {
     const formattingState = getEditorSelectionFormattingState();
 
@@ -470,23 +615,26 @@ function WorkspaceApp() {
     setAiSelectionToolbarHeadingLevel(formattingState.headingLevel);
   }, [getEditorSelectionFormattingState]);
   const readCurrentMarkdownForDocument = useCallback((fallbackContent: string) => {
-    if (sourceSurfaceActive || largeMarkdownVisualBlockedRef.current) return fallbackContent;
+    if (sourceSurfaceActive || largeMarkdownVisualBlockedRef.current) {
+      return fallbackContent;
+    }
 
     return getEditorCurrentMarkdown(fallbackContent);
   }, [getEditorCurrentMarkdown, sourceSurfaceActive]);
   const isCurrentMarkdownEquivalentForDocument = useCallback((markdown: string) => {
-    if (sourceSurfaceActive || largeMarkdownVisualBlockedRef.current) return undefined;
+    if (sourceSurfaceActive || largeMarkdownVisualBlockedRef.current) {
+      return undefined;
+    }
 
     return isEditorCurrentMarkdownEquivalent(markdown);
   }, [isEditorCurrentMarkdownEquivalent, sourceSurfaceActive]);
   const isDocumentEditorReady = useCallback(() => {
+    if (codeMirrorVisualEditorActive) return true;
     if (sourceSurfaceActive || largeMarkdownVisualBlockedRef.current) return true;
 
     return visualEditorReadyRevisionRef.current === documentRevisionRef.current;
-  }, [sourceSurfaceActive]);
-  const handleVisualEditorReady = useCallback((...args: Parameters<typeof handleMilkdownEditorReady>) => {
-    const [readyEditor] = args;
-    handleMilkdownEditorReady(...args);
+  }, [codeMirrorVisualEditorActive, sourceSurfaceActive]);
+  const handleVisualEditorReady = useCallback((readyEditor: unknown | null) => {
     if (readyEditor) {
       markAppPerformance("markdown-visual-ready", {
         ...visualEditorReadyDetailRef.current,
@@ -497,7 +645,7 @@ function WorkspaceApp() {
     } else if (visualEditorReadyRevisionRef.current === documentRevisionRef.current) {
       visualEditorReadyRevisionRef.current = null;
     }
-  }, [handleMilkdownEditorReady]);
+  }, []);
   const handleActiveOutlineIndexChange = useCallback((index: number | null) => {
     setActiveOutlineIndex((current) => current === index ? current : index);
   }, []);
@@ -624,6 +772,7 @@ function WorkspaceApp() {
     workspaceSessionId,
     wordCount
   } = markdownDocument;
+  activeTabIdRef.current = activeTabId;
   documentRevisionRef.current = document.revision;
   const activeDocumentOutlineIndex =
     !sourceSurfaceActive &&
@@ -637,6 +786,11 @@ function WorkspaceApp() {
     path: document.path,
     sizeBytes: document.sizeBytes ?? null
   };
+  const getActiveCodeMirrorVisualEditor = useCallback(() => {
+    if (!activeTabId) return null;
+
+    return mainVisualEditorsRef.current.get(activeTabId) ?? null;
+  }, [activeTabId]);
   const documentLinksOpen = editorPreferences.preferences.documentLinksOpen;
   const documentLinksVisible = editorPreferences.preferences.documentLinksVisible;
   const documentLinksIndexEnabled = documentLinksVisible === true && (
@@ -666,8 +820,7 @@ function WorkspaceApp() {
   }, [activeImageFile?.path, activeTabId, editorMode]);
   const handleMainVisualEditorReady = useCallback((
     tabId: string,
-    readyEditor: MilkdownEditor | null,
-    options?: Parameters<typeof handleMilkdownEditorReady>[1]
+    readyEditor: CodeMirrorEditorView | null
   ) => {
     if (readyEditor) {
       mainVisualEditorsRef.current.set(tabId, readyEditor);
@@ -676,7 +829,7 @@ function WorkspaceApp() {
     }
 
     if (tabId === activeTabId) {
-      handleVisualEditorReady(readyEditor, options);
+      handleVisualEditorReady(readyEditor);
     }
   }, [activeTabId, handleVisualEditorReady]);
   useEffect(() => {
@@ -688,7 +841,7 @@ function WorkspaceApp() {
     const activeEditor = mainVisualEditorsRef.current.get(activeTabId);
     if (!activeEditor) return;
 
-    handleVisualEditorReady(activeEditor, { autoFocus: false });
+    handleVisualEditorReady(activeEditor);
   }, [activeTabId, handleVisualEditorReady]);
   useEffect(() => {
     setActiveOutlineIndex(null);
@@ -728,6 +881,7 @@ function WorkspaceApp() {
     (
       Boolean(activeImageFile) ||
       !hasOpenDocument ||
+      codeMirrorVisualEditorActive ||
       sourceSurfaceActive ||
       largeMarkdownVisualBlocked ||
       visualEditorReadyRevisionRef.current === documentRevisionRef.current
@@ -1087,6 +1241,154 @@ function WorkspaceApp() {
     setAiResults(results);
   }, []);
   const getPendingAiResult = useCallback(() => aiResultsRef.current.at(-1) ?? null, []);
+  const editor = useMemo(() => {
+    const markdownContent = () => getEditorCurrentMarkdown(document.content);
+    const textResultRange = (result: Extract<AiDiffResult, { type: "insert" | "replace" }>) => {
+      const contentLength = markdownContent().length;
+      const fallbackFrom = result.type === "insert" ? contentLength : 0;
+      const from = Math.max(0, Math.min(contentLength, result.from ?? result.target?.from ?? fallbackFrom));
+      const to = result.type === "insert"
+        ? from
+        : Math.max(from, Math.min(contentLength, result.to ?? result.target?.to ?? contentLength));
+
+      return { from, to };
+    };
+    const getHeadingAnchors = (): AiHeadingAnchor[] => {
+      const markdown = markdownContent();
+      const anchors: AiHeadingAnchor[] = [];
+      const headingPattern = /^(#{1,6})\s+(.+)$/gmu;
+
+      for (const match of markdown.matchAll(headingPattern)) {
+        const from = match.index ?? 0;
+        anchors.push({
+          from,
+          level: match[1].length,
+          title: match[2].trim(),
+          to: from + match[0].length
+        });
+      }
+
+      return anchors;
+    };
+    const getSectionAnchors = (): AiDocumentAnchor[] => {
+      const markdown = markdownContent();
+      const headings = getHeadingAnchors();
+
+      return headings.map((heading, index) => {
+        const nextHeading = headings.slice(index + 1).find((candidate) => candidate.level <= heading.level);
+        const to = nextHeading?.from ?? markdown.length;
+
+        return {
+          description: heading.title,
+          from: heading.from,
+          id: `section-${index + 1}`,
+          kind: "section" as const,
+          text: markdown.slice(heading.from, to),
+          title: heading.title,
+          to
+        };
+      });
+    };
+    const getTableAnchors = (): AiDocumentAnchor[] => {
+      const markdown = markdownContent();
+      const anchors: AiDocumentAnchor[] = [];
+      const tablePattern = /(^\|.*\|\n^\|(?:\s*:?-+:?\s*\|)+.*(?:\n^\|.*\|)*)/gmu;
+
+      for (const match of markdown.matchAll(tablePattern)) {
+        const from = match.index ?? 0;
+        const tableMarkdown = match[0];
+        const title = `Table ${anchors.length + 1}`;
+        anchors.push({
+          description: tableMarkdown.split("\n")[0] ?? title,
+          from,
+          id: `table-${anchors.length + 1}`,
+          kind: "table" as const,
+          text: tableMarkdown,
+          title,
+          to: from + tableMarkdown.length
+        });
+      }
+
+      return anchors;
+    };
+
+    return {
+      applyAiResult(result: AiDiffResult, _options: { previewId?: string } = {}) {
+        if (result.type === "error") return false;
+
+        const markdown = markdownContent();
+        const { from, to } = textResultRange(result);
+        const nextMarkdown = `${markdown.slice(0, from)}${result.replacement}${markdown.slice(to)}`;
+        const replaced = replaceEditorMarkdown(nextMarkdown);
+        if (replaced) {
+          aiPreviewResultsRef.current = aiPreviewResultsRef.current.filter(
+            (preview) => preview.type === "error" || aiResultSignature(preview) !== aiResultSignature(result)
+          );
+        }
+
+        return replaced;
+      },
+      clearAiPreview(result?: AiDiffResult, _options: { previewId?: string } = {}) {
+        aiPreviewResultsRef.current = result
+          ? aiPreviewResultsRef.current.filter((preview) =>
+              preview.type === "error" || result.type === "error" || aiResultSignature(preview) !== aiResultSignature(result)
+            )
+          : [];
+      },
+      clearAiSelection() {
+        updateActiveAiSelection(null);
+      },
+      confirmAiResultApplied(_result?: AiDiffResult, _options: { previewId?: string } = {}) {},
+      getDocumentEndPosition() {
+        return markdownContent().length;
+      },
+      getHeadingAnchors,
+      getSectionAnchors,
+      getSelection() {
+        const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+        return codeMirrorEditor ? markdownVisualGetSelectionContext(codeMirrorEditor) : getActiveAiSelection();
+      },
+      getTableAnchors,
+      holdAiSelection(selection: AiSelectionContext) {
+        updateActiveAiSelection(selection);
+      },
+      listAiPreviews() {
+        return aiPreviewResultsRef.current;
+      },
+      previewAiResult(
+        result: AiDiffResult,
+        _labels: Record<string, string> | undefined = undefined,
+        _options: { previewId?: string } = {}
+      ) {
+        aiPreviewResultsRef.current = result.type === "error" ? [] : [result];
+      },
+      scrollAiSelectionAboveCommand() {
+        return false;
+      },
+      scrollToAiPreview(_result?: AiDiffResult, _options: { previewId?: string } = {}) {
+        return false;
+      },
+      selectOutlineItem(_item: unknown, index: number) {
+        setActiveOutlineIndex(index);
+        const codeMirrorEditor = getActiveCodeMirrorVisualEditorFromRef();
+        const heading = getHeadingAnchors()[index];
+        if (!codeMirrorEditor || !heading) return;
+
+        codeMirrorEditor.dispatch({
+          effects: CodeMirrorEditorView.scrollIntoView(heading.from, { y: "center" }),
+          selection: { anchor: heading.from }
+        });
+        codeMirrorEditor.focus();
+      }
+    };
+  }, [
+    document.content,
+    getActiveAiSelection,
+    getActiveCodeMirrorVisualEditorFromRef,
+    getEditorCurrentMarkdown,
+    replaceEditorMarkdown,
+    updateActiveAiSelection
+  ]);
   const hasAiCommandContext = aiFeatureEnabled && !sourceSurfaceActive && Boolean(activeAiSelection?.text.trim());
   const selectedInlineAiModel =
     aiSettings.availableTextModels.find(
@@ -2647,10 +2949,24 @@ function WorkspaceApp() {
   const syncVisualMarkdownAfterEditorCommand = useCallback(() => {
     if (readOnlyMode || !splitMode) return;
 
-    handleVisualMarkdownChange(getEditorCurrentMarkdown(document.content), {
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    const currentMarkdown = codeMirrorEditor
+      ? markdownVisualGetMarkdown(codeMirrorEditor)
+      : getEditorCurrentMarkdown(document.content);
+
+    handleVisualMarkdownChange(currentMarkdown, {
       documentRevision: document.revision
     });
-  }, [document.content, document.revision, getEditorCurrentMarkdown, handleVisualMarkdownChange, readOnlyMode, splitMode]);
+  }, [
+    codeMirrorVisualEditorActive,
+    document.content,
+    document.revision,
+    getActiveCodeMirrorVisualEditor,
+    getEditorCurrentMarkdown,
+    handleVisualMarkdownChange,
+    readOnlyMode,
+    splitMode
+  ]);
   const saveLocalEditorImageFiles = useCallback(async (images: File[]) => {
     if (!document.path) {
       showAppToast({
@@ -2737,10 +3053,17 @@ function WorkspaceApp() {
     const savedImages = await saveLocalEditorImageFiles(images);
     if (savedImages.length === 0) return;
 
-    insertEditorMarkdownImages(savedImages);
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      markdownVisualInsertImages(codeMirrorEditor, savedImages);
+    } else {
+      insertEditorMarkdownImages(savedImages);
+    }
     syncVisualMarkdownAfterEditorCommand();
   }, [
+    codeMirrorVisualEditorActive,
     document.path,
+    getActiveCodeMirrorVisualEditor,
     insertEditorMarkdownImages,
     readOnlyMode,
     saveLocalEditorImageFiles,
@@ -2760,17 +3083,26 @@ function WorkspaceApp() {
       src: markdownImageDragSrcForDocument(payload, document.path)
     };
 
-    const insertedAtDropPoint = target.point
-      ? insertEditorMarkdownImagesAtPoint([imageReference], target.point)
-      : false;
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    const insertedAtDropPoint = codeMirrorEditor && target.point
+      ? markdownVisualInsertImagesAtPoint(codeMirrorEditor, [imageReference], target.point)
+      : target.point
+        ? insertEditorMarkdownImagesAtPoint([imageReference], target.point)
+        : false;
     if (!insertedAtDropPoint) {
-      insertEditorMarkdownImages([imageReference]);
+      if (codeMirrorEditor) {
+        markdownVisualInsertImages(codeMirrorEditor, [imageReference]);
+      } else {
+        insertEditorMarkdownImages([imageReference]);
+      }
     }
 
     syncVisualMarkdownAfterEditorCommand();
   }, [
     activeImageFile,
+    codeMirrorVisualEditorActive,
     document.path,
+    getActiveCodeMirrorVisualEditor,
     insertEditorMarkdownImages,
     insertEditorMarkdownImagesAtPoint,
     readOnlyMode,
@@ -2783,17 +3115,20 @@ function WorkspaceApp() {
     if (readOnlyMode || activeImageFile || !document.path || file.kind !== "asset") return;
 
     const payload = markdownImageDragPayloadForFile(file);
-    const inserted = insertEditorMarkdownImagesAtPoint(
-      [{
-        alt: payload.alt,
-        src: markdownImageDragSrcForDocument(payload, document.path)
-      }],
-      point
-    );
+    const imageReference = {
+      alt: payload.alt,
+      src: markdownImageDragSrcForDocument(payload, document.path)
+    };
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    const inserted = codeMirrorEditor
+      ? markdownVisualInsertImagesAtPoint(codeMirrorEditor, [imageReference], point)
+      : insertEditorMarkdownImagesAtPoint([imageReference], point);
     if (inserted) syncVisualMarkdownAfterEditorCommand();
   }, [
     activeImageFile,
+    codeMirrorVisualEditorActive,
     document.path,
+    getActiveCodeMirrorVisualEditor,
     insertEditorMarkdownImagesAtPoint,
     readOnlyMode,
     syncVisualMarkdownAfterEditorCommand
@@ -2809,23 +3144,57 @@ function WorkspaceApp() {
   const handleInsertMarkdownSnippet = useCallback((...args: Parameters<typeof insertEditorMarkdownSnippet>) => {
     if (readOnlyMode) return;
 
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      markdownVisualInsertSnippet(codeMirrorEditor, ...args);
+      syncVisualMarkdownAfterEditorCommand();
+      return;
+    }
+
     insertEditorMarkdownSnippet(...args);
     syncVisualMarkdownAfterEditorCommand();
-  }, [insertEditorMarkdownSnippet, readOnlyMode, syncVisualMarkdownAfterEditorCommand]);
+  }, [
+    codeMirrorVisualEditorActive,
+    getActiveCodeMirrorVisualEditor,
+    insertEditorMarkdownSnippet,
+    readOnlyMode,
+    syncVisualMarkdownAfterEditorCommand
+  ]);
   const handleInsertMarkdownImage = useCallback(() => {
     if (readOnlyMode) return;
 
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      markdownVisualInsertImage(codeMirrorEditor);
+      syncVisualMarkdownAfterEditorCommand();
+      return;
+    }
+
     insertEditorMarkdownImage();
     syncVisualMarkdownAfterEditorCommand();
-  }, [insertEditorMarkdownImage, readOnlyMode, syncVisualMarkdownAfterEditorCommand]);
-  const handleInsertMarkdownLink = useCallback(() => {
-    runEditorLinkCommand({
-      insertMarkdownLink: insertEditorMarkdownLink,
-      readOnlyMode,
-      syncAiSelectionToolbarFormattingState,
-      syncVisualMarkdownAfterEditorCommand
-    });
   }, [
+    codeMirrorVisualEditorActive,
+    getActiveCodeMirrorVisualEditor,
+    insertEditorMarkdownImage,
+    readOnlyMode,
+    syncVisualMarkdownAfterEditorCommand
+  ]);
+  const handleInsertMarkdownLink = useCallback(() => {
+    if (readOnlyMode) return;
+
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      markdownVisualInsertLink(codeMirrorEditor);
+      syncVisualMarkdownAfterEditorCommand();
+      return;
+    }
+
+    insertEditorMarkdownLink();
+    syncVisualMarkdownAfterEditorCommand();
+    syncAiSelectionToolbarFormattingState();
+  }, [
+    codeMirrorVisualEditorActive,
+    getActiveCodeMirrorVisualEditor,
     insertEditorMarkdownLink,
     readOnlyMode,
     syncAiSelectionToolbarFormattingState,
@@ -2834,9 +3203,22 @@ function WorkspaceApp() {
   const handleInsertMarkdownTable = useCallback(() => {
     if (readOnlyMode) return;
 
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      markdownVisualInsertTable(codeMirrorEditor);
+      syncVisualMarkdownAfterEditorCommand();
+      return;
+    }
+
     insertEditorMarkdownTable();
     syncVisualMarkdownAfterEditorCommand();
-  }, [insertEditorMarkdownTable, readOnlyMode, syncVisualMarkdownAfterEditorCommand]);
+  }, [
+    codeMirrorVisualEditorActive,
+    getActiveCodeMirrorVisualEditor,
+    insertEditorMarkdownTable,
+    readOnlyMode,
+    syncVisualMarkdownAfterEditorCommand
+  ]);
   const handleRunEditorShortcut = useCallback((...args: Parameters<typeof runEditorShortcut>) => {
     if (readOnlyMode) return false;
 
@@ -2947,13 +3329,27 @@ function WorkspaceApp() {
       return;
     }
 
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      if (!markdownVisualReplaceSearchMatch(codeMirrorEditor, activeDocumentSearchMatch, documentSearchReplacement)) return;
+
+      handleVisualMarkdownChange(markdownVisualGetMarkdown(codeMirrorEditor), {
+        documentRevision: document.revision
+      });
+      return;
+    }
+
     replaceEditorSearchMatch(activeDocumentSearchMatch, documentSearchReplacement);
   }, [
     activeDocumentSearchMatch,
+    codeMirrorVisualEditorActive,
     document.content,
+    document.revision,
     documentSearchReplacement,
     documentSearchSurface,
+    getActiveCodeMirrorVisualEditor,
     handleSourceMarkdownChange,
+    handleVisualMarkdownChange,
     replaceEditorSearchMatch,
     readOnlyMode
   ]);
@@ -2966,14 +3362,29 @@ function WorkspaceApp() {
       return;
     }
 
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      if (!markdownVisualReplaceAllSearchMatches(codeMirrorEditor, documentSearchMatches, documentSearchReplacement)) return;
+
+      handleVisualMarkdownChange(markdownVisualGetMarkdown(codeMirrorEditor), {
+        documentRevision: document.revision
+      });
+      resetDocumentSearchActiveIndex();
+      return;
+    }
+
     replaceAllEditorSearchMatches(documentSearchMatches, documentSearchReplacement);
     resetDocumentSearchActiveIndex();
   }, [
+    codeMirrorVisualEditorActive,
     document.content,
+    document.revision,
     documentSearchMatches,
     documentSearchReplacement,
     documentSearchSurface,
+    getActiveCodeMirrorVisualEditor,
     handleSourceMarkdownChange,
+    handleVisualMarkdownChange,
     replaceAllEditorSearchMatches,
     readOnlyMode,
     resetDocumentSearchActiveIndex
@@ -2984,12 +3395,23 @@ function WorkspaceApp() {
       return;
     }
 
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      setVisualDocumentSearchMatches(
+        markdownVisualFindSearchMatches(codeMirrorEditor, documentSearchQuery, {
+          caseSensitive: documentSearchCaseSensitive
+        })
+      );
+      return;
+    }
+
     setVisualDocumentSearchMatches(
       findEditorSearchMatches(documentSearchQuery, {
         caseSensitive: documentSearchCaseSensitive
       })
     );
   }, [
+    codeMirrorVisualEditorActive,
     document.revision,
     documentSearchAvailable,
     documentSearchCaseSensitive,
@@ -2997,11 +3419,24 @@ function WorkspaceApp() {
     documentSearchQuery,
     documentSearchSurface,
     findEditorSearchMatches,
+    getActiveCodeMirrorVisualEditor,
     visualEditorReadySequence
   ]);
   useEffect(() => {
     if (!documentSearchOpen || documentSearchSurface !== "visual") {
+      const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+      if (codeMirrorEditor) {
+        markdownVisualShowSearchMatches(codeMirrorEditor, [], -1);
+        return;
+      }
+
       showEditorSearchMatches([], -1, { suppressEditorChrome: false });
+      return;
+    }
+
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      markdownVisualShowSearchMatches(codeMirrorEditor, visualDocumentSearchMatches, normalizedDocumentSearchActiveIndex);
       return;
     }
 
@@ -3009,8 +3444,10 @@ function WorkspaceApp() {
       suppressEditorChrome: true
     });
   }, [
+    codeMirrorVisualEditorActive,
     documentSearchOpen,
     documentSearchSurface,
+    getActiveCodeMirrorVisualEditor,
     normalizedDocumentSearchActiveIndex,
     showEditorSearchMatches,
     visualDocumentSearchMatches
@@ -3020,12 +3457,20 @@ function WorkspaceApp() {
     if (documentSearchRevealRevision === lastDocumentSearchRevealRevisionRef.current) return;
 
     lastDocumentSearchRevealRevisionRef.current = documentSearchRevealRevision;
+    const codeMirrorEditor = codeMirrorVisualEditorActive ? getActiveCodeMirrorVisualEditor() : null;
+    if (codeMirrorEditor) {
+      markdownVisualRevealSearchMatch(codeMirrorEditor, activeDocumentSearchMatch);
+      return;
+    }
+
     revealEditorSearchMatch(activeDocumentSearchMatch);
   }, [
     activeDocumentSearchMatch,
+    codeMirrorVisualEditorActive,
     documentSearchOpen,
     documentSearchRevealRevision,
     documentSearchSurface,
+    getActiveCodeMirrorVisualEditor,
     revealEditorSearchMatch
   ]);
   useEffect(() => {
@@ -3700,7 +4145,7 @@ function WorkspaceApp() {
               autoFocus={
                 tabActive &&
                 !sourceMode &&
-                (splitMode ? activeEditorSurface === "visual" : shouldFocusEditorOnReady(tab.content))
+                (splitMode ? activeEditorSurface === "visual" : shouldFocusMarkdownVisualEditorOnReady(tab.content))
               }
               bottomOverlayInset={
                 tabActive && !sourceMode
@@ -3723,7 +4168,7 @@ function WorkspaceApp() {
               lineHeight={editorPreferences.preferences.lineHeight}
               markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
               onActiveOutlineIndexChange={tabActive ? handleActiveOutlineIndexChange : undefined}
-              onEditorReady={(readyEditor, options) => handleMainVisualEditorReady(tab.id, readyEditor, options)}
+              onEditorReady={(readyEditor) => handleMainVisualEditorReady(tab.id, readyEditor)}
               onMarkdownChange={(content) => {
                 const options = { documentRevision: tab.revision };
                 if (tabActive) {

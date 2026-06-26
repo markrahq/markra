@@ -11,23 +11,21 @@ import {
   renderApp
 } from "./test/app-harness";
 
-const editorControllerSpies = vi.hoisted(() => ({
-  replaceMarkdown: vi.fn()
-}));
-
-vi.mock("./hooks/useEditorController", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./hooks/useEditorController")>();
-
-  return {
-    ...actual,
-    useEditorController: () => ({
-      ...actual.useEditorController(),
-      replaceMarkdown: editorControllerSpies.replaceMarkdown
-    })
-  };
-});
-
 installAppTestHarness();
+
+function readMarkdownVisualEditor() {
+  const editor = document.querySelector<HTMLElement>('[data-testid="markdown-codemirror-editor"]');
+  if (!editor) {
+    throw new Error("Expected the CodeMirror visual editor to be mounted.");
+  }
+
+  const view = EditorView.findFromDOM(editor);
+  if (!view) {
+    throw new Error("Expected the visual editor to use CodeMirror.");
+  }
+
+  return view.state.doc.toString();
+}
 
 async function selectEditorViewMode(optionName: "Preview" | "Source code" | "Preview + Source") {
   const modeOrder = ["Preview", "Source code", "Preview + Source"] as const;
@@ -71,10 +69,6 @@ function replaceMarkdownSource(sourceEditor: HTMLElement, value: string) {
 }
 
 describe("Markra document history restore", () => {
-  beforeEach(() => {
-    editorControllerSpies.replaceMarkdown.mockReset();
-  });
-
   it("logs the document history restore pipeline", async () => {
     const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
@@ -102,7 +96,7 @@ describe("Markra document history restore", () => {
     renderApp();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
-    expect(await screen.findByText("Current")).toBeInTheDocument();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Current"));
 
     fireEvent.click(screen.getByRole("button", { name: "Show history" }));
     expect(await screen.findByRole("region", { name: "History versions" })).toBeInTheDocument();
@@ -146,8 +140,7 @@ describe("Markra document history restore", () => {
     renderApp();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
-    expect(await screen.findByText("Current")).toBeInTheDocument();
-    editorControllerSpies.replaceMarkdown.mockClear();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Current"));
 
     fireEvent.click(screen.getByRole("button", { name: "Show history" }));
     expect(await screen.findByRole("region", { name: "History versions" })).toBeInTheDocument();
@@ -155,7 +148,7 @@ describe("Markra document history restore", () => {
     fireEvent.click(await screen.findByRole("option"));
 
     await waitFor(() => {
-      expect(editorControllerSpies.replaceMarkdown).toHaveBeenCalledWith("# Earlier\n\nSynthetic body.");
+      expect(readMarkdownVisualEditor()).toBe("# Earlier\n\nSynthetic body.");
     });
   });
 
@@ -185,7 +178,7 @@ describe("Markra document history restore", () => {
     renderApp();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
-    expect(await screen.findByText("Current")).toBeInTheDocument();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Current"));
 
     fireEvent.click(screen.getByRole("button", { name: "Show history" }));
     expect(await screen.findByRole("region", { name: "History versions" })).toBeInTheDocument();
@@ -215,7 +208,7 @@ describe("Markra document history restore", () => {
     renderApp();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
-    expect(await screen.findByText("Current")).toBeInTheDocument();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Current"));
 
     const historyButton = screen.getByRole("button", { name: "Show history" });
     fireEvent.click(historyButton);
@@ -237,7 +230,7 @@ describe("Markra document history restore", () => {
     renderApp();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
-    expect(await screen.findByText("Current")).toBeInTheDocument();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Current"));
 
     fireEvent.keyDown(window, {
       key: "h",
@@ -266,7 +259,7 @@ describe("Markra document history restore", () => {
     renderApp();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
-    expect(await screen.findByText("Current")).toBeInTheDocument();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Current"));
 
     fireEvent.keyDown(window, {
       altKey: true,
@@ -320,7 +313,7 @@ describe("Markra document history restore", () => {
     renderApp();
 
     fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
-    expect(await screen.findByText("Current")).toBeInTheDocument();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Current"));
 
     fireEvent.click(screen.getByRole("button", { name: "Show history" }));
     expect(await screen.findByRole("region", { name: "History versions" })).toBeInTheDocument();

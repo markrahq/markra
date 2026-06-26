@@ -10,7 +10,7 @@ Every surface should disappear into the writing. Open a file, edit the page, sav
 
 ## Next
 
-- Replace this temporary editor with Milkdown
+- Continue shaping the CodeMirror writing surface
 - Keep the default view as a single document
 - Reveal AI actions only around selected text
 `;

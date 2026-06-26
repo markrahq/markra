@@ -1,6 +1,6 @@
-import { createAsyncCspellTrieSpellchecker, type Spellchecker } from "@markra/editor";
+import type { Spellchecker } from "@markra/editor-core";
 import type { AppLanguage } from "@markra/shared";
-import { decodeTrie } from "cspell-trie-lib";
+import { decodeTrie, type ITrie } from "cspell-trie-lib";
 import {
   deleteNativeSpellcheckDictionary,
   getNativeSpellcheckDictionaryStatus,
@@ -70,6 +70,89 @@ export const spellcheckDictionaryManifests: SpellcheckDictionaryManifestSet = {
 
 export const defaultSpellcheckDictionaryManifest = spellcheckDictionaryManifests.en;
 let spellcheckDictionaryManifestCache: Promise<SpellcheckDictionaryManifestSet> | null = null;
+
+function normalizeSpellcheckWord(word: string) {
+  return word
+    .trim()
+    .replaceAll("’", "'")
+    .toLocaleLowerCase();
+}
+
+function hasTrieWord(trie: ITrie, word: string) {
+  const result = trie.findWord(word, {
+    caseSensitive: false,
+    checkForbidden: true
+  });
+
+  return Boolean(result.found) && !result.forbidden;
+}
+
+function createCspellTrieSpellchecker(trie: ITrie): Spellchecker {
+  return {
+    check(word) {
+      const normalizedWord = normalizeSpellcheckWord(word);
+      if (!normalizedWord) return true;
+      if (hasTrieWord(trie, normalizedWord)) return true;
+      if (normalizedWord.includes("-")) {
+        return normalizedWord
+          .split("-")
+          .filter(Boolean)
+          .every((part) => hasTrieWord(trie, part));
+      }
+
+      return false;
+    },
+    suggest(word) {
+      const normalizedWord = normalizeSpellcheckWord(word);
+      if (!normalizedWord) return [];
+
+      return trie.suggest(normalizedWord, {
+        ignoreCase: true,
+        numSuggestions: 5,
+        timeout: 25
+      });
+    }
+  };
+}
+
+function createAsyncCspellTrieSpellchecker(loadTrie: () => Promise<ITrie>): Spellchecker {
+  let loading: Promise<unknown> | null = null;
+  let spellchecker: Spellchecker | null = null;
+  let failed = false;
+
+  const load = () => {
+    if (spellchecker || failed) return Promise.resolve();
+    if (!loading) {
+      loading = loadTrie()
+        .then((trie) => {
+          spellchecker = createCspellTrieSpellchecker(trie);
+        })
+        .catch(() => {
+          failed = true;
+        });
+    }
+
+    return loading;
+  };
+
+  return {
+    check(word) {
+      if (!spellchecker) {
+        load().catch(() => {});
+        return true;
+      }
+
+      return spellchecker.check(word);
+    },
+    isReady() {
+      return Boolean(spellchecker);
+    },
+    load,
+    suggest(word) {
+      return spellchecker?.suggest?.(word) ?? [];
+    }
+  };
+}
 
 export function spellcheckDictionaryManifestForLanguage(
   language: AppLanguage,

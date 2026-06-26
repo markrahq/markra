@@ -9,7 +9,7 @@ import {
   type StoredAiAgentSessionSummary,
   type StoredAiAgentSessionState
 } from "@markra/ai";
-import { defaultMarkdownShortcuts, normalizeMarkdownShortcuts, type MarkdownShortcutBindings } from "@markra/editor";
+import { defaultMarkdownShortcuts, normalizeMarkdownShortcuts, type MarkdownShortcutBindings } from "@markra/editor-core";
 import { createDefaultAiSettings, normalizeAiSettings, type AiProviderSettings } from "@markra/providers";
 import { clampNumber, isAppLanguage, normalizeNullableString, type AppLanguage } from "@markra/shared";
 import {

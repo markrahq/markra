@@ -42,20 +42,14 @@ function dependencyPattern(dependencies: string[]) {
 }
 
 const reactDependencies = dependencyPattern(["react", "react-dom"]);
-const milkdownDependencies = dependencyPattern([
-  "@milkdown",
-  "prosemirror",
+const markdownDependencies = dependencyPattern([
   "remark",
   "micromark",
   "unified",
   "mdast-util",
   "unist-util",
   "hast-util",
-  "markdown-table",
-  "orderedmap",
-  "crelt",
-  "rope-sequence",
-  "w3c-keyname"
+  "markdown-table"
 ]);
 const tauriDependencies = dependencyPattern(["@tauri-apps"]);
 const iconDependencies = dependencyPattern(["lucide-react", "lucide-static"]);
@@ -92,7 +86,7 @@ const aiSdkDependencies = dependencyPattern([
 
 function vendorChunkName(id: string) {
   if (reactDependencies.test(id)) return "react-vendor";
-  if (milkdownDependencies.test(id)) return "milkdown-vendor";
+  if (markdownDependencies.test(id)) return "markdown-vendor";
   if (tauriDependencies.test(id)) return "tauri-vendor";
   if (iconDependencies.test(id)) return "icons-vendor";
   if (piAgentDependencies.test(id)) return "pi-agent-vendor";

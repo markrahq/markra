@@ -1,8 +1,6 @@
 @import "tailwindcss";
 @source ".";
 @source "../../../packages/ui/src";
-@import "@milkdown/kit/prose/view/style/prosemirror.css";
-@import "@milkdown/kit/prose/tables/style/tables.css";
 @import "katex/dist/katex.css";
 
 @keyframes markra-history-panel-in {
@@ -14,18 +12,6 @@
   to {
     opacity: 1;
     transform: translateY(0);
-  }
-}
-
-@keyframes markra-prosemirror-caret-blink {
-  0%,
-  49% {
-    opacity: 1;
-  }
-
-  50%,
-  100% {
-    opacity: 0;
   }
 }
 
@@ -835,37 +821,20 @@
     --editor-text-cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http://www.w3.org/2000/svg%27%20width%3D%2724%27%20height%3D%2724%27%20viewBox%3D%270%200%2024%2024%27%3E%3Cpath%20d%3D%27M12%204v16M8.5%204h7M8.5%2020h7%27%20fill%3D%27none%27%20stroke%3D%27%23000000%27%20stroke-width%3D%274%27%20stroke-linecap%3D%27round%27/%3E%3Cpath%20d%3D%27M12%204v16M8.5%204h7M8.5%2020h7%27%20fill%3D%27none%27%20stroke%3D%27%23ffffff%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27/%3E%3C/svg%3E") 12 12, text;
   }
 
-  .markdown-paper [data-milkdown-root],
-  .markdown-paper .ProseMirror {
+  .markdown-paper .markdown-codemirror-editor,
+  .markdown-paper .markdown-codemirror-editor .cm-editor {
     @apply min-h-[calc(100vh-176px)] outline-none;
     cursor: var(--editor-text-cursor);
     font-family: var(--editor-font-family);
   }
 
-  .markdown-paper .ProseMirror {
+  .markdown-paper .markdown-codemirror-editor .cm-content {
     @apply wrap-break-word whitespace-pre-wrap;
+    cursor: var(--editor-text-cursor);
+    font-family: var(--editor-font-family);
   }
 
-  .markdown-paper .ProseMirror.markra-prosemirror-custom-caret {
-    caret-color: transparent;
-  }
-
-  .markdown-paper .markra-prosemirror-caret {
-    position: fixed;
-    z-index: 70;
-    display: none;
-    width: 1px;
-    background: var(--accent);
-    border-radius: 999px;
-    pointer-events: none;
-    animation: markra-prosemirror-caret-blink 1.05s steps(1, end) infinite;
-  }
-
-  .editor-content-slot[data-document-search-open="true"] .markdown-paper .markra-prosemirror-caret {
-    display: none !important;
-  }
-
-  .markdown-paper .ProseMirror li[data-item-type="task"] {
+  .markdown-paper li[data-item-type="task"] {
     @apply relative flex list-none items-start gap-2;
   }
 
@@ -889,7 +858,7 @@
     @apply mb-0;
   }
 
-  .markdown-paper .ProseMirror-focused {
+  .markdown-paper .cm-editor.cm-focused {
     @apply outline-none;
   }
 
@@ -997,7 +966,7 @@
     opacity: 0.94;
   }
 
-  .markdown-paper .ProseMirror[data-dragging="true"] {
+  .markdown-paper .cm-editor[data-dragging="true"] {
     cursor: grabbing;
   }
 
@@ -1518,10 +1487,10 @@
     --editor-link-color: oklch(41% 0.14 215);
   }
 
-  .markdown-paper[data-editor-theme="newsprint"] .ProseMirror::selection,
-  .markdown-paper[data-editor-theme="gothic"] .ProseMirror::selection,
-  .markdown-paper[data-editor-theme="pixyll"] .ProseMirror::selection,
-  .markdown-paper[data-editor-theme="whitey"] .ProseMirror::selection {
+  .markdown-paper[data-editor-theme="newsprint"] .markdown-codemirror-editor .cm-content::selection,
+  .markdown-paper[data-editor-theme="gothic"] .markdown-codemirror-editor .cm-content::selection,
+  .markdown-paper[data-editor-theme="pixyll"] .markdown-codemirror-editor .cm-content::selection,
+  .markdown-paper[data-editor-theme="whitey"] .markdown-codemirror-editor .cm-content::selection {
     background: color-mix(in srgb, var(--accent) 16%, transparent);
   }
 
@@ -2309,8 +2278,8 @@
     user-select: text;
   }
 
-  .markdown-paper .ProseMirror.markra-link-open-modifier-active a[href],
-  .markdown-paper .ProseMirror.markra-link-open-modifier-active .markra-live-link-label {
+  .markdown-paper .cm-editor.markra-link-open-modifier-active a[href],
+  .markdown-paper .cm-editor.markra-link-open-modifier-active .markra-live-link-label {
     cursor: pointer;
   }
 
@@ -2474,12 +2443,7 @@
     user-select: text;
   }
 
-  .markdown-paper .markra-image-node.ProseMirror-selectednode {
-    @apply bg-transparent;
-  }
-
-  .markdown-paper .markra-image-node.markra-image-node-selected,
-  .markdown-paper .markra-image-node.ProseMirror-selectednode {
+  .markdown-paper .markra-image-node.markra-image-node-selected {
     outline: 2px solid #8cf;
     outline-offset: 3px;
   }
@@ -2512,14 +2476,6 @@
 
   .markdown-paper .markra-image-node-source::selection {
     background: color-mix(in srgb, var(--accent) 28%, transparent);
-  }
-
-  .markdown-paper .ProseMirror-hideselection .markra-image-node-source {
-    caret-color: var(--text-primary) !important;
-  }
-
-  .markdown-paper .ProseMirror-hideselection .markra-image-node-source::selection {
-    background: color-mix(in srgb, var(--accent) 28%, transparent) !important;
   }
 
   .markdown-paper .markra-image-node-source-invalid .markra-image-node-source {
@@ -2566,7 +2522,7 @@
     position: relative;
   }
 
-  .markdown-paper img.ProseMirror-separator.markra-math-caret-anchor {
+  .markdown-paper img.markra-math-caret-anchor {
     position: absolute;
     top: 50%;
     right: 0;
@@ -3250,10 +3206,6 @@
     background: linear-gradient(color-mix(in srgb, var(--border-default) 72%, var(--text-secondary)), color-mix(in srgb, var(--border-default) 72%, var(--text-secondary))) center / 100% 2px no-repeat;
   }
 
-  .markdown-paper hr.ProseMirror-selectednode {
-    outline: none;
-  }
-
   .ai-chat-markdown {
     @apply text-[13px] leading-5;
     overflow-wrap: anywhere;
@@ -3347,8 +3299,7 @@
     display: none !important;
   }
 
-  .editor-content-slot[data-document-search-open="true"] .markdown-paper .markra-image-node.markra-image-node-selected,
-  .editor-content-slot[data-document-search-open="true"] .markdown-paper .ProseMirror-selectednode {
+  .editor-content-slot[data-document-search-open="true"] .markdown-paper .markra-image-node.markra-image-node-selected {
     outline: none !important;
     box-shadow: none !important;
   }

@@ -13,7 +13,7 @@ import {
   type ContextMenuIdPrefixes,
   type RecentMarkdownFile
 } from "@markra/app/runtime";
-import type { MarkdownShortcutMap } from "@markra/editor";
+import type { MarkdownShortcutMap } from "@markra/editor-core";
 import type { AppLanguage } from "@markra/shared";
 import type { NativeMarkdownFolderFile } from "./file";
 

@@ -1,5 +1,6 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { defaultMarkdownShortcuts } from "@markra/editor";
+import { EditorView } from "@codemirror/view";
+import { defaultMarkdownShortcuts } from "@markra/editor-core";
 import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
 import {
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
@@ -24,6 +25,21 @@ import {
 import { agentSessionSummary, storedAgentSession } from "./test/ai-fixtures";
 
 installAppTestHarness();
+
+function readMarkdownVisualEditor() {
+  const editor = document.querySelector<HTMLElement>('[data-testid="markdown-codemirror-editor"]');
+  if (!editor) {
+    throw new Error("Expected the CodeMirror visual editor to be mounted.");
+  }
+
+  const view = EditorView.findFromDOM(editor);
+  if (!view) {
+    throw new Error("Expected the visual editor to use CodeMirror.");
+  }
+
+  return view.state.doc.toString();
+}
+
 describe("Markra AI workspace", () => {
   it("opens a right-side Markra AI workspace from the titlebar", async () => {
     mockedGetStoredAiSettings.mockResolvedValue({
@@ -51,7 +67,7 @@ describe("Markra AI workspace", () => {
     });
     const { container } = renderApp();
 
-    await screen.findByText("Welcome to Markra");
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("Welcome to Markra"));
 
     fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
 
@@ -75,7 +91,7 @@ describe("Markra AI workspace", () => {
   it("toggles the Markra AI panel from the keyboard shortcut", async () => {
     renderApp();
 
-    await screen.findByText("Welcome to Markra");
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("Welcome to Markra"));
 
     fireEvent.keyDown(window, { key: "j", altKey: true, metaKey: true });
 
@@ -90,9 +106,7 @@ describe("Markra AI workspace", () => {
   it("opens the inline AI command from the keyboard shortcut at the current block", async () => {
     renderApp();
 
-    await screen.findByText("Welcome to Markra");
-    await screen.findByRole("textbox", { name: "Markdown document" });
-
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("Welcome to Markra"));
     fireEvent.keyDown(window, { key: "j", metaKey: true, shiftKey: true });
 
     expect(await screen.findByRole("textbox", { name: "AI command" })).toBeInTheDocument();
@@ -169,9 +183,7 @@ describe("Markra AI workspace", () => {
 
     renderApp();
 
-    await screen.findByText("Welcome to Markra");
-    await screen.findByRole("textbox", { name: "Markdown document" });
-
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("Welcome to Markra"));
     fireEvent.keyDown(window, { key: "j", metaKey: true, shiftKey: true });
 
     const commandInput = await screen.findByRole("textbox", { name: "AI command" });
@@ -262,9 +274,7 @@ describe("Markra AI workspace", () => {
 
     renderApp();
 
-    await screen.findByText("Welcome to Markra");
-    await screen.findByRole("textbox", { name: "Markdown document" });
-
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("Welcome to Markra"));
     fireEvent.keyDown(window, { key: "j", metaKey: true, shiftKey: true });
 
     const commandInput = await screen.findByRole("textbox", { name: "AI command" });
@@ -294,7 +304,7 @@ describe("Markra AI workspace", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
 
-    const agentPanel = screen.getByRole("complementary", { name: "Markra AI" });
+    const agentPanel = await screen.findByRole("complementary", { name: "Markra AI" });
     const input = within(agentPanel).getByRole("textbox", { name: "Markra AI message" });
     const sendButton = within(agentPanel).getByRole("button", { name: "Send message" });
     const suggestion = within(agentPanel).getByRole("button", { name: "Summarize this document" });
@@ -312,7 +322,7 @@ describe("Markra AI workspace", () => {
   it("restores the pending AI suggestion without reopening the command input when an applied suggestion is undone", async () => {
     const { container } = renderApp();
 
-    await screen.findByText("Welcome to Markra");
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("Welcome to Markra"));
 
     window.dispatchEvent(
       new CustomEvent(AI_EDITOR_PREVIEW_RESTORE_EVENT, {
@@ -350,22 +360,22 @@ describe("Markra AI workspace", () => {
 
     renderApp();
 
-    await screen.findByText("Original text");
+    await waitFor(() => expect(readMarkdownVisualEditor()).toBe("Original text"));
 
     const eventDetail = {
       action: "apply",
       result: {
-        from: 1,
+        from: 0,
         original: "Original",
         replacement: "Improved",
-        to: 9,
+        to: 8,
         type: "replace"
       }
     } as const;
 
     await waitFor(() => {
       dispatchAiEditorPreviewAction(eventDetail);
-      expect(screen.getByText("Improved text")).toBeInTheDocument();
+      expect(readMarkdownVisualEditor()).toBe("Improved text");
     });
   });
 
@@ -386,26 +396,26 @@ describe("Markra AI workspace", () => {
 
     renderApp();
 
-    await screen.findByText("Original text");
+    await waitFor(() => expect(readMarkdownVisualEditor()).toBe("Original text"));
 
     const eventDetail = {
       action: "apply",
       result: {
-        from: 9,
+        from: 8,
         original: "",
         replacement: " improved",
-        to: 9,
+        to: 8,
         type: "insert"
       }
     } as const;
 
     await waitFor(() => {
       dispatchAiEditorPreviewAction(eventDetail);
-      expect(screen.getByText("Original improved text")).toBeInTheDocument();
+      expect(readMarkdownVisualEditor()).toBe("Original improved text");
     });
 
     dispatchAiEditorPreviewAction(eventDetail);
-    expect(screen.queryByText("Original improved improved text")).not.toBeInTheDocument();
+    expect(readMarkdownVisualEditor()).not.toBe("Original improved improved text");
   });
 
   it("updates the Markra AI context when selecting a markdown file from a folder workspace", async () => {
@@ -440,7 +450,7 @@ describe("Markra AI workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "docs" }));
     fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
 
-    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Guide"));
     await waitFor(() => expect(within(agentPanel).getByText("guide.md")).toBeInTheDocument());
     await waitFor(() => expect(within(agentPanel).getByText("1 headings · 1 sections · 0 tables")).toBeInTheDocument());
     await waitFor(() => expect(mockedListStoredAiAgentSessions).toHaveBeenCalledWith(guidePath, { includeArchived: true }));
@@ -491,7 +501,7 @@ describe("Markra AI workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "docs" }));
     fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
 
-    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Guide"));
     await waitFor(() => expect(within(agentPanel).getByText("session-guide")).toBeInTheDocument());
     await waitFor(() => expect(mockedGetStoredAiAgentSession).toHaveBeenCalledWith("session-guide"));
   });
@@ -702,7 +712,7 @@ describe("Markra AI workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "docs" }));
     fireEvent.click(await screen.findByRole("button", { name: "docs/guide.md" }));
 
-    expect(await screen.findByText("Guide")).toBeInTheDocument();
+    await waitFor(() => expect(readMarkdownVisualEditor()).toContain("# Guide"));
     await waitFor(() => expect(within(agentPanel).getByText("session-guide")).toBeInTheDocument());
     expect(within(agentPanel).queryByText("session-folder")).not.toBeInTheDocument();
   });

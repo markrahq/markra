@@ -18,9 +18,9 @@ This document only defines engineering conventions for this repository.
 ## Tech Stack
 
 - Desktop shell: Tauri v2.
-- Frontend: React, TypeScript, Milkdown, and Tailwind CSS.
+- Frontend: React, TypeScript, CodeMirror, and Tailwind CSS.
 - Icons: prefer `lucide-react`.
-- Styling should use Tailwind CSS as much as practical. Global CSS should be reserved for design tokens, base styles, Milkdown/Markdown generated content, and platform-level polish.
+- Styling should use Tailwind CSS as much as practical. Global CSS should be reserved for design tokens, base styles, CodeMirror/Markdown generated content, and platform-level polish.
 
 ## Code Organization
 
@@ -30,7 +30,7 @@ This document only defines engineering conventions for this repository.
 - Current package boundaries:
   - `packages/shared`: cross-cutting types, i18n, small pure utilities, and runtime debug logging.
   - `packages/ai`: AI provider settings, provider requests, agent runtime, AI tools, and web search tools.
-  - `packages/editor`: Milkdown editor adapters, shortcuts, input rules, AI preview, and selection handling.
+  - `packages/editor-core`: CodeMirror editor adapters, shortcuts, AI preview contracts, and selection handling.
   - `packages/markdown`: Markdown parsing and Markdown asset/path helpers.
 - Keep Tauri frontend bridge code in `apps/desktop/src/lib/tauri`; it is app shell integration, not a shared package.
 - Keep desktop-only build tooling such as the debug-strip Vite plugin in `apps/desktop/scripts/`.

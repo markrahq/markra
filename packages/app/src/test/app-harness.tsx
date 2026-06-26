@@ -1,5 +1,9 @@
 import { fireEvent, render } from "@testing-library/react";
-import { AI_EDITOR_PREVIEW_ACTION_EVENT, defaultMarkdownShortcuts, type AiEditorPreviewActionDetail } from "@markra/editor";
+import {
+  AI_EDITOR_PREVIEW_ACTION_EVENT,
+  defaultMarkdownShortcuts,
+  type AiEditorPreviewActionDetail
+} from "@markra/editor-core";
 import App from "../App";
 import {
   confirmNativeMarkdownFileDelete,
@@ -937,7 +941,7 @@ export function mockOpenMarkdownFile(file: { content: string; name: string; path
 }
 
 export type { NativeMenuHandlers } from "../lib/tauri";
-export { AI_EDITOR_PREVIEW_ACTION_EVENT, AI_EDITOR_PREVIEW_RESTORE_EVENT } from "@markra/editor";
+export { AI_EDITOR_PREVIEW_ACTION_EVENT, AI_EDITOR_PREVIEW_RESTORE_EVENT } from "@markra/editor-core";
 
 export function renderApp() {
   return render(<App />);
@@ -949,7 +953,7 @@ export function dispatchAiEditorPreviewAction(detail: Partial<AiEditorPreviewAct
 
 export function installAppTestHarness() {
   afterAll(async () => {
-    // Milkdown ctx leaves 3s listener cleanup timers pending after editor teardown.
+    // CodeMirror teardown can leave debounced editor timers pending after unmount.
     await new Promise((resolve) => {
       window.setTimeout(resolve, 3200);
     });

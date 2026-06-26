@@ -1,5 +1,5 @@
 import { t, type AppLanguage } from "@markra/shared";
-import type { MarkdownShortcutMap, Spellchecker } from "@markra/editor";
+import type { MarkdownShortcutMap, Spellchecker } from "@markra/editor-core";
 import type { EditorContentWidth } from "../lib/editor-width";
 import type { EditorFontFamilyPreference } from "../lib/editor-font";
 import type { EditorTheme, ExtendedSyntaxPreferences, TableColumnWidthModePreference } from "../lib/settings/app-settings";

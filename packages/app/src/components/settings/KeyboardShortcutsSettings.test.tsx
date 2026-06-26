@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { defaultMarkdownShortcuts } from "@markra/editor";
+import { defaultMarkdownShortcuts } from "@markra/editor-core";
 import { translate } from "../../test/settings-components";
 import { defaultEditorPreferences, type EditorPreferences } from "../../lib/settings/app-settings";
 import { KeyboardShortcutsSettings } from "./KeyboardShortcutsSettings";

@@ -4,7 +4,7 @@ import {
   normalizeMarkdownShortcuts,
   type MarkdownShortcutAction,
   type MarkdownShortcutMap
-} from "@markra/editor";
+} from "@markra/editor-core";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import {
   collapseContextMenuEntries,

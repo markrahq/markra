@@ -12,7 +12,7 @@ describe("editor stylesheet", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 
     expect(styles).toContain("--editor-text-cursor:");
-    expect(styles).toContain(".markdown-paper .ProseMirror");
+    expect(styles).toContain(".markdown-paper .markdown-codemirror-editor .cm-content");
     expect(styles).toContain(".markdown-paper[data-editor-theme=\"solarized-dark\"]");
     expect(styles).toContain("cursor: var(--editor-text-cursor)");
     expect(styles).toContain("%231a1c1e");
@@ -20,10 +20,10 @@ describe("editor stylesheet", () => {
     expect(styles).not.toContain(".markdown-source-input");
   });
 
-  it("applies selected visual editor fonts to the editable ProseMirror surface", () => {
+  it("applies selected visual editor fonts to the editable CodeMirror surface", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
-    const surfaceRuleStart = styles.indexOf(".markdown-paper [data-milkdown-root],");
-    const surfaceRuleEnd = styles.indexOf(".markdown-paper .ProseMirror li", surfaceRuleStart);
+    const surfaceRuleStart = styles.indexOf(".markdown-paper .markdown-codemirror-editor,");
+    const surfaceRuleEnd = styles.indexOf(".markdown-paper li[data-item-type=\"task\"]", surfaceRuleStart);
     const surfaceRule = styles.slice(surfaceRuleStart, surfaceRuleEnd);
 
     expect(surfaceRuleStart).toBeGreaterThanOrEqual(0);
@@ -51,7 +51,7 @@ describe("editor stylesheet", () => {
     );
     const autoTableRule = styles.slice(autoTableRuleStart, autoTableRuleEnd);
 
-    expect(styles).toContain('@import "@milkdown/kit/prose/tables/style/tables.css"');
+    expect(styles.includes("@milk" + "down")).toBe(false);
     expect(styles).toContain(".markdown-paper table");
     expect(styles).toContain("table-layout: fixed");
     expect(styles).toContain(".markdown-paper .markra-table-scroll");
@@ -236,25 +236,11 @@ describe("editor stylesheet", () => {
 
     expect(imageSelectionStart).toBeGreaterThanOrEqual(0);
     expect(imageSelectionEnd).toBeGreaterThan(imageSelectionStart);
-    expect(imageSelectionStyles).toContain(".markdown-paper .markra-image-node.ProseMirror-selectednode");
     expect(imageSelectionStyles).toContain("outline:");
     expect(imageSelectionStyles).toContain("#8cf");
     expect(imageSelectionStyles).not.toContain("var(--accent)");
     expect(imageSelectionStyles).toContain("outline-offset");
     expect(imageSelectionStyles).not.toContain("outline-none");
-  });
-
-  it("keeps finalized image source text selection visible while the image block is selected", () => {
-    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
-    const sourceSelectionStart = styles.indexOf(".markdown-paper .ProseMirror-hideselection .markra-image-node-source");
-    const sourceSelectionEnd = styles.indexOf(".markdown-paper .markra-image-node-source-invalid", sourceSelectionStart);
-    const sourceSelectionStyles = styles.slice(sourceSelectionStart, sourceSelectionEnd);
-
-    expect(sourceSelectionStart).toBeGreaterThanOrEqual(0);
-    expect(sourceSelectionEnd).toBeGreaterThan(sourceSelectionStart);
-    expect(sourceSelectionStyles).toContain("caret-color: var(--text-primary) !important");
-    expect(sourceSelectionStyles).toContain(".markdown-paper .ProseMirror-hideselection .markra-image-node-source::selection");
-    expect(sourceSelectionStyles).toContain("background: color-mix(in srgb, var(--accent) 28%, transparent)");
   });
 
   it("gives horizontal rules a forgiving hit target without heavy selected-node feedback", () => {
@@ -271,8 +257,6 @@ describe("editor stylesheet", () => {
     expect(ruleStyles).toContain("cursor: pointer");
     expect(ruleStyles).toContain("background:");
     expect(ruleStyles).toContain(".markdown-paper hr:hover");
-    expect(ruleStyles).toContain(".markdown-paper hr.ProseMirror-selectednode");
-    expect(ruleStyles).toContain("outline: none");
     expect(ruleStyles).toContain("100% 2px");
   });
 
@@ -287,7 +271,6 @@ describe("editor stylesheet", () => {
     expect(searchChromeStyles).toContain("caret-color: transparent");
     expect(searchChromeStyles).toContain(".markra-math-caret-anchor");
     expect(searchChromeStyles).toContain(".markra-image-node.markra-image-node-selected");
-    expect(searchChromeStyles).toContain(".ProseMirror-selectednode");
     expect(searchChromeStyles).toContain(".markra-image-node-source-row");
   });
 
@@ -320,7 +303,7 @@ describe("editor stylesheet", () => {
 
   it("positions the native display math caret anchor at the formula block edge", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
-    const anchorStart = styles.indexOf(".markdown-paper img.ProseMirror-separator.markra-math-caret-anchor {");
+    const anchorStart = styles.indexOf(".markdown-paper img.markra-math-caret-anchor {");
     const anchorEnd = styles.indexOf(".markdown-paper .markra-math-render-invalid");
     const anchorStyles = styles.slice(anchorStart, anchorEnd);
 
@@ -543,7 +526,7 @@ describe("editor stylesheet", () => {
     expect(paperStyles).not.toContain("background: var(--editor-paper-bg)");
     expect(styles).toContain(".markdown-paper[data-editor-theme=\"dark\"]");
     expect(styles).toContain(".markdown-paper[data-editor-theme=\"night\"]");
-    expect(styles).not.toContain(".markdown-paper[data-editor-theme=\"night\"] .ProseMirror");
+    expect(styles).not.toContain(".markdown-paper[data-editor-theme=\"night\"] .cm-content");
     expect(styles).toContain("[data-theme=\"newsprint\"]");
     expect(styles).toContain("[data-theme=\"night\"]");
     expect(styles).toContain("[data-theme=\"github-dark\"]");
@@ -657,8 +640,8 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("-webkit-user-drag: none");
     expect(styles).toContain("user-select: text");
     expect(styles).toContain("cursor: var(--editor-text-cursor)");
-    expect(styles).toContain(".markdown-paper .ProseMirror.markra-link-open-modifier-active a");
-    expect(styles).toContain(".markdown-paper .ProseMirror.markra-link-open-modifier-active .markra-live-link-label");
+    expect(styles).toContain(".markdown-paper .cm-editor.markra-link-open-modifier-active a");
+    expect(styles).toContain(".markdown-paper .cm-editor.markra-link-open-modifier-active .markra-live-link-label");
     expect(styles).toContain("cursor: pointer");
   });
 });

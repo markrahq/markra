@@ -1,4 +1,4 @@
-import { defaultMarkdownShortcuts } from "@markra/editor";
+import { defaultMarkdownShortcuts } from "@markra/editor-core";
 import { defaultAiQuickActionPrompts } from "../ai-actions";
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests } from "../../runtime";
 import {

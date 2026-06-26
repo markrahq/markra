@@ -1,5 +1,5 @@
 import type { AppLanguage } from "@markra/shared";
-import type { MarkdownShortcutMap } from "@markra/editor";
+import type { MarkdownShortcutMap } from "@markra/editor-core";
 import type { DesktopPlatform } from "../lib/platform";
 import type { ContextMenuEntry } from "../components/ContextMenu";
 import type {

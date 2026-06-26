@@ -982,7 +982,7 @@
 
 ### Bug Fixes
 
-* **desktop:** keep milkdown vendor chunk intact ([4d5e0f2](https://github.com/murongg/markra/commit/4d5e0f241624fa96fe485812329da9780b27eb77))
+* **desktop:** keep editor vendor chunk intact ([4d5e0f2](https://github.com/murongg/markra/commit/4d5e0f241624fa96fe485812329da9780b27eb77))
 
 ## [0.0.1](https://github.com/murongg/markra/compare/cab50972a9704212d444c1a3b188c25336f9464c...v0.0.1) (2026-05-11)
 

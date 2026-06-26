@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from "react";
-import type { SpellcheckMatch } from "@markra/editor";
+import type { SpellcheckMatch } from "@markra/editor-core";
 import { t, type AppLanguage } from "@markra/shared";
 
 export type SpellcheckSuggestionMenuState = {

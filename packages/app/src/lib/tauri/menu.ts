@@ -1,4 +1,4 @@
-import type { MarkdownShortcutMap } from "@markra/editor";
+import type { MarkdownShortcutMap } from "@markra/editor-core";
 import type { AppLanguage } from "@markra/shared";
 import { getAppRuntime } from "../../runtime";
 import type { RecentMarkdownFile } from "../settings/app-settings";

@@ -1,4 +1,4 @@
-import { defaultMarkdownShortcuts } from "@markra/editor";
+import { defaultMarkdownShortcuts } from "@markra/editor-core";
 import { createSettingsStoreHarness, resetSettingsStoreRuntime, setupSettingsStoreHarness } from "../../test/settings-store";
 import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../ai-actions";
 import {

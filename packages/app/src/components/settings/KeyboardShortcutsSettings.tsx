@@ -7,7 +7,7 @@ import {
   parseMarkdownShortcut,
   type MarkdownShortcutAction,
   type MarkdownShortcutBindings
-} from "@markra/editor";
+} from "@markra/editor-core";
 import type { I18nKey } from "@markra/shared";
 import type { EditorPreferences } from "../../lib/settings/app-settings";
 import type { DesktopPlatform } from "../../lib/platform";

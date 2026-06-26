@@ -12,7 +12,7 @@ import {
   renderMarkraMathToString,
   renderMermaidToSvg,
   type MarkraMathMacros
-} from "@markra/editor";
+} from "@markra/editor-core";
 import { parseMarkdownCalloutMarker, type ParsedMarkdownCalloutMarker } from "@markra/shared";
 import type { ExportDocumentFormat } from "../lib/document-export";
 import type { ExtendedSyntaxPreferences } from "../lib/settings/app-settings";

@@ -1,5 +1,5 @@
 {
-  "name": "@markra/editor",
+  "name": "@markra/editor-core",
   "version": "0.0.1",
   "license": "AGPL-3.0-only",
   "private": true,
@@ -17,20 +17,17 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
-    "@cspell/cspell-types": "10.0.1",
-    "@markra/ai": "workspace:*",
+    "@codemirror/lang-markdown": "6.5.0",
+    "@codemirror/state": "6.6.0",
+    "@codemirror/view": "6.41.1",
     "@markra/shared": "workspace:*",
-    "@milkdown/kit": "^7.20.0",
-    "cspell-trie-lib": "10.0.1",
+    "codemirror": "6.0.2",
     "katex": "0.16.45",
-    "lowlight": "3.3.0",
-    "mermaid": "11.15.0",
-    "prosemirror-tables": "1.8.5",
-    "remark-frontmatter": "5.0.0",
-    "remark-math": "6.0.0"
+    "mermaid": "11.15.0"
   },
   "devDependencies": {
     "@types/node": "24.10.0",
+    "jsdom": "29.1.1",
     "typescript": "6.0.3",
     "vitest": "4.1.5"
   }

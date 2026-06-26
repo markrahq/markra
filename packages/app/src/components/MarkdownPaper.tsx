@@ -1,4 +1,13 @@
-import { lazy, Suspense, type CSSProperties, type Ref, type UIEvent } from "react";
+import type { CSSProperties, Ref, UIEvent } from "react";
+import type { EditorView } from "@codemirror/view";
+import type { AiSelectionContext } from "@markra/ai";
+import type {
+  MarkdownShortcutMap,
+  SaveClipboardAttachment,
+  SaveClipboardImage,
+  SaveRemoteClipboardImage,
+  Spellchecker
+} from "@markra/editor-core";
 import { t, type AppLanguage } from "@markra/shared";
 import {
   editorContentWidthPixels,
@@ -10,16 +19,14 @@ import {
   editorFontFamilyCssValue,
   type EditorFontFamilyPreference
 } from "../lib/editor-font";
-import type { EditorTheme } from "../lib/settings/app-settings";
-import type { TableColumnWidthModePreference } from "../lib/settings/app-settings";
+import type {
+  EditorTheme,
+  ExtendedSyntaxPreferences,
+  TableColumnWidthModePreference
+} from "../lib/settings/app-settings";
+import type { MarkdownDocumentLinkFile } from "../lib/document-links";
 import { EditorWidthResizer } from "./EditorWidthResizer";
-import type { MarkdownPaperSurfaceProps } from "./MarkdownPaperSurface";
-
-const MarkdownPaperSurface = lazy(async () => {
-  const module = await import("./MarkdownPaperSurface");
-
-  return { default: module.MarkdownPaperSurface };
-});
+import { MarkdownCodeMirrorPaperSurface } from "./MarkdownCodeMirrorPaperSurface";
 
 type MarkdownPaperProps = {
   autoFocus?: boolean;
@@ -30,38 +37,38 @@ type MarkdownPaperProps = {
   contentWidthMin?: number;
   contentWidthPx?: number | null;
   documentKey?: string | null;
-  documentPath?: MarkdownPaperSurfaceProps["documentPath"];
+  documentPath?: string | null;
   editorFontFamily?: EditorFontFamilyPreference;
   editorTheme?: EditorTheme;
-  extendedSyntax?: MarkdownPaperSurfaceProps["extendedSyntax"];
+  extendedSyntax?: ExtendedSyntaxPreferences;
   initialContent: string;
   language?: AppLanguage;
   lineHeight?: number;
-  markdownShortcuts?: MarkdownPaperSurfaceProps["markdownShortcuts"];
-  onActiveOutlineIndexChange?: MarkdownPaperSurfaceProps["onActiveOutlineIndexChange"];
-  onEditorReady: MarkdownPaperSurfaceProps["onEditorReady"];
-  onMarkdownChange: MarkdownPaperSurfaceProps["onMarkdownChange"];
+  markdownShortcuts?: MarkdownShortcutMap;
+  onActiveOutlineIndexChange?: (index: number | null) => unknown;
+  onEditorReady: (editor: EditorView | null, options?: { autoFocus?: boolean }) => unknown;
+  onMarkdownChange: (content: string) => unknown;
   onContentWidthChange?: (width: number) => unknown;
   onContentWidthResizeEnd?: () => unknown;
   onContentWidthResizeStart?: () => unknown;
   onScroll?: (event: UIEvent<HTMLElement>) => unknown;
-  onSaveClipboardAttachment?: MarkdownPaperSurfaceProps["onSaveClipboardAttachment"];
-  onSaveClipboardImage?: MarkdownPaperSurfaceProps["onSaveClipboardImage"];
-  onSaveRemoteClipboardImage?: MarkdownPaperSurfaceProps["onSaveRemoteClipboardImage"];
-  onAddSpellcheckIgnoredWord?: MarkdownPaperSurfaceProps["onAddSpellcheckIgnoredWord"];
-  openLocalAttachment?: MarkdownPaperSurfaceProps["openLocalAttachment"];
-  openExternalUrl?: MarkdownPaperSurfaceProps["openExternalUrl"];
-  readOnly?: MarkdownPaperSurfaceProps["readOnly"];
-  onTextSelectionChange?: MarkdownPaperSurfaceProps["onTextSelectionChange"];
-  resolveImageSrc?: MarkdownPaperSurfaceProps["resolveImageSrc"];
+  onSaveClipboardAttachment?: SaveClipboardAttachment;
+  onSaveClipboardImage?: SaveClipboardImage;
+  onSaveRemoteClipboardImage?: SaveRemoteClipboardImage;
+  onAddSpellcheckIgnoredWord?: (word: string) => unknown;
+  openLocalAttachment?: (src: string) => unknown;
+  openExternalUrl?: (url: string) => unknown;
+  readOnly?: boolean;
+  onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
+  resolveImageSrc?: (src: string) => string;
   revision: number;
   scrollRef?: Ref<HTMLElement>;
-  spellcheckEnabled?: MarkdownPaperSurfaceProps["spellcheckEnabled"];
-  spellcheckIgnoredWords?: MarkdownPaperSurfaceProps["spellcheckIgnoredWords"];
-  spellchecker?: MarkdownPaperSurfaceProps["spellchecker"];
+  spellcheckEnabled?: boolean;
+  spellcheckIgnoredWords?: readonly string[];
+  spellchecker?: Spellchecker;
   tableColumnWidthMode?: TableColumnWidthModePreference;
   topInset?: "tabs" | "titlebar";
-  workspaceFiles?: MarkdownPaperSurfaceProps["workspaceFiles"];
+  workspaceFiles?: MarkdownDocumentLinkFile[];
   wrapCodeBlocks?: boolean;
 };
 
@@ -74,16 +81,6 @@ function editorBottomPadding(bottomOverlayInset: number) {
   if (bottomOverlayInset <= 0) return 0;
 
   return `${bottomOverlayInset}px`;
-}
-
-function MarkdownPaperSurfaceFallback() {
-  return (
-    <div
-      aria-hidden="true"
-      className="min-h-6"
-      data-editor-engine="milkdown-loading"
-    />
-  );
 }
 
 export function MarkdownPaper({
@@ -158,7 +155,7 @@ export function MarkdownPaper({
         className={`markdown-paper relative mx-auto min-h-screen w-full max-w-215 px-18 ${topInsetClassName} text-[16px] leading-[1.65] text-(--text-primary) caret-(--accent) outline-none focus:outline-none max-[900px]:px-5.25`}
         style={paperStyle}
         aria-label={t(language, "app.markdownEditor")}
-        data-editor-engine="milkdown"
+        data-editor-engine="codemirror"
         data-editor-theme={editorTheme}
         data-code-block-wrap={wrapCodeBlocks ? "true" : "false"}
       >
@@ -171,33 +168,14 @@ export function MarkdownPaper({
           onResizeEnd={onContentWidthResizeEnd}
           onResizeStart={onContentWidthResizeStart}
         />
-        <Suspense fallback={<MarkdownPaperSurfaceFallback />}>
-          <MarkdownPaperSurface
-            autoFocus={autoFocus}
-            documentPath={documentPath}
-            extendedSyntax={extendedSyntax}
-            initialContent={initialContent}
-            language={language}
-            markdownShortcuts={markdownShortcuts}
-            onActiveOutlineIndexChange={onActiveOutlineIndexChange}
-            onEditorReady={onEditorReady}
-            onMarkdownChange={onMarkdownChange}
-            onSaveClipboardAttachment={onSaveClipboardAttachment}
-            onSaveClipboardImage={onSaveClipboardImage}
-            onSaveRemoteClipboardImage={onSaveRemoteClipboardImage}
-            onAddSpellcheckIgnoredWord={onAddSpellcheckIgnoredWord}
-            openLocalAttachment={openLocalAttachment}
-            openExternalUrl={openExternalUrl}
-            readOnly={readOnly}
-            onTextSelectionChange={onTextSelectionChange}
-            resolveImageSrc={resolveImageSrc}
-            spellcheckEnabled={spellcheckEnabled}
-            spellcheckIgnoredWords={spellcheckIgnoredWords}
-            spellchecker={spellchecker}
-            tableColumnWidthMode={tableColumnWidthMode}
-            workspaceFiles={workspaceFiles}
-          />
-        </Suspense>
+        <MarkdownCodeMirrorPaperSurface
+          autoFocus={autoFocus}
+          initialContent={initialContent}
+          language={language}
+          onEditorReady={onEditorReady}
+          onMarkdownChange={onMarkdownChange}
+          readOnly={readOnly}
+        />
       </article>
     </section>
   );

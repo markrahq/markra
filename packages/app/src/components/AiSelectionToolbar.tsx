@@ -46,7 +46,7 @@ import {
   type SelectionHeadingLevel,
   type SelectionFormattingAction,
   type SelectionFormattingToolbarAction
-} from "../lib/selection-formatting";
+} from "../lib/selection-formatting-state";
 
 type AiSelectionAction = {
   icon: LucideIcon;
