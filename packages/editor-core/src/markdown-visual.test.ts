@@ -86,6 +86,52 @@ describe("markdown visual extensions", () => {
     }
   });
 
+  it("renders common block markdown as a visual document surface", () => {
+    const content = [
+      "# Daily note",
+      "",
+      "## Tasks",
+      "",
+      "- [ ] Ship mock feature",
+      "- [x] Verify mock result"
+    ].join("\n");
+    const editor = createMarkdownVisualView(content);
+
+    try {
+      editor.view.dispatch({ selection: EditorSelection.cursor(content.length) });
+
+      expect(editor.parent.querySelector(".markra-cm-heading-text-1")?.textContent).toBe("Daily note");
+      expect(editor.parent.querySelector(".markra-cm-heading-text-2")?.textContent).toBe("Tasks");
+      expect(
+        Array.from(editor.parent.querySelectorAll(".markra-cm-heading-marker-hidden"))
+          .map((marker) => marker.textContent)
+      ).toEqual(["# ", "## "]);
+      expect(editor.parent.querySelector(".markra-cm-heading-marker-active")).toBeNull();
+
+      const taskCheckboxes = Array.from(
+        editor.parent.querySelectorAll<HTMLInputElement>(".markra-cm-task-checkbox")
+      );
+
+      expect(taskCheckboxes.map((checkbox) => checkbox.checked)).toEqual([false, true]);
+      expect(
+        Array.from(editor.parent.querySelectorAll(".markra-cm-task-marker"))
+          .map((marker) => marker.textContent)
+      ).toEqual(["- [ ]", "- [x]"]);
+
+      taskCheckboxes[0].click();
+      expect(markdownVisualGetMarkdown(editor.view)).toContain("- [x] Ship mock feature");
+
+      editor.view.dispatch({ selection: EditorSelection.cursor(0) });
+
+      expect(
+        Array.from(editor.parent.querySelectorAll(".markra-cm-heading-marker-active"))
+          .map((marker) => marker.textContent)
+      ).toEqual(["# "]);
+    } finally {
+      editor.destroy();
+    }
+  });
+
   it("supports document replacement and snippet insertion through the visual controller", () => {
     const editor = createMarkdownVisualView("alpha beta");
 

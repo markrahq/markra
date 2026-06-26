@@ -8,7 +8,7 @@ import {
   type Extension,
   type Range
 } from "@codemirror/state";
-import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from "@codemirror/view";
+import { Decoration, EditorView, ViewPlugin, WidgetType, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { keyboardShortcutActions, findSearchRanges, type KeyboardShortcutAction, type SearchRange } from "@markra/shared";
 import { minimalSetup } from "codemirror";
 
@@ -123,6 +123,22 @@ type MarkdownStrongRange = {
   to: number;
 };
 
+type MarkdownHeadingRange = {
+  contentFrom: number;
+  contentTo: number;
+  level: MarkdownVisualSelectionHeadingLevel;
+  lineFrom: number;
+  markerFrom: number;
+};
+
+type MarkdownTaskRange = {
+  checked: boolean;
+  markerFrom: number;
+  markerText: string;
+  markerTo: number;
+  statusFrom: number;
+};
+
 function isEscapedMarkdownDelimiter(content: string, index: number) {
   let backslashCount = 0;
 
@@ -187,6 +203,14 @@ function selectionTouchesStrongRange(state: EditorState, range: MarkdownStrongRa
   });
 }
 
+function selectionTouchesRange(state: EditorState, from: number, to: number) {
+  return state.selection.ranges.some((selectionRange) => {
+    if (selectionRange.empty) return selectionRange.from >= from && selectionRange.from <= to;
+
+    return selectionRange.from <= to && selectionRange.to >= from;
+  });
+}
+
 function formattingMarkerClass(active: boolean) {
   return active
     ? "markra-cm-formatting-marker markra-cm-formatting-marker-active"
@@ -204,6 +228,124 @@ function markdownVisualLineHeadingLevel(lineText: string): MarkdownVisualSelecti
   if (!match) return null;
 
   return normalizeMarkdownVisualHeadingLevel(match[1].length);
+}
+
+function findMarkdownHeadingRanges(state: EditorState) {
+  const ranges: MarkdownHeadingRange[] = [];
+
+  for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
+    const line = state.doc.line(lineNumber);
+    const match = /^( {0,3})(#{1,6})([ \t]+|$)/u.exec(line.text);
+    if (!match) continue;
+
+    const level = normalizeMarkdownVisualHeadingLevel(match[2].length);
+    if (!level) continue;
+
+    const markerFrom = line.from + match[1].length;
+    const contentFrom = line.from + match[0].length;
+
+    ranges.push({
+      contentFrom,
+      contentTo: line.to,
+      level,
+      lineFrom: line.from,
+      markerFrom
+    });
+  }
+
+  return ranges;
+}
+
+function findMarkdownTaskRangeInLine(lineFrom: number, lineText: string): MarkdownTaskRange | null {
+  const match = /^( {0,3})([-*+])([ \t]+)\[([ xX])\]/u.exec(lineText);
+  if (!match) return null;
+
+  const markerFrom = lineFrom + match[1].length;
+  const markerText = `${match[2]}${match[3]}[${match[4]}]`;
+  const markerTo = markerFrom + markerText.length;
+  const statusFrom = markerTo - 2;
+
+  return {
+    checked: match[4].toLowerCase() === "x",
+    markerFrom,
+    markerText,
+    markerTo,
+    statusFrom
+  };
+}
+
+function findMarkdownTaskRanges(state: EditorState) {
+  const ranges: MarkdownTaskRange[] = [];
+
+  for (let lineNumber = 1; lineNumber <= state.doc.lines; lineNumber += 1) {
+    const line = state.doc.line(lineNumber);
+    const range = findMarkdownTaskRangeInLine(line.from, line.text);
+    if (range) ranges.push(range);
+  }
+
+  return ranges;
+}
+
+function findMarkdownTaskRangeAtPosition(state: EditorState, position: number) {
+  const line = state.doc.lineAt(Math.max(0, Math.min(state.doc.length, position)));
+
+  return findMarkdownTaskRangeInLine(line.from, line.text);
+}
+
+function toggleMarkdownTaskAtPosition(view: EditorView, markerFrom: number) {
+  const range = findMarkdownTaskRangeAtPosition(view.state, markerFrom);
+  if (!range || range.markerFrom !== markerFrom) return false;
+
+  view.dispatch({
+    changes: {
+      from: range.statusFrom,
+      insert: range.checked ? " " : "x",
+      to: range.statusFrom + 1
+    },
+    selection: EditorSelection.cursor(range.statusFrom + 1)
+  });
+  view.focus();
+  return true;
+}
+
+class MarkdownTaskCheckboxWidget extends WidgetType {
+  constructor(
+    private readonly checked: boolean,
+    private readonly markerFrom: number,
+    private readonly markerText: string
+  ) {
+    super();
+  }
+
+  eq(widget: WidgetType) {
+    return widget instanceof MarkdownTaskCheckboxWidget &&
+      widget.checked === this.checked &&
+      widget.markerFrom === this.markerFrom &&
+      widget.markerText === this.markerText;
+  }
+
+  toDOM(view: EditorView) {
+    const wrapper = document.createElement("span");
+    wrapper.className = "markra-cm-task-marker";
+
+    const checkbox = document.createElement("input");
+    checkbox.className = "markra-cm-task-checkbox";
+    checkbox.type = "checkbox";
+    checkbox.checked = this.checked;
+    checkbox.setAttribute("aria-label", this.checked ? "Completed task" : "Incomplete task");
+    checkbox.addEventListener("click", (event) => {
+      event.preventDefault();
+      toggleMarkdownTaskAtPosition(view, this.markerFrom);
+    });
+
+    const sourceMarker = document.createElement("span");
+    sourceMarker.className = "markra-cm-task-source-marker";
+    sourceMarker.setAttribute("aria-hidden", "true");
+    sourceMarker.textContent = this.markerText;
+
+    wrapper.append(checkbox, sourceMarker);
+    return wrapper;
+  }
 }
 
 type InlineDelimitedRange = {
@@ -393,6 +535,36 @@ function buildMarkdownVisualDecorations(view: EditorView): DecorationSet {
   const content = view.state.doc.toString();
   const decorations: Array<Range<Decoration>> = [];
 
+  for (const range of findMarkdownHeadingRanges(view.state)) {
+    const markerActive = selectionTouchesRange(view.state, range.markerFrom, range.contentFrom);
+    const markerClass = markerActive
+      ? "markra-cm-heading-marker markra-cm-heading-marker-active"
+      : "markra-cm-heading-marker markra-cm-heading-marker-hidden";
+
+    decorations.push(
+      Decoration.line({
+        class: `markra-cm-heading-line markra-cm-heading-line-${range.level}`
+      }).range(range.lineFrom),
+      Decoration.mark({ class: markerClass }).range(range.markerFrom, range.contentFrom)
+    );
+
+    if (range.contentFrom < range.contentTo) {
+      decorations.push(
+        Decoration.mark({
+          class: `markra-cm-heading-text markra-cm-heading-text-${range.level}`
+        }).range(range.contentFrom, range.contentTo)
+      );
+    }
+  }
+
+  for (const range of findMarkdownTaskRanges(view.state)) {
+    decorations.push(
+      Decoration.replace({
+        widget: new MarkdownTaskCheckboxWidget(range.checked, range.markerFrom, range.markerText)
+      }).range(range.markerFrom, range.markerTo)
+    );
+  }
+
   for (const range of findMarkdownStrongRanges(content)) {
     const markerClass = formattingMarkerClass(selectionTouchesStrongRange(view.state, range));
 
@@ -521,6 +693,55 @@ function markdownVisualTheme(): Extension {
     },
     ".markra-cm-strong-text": {
       fontWeight: "700"
+    },
+    ".markra-cm-heading-line": {
+      color: "var(--text-primary)"
+    },
+    ".markra-cm-heading-marker": {
+      color: "var(--text-secondary)",
+      fontWeight: "500"
+    },
+    ".markra-cm-heading-marker-active": {
+      fontSize: "0.82em",
+      opacity: "0.64"
+    },
+    ".markra-cm-heading-marker-hidden": {
+      fontSize: "0",
+      letterSpacing: "0",
+      opacity: "0"
+    },
+    ".markra-cm-heading-text": {
+      fontWeight: "700",
+      lineHeight: "1.35"
+    },
+    ".markra-cm-heading-text-1": {
+      fontSize: "1.75em"
+    },
+    ".markra-cm-heading-text-2": {
+      fontSize: "1.45em"
+    },
+    ".markra-cm-heading-text-3": {
+      fontSize: "1.25em"
+    },
+    ".markra-cm-heading-text-4, .markra-cm-heading-text-5, .markra-cm-heading-text-6": {
+      fontSize: "1.08em"
+    },
+    ".markra-cm-task-marker": {
+      alignItems: "center",
+      display: "inline-flex",
+      verticalAlign: "-0.12em"
+    },
+    ".markra-cm-task-checkbox": {
+      accentColor: "var(--accent)",
+      cursor: "pointer",
+      height: "1em",
+      margin: "0 0.35em 0 0",
+      width: "1em"
+    },
+    ".markra-cm-task-source-marker": {
+      fontSize: "0",
+      letterSpacing: "0",
+      opacity: "0"
     },
     ".markra-cm-formatting-marker": {
       color: "var(--text-secondary)",
