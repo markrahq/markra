@@ -44,6 +44,31 @@ function childrenToText(children: ReactNode) {
     .join("");
 }
 
+type MarkdownAstNode = {
+  children?: MarkdownAstNode[];
+  type?: string;
+  value?: string;
+};
+
+function replaceHtmlBreakNodes(node: MarkdownAstNode) {
+  if (!Array.isArray(node.children)) return;
+
+  node.children = node.children.map((child) => {
+    if (child.type === "html" && typeof child.value === "string" && /^\s*<br\s*\/?>\s*$/iu.test(child.value)) {
+      return { type: "break" };
+    }
+
+    replaceHtmlBreakNodes(child);
+    return child;
+  });
+}
+
+function remarkMarkraHtmlBreaks() {
+  return (tree: MarkdownAstNode) => {
+    replaceHtmlBreakNodes(tree);
+  };
+}
+
 function hasMathClass(className: unknown, kind: "display" | "inline") {
   return typeof className === "string" && className.split(/\s+/u).includes(`math-${kind}`);
 }
@@ -242,7 +267,7 @@ export function MarkdownExportDocument({
     >
       <article className="markdown-paper markdown-export-paper" ref={articleRef}>
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkHugoMath]}
+          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkHugoMath, remarkMarkraHtmlBreaks]}
           components={{
             a: ({ node: _node, ...props }) => <a {...props} rel="noreferrer" target="_blank" />,
             blockquote: ({ node: _node, ...props }) =>

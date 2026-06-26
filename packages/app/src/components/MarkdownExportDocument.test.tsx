@@ -35,6 +35,30 @@ describe("MarkdownExportDocument", () => {
     expect(bodyHtml).not.toContain("&lt;br");
   });
 
+  it("renders raw br markers in GFM table cells as line breaks before exporting HTML", async () => {
+    const onRendered = vi.fn();
+
+    render(
+      <MarkdownExportDocument
+        onRendered={onRendered}
+        snapshot={{
+          id: 1,
+          kind: "html",
+          markdown: ["| Setting | Value |", "| --- | --- |", "| Mock | First<br>Second |"].join("\n"),
+          title: "table-breaks.md"
+        }}
+      />
+    );
+
+    await waitFor(() => expect(onRendered).toHaveBeenCalledTimes(1));
+
+    const bodyHtml = onRendered.mock.calls[0]?.[0].bodyHtml as string;
+    expect(bodyHtml).toContain("<table>");
+    expect(bodyHtml).toContain("First<br");
+    expect(bodyHtml).toContain("Second");
+    expect(bodyHtml).not.toContain("&lt;br");
+  });
+
   it("renders inline and display math before exporting HTML", async () => {
     const onRendered = vi.fn();
 
