@@ -1138,8 +1138,12 @@ export function useMarkdownDocument({
           ? documentFromTab(targetTab)
           : documentRef.current;
     const sourceContent = options.sourceContent ?? contents;
+    const activeEditorMatchesSavedContent =
+      targetTabId === activeTabIdRef.current && isActiveEditorMarkdownEquivalent(contents) === true;
     const contentChangedAfterSaveStarted =
-      targetDocument.content !== sourceContent && targetDocument.content !== contents;
+      targetDocument.content !== sourceContent &&
+      targetDocument.content !== contents &&
+      !activeEditorMatchesSavedContent;
     const nextDocument = {
       ...targetDocument,
       path: savedFile.path,
@@ -1180,6 +1184,7 @@ export function useMarkdownDocument({
   }, [
     documentTabsEnabled,
     editorSyncState,
+    isActiveEditorMarkdownEquivalent,
     onTreeRootFromFilePath,
     registerWindowRestoreState,
     rememberRecentMarkdownFile

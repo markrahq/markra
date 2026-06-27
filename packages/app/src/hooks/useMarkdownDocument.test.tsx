@@ -720,6 +720,62 @@ describe("useMarkdownDocument", () => {
     });
   });
 
+  it("clears dirty state when save resolves after equivalent visual serialization", async () => {
+    let editorMarkdown = "# Guide\n\nSaved";
+    let resolveSave: (savedFile: { name: string; path: string }) => unknown = () => {};
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "# Guide\n\nOriginal",
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+    mockedSaveNativeMarkdownFile.mockReturnValue(new Promise((resolve) => {
+      resolveSave = resolve;
+    }));
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: () => editorMarkdown,
+        isCurrentMarkdownEquivalent: (markdown) =>
+          markdown === editorMarkdown ||
+          (markdown === "# Guide\n\nSaved" && editorMarkdown === "Guide\n=====\n\nSaved"),
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path: "/mock-files/guide.md",
+        relativePath: "guide.md"
+      });
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange(editorMarkdown, { surface: "visual" });
+    });
+    const savePromise = result.current.saveCurrentDocument();
+    act(() => {
+      editorMarkdown = "Guide\n=====\n\nSaved";
+      result.current.handleMarkdownChange(editorMarkdown, { surface: "visual" });
+    });
+    await act(async () => {
+      resolveSave({
+        name: "guide.md",
+        path: "/mock-files/guide.md"
+      });
+      await savePromise;
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "# Guide\n\nSaved",
+      dirty: false,
+      name: "guide.md",
+      path: "/mock-files/guide.md"
+    });
+  });
+
   it("opens folder files as tabs and keeps dirty tab content when switching", async () => {
     const confirmDiscardUnsavedChanges = vi.fn(() => true);
     mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
