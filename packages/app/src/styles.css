@@ -1548,6 +1548,30 @@
     @apply mt-7.5 mb-3 text-2xl leading-[1.28];
   }
 
+  .markdown-paper[data-editor-theme="github"] h1,
+  .markdown-paper[data-editor-theme="github-dark"] h1,
+  .markdown-paper[data-editor-theme="github"] h2,
+  .markdown-paper[data-editor-theme="github-dark"] h2 {
+    padding-bottom: 0.3em;
+    border-bottom: 1px solid var(--editor-border);
+    font-weight: 600;
+    line-height: 1.25;
+  }
+
+  .markdown-paper[data-editor-theme="github"] h1,
+  .markdown-paper[data-editor-theme="github-dark"] h1 {
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 2em;
+  }
+
+  .markdown-paper[data-editor-theme="github"] h2,
+  .markdown-paper[data-editor-theme="github-dark"] h2 {
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+    font-size: 1.5em;
+  }
+
   .markdown-paper .markra-heading-editing {
     @apply relative;
   }

@@ -9163,6 +9163,32 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain('<img src="https://example.test/badges/version.svg" />');
   });
 
+  it("keeps raw HTML class attributes out of preview layout while preserving source", async () => {
+    const source = [
+      '<div class="text-center mt-20">',
+      '  <h2 class="text-4xl font-bold">Synthetic title</h2>',
+      '  <p class="mt-4">Synthetic body</p>',
+      "</div>"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+
+    const renderedHtml = container.querySelector<HTMLElement>('.ProseMirror [data-type="html"]');
+    const heading = renderedHtml?.querySelector<HTMLElement>("h2");
+    const paragraph = renderedHtml?.querySelector<HTMLElement>("p");
+
+    expect(renderedHtml).toBeInTheDocument();
+    expect(heading).toBeInTheDocument();
+    expect(paragraph).toBeInTheDocument();
+    expect(renderedHtml).not.toHaveClass("text-center");
+    expect(renderedHtml).not.toHaveClass("mt-20");
+    expect(heading).not.toHaveAttribute("class");
+    expect(paragraph).not.toHaveAttribute("class");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain('<div class="text-center mt-20">');
+    expect(serializeMarkdown(view.state.doc)).toContain('<h2 class="text-4xl font-bold">Synthetic title</h2>');
+  });
+
   it("switches rendered HTML into editable source when clicked", async () => {
     const source = '<div class="example-badge">Alpha</div>';
     const { container, editor, view } = await renderEditor(source);

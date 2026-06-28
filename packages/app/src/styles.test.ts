@@ -145,6 +145,23 @@ describe("editor stylesheet", () => {
     expect(headingStyles).toContain("text-[31px]");
   });
 
+  it("adds GitHub heading dividers and sizes in GitHub editor themes", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const githubHeadingStart = styles.indexOf('.markdown-paper[data-editor-theme="github"] h1,');
+    const githubHeadingEnd = styles.indexOf(".markdown-paper .markra-heading-editing", githubHeadingStart);
+    const githubHeadingStyles = styles.slice(githubHeadingStart, githubHeadingEnd);
+
+    expect(githubHeadingStart).toBeGreaterThanOrEqual(0);
+    expect(githubHeadingEnd).toBeGreaterThan(githubHeadingStart);
+    expect(githubHeadingStyles).toContain('.markdown-paper[data-editor-theme="github-dark"] h1');
+    expect(githubHeadingStyles).toContain('.markdown-paper[data-editor-theme="github"] h2');
+    expect(githubHeadingStyles).toContain("border-bottom: 1px solid var(--editor-border);");
+    expect(githubHeadingStyles).toContain("padding-bottom: 0.3em;");
+    expect(githubHeadingStyles).toContain("font-size: 2em;");
+    expect(githubHeadingStyles).toContain("font-size: 1.5em;");
+    expect(githubHeadingStyles).toContain("font-weight: 600;");
+  });
+
   it("positions collapsible list controls", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const buttonStart = styles.indexOf(".markdown-paper .markra-list-toggle-button {");
