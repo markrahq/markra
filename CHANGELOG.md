@@ -1,3 +1,13 @@
+## [0.16.4](https://github.com/markrahq/markra/compare/v0.16.3...v0.16.4) (2026-06-29)
+
+### Bug Fixes
+
+* **app:** keep equivalent visual saves clean ([#429](https://github.com/markrahq/markra/issues/429)) ([311d81b](https://github.com/markrahq/markra/commit/311d81b8b36c11eedee3e36e36eedda4081c64a2))
+* **app:** refresh open document panes from disk ([#437](https://github.com/markrahq/markra/issues/437)) ([28f67cc](https://github.com/markrahq/markra/commit/28f67cce8f58819d5bce4e7a71176585b769ec63)), closes [#430](https://github.com/markrahq/markra/issues/430)
+* **editor:** align GitHub raw HTML heading layout ([#436](https://github.com/markrahq/markra/issues/436)) ([95f55d7](https://github.com/markrahq/markra/commit/95f55d734be5fb20b4e7f6f573d7e41e25f1914d))
+* **editor:** improve GitHub-style Markdown rendering ([#434](https://github.com/markrahq/markra/issues/434)) ([fa98b88](https://github.com/markrahq/markra/commit/fa98b8835fe46f8467cb9f05bbc949ef59278992))
+* **editor:** render Mermaid HTML label breaks ([#435](https://github.com/markrahq/markra/issues/435)) ([1df0172](https://github.com/markrahq/markra/commit/1df0172f5cb3d2c0f857b7d551788dedf04624aa))
+
 ## [0.16.3](https://github.com/markrahq/markra/compare/v0.16.2...v0.16.3) (2026-06-27)
 
 ### Bug Fixes
