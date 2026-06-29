@@ -290,6 +290,7 @@ export function useMarkdownDocument({
   const wordCount = markdownSummaryDeferred
     ? currentDeferredMarkdownSummary?.wordCount ?? emptyMarkdownDocumentSummary.wordCount
     : immediateMarkdownSummary.wordCount;
+  const watchedMarkdownFilePathsKey = useMemo(() => openFilePathsFromTabs(tabs).join("\n"), [tabs]);
 
   useEffect(() => {
     if (!markdownSummaryDeferred) return;
@@ -725,6 +726,84 @@ export function useMarkdownDocument({
       }),
     []
   );
+
+  const applyDiskFileToCleanOpenTab = useCallback((
+    file: NativeMarkdownFile,
+    reason: string,
+    expectedTab?: { content: string; id: string; revision: number }
+  ) => {
+    const currentTabs = tabsRef.current;
+    const targetTab = currentTabs.find((tab) => tab.path !== null && sameNativePath(tab.path, file.path));
+    // Tab-selection refreshes are async; ignore disk reads if the tab changed while the read was in flight.
+    const staleRequest =
+      expectedTab &&
+      (
+        targetTab?.id !== expectedTab.id ||
+        targetTab.revision !== expectedTab.revision ||
+        targetTab.content !== expectedTab.content
+      );
+    if (!targetTab || staleRequest || targetTab.dirty || targetTab.content === file.content) {
+      debug(() => ["[markra-history] disk file event ignored", {
+        diskPath: file.path,
+        reason: !targetTab
+          ? "tab missing"
+          : staleRequest
+            ? "stale request"
+            : targetTab.dirty
+              ? "tab dirty"
+              : "contents unchanged",
+        source: reason,
+        tabId: targetTab?.id ?? null
+      }]);
+      return false;
+    }
+
+    const nextDocument = {
+      path: file.path,
+      name: file.name,
+      content: file.content,
+      sizeBytes: file.sizeBytes,
+      dirty: false,
+      open: true,
+      revision: targetTab.revision + 1
+    };
+    const nextTabs = currentTabs.map((tab) =>
+      tab.id === targetTab.id ? createDocumentTab(nextDocument, tab.id) : tab
+    );
+
+    tabsRef.current = nextTabs;
+    setTabs(nextTabs);
+    if (targetTab.id === activeTabIdRef.current) {
+      documentRef.current = nextDocument;
+      setDocument(nextDocument);
+    }
+
+    debug(() => ["[markra-history] disk file content applied", {
+      contentsChars: file.content.length,
+      diskPath: file.path,
+      nextRevision: nextDocument.revision,
+      source: reason,
+      tabId: targetTab.id
+    }]);
+    return true;
+  }, []);
+
+  const refreshCleanOpenTabFromDisk = useCallback((path: string, reason: string) => {
+    const currentTab = tabsRef.current.find((tab) => tab.path !== null && sameNativePath(tab.path, path));
+    if (!currentTab || currentTab.dirty) return;
+
+    const expectedTab = {
+      content: currentTab.content,
+      id: currentTab.id,
+      revision: currentTab.revision
+    };
+
+    readMarkdownFileWithPerformance(path, reason)
+      .then((file) => {
+        applyDiskFileToCleanOpenTab(file, reason, expectedTab);
+      })
+      .catch(() => {});
+  }, [applyDiskFileToCleanOpenTab, readMarkdownFileWithPerformance]);
 
   const applyNativeMarkdownFile = useCallback(
     (file: NativeMarkdownFile, updateTreeRoot = true, preferredSessionId?: string | null) => {
@@ -1411,6 +1490,7 @@ export function useMarkdownDocument({
     if (!tab) return false;
 
     setActiveTabState(tabsRef.current, tab.id);
+    if (tab.path && !tab.dirty) refreshCleanOpenTabFromDisk(tab.path, "select-tab");
     registerWindowRestoreState(tab.path, openFilePathsFromTabs(tabsRef.current));
     persistWorkspaceState({
       ...draftWorkspacePatchFromTabs(tabsRef.current, tab.id),
@@ -1418,7 +1498,7 @@ export function useMarkdownDocument({
       openFilePaths: openFilePathsFromTabs(tabsRef.current)
     });
     return true;
-  }, [registerWindowRestoreState, setActiveTabState, syncActiveDocumentFromEditor]);
+  }, [refreshCleanOpenTabFromDisk, registerWindowRestoreState, setActiveTabState, syncActiveDocumentFromEditor]);
 
   const closeMarkdownTab = useCallback(async (tabId: string) => {
     syncActiveDocumentFromEditor();
@@ -1827,104 +1907,73 @@ export function useMarkdownDocument({
   ]);
 
   useEffect(() => {
-    if (!document.path) return;
+    const watchedPaths = watchedMarkdownFilePathsKey.split("\n").filter((path) => path.trim().length > 0);
+    if (watchedPaths.length === 0) return;
 
     let active = true;
-    let unwatch: (() => unknown) | null = null;
-    const watchedDocumentPath = document.path;
+    const stopWatchers: Array<() => unknown> = [];
 
-    debug(() => ["[markra-history] watcher start", {
-      path: watchedDocumentPath
-    }]);
-
-    watchNativeMarkdownFile(document.path, async (changedPath) => {
-      if (!active) return;
-
-      debug(() => ["[markra-history] watcher file event", {
-        changedPath
+    watchedPaths.forEach((watchedPath) => {
+      debug(() => ["[markra-history] watcher start", {
+        path: watchedPath
       }]);
-      // External edits rebuild the editor so the visible document mirrors disk.
-      const file = await readMarkdownFileWithPerformance(changedPath, "watcher");
-      const current = documentRef.current;
-      if (!active || current.path !== file.path || current.dirty || current.content === file.content) {
-        debug(() => ["[markra-history] watcher file event ignored", {
-          active,
-          changedPath,
-          currentDirty: current.dirty,
-          currentPath: current.path,
-          diskPath: file.path,
-          reason: !active
-            ? "inactive"
-            : current.path !== file.path
-              ? "path mismatch"
-              : current.dirty
-                ? "current dirty"
-                : "contents unchanged"
-        }]);
-        return;
-      }
 
-      const latest = documentRef.current;
-      if (latest.path !== file.path || latest.dirty || latest.content === file.content) {
-        debug(() => ["[markra-history] watcher latest event ignored", {
-          changedPath,
-          diskPath: file.path,
-          latestDirty: latest.dirty,
-          latestPath: latest.path,
-          reason: latest.path !== file.path
-            ? "path mismatch"
-            : latest.dirty
-              ? "latest dirty"
-              : "contents unchanged"
-        }]);
-        return;
-      }
+      const treeChangeHandler = sameNativePath(watchedPath, document.path)
+        ? (changedPath: string) => {
+            if (!active) return;
+            debug(() => ["[markra-history] watcher tree event", {
+              changedPath,
+              watchedPath
+            }]);
+            onMarkdownTreeChange?.(changedPath);
+          }
+        : undefined;
 
-      setActiveDocument({
-        path: file.path,
-        name: file.name,
-        content: file.content,
-        sizeBytes: file.sizeBytes,
-        dirty: false,
-        open: true,
-        revision: latest.revision + 1
+      watchNativeMarkdownFile(watchedPath, async (changedPath) => {
+        if (!active) return;
+
+        debug(() => ["[markra-history] watcher file event", {
+          changedPath,
+          watchedPath
+        }]);
+        const file = await readMarkdownFileWithPerformance(changedPath, "watcher");
+        if (!active) return;
+
+        applyDiskFileToCleanOpenTab(file, "watcher");
+      }, treeChangeHandler).then((stopWatching) => {
+        if (!active) {
+          stopWatching();
+          return;
+        }
+
+        stopWatchers.push(stopWatching);
+        debug(() => ["[markra-history] watcher ready", {
+          path: watchedPath
+        }]);
+      }).catch((error: unknown) => {
+        debug(() => ["[markra-history] watcher failed", {
+          error: error instanceof Error ? error.message : String(error),
+          path: watchedPath
+        }]);
       });
-      debug(() => ["[markra-history] watcher applied disk content", {
-        changedPath,
-        contentsChars: file.content.length,
-        nextRevision: latest.revision + 1
-      }]);
-    }, (changedPath) => {
-      if (!active) return;
-      debug(() => ["[markra-history] watcher tree event", {
-        changedPath
-      }]);
-      onMarkdownTreeChange?.(changedPath);
-    }).then((stopWatching) => {
-      if (!active) {
-        stopWatching();
-        return;
-      }
-
-      unwatch = stopWatching;
-      debug(() => ["[markra-history] watcher ready", {
-        path: watchedDocumentPath
-      }]);
-    }).catch((error: unknown) => {
-      debug(() => ["[markra-history] watcher failed", {
-        error: error instanceof Error ? error.message : String(error),
-        path: watchedDocumentPath
-      }]);
     });
 
     return () => {
       active = false;
-      debug(() => ["[markra-history] watcher stop", {
-        path: watchedDocumentPath
-      }]);
-      unwatch?.();
+      watchedPaths.forEach((watchedPath) => {
+        debug(() => ["[markra-history] watcher stop", {
+          path: watchedPath
+        }]);
+      });
+      stopWatchers.forEach((stopWatching) => stopWatching());
     };
-  }, [document.path, onMarkdownTreeChange, readMarkdownFileWithPerformance, setActiveDocument]);
+  }, [
+    applyDiskFileToCleanOpenTab,
+    document.path,
+    onMarkdownTreeChange,
+    readMarkdownFileWithPerformance,
+    watchedMarkdownFilePathsKey
+  ]);
 
   return {
     clearRecentMarkdownFiles,

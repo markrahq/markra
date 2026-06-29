@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { t, type AppLanguage } from "@markra/shared";
 import type { MarkdownShortcutMap, Spellchecker } from "@markra/editor";
 import type { EditorContentWidth } from "../lib/editor-width";
@@ -11,6 +12,7 @@ import { MarkdownPaper } from "./MarkdownPaper";
 
 type SideDocumentPaneProps = {
   bodyFontSize: number;
+  bottomOverlayInset?: number;
   content: string;
   contentWidth: EditorContentWidth;
   contentWidthPx: number | null;
@@ -32,6 +34,7 @@ type SideDocumentPaneProps = {
   spellcheckEnabled?: boolean;
   spellcheckIgnoredWords?: readonly string[];
   spellchecker?: Spellchecker;
+  status?: ReactNode;
   tableColumnWidthMode?: TableColumnWidthModePreference;
   onAddSpellcheckIgnoredWord?: (word: string) => unknown;
   onSaveClipboardAttachment?: (attachment: File) => Promise<{ label: string; src: string } | null>;
@@ -49,6 +52,7 @@ function ignoreSideEditorReady() {
 
 export function SideDocumentPane({
   bodyFontSize,
+  bottomOverlayInset = 0,
   content,
   contentWidth,
   contentWidthPx,
@@ -70,6 +74,7 @@ export function SideDocumentPane({
   spellcheckEnabled = false,
   spellcheckIgnoredWords,
   spellchecker,
+  status = null,
   tableColumnWidthMode = "auto",
   onAddSpellcheckIgnoredWord,
   onSaveClipboardAttachment,
@@ -91,6 +96,7 @@ export function SideDocumentPane({
     >
       {mode === "source" ? (
         <LazyMarkdownSourceEditor
+          bottomOverlayInset={bottomOverlayInset}
           bodyFontSize={bodyFontSize}
           content={content}
           contentWidth={contentWidth}
@@ -110,6 +116,7 @@ export function SideDocumentPane({
       ) : (
         <MarkdownPaper
           autoFocus={false}
+          bottomOverlayInset={bottomOverlayInset}
           bodyFontSize={bodyFontSize}
           contentWidth={contentWidth}
           contentWidthPx={contentWidthPx}
@@ -142,6 +149,7 @@ export function SideDocumentPane({
           wrapCodeBlocks={wrapCodeBlocks}
         />
       )}
+      {status}
     </section>
   );
 }

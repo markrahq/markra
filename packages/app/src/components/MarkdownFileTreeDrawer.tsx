@@ -2596,7 +2596,7 @@ export function MarkdownFileTreeDrawer({
         {renderSidebarPanelTabs()}
         {open && onResize && resolvedWidth !== null ? (
           <div
-            className="markdown-file-tree-resizer absolute top-10 right-0 bottom-0 z-30 w-px cursor-col-resize touch-none outline-none"
+            className="markdown-file-tree-resizer absolute top-10 right-0 bottom-0 z-30 w-1 cursor-col-resize touch-none outline-none"
             role="separator"
             tabIndex={0}
             aria-label={label("app.resizeMarkdownFiles")}

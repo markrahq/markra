@@ -1145,7 +1145,7 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(container.querySelector(".markdown-file-tree-resizer-indicator")).not.toBeInTheDocument();
   });
 
-  it("keeps the file tree resize handle narrow so scrollbar clicks remain available", () => {
+  it("keeps the file tree resize handle forgiving without covering the whole scrollbar", () => {
     const { container } = render(
       <MarkdownFileTreeDrawer
         currentPath={null}
@@ -1162,7 +1162,8 @@ describe("MarkdownFileTreeDrawer", () => {
 
     const resizeHandle = container.querySelector(".markdown-file-tree-resizer");
 
-    expect(resizeHandle).toHaveClass("w-px");
+    expect(resizeHandle).toHaveClass("w-1");
+    expect(resizeHandle).not.toHaveClass("w-px");
     expect(resizeHandle).not.toHaveClass("w-2");
   });
 

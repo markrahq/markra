@@ -3494,6 +3494,165 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(queryVisibleMilkdownTable(container)).toBeInTheDocument());
   });
 
+  it("refreshes a clean inactive document tab from disk when selecting it", async () => {
+    const mainPath = "/mock-files/vault/main.md";
+    const sidePath = "/mock-files/vault/side.md";
+    const diskContent = new Map([
+      [mainPath, "# Main\n\nCurrent text"],
+      [sidePath, "# Side\n\nCached text"]
+    ]);
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "main.md", path: mainPath, relativePath: "main.md" },
+      { name: "side.md", path: sidePath, relativePath: "side.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => ({
+      content: diskContent.get(path) ?? "",
+      name: path === mainPath ? "main.md" : "side.md",
+      path
+    }));
+
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "main.md" }));
+    await expectVisibleMilkdownText(container, "Current text");
+
+    fireEvent.click(await screen.findByRole("button", { name: "side.md" }));
+    await expectVisibleMilkdownText(container, "Cached text");
+
+    fireEvent.click(screen.getByRole("tab", { name: /main\.md/ }));
+    await expectVisibleMilkdownText(container, "Current text");
+
+    diskContent.set(sidePath, "# Side\n\nFresh disk text");
+    fireEvent.click(screen.getByRole("tab", { name: /side\.md/ }));
+
+    await expectVisibleMilkdownText(container, "Fresh disk text");
+  });
+
+  it("shows document status for both panes in side-by-side mode", async () => {
+    const mainPath = "/mock-files/vault/main.md";
+    const sidePath = "/mock-files/vault/side.md";
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "main.md", path: mainPath, relativePath: "main.md" },
+      { name: "side.md", path: sidePath, relativePath: "side.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      if (path === mainPath) {
+        return {
+          content: "main words",
+          name: "main.md",
+          path: mainPath
+        };
+      }
+
+      return {
+        content: "side pane words",
+        name: "side.md",
+        path: sidePath
+      };
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "main.md" }));
+    await expectVisibleMilkdownText(container, "main words");
+
+    fireEvent.click(await screen.findByRole("button", { name: "side.md" }));
+    await expectVisibleMilkdownText(container, "side pane words");
+
+    fireEvent.click(screen.getByRole("tab", { name: /main\.md/ }));
+    await expectVisibleMilkdownText(container, "main words");
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /side\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+
+    const mainPane = container.querySelector(".editor-side-by-side-surface > div:first-child") as HTMLElement;
+    const sidePane = container.querySelector(".side-document-pane") as HTMLElement;
+    const mainStatus = mainPane.querySelector(".quiet-status");
+    const sideStatus = sidePane.querySelector(".quiet-status");
+
+    expect(mainStatus).toHaveTextContent("2 words");
+    expect(mainStatus).toHaveTextContent("saved");
+    expect(sideStatus).toHaveTextContent("3 words");
+    expect(sideStatus).toHaveTextContent("saved");
+  });
+
+  it("reloads a clean side document when its native watcher reports an external change", async () => {
+    const mainPath = "/mock-files/vault/main.md";
+    const sidePath = "/mock-files/vault/side.md";
+    const diskContent = new Map([
+      [mainPath, "# Main\n\nPrimary text"],
+      [sidePath, "# Side\n\nBefore agent edit"]
+    ]);
+    const watchHandlers = new Map<string, (path: string) => unknown | Promise<unknown>>();
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "main.md", path: mainPath, relativePath: "main.md" },
+      { name: "side.md", path: sidePath, relativePath: "side.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => ({
+      content: diskContent.get(path) ?? "",
+      name: path === mainPath ? "main.md" : "side.md",
+      path
+    }));
+    mockedWatchNativeMarkdownFile.mockImplementation(async (path, onChange) => {
+      watchHandlers.set(path, onChange);
+      return () => {
+        watchHandlers.delete(path);
+      };
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByRole("heading", { name: "vault" })).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByRole("button", { name: "main.md" }));
+    await expectVisibleMilkdownText(container, "Primary text");
+
+    fireEvent.click(await screen.findByRole("button", { name: "side.md" }));
+    await expectVisibleMilkdownText(container, "Before agent edit");
+
+    fireEvent.click(screen.getByRole("tab", { name: /main\.md/ }));
+    await expectVisibleMilkdownText(container, "Primary text");
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /side\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+
+    await waitFor(() => expect(watchHandlers.has(sidePath)).toBe(true));
+
+    diskContent.set(sidePath, "# Side\n\nAfter agent edit");
+    await act(async () => {
+      await watchHandlers.get(sidePath)?.(sidePath);
+    });
+
+    const sidePane = container.querySelector(".side-document-pane") as HTMLElement;
+    await waitFor(() => expect(within(sidePane).getByText("After agent edit")).toBeInTheDocument());
+  });
+
   it("opens a document tab to a side editor, toggles both panes to source mode, and closes the side tab from the titlebar", async () => {
     const guidePath = "/mock-files/vault/docs/guide.md";
     const notesPath = "/mock-files/vault/docs/notes.md";

@@ -2541,6 +2541,10 @@ function WorkspaceApp() {
     () => createMarkdownImageSrcResolver(sideDocumentTab?.path ?? null),
     [sideDocumentTab?.path]
   );
+  const sideDocumentWordCount = useMemo(
+    () => sideDocumentTab ? getWordCount(sideDocumentTab.content) : 0,
+    [sideDocumentTab?.content]
+  );
   const documentTabsVisible =
     editorPreferences.preferences.showDocumentTabs &&
     (hasOpenDocument || Boolean(activeImageFile)) &&
@@ -4149,6 +4153,7 @@ function WorkspaceApp() {
                         <span className="pointer-events-none absolute top-10 bottom-5 left-1/2 w-px -translate-x-1/2 bg-(--border-default) transition-colors duration-150 ease-out group-hover/side-resizer:bg-(--accent) group-focus/side-resizer:bg-(--accent)" />
                       </div>
                       <SideDocumentPane
+                        bottomOverlayInset={quietStatusOverlayInset}
                         bodyFontSize={editorPreferences.preferences.bodyFontSize}
                         content={sideDocumentTab.content}
                         contentWidth={activeEditorContentWidth}
@@ -4172,6 +4177,15 @@ function WorkspaceApp() {
                         spellcheckEnabled={spellcheckFeatureEnabled && editorPreferences.preferences.spellcheckEnabled}
                         spellcheckIgnoredWords={editorPreferences.preferences.spellcheckIgnoredWords}
                         spellchecker={appSpellchecker}
+                        status={(
+                          <QuietStatus
+                            dirty={sideDocumentTab.dirty}
+                            language={appLanguage.language}
+                            readOnly={readOnlyMode}
+                            showWordCount={editorPreferences.preferences.showWordCount}
+                            wordCount={sideDocumentWordCount}
+                          />
+                        )}
                         tableColumnWidthMode={editorPreferences.preferences.tableColumnWidthMode}
                         onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
                         workspaceFiles={fileTreeFiles}
