@@ -2019,10 +2019,35 @@
     margin-left: auto;
   }
 
+  .markdown-paper[data-editor-theme="github"] .tableWrapper,
+  .markdown-paper[data-editor-theme="github-dark"] .tableWrapper {
+    margin-block: 1rem;
+  }
+
+  .markdown-paper[data-editor-theme="github"] .markra-table-controls-wrapper,
+  .markdown-paper[data-editor-theme="github-dark"] .markra-table-controls-wrapper {
+    padding: 0;
+  }
+
+  .markdown-paper[data-editor-theme="github"] table,
+  .markdown-paper[data-editor-theme="github-dark"] table {
+    font-size: 1em;
+    font-variant: tabular-nums;
+    line-height: 1.5;
+  }
+
   .markdown-paper th,
   .markdown-paper td {
     @apply border border-(--border-strong) px-3 py-2 align-top;
     border-color: var(--editor-border-strong);
+  }
+
+  .markdown-paper[data-editor-theme="github"] th,
+  .markdown-paper[data-editor-theme="github"] td,
+  .markdown-paper[data-editor-theme="github-dark"] th,
+  .markdown-paper[data-editor-theme="github-dark"] td {
+    padding: 6px 13px;
+    border-color: var(--editor-border);
   }
 
   .markdown-paper .markra-table-controls-wrapper[data-width-mode="auto"] .markra-table-scroll th,
@@ -2036,6 +2061,11 @@
     @apply bg-(--bg-secondary) text-(--text-heading) font-[650];
     background: var(--editor-bg-secondary);
     color: var(--editor-text-heading);
+  }
+
+  .markdown-paper[data-editor-theme="github"] th,
+  .markdown-paper[data-editor-theme="github-dark"] th {
+    font-weight: 600;
   }
 
   .markdown-paper td {

@@ -617,6 +617,33 @@ describe("editor stylesheet", () => {
     expect(editorThemeStyles).toContain("--editor-hl-type: #116329;");
   });
 
+  it("keeps GitHub editor tables aligned with Primer Markdown spacing", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const wrapperStart = styles.indexOf(".markdown-paper[data-editor-theme=\"github\"] .tableWrapper,");
+    const wrapperEnd = styles.indexOf(".markdown-paper[data-editor-theme=\"github\"] table,", wrapperStart);
+    const wrapperStyles = styles.slice(wrapperStart, wrapperEnd);
+    const tableStart = wrapperEnd;
+    const tableEnd = styles.indexOf(".markdown-paper[data-editor-theme=\"github\"] th,", tableStart);
+    const tableStyles = styles.slice(tableStart, tableEnd);
+    const cellStart = tableEnd;
+    const cellEnd = styles.indexOf(".markdown-paper .markra-table-controls-wrapper[data-width-mode=\"auto\"]", cellStart);
+    const cellStyles = styles.slice(cellStart, cellEnd);
+    const headerStart = styles.indexOf(".markdown-paper[data-editor-theme=\"github\"] th,", cellEnd);
+    const headerEnd = styles.indexOf(".markdown-paper td {", headerStart);
+    const headerStyles = styles.slice(headerStart, headerEnd);
+
+    expect(wrapperStart).toBeGreaterThanOrEqual(0);
+    expect(wrapperEnd).toBeGreaterThan(wrapperStart);
+    expect(wrapperStyles).toContain("margin-block: 1rem;");
+    expect(wrapperStyles).toContain("padding: 0;");
+    expect(tableStyles).toContain("font-size: 1em;");
+    expect(tableStyles).toContain("font-variant: tabular-nums;");
+    expect(tableStyles).toContain("line-height: 1.5;");
+    expect(cellStyles).toContain("padding: 6px 13px;");
+    expect(cellStyles).toContain("border-color: var(--editor-border);");
+    expect(headerStyles).toContain("font-weight: 600;");
+  });
+
   it("keeps GitHub Dark and One themes aligned with their source palettes", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const githubDarkStart = styles.indexOf("[data-theme=\"github-dark\"] {");

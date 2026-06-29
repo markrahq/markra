@@ -9163,6 +9163,37 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain('<img src="https://example.test/badges/version.svg" />');
   });
 
+  it("hides empty Slidev wrapper tags without swallowing nearby markdown blocks", async () => {
+    const source = [
+      "<v-clicks>",
+      "",
+      "- **Duration**: synthetic session",
+      "- **Format**: guided lab",
+      "",
+      "</v-clicks>",
+      "",
+      "| Variable | Purpose |",
+      "| --- | --- |",
+      "| `EXAMPLE_API_KEY` | Synthetic authentication |",
+      "",
+      "```mermaid",
+      "graph TD",
+      "  A[Global<br/>Rules] --> B[Project]",
+      "```"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+
+    expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("<v-clicks>");
+    expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("</v-clicks>");
+    expect(container.querySelectorAll(".ProseMirror ul li")).toHaveLength(2);
+    expect(container.querySelector(".ProseMirror table")).toBeInTheDocument();
+    await waitFor(() => expect(container.querySelector(".ProseMirror .markra-mermaid-render svg")).toBeInTheDocument());
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("<v-clicks>");
+    expect(serializeMarkdown(view.state.doc)).toContain("</v-clicks>");
+  });
+
   it("keeps raw HTML class attributes out of preview layout while preserving source", async () => {
     const source = [
       '<div class="text-center mt-20">',
