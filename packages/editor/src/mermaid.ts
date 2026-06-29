@@ -51,7 +51,10 @@ function configureMermaid(renderer: MermaidRenderer, theme: MarkraMermaidTheme) 
   if (configuredTheme === theme) return;
 
   renderer.initialize({
-    securityLevel: "strict",
+    flowchart: {
+      htmlLabels: true
+    },
+    securityLevel: "antiscript",
     startOnLoad: false,
     theme
   });
