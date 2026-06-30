@@ -1,3 +1,14 @@
+## [0.17.0](https://github.com/markrahq/markra/compare/v0.16.4...v0.17.0) (2026-06-30)
+
+### Features
+
+* **acp:** add Codex agent support ([#433](https://github.com/markrahq/markra/issues/433)) ([353b8c0](https://github.com/markrahq/markra/commit/353b8c04d9509f1e2aefeceeed75ecbc60169740))
+
+### Bug Fixes
+
+* **app:** preserve externally deleted document tabs ([#439](https://github.com/markrahq/markra/issues/439)) ([8a99e2c](https://github.com/markrahq/markra/commit/8a99e2c89b52b76465f2fa2360fe896ecfa8d54c))
+* **editor:** hide raw HTML wrapper boundaries ([#438](https://github.com/markrahq/markra/issues/438)) ([d0f5a5f](https://github.com/markrahq/markra/commit/d0f5a5f99093466403ebee0424ebe70b5d0c55ce))
+
 ## [0.16.4](https://github.com/markrahq/markra/compare/v0.16.3...v0.16.4) (2026-06-29)
 
 ### Bug Fixes
