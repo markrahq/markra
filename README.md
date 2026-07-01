@@ -97,7 +97,7 @@ Markra is not trying to replace every Markdown tool. It is closest to a calm doc
 | --- | --- | --- | --- |
 | Primary fit | Local-first Markdown writing with built-in AI editing | Minimal live-preview Markdown writing | Personal knowledge base and linked notes |
 | Editing model | WYSIWYG document surface plus source mode | Seamless live preview with Markdown syntax hidden while writing | Markdown notes with reading/live-preview editing modes |
-| AI workflow | Native inline actions and side panel, with preview before applying edits | Not a core product workflow | Not a core product workflow; plugins may vary |
+| AI workflow | Native inline actions, side panel, and ACP local agents, with preview before applying edits | Not a core product workflow | Not a core product workflow; plugins may vary |
 | Spellcheck | Markra-managed local dictionaries, on-demand downloads, correction suggestions, and a personal dictionary | System spellcheck on supported platforms, with Hunspell dictionaries where needed | Electron/Chromium-style editor spellcheck with configurable languages |
 | File model | Plain `.md` files, single-file or folder workspaces | Plain Markdown files and folder/file tree workflows | Local vaults using open file formats |
 | Knowledge features | Tabs, outline, workspace search, and double-bracket link completion | Outline, file tree, internal links, and export-oriented writing tools | Backlinks, graph view, Canvas, and large plugin ecosystem |
@@ -119,6 +119,7 @@ Markra is not trying to replace every Markdown tool. It is closest to a calm doc
 - Inline AI on selected text, or open the side panel for document-wide tasks.
 - Quick actions: polish, rewrite, continue, summarize, translate.
 - Preview every AI edit before applying — accept, reject, or copy.
+- Agent Client Protocol (ACP) support for compatible local AI agents, including model discovery, permission prompts, and editor write previews.
 - Sessions are searchable, renamable, and archivable.
 
 ### Local Workspace
