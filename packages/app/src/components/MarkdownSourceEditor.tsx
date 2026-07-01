@@ -198,7 +198,7 @@ export function MarkdownSourceEditor({
   topInset = "titlebar"
 }: MarkdownSourceEditorProps) {
   const editorContainerRef = useRef<HTMLDivElement | null>(null);
-  const initialContentRef = useRef(content);
+  const contentRef = useRef(content);
   const onChangeRef = useRef(onChange);
   const onRedoRef = useRef(onRedo);
   const onSelectionTextChangeRef = useRef(onSelectionTextChange);
@@ -275,7 +275,7 @@ export function MarkdownSourceEditor({
     const view = new EditorView({
       parent: container,
       state: EditorState.create({
-        doc: initialContentRef.current,
+        doc: contentRef.current,
         extensions
       })
     });
@@ -288,7 +288,13 @@ export function MarkdownSourceEditor({
       view.destroy();
       viewRef.current = null;
     };
-  }, [autoFocus, extensions]);
+  }, [extensions]);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+
+    viewRef.current?.focus();
+  }, [autoFocus]);
 
   useEffect(() => {
     const view = viewRef.current;
@@ -304,6 +310,7 @@ export function MarkdownSourceEditor({
 
   useEffect(() => {
     const view = viewRef.current;
+    contentRef.current = content;
     if (!view) return;
 
     const currentContent = view.state.doc.toString();
