@@ -52,12 +52,15 @@ export function useSharedEditorHistory({
 
   const syncSourceEditsToVisualHistory = useCallback(() => {
     if (largeMarkdownVisualBlocked) return false;
+    const pendingSourceHistory = pendingSourceHistoryRef.current;
+    // Source focus after a visual edit should not reapply the visual editor; only source edits need history repair.
+    if (!pendingSourceHistory) return false;
+
     syncingSourceToVisualRef.current = true;
     try {
-      const pendingSourceHistory = pendingSourceHistoryRef.current;
       const synced = replaceEditorMarkdown(documentContent, {
-        addToHistory: Boolean(pendingSourceHistory),
-        historyBaselineMarkdown: pendingSourceHistory?.previousContent
+        addToHistory: true,
+        historyBaselineMarkdown: pendingSourceHistory.previousContent
       });
       if (synced) pendingSourceHistoryRef.current = null;
       return synced;

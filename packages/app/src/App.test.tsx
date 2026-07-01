@@ -1,5 +1,8 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { EditorView } from "@codemirror/view";
+import { Editor as MilkdownEditor, editorViewCtx } from "@milkdown/kit/core";
+import { TextSelection } from "@milkdown/kit/prose/state";
+import type { EditorView as ProseMirrorEditorView } from "@milkdown/kit/prose/view";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import desktopPackage from "../package.json";
 import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
@@ -261,6 +264,20 @@ function replaceMarkdownSource(sourceEditor: HTMLElement, value: string) {
         to: view.state.doc.length
       }
     });
+  });
+}
+
+function typeVisualText(view: ProseMirrorEditorView, text: string) {
+  act(() => {
+    for (const char of text) {
+      const { from, to } = view.state.selection;
+      const insertText = () => view.state.tr.insertText(char, from, to).scrollIntoView();
+      const handled = view.someProp("handleTextInput", (handler) => handler(view, from, to, char, insertText));
+
+      if (!handled) {
+        view.dispatch(insertText());
+      }
+    }
   });
 }
 
@@ -5982,6 +5999,115 @@ describe("Markra workspace", () => {
       expect(currentSource).not.toContain("Column 1");
       expect(currentSource).not.toContain("Column 2");
     });
+  });
+
+  it("keeps a visual update that arrives after source pane focus in split mode", async () => {
+    const createdEditors: Array<ReturnType<typeof MilkdownEditor.make>> = [];
+    const originalMake = MilkdownEditor.make.bind(MilkdownEditor);
+    const makeSpy = vi.spyOn(MilkdownEditor, "make").mockImplementation(() => {
+      const editor = originalMake();
+      createdEditors.push(editor);
+      return editor;
+    });
+    const { container } = renderApp();
+
+    try {
+      expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+      await settleEditorUpdates();
+
+      await selectEditorViewMode("Preview + Source");
+
+      const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+      await act(async () => {
+        fireEvent.focusIn(sourceEditor);
+      });
+
+      const visualView = createdEditors.reduce<ProseMirrorEditorView | null>((visibleView, editor) => {
+        if (visibleView) return visibleView;
+
+        try {
+          const view = editor.action((ctx) => ctx.get(editorViewCtx));
+          return container.contains(view.dom) && !view.dom.closest("[hidden]") ? view : null;
+        } catch {
+          return null;
+        }
+      }, null);
+      if (!visualView) throw new Error("Expected a visible Milkdown editor view.");
+
+      act(() => {
+        visualView.dispatch(
+          visualView.state.tr
+            .setSelection(TextSelection.atEnd(visualView.state.doc))
+            .insertText("\n\nDelayed visual sync.")
+        );
+      });
+
+      await waitFor(() => {
+        expect(readMarkdownSource(screen.getByRole("textbox", { name: "Markdown source" }))).toContain(
+          "Delayed visual sync."
+        );
+      });
+    } finally {
+      makeSpy.mockRestore();
+    }
+  });
+
+  it("keeps a synced visual edit in source after focusing the source pane in split mode", async () => {
+    const createdEditors: Array<ReturnType<typeof MilkdownEditor.make>> = [];
+    const originalMake = MilkdownEditor.make.bind(MilkdownEditor);
+    const makeSpy = vi.spyOn(MilkdownEditor, "make").mockImplementation(() => {
+      const editor = originalMake();
+      createdEditors.push(editor);
+      return editor;
+    });
+    const { container } = renderApp();
+
+    try {
+      expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+      await settleEditorUpdates();
+
+      await selectEditorViewMode("Preview + Source");
+
+      const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+      const originalSource = readMarkdownSource(sourceEditor);
+      const visualView = createdEditors.reduce<ProseMirrorEditorView | null>((visibleView, editor) => {
+        if (visibleView) return visibleView;
+
+        try {
+          const view = editor.action((ctx) => ctx.get(editorViewCtx));
+          return container.contains(view.dom) && !view.dom.closest("[hidden]") ? view : null;
+        } catch {
+          return null;
+        }
+      }, null);
+      if (!visualView) throw new Error("Expected a visible Milkdown editor view.");
+
+      await act(async () => {
+        fireEvent.focusIn(visualView.dom);
+      });
+      act(() => {
+        visualView.dispatch(visualView.state.tr.setSelection(TextSelection.atStart(visualView.state.doc)));
+      });
+      typeVisualText(visualView, "Visual typed before source focus. ");
+
+      await waitFor(() => {
+        expect(readMarkdownSource(screen.getByRole("textbox", { name: "Markdown source" }))).toContain(
+          "Visual typed before source focus."
+        );
+      });
+
+      await act(async () => {
+        fireEvent.focusIn(screen.getByRole("textbox", { name: "Markdown source" }));
+      });
+
+      await waitFor(() => {
+        const currentSource = readMarkdownSource(screen.getByRole("textbox", { name: "Markdown source" }));
+        expect(currentSource).toContain("Visual typed before source focus.");
+        expect(currentSource).not.toBe(originalSource);
+      });
+    } finally {
+      makeSpy.mockRestore();
+    }
   });
 
   it("places the visual pane before the source pane in split mode", async () => {

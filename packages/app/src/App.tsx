@@ -378,6 +378,9 @@ function WorkspaceApp() {
   const splitScrollSyncFrameRef = useRef<number | null>(null);
   const splitPaneResizeCleanupRef = useRef<(() => unknown) | null>(null);
   const sideDocumentPaneResizeCleanupRef = useRef<(() => unknown) | null>(null);
+  // Late visual-editor updates may arrive after focus moves to source; source edits after that focus win.
+  const sourceEditSequenceRef = useRef(0);
+  const sourceFocusSourceEditSequenceRef = useRef(0);
   const exportContextRef = useRef({
     activeImageFile: false,
     content: "",
@@ -2560,6 +2563,11 @@ function WorkspaceApp() {
   const titleDocumentKind = activeImageFile ? "image" : hasOpenDocument ? "file" : "folder";
   const sourceModeAvailable = hasOpenDocument && !activeImageFile;
   const supportsAiThinking = selectedInlineAiModel?.capabilities.includes("reasoning") ?? false;
+  useEffect(() => {
+    if (activeEditorSurface !== "source") return;
+
+    sourceFocusSourceEditSequenceRef.current = sourceEditSequenceRef.current;
+  }, [activeEditorSurface, activeTabId, document.path, document.revision]);
   const handleMainDocumentPaneFocus = useCallback(() => {
     setDocumentOperationTarget("main");
   }, []);
@@ -2569,6 +2577,7 @@ function WorkspaceApp() {
   }, []);
   const handleSourcePaneFocus = useCallback(() => {
     setDocumentOperationTarget("main");
+    sourceFocusSourceEditSequenceRef.current = sourceEditSequenceRef.current;
     setActiveEditorSurface("source");
     updateActiveAiSelection(null);
   }, [updateActiveAiSelection]);
@@ -2577,19 +2586,46 @@ function WorkspaceApp() {
   }, []);
   const handleVisualMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
     if (isApplyingSourceToVisualSync()) return;
-    if (sourceSurfaceActive) return;
+    if (sourceMode) return;
     if (readOnlyMode) return;
+    if (
+      splitMode &&
+      activeEditorSurface === "source" &&
+      sourceEditSequenceRef.current !== sourceFocusSourceEditSequenceRef.current
+    ) {
+      return;
+    }
 
-    if (splitMode) setActiveEditorSurface("visual");
+    if (splitMode && activeEditorSurface !== "source") setActiveEditorSurface("visual");
     handleMarkdownChange(content, { ...options, surface: "visual" });
-  }, [handleMarkdownChange, isApplyingSourceToVisualSync, readOnlyMode, sourceSurfaceActive, splitMode]);
+  }, [
+    activeEditorSurface,
+    handleMarkdownChange,
+    isApplyingSourceToVisualSync,
+    readOnlyMode,
+    sourceMode,
+    splitMode
+  ]);
   const handleSourceMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
     if (readOnlyMode) return;
+    if (
+      content !== document.content &&
+      (options?.documentRevision === undefined || options.documentRevision === document.revision)
+    ) {
+      sourceEditSequenceRef.current += 1;
+    }
 
     markSourceEditForHistory(content, options);
     if (splitMode) setActiveEditorSurface("source");
     handleMarkdownChange(content, { ...options, surface: "source" });
-  }, [handleMarkdownChange, markSourceEditForHistory, readOnlyMode, splitMode]);
+  }, [
+    document.content,
+    document.revision,
+    handleMarkdownChange,
+    markSourceEditForHistory,
+    readOnlyMode,
+    splitMode
+  ]);
   const syncSplitPaneScrollPosition = useCallback((sourceSurface: EditorSurface, sourceElement: HTMLElement) => {
     if (!splitMode) return false;
 

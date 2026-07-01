@@ -133,6 +133,34 @@ describe("MarkdownSourceEditor", () => {
     expect(view.state.doc.toString()).toBe("# External");
   });
 
+  it("keeps externally synced content when autofocus changes", () => {
+    const { container, rerender } = render(
+      <MarkdownSourceEditor
+        content="# First"
+        onChange={() => {}}
+      />
+    );
+    const view = getMarkdownSourceView(container);
+
+    rerender(
+      <MarkdownSourceEditor
+        content="# External"
+        onChange={() => {}}
+      />
+    );
+    expect(view.state.doc.toString()).toBe("# External");
+
+    rerender(
+      <MarkdownSourceEditor
+        autoFocus
+        content="# External"
+        onChange={() => {}}
+      />
+    );
+
+    expect(getMarkdownSourceView(container).state.doc.toString()).toBe("# External");
+  });
+
   it("notifies selected source text changes", () => {
     const handleSelectionTextChange = vi.fn();
     const { container } = render(
