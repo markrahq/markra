@@ -727,6 +727,54 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("jumps between matching pairs with %", () => {
+    const view = createView(["alpha (beta [gamma]) delta"]);
+
+    try {
+      const openParen = findTextPosition(view, "(");
+      const closeParen = findTextPosition(view, ")");
+      const openBracket = findTextPosition(view, "[");
+      const closeBracket = findTextPosition(view, "]");
+
+      moveCursor(view, openParen + 1);
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "%")).toBe(true);
+      expect(view.state.selection.from).toBe(closeParen);
+
+      expect(pressKey(view, "%")).toBe(true);
+      expect(view.state.selection.from).toBe(openParen);
+
+      moveCursor(view, closeBracket);
+      expect(pressKey(view, "%")).toBe(true);
+      expect(view.state.selection.from).toBe(openBracket);
+    } finally {
+      destroyView(view);
+    }
+  });
+
+  it("uses % as a Vim operator motion", () => {
+    const view = createView(["alpha (beta) gamma"]);
+    const backward = createView(["alpha (beta) gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "(") + 1);
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["d", "%"])).toEqual([true, true]);
+      expect(textContent(view)).toBe("alpha  gamma");
+
+      moveCursor(backward, findTextPosition(backward, ")") + 1);
+      pressKey(backward, "Escape");
+
+      expect(pressKeys(backward, ["d", "%"])).toEqual([true, true]);
+      expect(textContent(backward)).toBe("alpha  gamma");
+    } finally {
+      destroyView(view);
+      destroyView(backward);
+    }
+  });
+
   it("multiplies operator counts with motion counts", () => {
     const view = createView(["one two three four"]);
 
