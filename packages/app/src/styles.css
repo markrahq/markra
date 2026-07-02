@@ -2450,10 +2450,15 @@
 
   .markdown-paper .markra-html-node {
     @apply max-w-full outline-none;
+    white-space: normal;
   }
 
   .markdown-paper .markra-html-node img {
     @apply m-0 inline-block max-w-full rounded-none border-0 align-middle;
+  }
+
+  .markdown-paper .markra-html-node pre {
+    white-space: pre-wrap;
   }
 
   .markdown-paper .markra-html-node-source {

@@ -9163,6 +9163,40 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain('<img src="https://example.test/badges/version.svg" />');
   });
 
+  it("keeps GitHub README HTML badge rows together", async () => {
+    const source = [
+      '<p align="center">',
+      '  <img alt="Desktop" src="https://example.test/badges/desktop.svg" />',
+      '  <img alt="Web Editor" src="https://example.test/badges/web-editor.svg" />',
+      '  <a href="https://example.test/product">',
+      '    <img alt="Product" src="https://example.test/badges/product.svg" />',
+      "  </a>",
+      "</p>"
+    ].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+
+    const renderedHtml = container.querySelector<HTMLElement>(".ProseMirror .markra-html-node");
+    const centeredParagraph = renderedHtml?.querySelector<HTMLElement>('p[align="center"]');
+    const badgeImages = renderedHtml?.querySelectorAll("img");
+    const linkedBadge = renderedHtml?.querySelector<HTMLImageElement>(
+      'a[href="https://example.test/product"] img[src="https://example.test/badges/product.svg"]'
+    );
+
+    expect(renderedHtml).toBeInTheDocument();
+    expect(centeredParagraph).toBeInTheDocument();
+    expect(container.querySelectorAll(".ProseMirror .markra-html-node")).toHaveLength(1);
+    expect(Array.from(badgeImages ?? []).map((image) => image.alt)).toEqual([
+      "Desktop",
+      "Web Editor",
+      "Product"
+    ]);
+    expect(linkedBadge).toHaveAttribute("alt", "Product");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain('<p align="center">');
+    expect(serializeMarkdown(view.state.doc)).toContain('<a href="https://example.test/product">');
+  });
+
   it("hides empty Slidev wrapper tags without swallowing nearby markdown blocks", async () => {
     const source = [
       "<v-clicks>",

@@ -274,6 +274,23 @@ describe("editor stylesheet", () => {
     expect(sourceSelectionStyles).toContain("background: color-mix(in srgb, var(--accent) 28%, transparent)");
   });
 
+  it("lets rendered raw HTML collapse source newlines like browser HTML", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const rawHtmlStart = styles.indexOf(".markdown-paper .markra-html-node {");
+    const rawHtmlEnd = styles.indexOf(".markdown-paper .markra-html-node img", rawHtmlStart);
+    const rawHtmlStyles = styles.slice(rawHtmlStart, rawHtmlEnd);
+    const rawHtmlPreStart = styles.indexOf(".markdown-paper .markra-html-node pre", rawHtmlEnd);
+    const rawHtmlPreEnd = styles.indexOf(".markdown-paper .markra-html-node-source", rawHtmlPreStart);
+    const rawHtmlPreStyles = styles.slice(rawHtmlPreStart, rawHtmlPreEnd);
+
+    expect(rawHtmlStart).toBeGreaterThanOrEqual(0);
+    expect(rawHtmlEnd).toBeGreaterThan(rawHtmlStart);
+    expect(rawHtmlStyles).toContain("white-space: normal");
+    expect(rawHtmlPreStart).toBeGreaterThanOrEqual(0);
+    expect(rawHtmlPreEnd).toBeGreaterThan(rawHtmlPreStart);
+    expect(rawHtmlPreStyles).toContain("white-space: pre-wrap");
+  });
+
   it("gives horizontal rules a forgiving hit target without heavy selected-node feedback", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const ruleStart = styles.indexOf(".markdown-paper hr {");
