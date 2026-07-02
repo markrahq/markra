@@ -232,6 +232,14 @@ function pairDelimitersFromKey(key: VimPairTextObjectKey): VimPairDelimiters {
   return { close: "}", open: "{" };
 }
 
+function pairDelimitersAtCharacter(character: string): VimPairDelimiters | null {
+  if (character === "(" || character === ")") return { close: ")", open: "(" };
+  if (character === "[" || character === "]") return { close: "]", open: "[" };
+  if (character === "{" || character === "}") return { close: "}", open: "{" };
+
+  return null;
+}
+
 function characterFindFromKey(key: VimFindKey, character: string): VimCharacterFind {
   return {
     character,
@@ -603,6 +611,43 @@ function enclosingPairOffsets(text: string, delimiters: VimPairDelimiters, offse
   }
 
   return enclosing;
+}
+
+function matchingPairOffset(text: string, offset: number) {
+  const character = text[offset] ?? "";
+  const delimiters = pairDelimitersAtCharacter(character);
+  if (!delimiters) return null;
+
+  if (character === delimiters.open) {
+    let depth = 0;
+    for (let index = offset; index < text.length; index += 1) {
+      if (text[index] === delimiters.open) depth += 1;
+      else if (text[index] === delimiters.close) depth -= 1;
+
+      if (depth === 0) return index;
+    }
+
+    return null;
+  }
+
+  let depth = 0;
+  for (let index = offset; index >= 0; index -= 1) {
+    if (text[index] === delimiters.close) depth += 1;
+    else if (text[index] === delimiters.open) depth -= 1;
+
+    if (depth === 0) return index;
+  }
+
+  return null;
+}
+
+function matchingPairPosition(state: EditorState) {
+  const range = currentTextblockRange(state);
+  if (!range) return null;
+
+  const offset = Math.max(0, Math.min(range.text.length - 1, state.selection.from - range.start));
+  const targetOffset = matchingPairOffset(range.text, offset);
+  return targetOffset === null ? null : range.start + targetOffset;
 }
 
 function pairTextObjectRange(state: EditorState, scope: VimTextObjectScope, key: VimPairTextObjectKey) {
@@ -1249,6 +1294,8 @@ function resolveMotionTarget(view: EditorView, key: string, count: number, prefi
       return wordStartMotionPosition(view.state, "backward", count);
     case "B":
       return bigWordStartMotionPosition(view.state, "backward", count);
+    case "%":
+      return matchingPairPosition(view.state);
     case "0":
       return range.start;
     case "^":
@@ -1281,10 +1328,14 @@ function operateRange(view: EditorView, operator: PendingOperator, key: string, 
   const target = resolveMotionTarget(view, motionKey, count, prefix);
   if (target === null) return false;
 
-  const from = view.state.selection.from;
-  const to = (key === "e" || key === "E" || changeCurrentWord) && target >= from
+  let from = view.state.selection.from;
+  let to = (key === "e" || key === "E" || changeCurrentWord) && target >= from
     ? Math.min(view.state.doc.content.size, target + 1)
     : target;
+  if (key === "%") {
+    from = Math.min(view.state.selection.from, target);
+    to = Math.min(view.state.doc.content.size, Math.max(view.state.selection.from, target) + 1);
+  }
   if (operator.type === "change") return changeRange(view, from, to);
   return operator.type === "delete" ? deleteRange(view, from, to) : yankRange(view, from, to);
 }
@@ -1510,6 +1561,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return moveByWord(view, "backward", count);
     case "B":
       return moveByBigWord(view, "backward", count);
+    case "%":
+      return moveSelection(view, matchingPairPosition(view.state) ?? view.state.selection.from, 1);
     case "0":
       return moveToTextblockBoundary(view, "start");
     case "^":
