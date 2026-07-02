@@ -185,10 +185,10 @@ function moveByCharacter(view: EditorView, delta: -1 | 1, count = 1) {
   return moveSelection(view, target, delta);
 }
 
-function textblockRanges(state: EditorState) {
+function textblockRangesFromDoc(doc: ProseNode) {
   const ranges: TextblockRange[] = [];
 
-  state.doc.descendants((node, position) => {
+  doc.descendants((node, position) => {
     if (!node.isTextblock) return true;
 
     const start = position + 1;
@@ -203,6 +203,10 @@ function textblockRanges(state: EditorState) {
   });
 
   return ranges;
+}
+
+function textblockRanges(state: EditorState) {
+  return textblockRangesFromDoc(state.doc);
 }
 
 function normalTextblockEnd(range: Pick<TextblockRange, "start" | "end">) {
@@ -257,6 +261,36 @@ function moveByTextblock(view: EditorView, delta: -1 | 1, count = 1, preferredCo
   const offset = preferredColumn ?? Math.max(0, view.state.selection.from - currentRange.start);
   const targetOffset = Math.min(offset, normalTextblockEnd(targetRange) - targetRange.start);
   return moveSelection(view, targetRange.start + targetOffset, delta, clearedInputMeta({ preferredColumn: offset }));
+}
+
+function joinTextblocks(view: EditorView, blockCount = 2) {
+  if (!selectionIsTextSelection(view.state)) return false;
+
+  let transaction = view.state.tr;
+  let selectionPosition = view.state.selection.from;
+  let joined = false;
+  const joinCount = Math.max(1, blockCount - 1);
+
+  for (let step = 0; step < joinCount; step += 1) {
+    const ranges = textblockRangesFromDoc(transaction.doc);
+    const currentIndex = nearestTextblockIndex(ranges, selectionPosition);
+    const currentRange = ranges[currentIndex];
+    const nextRange = ranges[currentIndex + 1];
+    if (!currentRange || !nextRange) break;
+
+    selectionPosition = currentRange.end;
+    transaction = transaction.delete(currentRange.end, nextRange.start).insertText(" ", selectionPosition);
+    joined = true;
+  }
+
+  if (!joined) return false;
+
+  dispatchTransaction(
+    view,
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), -1)),
+    clearedInputMeta()
+  );
+  return true;
 }
 
 function moveToTextblockBoundary(view: EditorView, side: "start" | "end") {
@@ -895,6 +929,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     case "k":
     case "ArrowUp":
       return moveByTextblock(view, -1, count, state.preferredColumn);
+    case "J":
+      return joinTextblocks(view, count);
     case "Backspace":
     case "Delete":
     case "Enter":

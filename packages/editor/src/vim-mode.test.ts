@@ -187,6 +187,35 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("joins the current text block with the next one using J", () => {
+    const view = createView(["alpha", "beta"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha", 2));
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "J")).toBe(true);
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(textContent(view)).toBe("alpha beta");
+    } finally {
+      destroyView(view);
+    }
+  });
+
+  it("treats a J count as the total number of joined text blocks", () => {
+    const view = createView(["alpha", "beta", "gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha", 2));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["2", "J"])).toEqual([true, true]);
+      expect(textContent(view)).toBe("alpha beta\ngamma");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("applies counts to motions and character deletes", () => {
     const view = createView(["abcdef"]);
 
