@@ -794,6 +794,65 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("uses Vim searches as operator motions", () => {
+    const deleteForward = createView(["alpha beta gamma"]);
+    const changeBackward = createView(["alpha beta gamma"]);
+
+    try {
+      moveCursor(deleteForward, findTextPosition(deleteForward, "alpha"));
+      pressKey(deleteForward, "Escape");
+
+      expect(pressKeys(deleteForward, ["d", "/", "b", "e", "t", "a", "Enter"])).toEqual([
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]);
+      expect(textContent(deleteForward)).toBe("beta gamma");
+
+      moveCursor(changeBackward, findTextPosition(changeBackward, "gamma"));
+      pressKey(changeBackward, "Escape");
+
+      expect(pressKeys(changeBackward, ["c", "?", "b", "e", "t", "a", "Enter"])).toEqual([
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ]);
+      expect(getVimMode(changeBackward.state)).toBe("insert");
+      expect(textContent(changeBackward)).toBe("alpha gamma");
+
+      expect(typeText(changeBackward, "delta ")).toBe(false);
+      expect(textContent(changeBackward)).toBe("alpha delta gamma");
+    } finally {
+      destroyView(deleteForward);
+      destroyView(changeBackward);
+    }
+  });
+
+  it("uses repeated searches as operator motions", () => {
+    const view = createView(["alpha beta gamma beta"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["/", "b", "e", "t", "a", "Enter"])).toEqual([true, true, true, true, true, true]);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "alpha beta", "alpha ".length));
+
+      expect(pressKeys(view, ["d", "n"])).toEqual([true, true]);
+      expect(textContent(view)).toBe("alpha beta");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("uses % as a Vim operator motion", () => {
     const view = createView(["alpha (beta) gamma"]);
     const backward = createView(["alpha (beta) gamma"]);

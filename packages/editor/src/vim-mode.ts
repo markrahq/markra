@@ -412,18 +412,25 @@ function nextSearchPosition(positions: readonly number[], direction: VimSearchDi
   return positions[positions.length - 1] ?? null;
 }
 
-function moveBySearch(view: EditorView, search: VimSearch, count = 1, rememberedSearch = search) {
-  const positions = searchMatchPositions(view.state, search.query);
-  if (positions.length === 0) {
-    dispatchMeta(view, clearedInputMeta({ lastSearch: rememberedSearch }));
-    return true;
-  }
+function searchMotionTarget(state: EditorState, search: VimSearch, count: number) {
+  const positions = searchMatchPositions(state, search.query);
+  if (positions.length === 0) return null;
 
-  let position = view.state.selection.from;
+  let position = state.selection.from;
   for (let index = 0; index < Math.max(1, count); index += 1) {
     const next = nextSearchPosition(positions, search.direction, position);
-    if (next === null) return false;
+    if (next === null) return null;
     position = next;
+  }
+
+  return position;
+}
+
+function moveBySearch(view: EditorView, search: VimSearch, count = 1, rememberedSearch = search) {
+  const position = searchMotionTarget(view.state, search, count);
+  if (position === null) {
+    dispatchMeta(view, clearedInputMeta({ lastSearch: rememberedSearch }));
+    return true;
   }
 
   return moveSelection(
@@ -432,6 +439,32 @@ function moveBySearch(view: EditorView, search: VimSearch, count = 1, remembered
     search.direction === "backward" ? -1 : 1,
     clearedInputMeta({ lastSearch: rememberedSearch })
   );
+}
+
+function operateSearch(
+  view: EditorView,
+  operator: PendingOperator,
+  search: VimSearch,
+  count: number,
+  rememberedSearch = search
+) {
+  const target = searchMotionTarget(view.state, search, count);
+  if (target === null) {
+    dispatchMeta(view, clearedInputMeta({ lastSearch: rememberedSearch }));
+    return true;
+  }
+
+  const current = view.state.selection.from;
+  // Match Vim's backward search operator boundary: c?x/d?x remove the match and text up to the cursor.
+  const from = search.direction === "backward" && target <= current ? target : current;
+  const to = search.direction === "backward" && target <= current
+    ? Math.min(view.state.doc.content.size, current + 1)
+    : target;
+
+  if (operator.type === "change") return changeRange(view, from, to, { lastSearch: rememberedSearch });
+  return operator.type === "delete"
+    ? deleteRange(view, from, to, { lastSearch: rememberedSearch })
+    : yankRange(view, from, to, { lastSearch: rememberedSearch });
 }
 
 function nearestTextblockIndex(ranges: readonly TextblockRange[], position: number) {
@@ -1575,6 +1608,43 @@ function handlePendingSearch(view: EditorView, key: string, state: VimModeState)
   return true;
 }
 
+function handlePendingOperatorSearch(view: EditorView, key: string, state: VimModeState) {
+  const operator = state.operator;
+  const pending = state.pending;
+  if (!operator || !isSearchPending(pending)) return false;
+
+  if (key === "Escape") {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  if (key === "Backspace") {
+    dispatchMeta(view, { searchQuery: state.searchQuery.slice(0, -1) });
+    return true;
+  }
+
+  if (key === "Enter") {
+    const query = state.searchQuery;
+    if (query.length === 0) {
+      dispatchMeta(view, clearedInputMeta());
+      return true;
+    }
+
+    const search = {
+      direction: searchDirectionFromPending(pending),
+      query
+    } satisfies VimSearch;
+    return operateSearch(view, operator, search, operator.count * readCount(state));
+  }
+
+  if (key.length === 1) {
+    dispatchMeta(view, { searchQuery: `${state.searchQuery}${key}` });
+    return true;
+  }
+
+  return true;
+}
+
 function repeatSearch(view: EditorView, state: VimModeState, count: number, reversed: boolean) {
   if (!state.lastSearch) {
     dispatchMeta(view, clearedInputMeta());
@@ -1585,11 +1655,23 @@ function repeatSearch(view: EditorView, state: VimModeState, count: number, reve
   return moveBySearch(view, search, count, state.lastSearch);
 }
 
+function repeatOperatorSearch(view: EditorView, state: VimModeState, reversed: boolean) {
+  const operator = state.operator;
+  if (!operator || !state.lastSearch) {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  const search = reversed ? reversedSearch(state.lastSearch) : state.lastSearch;
+  return operateSearch(view, operator, search, operator.count * readCount(state), state.lastSearch);
+}
+
 function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
   const operator = state.operator;
   if (!operator) return false;
 
   if (isFindKey(state.pending ?? "")) return handlePendingOperatorFind(view, key, state);
+  if (isSearchPending(state.pending)) return handlePendingOperatorSearch(view, key, state);
   if (isTextObjectPending(state.pending)) return handlePendingOperatorTextObject(view, key, state);
 
   if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
@@ -1616,7 +1698,19 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
     return true;
   }
 
+  if (key === "/") {
+    dispatchMeta(view, { pending: "search-forward", searchQuery: "" });
+    return true;
+  }
+
+  if (key === "?") {
+    dispatchMeta(view, { pending: "search-backward", searchQuery: "" });
+    return true;
+  }
+
   if (key === ";" || key === ",") return handleRepeatedOperatorFind(view, key, state);
+  if (key === "n") return repeatOperatorSearch(view, state, false);
+  if (key === "N") return repeatOperatorSearch(view, state, true);
 
   if (key === "i" || key === "a") {
     dispatchMeta(view, { pending: key === "i" ? "text-object-inner" : "text-object-around" });
