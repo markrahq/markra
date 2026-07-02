@@ -490,6 +490,58 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("uses Vim inner quote text objects for delete and change operators", () => {
+    const deleteInner = createView(['alpha "beta" gamma']);
+    const changeInner = createView(['alpha "beta" gamma']);
+
+    try {
+      moveCursor(deleteInner, findTextPosition(deleteInner, "beta", 1));
+      pressKey(deleteInner, "Escape");
+
+      expect(pressKeys(deleteInner, ["d", "i", '"'])).toEqual([true, true, true]);
+      expect(textContent(deleteInner)).toBe('alpha "" gamma');
+
+      moveCursor(changeInner, findTextPosition(changeInner, "beta", 1));
+      pressKey(changeInner, "Escape");
+
+      expect(pressKeys(changeInner, ["c", "i", '"'])).toEqual([true, true, true]);
+      expect(getVimMode(changeInner.state)).toBe("insert");
+      expect(textContent(changeInner)).toBe('alpha "" gamma');
+
+      expect(typeText(changeInner, "delta")).toBe(false);
+      expect(textContent(changeInner)).toBe('alpha "delta" gamma');
+    } finally {
+      destroyView(deleteInner);
+      destroyView(changeInner);
+    }
+  });
+
+  it("uses Vim around quote text objects and yanks inline code", () => {
+    const deleteAround = createView(['alpha "beta" gamma']);
+    const yankInlineCode = createView(["alpha `code` gamma"]);
+
+    try {
+      moveCursor(deleteAround, findTextPosition(deleteAround, "beta", 1));
+      pressKey(deleteAround, "Escape");
+
+      expect(pressKeys(deleteAround, ["d", "a", '"'])).toEqual([true, true, true]);
+      expect(textContent(deleteAround)).toBe("alpha  gamma");
+
+      moveCursor(yankInlineCode, findTextPosition(yankInlineCode, "code", 1));
+      pressKey(yankInlineCode, "Escape");
+
+      expect(pressKeys(yankInlineCode, ["y", "i", "`"])).toEqual([true, true, true]);
+      expect(textContent(yankInlineCode)).toBe("alpha `code` gamma");
+
+      expect(pressKey(yankInlineCode, "$")).toBe(true);
+      expect(pressKey(yankInlineCode, "p")).toBe(true);
+      expect(textContent(yankInlineCode)).toBe("alpha `code` gammacode");
+    } finally {
+      destroyView(deleteAround);
+      destroyView(yankInlineCode);
+    }
+  });
+
   it("changes the current text block with cc and enters insert mode", () => {
     const view = createView(["alpha", "beta"]);
 

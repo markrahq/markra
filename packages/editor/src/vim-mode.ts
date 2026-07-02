@@ -9,6 +9,7 @@ type VimOperator = "change" | "delete" | "yank";
 type VimFindDirection = "backward" | "forward";
 type VimFindKey = "F" | "T" | "f" | "t";
 type VimTextObjectPending = "text-object-around" | "text-object-inner";
+type VimQuoteTextObjectKey = "'" | '"' | "`";
 type VimTextObjectScope = "around" | "inner";
 type WordClassifier = (character: string) => boolean;
 
@@ -209,6 +210,10 @@ function isTextObjectPending(pending: string | null): pending is VimTextObjectPe
 
 function textObjectScopeFromPending(pending: VimTextObjectPending): VimTextObjectScope {
   return pending === "text-object-inner" ? "inner" : "around";
+}
+
+function isQuoteTextObjectKey(key: string): key is VimQuoteTextObjectKey {
+  return key === '"' || key === "'" || key === "`";
 }
 
 function characterFindFromKey(key: VimFindKey, character: string): VimCharacterFind {
@@ -514,6 +519,43 @@ function wordTextObjectRange(state: EditorState, scope: VimTextObjectScope, coun
       while (start > 0 && isWhitespaceCharacter(range.text[start - 1] ?? "")) start -= 1;
     }
   }
+
+  return {
+    end: range.start + end,
+    start: range.start + start
+  };
+}
+
+function nextDelimiterOffset(text: string, delimiter: VimQuoteTextObjectKey, from: number) {
+  for (let offset = Math.max(0, from); offset < text.length; offset += 1) {
+    if (text[offset] === delimiter) return offset;
+  }
+
+  return null;
+}
+
+function previousDelimiterOffset(text: string, delimiter: VimQuoteTextObjectKey, from: number) {
+  for (let offset = Math.min(text.length - 1, from); offset >= 0; offset -= 1) {
+    if (text[offset] === delimiter) return offset;
+  }
+
+  return null;
+}
+
+function quoteTextObjectRange(state: EditorState, scope: VimTextObjectScope, delimiter: VimQuoteTextObjectKey) {
+  const range = currentTextblockRange(state);
+  if (!range) return null;
+
+  const offset = Math.max(0, Math.min(range.text.length - 1, state.selection.from - range.start));
+  const startDelimiter = previousDelimiterOffset(range.text, delimiter, offset);
+  if (startDelimiter === null) return null;
+
+  const endDelimiter = nextDelimiterOffset(range.text, delimiter, startDelimiter + 1);
+  if (endDelimiter === null) return null;
+
+  const start = scope === "inner" ? startDelimiter + 1 : startDelimiter;
+  const end = scope === "inner" ? endDelimiter : endDelimiter + 1;
+  if (start > end) return null;
 
   return {
     end: range.start + end,
@@ -1240,6 +1282,13 @@ function handleRepeatedOperatorFind(view: EditorView, key: string, state: VimMod
   return operateCharacterFind(view, operator, find, operator.count * readCount(state));
 }
 
+function textObjectRange(state: EditorState, scope: VimTextObjectScope, key: string, count: number) {
+  if (key === "w") return wordTextObjectRange(state, scope, count);
+  if (isQuoteTextObjectKey(key)) return quoteTextObjectRange(state, scope, key);
+
+  return null;
+}
+
 function operateTextObject(
   view: EditorView,
   operator: PendingOperator,
@@ -1247,12 +1296,8 @@ function operateTextObject(
   key: string,
   count: number
 ) {
-  if (key !== "w") {
-    dispatchMeta(view, clearedInputMeta());
-    return true;
-  }
+  const range = textObjectRange(view.state, scope, key, count);
 
-  const range = wordTextObjectRange(view.state, scope, count);
   if (!range) {
     dispatchMeta(view, clearedInputMeta());
     return true;
