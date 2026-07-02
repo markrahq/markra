@@ -2375,6 +2375,14 @@ function visualLineMotionTarget(state: EditorState, cursor: number, delta: -1 | 
   return ranges[targetIndex]?.start ?? null;
 }
 
+function visualAbsoluteLineMotionTarget(state: EditorState, key: "first" | "last", count: number) {
+  const ranges = textblockRanges(state);
+  if (ranges.length === 0) return null;
+
+  const targetIndex = targetLineMotionIndex(ranges, key, count);
+  return ranges[targetIndex]?.start ?? null;
+}
+
 function extendVisualSelection(view: EditorView, key: string, state: VimModeState, prefix: string | null = null) {
   const selection = view.state.selection;
   if (!(selection instanceof TextSelection)) return false;
@@ -2384,9 +2392,13 @@ function extendVisualSelection(view: EditorView, key: string, state: VimModeStat
   const kind = state.visualKind ?? "character";
   const count = readCount(state);
   const lineDelta = key === "j" || key === "ArrowDown" ? 1 : key === "k" || key === "ArrowUp" ? -1 : null;
-  const target = kind === "line" && lineDelta !== null
-    ? visualLineMotionTarget(view.state, cursor, lineDelta, count)
-    : visualMotionTarget(stateWithCursorAt(view.state, cursor), key, count, prefix);
+  const absoluteLineKey: "first" | "last" | null =
+    key === "G" ? "last" : prefix === "g" && key === "g" ? "first" : null;
+  const target = absoluteLineKey
+    ? visualAbsoluteLineMotionTarget(view.state, absoluteLineKey, count)
+    : kind === "line" && lineDelta !== null
+      ? visualLineMotionTarget(view.state, cursor, lineDelta, count)
+      : visualMotionTarget(stateWithCursorAt(view.state, cursor), key, count, prefix);
   if (target === null) return true;
 
   return moveVisualSelection(view, anchor, target, kind);
@@ -2398,6 +2410,7 @@ function handleVisualModeKey(view: EditorView, key: string, state: VimModeState)
   if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
 
   if (state.pending === "g") {
+    if (key === "g") return extendVisualSelection(view, key, state, "g");
     if (key === "e") return extendVisualSelection(view, key, state, "g");
     if (key === "E") return extendVisualSelection(view, key, state, "g");
     if (key === "_") return extendVisualSelection(view, key, state, "g");
@@ -2472,6 +2485,7 @@ function handleVisualModeKey(view: EditorView, key: string, state: VimModeState)
     case "^":
     case "_":
     case "$":
+    case "G":
       return extendVisualSelection(view, key, state);
     default:
       return key.length === 1;
