@@ -9,9 +9,15 @@ type VimOperator = "change" | "delete" | "yank";
 type VimFindDirection = "backward" | "forward";
 type VimFindKey = "F" | "T" | "f" | "t";
 type VimTextObjectPending = "text-object-around" | "text-object-inner";
+type VimPairTextObjectKey = "(" | ")" | "[" | "]" | "{" | "}";
 type VimQuoteTextObjectKey = "'" | '"' | "`";
 type VimTextObjectScope = "around" | "inner";
 type WordClassifier = (character: string) => boolean;
+
+type VimPairDelimiters = {
+  close: ")" | "]" | "}";
+  open: "(" | "[" | "{";
+};
 
 export type VimModePluginOptions = {
   enabled?: boolean | (() => boolean);
@@ -214,6 +220,16 @@ function textObjectScopeFromPending(pending: VimTextObjectPending): VimTextObjec
 
 function isQuoteTextObjectKey(key: string): key is VimQuoteTextObjectKey {
   return key === '"' || key === "'" || key === "`";
+}
+
+function isPairTextObjectKey(key: string): key is VimPairTextObjectKey {
+  return key === "(" || key === ")" || key === "[" || key === "]" || key === "{" || key === "}";
+}
+
+function pairDelimitersFromKey(key: VimPairTextObjectKey): VimPairDelimiters {
+  if (key === "(" || key === ")") return { close: ")", open: "(" };
+  if (key === "[" || key === "]") return { close: "]", open: "[" };
+  return { close: "}", open: "{" };
 }
 
 function characterFindFromKey(key: VimFindKey, character: string): VimCharacterFind {
@@ -555,6 +571,50 @@ function quoteTextObjectRange(state: EditorState, scope: VimTextObjectScope, del
 
   const start = scope === "inner" ? startDelimiter + 1 : startDelimiter;
   const end = scope === "inner" ? endDelimiter : endDelimiter + 1;
+  if (start > end) return null;
+
+  return {
+    end: range.start + end,
+    start: range.start + start
+  };
+}
+
+function enclosingPairOffsets(text: string, delimiters: VimPairDelimiters, offset: number) {
+  const stack: number[] = [];
+  let enclosing: { end: number; start: number } | null = null;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (character === delimiters.open) {
+      stack.push(index);
+      continue;
+    }
+
+    if (character !== delimiters.close) continue;
+
+    const start = stack.pop();
+    if (start === undefined) continue;
+    if (start > offset || index < offset) continue;
+
+    if (!enclosing || index - start < enclosing.end - enclosing.start) {
+      enclosing = { end: index, start };
+    }
+  }
+
+  return enclosing;
+}
+
+function pairTextObjectRange(state: EditorState, scope: VimTextObjectScope, key: VimPairTextObjectKey) {
+  const range = currentTextblockRange(state);
+  if (!range) return null;
+
+  const offset = Math.max(0, Math.min(range.text.length - 1, state.selection.from - range.start));
+  const pair = enclosingPairOffsets(range.text, pairDelimitersFromKey(key), offset);
+  if (!pair) return null;
+
+  const start = scope === "inner" ? pair.start + 1 : pair.start;
+  const end = scope === "inner" ? pair.end : pair.end + 1;
   if (start > end) return null;
 
   return {
@@ -1285,6 +1345,7 @@ function handleRepeatedOperatorFind(view: EditorView, key: string, state: VimMod
 function textObjectRange(state: EditorState, scope: VimTextObjectScope, key: string, count: number) {
   if (key === "w") return wordTextObjectRange(state, scope, count);
   if (isQuoteTextObjectKey(key)) return quoteTextObjectRange(state, scope, key);
+  if (isPairTextObjectKey(key)) return pairTextObjectRange(state, scope, key);
 
   return null;
 }

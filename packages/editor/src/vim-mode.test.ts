@@ -542,6 +542,58 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("uses Vim inner pair text objects for nested parentheses and braces", () => {
+    const deleteNested = createView(["alpha (beta (gamma) delta)"]);
+    const changeBraces = createView(["alpha {beta} gamma"]);
+
+    try {
+      moveCursor(deleteNested, findTextPosition(deleteNested, "gamma", 1));
+      pressKey(deleteNested, "Escape");
+
+      expect(pressKeys(deleteNested, ["d", "i", "("])).toEqual([true, true, true]);
+      expect(textContent(deleteNested)).toBe("alpha (beta () delta)");
+
+      moveCursor(changeBraces, findTextPosition(changeBraces, "beta", 1));
+      pressKey(changeBraces, "Escape");
+
+      expect(pressKeys(changeBraces, ["c", "i", "{"])).toEqual([true, true, true]);
+      expect(getVimMode(changeBraces.state)).toBe("insert");
+      expect(textContent(changeBraces)).toBe("alpha {} gamma");
+
+      expect(typeText(changeBraces, "delta")).toBe(false);
+      expect(textContent(changeBraces)).toBe("alpha {delta} gamma");
+    } finally {
+      destroyView(deleteNested);
+      destroyView(changeBraces);
+    }
+  });
+
+  it("uses Vim around pair text objects and yanks bracket contents", () => {
+    const deleteAround = createView(["alpha (beta) gamma"]);
+    const yankBrackets = createView(["alpha [beta] gamma"]);
+
+    try {
+      moveCursor(deleteAround, findTextPosition(deleteAround, "beta", 1));
+      pressKey(deleteAround, "Escape");
+
+      expect(pressKeys(deleteAround, ["d", "a", ")"])).toEqual([true, true, true]);
+      expect(textContent(deleteAround)).toBe("alpha  gamma");
+
+      moveCursor(yankBrackets, findTextPosition(yankBrackets, "beta", 1));
+      pressKey(yankBrackets, "Escape");
+
+      expect(pressKeys(yankBrackets, ["y", "i", "]"])).toEqual([true, true, true]);
+      expect(textContent(yankBrackets)).toBe("alpha [beta] gamma");
+
+      expect(pressKey(yankBrackets, "$")).toBe(true);
+      expect(pressKey(yankBrackets, "p")).toBe(true);
+      expect(textContent(yankBrackets)).toBe("alpha [beta] gammabeta");
+    } finally {
+      destroyView(deleteAround);
+      destroyView(yankBrackets);
+    }
+  });
+
   it("changes the current text block with cc and enters insert mode", () => {
     const view = createView(["alpha", "beta"]);
 
