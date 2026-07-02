@@ -258,6 +258,24 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("changes the current word with cw and enters insert mode", () => {
+    const view = createView(["alpha beta"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["c", "w"])).toEqual([true, true]);
+      expect(getVimMode(view.state)).toBe("insert");
+      expect(textContent(view)).toBe(" beta");
+
+      expect(typeText(view, "X")).toBe(false);
+      expect(textContent(view)).toBe("X beta");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("moves w and b across text blocks", () => {
     const view = createView(["alpha", "beta gamma"]);
 

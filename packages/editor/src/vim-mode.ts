@@ -5,7 +5,7 @@ import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 
 export type VimMode = "insert" | "normal";
-type VimOperator = "delete" | "yank";
+type VimOperator = "change" | "delete" | "yank";
 
 export type VimModePluginOptions = {
   enabled?: boolean | (() => boolean);
@@ -553,6 +553,22 @@ function deleteRange(view: EditorView, from: number, to: number) {
   return true;
 }
 
+function changeRange(view: EditorView, from: number, to: number) {
+  const start = Math.min(from, to);
+  const end = Math.max(from, to);
+  if (start === end) return false;
+
+  const text = textRange(view, start, end);
+  const transaction = view.state.tr.delete(start, end);
+  const selectionPosition = Math.min(start, transaction.doc.content.size);
+  dispatchTransaction(
+    view,
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
+    clearedInputMeta({ mode: "insert", register: { kind: "text", text } })
+  );
+  return true;
+}
+
 function yankRange(view: EditorView, from: number, to: number) {
   const start = Math.min(from, to);
   const end = Math.max(from, to);
@@ -729,15 +745,27 @@ function resolveMotionTarget(view: EditorView, key: string, count: number, prefi
   }
 }
 
+function shouldChangeCurrentWord(view: EditorView, operator: PendingOperator, key: string, count: number, prefix: string | null) {
+  if (operator.type !== "change" || key !== "w" || prefix !== null || count !== 1) return false;
+
+  const range = currentTextblockRange(view.state);
+  if (!range) return false;
+
+  const offset = view.state.selection.from - range.start;
+  return isWordCharacter(range.text[offset] ?? "");
+}
+
 function operateRange(view: EditorView, operator: PendingOperator, key: string, state: VimModeState, prefix: string | null = null) {
   const count = operator.count * readCount(state);
-  const target = resolveMotionTarget(view, key, count, prefix);
+  const changeCurrentWord = shouldChangeCurrentWord(view, operator, key, count, prefix);
+  const target = resolveMotionTarget(view, changeCurrentWord ? "e" : key, count, prefix);
   if (target === null) return false;
 
   const from = view.state.selection.from;
-  const to = key === "e" && target >= from
+  const to = (key === "e" || changeCurrentWord) && target >= from
     ? Math.min(view.state.doc.content.size, target + 1)
     : target;
+  if (operator.type === "change") return changeRange(view, from, to);
   return operator.type === "delete" ? deleteRange(view, from, to) : yankRange(view, from, to);
 }
 
@@ -836,6 +864,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return beginOperator(view, "delete", state);
     case "y":
       return beginOperator(view, "yank", state);
+    case "c":
+      return beginOperator(view, "change", state);
     case "p":
       return pasteRegister(view, "after", count, state.register);
     case "P":
