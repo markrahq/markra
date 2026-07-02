@@ -150,7 +150,7 @@ describe("vim mode plugin", () => {
 
       expect(pressKey(view, "i")).toBe(true);
       expect(getVimMode(view.state)).toBe("insert");
-      expect(typeText(view, "z")).toBe(false);
+      expect(typeText(view, "z")).toBe(true);
       expect(textContent(view)).toBe("azlpha");
     } finally {
       destroyView(view);
@@ -440,7 +440,7 @@ describe("vim mode plugin", () => {
       expect(pressKey(view, "$")).toBe(true);
       expect(pressKey(view, "a")).toBe(true);
       expect(getVimMode(view.state)).toBe("insert");
-      expect(typeText(view, "X")).toBe(false);
+      expect(typeText(view, "X")).toBe(true);
       expect(textContent(view)).toBe("abcX");
     } finally {
       destroyView(view);
@@ -1134,11 +1134,11 @@ describe("vim mode plugin", () => {
       expect(pressKey(insertEdit, "x")).toBe(true);
       expect(textContent(insertEdit)).toBe("bcd");
       expect(pressKey(insertEdit, "i")).toBe(true);
-      expect(typeText(insertEdit, "Z")).toBe(false);
+      expect(typeText(insertEdit, "Z")).toBe(true);
       expect(textContent(insertEdit)).toBe("Zbcd");
       expect(pressKey(insertEdit, "Escape")).toBe(true);
       expect(pressKey(insertEdit, ".")).toBe(true);
-      expect(textContent(insertEdit)).toBe("Zbcd");
+      expect(textContent(insertEdit)).toBe("ZZbcd");
     } finally {
       destroyView(characterDelete);
       destroyView(wordDelete);
@@ -1170,6 +1170,39 @@ describe("vim mode plugin", () => {
       expect(textContent(view)).toBe("X X gamma");
     } finally {
       destroyView(view);
+    }
+  });
+
+  it("repeats plain insert commands with .", () => {
+    const append = createView(["alpha", "beta"]);
+    const openLine = createView(["alpha"]);
+
+    try {
+      moveCursor(append, findTextPosition(append, "alpha"));
+      pressKey(append, "Escape");
+
+      expect(pressKey(append, "A")).toBe(true);
+      expect(typeText(append, "!")).toBe(true);
+      expect(textContent(append)).toBe("alpha!\nbeta");
+      expect(pressKey(append, "Escape")).toBe(true);
+
+      expect(pressKey(append, "j")).toBe(true);
+      expect(pressKey(append, ".")).toBe(true);
+      expect(textContent(append)).toBe("alpha!\nbeta!");
+
+      moveCursor(openLine, findTextPosition(openLine, "alpha"));
+      pressKey(openLine, "Escape");
+
+      expect(pressKey(openLine, "o")).toBe(true);
+      expect(typeText(openLine, "beta")).toBe(true);
+      expect(textContent(openLine)).toBe("alpha\nbeta");
+      expect(pressKey(openLine, "Escape")).toBe(true);
+
+      expect(pressKey(openLine, ".")).toBe(true);
+      expect(textContent(openLine)).toBe("alpha\nbeta\nbeta");
+    } finally {
+      destroyView(append);
+      destroyView(openLine);
     }
   });
 
