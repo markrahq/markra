@@ -720,6 +720,32 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("applies Vim counts to D and C line-tail commands", () => {
+    const deletion = createView(["alpha", "beta", "gamma"]);
+    const change = createView(["alpha", "beta", "gamma"]);
+
+    try {
+      moveCursor(deletion, findTextPosition(deletion, "alpha"));
+      pressKey(deletion, "Escape");
+
+      expect(pressKeys(deletion, ["2", "D"])).toEqual([true, true]);
+      expect(textContent(deletion)).toBe("\ngamma");
+
+      moveCursor(change, findTextPosition(change, "alpha"));
+      pressKey(change, "Escape");
+
+      expect(pressKeys(change, ["2", "C"])).toEqual([true, true]);
+      expect(getVimMode(change.state)).toBe("insert");
+      expect(textContent(change)).toBe("\ngamma");
+
+      expect(typeText(change, "delta")).toBe(true);
+      expect(textContent(change)).toBe("delta\ngamma");
+    } finally {
+      destroyView(deletion);
+      destroyView(change);
+    }
+  });
+
   it("includes the final character for Vim end-word operators", () => {
     const view = createView(["alpha beta"]);
 
