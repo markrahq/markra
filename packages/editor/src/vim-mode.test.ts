@@ -1480,6 +1480,43 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("applies Vim counts to open-line insert changes", () => {
+    const openBelow = createView(["alpha"]);
+    const openAbove = createView(["alpha"]);
+    const repeat = createView(["alpha"]);
+
+    try {
+      moveCursor(openBelow, findTextPosition(openBelow, "alpha"));
+      pressKey(openBelow, "Escape");
+
+      expect(pressKeys(openBelow, ["3", "o"])).toEqual([true, true]);
+      expect(typeText(openBelow, "beta")).toBe(true);
+      expect(pressKey(openBelow, "Escape")).toBe(true);
+      expect(textContent(openBelow)).toBe("alpha\nbeta\nbeta\nbeta");
+
+      moveCursor(openAbove, findTextPosition(openAbove, "alpha"));
+      pressKey(openAbove, "Escape");
+
+      expect(pressKeys(openAbove, ["2", "O"])).toEqual([true, true]);
+      expect(typeText(openAbove, "beta")).toBe(true);
+      expect(pressKey(openAbove, "Escape")).toBe(true);
+      expect(textContent(openAbove)).toBe("beta\nbeta\nalpha");
+
+      moveCursor(repeat, findTextPosition(repeat, "alpha"));
+      pressKey(repeat, "Escape");
+
+      expect(pressKeys(repeat, ["2", "o"])).toEqual([true, true]);
+      expect(typeText(repeat, "beta")).toBe(true);
+      expect(pressKey(repeat, "Escape")).toBe(true);
+      expect(pressKey(repeat, ".")).toBe(true);
+      expect(textContent(repeat)).toBe("alpha\nbeta\nbeta\nbeta\nbeta");
+    } finally {
+      destroyView(openBelow);
+      destroyView(openAbove);
+      destroyView(repeat);
+    }
+  });
+
   it("consumes destructive editing keys in normal mode", () => {
     const view = createView(["alpha"]);
 
