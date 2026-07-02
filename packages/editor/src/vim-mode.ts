@@ -1193,6 +1193,34 @@ function deletePreviousCharacter(view: EditorView, count = 1) {
   return true;
 }
 
+function toggledCharacterCase(character: string) {
+  const lower = character.toLocaleLowerCase();
+  const upper = character.toLocaleUpperCase();
+
+  if (lower === upper) return character;
+  return character === lower ? upper : lower;
+}
+
+function toggleCharacterCase(view: EditorView, count = 1) {
+  if (!selectionIsTextSelection(view.state)) return false;
+
+  const range = currentTextblockRange(view.state);
+  if (!range || view.state.selection.from >= range.end) return false;
+
+  const from = view.state.selection.from;
+  const to = Math.min(range.end, from + count);
+  const text = view.state.doc.textBetween(from, to, "\n");
+  const replacement = Array.from(text, toggledCharacterCase).join("");
+  const transaction = view.state.tr.insertText(replacement, from, to);
+  const selectionPosition = Math.min(normalTextblockEnd(range), to);
+  dispatchTransaction(
+    view,
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
+    clearedInputMeta()
+  );
+  return true;
+}
+
 function replaceCharacters(view: EditorView, character: string, count = 1) {
   if (!selectionIsTextSelection(view.state) || character.length !== 1) return false;
 
@@ -1502,7 +1530,8 @@ function repeatableChangeStartKeys(state: VimModeState, key: string) {
     key !== "p" &&
     key !== "r" &&
     key !== "s" &&
-    key !== "x"
+    key !== "x" &&
+    key !== "~"
   ) {
     return null;
   }
@@ -2332,6 +2361,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return deletePreviousCharacter(view, count);
     case "x":
       return deleteCharacter(view, count);
+    case "~":
+      return toggleCharacterCase(view, count);
     case "r":
       dispatchMeta(view, { pending: "r" });
       return true;

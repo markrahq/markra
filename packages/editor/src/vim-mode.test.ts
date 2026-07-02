@@ -322,6 +322,36 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("toggles character case with ~", () => {
+    const view = createView(["aBcDe"]);
+    const repeat = createView(["abcdef"]);
+
+    try {
+      const start = findTextPosition(view, "aBcDe");
+      moveCursor(view, start);
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "~")).toBe(true);
+      expect(textContent(view)).toBe("ABcDe");
+      expect(view.state.selection.from).toBe(start + 1);
+
+      expect(pressKeys(view, ["3", "~"])).toEqual([true, true]);
+      expect(textContent(view)).toBe("AbCde");
+      expect(view.state.selection.from).toBe(start + 4);
+
+      moveCursor(repeat, findTextPosition(repeat, "abcdef"));
+      pressKey(repeat, "Escape");
+
+      expect(pressKeys(repeat, ["2", "~"])).toEqual([true, true]);
+      expect(textContent(repeat)).toBe("ABcdef");
+      expect(pressKey(repeat, ".")).toBe(true);
+      expect(textContent(repeat)).toBe("ABCDef");
+    } finally {
+      destroyView(view);
+      destroyView(repeat);
+    }
+  });
+
   it("substitutes the character under the cursor with s and enters insert mode", () => {
     const view = createView(["alpha"]);
 
