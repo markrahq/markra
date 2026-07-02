@@ -206,6 +206,23 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("replaces the character under the cursor with r and stays in normal mode", () => {
+    const view = createView(["alpha"]);
+
+    try {
+      const start = findTextPosition(view, "alpha");
+      moveCursor(view, start);
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["r", "X"])).toEqual([true, true]);
+      expect(textContent(view)).toBe("Xlpha");
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(view.state.selection.from).toBe(start);
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("appends after the current character at the end of a text block", () => {
     const view = createView(["abc"]);
 
