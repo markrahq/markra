@@ -223,6 +223,25 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("substitutes the character under the cursor with s and enters insert mode", () => {
+    const view = createView(["alpha"]);
+
+    try {
+      const start = findTextPosition(view, "alpha");
+      moveCursor(view, start);
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "s")).toBe(true);
+      expect(getVimMode(view.state)).toBe("insert");
+      expect(textContent(view)).toBe("lpha");
+
+      expect(typeText(view, "X")).toBe(false);
+      expect(textContent(view)).toBe("Xlpha");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("appends after the current character at the end of a text block", () => {
     const view = createView(["abc"]);
 

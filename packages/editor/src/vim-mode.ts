@@ -469,6 +469,15 @@ function replaceCharacters(view: EditorView, character: string, count = 1) {
   return true;
 }
 
+function substituteCharacters(view: EditorView, count = 1) {
+  const range = currentTextblockRange(view.state);
+  if (!range || view.state.selection.from >= range.end) return false;
+
+  const from = view.state.selection.from;
+  const to = Math.min(range.end, from + count);
+  return changeRange(view, from, to);
+}
+
 function emptyParagraph(state: EditorState) {
   const paragraph = state.schema.nodes.paragraph;
   return paragraph?.createAndFill() ?? paragraph?.create();
@@ -921,6 +930,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     case "r":
       dispatchMeta(view, { pending: "r" });
       return true;
+    case "s":
+      return substituteCharacters(view, count);
     case "o":
       return insertParagraphNearTextblock(view, "after");
     case "O":
