@@ -1587,7 +1587,13 @@ function hasCommandModifier(event: KeyboardEvent) {
 }
 
 function isNormalModeExitKey(event: KeyboardEvent) {
-  return event.key === "Escape" || (event.ctrlKey && !event.metaKey && !event.altKey && event.key === "[");
+  return event.key === "Escape"
+    || (
+      event.ctrlKey
+      && !event.metaKey
+      && !event.altKey
+      && (event.key === "[" || event.key.toLocaleLowerCase() === "c")
+    );
 }
 
 function readCount(state: VimModeState) {
