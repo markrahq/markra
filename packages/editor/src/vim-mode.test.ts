@@ -565,6 +565,26 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("reselects the previous Vim visual selection with gv", () => {
+    const view = createView(["alpha beta gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "beta", 1));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["v", "l", "y"])).toEqual([true, true, true]);
+      expect(getVimMode(view.state)).toBe("normal");
+
+      moveCursor(view, findTextPosition(view, "gamma"));
+
+      expect(pressKeys(view, ["g", "v", "d"])).toEqual([true, true, true]);
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(textContent(view)).toBe("alpha ta gamma");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("uses Vim visual word text objects", () => {
     const inner = createView(["alpha beta gamma"]);
     const around = createView(["alpha beta gamma"]);
