@@ -1397,6 +1397,29 @@ function selectedTextblocksBetween(state: EditorState, anchor: number, cursor: n
   };
 }
 
+function targetLineMotionIndex(ranges: readonly TextblockRange[], key: "first" | "last", count: number) {
+  return key === "first"
+    ? Math.max(0, Math.min(ranges.length - 1, count > 1 ? count - 1 : 0))
+    : Math.max(0, Math.min(ranges.length - 1, count > 1 ? count - 1 : ranges.length - 1));
+}
+
+function lineMotionTextblocks(state: EditorState, key: "first" | "last", count: number) {
+  const ranges = textblockRanges(state);
+  if (ranges.length === 0) return null;
+
+  const currentIndex = currentTextblockIndex(state, ranges);
+  const targetIndex = targetLineMotionIndex(ranges, key, count);
+  const startIndex = Math.min(currentIndex, targetIndex);
+  const endIndex = Math.max(currentIndex, targetIndex);
+
+  return {
+    endIndex,
+    ranges,
+    selected: ranges.slice(startIndex, endIndex + 1),
+    startIndex
+  };
+}
+
 function textblockSelectionBounds(selection: ReturnType<typeof selectedTextblocks>) {
   if (!selection || selection.selected.length === 0) return false;
 
@@ -1449,8 +1472,7 @@ function changeCurrentTextblock(view: EditorView, count = 1) {
   return changeTextblockSelection(view, selectedTextblocks(view.state, count));
 }
 
-function yankCurrentTextblock(view: EditorView, count = 1) {
-  const selection = selectedTextblocks(view.state, count);
+function yankTextblockSelection(view: EditorView, selection: ReturnType<typeof selectedTextblocks>) {
   if (!selection || selection.selected.length === 0) return false;
 
   dispatchMeta(
@@ -1463,6 +1485,10 @@ function yankCurrentTextblock(view: EditorView, count = 1) {
     })
   );
   return true;
+}
+
+function yankCurrentTextblock(view: EditorView, count = 1) {
+  return yankTextblockSelection(view, selectedTextblocks(view.state, count));
 }
 
 function insertParagraphNearTextblock(view: EditorView, side: "before" | "after") {
@@ -1825,9 +1851,7 @@ function lineMotion(view: EditorView, key: "first" | "last", count: number) {
   const ranges = textblockRanges(view.state);
   if (ranges.length === 0) return false;
 
-  const targetIndex = key === "first"
-    ? Math.max(0, Math.min(ranges.length - 1, count > 1 ? count - 1 : 0))
-    : Math.max(0, Math.min(ranges.length - 1, count > 1 ? count - 1 : ranges.length - 1));
+  const targetIndex = targetLineMotionIndex(ranges, key, count);
   const targetRange = ranges[targetIndex];
   if (!targetRange) return false;
 
@@ -2002,6 +2026,14 @@ function operateTextObject(
   return operator.type === "delete"
     ? deleteRange(view, range.start, range.end)
     : yankRange(view, range.start, range.end);
+}
+
+function operateLineMotion(view: EditorView, operator: PendingOperator, key: "first" | "last", count: number) {
+  const selection = lineMotionTextblocks(view.state, key, count);
+
+  if (operator.type === "change") return changeTextblockSelection(view, selection);
+  if (operator.type === "delete") return deleteTextblockSelection(view, selection);
+  return yankTextblockSelection(view, selection);
 }
 
 function handlePendingOperatorTextObject(view: EditorView, key: string, state: VimModeState) {
@@ -2369,6 +2401,7 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
   if (operator.type === "change" && key === "c") return changeCurrentTextblock(view, operator.count * readCount(state));
 
   if (state.pending === "g") {
+    if (key === "g") return operateLineMotion(view, operator, "first", operator.count * readCount(state));
     if (key === "e") return operateRange(view, operator, key, state, "g");
     if (key === "E") return operateRange(view, operator, key, state, "g");
     if (key === "_") return operateRange(view, operator, key, state, "g");
@@ -2381,6 +2414,8 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
     dispatchMeta(view, { pending: "g" });
     return true;
   }
+
+  if (key === "G") return operateLineMotion(view, operator, "last", operator.count * readCount(state));
 
   if (isFindKey(key)) {
     dispatchMeta(view, { pending: key });

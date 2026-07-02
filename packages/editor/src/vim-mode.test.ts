@@ -1213,6 +1213,49 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("uses Vim line motions as linewise operators", () => {
+    const deleteToEnd = createView(["alpha", "beta", "gamma"]);
+    const deleteToStart = createView(["alpha", "beta", "gamma"]);
+    const changeToEnd = createView(["alpha", "beta", "gamma"]);
+    const yankToEnd = createView(["alpha", "beta", "gamma"]);
+
+    try {
+      moveCursor(deleteToEnd, findTextPosition(deleteToEnd, "beta"));
+      pressKey(deleteToEnd, "Escape");
+
+      expect(pressKeys(deleteToEnd, ["d", "G"])).toEqual([true, true]);
+      expect(textContent(deleteToEnd)).toBe("alpha");
+
+      moveCursor(deleteToStart, findTextPosition(deleteToStart, "beta"));
+      pressKey(deleteToStart, "Escape");
+
+      expect(pressKeys(deleteToStart, ["d", "g", "g"])).toEqual([true, true, true]);
+      expect(textContent(deleteToStart)).toBe("gamma");
+
+      moveCursor(changeToEnd, findTextPosition(changeToEnd, "beta"));
+      pressKey(changeToEnd, "Escape");
+
+      expect(pressKeys(changeToEnd, ["c", "G"])).toEqual([true, true]);
+      expect(getVimMode(changeToEnd.state)).toBe("insert");
+      expect(textContent(changeToEnd)).toBe("alpha\n");
+
+      expect(typeText(changeToEnd, "delta")).toBe(true);
+      expect(textContent(changeToEnd)).toBe("alpha\ndelta");
+
+      moveCursor(yankToEnd, findTextPosition(yankToEnd, "beta"));
+      pressKey(yankToEnd, "Escape");
+
+      expect(pressKeys(yankToEnd, ["y", "G"])).toEqual([true, true]);
+      expect(pressKey(yankToEnd, "p")).toBe(true);
+      expect(textContent(yankToEnd)).toBe("alpha\nbeta\nbeta\ngamma\ngamma");
+    } finally {
+      destroyView(deleteToEnd);
+      destroyView(deleteToStart);
+      destroyView(changeToEnd);
+      destroyView(yankToEnd);
+    }
+  });
+
   it("uses % as a Vim operator motion", () => {
     const view = createView(["alpha (beta) gamma"]);
     const backward = createView(["alpha (beta) gamma"]);
