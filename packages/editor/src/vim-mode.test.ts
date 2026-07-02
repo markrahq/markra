@@ -350,6 +350,61 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("uses Vim visual line selections for yank, delete, and change", () => {
+    const yank = createView(["alpha", "beta", "gamma"]);
+    const deletion = createView(["alpha", "beta", "gamma"]);
+    const change = createView(["alpha", "beta", "gamma"]);
+
+    try {
+      moveCursor(yank, findTextPosition(yank, "alpha"));
+      pressKey(yank, "Escape");
+
+      expect(pressKeys(yank, ["V", "j", "y"])).toEqual([true, true, true]);
+      expect(getVimMode(yank.state)).toBe("normal");
+      expect(textContent(yank)).toBe("alpha\nbeta\ngamma");
+
+      moveCursor(yank, findTextPosition(yank, "gamma"));
+      expect(pressKey(yank, "p")).toBe(true);
+      expect(textContent(yank)).toBe("alpha\nbeta\ngamma\nalpha\nbeta");
+
+      moveCursor(deletion, findTextPosition(deletion, "alpha"));
+      pressKey(deletion, "Escape");
+
+      expect(pressKeys(deletion, ["V", "j", "d"])).toEqual([true, true, true]);
+      expect(getVimMode(deletion.state)).toBe("normal");
+      expect(textContent(deletion)).toBe("gamma");
+
+      moveCursor(change, findTextPosition(change, "alpha"));
+      pressKey(change, "Escape");
+
+      expect(pressKeys(change, ["V", "j", "c"])).toEqual([true, true, true]);
+      expect(getVimMode(change.state)).toBe("insert");
+      expect(textContent(change)).toBe("\ngamma");
+
+      expect(typeText(change, "X")).toBe(false);
+      expect(textContent(change)).toBe("X\ngamma");
+    } finally {
+      destroyView(yank);
+      destroyView(deletion);
+      destroyView(change);
+    }
+  });
+
+  it("shrinks Vim visual line selections with reverse line motions", () => {
+    const view = createView(["alpha", "beta", "gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "beta"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["V", "j", "k", "d"])).toEqual([true, true, true, true]);
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(textContent(view)).toBe("alpha\ngamma");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("exits Vim visual mode with Escape", () => {
     const view = createView(["alpha"]);
 
