@@ -1174,6 +1174,25 @@ function deleteCharacter(view: EditorView, count = 1) {
   return true;
 }
 
+function deletePreviousCharacter(view: EditorView, count = 1) {
+  if (!selectionIsTextSelection(view.state)) return false;
+
+  const range = currentTextblockRange(view.state);
+  if (!range || view.state.selection.from <= range.start) return false;
+
+  const end = view.state.selection.from;
+  const start = Math.max(range.start, end - count);
+  const text = view.state.doc.textBetween(start, end, "\n");
+  const transaction = view.state.tr.delete(start, end);
+  const selectionPosition = Math.min(start, transaction.doc.content.size);
+  dispatchTransaction(
+    view,
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
+    clearedInputMeta({ register: { kind: "text", text } })
+  );
+  return true;
+}
+
 function replaceCharacters(view: EditorView, character: string, count = 1) {
   if (!selectionIsTextSelection(view.state) || character.length !== 1) return false;
 
@@ -1474,6 +1493,7 @@ function repeatableChangeStartKeys(state: VimModeState, key: string) {
     key !== "O" &&
     key !== "P" &&
     key !== "S" &&
+    key !== "X" &&
     key !== "a" &&
     key !== "c" &&
     key !== "d" &&
@@ -2306,6 +2326,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       if (handled) view.focus();
       return handled;
     }
+    case "X":
+      return deletePreviousCharacter(view, count);
     case "x":
       return deleteCharacter(view, count);
     case "r":

@@ -179,6 +179,37 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("deletes characters before the cursor with X", () => {
+    const view = createView(["abcdef"]);
+    const repeat = createView(["abcdef"]);
+
+    try {
+      const start = findTextPosition(view, "abcdef");
+      moveCursor(view, start + 3);
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "X")).toBe(true);
+      expect(textContent(view)).toBe("acdef");
+      expect(view.state.selection.from).toBe(findTextPosition(view, "cdef"));
+
+      moveCursor(view, findTextPosition(view, "e"));
+      expect(pressKeys(view, ["2", "X"])).toEqual([true, true]);
+      expect(textContent(view)).toBe("aef");
+      expect(view.state.selection.from).toBe(findTextPosition(view, "e"));
+
+      moveCursor(repeat, findTextPosition(repeat, "abcdef", 4));
+      pressKey(repeat, "Escape");
+
+      expect(pressKey(repeat, "X")).toBe(true);
+      expect(textContent(repeat)).toBe("abdef");
+      expect(pressKey(repeat, ".")).toBe(true);
+      expect(textContent(repeat)).toBe("adef");
+    } finally {
+      destroyView(view);
+      destroyView(repeat);
+    }
+  });
+
   it("moves between text blocks with j and k", () => {
     const view = createView(["alpha", "beta"]);
 
