@@ -280,6 +280,38 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("deletes to the end of the text block with D", () => {
+    const view = createView(["alpha beta"]);
+
+    try {
+      pressKey(view, "Escape");
+      moveCursor(view, findTextPosition(view, "beta"));
+
+      expect(pressKey(view, "D")).toBe(true);
+      expect(textContent(view)).toBe("alpha ");
+    } finally {
+      destroyView(view);
+    }
+  });
+
+  it("changes to the end of the text block with C", () => {
+    const view = createView(["alpha beta"]);
+
+    try {
+      pressKey(view, "Escape");
+      moveCursor(view, findTextPosition(view, "beta"));
+
+      expect(pressKey(view, "C")).toBe(true);
+      expect(getVimMode(view.state)).toBe("insert");
+      expect(textContent(view)).toBe("alpha ");
+
+      expect(typeText(view, "X")).toBe(false);
+      expect(textContent(view)).toBe("alpha X");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("includes the final character for Vim end-word operators", () => {
     const view = createView(["alpha beta"]);
 
