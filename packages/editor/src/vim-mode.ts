@@ -4,7 +4,7 @@ import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } 
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 
-export type VimMode = "insert" | "normal";
+export type VimMode = "insert" | "normal" | "visual";
 type VimOperator = "change" | "delete" | "yank";
 type VimFindDirection = "backward" | "forward";
 type VimFindKey = "F" | "T" | "f" | "t";
@@ -36,6 +36,7 @@ type VimModeState = {
   preferredColumn: number | null;
   register: VimRegister | null;
   searchQuery: string;
+  visualAnchor: number | null;
 };
 
 type VimModeMeta = Partial<VimModeState>;
@@ -78,6 +79,7 @@ const vimModeKey = new PluginKey<VimModeState>("markra-vim-mode");
 export const vimModeClassName = "markra-vim-mode";
 export const vimInsertClassName = "markra-vim-insert";
 export const vimNormalClassName = "markra-vim-normal";
+export const vimVisualClassName = "markra-vim-visual";
 
 function vimEnabled(options: VimModePluginOptions) {
   return typeof options.enabled === "function" ? options.enabled() : options.enabled === true;
@@ -87,7 +89,16 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
   const meta = transaction.getMeta(vimModeKey) as VimModeMeta | undefined;
   if (!meta) {
     return transaction.docChanged || transaction.selectionSet
-      ? { ...state, count: "", operator: null, pending: null, preferredColumn: null, searchQuery: "" }
+      ? {
+          ...state,
+          count: "",
+          mode: state.mode === "visual" ? "normal" : state.mode,
+          operator: null,
+          pending: null,
+          preferredColumn: null,
+          searchQuery: "",
+          visualAnchor: null
+        }
       : state;
   }
 
@@ -102,7 +113,8 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
       ? meta.preferredColumn ?? null
       : state.preferredColumn,
     register: Object.hasOwn(meta, "register") ? meta.register ?? null : state.register,
-    searchQuery: Object.hasOwn(meta, "searchQuery") ? meta.searchQuery ?? "" : state.searchQuery
+    searchQuery: Object.hasOwn(meta, "searchQuery") ? meta.searchQuery ?? "" : state.searchQuery,
+    visualAnchor: Object.hasOwn(meta, "visualAnchor") ? meta.visualAnchor ?? null : state.visualAnchor
   };
 }
 
@@ -113,6 +125,7 @@ function clearedInputMeta(meta: VimModeMeta = {}): VimModeMeta {
     pending: null,
     preferredColumn: null,
     searchQuery: "",
+    visualAnchor: null,
     ...meta
   };
 }
@@ -141,7 +154,8 @@ function initialVimModeState(initialMode: VimMode = "insert"): VimModeState {
     pending: null,
     preferredColumn: null,
     register: null,
-    searchQuery: ""
+    searchQuery: "",
+    visualAnchor: null
   };
 }
 
@@ -149,7 +163,10 @@ function enterNormalMode(view: EditorView, options: VimModePluginOptions) {
   const state = vimModeKey.getState(view.state) ?? initialVimModeState(options.initialMode);
   let transaction = view.state.tr;
 
-  if (state.mode === "insert" && view.state.selection instanceof TextSelection && view.state.selection.empty) {
+  if (state.mode === "visual" && view.state.selection instanceof TextSelection && !view.state.selection.empty) {
+    const target = visualCursorPosition(view.state.selection, state.visualAnchor ?? view.state.selection.from);
+    transaction = transaction.setSelection(TextSelection.near(transaction.doc.resolve(target), 1));
+  } else if (state.mode === "insert" && view.state.selection instanceof TextSelection && view.state.selection.empty) {
     const range = currentTextblockRange(view.state);
     if (range) {
       const target = view.state.selection.from > range.start
@@ -179,12 +196,13 @@ function updateVimModeClasses(view: EditorView, options: VimModePluginOptions) {
     target.classList.toggle(vimModeClassName, enabled);
     target.classList.toggle(vimInsertClassName, mode === "insert");
     target.classList.toggle(vimNormalClassName, mode === "normal");
+    target.classList.toggle(vimVisualClassName, mode === "visual");
   }
 }
 
 function clearVimModeClasses(view: EditorView) {
   for (const target of vimModeClassTargets(view)) {
-    target.classList.remove(vimModeClassName, vimInsertClassName, vimNormalClassName);
+    target.classList.remove(vimModeClassName, vimInsertClassName, vimNormalClassName, vimVisualClassName);
   }
 }
 
@@ -206,6 +224,32 @@ function moveSelection(view: EditorView, position: number, bias: -1 | 1 = 1, met
   const clamped = Math.max(0, Math.min(view.state.doc.content.size, position));
   const selection = TextSelection.near(view.state.doc.resolve(clamped), bias);
   dispatchTransaction(view, view.state.tr.setSelection(selection), meta);
+  return true;
+}
+
+function visualCursorPosition(selection: TextSelection, anchor: number) {
+  const head = selection.$head.pos;
+  return head > anchor ? Math.max(anchor, head - 1) : head;
+}
+
+// ProseMirror selections use text boundaries; Vim visual mode selects the characters between anchor and cursor.
+function visualTextSelection(state: EditorState, anchor: number, cursor: number) {
+  const clampedAnchor = Math.max(0, Math.min(state.doc.content.size, anchor));
+  const clampedCursor = Math.max(0, Math.min(state.doc.content.size, cursor));
+
+  if (clampedCursor >= clampedAnchor) {
+    return TextSelection.create(state.doc, clampedAnchor, Math.min(state.doc.content.size, clampedCursor + 1));
+  }
+
+  return TextSelection.create(state.doc, Math.min(state.doc.content.size, clampedAnchor + 1), clampedCursor);
+}
+
+function moveVisualSelection(view: EditorView, anchor: number, cursor: number) {
+  dispatchTransaction(
+    view,
+    view.state.tr.setSelection(visualTextSelection(view.state, anchor, cursor)),
+    clearedInputMeta({ mode: "visual", visualAnchor: anchor })
+  );
   return true;
 }
 
@@ -1376,11 +1420,16 @@ function lineMotion(view: EditorView, key: "first" | "last", count: number) {
   return moveSelection(view, targetRange.start, 1);
 }
 
-function resolveMotionTarget(view: EditorView, key: string, count: number, prefix: string | null = null) {
-  const range = currentTextblockRange(view.state);
+function stateWithCursorAt(state: EditorState, position: number) {
+  const clamped = Math.max(0, Math.min(state.doc.content.size, position));
+  return state.apply(state.tr.setSelection(TextSelection.near(state.doc.resolve(clamped), 1)));
+}
+
+function resolveMotionTarget(state: EditorState, key: string, count: number, prefix: string | null = null) {
+  const range = currentTextblockRange(state);
   if (!range) return null;
 
-  const current = view.state.selection.from;
+  const current = state.selection.from;
   const offset = Math.max(0, Math.min(range.text.length, current - range.start));
 
   if (prefix === "g" && key === "e") {
@@ -1398,19 +1447,19 @@ function resolveMotionTarget(view: EditorView, key: string, count: number, prefi
     case "ArrowRight":
       return Math.min(normalTextblockEnd(range), current + count);
     case "w":
-      return wordStartMotionPosition(view.state, "forward", count, "boundary");
+      return wordStartMotionPosition(state, "forward", count, "boundary");
     case "W":
-      return bigWordStartMotionPosition(view.state, "forward", count, "boundary");
+      return bigWordStartMotionPosition(state, "forward", count, "boundary");
     case "e":
       return Math.min(normalTextblockEnd(range), range.start + wordMotionOffset(range.text, offset, "end", count));
     case "E":
       return Math.min(normalTextblockEnd(range), range.start + bigWordMotionOffset(range.text, offset, "end", count));
     case "b":
-      return wordStartMotionPosition(view.state, "backward", count);
+      return wordStartMotionPosition(state, "backward", count);
     case "B":
-      return bigWordStartMotionPosition(view.state, "backward", count);
+      return bigWordStartMotionPosition(state, "backward", count);
     case "%":
-      return matchingPairPosition(view.state);
+      return matchingPairPosition(state);
     case "0":
       return range.start;
     case "^":
@@ -1440,7 +1489,7 @@ function operateRange(view: EditorView, operator: PendingOperator, key: string, 
   let motionKey = key;
   if (changeCurrentWord) motionKey = key === "W" ? "E" : "e";
 
-  const target = resolveMotionTarget(view, motionKey, count, prefix);
+  const target = resolveMotionTarget(view.state, motionKey, count, prefix);
   if (target === null) return false;
 
   let from = view.state.selection.from;
@@ -1666,6 +1715,136 @@ function repeatOperatorSearch(view: EditorView, state: VimModeState, reversed: b
   return operateSearch(view, operator, search, operator.count * readCount(state), state.lastSearch);
 }
 
+function enterVisualMode(view: EditorView, state: VimModeState) {
+  const range = currentTextblockRange(view.state);
+  if (!range) return false;
+
+  const cursor = Math.min(normalTextblockEnd(range), view.state.selection.from);
+  dispatchTransaction(
+    view,
+    view.state.tr.setSelection(visualTextSelection(view.state, cursor, cursor)),
+    clearedInputMeta({ mode: "visual", register: state.register, visualAnchor: cursor })
+  );
+  return true;
+}
+
+function collapseVisualSelection(view: EditorView, state: VimModeState) {
+  const selection = view.state.selection;
+  if (!(selection instanceof TextSelection)) return false;
+
+  const target = visualCursorPosition(selection, state.visualAnchor ?? selection.from);
+  dispatchTransaction(
+    view,
+    view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(target), 1)),
+    clearedInputMeta({ mode: "normal", register: state.register })
+  );
+  return true;
+}
+
+function visualSelectionRange(view: EditorView) {
+  const selection = view.state.selection;
+  if (!(selection instanceof TextSelection) || selection.empty) return null;
+
+  return { from: selection.from, to: selection.to };
+}
+
+function yankVisualSelection(view: EditorView, state: VimModeState) {
+  const range = visualSelectionRange(view);
+  if (!range) return collapseVisualSelection(view, state);
+
+  const text = textRange(view, range.from, range.to);
+  dispatchTransaction(
+    view,
+    view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(range.from), 1)),
+    clearedInputMeta({ mode: "normal", register: { kind: "text", text } })
+  );
+  return true;
+}
+
+function deleteVisualSelection(view: EditorView) {
+  const range = visualSelectionRange(view);
+  if (!range) return false;
+
+  return deleteRange(view, range.from, range.to, { mode: "normal" });
+}
+
+function changeVisualSelection(view: EditorView) {
+  const range = visualSelectionRange(view);
+  if (!range) return false;
+
+  return changeRange(view, range.from, range.to);
+}
+
+function visualMotionTarget(state: EditorState, key: string, count: number, prefix: string | null = null) {
+  if (key === "$") {
+    const range = currentTextblockRange(state);
+    return range ? normalTextblockEnd(range) : null;
+  }
+
+  return resolveMotionTarget(state, key, count, prefix);
+}
+
+function extendVisualSelection(view: EditorView, key: string, state: VimModeState, prefix: string | null = null) {
+  const selection = view.state.selection;
+  if (!(selection instanceof TextSelection)) return false;
+
+  const anchor = state.visualAnchor ?? selection.from;
+  const cursor = visualCursorPosition(selection, anchor);
+  const cursorState = stateWithCursorAt(view.state, cursor);
+  const target = visualMotionTarget(cursorState, key, readCount(state), prefix);
+  if (target === null) return true;
+
+  return moveVisualSelection(view, anchor, target);
+}
+
+function handleVisualModeKey(view: EditorView, key: string, state: VimModeState) {
+  if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
+
+  if (state.pending === "g") {
+    if (key === "e") return extendVisualSelection(view, key, state, "g");
+    if (key === "E") return extendVisualSelection(view, key, state, "g");
+
+    dispatchMeta(view, clearedInputMeta({ mode: "visual", visualAnchor: state.visualAnchor }));
+    return true;
+  }
+
+  switch (key) {
+    case "v":
+      return collapseVisualSelection(view, state);
+    case "y":
+      return yankVisualSelection(view, state);
+    case "d":
+    case "x":
+      return deleteVisualSelection(view);
+    case "Backspace":
+    case "Delete":
+    case "Enter":
+      return true;
+    case "c":
+      return changeVisualSelection(view);
+    case "g":
+      dispatchMeta(view, { pending: "g" });
+      return true;
+    case "h":
+    case "ArrowLeft":
+    case "l":
+    case "ArrowRight":
+    case "w":
+    case "W":
+    case "e":
+    case "E":
+    case "b":
+    case "B":
+    case "%":
+    case "0":
+    case "^":
+    case "$":
+      return extendVisualSelection(view, key, state);
+    default:
+      return key.length === 1;
+  }
+}
+
 function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
   const operator = state.operator;
   if (!operator) return false;
@@ -1821,6 +2000,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return repeatSearch(view, state, count, false);
     case "N":
       return repeatSearch(view, state, count, true);
+    case "v":
+      return enterVisualMode(view, state);
     case "d":
       return beginOperator(view, "delete", state);
     case "y":
@@ -1892,9 +2073,11 @@ export function createVimModePlugin(options: VimModePluginOptions = {}) {
         if (event.isComposing) return false;
 
         const state = vimModeKey.getState(view.state) ?? initialVimModeState(options.initialMode ?? "insert");
-        if (state.mode !== "normal") return false;
+        if (state.mode === "insert") return false;
 
         if (hasCommandModifier(event)) {
+          if (state.mode !== "normal") return false;
+
           const handled = handleNormalModeModifiedKey(view, event);
           if (!handled) return false;
 
@@ -1902,7 +2085,9 @@ export function createVimModePlugin(options: VimModePluginOptions = {}) {
           return true;
         }
 
-        const handled = handleNormalModeKey(view, event.key, state);
+        const handled = state.mode === "visual"
+          ? handleVisualModeKey(view, event.key, state)
+          : handleNormalModeKey(view, event.key, state);
         if (!handled) return false;
 
         event.preventDefault();
@@ -1912,7 +2097,7 @@ export function createVimModePlugin(options: VimModePluginOptions = {}) {
         if (!vimEnabled(options)) return false;
 
         const state = vimModeKey.getState(view.state);
-        return state?.mode === "normal";
+        return state?.mode === "normal" || state?.mode === "visual";
       }
     },
     view: (view) => {
