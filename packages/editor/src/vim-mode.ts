@@ -30,9 +30,11 @@ export type VimModePluginOptions = {
 type VimModeState = {
   count: string;
   lastFind: VimCharacterFind | null;
+  lastChangeKeys: readonly string[] | null;
   lastSearch: VimSearch | null;
   mode: VimMode;
   operator: PendingOperator | null;
+  pendingChangeKeys: readonly string[] | null;
   pending: string | null;
   preferredColumn: number | null;
   register: VimRegister | null;
@@ -98,6 +100,7 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
           mode: state.mode === "visual" ? "normal" : state.mode,
           operator: null,
           pending: null,
+          pendingChangeKeys: null,
           preferredColumn: null,
           searchQuery: "",
           visualAnchor: null,
@@ -110,9 +113,15 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
   return {
     count: Object.hasOwn(meta, "count") ? meta.count ?? "" : state.count,
     lastFind: Object.hasOwn(meta, "lastFind") ? meta.lastFind ?? null : state.lastFind,
+    lastChangeKeys: Object.hasOwn(meta, "lastChangeKeys")
+      ? meta.lastChangeKeys ?? null
+      : state.lastChangeKeys,
     lastSearch: Object.hasOwn(meta, "lastSearch") ? meta.lastSearch ?? null : state.lastSearch,
     mode: meta.mode ?? state.mode,
     operator: Object.hasOwn(meta, "operator") ? meta.operator ?? null : state.operator,
+    pendingChangeKeys: Object.hasOwn(meta, "pendingChangeKeys")
+      ? meta.pendingChangeKeys ?? null
+      : state.pendingChangeKeys,
     pending: Object.hasOwn(meta, "pending") ? meta.pending ?? null : state.pending,
     preferredColumn: Object.hasOwn(meta, "preferredColumn")
       ? meta.preferredColumn ?? null
@@ -129,6 +138,7 @@ function clearedInputMeta(meta: VimModeMeta = {}): VimModeMeta {
   return {
     count: "",
     operator: null,
+    pendingChangeKeys: null,
     pending: null,
     preferredColumn: null,
     searchQuery: "",
@@ -145,7 +155,7 @@ function dispatchMeta(view: EditorView, meta: VimModeMeta) {
 }
 
 function dispatchMode(view: EditorView, mode: VimMode, meta: VimModeMeta = {}) {
-  dispatchMeta(view, clearedInputMeta({ ...meta, mode }));
+  dispatchMeta(view, clearedInputMeta({ ...(mode === "insert" ? { lastChangeKeys: null } : {}), ...meta, mode }));
 }
 
 function dispatchTransaction(view: EditorView, transaction: Transaction, meta: VimModeMeta = clearedInputMeta()) {
@@ -157,9 +167,11 @@ function initialVimModeState(initialMode: VimMode = "insert"): VimModeState {
   return {
     count: "",
     lastFind: null,
+    lastChangeKeys: null,
     lastSearch: null,
     mode: initialMode,
     operator: null,
+    pendingChangeKeys: null,
     pending: null,
     preferredColumn: null,
     register: null,
@@ -1258,7 +1270,7 @@ function changeTextblockSelection(view: EditorView, selection: ReturnType<typeof
   dispatchTransaction(
     view,
     transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
-    clearedInputMeta({ mode: "insert", register: { kind: "line", texts } })
+    clearedInputMeta({ lastChangeKeys: null, mode: "insert", register: { kind: "line", texts } })
   );
   return true;
 }
@@ -1299,7 +1311,7 @@ function insertParagraphNearTextblock(view: EditorView, side: "before" | "after"
   dispatchTransaction(
     view,
     transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
-    clearedInputMeta({ mode: "insert" })
+    clearedInputMeta({ lastChangeKeys: null, mode: "insert" })
   );
   return true;
 }
@@ -1332,7 +1344,7 @@ function changeRange(view: EditorView, from: number, to: number, meta: VimModeMe
   dispatchTransaction(
     view,
     transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
-    clearedInputMeta({ ...meta, mode: "insert", register: { kind: "text", text } })
+    clearedInputMeta({ ...meta, lastChangeKeys: null, mode: "insert", register: { kind: "text", text } })
   );
   return true;
 }
@@ -1422,6 +1434,48 @@ function appendCount(view: EditorView, key: string, state: VimModeState) {
   return true;
 }
 
+function repeatableChangeStartKeys(state: VimModeState, key: string) {
+  if (state.pendingChangeKeys) return [...state.pendingChangeKeys, key];
+  // Insert-text changes need typed text capture before they can be faithfully replayed.
+  if (key !== "D" && key !== "J" && key !== "P" && key !== "d" && key !== "p" && key !== "r" && key !== "x") {
+    return null;
+  }
+
+  return [...state.count, key];
+}
+
+function changeIsWaitingForMoreKeys(state: VimModeState | undefined) {
+  return Boolean(state?.operator || state?.pending);
+}
+
+function recordRepeatableChange(view: EditorView, previousState: VimModeState, key: string, previousDoc: ProseNode) {
+  const changeKeys = repeatableChangeStartKeys(previousState, key);
+  if (!changeKeys) return;
+
+  const nextState = vimModeKey.getState(view.state);
+  if (view.state.doc !== previousDoc) {
+    dispatchMeta(view, { lastChangeKeys: changeKeys, pendingChangeKeys: null });
+    return;
+  }
+
+  dispatchMeta(view, {
+    pendingChangeKeys: changeIsWaitingForMoreKeys(nextState) ? changeKeys : null
+  });
+}
+
+function repeatLastChange(view: EditorView, keys: readonly string[]) {
+  if (keys.length === 0) return false;
+
+  for (const key of keys) {
+    const state = vimModeKey.getState(view.state) ?? initialVimModeState();
+    if (state.mode !== "normal") return false;
+    if (!handleNormalModeKey(view, key, state)) return false;
+  }
+
+  dispatchMeta(view, { lastChangeKeys: keys, pendingChangeKeys: null });
+  return true;
+}
+
 function beginOperator(view: EditorView, type: VimOperator, state: VimModeState) {
   dispatchMeta(view, {
     count: "",
@@ -1447,7 +1501,7 @@ function insertAtTextblockBoundary(view: EditorView, side: "first-nonblank" | "e
   dispatchTransaction(
     view,
     view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(position), side === "end" ? -1 : 1)),
-    clearedInputMeta({ mode: "insert" })
+    clearedInputMeta({ lastChangeKeys: null, mode: "insert" })
   );
   return true;
 }
@@ -1460,7 +1514,7 @@ function insertAfterCharacter(view: EditorView) {
   dispatchTransaction(
     view,
     view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(position), -1)),
-    clearedInputMeta({ mode: "insert" })
+    clearedInputMeta({ lastChangeKeys: null, mode: "insert" })
   );
   return true;
 }
@@ -2233,10 +2287,21 @@ export function createVimModePlugin(options: VimModePluginOptions = {}) {
           return true;
         }
 
+        if (state.mode === "normal" && event.key === ".") {
+          const handled = state.lastChangeKeys ? repeatLastChange(view, state.lastChangeKeys) : true;
+          if (!handled) return false;
+
+          event.preventDefault();
+          return true;
+        }
+
+        const previousDoc = view.state.doc;
         const handled = state.mode === "visual"
           ? handleVisualModeKey(view, event.key, state)
           : handleNormalModeKey(view, event.key, state);
         if (!handled) return false;
+
+        if (state.mode === "normal") recordRepeatableChange(view, state, event.key, previousDoc);
 
         event.preventDefault();
         return true;
