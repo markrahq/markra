@@ -948,6 +948,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return true;
     case "s":
       return substituteCharacters(view, count);
+    case "S":
+      return changeCurrentTextblock(view, count);
     case "o":
       return insertParagraphNearTextblock(view, "after");
     case "O":

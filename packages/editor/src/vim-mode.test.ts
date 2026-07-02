@@ -362,6 +362,24 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("substitutes the current text block with S and enters insert mode", () => {
+    const view = createView(["alpha", "beta"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha", 2));
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "S")).toBe(true);
+      expect(getVimMode(view.state)).toBe("insert");
+      expect(textContent(view)).toBe("\nbeta");
+
+      expect(typeText(view, "X")).toBe(false);
+      expect(textContent(view)).toBe("X\nbeta");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("moves w and b across text blocks", () => {
     const view = createView(["alpha", "beta gamma"]);
 
