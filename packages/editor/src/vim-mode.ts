@@ -312,6 +312,21 @@ function previousWordEndOffset(text: string, offset: number) {
   return 0;
 }
 
+function firstWordStartOffset(text: string) {
+  const match = /[\p{L}\p{N}_]/u.exec(text);
+  return match?.index ?? null;
+}
+
+function lastWordStartOffset(text: string) {
+  let offset = text.length - 1;
+
+  while (offset > 0 && !isWordCharacter(text[offset] ?? "")) offset -= 1;
+  if (!isWordCharacter(text[offset] ?? "")) return null;
+
+  while (offset > 0 && isWordCharacter(text[offset - 1] ?? "")) offset -= 1;
+  return offset;
+}
+
 function wordMotionOffset(text: string, offset: number, direction: "forward" | "end" | "backward" | "backward-end", count: number) {
   let next = offset;
 
@@ -325,7 +340,82 @@ function wordMotionOffset(text: string, offset: number, direction: "forward" | "
   return next;
 }
 
+function nextTextblockWordStart(ranges: readonly TextblockRange[], currentIndex: number) {
+  for (let index = currentIndex + 1; index < ranges.length; index += 1) {
+    const range = ranges[index];
+    if (!range) continue;
+
+    const offset = firstWordStartOffset(range.text);
+    if (offset !== null) return { index, position: range.start + offset };
+  }
+
+  return null;
+}
+
+function previousTextblockWordStart(ranges: readonly TextblockRange[], currentIndex: number) {
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const range = ranges[index];
+    if (!range) continue;
+
+    const offset = lastWordStartOffset(range.text);
+    if (offset !== null) return { index, position: range.start + offset };
+  }
+
+  return null;
+}
+
+function wordStartMotionPosition(state: EditorState, direction: "forward" | "backward", count: number) {
+  const ranges = textblockRanges(state);
+  if (ranges.length === 0) return null;
+
+  let currentIndex = currentTextblockIndex(state, ranges);
+  let position = state.selection.from;
+
+  for (let step = 0; step < count; step += 1) {
+    const range = ranges[currentIndex];
+    if (!range) return null;
+
+    const offset = Math.max(0, Math.min(range.text.length, position - range.start));
+
+    if (direction === "forward") {
+      const targetOffset = nextWordStartOffset(range.text, offset);
+      if (targetOffset < range.text.length) {
+        position = range.start + targetOffset;
+        continue;
+      }
+
+      const next = nextTextblockWordStart(ranges, currentIndex);
+      if (!next) return normalTextblockEnd(range);
+
+      currentIndex = next.index;
+      position = next.position;
+      continue;
+    }
+
+    const targetOffset = previousWordStartOffset(range.text, offset);
+    if (targetOffset < offset) {
+      position = range.start + targetOffset;
+      continue;
+    }
+
+    const previous = previousTextblockWordStart(ranges, currentIndex);
+    if (!previous) return range.start;
+
+    currentIndex = previous.index;
+    position = previous.position;
+  }
+
+  return position;
+}
+
 function moveByWord(view: EditorView, direction: "forward" | "end" | "backward" | "backward-end", count = 1) {
+  if (direction === "forward" || direction === "backward") {
+    const target = wordStartMotionPosition(view.state, direction, count);
+    if (target === null) return false;
+
+    return moveSelection(view, target, direction === "backward" ? -1 : 1);
+  }
+
   const range = currentTextblockRange(view.state);
   if (!range) return false;
 
@@ -333,7 +423,7 @@ function moveByWord(view: EditorView, direction: "forward" | "end" | "backward" 
   const targetOffset = wordMotionOffset(range.text, offset, direction, count);
   const target = Math.min(normalTextblockEnd(range), range.start + targetOffset);
 
-  return moveSelection(view, target, direction === "backward" || direction === "backward-end" ? -1 : 1);
+  return moveSelection(view, target, direction === "backward-end" ? -1 : 1);
 }
 
 function deleteCharacter(view: EditorView, count = 1) {
