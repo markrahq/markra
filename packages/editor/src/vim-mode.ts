@@ -2304,6 +2304,7 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return moveByCharacter(view, -1, count);
     case "l":
     case "ArrowRight":
+    case " ":
       return moveByCharacter(view, 1, count);
     case "j":
     case "ArrowDown":
@@ -2313,10 +2314,11 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return moveByTextblock(view, -1, count, state.preferredColumn);
     case "J":
       return joinTextblocks(view, count);
-    case "Backspace":
     case "Delete":
     case "Enter":
       return true;
+    case "Backspace":
+      return moveByCharacter(view, -1, count);
     case "w":
       return moveByWord(view, "forward", count);
     case "W":
@@ -2418,7 +2420,11 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
   }
 }
 
-function handleNormalModeModifiedKey(view: EditorView, event: KeyboardEvent) {
+function handleNormalModeModifiedKey(view: EditorView, event: KeyboardEvent, state: VimModeState) {
+  if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === "h") {
+    return moveByCharacter(view, -1, readCount(state));
+  }
+
   if (event.ctrlKey && !event.metaKey && !event.altKey && event.key === "r") {
     const handled = redo(view.state, view.dispatch);
     if (handled) view.focus();
@@ -2457,7 +2463,7 @@ export function createVimModePlugin(options: VimModePluginOptions = {}) {
         if (hasCommandModifier(event)) {
           if (state.mode !== "normal") return false;
 
-          const handled = handleNormalModeModifiedKey(view, event);
+          const handled = handleNormalModeModifiedKey(view, event, state);
           if (!handled) return false;
 
           event.preventDefault();

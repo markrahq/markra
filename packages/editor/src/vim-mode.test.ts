@@ -250,6 +250,30 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("moves by character with Space, Backspace, and Ctrl-h", () => {
+    const view = createView(["abcdef"]);
+
+    try {
+      const start = findTextPosition(view, "abcdef");
+      moveCursor(view, start + 3);
+      pressKey(view, "Escape");
+
+      expect(view.state.selection.from).toBe(start + 2);
+
+      expect(pressKey(view, " ")).toBe(true);
+      expect(view.state.selection.from).toBe(start + 3);
+
+      expect(pressKey(view, "Backspace")).toBe(true);
+      expect(view.state.selection.from).toBe(start + 2);
+
+      expect(pressKey(view, "h", { ctrlKey: true })).toBe(true);
+      expect(view.state.selection.from).toBe(start + 1);
+      expect(textContent(view)).toBe("abcdef");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("joins the current text block with the next one using J", () => {
     const view = createView(["alpha", "beta"]);
 
