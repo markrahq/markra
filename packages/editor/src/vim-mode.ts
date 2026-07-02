@@ -1299,6 +1299,51 @@ function deletePreviousCharacter(view: EditorView, count = 1) {
   return true;
 }
 
+function previousInsertWordDeleteStartOffset(text: string, offset: number) {
+  let start = Math.max(0, Math.min(text.length, offset));
+
+  while (start > 0 && isWhitespaceCharacter(text[start - 1] ?? "")) start -= 1;
+  if (start === 0) return 0;
+
+  const characterBeforeWord = text[start - 1] ?? "";
+  const isDeleteCharacter = isWordCharacter(characterBeforeWord)
+    ? isWordCharacter
+    : (character: string) => !isWordCharacter(character) && !isWhitespaceCharacter(character);
+
+  while (start > 0 && isDeleteCharacter(text[start - 1] ?? "")) start -= 1;
+  return start;
+}
+
+function deleteInsertWordBeforeCursor(view: EditorView) {
+  if (!(view.state.selection instanceof TextSelection)) return false;
+
+  if (!view.state.selection.empty) {
+    const transaction = view.state.tr.delete(view.state.selection.from, view.state.selection.to);
+    const position = Math.min(view.state.selection.from, transaction.doc.content.size);
+    dispatchTransaction(
+      view,
+      transaction.setSelection(TextSelection.near(transaction.doc.resolve(position), 1)),
+      clearedInputMeta()
+    );
+    return true;
+  }
+
+  const range = currentTextblockRange(view.state);
+  const end = view.state.selection.from;
+  if (!range || end <= range.start) return true;
+
+  const start = range.start + previousInsertWordDeleteStartOffset(range.text, end - range.start);
+  if (start === end) return true;
+
+  const transaction = view.state.tr.delete(start, end);
+  dispatchTransaction(
+    view,
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(start), 1)),
+    clearedInputMeta()
+  );
+  return true;
+}
+
 function toggledCharacterCase(character: string) {
   const lower = character.toLocaleLowerCase();
   const upper = character.toLocaleUpperCase();
@@ -2794,6 +2839,14 @@ function handleNormalModeModifiedKey(view: EditorView, event: KeyboardEvent, sta
   return false;
 }
 
+function handleInsertModeModifiedKey(view: EditorView, event: KeyboardEvent) {
+  if (event.ctrlKey && !event.metaKey && !event.altKey && event.key.toLocaleLowerCase() === "w") {
+    return deleteInsertWordBeforeCursor(view);
+  }
+
+  return false;
+}
+
 export function getVimMode(state: EditorState): VimMode {
   return vimModeKey.getState(state)?.mode ?? "insert";
 }
@@ -2818,7 +2871,13 @@ export function createVimModePlugin(options: VimModePluginOptions = {}) {
         if (event.isComposing) return false;
 
         const state = vimModeKey.getState(view.state) ?? initialVimModeState(options.initialMode ?? "insert");
-        if (state.mode === "insert") return false;
+        if (state.mode === "insert") {
+          const handled = handleInsertModeModifiedKey(view, event);
+          if (!handled) return false;
+
+          event.preventDefault();
+          return true;
+        }
 
         if (hasCommandModifier(event)) {
           if (state.mode !== "normal") return false;

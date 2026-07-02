@@ -157,6 +157,22 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("deletes the previous word with Ctrl-w in insert mode", () => {
+    const view = createView(["alpha beta"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "beta", "beta".length));
+
+      expect(getVimMode(view.state)).toBe("insert");
+      expect(pressKey(view, "w", { ctrlKey: true })).toBe(true);
+      expect(getVimMode(view.state)).toBe("insert");
+      expect(textContent(view)).toBe("alpha ");
+      expect(view.state.selection.from).toBe(findTextPosition(view, "alpha ", "alpha ".length));
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("treats Ctrl-[ as Escape", () => {
     const view = createView(["alpha"]);
 
