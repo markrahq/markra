@@ -546,6 +546,35 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("moves by Vim WORD motions across punctuation", () => {
+    const view = createView(["one.two three four"]);
+
+    try {
+      const start = findTextPosition(view, "one.two");
+      moveCursor(view, start);
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "W")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "three"));
+
+      expect(pressKey(view, "B")).toBe(true);
+      expect(view.state.selection.from).toBe(start);
+
+      expect(pressKey(view, "E")).toBe(true);
+      expect(view.state.selection.from).toBe(start + "one.two".length - 1);
+
+      moveCursor(view, start);
+      expect(pressKeys(view, ["2", "W"])).toEqual([true, true]);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "four"));
+
+      moveCursor(view, findTextPosition(view, "four"));
+      expect(pressKeys(view, ["g", "E"])).toEqual([true, true]);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "three", "three".length - 1));
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("deletes with word operators across text blocks", () => {
     const view = createView(["alpha", "beta gamma"]);
 
@@ -557,6 +586,40 @@ describe("vim mode plugin", () => {
       expect(textContent(view)).toBe("beta gamma");
     } finally {
       destroyView(view);
+    }
+  });
+
+  it("uses Vim WORD motions for operators", () => {
+    const deleteToNextWord = createView(["one.two three"]);
+    const deleteToWordEnd = createView(["one.two three"]);
+    const changeWord = createView(["one.two three"]);
+
+    try {
+      moveCursor(deleteToNextWord, findTextPosition(deleteToNextWord, "one.two"));
+      pressKey(deleteToNextWord, "Escape");
+
+      expect(pressKeys(deleteToNextWord, ["d", "W"])).toEqual([true, true]);
+      expect(textContent(deleteToNextWord)).toBe("three");
+
+      moveCursor(deleteToWordEnd, findTextPosition(deleteToWordEnd, "one.two"));
+      pressKey(deleteToWordEnd, "Escape");
+
+      expect(pressKeys(deleteToWordEnd, ["d", "E"])).toEqual([true, true]);
+      expect(textContent(deleteToWordEnd)).toBe(" three");
+
+      moveCursor(changeWord, findTextPosition(changeWord, "one.two"));
+      pressKey(changeWord, "Escape");
+
+      expect(pressKeys(changeWord, ["c", "W"])).toEqual([true, true]);
+      expect(getVimMode(changeWord.state)).toBe("insert");
+      expect(textContent(changeWord)).toBe(" three");
+
+      expect(typeText(changeWord, "token")).toBe(false);
+      expect(textContent(changeWord)).toBe("token three");
+    } finally {
+      destroyView(deleteToNextWord);
+      destroyView(deleteToWordEnd);
+      destroyView(changeWord);
     }
   });
 
