@@ -274,6 +274,28 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("moves to first nonblank text blocks with Enter, +, and -", () => {
+    const view = createView(["  alpha", "    beta", "  gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha", 1));
+      pressKey(view, "Escape");
+
+      expect(view.state.selection.from).toBe(findTextPosition(view, "alpha"));
+
+      expect(pressKey(view, "Enter")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "beta"));
+
+      expect(pressKey(view, "-")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "alpha"));
+
+      expect(pressKeys(view, ["2", "+"])).toEqual([true, true]);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "gamma"));
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("joins the current text block with the next one using J", () => {
     const view = createView(["alpha", "beta"]);
 
