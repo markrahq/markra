@@ -235,6 +235,35 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("finds characters with Vim f, t, F, T, and repeat keys", () => {
+    const view = createView(["ab-cd-ef"]);
+
+    try {
+      const start = findTextPosition(view, "ab-cd-ef");
+      moveCursor(view, start);
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["2", "f", "-"])).toEqual([true, true, true]);
+      expect(view.state.selection.from).toBe(start + 5);
+
+      expect(pressKey(view, ",")).toBe(true);
+      expect(view.state.selection.from).toBe(start + 2);
+
+      expect(pressKeys(view, ["t", "-"])).toEqual([true, true]);
+      expect(view.state.selection.from).toBe(start + 4);
+
+      moveCursor(view, start + 7);
+      expect(pressKeys(view, ["F", "-"])).toEqual([true, true]);
+      expect(view.state.selection.from).toBe(start + 5);
+
+      moveCursor(view, start + 7);
+      expect(pressKeys(view, ["T", "-"])).toEqual([true, true]);
+      expect(view.state.selection.from).toBe(start + 6);
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("replaces the character under the cursor with r and stays in normal mode", () => {
     const view = createView(["alpha"]);
 
@@ -306,6 +335,28 @@ describe("vim mode plugin", () => {
       expect(textContent(view)).toBe("beta ");
     } finally {
       destroyView(view);
+    }
+  });
+
+  it("uses character find motions for Vim operators", () => {
+    const deleteThrough = createView(["alpha,beta"]);
+    const deleteTill = createView(["alpha,beta"]);
+
+    try {
+      moveCursor(deleteThrough, findTextPosition(deleteThrough, "alpha"));
+      pressKey(deleteThrough, "Escape");
+
+      expect(pressKeys(deleteThrough, ["d", "f", ","])).toEqual([true, true, true]);
+      expect(textContent(deleteThrough)).toBe("beta");
+
+      moveCursor(deleteTill, findTextPosition(deleteTill, "alpha"));
+      pressKey(deleteTill, "Escape");
+
+      expect(pressKeys(deleteTill, ["d", "t", ","])).toEqual([true, true, true]);
+      expect(textContent(deleteTill)).toBe(",beta");
+    } finally {
+      destroyView(deleteThrough);
+      destroyView(deleteTill);
     }
   });
 

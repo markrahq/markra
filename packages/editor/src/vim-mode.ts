@@ -6,6 +6,8 @@ import { $prose } from "@milkdown/kit/utils";
 
 export type VimMode = "insert" | "normal";
 type VimOperator = "change" | "delete" | "yank";
+type VimFindDirection = "backward" | "forward";
+type VimFindKey = "F" | "T" | "f" | "t";
 
 export type VimModePluginOptions = {
   enabled?: boolean | (() => boolean);
@@ -14,6 +16,7 @@ export type VimModePluginOptions = {
 
 type VimModeState = {
   count: string;
+  lastFind: VimCharacterFind | null;
   mode: VimMode;
   operator: PendingOperator | null;
   pending: string | null;
@@ -34,6 +37,12 @@ type TextblockRange = {
 type PendingOperator = {
   count: number;
   type: VimOperator;
+};
+
+type VimCharacterFind = {
+  character: string;
+  direction: VimFindDirection;
+  till: boolean;
 };
 
 type VimRegister =
@@ -65,6 +74,7 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
 
   return {
     count: Object.hasOwn(meta, "count") ? meta.count ?? "" : state.count,
+    lastFind: Object.hasOwn(meta, "lastFind") ? meta.lastFind ?? null : state.lastFind,
     mode: meta.mode ?? state.mode,
     operator: Object.hasOwn(meta, "operator") ? meta.operator ?? null : state.operator,
     pending: Object.hasOwn(meta, "pending") ? meta.pending ?? null : state.pending,
@@ -102,6 +112,7 @@ function dispatchTransaction(view: EditorView, transaction: Transaction, meta: V
 function initialVimModeState(initialMode: VimMode = "insert"): VimModeState {
   return {
     count: "",
+    lastFind: null,
     mode: initialMode,
     operator: null,
     pending: null,
@@ -183,6 +194,78 @@ function moveByCharacter(view: EditorView, delta: -1 | 1, count = 1) {
   const limitEnd = normalTextblockEnd(range);
   const target = Math.max(range.start, Math.min(limitEnd, view.state.selection.from + delta * count));
   return moveSelection(view, target, delta);
+}
+
+function isFindKey(key: string): key is VimFindKey {
+  return key === "f" || key === "F" || key === "t" || key === "T";
+}
+
+function characterFindFromKey(key: VimFindKey, character: string): VimCharacterFind {
+  return {
+    character,
+    direction: key === "f" || key === "t" ? "forward" : "backward",
+    till: key === "t" || key === "T"
+  };
+}
+
+function reversedCharacterFind(find: VimCharacterFind): VimCharacterFind {
+  return {
+    ...find,
+    direction: find.direction === "forward" ? "backward" : "forward"
+  };
+}
+
+function findCharacterOffset(text: string, find: VimCharacterFind, offset: number, count: number) {
+  let remaining = Math.max(1, count);
+
+  if (find.direction === "forward") {
+    for (let index = offset + 1; index < text.length; index += 1) {
+      if (text[index] !== find.character) continue;
+      remaining -= 1;
+      if (remaining === 0) return index;
+    }
+
+    return null;
+  }
+
+  for (let index = offset - 1; index >= 0; index -= 1) {
+    if (text[index] !== find.character) continue;
+    remaining -= 1;
+    if (remaining === 0) return index;
+  }
+
+  return null;
+}
+
+function characterFindTarget(state: EditorState, find: VimCharacterFind, count: number) {
+  const range = currentTextblockRange(state);
+  if (!range) return null;
+
+  const offset = Math.max(0, Math.min(range.text.length - 1, state.selection.from - range.start));
+  const foundOffset = findCharacterOffset(range.text, find, offset, count);
+  if (foundOffset === null) return null;
+
+  const targetOffset = find.till
+    ? foundOffset + (find.direction === "forward" ? -1 : 1)
+    : foundOffset;
+  if (targetOffset < 0 || targetOffset >= range.text.length) return null;
+
+  return range.start + targetOffset;
+}
+
+function moveByCharacterFind(view: EditorView, find: VimCharacterFind, count: number, meta: VimModeMeta = {}) {
+  const target = characterFindTarget(view.state, find, count);
+  if (target === null) {
+    dispatchMeta(view, clearedInputMeta(meta));
+    return true;
+  }
+
+  return moveSelection(
+    view,
+    target,
+    find.direction === "backward" ? -1 : 1,
+    clearedInputMeta(meta)
+  );
 }
 
 function textblockRangesFromDoc(doc: ProseNode) {
@@ -633,7 +716,7 @@ function textRange(view: EditorView, from: number, to: number) {
   return view.state.doc.textBetween(Math.min(from, to), Math.max(from, to), "\n");
 }
 
-function deleteRange(view: EditorView, from: number, to: number) {
+function deleteRange(view: EditorView, from: number, to: number, meta: VimModeMeta = {}) {
   const start = Math.min(from, to);
   const end = Math.max(from, to);
   if (start === end) return false;
@@ -641,12 +724,12 @@ function deleteRange(view: EditorView, from: number, to: number) {
   dispatchTransaction(
     view,
     view.state.tr.delete(start, end),
-    clearedInputMeta({ register: { kind: "text", text: textRange(view, start, end) } })
+    clearedInputMeta({ ...meta, register: { kind: "text", text: textRange(view, start, end) } })
   );
   return true;
 }
 
-function changeRange(view: EditorView, from: number, to: number) {
+function changeRange(view: EditorView, from: number, to: number, meta: VimModeMeta = {}) {
   const start = Math.min(from, to);
   const end = Math.max(from, to);
   if (start === end) return false;
@@ -657,17 +740,17 @@ function changeRange(view: EditorView, from: number, to: number) {
   dispatchTransaction(
     view,
     transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
-    clearedInputMeta({ mode: "insert", register: { kind: "text", text } })
+    clearedInputMeta({ ...meta, mode: "insert", register: { kind: "text", text } })
   );
   return true;
 }
 
-function yankRange(view: EditorView, from: number, to: number) {
+function yankRange(view: EditorView, from: number, to: number, meta: VimModeMeta = {}) {
   const start = Math.min(from, to);
   const end = Math.max(from, to);
   if (start === end) return false;
 
-  dispatchMeta(view, clearedInputMeta({ register: { kind: "text", text: textRange(view, start, end) } }));
+  dispatchMeta(view, clearedInputMeta({ ...meta, register: { kind: "text", text: textRange(view, start, end) } }));
   return true;
 }
 
@@ -862,9 +945,87 @@ function operateRange(view: EditorView, operator: PendingOperator, key: string, 
   return operator.type === "delete" ? deleteRange(view, from, to) : yankRange(view, from, to);
 }
 
+function operateCharacterFind(
+  view: EditorView,
+  operator: PendingOperator,
+  find: VimCharacterFind,
+  count: number,
+  meta: VimModeMeta = {}
+) {
+  const target = characterFindTarget(view.state, find, count);
+  if (target === null) {
+    dispatchMeta(view, clearedInputMeta(meta));
+    return true;
+  }
+
+  const from = view.state.selection.from;
+  const to = find.direction === "forward" && target >= from
+    ? Math.min(view.state.doc.content.size, target + 1)
+    : target;
+
+  if (operator.type === "change") return changeRange(view, from, to, meta);
+  return operator.type === "delete" ? deleteRange(view, from, to, meta) : yankRange(view, from, to, meta);
+}
+
+function handlePendingOperatorFind(view: EditorView, key: string, state: VimModeState) {
+  const operator = state.operator;
+  const pending = state.pending;
+  if (!operator || !pending || !isFindKey(pending)) return false;
+
+  if (key.length !== 1) {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  const find = characterFindFromKey(pending, key);
+  return operateCharacterFind(
+    view,
+    operator,
+    find,
+    operator.count * readCount(state),
+    { lastFind: find }
+  );
+}
+
+function handleRepeatedOperatorFind(view: EditorView, key: string, state: VimModeState) {
+  const operator = state.operator;
+  if (!operator || !state.lastFind) {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  const find = key === "," ? reversedCharacterFind(state.lastFind) : state.lastFind;
+  return operateCharacterFind(view, operator, find, operator.count * readCount(state));
+}
+
+function handlePendingNormalFind(view: EditorView, key: string, state: VimModeState) {
+  const pending = state.pending;
+  if (!pending || !isFindKey(pending)) return false;
+
+  if (key.length !== 1) {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  const find = characterFindFromKey(pending, key);
+  return moveByCharacterFind(view, find, readCount(state), { lastFind: find });
+}
+
+function handleRepeatedNormalFind(view: EditorView, key: string, state: VimModeState) {
+  if (!state.lastFind) {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  const find = key === "," ? reversedCharacterFind(state.lastFind) : state.lastFind;
+  return moveByCharacterFind(view, find, readCount(state));
+}
+
 function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
   const operator = state.operator;
   if (!operator) return false;
+
+  if (isFindKey(state.pending ?? "")) return handlePendingOperatorFind(view, key, state);
 
   if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
 
@@ -884,6 +1045,13 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
     return true;
   }
 
+  if (isFindKey(key)) {
+    dispatchMeta(view, { pending: key });
+    return true;
+  }
+
+  if (key === ";" || key === ",") return handleRepeatedOperatorFind(view, key, state);
+
   if (operateRange(view, operator, key, state)) return true;
 
   dispatchMeta(view, clearedInputMeta());
@@ -894,6 +1062,7 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
   if (state.operator) return handleOperatorKey(view, key, state);
 
   if (state.pending === "r") return replaceCharacters(view, key, readCount(state));
+  if (isFindKey(state.pending ?? "")) return handlePendingNormalFind(view, key, state);
 
   if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
 
@@ -958,6 +1127,15 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     case "g":
       dispatchMeta(view, { pending: "g" });
       return true;
+    case "f":
+    case "F":
+    case "t":
+    case "T":
+      dispatchMeta(view, { pending: key });
+      return true;
+    case ";":
+    case ",":
+      return handleRepeatedNormalFind(view, key, state);
     case "d":
       return beginOperator(view, "delete", state);
     case "y":
