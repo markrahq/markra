@@ -984,6 +984,38 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("searches the current word with * and #", () => {
+    const forward = createView(["alpha alphabet alpha", "beta alpha"]);
+    const backward = createView(["alpha beta alpha"]);
+
+    try {
+      moveCursor(forward, findTextPosition(forward, "alpha alphabet alpha"));
+      pressKey(forward, "Escape");
+
+      expect(pressKey(forward, "*")).toBe(true);
+      expect(forward.state.selection.from).toBe(
+        findTextPosition(forward, "alpha alphabet alpha", "alpha alphabet ".length)
+      );
+
+      expect(pressKey(forward, "n")).toBe(true);
+      expect(forward.state.selection.from).toBe(findTextPosition(forward, "beta alpha", "beta ".length));
+
+      expect(pressKey(forward, "N")).toBe(true);
+      expect(forward.state.selection.from).toBe(
+        findTextPosition(forward, "alpha alphabet alpha", "alpha alphabet ".length)
+      );
+
+      moveCursor(backward, findTextPosition(backward, "alpha beta alpha", "alpha beta ".length + 1));
+      pressKey(backward, "Escape");
+
+      expect(pressKey(backward, "#")).toBe(true);
+      expect(backward.state.selection.from).toBe(findTextPosition(backward, "alpha beta alpha"));
+    } finally {
+      destroyView(forward);
+      destroyView(backward);
+    }
+  });
+
   it("uses Vim searches as operator motions", () => {
     const deleteForward = createView(["alpha beta gamma"]);
     const changeBackward = createView(["alpha beta gamma"]);

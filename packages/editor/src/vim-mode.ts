@@ -71,6 +71,7 @@ type VimCharacterFind = {
 type VimSearch = {
   direction: VimSearchDirection;
   query: string;
+  word?: boolean;
 };
 
 type VimRegister =
@@ -350,6 +351,7 @@ function searchDirectionFromPending(pending: VimSearchPending): VimSearchDirecti
 
 function reversedSearch(search: VimSearch): VimSearch {
   return {
+    ...search,
     query: search.query,
     direction: search.direction === "forward" ? "backward" : "forward"
   };
@@ -497,7 +499,14 @@ function currentTextblockRange(state: EditorState) {
   } satisfies TextblockRange;
 }
 
-function searchMatchPositions(state: EditorState, query: string) {
+function searchMatchesAtWordBoundary(text: string, offset: number, query: string) {
+  const before = text[offset - 1] ?? "";
+  const after = text[offset + query.length] ?? "";
+  return !isWordCharacter(before) && !isWordCharacter(after);
+}
+
+function searchMatchPositions(state: EditorState, search: Pick<VimSearch, "query" | "word">) {
+  const { query } = search;
   if (query.length === 0) return [];
 
   const positions: number[] = [];
@@ -505,7 +514,9 @@ function searchMatchPositions(state: EditorState, query: string) {
     let offset = range.text.indexOf(query);
 
     while (offset >= 0) {
-      positions.push(range.start + offset);
+      if (!search.word || searchMatchesAtWordBoundary(range.text, offset, query)) {
+        positions.push(range.start + offset);
+      }
       offset = range.text.indexOf(query, offset + Math.max(1, query.length));
     }
   }
@@ -529,7 +540,7 @@ function nextSearchPosition(positions: readonly number[], direction: VimSearchDi
 }
 
 function searchMotionTarget(state: EditorState, search: VimSearch, count: number) {
-  const positions = searchMatchPositions(state, search.query);
+  const positions = searchMatchPositions(state, search);
   if (positions.length === 0) return null;
 
   let position = state.selection.from;
@@ -555,6 +566,26 @@ function moveBySearch(view: EditorView, search: VimSearch, count = 1, remembered
     search.direction === "backward" ? -1 : 1,
     clearedInputMeta({ lastSearch: rememberedSearch })
   );
+}
+
+function currentWordSearchQuery(state: EditorState) {
+  const range = currentTextblockRange(state);
+  if (!range) return null;
+
+  const offset = Math.max(0, Math.min(range.text.length - 1, state.selection.from - range.start));
+  const wordRange = wordRangeAtOffset(range.text, offset);
+  return wordRange ? range.text.slice(wordRange.start, wordRange.end) : null;
+}
+
+function searchCurrentWord(view: EditorView, direction: VimSearchDirection, count = 1) {
+  const query = currentWordSearchQuery(view.state);
+  if (!query) {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  const search: VimSearch = { direction, query, word: true };
+  return moveBySearch(view, search, count, search);
 }
 
 function operateSearch(
@@ -2332,6 +2363,10 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return repeatSearch(view, state, count, false);
     case "N":
       return repeatSearch(view, state, count, true);
+    case "*":
+      return searchCurrentWord(view, "forward", count);
+    case "#":
+      return searchCurrentWord(view, "backward", count);
     case "v":
       return enterVisualMode(view, state);
     case "V":
