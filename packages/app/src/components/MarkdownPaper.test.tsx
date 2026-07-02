@@ -2785,6 +2785,18 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).not.toContain("<br");
   });
 
+  it("renders soft line breaks between formatted paragraph lines", async () => {
+    const source = ["**加黑**：内容 1", "**加黑**：内容 2", "**加黑**：内容 3"].join("\n");
+    const { container, editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const paragraph = container.querySelector(".ProseMirror p");
+
+    expect(paragraph?.querySelectorAll("br")).toHaveLength(2);
+    expect(paragraph?.querySelectorAll("strong")).toHaveLength(3);
+    expect(serializeMarkdown(view.state.doc)).toContain(source);
+    expect(serializeMarkdown(view.state.doc)).not.toContain("<br");
+  });
+
   it("keeps the native caret anchor when leaving display math source at the closing delimiter", async () => {
     const source = String.raw`$$ E = mc^2 $$`;
     const { container, view } = await renderEditor(source);
@@ -8967,7 +8979,10 @@ describe("MarkdownPaper editing", () => {
     });
 
     expect(container.querySelector(".ProseMirror blockquote.markra-callout")).not.toBeInTheDocument();
-    expect(container.querySelector(".ProseMirror blockquote")).toHaveTextContent("[!NOTE] Keep this in mind.");
+    const blockquote = container.querySelector(".ProseMirror blockquote");
+    expect(blockquote).toHaveTextContent("[!NOTE]");
+    expect(blockquote).toHaveTextContent("Keep this in mind.");
+    expect(blockquote?.querySelectorAll("br")).toHaveLength(1);
     expect(container.querySelector(".markra-callout-title")).not.toBeInTheDocument();
   });
 

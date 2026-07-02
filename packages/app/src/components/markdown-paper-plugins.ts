@@ -132,7 +132,7 @@ const markraHardbreakSchema = hardbreakSchema.extendSchema((previous) => (ctx) =
       }
     },
     toDOM: (node) => {
-      if (!(node.attrs.isInline && node.attrs.renderLineBreak)) {
+      if (!node.attrs.isInline) {
         return baseSchema.toDOM?.(node) ?? ["br", ctx.get(hardbreakAttr.key)(node)];
       }
 
