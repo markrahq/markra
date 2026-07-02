@@ -2311,6 +2311,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return beginOperator(view, "delete", state);
     case "y":
       return beginOperator(view, "yank", state);
+    case "Y":
+      return yankCurrentTextblock(view, count);
     case "c":
       return beginOperator(view, "change", state);
     case "D":

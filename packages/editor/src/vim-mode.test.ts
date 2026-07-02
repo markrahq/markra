@@ -1068,6 +1068,33 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("yanks whole text blocks with Y", () => {
+    const single = createView(["alpha", "beta"]);
+    const counted = createView(["alpha", "beta", "gamma"]);
+
+    try {
+      moveCursor(single, findTextPosition(single, "alpha"));
+      pressKey(single, "Escape");
+
+      expect(pressKey(single, "Y")).toBe(true);
+      expect(textContent(single)).toBe("alpha\nbeta");
+      expect(pressKey(single, "j")).toBe(true);
+      expect(pressKey(single, "p")).toBe(true);
+      expect(textContent(single)).toBe("alpha\nbeta\nalpha");
+
+      moveCursor(counted, findTextPosition(counted, "alpha"));
+      pressKey(counted, "Escape");
+
+      expect(pressKeys(counted, ["2", "Y"])).toEqual([true, true]);
+      expect(pressKey(counted, "G")).toBe(true);
+      expect(pressKey(counted, "p")).toBe(true);
+      expect(textContent(counted)).toBe("alpha\nbeta\ngamma\nalpha\nbeta");
+    } finally {
+      destroyView(single);
+      destroyView(counted);
+    }
+  });
+
   it("undoes and redoes Vim edits", () => {
     const view = createView(["alpha"]);
     const coordsSpy = vi.spyOn(view, "coordsAtPos").mockReturnValue({
