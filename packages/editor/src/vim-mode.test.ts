@@ -424,6 +424,72 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("uses Vim inner word text objects for delete and change operators", () => {
+    const deleteInner = createView(["alpha beta gamma"]);
+    const changeInner = createView(["alpha beta gamma"]);
+
+    try {
+      moveCursor(deleteInner, findTextPosition(deleteInner, "beta", 1));
+      pressKey(deleteInner, "Escape");
+
+      expect(pressKeys(deleteInner, ["d", "i", "w"])).toEqual([true, true, true]);
+      expect(textContent(deleteInner)).toBe("alpha  gamma");
+
+      moveCursor(changeInner, findTextPosition(changeInner, "beta", 1));
+      pressKey(changeInner, "Escape");
+
+      expect(pressKeys(changeInner, ["c", "i", "w"])).toEqual([true, true, true]);
+      expect(getVimMode(changeInner.state)).toBe("insert");
+      expect(textContent(changeInner)).toBe("alpha  gamma");
+
+      expect(typeText(changeInner, "delta")).toBe(false);
+      expect(textContent(changeInner)).toBe("alpha delta gamma");
+    } finally {
+      destroyView(deleteInner);
+      destroyView(changeInner);
+    }
+  });
+
+  it("includes adjacent spacing for Vim a word text objects", () => {
+    const view = createView(["alpha beta gamma"]);
+    const lastWord = createView(["alpha beta gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "beta", 1));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["d", "a", "w"])).toEqual([true, true, true]);
+      expect(textContent(view)).toBe("alpha gamma");
+
+      moveCursor(lastWord, findTextPosition(lastWord, "gamma", 1));
+      pressKey(lastWord, "Escape");
+
+      expect(pressKeys(lastWord, ["d", "a", "w"])).toEqual([true, true, true]);
+      expect(textContent(lastWord)).toBe("alpha beta");
+    } finally {
+      destroyView(view);
+      destroyView(lastWord);
+    }
+  });
+
+  it("yanks Vim word text objects", () => {
+    const view = createView(["alpha beta gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "beta", 1));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["y", "i", "w"])).toEqual([true, true, true]);
+      expect(textContent(view)).toBe("alpha beta gamma");
+
+      expect(pressKey(view, "$")).toBe(true);
+      expect(pressKey(view, "p")).toBe(true);
+      expect(textContent(view)).toBe("alpha beta gammabeta");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("changes the current text block with cc and enters insert mode", () => {
     const view = createView(["alpha", "beta"]);
 

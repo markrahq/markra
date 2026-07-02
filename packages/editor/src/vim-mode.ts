@@ -8,6 +8,8 @@ export type VimMode = "insert" | "normal";
 type VimOperator = "change" | "delete" | "yank";
 type VimFindDirection = "backward" | "forward";
 type VimFindKey = "F" | "T" | "f" | "t";
+type VimTextObjectPending = "text-object-around" | "text-object-inner";
+type VimTextObjectScope = "around" | "inner";
 
 export type VimModePluginOptions = {
   enabled?: boolean | (() => boolean);
@@ -200,6 +202,14 @@ function isFindKey(key: string): key is VimFindKey {
   return key === "f" || key === "F" || key === "t" || key === "T";
 }
 
+function isTextObjectPending(pending: string | null): pending is VimTextObjectPending {
+  return pending === "text-object-inner" || pending === "text-object-around";
+}
+
+function textObjectScopeFromPending(pending: VimTextObjectPending): VimTextObjectScope {
+  return pending === "text-object-inner" ? "inner" : "around";
+}
+
 function characterFindFromKey(key: VimFindKey, character: string): VimCharacterFind {
   return {
     character,
@@ -386,6 +396,65 @@ function moveToTextblockBoundary(view: EditorView, side: "start" | "end") {
 
 function isWordCharacter(character: string) {
   return /[\p{L}\p{N}_]/u.test(character);
+}
+
+function isWhitespaceCharacter(character: string) {
+  return /\s/u.test(character);
+}
+
+function wordRangeAtOffset(text: string, offset: number) {
+  if (text.length === 0) return null;
+
+  let cursor = Math.max(0, Math.min(text.length - 1, offset));
+  if (!isWordCharacter(text[cursor] ?? "") && cursor > 0 && isWordCharacter(text[cursor - 1] ?? "")) {
+    cursor -= 1;
+  }
+  if (!isWordCharacter(text[cursor] ?? "")) return null;
+
+  let start = cursor;
+  let end = cursor + 1;
+
+  while (start > 0 && isWordCharacter(text[start - 1] ?? "")) start -= 1;
+  while (end < text.length && isWordCharacter(text[end] ?? "")) end += 1;
+
+  return { end, start };
+}
+
+function nextWordRange(text: string, offset: number) {
+  let cursor = Math.max(0, Math.min(text.length, offset));
+
+  while (cursor < text.length && !isWordCharacter(text[cursor] ?? "")) cursor += 1;
+  return cursor < text.length ? wordRangeAtOffset(text, cursor) : null;
+}
+
+function wordTextObjectRange(state: EditorState, scope: VimTextObjectScope, count: number) {
+  const range = currentTextblockRange(state);
+  if (!range) return null;
+
+  const offset = Math.max(0, Math.min(range.text.length, state.selection.from - range.start));
+  const wordRange = wordRangeAtOffset(range.text, offset);
+  if (!wordRange) return null;
+
+  let end = wordRange.end;
+  for (let index = 1; index < Math.max(1, count); index += 1) {
+    const next = nextWordRange(range.text, end);
+    if (!next) break;
+    end = next.end;
+  }
+
+  let start = wordRange.start;
+  if (scope === "around") {
+    const contentEnd = end;
+    while (end < range.text.length && isWhitespaceCharacter(range.text[end] ?? "")) end += 1;
+    if (end === contentEnd) {
+      while (start > 0 && isWhitespaceCharacter(range.text[start - 1] ?? "")) start -= 1;
+    }
+  }
+
+  return {
+    end: range.start + end,
+    start: range.start + start
+  };
 }
 
 function nextWordStartOffset(text: string, offset: number) {
@@ -998,6 +1067,44 @@ function handleRepeatedOperatorFind(view: EditorView, key: string, state: VimMod
   return operateCharacterFind(view, operator, find, operator.count * readCount(state));
 }
 
+function operateTextObject(
+  view: EditorView,
+  operator: PendingOperator,
+  scope: VimTextObjectScope,
+  key: string,
+  count: number
+) {
+  if (key !== "w") {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  const range = wordTextObjectRange(view.state, scope, count);
+  if (!range) {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  if (operator.type === "change") return changeRange(view, range.start, range.end);
+  return operator.type === "delete"
+    ? deleteRange(view, range.start, range.end)
+    : yankRange(view, range.start, range.end);
+}
+
+function handlePendingOperatorTextObject(view: EditorView, key: string, state: VimModeState) {
+  const operator = state.operator;
+  const pending = state.pending;
+  if (!operator || !isTextObjectPending(pending)) return false;
+
+  return operateTextObject(
+    view,
+    operator,
+    textObjectScopeFromPending(pending),
+    key,
+    operator.count * readCount(state)
+  );
+}
+
 function handlePendingNormalFind(view: EditorView, key: string, state: VimModeState) {
   const pending = state.pending;
   if (!pending || !isFindKey(pending)) return false;
@@ -1026,6 +1133,7 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
   if (!operator) return false;
 
   if (isFindKey(state.pending ?? "")) return handlePendingOperatorFind(view, key, state);
+  if (isTextObjectPending(state.pending)) return handlePendingOperatorTextObject(view, key, state);
 
   if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
 
@@ -1051,6 +1159,11 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
   }
 
   if (key === ";" || key === ",") return handleRepeatedOperatorFind(view, key, state);
+
+  if (key === "i" || key === "a") {
+    dispatchMeta(view, { pending: key === "i" ? "text-object-inner" : "text-object-around" });
+    return true;
+  }
 
   if (operateRange(view, operator, key, state)) return true;
 
