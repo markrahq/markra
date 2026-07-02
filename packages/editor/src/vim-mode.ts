@@ -14,6 +14,7 @@ type VimTextObjectPending = "text-object-around" | "text-object-inner";
 type VimPairTextObjectKey = "(" | ")" | "[" | "]" | "{" | "}";
 type VimQuoteTextObjectKey = "'" | '"' | "`";
 type VimTextObjectScope = "around" | "inner";
+type VimVisualKind = "character" | "line";
 type WordClassifier = (character: string) => boolean;
 
 type VimPairDelimiters = {
@@ -37,6 +38,8 @@ type VimModeState = {
   register: VimRegister | null;
   searchQuery: string;
   visualAnchor: number | null;
+  visualCursor: number | null;
+  visualKind: VimVisualKind | null;
 };
 
 type VimModeMeta = Partial<VimModeState>;
@@ -97,7 +100,9 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
           pending: null,
           preferredColumn: null,
           searchQuery: "",
-          visualAnchor: null
+          visualAnchor: null,
+          visualCursor: null,
+          visualKind: null
         }
       : state;
   }
@@ -114,7 +119,9 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
       : state.preferredColumn,
     register: Object.hasOwn(meta, "register") ? meta.register ?? null : state.register,
     searchQuery: Object.hasOwn(meta, "searchQuery") ? meta.searchQuery ?? "" : state.searchQuery,
-    visualAnchor: Object.hasOwn(meta, "visualAnchor") ? meta.visualAnchor ?? null : state.visualAnchor
+    visualAnchor: Object.hasOwn(meta, "visualAnchor") ? meta.visualAnchor ?? null : state.visualAnchor,
+    visualCursor: Object.hasOwn(meta, "visualCursor") ? meta.visualCursor ?? null : state.visualCursor,
+    visualKind: Object.hasOwn(meta, "visualKind") ? meta.visualKind ?? null : state.visualKind
   };
 }
 
@@ -126,6 +133,8 @@ function clearedInputMeta(meta: VimModeMeta = {}): VimModeMeta {
     preferredColumn: null,
     searchQuery: "",
     visualAnchor: null,
+    visualCursor: null,
+    visualKind: null,
     ...meta
   };
 }
@@ -155,7 +164,9 @@ function initialVimModeState(initialMode: VimMode = "insert"): VimModeState {
     preferredColumn: null,
     register: null,
     searchQuery: "",
-    visualAnchor: null
+    visualAnchor: null,
+    visualCursor: null,
+    visualKind: null
   };
 }
 
@@ -164,7 +175,8 @@ function enterNormalMode(view: EditorView, options: VimModePluginOptions) {
   let transaction = view.state.tr;
 
   if (state.mode === "visual" && view.state.selection instanceof TextSelection && !view.state.selection.empty) {
-    const target = visualCursorPosition(view.state.selection, state.visualAnchor ?? view.state.selection.from);
+    const target = state.visualCursor
+      ?? visualCursorPosition(view.state.selection, state.visualAnchor ?? view.state.selection.from);
     transaction = transaction.setSelection(TextSelection.near(transaction.doc.resolve(target), 1));
   } else if (state.mode === "insert" && view.state.selection instanceof TextSelection && view.state.selection.empty) {
     const range = currentTextblockRange(view.state);
@@ -244,13 +256,33 @@ function visualTextSelection(state: EditorState, anchor: number, cursor: number)
   return TextSelection.create(state.doc, Math.min(state.doc.content.size, clampedAnchor + 1), clampedCursor);
 }
 
-function moveVisualSelection(view: EditorView, anchor: number, cursor: number) {
-  dispatchTransaction(
-    view,
-    view.state.tr.setSelection(visualTextSelection(view.state, anchor, cursor)),
-    clearedInputMeta({ mode: "visual", visualAnchor: anchor })
-  );
-  return true;
+function visualTextblockSelection(state: EditorState, anchor: number, cursor: number) {
+  const ranges = textblockRanges(state);
+  if (ranges.length === 0) return null;
+
+  const anchorIndex = nearestTextblockIndex(ranges, anchor);
+  const cursorIndex = nearestTextblockIndex(ranges, cursor);
+  const startIndex = Math.min(anchorIndex, cursorIndex);
+  const endIndex = Math.max(anchorIndex, cursorIndex);
+  const startRange = ranges[startIndex];
+  const endRange = ranges[endIndex];
+  const anchorRange = ranges[anchorIndex];
+  const cursorRange = ranges[cursorIndex];
+  if (!startRange || !endRange || !anchorRange || !cursorRange) return null;
+
+  return cursorIndex >= anchorIndex
+    ? TextSelection.create(state.doc, startRange.start, endRange.end)
+    : TextSelection.create(state.doc, anchorRange.end, cursorRange.start);
+}
+
+function visualSelectionForKind(state: EditorState, kind: VimVisualKind, anchor: number, cursor: number) {
+  return kind === "line"
+    ? visualTextblockSelection(state, anchor, cursor)
+    : visualTextSelection(state, anchor, cursor);
+}
+
+function moveVisualSelection(view: EditorView, anchor: number, cursor: number, kind: VimVisualKind) {
+  return moveVisualSelectionWithMeta(view, anchor, cursor, kind);
 }
 
 function moveByCharacter(view: EditorView, delta: -1 | 1, count = 1) {
@@ -1171,46 +1203,72 @@ function selectedTextblocks(state: EditorState, count: number) {
   };
 }
 
-function deleteCurrentTextblock(view: EditorView, count = 1) {
-  const selection = selectedTextblocks(view.state, count);
+function selectedTextblocksBetween(state: EditorState, anchor: number, cursor: number) {
+  const ranges = textblockRanges(state);
+  if (ranges.length === 0) return null;
+
+  const anchorIndex = nearestTextblockIndex(ranges, anchor);
+  const cursorIndex = nearestTextblockIndex(ranges, cursor);
+  const startIndex = Math.min(anchorIndex, cursorIndex);
+  const endIndex = Math.max(anchorIndex, cursorIndex);
+  return {
+    endIndex,
+    ranges,
+    selected: ranges.slice(startIndex, endIndex + 1),
+    startIndex
+  };
+}
+
+function textblockSelectionBounds(selection: ReturnType<typeof selectedTextblocks>) {
   if (!selection || selection.selected.length === 0) return false;
 
   const from = selection.selected[0]?.before;
   const to = selection.selected[selection.selected.length - 1]?.after;
   if (from === undefined || to === undefined) return false;
 
+  return { from, to };
+}
+
+function deleteTextblockSelection(view: EditorView, selection: ReturnType<typeof selectedTextblocks>) {
+  const bounds = textblockSelectionBounds(selection);
+  if (!bounds || !selection) return false;
+
   const texts = selection.selected.map((range) => range.text);
-  const replacement = from === 0 && to >= view.state.doc.content.size ? emptyParagraph(view.state) : null;
+  const replacement = bounds.from === 0 && bounds.to >= view.state.doc.content.size ? emptyParagraph(view.state) : null;
   const transaction = replacement
-    ? view.state.tr.replaceWith(from, to, replacement)
-    : view.state.tr.delete(from, to);
-  const selectionPosition = Math.min(from, transaction.doc.content.size);
+    ? view.state.tr.replaceWith(bounds.from, bounds.to, replacement)
+    : view.state.tr.delete(bounds.from, bounds.to);
+  const selectionPosition = Math.min(bounds.from, transaction.doc.content.size);
   dispatchTransaction(
     view,
     transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
-    clearedInputMeta({ register: { kind: "line", texts } })
+    clearedInputMeta({ mode: "normal", register: { kind: "line", texts } })
   );
   return true;
 }
 
-function changeCurrentTextblock(view: EditorView, count = 1) {
-  const selection = selectedTextblocks(view.state, count);
+function changeTextblockSelection(view: EditorView, selection: ReturnType<typeof selectedTextblocks>) {
   const replacement = emptyParagraph(view.state);
-  if (!selection || selection.selected.length === 0 || !replacement) return false;
-
-  const from = selection.selected[0]?.before;
-  const to = selection.selected[selection.selected.length - 1]?.after;
-  if (from === undefined || to === undefined) return false;
+  const bounds = textblockSelectionBounds(selection);
+  if (!selection || !bounds || !replacement) return false;
 
   const texts = selection.selected.map((range) => range.text);
-  const transaction = view.state.tr.replaceWith(from, to, replacement);
-  const selectionPosition = Math.min(from + 1, transaction.doc.content.size);
+  const transaction = view.state.tr.replaceWith(bounds.from, bounds.to, replacement);
+  const selectionPosition = Math.min(bounds.from + 1, transaction.doc.content.size);
   dispatchTransaction(
     view,
     transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
     clearedInputMeta({ mode: "insert", register: { kind: "line", texts } })
   );
   return true;
+}
+
+function deleteCurrentTextblock(view: EditorView, count = 1) {
+  return deleteTextblockSelection(view, selectedTextblocks(view.state, count));
+}
+
+function changeCurrentTextblock(view: EditorView, count = 1) {
+  return changeTextblockSelection(view, selectedTextblocks(view.state, count));
 }
 
 function yankCurrentTextblock(view: EditorView, count = 1) {
@@ -1720,10 +1778,30 @@ function enterVisualMode(view: EditorView, state: VimModeState) {
   if (!range) return false;
 
   const cursor = Math.min(normalTextblockEnd(range), view.state.selection.from);
+  return moveVisualSelectionWithMeta(view, cursor, cursor, "character", { register: state.register });
+}
+
+function enterVisualLineMode(view: EditorView, state: VimModeState) {
+  const range = currentTextblockRange(view.state);
+  if (!range) return false;
+
+  return moveVisualSelectionWithMeta(view, range.start, range.start, "line", { register: state.register });
+}
+
+function moveVisualSelectionWithMeta(
+  view: EditorView,
+  anchor: number,
+  cursor: number,
+  kind: VimVisualKind,
+  meta: VimModeMeta = {}
+) {
+  const selection = visualSelectionForKind(view.state, kind, anchor, cursor);
+  if (!selection) return false;
+
   dispatchTransaction(
     view,
-    view.state.tr.setSelection(visualTextSelection(view.state, cursor, cursor)),
-    clearedInputMeta({ mode: "visual", register: state.register, visualAnchor: cursor })
+    view.state.tr.setSelection(selection),
+    clearedInputMeta({ ...meta, mode: "visual", visualAnchor: anchor, visualCursor: cursor, visualKind: kind })
   );
   return true;
 }
@@ -1732,7 +1810,7 @@ function collapseVisualSelection(view: EditorView, state: VimModeState) {
   const selection = view.state.selection;
   if (!(selection instanceof TextSelection)) return false;
 
-  const target = visualCursorPosition(selection, state.visualAnchor ?? selection.from);
+  const target = state.visualCursor ?? visualCursorPosition(selection, state.visualAnchor ?? selection.from);
   dispatchTransaction(
     view,
     view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(target), 1)),
@@ -1741,16 +1819,46 @@ function collapseVisualSelection(view: EditorView, state: VimModeState) {
   return true;
 }
 
-function visualSelectionRange(view: EditorView) {
+function visualSelectionRange(view: EditorView, state: VimModeState) {
+  if (state.visualKind === "line") {
+    const selection = visualLineTextblocks(view.state, state);
+    const bounds = textblockSelectionBounds(selection);
+    return bounds ? { ...bounds, kind: "line" as const, selection } : null;
+  }
+
   const selection = view.state.selection;
   if (!(selection instanceof TextSelection) || selection.empty) return null;
 
-  return { from: selection.from, to: selection.to };
+  return { from: selection.from, kind: "character" as const, to: selection.to };
+}
+
+function visualLineTextblocks(state: EditorState, vimState: VimModeState) {
+  const selection = state.selection;
+  if (!(selection instanceof TextSelection)) return null;
+
+  const anchor = vimState.visualAnchor ?? selection.from;
+  const cursor = vimState.visualCursor ?? visualCursorPosition(selection, anchor);
+  return selectedTextblocksBetween(state, anchor, cursor);
 }
 
 function yankVisualSelection(view: EditorView, state: VimModeState) {
-  const range = visualSelectionRange(view);
+  const range = visualSelectionRange(view, state);
   if (!range) return collapseVisualSelection(view, state);
+
+  if (range.kind === "line") {
+    const selection = range.selection;
+    if (!selection || selection.selected.length === 0) return false;
+
+    dispatchTransaction(
+      view,
+      view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(range.from), 1)),
+      clearedInputMeta({
+        mode: "normal",
+        register: { kind: "line", texts: selection.selected.map((textblock) => textblock.text) }
+      })
+    );
+    return true;
+  }
 
   const text = textRange(view, range.from, range.to);
   dispatchTransaction(
@@ -1761,16 +1869,20 @@ function yankVisualSelection(view: EditorView, state: VimModeState) {
   return true;
 }
 
-function deleteVisualSelection(view: EditorView) {
-  const range = visualSelectionRange(view);
+function deleteVisualSelection(view: EditorView, state: VimModeState) {
+  const range = visualSelectionRange(view, state);
   if (!range) return false;
+
+  if (range.kind === "line") return deleteTextblockSelection(view, range.selection);
 
   return deleteRange(view, range.from, range.to, { mode: "normal" });
 }
 
-function changeVisualSelection(view: EditorView) {
-  const range = visualSelectionRange(view);
+function changeVisualSelection(view: EditorView, state: VimModeState) {
+  const range = visualSelectionRange(view, state);
   if (!range) return false;
+
+  if (range.kind === "line") return changeTextblockSelection(view, range.selection);
 
   return changeRange(view, range.from, range.to);
 }
@@ -1784,17 +1896,30 @@ function visualMotionTarget(state: EditorState, key: string, count: number, pref
   return resolveMotionTarget(state, key, count, prefix);
 }
 
+function visualLineMotionTarget(state: EditorState, cursor: number, delta: -1 | 1, count: number) {
+  const ranges = textblockRanges(state);
+  if (ranges.length === 0) return null;
+
+  const currentIndex = nearestTextblockIndex(ranges, cursor);
+  const targetIndex = Math.max(0, Math.min(ranges.length - 1, currentIndex + delta * count));
+  return ranges[targetIndex]?.start ?? null;
+}
+
 function extendVisualSelection(view: EditorView, key: string, state: VimModeState, prefix: string | null = null) {
   const selection = view.state.selection;
   if (!(selection instanceof TextSelection)) return false;
 
   const anchor = state.visualAnchor ?? selection.from;
-  const cursor = visualCursorPosition(selection, anchor);
-  const cursorState = stateWithCursorAt(view.state, cursor);
-  const target = visualMotionTarget(cursorState, key, readCount(state), prefix);
+  const cursor = state.visualCursor ?? visualCursorPosition(selection, anchor);
+  const kind = state.visualKind ?? "character";
+  const count = readCount(state);
+  const lineDelta = key === "j" || key === "ArrowDown" ? 1 : key === "k" || key === "ArrowUp" ? -1 : null;
+  const target = kind === "line" && lineDelta !== null
+    ? visualLineMotionTarget(view.state, cursor, lineDelta, count)
+    : visualMotionTarget(stateWithCursorAt(view.state, cursor), key, count, prefix);
   if (target === null) return true;
 
-  return moveVisualSelection(view, anchor, target);
+  return moveVisualSelection(view, anchor, target, kind);
 }
 
 function handleVisualModeKey(view: EditorView, key: string, state: VimModeState) {
@@ -1804,24 +1929,41 @@ function handleVisualModeKey(view: EditorView, key: string, state: VimModeState)
     if (key === "e") return extendVisualSelection(view, key, state, "g");
     if (key === "E") return extendVisualSelection(view, key, state, "g");
 
-    dispatchMeta(view, clearedInputMeta({ mode: "visual", visualAnchor: state.visualAnchor }));
+    dispatchMeta(
+      view,
+      clearedInputMeta({
+        mode: "visual",
+        visualAnchor: state.visualAnchor,
+        visualCursor: state.visualCursor,
+        visualKind: state.visualKind
+      })
+    );
     return true;
   }
 
   switch (key) {
     case "v":
       return collapseVisualSelection(view, state);
+    case "V": {
+      const selection = view.state.selection;
+      if (!(selection instanceof TextSelection)) return false;
+      const anchor = state.visualAnchor ?? selection.from;
+      const cursor = state.visualCursor ?? visualCursorPosition(selection, anchor);
+      return state.visualKind === "line"
+        ? collapseVisualSelection(view, state)
+        : moveVisualSelectionWithMeta(view, anchor, cursor, "line", { register: state.register });
+    }
     case "y":
       return yankVisualSelection(view, state);
     case "d":
     case "x":
-      return deleteVisualSelection(view);
+      return deleteVisualSelection(view, state);
     case "Backspace":
     case "Delete":
     case "Enter":
       return true;
     case "c":
-      return changeVisualSelection(view);
+      return changeVisualSelection(view, state);
     case "g":
       dispatchMeta(view, { pending: "g" });
       return true;
@@ -1829,6 +1971,10 @@ function handleVisualModeKey(view: EditorView, key: string, state: VimModeState)
     case "ArrowLeft":
     case "l":
     case "ArrowRight":
+    case "j":
+    case "ArrowDown":
+    case "k":
+    case "ArrowUp":
     case "w":
     case "W":
     case "e":
@@ -2002,6 +2148,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return repeatSearch(view, state, count, true);
     case "v":
       return enterVisualMode(view, state);
+    case "V":
+      return enterVisualLineMode(view, state);
     case "d":
       return beginOperator(view, "delete", state);
     case "y":
