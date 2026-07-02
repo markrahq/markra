@@ -10,6 +10,7 @@ type VimFindDirection = "backward" | "forward";
 type VimFindKey = "F" | "T" | "f" | "t";
 type VimTextObjectPending = "text-object-around" | "text-object-inner";
 type VimTextObjectScope = "around" | "inner";
+type WordClassifier = (character: string) => boolean;
 
 export type VimModePluginOptions = {
   enabled?: boolean | (() => boolean);
@@ -402,6 +403,69 @@ function isWhitespaceCharacter(character: string) {
   return /\s/u.test(character);
 }
 
+function isBigWordCharacter(character: string) {
+  return character.length > 0 && !isWhitespaceCharacter(character);
+}
+
+function nextClassifiedWordStartOffset(text: string, offset: number, isCharacter: WordClassifier) {
+  let next = Math.max(0, Math.min(text.length, offset));
+
+  while (next < text.length && isCharacter(text[next] ?? "")) next += 1;
+  while (next < text.length && !isCharacter(text[next] ?? "")) next += 1;
+
+  return next;
+}
+
+function nextClassifiedWordEndOffset(text: string, offset: number, isCharacter: WordClassifier) {
+  let next = Math.max(0, Math.min(text.length - 1, offset));
+
+  if (isCharacter(text[next] ?? "")) {
+    while (next < text.length - 1 && isCharacter(text[next + 1] ?? "")) next += 1;
+    return next;
+  }
+
+  while (next < text.length && !isCharacter(text[next] ?? "")) next += 1;
+  while (next < text.length - 1 && isCharacter(text[next + 1] ?? "")) next += 1;
+
+  return Math.max(0, Math.min(text.length - 1, next));
+}
+
+function previousClassifiedWordStartOffset(text: string, offset: number, isCharacter: WordClassifier) {
+  let previous = Math.max(0, Math.min(text.length, offset) - 1);
+
+  while (previous > 0 && !isCharacter(text[previous] ?? "")) previous -= 1;
+  while (previous > 0 && isCharacter(text[previous - 1] ?? "")) previous -= 1;
+
+  return previous;
+}
+
+function previousClassifiedWordEndOffset(text: string, offset: number, isCharacter: WordClassifier) {
+  let previous = Math.max(0, Math.min(text.length, offset) - 1);
+
+  while (previous > 0 && !isCharacter(text[previous] ?? "")) previous -= 1;
+  if (previous > 0 && isCharacter(text[previous] ?? "")) return previous;
+
+  return 0;
+}
+
+function firstClassifiedWordStartOffset(text: string, isCharacter: WordClassifier) {
+  for (let offset = 0; offset < text.length; offset += 1) {
+    if (isCharacter(text[offset] ?? "")) return offset;
+  }
+
+  return null;
+}
+
+function lastClassifiedWordStartOffset(text: string, isCharacter: WordClassifier) {
+  let offset = text.length - 1;
+
+  while (offset > 0 && !isCharacter(text[offset] ?? "")) offset -= 1;
+  if (!isCharacter(text[offset] ?? "")) return null;
+
+  while (offset > 0 && isCharacter(text[offset - 1] ?? "")) offset -= 1;
+  return offset;
+}
+
 function wordRangeAtOffset(text: string, offset: number) {
   if (text.length === 0) return null;
 
@@ -458,59 +522,51 @@ function wordTextObjectRange(state: EditorState, scope: VimTextObjectScope, coun
 }
 
 function nextWordStartOffset(text: string, offset: number) {
-  let next = Math.max(0, Math.min(text.length, offset));
+  return nextClassifiedWordStartOffset(text, offset, isWordCharacter);
+}
 
-  while (next < text.length && isWordCharacter(text[next] ?? "")) next += 1;
-  while (next < text.length && !isWordCharacter(text[next] ?? "")) next += 1;
-
-  return next;
+function nextBigWordStartOffset(text: string, offset: number) {
+  return nextClassifiedWordStartOffset(text, offset, isBigWordCharacter);
 }
 
 function nextWordEndOffset(text: string, offset: number) {
-  let next = Math.max(0, Math.min(text.length - 1, offset));
+  return nextClassifiedWordEndOffset(text, offset, isWordCharacter);
+}
 
-  if (isWordCharacter(text[next] ?? "")) {
-    while (next < text.length - 1 && isWordCharacter(text[next + 1] ?? "")) next += 1;
-    return next;
-  }
-
-  while (next < text.length && !isWordCharacter(text[next] ?? "")) next += 1;
-  while (next < text.length - 1 && isWordCharacter(text[next + 1] ?? "")) next += 1;
-
-  return Math.max(0, Math.min(text.length - 1, next));
+function nextBigWordEndOffset(text: string, offset: number) {
+  return nextClassifiedWordEndOffset(text, offset, isBigWordCharacter);
 }
 
 function previousWordStartOffset(text: string, offset: number) {
-  let previous = Math.max(0, Math.min(text.length, offset) - 1);
+  return previousClassifiedWordStartOffset(text, offset, isWordCharacter);
+}
 
-  while (previous > 0 && !isWordCharacter(text[previous] ?? "")) previous -= 1;
-  while (previous > 0 && isWordCharacter(text[previous - 1] ?? "")) previous -= 1;
-
-  return previous;
+function previousBigWordStartOffset(text: string, offset: number) {
+  return previousClassifiedWordStartOffset(text, offset, isBigWordCharacter);
 }
 
 function previousWordEndOffset(text: string, offset: number) {
-  let previous = Math.max(0, Math.min(text.length, offset) - 1);
+  return previousClassifiedWordEndOffset(text, offset, isWordCharacter);
+}
 
-  while (previous > 0 && !isWordCharacter(text[previous] ?? "")) previous -= 1;
-  if (previous > 0 && isWordCharacter(text[previous] ?? "")) return previous;
-
-  return 0;
+function previousBigWordEndOffset(text: string, offset: number) {
+  return previousClassifiedWordEndOffset(text, offset, isBigWordCharacter);
 }
 
 function firstWordStartOffset(text: string) {
-  const match = /[\p{L}\p{N}_]/u.exec(text);
-  return match?.index ?? null;
+  return firstClassifiedWordStartOffset(text, isWordCharacter);
+}
+
+function firstBigWordStartOffset(text: string) {
+  return firstClassifiedWordStartOffset(text, isBigWordCharacter);
 }
 
 function lastWordStartOffset(text: string) {
-  let offset = text.length - 1;
+  return lastClassifiedWordStartOffset(text, isWordCharacter);
+}
 
-  while (offset > 0 && !isWordCharacter(text[offset] ?? "")) offset -= 1;
-  if (!isWordCharacter(text[offset] ?? "")) return null;
-
-  while (offset > 0 && isWordCharacter(text[offset - 1] ?? "")) offset -= 1;
-  return offset;
+function lastBigWordStartOffset(text: string) {
+  return lastClassifiedWordStartOffset(text, isBigWordCharacter);
 }
 
 function wordMotionOffset(text: string, offset: number, direction: "forward" | "end" | "backward" | "backward-end", count: number) {
@@ -521,6 +577,18 @@ function wordMotionOffset(text: string, offset: number, direction: "forward" | "
     else if (direction === "end") next = nextWordEndOffset(text, next);
     else if (direction === "backward") next = previousWordStartOffset(text, next);
     else next = previousWordEndOffset(text, next);
+  }
+
+  return next;
+}
+
+function bigWordMotionOffset(text: string, offset: number, direction: "end" | "backward-end", count: number) {
+  let next = offset;
+
+  for (let index = 0; index < count; index += 1) {
+    next = direction === "end"
+      ? nextBigWordEndOffset(text, next)
+      : previousBigWordEndOffset(text, next);
   }
 
   return next;
@@ -538,12 +606,36 @@ function nextTextblockWordStart(ranges: readonly TextblockRange[], currentIndex:
   return null;
 }
 
+function nextTextblockBigWordStart(ranges: readonly TextblockRange[], currentIndex: number) {
+  for (let index = currentIndex + 1; index < ranges.length; index += 1) {
+    const range = ranges[index];
+    if (!range) continue;
+
+    const offset = firstBigWordStartOffset(range.text);
+    if (offset !== null) return { index, position: range.start + offset };
+  }
+
+  return null;
+}
+
 function previousTextblockWordStart(ranges: readonly TextblockRange[], currentIndex: number) {
   for (let index = currentIndex - 1; index >= 0; index -= 1) {
     const range = ranges[index];
     if (!range) continue;
 
     const offset = lastWordStartOffset(range.text);
+    if (offset !== null) return { index, position: range.start + offset };
+  }
+
+  return null;
+}
+
+function previousTextblockBigWordStart(ranges: readonly TextblockRange[], currentIndex: number) {
+  for (let index = currentIndex - 1; index >= 0; index -= 1) {
+    const range = ranges[index];
+    if (!range) continue;
+
+    const offset = lastBigWordStartOffset(range.text);
     if (offset !== null) return { index, position: range.start + offset };
   }
 
@@ -599,6 +691,55 @@ function wordStartMotionPosition(
   return position;
 }
 
+function bigWordStartMotionPosition(
+  state: EditorState,
+  direction: "forward" | "backward",
+  count: number,
+  finalForwardTarget: "caret" | "boundary" = "caret"
+) {
+  const ranges = textblockRanges(state);
+  if (ranges.length === 0) return null;
+
+  let currentIndex = currentTextblockIndex(state, ranges);
+  let position = state.selection.from;
+
+  for (let step = 0; step < count; step += 1) {
+    const range = ranges[currentIndex];
+    if (!range) return null;
+
+    const offset = Math.max(0, Math.min(range.text.length, position - range.start));
+
+    if (direction === "forward") {
+      const targetOffset = nextBigWordStartOffset(range.text, offset);
+      if (targetOffset < range.text.length) {
+        position = range.start + targetOffset;
+        continue;
+      }
+
+      const next = nextTextblockBigWordStart(ranges, currentIndex);
+      if (!next) return finalForwardTarget === "boundary" ? range.end : normalTextblockEnd(range);
+
+      currentIndex = next.index;
+      position = next.position;
+      continue;
+    }
+
+    const targetOffset = previousBigWordStartOffset(range.text, offset);
+    if (targetOffset < offset) {
+      position = range.start + targetOffset;
+      continue;
+    }
+
+    const previous = previousTextblockBigWordStart(ranges, currentIndex);
+    if (!previous) return range.start;
+
+    currentIndex = previous.index;
+    position = previous.position;
+  }
+
+  return position;
+}
+
 function moveByWord(view: EditorView, direction: "forward" | "end" | "backward" | "backward-end", count = 1) {
   if (direction === "forward" || direction === "backward") {
     const target = wordStartMotionPosition(view.state, direction, count);
@@ -612,6 +753,24 @@ function moveByWord(view: EditorView, direction: "forward" | "end" | "backward" 
 
   const offset = Math.max(0, Math.min(range.text.length, view.state.selection.from - range.start));
   const targetOffset = wordMotionOffset(range.text, offset, direction, count);
+  const target = Math.min(normalTextblockEnd(range), range.start + targetOffset);
+
+  return moveSelection(view, target, direction === "backward-end" ? -1 : 1);
+}
+
+function moveByBigWord(view: EditorView, direction: "forward" | "end" | "backward" | "backward-end", count = 1) {
+  if (direction === "forward" || direction === "backward") {
+    const target = bigWordStartMotionPosition(view.state, direction, count);
+    if (target === null) return false;
+
+    return moveSelection(view, target, direction === "backward" ? -1 : 1);
+  }
+
+  const range = currentTextblockRange(view.state);
+  if (!range) return false;
+
+  const offset = Math.max(0, Math.min(range.text.length, view.state.selection.from - range.start));
+  const targetOffset = bigWordMotionOffset(range.text, offset, direction, count);
   const target = Math.min(normalTextblockEnd(range), range.start + targetOffset);
 
   return moveSelection(view, target, direction === "backward-end" ? -1 : 1);
@@ -965,6 +1124,9 @@ function resolveMotionTarget(view: EditorView, key: string, count: number, prefi
   if (prefix === "g" && key === "e") {
     return range.start + wordMotionOffset(range.text, offset, "backward-end", count);
   }
+  if (prefix === "g" && key === "E") {
+    return range.start + bigWordMotionOffset(range.text, offset, "backward-end", count);
+  }
 
   switch (key) {
     case "h":
@@ -975,10 +1137,16 @@ function resolveMotionTarget(view: EditorView, key: string, count: number, prefi
       return Math.min(normalTextblockEnd(range), current + count);
     case "w":
       return wordStartMotionPosition(view.state, "forward", count, "boundary");
+    case "W":
+      return bigWordStartMotionPosition(view.state, "forward", count, "boundary");
     case "e":
       return Math.min(normalTextblockEnd(range), range.start + wordMotionOffset(range.text, offset, "end", count));
+    case "E":
+      return Math.min(normalTextblockEnd(range), range.start + bigWordMotionOffset(range.text, offset, "end", count));
     case "b":
       return wordStartMotionPosition(view.state, "backward", count);
+    case "B":
+      return bigWordStartMotionPosition(view.state, "backward", count);
     case "0":
       return range.start;
     case "^":
@@ -991,23 +1159,28 @@ function resolveMotionTarget(view: EditorView, key: string, count: number, prefi
 }
 
 function shouldChangeCurrentWord(view: EditorView, operator: PendingOperator, key: string, count: number, prefix: string | null) {
-  if (operator.type !== "change" || key !== "w" || prefix !== null || count !== 1) return false;
+  if (operator.type !== "change" || prefix !== null || count !== 1) return false;
+  if (key !== "w" && key !== "W") return false;
 
   const range = currentTextblockRange(view.state);
   if (!range) return false;
 
   const offset = view.state.selection.from - range.start;
-  return isWordCharacter(range.text[offset] ?? "");
+  const character = range.text[offset] ?? "";
+  return key === "w" ? isWordCharacter(character) : isBigWordCharacter(character);
 }
 
 function operateRange(view: EditorView, operator: PendingOperator, key: string, state: VimModeState, prefix: string | null = null) {
   const count = operator.count * readCount(state);
   const changeCurrentWord = shouldChangeCurrentWord(view, operator, key, count, prefix);
-  const target = resolveMotionTarget(view, changeCurrentWord ? "e" : key, count, prefix);
+  let motionKey = key;
+  if (changeCurrentWord) motionKey = key === "W" ? "E" : "e";
+
+  const target = resolveMotionTarget(view, motionKey, count, prefix);
   if (target === null) return false;
 
   const from = view.state.selection.from;
-  const to = (key === "e" || changeCurrentWord) && target >= from
+  const to = (key === "e" || key === "E" || changeCurrentWord) && target >= from
     ? Math.min(view.state.doc.content.size, target + 1)
     : target;
   if (operator.type === "change") return changeRange(view, from, to);
@@ -1143,6 +1316,7 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
 
   if (state.pending === "g") {
     if (key === "e") return operateRange(view, operator, key, state, "g");
+    if (key === "E") return operateRange(view, operator, key, state, "g");
 
     dispatchMeta(view, clearedInputMeta());
     return true;
@@ -1184,6 +1358,7 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
   if (state.pending === "g") {
     if (key === "g") return lineMotion(view, "first", count);
     if (key === "e") return moveByWord(view, "backward-end", count);
+    if (key === "E") return moveByBigWord(view, "backward-end", count);
 
     dispatchMeta(view, clearedInputMeta());
     return true;
@@ -1219,10 +1394,16 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       return true;
     case "w":
       return moveByWord(view, "forward", count);
+    case "W":
+      return moveByBigWord(view, "forward", count);
     case "e":
       return moveByWord(view, "end", count);
+    case "E":
+      return moveByBigWord(view, "end", count);
     case "b":
       return moveByWord(view, "backward", count);
+    case "B":
+      return moveByBigWord(view, "backward", count);
     case "0":
       return moveToTextblockBoundary(view, "start");
     case "^":
