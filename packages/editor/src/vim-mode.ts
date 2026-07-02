@@ -214,10 +214,19 @@ function enterNormalMode(view: EditorView, options: VimModePluginOptions) {
     const range = currentTextblockRange(view.state);
     if (range) {
       const insertRepeatText = repeatedDirectInsertText(state.pendingInsertChangeKeys, state.pendingInsertText);
-      const selectionPosition = view.state.selection.from + insertRepeatText.length;
+      let selectionPosition = view.state.selection.from + insertRepeatText.length;
       if (insertRepeatText.length > 0) {
         transaction = transaction.insertText(insertRepeatText, view.state.selection.from, view.state.selection.from);
       }
+
+      const openLineRepeat = repeatedOpenLineInsertTransaction(
+        view,
+        transaction,
+        state.pendingInsertChangeKeys,
+        state.pendingInsertText
+      );
+      transaction = openLineRepeat.transaction;
+      selectionPosition = openLineRepeat.selectionPosition ?? selectionPosition;
 
       const target = selectionPosition > range.start
         ? Math.max(range.start, selectionPosition - 1)
@@ -1637,21 +1646,55 @@ function leadingCountEndIndex(keys: readonly string[]) {
   return index;
 }
 
-function directInsertRepeatCount(keys: readonly string[] | null) {
+function insertCommandRepeatCount(keys: readonly string[] | null, commands: readonly string[]) {
   if (!keys) return 1;
 
   const countEndIndex = leadingCountEndIndex(keys);
   const command = keys[countEndIndex];
-  if (command !== "A" && command !== "I" && command !== "a" && command !== "i") return 1;
+  if (!command || !commands.includes(command)) return 1;
 
   const count = Number.parseInt(keys.slice(0, countEndIndex).join(""), 10);
   return Number.isFinite(count) && count > 1 ? count : 1;
+}
+
+function directInsertRepeatCount(keys: readonly string[] | null) {
+  return insertCommandRepeatCount(keys, ["A", "I", "a", "i"]);
 }
 
 function repeatedDirectInsertText(keys: readonly string[] | null, text: string, offset = 1) {
   const repeatCount = directInsertRepeatCount(keys);
   const repeats = Math.max(0, repeatCount - offset);
   return repeats > 0 ? text.repeat(repeats) : "";
+}
+
+function openLineInsertRepeatCount(keys: readonly string[] | null) {
+  return insertCommandRepeatCount(keys, ["O", "o"]);
+}
+
+// Counted o/O repeats need new textblocks for each repetition, unlike i/a/I/A.
+function repeatedOpenLineInsertTransaction(
+  view: EditorView,
+  transaction: Transaction,
+  keys: readonly string[] | null,
+  text: string,
+  offset = 1
+) {
+  let nextTransaction = transaction;
+  let selectionPosition: number | null = null;
+  const range = currentTextblockRange(view.state);
+  const repeats = Math.max(0, openLineInsertRepeatCount(keys) - offset);
+  if (!range || repeats === 0) return { selectionPosition, transaction: nextTransaction };
+
+  for (let repeat = 0; repeat < repeats; repeat += 1) {
+    const node = paragraphWithText(view.state, text);
+    if (!node) break;
+
+    const position = range.after + (nextTransaction.doc.content.size - view.state.doc.content.size);
+    nextTransaction = nextTransaction.insert(position, node);
+    selectionPosition = text.length > 0 ? position + text.length : position + 1;
+  }
+
+  return { selectionPosition, transaction: nextTransaction };
 }
 
 function changeIsWaitingForMoreKeys(state: VimModeState | undefined) {
@@ -1710,11 +1753,16 @@ function repeatLastChange(view: EditorView, keys: readonly string[], text: strin
 
     const { from, to } = view.state.selection;
     const insertion = text + repeatedDirectInsertText(keys, text);
-    const transaction = view.state.tr.insertText(insertion, from, to);
-    const position = Math.max(from, from + insertion.length - 1);
+    const repeated = repeatedOpenLineInsertTransaction(
+      view,
+      view.state.tr.insertText(insertion, from, to),
+      keys,
+      text
+    );
+    const position = repeated.selectionPosition ?? Math.max(from, from + insertion.length - 1);
     dispatchTransaction(
       view,
-      transaction.setSelection(TextSelection.near(transaction.doc.resolve(position), 1)),
+      repeated.transaction.setSelection(TextSelection.near(repeated.transaction.doc.resolve(position), 1)),
       clearedInputMeta({ lastChangeKeys: keys, lastChangeText: text, mode: "normal", register: state.register })
     );
     return true;
