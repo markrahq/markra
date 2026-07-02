@@ -550,6 +550,21 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("switches Vim visual selection ends with o", () => {
+    const view = createView(["alpha beta gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "beta"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["v", "e", "o", "b", "d"])).toEqual([true, true, true, true, true]);
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(textContent(view)).toBe(" gamma");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("uses Vim visual word text objects", () => {
     const inner = createView(["alpha beta gamma"]);
     const around = createView(["alpha beta gamma"]);
