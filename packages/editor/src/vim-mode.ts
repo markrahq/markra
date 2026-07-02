@@ -503,6 +503,26 @@ function deleteCurrentTextblock(view: EditorView, count = 1) {
   return true;
 }
 
+function changeCurrentTextblock(view: EditorView, count = 1) {
+  const selection = selectedTextblocks(view.state, count);
+  const replacement = emptyParagraph(view.state);
+  if (!selection || selection.selected.length === 0 || !replacement) return false;
+
+  const from = selection.selected[0]?.before;
+  const to = selection.selected[selection.selected.length - 1]?.after;
+  if (from === undefined || to === undefined) return false;
+
+  const texts = selection.selected.map((range) => range.text);
+  const transaction = view.state.tr.replaceWith(from, to, replacement);
+  const selectionPosition = Math.min(from + 1, transaction.doc.content.size);
+  dispatchTransaction(
+    view,
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
+    clearedInputMeta({ mode: "insert", register: { kind: "line", texts } })
+  );
+  return true;
+}
+
 function yankCurrentTextblock(view: EditorView, count = 1) {
   const selection = selectedTextblocks(view.state, count);
   if (!selection || selection.selected.length === 0) return false;
@@ -777,6 +797,7 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
 
   if (operator.type === "delete" && key === "d") return deleteCurrentTextblock(view, operator.count * readCount(state));
   if (operator.type === "yank" && key === "y") return yankCurrentTextblock(view, operator.count * readCount(state));
+  if (operator.type === "change" && key === "c") return changeCurrentTextblock(view, operator.count * readCount(state));
 
   if (state.pending === "g") {
     if (key === "e") return operateRange(view, operator, key, state, "g");
