@@ -614,6 +614,28 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("extends Vim visual line selections with G and gg", () => {
+    const toEnd = createView(["alpha", "beta", "gamma"]);
+    const toStart = createView(["alpha", "beta", "gamma"]);
+
+    try {
+      moveCursor(toEnd, findTextPosition(toEnd, "beta"));
+      pressKey(toEnd, "Escape");
+
+      expect(pressKeys(toEnd, ["V", "G", "d"])).toEqual([true, true, true]);
+      expect(textContent(toEnd)).toBe("alpha");
+
+      moveCursor(toStart, findTextPosition(toStart, "beta"));
+      pressKey(toStart, "Escape");
+
+      expect(pressKeys(toStart, ["V", "g", "g", "d"])).toEqual([true, true, true, true]);
+      expect(textContent(toStart)).toBe("gamma");
+    } finally {
+      destroyView(toEnd);
+      destroyView(toStart);
+    }
+  });
+
   it("shrinks Vim visual line selections with reverse line motions", () => {
     const view = createView(["alpha", "beta", "gamma"]);
 
