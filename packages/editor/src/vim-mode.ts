@@ -2289,6 +2289,16 @@ function collapseVisualSelection(view: EditorView, state: VimModeState) {
   return true;
 }
 
+function switchVisualSelectionEnds(view: EditorView, state: VimModeState) {
+  const selection = view.state.selection;
+  if (!(selection instanceof TextSelection)) return false;
+
+  const anchor = state.visualAnchor ?? selection.from;
+  const cursor = state.visualCursor ?? visualCursorPosition(selection, anchor);
+  const kind = state.visualKind ?? "character";
+  return moveVisualSelectionWithMeta(view, cursor, anchor, kind, { register: state.register });
+}
+
 function visualSelectionRange(view: EditorView, state: VimModeState) {
   if (state.visualKind === "line") {
     const selection = visualLineTextblocks(view.state, state);
@@ -2430,6 +2440,8 @@ function handleVisualModeKey(view: EditorView, key: string, state: VimModeState)
   switch (key) {
     case "v":
       return collapseVisualSelection(view, state);
+    case "o":
+      return switchVisualSelectionEnds(view, state);
     case "V": {
       const selection = view.state.selection;
       if (!(selection instanceof TextSelection)) return false;
