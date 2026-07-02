@@ -61,7 +61,19 @@ jobs:
             asset_platform: linux
             asset_arch: x64
             updater_platform: linux-x86_64
+            appimagetool_arch: x86_64
+            appimage_arch: x86_64
             args: --target x86_64-unknown-linux-gnu
+          - name: Linux (ARM64)
+            artifact_name: Linux-arm64
+            os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            asset_platform: linux
+            asset_arch: arm64
+            updater_platform: linux-aarch64
+            appimagetool_arch: aarch64
+            appimage_arch: aarch64
+            args: --target aarch64-unknown-linux-gnu
           - name: Windows (x64)
             artifact_name: Windows-x64
             os: windows-latest
@@ -150,7 +162,7 @@ jobs:
           cache-bin: false
 
       - name: Install Linux system dependencies
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.asset_platform == 'linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -291,9 +303,11 @@ jobs:
           args: ${{ steps.tauri_args.outputs.args }} --config tauri.updater.conf.json
 
       - name: Rebuild Linux AppImage library policy
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.asset_platform == 'linux'
         shell: bash
         env:
+          APPIMAGETOOL_ARCH: ${{ matrix.appimagetool_arch }}
+          APPIMAGE_ARCH: ${{ matrix.appimage_arch }}
           APPIMAGE_APPDIR: ${{ env.DESKTOP_DIR }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/${{ env.APP_PRODUCT_NAME }}.AppDir
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -315,17 +329,17 @@ jobs:
 
           rm -f "${appimage_path}.sig" "${appimage_path}.tar.gz" "${appimage_path}.tar.gz.sig"
 
-          appimagetool="${RUNNER_TEMP}/appimagetool-x86_64.AppImage"
+          appimagetool="${RUNNER_TEMP}/appimagetool-${APPIMAGETOOL_ARCH}.AppImage"
           curl -fsSL \
-            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${APPIMAGETOOL_ARCH}.AppImage" \
             -o "${appimagetool}"
           chmod +x "${appimagetool}"
 
-          APPIMAGE_EXTRACT_AND_RUN=1 ARCH=x86_64 "${appimagetool}" "${APPIMAGE_APPDIR}" "${appimage_path}"
+          APPIMAGE_EXTRACT_AND_RUN=1 ARCH="${APPIMAGE_ARCH}" "${appimagetool}" "${APPIMAGE_APPDIR}" "${appimage_path}"
           "${DESKTOP_DIR}/node_modules/.bin/tauri" signer sign "${appimage_path}" > "${appimage_path}.sig"
 
       - name: Verify Linux AppImage library policy
-        if: matrix.os == 'ubuntu-22.04'
+        if: matrix.asset_platform == 'linux'
         shell: bash
         env:
           APPIMAGE_APPDIR: ${{ env.DESKTOP_DIR }}/src-tauri/target/${{ matrix.target }}/release/bundle/appimage/${{ env.APP_PRODUCT_NAME }}.AppDir
@@ -536,7 +550,7 @@ jobs:
 
       - name: Generate updater manifest
         env:
-          EXPECTED_UPDATER_PLATFORMS: darwin-aarch64,darwin-x86_64,linux-x86_64,windows-x86_64
+          EXPECTED_UPDATER_PLATFORMS: darwin-aarch64,darwin-x86_64,linux-aarch64,linux-x86_64,windows-x86_64
           GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_ASSETS_ROOT: release-assets
           RELEASE_NOTES_PATH: release-notes.md

@@ -61,6 +61,18 @@ test("release workflow uses arm64 in Apple Silicon file names while keeping the 
   assert.doesNotMatch(appleSiliconEntry, /asset_arch:\s*aarch64/);
 });
 
+test("release workflow builds Linux ARM64 bundles", () => {
+  const linuxArm64Entry = readReleaseMatrixEntry("Linux (ARM64)");
+
+  assert.match(linuxArm64Entry, /artifact_name:\s*Linux-arm64/);
+  assert.match(linuxArm64Entry, /os:\s*ubuntu-22\.04-arm/);
+  assert.match(linuxArm64Entry, /target:\s*aarch64-unknown-linux-gnu/);
+  assert.match(linuxArm64Entry, /asset_platform:\s*linux/);
+  assert.match(linuxArm64Entry, /asset_arch:\s*arm64/);
+  assert.match(linuxArm64Entry, /updater_platform:\s*linux-aarch64/);
+  assert.match(linuxArm64Entry, /args:\s*--target aarch64-unknown-linux-gnu/);
+});
+
 test("release workflow validates the web package version", () => {
   const validateStep = readReleaseStep("Validate release version");
 
@@ -74,12 +86,15 @@ test("release workflow excludes Wayland client from Linux AppImage bundling", ()
   const verifyStep = readReleaseStep("Verify Linux AppImage library policy");
 
   assert.match(buildStep, /LINUXDEPLOY_EXCLUDED_LIBRARIES:\s*libwayland-client\.so\*/);
-  assert.match(rebuildStep, /if:\s*matrix\.os == 'ubuntu-22\.04'/);
+  assert.match(rebuildStep, /if:\s*matrix\.asset_platform == 'linux'/);
   assert.match(rebuildStep, /repair-linux-appimage-libraries\.mjs/);
   assert.match(rebuildStep, /repair-linux-appimage-gtk-ime\.mjs/);
-  assert.match(rebuildStep, /appimagetool-x86_64\.AppImage/);
+  assert.match(rebuildStep, /APPIMAGETOOL_ARCH:\s*\$\{\{ matrix\.appimagetool_arch \}\}/);
+  assert.match(rebuildStep, /APPIMAGE_ARCH:\s*\$\{\{ matrix\.appimage_arch \}\}/);
+  assert.match(rebuildStep, /appimagetool-\$\{APPIMAGETOOL_ARCH\}\.AppImage/);
+  assert.match(rebuildStep, /ARCH="\$\{APPIMAGE_ARCH\}"/);
   assert.match(rebuildStep, /tauri" signer sign/);
-  assert.match(verifyStep, /if:\s*matrix\.os == 'ubuntu-22\.04'/);
+  assert.match(verifyStep, /if:\s*matrix\.asset_platform == 'linux'/);
   assert.match(verifyStep, /verify-linux-appimage-libraries\.mjs/);
   assert.match(verifyStep, /verify-linux-appimage-gtk-ime\.mjs/);
 });
