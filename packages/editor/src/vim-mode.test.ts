@@ -244,6 +244,26 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("moves w and b across text blocks", () => {
+    const view = createView(["alpha", "beta gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha"));
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "w")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "beta"));
+
+      expect(pressKey(view, "w")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "gamma"));
+
+      expect(pressKey(view, "b")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "beta"));
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("multiplies operator counts with motion counts", () => {
     const view = createView(["one two three four"]);
 
