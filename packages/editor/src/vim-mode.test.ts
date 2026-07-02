@@ -244,6 +244,20 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("includes the final character for Vim end-word operators", () => {
+    const view = createView(["alpha beta"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["d", "e"])).toEqual([true, true]);
+      expect(textContent(view)).toBe(" beta");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("moves w and b across text blocks", () => {
     const view = createView(["alpha", "beta gamma"]);
 

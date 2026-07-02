@@ -735,7 +735,9 @@ function operateRange(view: EditorView, operator: PendingOperator, key: string, 
   if (target === null) return false;
 
   const from = view.state.selection.from;
-  const to = key === "$" ? target : target;
+  const to = key === "e" && target >= from
+    ? Math.min(view.state.doc.content.size, target + 1)
+    : target;
   return operator.type === "delete" ? deleteRange(view, from, to) : yankRange(view, from, to);
 }
 
