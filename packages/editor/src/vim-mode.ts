@@ -648,6 +648,20 @@ function moveByTextblock(view: EditorView, delta: -1 | 1, count = 1, preferredCo
   return moveSelection(view, targetRange.start + targetOffset, delta, clearedInputMeta({ preferredColumn: offset }));
 }
 
+function moveByTextblockFirstNonblank(view: EditorView, delta: -1 | 1, count = 1) {
+  if (!selectionIsTextSelection(view.state)) return false;
+
+  const ranges = textblockRanges(view.state);
+  if (ranges.length === 0) return false;
+
+  const currentIndex = nearestTextblockIndex(ranges, view.state.selection.from);
+  const targetIndex = Math.max(0, Math.min(ranges.length - 1, currentIndex + delta * count));
+  const targetRange = ranges[targetIndex];
+  if (!targetRange) return false;
+
+  return moveSelection(view, firstNonblankPosition(targetRange), delta);
+}
+
 function joinTextblocks(view: EditorView, blockCount = 2) {
   if (!selectionIsTextSelection(view.state)) return false;
 
@@ -2315,10 +2329,14 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     case "J":
       return joinTextblocks(view, count);
     case "Delete":
-    case "Enter":
       return true;
     case "Backspace":
       return moveByCharacter(view, -1, count);
+    case "Enter":
+    case "+":
+      return moveByTextblockFirstNonblank(view, 1, count);
+    case "-":
+      return moveByTextblockFirstNonblank(view, -1, count);
     case "w":
       return moveByWord(view, "forward", count);
     case "W":
