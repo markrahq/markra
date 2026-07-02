@@ -550,6 +550,30 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("uses Vim visual word text objects", () => {
+    const inner = createView(["alpha beta gamma"]);
+    const around = createView(["alpha beta gamma"]);
+
+    try {
+      moveCursor(inner, findTextPosition(inner, "beta", 1));
+      pressKey(inner, "Escape");
+
+      expect(pressKeys(inner, ["v", "i", "w", "d"])).toEqual([true, true, true, true]);
+      expect(getVimMode(inner.state)).toBe("normal");
+      expect(textContent(inner)).toBe("alpha  gamma");
+
+      moveCursor(around, findTextPosition(around, "beta", 1));
+      pressKey(around, "Escape");
+
+      expect(pressKeys(around, ["v", "a", "w", "d"])).toEqual([true, true, true, true]);
+      expect(getVimMode(around.state)).toBe("normal");
+      expect(textContent(around)).toBe("alpha gamma");
+    } finally {
+      destroyView(inner);
+      destroyView(around);
+    }
+  });
+
   it("uses Vim visual line selections for yank, delete, and change", () => {
     const yank = createView(["alpha", "beta", "gamma"]);
     const deletion = createView(["alpha", "beta", "gamma"]);

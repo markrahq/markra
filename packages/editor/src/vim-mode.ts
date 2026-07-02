@@ -2112,6 +2112,44 @@ function handleRepeatedVisualFind(view: EditorView, key: string, state: VimModeS
   return moveVisualSelectionByFind(view, find, readCount(state), state);
 }
 
+function selectVisualTextObject(
+  view: EditorView,
+  scope: VimTextObjectScope,
+  key: string,
+  count: number
+) {
+  const range = textObjectRange(view.state, scope, key, count);
+
+  if (!range) {
+    dispatchMeta(view, { count: "", pending: null });
+    return true;
+  }
+
+  dispatchTransaction(
+    view,
+    view.state.tr.setSelection(TextSelection.create(view.state.doc, range.start, range.end)),
+    clearedInputMeta({
+      mode: "visual",
+      visualAnchor: range.start,
+      visualCursor: Math.max(range.start, range.end - 1),
+      visualKind: "character"
+    })
+  );
+  return true;
+}
+
+function handlePendingVisualTextObject(view: EditorView, key: string, state: VimModeState) {
+  const pending = state.pending;
+  if (!isTextObjectPending(pending)) return false;
+
+  return selectVisualTextObject(
+    view,
+    textObjectScopeFromPending(pending),
+    key,
+    readCount(state)
+  );
+}
+
 function handlePendingSearch(view: EditorView, key: string, state: VimModeState) {
   const pending = state.pending;
   if (!isSearchPending(pending)) return false;
@@ -2356,6 +2394,7 @@ function extendVisualSelection(view: EditorView, key: string, state: VimModeStat
 
 function handleVisualModeKey(view: EditorView, key: string, state: VimModeState) {
   if (isFindKey(state.pending ?? "")) return handlePendingVisualFind(view, key, state);
+  if (isTextObjectPending(state.pending)) return handlePendingVisualTextObject(view, key, state);
   if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
 
   if (state.pending === "g") {
@@ -2410,6 +2449,10 @@ function handleVisualModeKey(view: EditorView, key: string, state: VimModeState)
     case ";":
     case ",":
       return handleRepeatedVisualFind(view, key, state);
+    case "i":
+    case "a":
+      dispatchMeta(view, { pending: key === "i" ? "text-object-inner" : "text-object-around" });
+      return true;
     case "h":
     case "ArrowLeft":
     case "l":
