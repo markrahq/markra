@@ -573,6 +573,19 @@ function insertAtTextblockBoundary(view: EditorView, side: "first-nonblank" | "e
   return true;
 }
 
+function insertAfterCharacter(view: EditorView) {
+  const range = currentTextblockRange(view.state);
+  if (!range) return false;
+
+  const position = Math.min(range.end, view.state.selection.from + 1);
+  dispatchTransaction(
+    view,
+    view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(position), -1)),
+    clearedInputMeta({ mode: "insert" })
+  );
+  return true;
+}
+
 function lineMotion(view: EditorView, key: "first" | "last", count: number) {
   const ranges = textblockRanges(view.state);
   if (ranges.length === 0) return false;
@@ -678,9 +691,7 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
       dispatchMode(view, "insert");
       return true;
     case "a":
-      moveByCharacter(view, 1);
-      dispatchMode(view, "insert");
-      return true;
+      return insertAfterCharacter(view);
     case "I":
       return insertAtTextblockBoundary(view, "first-nonblank");
     case "A":

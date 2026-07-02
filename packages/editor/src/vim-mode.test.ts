@@ -206,6 +206,24 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("appends after the current character at the end of a text block", () => {
+    const view = createView(["abc"]);
+
+    try {
+      const start = findTextPosition(view, "abc");
+      moveCursor(view, start);
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "$")).toBe(true);
+      expect(pressKey(view, "a")).toBe(true);
+      expect(getVimMode(view.state)).toBe("insert");
+      expect(typeText(view, "X")).toBe(false);
+      expect(textContent(view)).toBe("abcX");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("supports word and line operator motions", () => {
     const view = createView(["alpha beta gamma"]);
 
