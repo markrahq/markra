@@ -116,6 +116,16 @@ describe("vim mode plugin", () => {
       expect(paper?.classList.contains("markra-vim-normal")).toBe(true);
       expect(paper?.classList.contains("markra-vim-insert")).toBe(false);
 
+      pressKey(view, "v");
+      expect(getVimMode(view.state)).toBe("visual");
+      expect(view.dom.classList.contains("markra-vim-visual")).toBe(true);
+      expect(paper?.classList.contains("markra-vim-visual")).toBe(true);
+
+      pressKey(view, "Escape");
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(view.dom.classList.contains("markra-vim-visual")).toBe(false);
+      expect(paper?.classList.contains("markra-vim-visual")).toBe(false);
+
       pressKey(view, "i");
       expect(view.dom.classList.contains("markra-vim-insert")).toBe(true);
       expect(view.dom.classList.contains("markra-vim-normal")).toBe(false);
@@ -295,6 +305,70 @@ describe("vim mode plugin", () => {
 
       expect(typeText(view, "X")).toBe(false);
       expect(textContent(view)).toBe("Xlpha");
+    } finally {
+      destroyView(view);
+    }
+  });
+
+  it("uses Vim visual character selections for yank, delete, and change", () => {
+    const yank = createView(["alpha beta"]);
+    const deletion = createView(["alpha beta"]);
+    const change = createView(["alpha beta"]);
+
+    try {
+      moveCursor(yank, findTextPosition(yank, "alpha"));
+      pressKey(yank, "Escape");
+
+      expect(pressKeys(yank, ["v", "l", "y"])).toEqual([true, true, true]);
+      expect(getVimMode(yank.state)).toBe("normal");
+      expect(textContent(yank)).toBe("alpha beta");
+
+      moveCursor(yank, findTextPosition(yank, "beta"));
+      expect(pressKey(yank, "p")).toBe(true);
+      expect(textContent(yank)).toBe("alpha baleta");
+
+      moveCursor(deletion, findTextPosition(deletion, "alpha"));
+      pressKey(deletion, "Escape");
+
+      expect(pressKeys(deletion, ["v", "l", "d"])).toEqual([true, true, true]);
+      expect(getVimMode(deletion.state)).toBe("normal");
+      expect(textContent(deletion)).toBe("pha beta");
+
+      moveCursor(change, findTextPosition(change, "alpha"));
+      pressKey(change, "Escape");
+
+      expect(pressKeys(change, ["v", "l", "c"])).toEqual([true, true, true]);
+      expect(getVimMode(change.state)).toBe("insert");
+      expect(textContent(change)).toBe("pha beta");
+
+      expect(typeText(change, "X")).toBe(false);
+      expect(textContent(change)).toBe("Xpha beta");
+    } finally {
+      destroyView(yank);
+      destroyView(deletion);
+      destroyView(change);
+    }
+  });
+
+  it("exits Vim visual mode with Escape", () => {
+    const view = createView(["alpha"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["v", "l"])).toEqual([true, true]);
+      expect(getVimMode(view.state)).toBe("visual");
+      expect(view.state.selection.empty).toBe(false);
+      expect(pressKey(view, "Backspace")).toBe(true);
+      expect(pressKey(view, "Delete")).toBe(true);
+      expect(pressKey(view, "Enter")).toBe(true);
+      expect(textContent(view)).toBe("alpha");
+      expect(getVimMode(view.state)).toBe("visual");
+
+      expect(pressKey(view, "Escape")).toBe(true);
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(view.state.selection.empty).toBe(true);
     } finally {
       destroyView(view);
     }
