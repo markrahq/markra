@@ -662,6 +662,37 @@ function moveByTextblockFirstNonblank(view: EditorView, delta: -1 | 1, count = 1
   return moveSelection(view, firstNonblankPosition(targetRange), delta);
 }
 
+function countedTextblockRange(state: EditorState, count = 1) {
+  const ranges = textblockRanges(state);
+  if (ranges.length === 0) return null;
+
+  const currentIndex = nearestTextblockIndex(ranges, state.selection.from);
+  const targetIndex = Math.max(0, Math.min(ranges.length - 1, currentIndex + Math.max(0, count - 1)));
+  return ranges[targetIndex] ?? null;
+}
+
+function lastNonblankPosition(range: TextblockRange) {
+  for (let offset = range.text.length - 1; offset >= 0; offset -= 1) {
+    if (/\S/u.test(range.text[offset] ?? "")) return range.start + offset;
+  }
+
+  return range.start;
+}
+
+function textblockNonblankPosition(state: EditorState, side: "first" | "last", count = 1) {
+  const range = countedTextblockRange(state, count);
+  if (!range) return null;
+
+  return side === "first" ? firstNonblankPosition(range) : lastNonblankPosition(range);
+}
+
+function moveToTextblockNonblank(view: EditorView, side: "first" | "last", count = 1) {
+  const target = textblockNonblankPosition(view.state, side, count);
+  if (target === null) return false;
+
+  return moveSelection(view, target, side === "last" ? -1 : 1);
+}
+
 function joinTextblocks(view: EditorView, blockCount = 2) {
   if (!selectionIsTextSelection(view.state)) return false;
 
@@ -1731,6 +1762,9 @@ function resolveMotionTarget(state: EditorState, key: string, count: number, pre
   if (prefix === "g" && key === "E") {
     return range.start + bigWordMotionOffset(range.text, offset, "backward-end", count);
   }
+  if (prefix === "g" && key === "_") {
+    return textblockNonblankPosition(state, "last", count);
+  }
 
   switch (key) {
     case "h":
@@ -1757,6 +1791,8 @@ function resolveMotionTarget(state: EditorState, key: string, count: number, pre
       return range.start;
     case "^":
       return firstNonblankPosition(range);
+    case "_":
+      return textblockNonblankPosition(state, "first", count);
     case "$":
       return range.end;
     default:
@@ -2163,6 +2199,7 @@ function handleVisualModeKey(view: EditorView, key: string, state: VimModeState)
   if (state.pending === "g") {
     if (key === "e") return extendVisualSelection(view, key, state, "g");
     if (key === "E") return extendVisualSelection(view, key, state, "g");
+    if (key === "_") return extendVisualSelection(view, key, state, "g");
 
     dispatchMeta(
       view,
@@ -2219,6 +2256,7 @@ function handleVisualModeKey(view: EditorView, key: string, state: VimModeState)
     case "%":
     case "0":
     case "^":
+    case "_":
     case "$":
       return extendVisualSelection(view, key, state);
     default:
@@ -2243,6 +2281,7 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
   if (state.pending === "g") {
     if (key === "e") return operateRange(view, operator, key, state, "g");
     if (key === "E") return operateRange(view, operator, key, state, "g");
+    if (key === "_") return operateRange(view, operator, key, state, "g");
 
     dispatchMeta(view, clearedInputMeta());
     return true;
@@ -2298,6 +2337,7 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     if (key === "g") return lineMotion(view, "first", count);
     if (key === "e") return moveByWord(view, "backward-end", count);
     if (key === "E") return moveByBigWord(view, "backward-end", count);
+    if (key === "_") return moveToTextblockNonblank(view, "last", count);
 
     dispatchMeta(view, clearedInputMeta());
     return true;
@@ -2361,6 +2401,8 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
         start: view.state.selection.from,
         text: ""
       }), 1);
+    case "_":
+      return moveToTextblockNonblank(view, "first", count);
     case "$":
       return moveToTextblockBoundary(view, "end");
     case "G":
