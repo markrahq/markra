@@ -33,6 +33,9 @@ type VimModeState = {
   lastChangeKeys: readonly string[] | null;
   lastChangeText: string | null;
   lastSearch: VimSearch | null;
+  lastVisualAnchor: number | null;
+  lastVisualCursor: number | null;
+  lastVisualKind: VimVisualKind | null;
   mode: VimMode;
   operator: PendingOperator | null;
   pendingChangeKeys: readonly string[] | null;
@@ -126,6 +129,15 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
       ? meta.lastChangeText ?? null
       : state.lastChangeText,
     lastSearch: Object.hasOwn(meta, "lastSearch") ? meta.lastSearch ?? null : state.lastSearch,
+    lastVisualAnchor: Object.hasOwn(meta, "lastVisualAnchor")
+      ? meta.lastVisualAnchor ?? null
+      : state.lastVisualAnchor,
+    lastVisualCursor: Object.hasOwn(meta, "lastVisualCursor")
+      ? meta.lastVisualCursor ?? null
+      : state.lastVisualCursor,
+    lastVisualKind: Object.hasOwn(meta, "lastVisualKind")
+      ? meta.lastVisualKind ?? null
+      : state.lastVisualKind,
     mode: meta.mode ?? state.mode,
     operator: Object.hasOwn(meta, "operator") ? meta.operator ?? null : state.operator,
     pendingChangeKeys: Object.hasOwn(meta, "pendingChangeKeys")
@@ -187,6 +199,9 @@ function initialVimModeState(initialMode: VimMode = "insert"): VimModeState {
     lastChangeKeys: null,
     lastChangeText: null,
     lastSearch: null,
+    lastVisualAnchor: null,
+    lastVisualCursor: null,
+    lastVisualKind: null,
     mode: initialMode,
     operator: null,
     pendingChangeKeys: null,
@@ -1430,7 +1445,11 @@ function textblockSelectionBounds(selection: ReturnType<typeof selectedTextblock
   return { from, to };
 }
 
-function deleteTextblockSelection(view: EditorView, selection: ReturnType<typeof selectedTextblocks>) {
+function deleteTextblockSelection(
+  view: EditorView,
+  selection: ReturnType<typeof selectedTextblocks>,
+  meta: VimModeMeta = {}
+) {
   const bounds = textblockSelectionBounds(selection);
   if (!bounds || !selection) return false;
 
@@ -1443,12 +1462,16 @@ function deleteTextblockSelection(view: EditorView, selection: ReturnType<typeof
   dispatchTransaction(
     view,
     transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
-    clearedInputMeta({ mode: "normal", register: { kind: "line", texts } })
+    clearedInputMeta({ ...meta, mode: "normal", register: { kind: "line", texts } })
   );
   return true;
 }
 
-function changeTextblockSelection(view: EditorView, selection: ReturnType<typeof selectedTextblocks>) {
+function changeTextblockSelection(
+  view: EditorView,
+  selection: ReturnType<typeof selectedTextblocks>,
+  meta: VimModeMeta = {}
+) {
   const replacement = emptyParagraph(view.state);
   const bounds = textblockSelectionBounds(selection);
   if (!selection || !bounds || !replacement) return false;
@@ -1459,7 +1482,7 @@ function changeTextblockSelection(view: EditorView, selection: ReturnType<typeof
   dispatchTransaction(
     view,
     transaction.setSelection(TextSelection.near(transaction.doc.resolve(selectionPosition), 1)),
-    clearedInputMeta({ lastChangeKeys: null, mode: "insert", register: { kind: "line", texts } })
+    clearedInputMeta({ ...meta, lastChangeKeys: null, mode: "insert", register: { kind: "line", texts } })
   );
   return true;
 }
@@ -2276,15 +2299,44 @@ function moveVisualSelectionWithMeta(
   return true;
 }
 
+function lastVisualSelectionMeta(view: EditorView, state: VimModeState): VimModeMeta {
+  const selection = view.state.selection;
+  if (!(selection instanceof TextSelection)) return {};
+
+  const anchor = state.visualAnchor ?? selection.from;
+  return {
+    lastVisualAnchor: anchor,
+    lastVisualCursor: state.visualCursor ?? visualCursorPosition(selection, anchor),
+    lastVisualKind: state.visualKind ?? "character"
+  };
+}
+
+function restoreLastVisualSelection(view: EditorView, state: VimModeState) {
+  if (
+    state.lastVisualAnchor === null ||
+    state.lastVisualCursor === null ||
+    state.lastVisualKind === null
+  ) {
+    dispatchMeta(view, clearedInputMeta({ register: state.register }));
+    return true;
+  }
+
+  const docSize = view.state.doc.content.size;
+  const anchor = Math.max(0, Math.min(docSize, state.lastVisualAnchor));
+  const cursor = Math.max(0, Math.min(docSize, state.lastVisualCursor));
+  return moveVisualSelectionWithMeta(view, anchor, cursor, state.lastVisualKind, { register: state.register });
+}
+
 function collapseVisualSelection(view: EditorView, state: VimModeState) {
   const selection = view.state.selection;
   if (!(selection instanceof TextSelection)) return false;
 
-  const target = state.visualCursor ?? visualCursorPosition(selection, state.visualAnchor ?? selection.from);
+  const anchor = state.visualAnchor ?? selection.from;
+  const target = state.visualCursor ?? visualCursorPosition(selection, anchor);
   dispatchTransaction(
     view,
     view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(target), 1)),
-    clearedInputMeta({ mode: "normal", register: state.register })
+    clearedInputMeta({ ...lastVisualSelectionMeta(view, state), mode: "normal", register: state.register })
   );
   return true;
 }
@@ -2324,6 +2376,7 @@ function visualLineTextblocks(state: EditorState, vimState: VimModeState) {
 function yankVisualSelection(view: EditorView, state: VimModeState) {
   const range = visualSelectionRange(view, state);
   if (!range) return collapseVisualSelection(view, state);
+  const visualMeta = lastVisualSelectionMeta(view, state);
 
   if (range.kind === "line") {
     const selection = range.selection;
@@ -2333,6 +2386,7 @@ function yankVisualSelection(view: EditorView, state: VimModeState) {
       view,
       view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(range.from), 1)),
       clearedInputMeta({
+        ...visualMeta,
         mode: "normal",
         register: { kind: "line", texts: selection.selected.map((textblock) => textblock.text) }
       })
@@ -2344,7 +2398,7 @@ function yankVisualSelection(view: EditorView, state: VimModeState) {
   dispatchTransaction(
     view,
     view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(range.from), 1)),
-    clearedInputMeta({ mode: "normal", register: { kind: "text", text } })
+    clearedInputMeta({ ...visualMeta, mode: "normal", register: { kind: "text", text } })
   );
   return true;
 }
@@ -2352,19 +2406,21 @@ function yankVisualSelection(view: EditorView, state: VimModeState) {
 function deleteVisualSelection(view: EditorView, state: VimModeState) {
   const range = visualSelectionRange(view, state);
   if (!range) return false;
+  const visualMeta = lastVisualSelectionMeta(view, state);
 
-  if (range.kind === "line") return deleteTextblockSelection(view, range.selection);
+  if (range.kind === "line") return deleteTextblockSelection(view, range.selection, visualMeta);
 
-  return deleteRange(view, range.from, range.to, { mode: "normal" });
+  return deleteRange(view, range.from, range.to, { ...visualMeta, mode: "normal" });
 }
 
 function changeVisualSelection(view: EditorView, state: VimModeState) {
   const range = visualSelectionRange(view, state);
   if (!range) return false;
+  const visualMeta = lastVisualSelectionMeta(view, state);
 
-  if (range.kind === "line") return changeTextblockSelection(view, range.selection);
+  if (range.kind === "line") return changeTextblockSelection(view, range.selection, visualMeta);
 
-  return changeRange(view, range.from, range.to);
+  return changeRange(view, range.from, range.to, visualMeta);
 }
 
 function visualMotionTarget(state: EditorState, key: string, count: number, prefix: string | null = null) {
@@ -2578,6 +2634,7 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
 
   if (state.pending === "g") {
     if (key === "g") return lineMotion(view, "first", count);
+    if (key === "v") return restoreLastVisualSelection(view, state);
     if (key === "e") return moveByWord(view, "backward-end", count);
     if (key === "E") return moveByBigWord(view, "backward-end", count);
     if (key === "_") return moveToTextblockNonblank(view, "last", count);
