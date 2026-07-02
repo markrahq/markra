@@ -753,6 +753,47 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("searches with / and repeats matches with n and N", () => {
+    const view = createView(["alpha beta", "gamma beta", "beta delta"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["/", "b", "e", "t", "a", "Enter"])).toEqual([true, true, true, true, true, true]);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "alpha beta", "alpha ".length));
+      expect(textContent(view)).toBe("alpha beta\ngamma beta\nbeta delta");
+
+      expect(pressKey(view, "n")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "gamma beta", "gamma ".length));
+
+      expect(pressKey(view, "n")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "beta delta"));
+
+      expect(pressKey(view, "N")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "gamma beta", "gamma ".length));
+
+      expect(pressKey(view, "n")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "beta delta"));
+    } finally {
+      destroyView(view);
+    }
+  });
+
+  it("supports reverse Vim searches with ?", () => {
+    const view = createView(["alpha beta", "gamma beta"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "gamma"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["?", "b", "e", "t", "a", "Enter"])).toEqual([true, true, true, true, true, true]);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "alpha beta", "alpha ".length));
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("uses % as a Vim operator motion", () => {
     const view = createView(["alpha (beta) gamma"]);
     const backward = createView(["alpha (beta) gamma"]);

@@ -8,6 +8,8 @@ export type VimMode = "insert" | "normal";
 type VimOperator = "change" | "delete" | "yank";
 type VimFindDirection = "backward" | "forward";
 type VimFindKey = "F" | "T" | "f" | "t";
+type VimSearchDirection = "backward" | "forward";
+type VimSearchPending = "search-backward" | "search-forward";
 type VimTextObjectPending = "text-object-around" | "text-object-inner";
 type VimPairTextObjectKey = "(" | ")" | "[" | "]" | "{" | "}";
 type VimQuoteTextObjectKey = "'" | '"' | "`";
@@ -27,11 +29,13 @@ export type VimModePluginOptions = {
 type VimModeState = {
   count: string;
   lastFind: VimCharacterFind | null;
+  lastSearch: VimSearch | null;
   mode: VimMode;
   operator: PendingOperator | null;
   pending: string | null;
   preferredColumn: number | null;
   register: VimRegister | null;
+  searchQuery: string;
 };
 
 type VimModeMeta = Partial<VimModeState>;
@@ -53,6 +57,11 @@ type VimCharacterFind = {
   character: string;
   direction: VimFindDirection;
   till: boolean;
+};
+
+type VimSearch = {
+  direction: VimSearchDirection;
+  query: string;
 };
 
 type VimRegister =
@@ -78,20 +87,22 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
   const meta = transaction.getMeta(vimModeKey) as VimModeMeta | undefined;
   if (!meta) {
     return transaction.docChanged || transaction.selectionSet
-      ? { ...state, count: "", operator: null, pending: null, preferredColumn: null }
+      ? { ...state, count: "", operator: null, pending: null, preferredColumn: null, searchQuery: "" }
       : state;
   }
 
   return {
     count: Object.hasOwn(meta, "count") ? meta.count ?? "" : state.count,
     lastFind: Object.hasOwn(meta, "lastFind") ? meta.lastFind ?? null : state.lastFind,
+    lastSearch: Object.hasOwn(meta, "lastSearch") ? meta.lastSearch ?? null : state.lastSearch,
     mode: meta.mode ?? state.mode,
     operator: Object.hasOwn(meta, "operator") ? meta.operator ?? null : state.operator,
     pending: Object.hasOwn(meta, "pending") ? meta.pending ?? null : state.pending,
     preferredColumn: Object.hasOwn(meta, "preferredColumn")
       ? meta.preferredColumn ?? null
       : state.preferredColumn,
-    register: Object.hasOwn(meta, "register") ? meta.register ?? null : state.register
+    register: Object.hasOwn(meta, "register") ? meta.register ?? null : state.register,
+    searchQuery: Object.hasOwn(meta, "searchQuery") ? meta.searchQuery ?? "" : state.searchQuery
   };
 }
 
@@ -101,6 +112,7 @@ function clearedInputMeta(meta: VimModeMeta = {}): VimModeMeta {
     operator: null,
     pending: null,
     preferredColumn: null,
+    searchQuery: "",
     ...meta
   };
 }
@@ -123,11 +135,13 @@ function initialVimModeState(initialMode: VimMode = "insert"): VimModeState {
   return {
     count: "",
     lastFind: null,
+    lastSearch: null,
     mode: initialMode,
     operator: null,
     pending: null,
     preferredColumn: null,
-    register: null
+    register: null,
+    searchQuery: ""
   };
 }
 
@@ -208,6 +222,21 @@ function moveByCharacter(view: EditorView, delta: -1 | 1, count = 1) {
 
 function isFindKey(key: string): key is VimFindKey {
   return key === "f" || key === "F" || key === "t" || key === "T";
+}
+
+function isSearchPending(pending: string | null): pending is VimSearchPending {
+  return pending === "search-forward" || pending === "search-backward";
+}
+
+function searchDirectionFromPending(pending: VimSearchPending): VimSearchDirection {
+  return pending === "search-forward" ? "forward" : "backward";
+}
+
+function reversedSearch(search: VimSearch): VimSearch {
+  return {
+    query: search.query,
+    direction: search.direction === "forward" ? "backward" : "forward"
+  };
 }
 
 function isTextObjectPending(pending: string | null): pending is VimTextObjectPending {
@@ -350,6 +379,59 @@ function currentTextblockRange(state: EditorState) {
     start,
     text: $from.node(depth).textContent
   } satisfies TextblockRange;
+}
+
+function searchMatchPositions(state: EditorState, query: string) {
+  if (query.length === 0) return [];
+
+  const positions: number[] = [];
+  for (const range of textblockRanges(state)) {
+    let offset = range.text.indexOf(query);
+
+    while (offset >= 0) {
+      positions.push(range.start + offset);
+      offset = range.text.indexOf(query, offset + Math.max(1, query.length));
+    }
+  }
+
+  return positions;
+}
+
+function nextSearchPosition(positions: readonly number[], direction: VimSearchDirection, from: number) {
+  if (positions.length === 0) return null;
+
+  if (direction === "forward") {
+    return positions.find((position) => position > from) ?? positions[0] ?? null;
+  }
+
+  for (let index = positions.length - 1; index >= 0; index -= 1) {
+    const position = positions[index];
+    if (position !== undefined && position < from) return position;
+  }
+
+  return positions[positions.length - 1] ?? null;
+}
+
+function moveBySearch(view: EditorView, search: VimSearch, count = 1, rememberedSearch = search) {
+  const positions = searchMatchPositions(view.state, search.query);
+  if (positions.length === 0) {
+    dispatchMeta(view, clearedInputMeta({ lastSearch: rememberedSearch }));
+    return true;
+  }
+
+  let position = view.state.selection.from;
+  for (let index = 0; index < Math.max(1, count); index += 1) {
+    const next = nextSearchPosition(positions, search.direction, position);
+    if (next === null) return false;
+    position = next;
+  }
+
+  return moveSelection(
+    view,
+    position,
+    search.direction === "backward" ? -1 : 1,
+    clearedInputMeta({ lastSearch: rememberedSearch })
+  );
 }
 
 function nearestTextblockIndex(ranges: readonly TextblockRange[], position: number) {
@@ -1458,6 +1540,51 @@ function handleRepeatedNormalFind(view: EditorView, key: string, state: VimModeS
   return moveByCharacterFind(view, find, readCount(state));
 }
 
+function handlePendingSearch(view: EditorView, key: string, state: VimModeState) {
+  const pending = state.pending;
+  if (!isSearchPending(pending)) return false;
+
+  if (key === "Escape") {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  if (key === "Backspace") {
+    dispatchMeta(view, { searchQuery: state.searchQuery.slice(0, -1) });
+    return true;
+  }
+
+  if (key === "Enter") {
+    const query = state.searchQuery;
+    if (query.length === 0) {
+      dispatchMeta(view, clearedInputMeta());
+      return true;
+    }
+
+    return moveBySearch(view, {
+      direction: searchDirectionFromPending(pending),
+      query
+    });
+  }
+
+  if (key.length === 1) {
+    dispatchMeta(view, { searchQuery: `${state.searchQuery}${key}` });
+    return true;
+  }
+
+  return true;
+}
+
+function repeatSearch(view: EditorView, state: VimModeState, count: number, reversed: boolean) {
+  if (!state.lastSearch) {
+    dispatchMeta(view, clearedInputMeta());
+    return true;
+  }
+
+  const search = reversed ? reversedSearch(state.lastSearch) : state.lastSearch;
+  return moveBySearch(view, search, count, state.lastSearch);
+}
+
 function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
   const operator = state.operator;
   if (!operator) return false;
@@ -1507,6 +1634,7 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
 
   if (state.pending === "r") return replaceCharacters(view, key, readCount(state));
   if (isFindKey(state.pending ?? "")) return handlePendingNormalFind(view, key, state);
+  if (isSearchPending(state.pending)) return handlePendingSearch(view, key, state);
 
   if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
 
@@ -1580,6 +1708,12 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     case "g":
       dispatchMeta(view, { pending: "g" });
       return true;
+    case "/":
+      dispatchMeta(view, { pending: "search-forward", searchQuery: "" });
+      return true;
+    case "?":
+      dispatchMeta(view, { pending: "search-backward", searchQuery: "" });
+      return true;
     case "f":
     case "F":
     case "t":
@@ -1589,6 +1723,10 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     case ";":
     case ",":
       return handleRepeatedNormalFind(view, key, state);
+    case "n":
+      return repeatSearch(view, state, count, false);
+    case "N":
+      return repeatSearch(view, state, count, true);
     case "d":
       return beginOperator(view, "delete", state);
     case "y":
