@@ -1466,13 +1466,19 @@ function repeatableChangeStartKeys(state: VimModeState, key: string) {
   if (state.pendingChangeKeys) return [...state.pendingChangeKeys, key];
   // Insert-text changes need typed text capture before they can be faithfully replayed.
   if (
+    key !== "A" &&
     key !== "C" &&
     key !== "D" &&
+    key !== "I" &&
     key !== "J" &&
+    key !== "O" &&
     key !== "P" &&
     key !== "S" &&
+    key !== "a" &&
     key !== "c" &&
     key !== "d" &&
+    key !== "i" &&
+    key !== "o" &&
     key !== "p" &&
     key !== "r" &&
     key !== "s" &&
@@ -1506,6 +1512,17 @@ function recordRepeatableChange(view: EditorView, previousState: VimModeState, k
     }
 
     dispatchMeta(view, { lastChangeKeys: changeKeys, lastChangeText: null, pendingChangeKeys: null });
+    return;
+  }
+
+  if (nextState?.mode === "insert") {
+    dispatchMeta(view, {
+      lastChangeKeys: null,
+      lastChangeText: null,
+      pendingChangeKeys: null,
+      pendingInsertChangeKeys: changeKeys,
+      pendingInsertText: ""
+    });
     return;
   }
 
