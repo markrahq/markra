@@ -1067,6 +1067,89 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("repeats normal-mode changes with .", () => {
+    const characterDelete = createView(["abcdef"]);
+    const wordDelete = createView(["alpha beta gamma"]);
+    const lineDelete = createView(["alpha", "beta", "gamma"]);
+    const replace = createView(["alpha"]);
+    const paste = createView(["alpha", "beta"]);
+    const join = createView(["alpha", "beta", "gamma"]);
+    const insertEdit = createView(["abcd"]);
+
+    try {
+      moveCursor(characterDelete, findTextPosition(characterDelete, "abcdef"));
+      pressKey(characterDelete, "Escape");
+
+      expect(pressKeys(characterDelete, ["2", "x"])).toEqual([true, true]);
+      expect(textContent(characterDelete)).toBe("cdef");
+      expect(pressKey(characterDelete, ".")).toBe(true);
+      expect(textContent(characterDelete)).toBe("ef");
+
+      moveCursor(wordDelete, findTextPosition(wordDelete, "alpha"));
+      pressKey(wordDelete, "Escape");
+
+      expect(pressKeys(wordDelete, ["d", "w"])).toEqual([true, true]);
+      expect(textContent(wordDelete)).toBe("beta gamma");
+      expect(pressKey(wordDelete, ".")).toBe(true);
+      expect(textContent(wordDelete)).toBe("gamma");
+
+      moveCursor(lineDelete, findTextPosition(lineDelete, "alpha"));
+      pressKey(lineDelete, "Escape");
+
+      expect(pressKeys(lineDelete, ["d", "d"])).toEqual([true, true]);
+      expect(textContent(lineDelete)).toBe("beta\ngamma");
+      expect(pressKey(lineDelete, ".")).toBe(true);
+      expect(textContent(lineDelete)).toBe("gamma");
+
+      moveCursor(replace, findTextPosition(replace, "alpha"));
+      pressKey(replace, "Escape");
+
+      expect(pressKeys(replace, ["r", "X"])).toEqual([true, true]);
+      expect(textContent(replace)).toBe("Xlpha");
+      expect(pressKey(replace, "l")).toBe(true);
+      expect(pressKey(replace, ".")).toBe(true);
+      expect(textContent(replace)).toBe("XXpha");
+
+      moveCursor(paste, findTextPosition(paste, "alpha"));
+      pressKey(paste, "Escape");
+
+      expect(pressKeys(paste, ["y", "y"])).toEqual([true, true]);
+      expect(pressKey(paste, "j")).toBe(true);
+      expect(pressKey(paste, "p")).toBe(true);
+      expect(textContent(paste)).toBe("alpha\nbeta\nalpha");
+      expect(pressKey(paste, ".")).toBe(true);
+      expect(textContent(paste)).toBe("alpha\nbeta\nalpha\nalpha");
+
+      moveCursor(join, findTextPosition(join, "alpha"));
+      pressKey(join, "Escape");
+
+      expect(pressKey(join, "J")).toBe(true);
+      expect(textContent(join)).toBe("alpha beta\ngamma");
+      expect(pressKey(join, ".")).toBe(true);
+      expect(textContent(join)).toBe("alpha beta gamma");
+
+      moveCursor(insertEdit, findTextPosition(insertEdit, "abcd"));
+      pressKey(insertEdit, "Escape");
+
+      expect(pressKey(insertEdit, "x")).toBe(true);
+      expect(textContent(insertEdit)).toBe("bcd");
+      expect(pressKey(insertEdit, "i")).toBe(true);
+      expect(typeText(insertEdit, "Z")).toBe(false);
+      expect(textContent(insertEdit)).toBe("Zbcd");
+      expect(pressKey(insertEdit, "Escape")).toBe(true);
+      expect(pressKey(insertEdit, ".")).toBe(true);
+      expect(textContent(insertEdit)).toBe("Zbcd");
+    } finally {
+      destroyView(characterDelete);
+      destroyView(wordDelete);
+      destroyView(lineDelete);
+      destroyView(replace);
+      destroyView(paste);
+      destroyView(join);
+      destroyView(insertEdit);
+    }
+  });
+
   it("consumes destructive editing keys in normal mode", () => {
     const view = createView(["alpha"]);
 
