@@ -75,6 +75,13 @@ struct SettingsWindowRuntimeState {
     show_when_ready: bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum SettingsWindowCreationResult {
+    Canceled,
+    KeepHidden,
+    RevealWhenReady,
+}
+
 static SETTINGS_WINDOW_RUNTIME_STATE: OnceLock<Mutex<SettingsWindowRuntimeState>> = OnceLock::new();
 
 fn settings_window_runtime_state() -> &'static Mutex<SettingsWindowRuntimeState> {
@@ -726,13 +733,33 @@ fn begin_settings_window_creation(show_when_ready: bool, pending_target: Option<
     true
 }
 
-fn finish_settings_window_creation() -> bool {
+fn settings_window_creation_result(
+    creating: bool,
+    show_when_ready: bool,
+) -> SettingsWindowCreationResult {
+    if !creating {
+        return SettingsWindowCreationResult::Canceled;
+    }
+
+    if show_when_ready {
+        return SettingsWindowCreationResult::RevealWhenReady;
+    }
+
+    SettingsWindowCreationResult::KeepHidden
+}
+
+fn finish_settings_window_creation() -> SettingsWindowCreationResult {
     let Ok(mut state) = settings_window_runtime_state().lock() else {
-        return false;
+        return SettingsWindowCreationResult::Canceled;
     };
 
+    let result = settings_window_creation_result(state.creating, state.show_when_ready);
+    if result == SettingsWindowCreationResult::Canceled {
+        return result;
+    }
+
     state.creating = false;
-    state.show_when_ready
+    result
 }
 
 fn cancel_settings_window_creation() {
@@ -896,14 +923,28 @@ where
     schedule_settings_window_idle_destroy(window.clone());
 }
 
-fn should_close_hidden_settings_window(
-    has_visible_user_window: bool,
-    settings_window_visible: bool,
-) -> bool {
-    !has_visible_user_window && !settings_window_visible
+fn should_close_settings_auxiliary_window(has_visible_user_window: bool) -> bool {
+    !has_visible_user_window
 }
 
-fn close_hidden_settings_window_if_no_user_windows<R>(
+fn is_visible_user_window(label: &str, excluded_label: Option<&str>, visible: bool) -> bool {
+    Some(label) != excluded_label && !is_settings_window_label(label) && visible
+}
+
+fn app_has_visible_user_window<R>(app: &tauri::AppHandle<R>, excluded_label: Option<&str>) -> bool
+where
+    R: tauri::Runtime,
+{
+    app.webview_windows().values().any(|window| {
+        is_visible_user_window(
+            window.label(),
+            excluded_label,
+            window.is_visible().unwrap_or(false),
+        )
+    })
+}
+
+fn close_settings_window_if_no_user_windows<R>(
     app: &tauri::AppHandle<R>,
     destroyed_window_label: &str,
 ) where
@@ -911,23 +952,20 @@ fn close_hidden_settings_window_if_no_user_windows<R>(
 {
     let windows = app.webview_windows();
     let has_visible_user_window = windows.values().any(|window| {
-        let label = window.label();
-        label != destroyed_window_label
-            && !is_settings_window_label(label)
-            && window.is_visible().unwrap_or(false)
+        is_visible_user_window(
+            window.label(),
+            Some(destroyed_window_label),
+            window.is_visible().unwrap_or(false),
+        )
     });
-    let Some(settings_window) = windows.get(SETTINGS_WINDOW_LABEL) else {
-        return;
-    };
-    if !should_close_hidden_settings_window(
-        has_visible_user_window,
-        settings_window.is_visible().unwrap_or(false),
-    ) {
+    if !should_close_settings_auxiliary_window(has_visible_user_window) {
         return;
     }
 
     reset_settings_window_runtime_state();
-    let _ = settings_window.close();
+    if let Some(settings_window) = windows.get(SETTINGS_WINDOW_LABEL) {
+        let _ = settings_window.close();
+    }
 }
 
 pub(crate) fn apply_settings_window_lifecycle<R>(
@@ -946,7 +984,7 @@ pub(crate) fn apply_settings_window_lifecycle<R>(
         return;
     }
 
-    close_hidden_settings_window_if_no_user_windows(app, window.label());
+    close_settings_window_if_no_user_windows(app, window.label());
 }
 
 fn spawn_settings_window_reveal_fallback<R>(window: tauri::WebviewWindow<R>)
@@ -1029,6 +1067,12 @@ fn spawn_settings_window_with_mode<R>(
 
     std::thread::spawn(move || {
         if let Some(window) = app.get_webview_window(SETTINGS_WINDOW_LABEL) {
+            if !app_has_visible_user_window(&app, None) {
+                reset_settings_window_runtime_state();
+                let _ = window.close();
+                return;
+            }
+
             if mode == SettingsWindowStartupMode::Open {
                 handle_existing_settings_window(
                     &window,
@@ -1036,6 +1080,10 @@ fn spawn_settings_window_with_mode<R>(
                     ExistingSettingsWindowAction::Show,
                 );
             }
+            return;
+        }
+        if !app_has_visible_user_window(&app, None) {
+            reset_settings_window_runtime_state();
             return;
         }
 
@@ -1093,10 +1141,22 @@ fn spawn_settings_window_with_mode<R>(
             Ok(window) => {
                 hide_native_macos_window_controls(&window);
                 hide_native_menu_for_settings_window(&window);
-                if finish_settings_window_creation() {
-                    spawn_settings_window_reveal_fallback(window.clone());
-                } else {
-                    schedule_settings_window_idle_destroy(window.clone());
+                if !app_has_visible_user_window(&app, None) {
+                    reset_settings_window_runtime_state();
+                    let _ = window.close();
+                    return;
+                }
+
+                match finish_settings_window_creation() {
+                    SettingsWindowCreationResult::RevealWhenReady => {
+                        spawn_settings_window_reveal_fallback(window.clone());
+                    }
+                    SettingsWindowCreationResult::KeepHidden => {
+                        schedule_settings_window_idle_destroy(window.clone());
+                    }
+                    SettingsWindowCreationResult::Canceled => {
+                        let _ = window.close();
+                    }
                 }
             }
             Err(error) => {
@@ -1376,10 +1436,33 @@ mod tests {
     }
 
     #[test]
-    fn settings_window_lifecycle_closes_only_hidden_cache_without_user_windows() {
-        assert!(should_close_hidden_settings_window(false, false));
-        assert!(!should_close_hidden_settings_window(true, false));
-        assert!(!should_close_hidden_settings_window(false, true));
+    fn settings_window_lifecycle_closes_auxiliary_window_without_user_windows() {
+        assert!(should_close_settings_auxiliary_window(false));
+        assert!(!should_close_settings_auxiliary_window(true));
+    }
+
+    #[test]
+    fn settings_window_creation_result_cancels_reset_creation() {
+        assert_eq!(
+            settings_window_creation_result(false, true),
+            SettingsWindowCreationResult::Canceled
+        );
+        assert_eq!(
+            settings_window_creation_result(true, false),
+            SettingsWindowCreationResult::KeepHidden
+        );
+        assert_eq!(
+            settings_window_creation_result(true, true),
+            SettingsWindowCreationResult::RevealWhenReady
+        );
+    }
+
+    #[test]
+    fn settings_window_user_window_detection_excludes_settings_and_destroyed_window() {
+        assert!(is_visible_user_window("main", None, true));
+        assert!(!is_visible_user_window("main", Some("main"), true));
+        assert!(!is_visible_user_window(SETTINGS_WINDOW_LABEL, None, true));
+        assert!(!is_visible_user_window("main", None, false));
     }
 
     #[test]
