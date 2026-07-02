@@ -451,6 +451,24 @@ function deleteCharacter(view: EditorView, count = 1) {
   return true;
 }
 
+function replaceCharacters(view: EditorView, character: string, count = 1) {
+  if (!selectionIsTextSelection(view.state) || character.length !== 1) return false;
+
+  const range = currentTextblockRange(view.state);
+  if (!range || view.state.selection.from >= range.end) return false;
+
+  const from = view.state.selection.from;
+  const to = Math.min(range.end, from + count);
+  const replacement = character.repeat(to - from);
+  const transaction = view.state.tr.insertText(replacement, from, to);
+  dispatchTransaction(
+    view,
+    transaction.setSelection(TextSelection.near(transaction.doc.resolve(from), 1)),
+    clearedInputMeta()
+  );
+  return true;
+}
+
 function emptyParagraph(state: EditorState) {
   const paragraph = state.schema.nodes.paragraph;
   return paragraph?.createAndFill() ?? paragraph?.create();
@@ -820,6 +838,8 @@ function handleOperatorKey(view: EditorView, key: string, state: VimModeState) {
 function handleNormalModeKey(view: EditorView, key: string, state: VimModeState) {
   if (state.operator) return handleOperatorKey(view, key, state);
 
+  if (state.pending === "r") return replaceCharacters(view, key, readCount(state));
+
   if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
 
   const count = readCount(state);
@@ -898,6 +918,9 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     }
     case "x":
       return deleteCharacter(view, count);
+    case "r":
+      dispatchMeta(view, { pending: "r" });
+      return true;
     case "o":
       return insertParagraphNearTextblock(view, "after");
     case "O":
