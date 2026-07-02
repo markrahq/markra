@@ -31,10 +31,13 @@ type VimModeState = {
   count: string;
   lastFind: VimCharacterFind | null;
   lastChangeKeys: readonly string[] | null;
+  lastChangeText: string | null;
   lastSearch: VimSearch | null;
   mode: VimMode;
   operator: PendingOperator | null;
   pendingChangeKeys: readonly string[] | null;
+  pendingInsertChangeKeys: readonly string[] | null;
+  pendingInsertText: string;
   pending: string | null;
   preferredColumn: number | null;
   register: VimRegister | null;
@@ -101,6 +104,8 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
           operator: null,
           pending: null,
           pendingChangeKeys: null,
+          pendingInsertChangeKeys: null,
+          pendingInsertText: "",
           preferredColumn: null,
           searchQuery: "",
           visualAnchor: null,
@@ -116,12 +121,21 @@ function applyVimModeMeta(state: VimModeState, transaction: Transaction): VimMod
     lastChangeKeys: Object.hasOwn(meta, "lastChangeKeys")
       ? meta.lastChangeKeys ?? null
       : state.lastChangeKeys,
+    lastChangeText: Object.hasOwn(meta, "lastChangeText")
+      ? meta.lastChangeText ?? null
+      : state.lastChangeText,
     lastSearch: Object.hasOwn(meta, "lastSearch") ? meta.lastSearch ?? null : state.lastSearch,
     mode: meta.mode ?? state.mode,
     operator: Object.hasOwn(meta, "operator") ? meta.operator ?? null : state.operator,
     pendingChangeKeys: Object.hasOwn(meta, "pendingChangeKeys")
       ? meta.pendingChangeKeys ?? null
       : state.pendingChangeKeys,
+    pendingInsertChangeKeys: Object.hasOwn(meta, "pendingInsertChangeKeys")
+      ? meta.pendingInsertChangeKeys ?? null
+      : state.pendingInsertChangeKeys,
+    pendingInsertText: Object.hasOwn(meta, "pendingInsertText")
+      ? meta.pendingInsertText ?? ""
+      : state.pendingInsertText,
     pending: Object.hasOwn(meta, "pending") ? meta.pending ?? null : state.pending,
     preferredColumn: Object.hasOwn(meta, "preferredColumn")
       ? meta.preferredColumn ?? null
@@ -139,6 +153,8 @@ function clearedInputMeta(meta: VimModeMeta = {}): VimModeMeta {
     count: "",
     operator: null,
     pendingChangeKeys: null,
+    pendingInsertChangeKeys: null,
+    pendingInsertText: "",
     pending: null,
     preferredColumn: null,
     searchQuery: "",
@@ -168,10 +184,13 @@ function initialVimModeState(initialMode: VimMode = "insert"): VimModeState {
     count: "",
     lastFind: null,
     lastChangeKeys: null,
+    lastChangeText: null,
     lastSearch: null,
     mode: initialMode,
     operator: null,
     pendingChangeKeys: null,
+    pendingInsertChangeKeys: null,
+    pendingInsertText: "",
     pending: null,
     preferredColumn: null,
     register: null,
@@ -200,7 +219,16 @@ function enterNormalMode(view: EditorView, options: VimModePluginOptions) {
     }
   }
 
-  dispatchTransaction(view, transaction, clearedInputMeta({ mode: "normal", register: state.register }));
+  dispatchTransaction(
+    view,
+    transaction,
+    clearedInputMeta({
+      lastChangeKeys: state.pendingInsertChangeKeys ?? state.lastChangeKeys,
+      lastChangeText: state.pendingInsertChangeKeys ? state.pendingInsertText : state.lastChangeText,
+      mode: "normal",
+      register: state.register
+    })
+  );
 }
 
 function vimModeClassTargets(view: EditorView) {
@@ -1437,7 +1465,19 @@ function appendCount(view: EditorView, key: string, state: VimModeState) {
 function repeatableChangeStartKeys(state: VimModeState, key: string) {
   if (state.pendingChangeKeys) return [...state.pendingChangeKeys, key];
   // Insert-text changes need typed text capture before they can be faithfully replayed.
-  if (key !== "D" && key !== "J" && key !== "P" && key !== "d" && key !== "p" && key !== "r" && key !== "x") {
+  if (
+    key !== "C" &&
+    key !== "D" &&
+    key !== "J" &&
+    key !== "P" &&
+    key !== "S" &&
+    key !== "c" &&
+    key !== "d" &&
+    key !== "p" &&
+    key !== "r" &&
+    key !== "s" &&
+    key !== "x"
+  ) {
     return null;
   }
 
@@ -1454,7 +1494,18 @@ function recordRepeatableChange(view: EditorView, previousState: VimModeState, k
 
   const nextState = vimModeKey.getState(view.state);
   if (view.state.doc !== previousDoc) {
-    dispatchMeta(view, { lastChangeKeys: changeKeys, pendingChangeKeys: null });
+    if (nextState?.mode === "insert") {
+      dispatchMeta(view, {
+        lastChangeKeys: null,
+        lastChangeText: null,
+        pendingChangeKeys: null,
+        pendingInsertChangeKeys: changeKeys,
+        pendingInsertText: ""
+      });
+      return;
+    }
+
+    dispatchMeta(view, { lastChangeKeys: changeKeys, lastChangeText: null, pendingChangeKeys: null });
     return;
   }
 
@@ -1463,7 +1514,7 @@ function recordRepeatableChange(view: EditorView, previousState: VimModeState, k
   });
 }
 
-function repeatLastChange(view: EditorView, keys: readonly string[]) {
+function repeatLastChange(view: EditorView, keys: readonly string[], text: string | null) {
   if (keys.length === 0) return false;
 
   for (const key of keys) {
@@ -1472,7 +1523,22 @@ function repeatLastChange(view: EditorView, keys: readonly string[]) {
     if (!handleNormalModeKey(view, key, state)) return false;
   }
 
-  dispatchMeta(view, { lastChangeKeys: keys, pendingChangeKeys: null });
+  if (text !== null) {
+    const state = vimModeKey.getState(view.state);
+    if (state?.mode !== "insert") return false;
+
+    const { from, to } = view.state.selection;
+    const transaction = view.state.tr.insertText(text, from, to);
+    const position = Math.max(from, from + text.length - 1);
+    dispatchTransaction(
+      view,
+      transaction.setSelection(TextSelection.near(transaction.doc.resolve(position), 1)),
+      clearedInputMeta({ lastChangeKeys: keys, lastChangeText: text, mode: "normal", register: state.register })
+    );
+    return true;
+  }
+
+  dispatchMeta(view, { lastChangeKeys: keys, lastChangeText: null, pendingChangeKeys: null });
   return true;
 }
 
@@ -2288,7 +2354,7 @@ export function createVimModePlugin(options: VimModePluginOptions = {}) {
         }
 
         if (state.mode === "normal" && event.key === ".") {
-          const handled = state.lastChangeKeys ? repeatLastChange(view, state.lastChangeKeys) : true;
+          const handled = state.lastChangeKeys ? repeatLastChange(view, state.lastChangeKeys, state.lastChangeText) : true;
           if (!handled) return false;
 
           event.preventDefault();
@@ -2306,10 +2372,19 @@ export function createVimModePlugin(options: VimModePluginOptions = {}) {
         event.preventDefault();
         return true;
       },
-      handleTextInput: (view) => {
+      handleTextInput: (view, _from, _to, text, insertText) => {
         if (!vimEnabled(options)) return false;
 
         const state = vimModeKey.getState(view.state);
+        if (state?.mode === "insert" && state.pendingInsertChangeKeys) {
+          dispatchTransaction(
+            view,
+            insertText(),
+            { pendingInsertText: `${state.pendingInsertText}${text}` }
+          );
+          return true;
+        }
+
         return state?.mode === "normal" || state?.mode === "visual";
       }
     },

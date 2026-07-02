@@ -303,7 +303,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(view.state)).toBe("insert");
       expect(textContent(view)).toBe("lpha");
 
-      expect(typeText(view, "X")).toBe(false);
+      expect(typeText(view, "X")).toBe(true);
       expect(textContent(view)).toBe("Xlpha");
     } finally {
       destroyView(view);
@@ -514,7 +514,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(view.state)).toBe("insert");
       expect(textContent(view)).toBe("alpha ");
 
-      expect(typeText(view, "X")).toBe(false);
+      expect(typeText(view, "X")).toBe(true);
       expect(textContent(view)).toBe("alpha X");
     } finally {
       destroyView(view);
@@ -546,7 +546,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(view.state)).toBe("insert");
       expect(textContent(view)).toBe(" beta");
 
-      expect(typeText(view, "X")).toBe(false);
+      expect(typeText(view, "X")).toBe(true);
       expect(textContent(view)).toBe("X beta");
     } finally {
       destroyView(view);
@@ -571,7 +571,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(changeInner.state)).toBe("insert");
       expect(textContent(changeInner)).toBe("alpha  gamma");
 
-      expect(typeText(changeInner, "delta")).toBe(false);
+      expect(typeText(changeInner, "delta")).toBe(true);
       expect(textContent(changeInner)).toBe("alpha delta gamma");
     } finally {
       destroyView(deleteInner);
@@ -637,7 +637,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(changeInner.state)).toBe("insert");
       expect(textContent(changeInner)).toBe('alpha "" gamma');
 
-      expect(typeText(changeInner, "delta")).toBe(false);
+      expect(typeText(changeInner, "delta")).toBe(true);
       expect(textContent(changeInner)).toBe('alpha "delta" gamma');
     } finally {
       destroyView(deleteInner);
@@ -689,7 +689,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(changeBraces.state)).toBe("insert");
       expect(textContent(changeBraces)).toBe("alpha {} gamma");
 
-      expect(typeText(changeBraces, "delta")).toBe(false);
+      expect(typeText(changeBraces, "delta")).toBe(true);
       expect(textContent(changeBraces)).toBe("alpha {delta} gamma");
     } finally {
       destroyView(deleteNested);
@@ -734,7 +734,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(view.state)).toBe("insert");
       expect(textContent(view)).toBe("\nbeta");
 
-      expect(typeText(view, "X")).toBe(false);
+      expect(typeText(view, "X")).toBe(true);
       expect(textContent(view)).toBe("X\nbeta");
     } finally {
       destroyView(view);
@@ -752,7 +752,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(view.state)).toBe("insert");
       expect(textContent(view)).toBe("\nbeta");
 
-      expect(typeText(view, "X")).toBe(false);
+      expect(typeText(view, "X")).toBe(true);
       expect(textContent(view)).toBe("X\nbeta");
     } finally {
       destroyView(view);
@@ -847,7 +847,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(changeWord.state)).toBe("insert");
       expect(textContent(changeWord)).toBe(" three");
 
-      expect(typeText(changeWord, "token")).toBe(false);
+      expect(typeText(changeWord, "token")).toBe(true);
       expect(textContent(changeWord)).toBe("token three");
     } finally {
       destroyView(deleteToNextWord);
@@ -957,7 +957,7 @@ describe("vim mode plugin", () => {
       expect(getVimMode(changeBackward.state)).toBe("insert");
       expect(textContent(changeBackward)).toBe("alpha gamma");
 
-      expect(typeText(changeBackward, "delta ")).toBe(false);
+      expect(typeText(changeBackward, "delta ")).toBe(true);
       expect(textContent(changeBackward)).toBe("alpha delta gamma");
     } finally {
       destroyView(deleteForward);
@@ -1147,6 +1147,29 @@ describe("vim mode plugin", () => {
       destroyView(paste);
       destroyView(join);
       destroyView(insertEdit);
+    }
+  });
+
+  it("repeats insert-text changes with .", () => {
+    const view = createView(["alpha beta gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["c", "w"])).toEqual([true, true]);
+      expect(getVimMode(view.state)).toBe("insert");
+      expect(typeText(view, "X")).toBe(true);
+      expect(textContent(view)).toBe("X beta gamma");
+      expect(pressKey(view, "Escape")).toBe(true);
+
+      expect(pressKey(view, "w")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "beta"));
+      expect(pressKey(view, ".")).toBe(true);
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(textContent(view)).toBe("X X gamma");
+    } finally {
+      destroyView(view);
     }
   });
 
