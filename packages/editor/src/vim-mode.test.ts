@@ -622,6 +622,28 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("applies counts to Vim $ motions", () => {
+    const movement = createView(["alpha", "beta", "gamma"]);
+    const deletion = createView(["alpha", "beta", "gamma"]);
+
+    try {
+      moveCursor(movement, findTextPosition(movement, "alpha"));
+      pressKey(movement, "Escape");
+
+      expect(pressKeys(movement, ["2", "$"])).toEqual([true, true]);
+      expect(movement.state.selection.from).toBe(findTextPosition(movement, "beta", "beta".length - 1));
+
+      moveCursor(deletion, findTextPosition(deletion, "alpha"));
+      pressKey(deletion, "Escape");
+
+      expect(pressKeys(deletion, ["d", "2", "$"])).toEqual([true, true, true]);
+      expect(textContent(deletion)).toBe("\ngamma");
+    } finally {
+      destroyView(movement);
+      destroyView(deletion);
+    }
+  });
+
   it("uses character find motions for Vim operators", () => {
     const deleteThrough = createView(["alpha,beta"]);
     const deleteTill = createView(["alpha,beta"]);

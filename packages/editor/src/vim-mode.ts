@@ -723,8 +723,8 @@ function joinTextblocks(view: EditorView, blockCount = 2) {
   return true;
 }
 
-function moveToTextblockBoundary(view: EditorView, side: "start" | "end") {
-  const range = currentTextblockRange(view.state);
+function moveToTextblockBoundary(view: EditorView, side: "start" | "end", count = 1) {
+  const range = side === "end" ? countedTextblockRange(view.state, count) : currentTextblockRange(view.state);
   if (!range) return false;
 
   const position = side === "start" ? range.start : normalTextblockEnd(range);
@@ -1794,7 +1794,7 @@ function resolveMotionTarget(state: EditorState, key: string, count: number, pre
     case "_":
       return textblockNonblankPosition(state, "first", count);
     case "$":
-      return range.end;
+      return countedTextblockRange(state, count)?.end ?? null;
     default:
       return null;
   }
@@ -2404,7 +2404,7 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     case "_":
       return moveToTextblockNonblank(view, "first", count);
     case "$":
-      return moveToTextblockBoundary(view, "end");
+      return moveToTextblockBoundary(view, "end", count);
     case "G":
       return lineMotion(view, "last", count);
     case "g":
