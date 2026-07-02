@@ -157,6 +157,28 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("treats Ctrl-[ as Escape", () => {
+    const view = createView(["alpha"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha", 2));
+
+      expect(pressKey(view, "[", { ctrlKey: true })).toBe(true);
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(view.state.selection.from).toBe(findTextPosition(view, "alpha", 1));
+
+      expect(pressKey(view, "v")).toBe(true);
+      expect(pressKey(view, "l")).toBe(true);
+      expect(getVimMode(view.state)).toBe("visual");
+
+      expect(pressKey(view, "[", { ctrlKey: true })).toBe(true);
+      expect(getVimMode(view.state)).toBe("normal");
+      expect(view.state.selection.empty).toBe(true);
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("moves the cursor and deletes the character under the cursor in normal mode", () => {
     const view = createView(["alpha"]);
 
