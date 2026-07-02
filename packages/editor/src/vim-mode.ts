@@ -2073,6 +2073,45 @@ function handleRepeatedNormalFind(view: EditorView, key: string, state: VimModeS
   return moveByCharacterFind(view, find, readCount(state));
 }
 
+function moveVisualSelectionByFind(view: EditorView, find: VimCharacterFind, count: number, state: VimModeState) {
+  const selection = view.state.selection;
+  if (!(selection instanceof TextSelection)) return false;
+
+  const anchor = state.visualAnchor ?? selection.from;
+  const cursor = state.visualCursor ?? visualCursorPosition(selection, anchor);
+  const kind = state.visualKind ?? "character";
+  const target = characterFindTarget(stateWithCursorAt(view.state, cursor), find, count);
+  if (target === null) {
+    dispatchMeta(view, { count: "", pending: null });
+    return true;
+  }
+
+  return moveVisualSelectionWithMeta(view, anchor, target, kind, { lastFind: find });
+}
+
+function handlePendingVisualFind(view: EditorView, key: string, state: VimModeState) {
+  const pending = state.pending;
+  if (!pending || !isFindKey(pending)) return false;
+
+  if (key.length !== 1) {
+    dispatchMeta(view, { count: "", pending: null });
+    return true;
+  }
+
+  const find = characterFindFromKey(pending, key);
+  return moveVisualSelectionByFind(view, find, readCount(state), state);
+}
+
+function handleRepeatedVisualFind(view: EditorView, key: string, state: VimModeState) {
+  if (!state.lastFind) {
+    dispatchMeta(view, { count: "", pending: null });
+    return true;
+  }
+
+  const find = key === "," ? reversedCharacterFind(state.lastFind) : state.lastFind;
+  return moveVisualSelectionByFind(view, find, readCount(state), state);
+}
+
 function handlePendingSearch(view: EditorView, key: string, state: VimModeState) {
   const pending = state.pending;
   if (!isSearchPending(pending)) return false;
@@ -2316,6 +2355,7 @@ function extendVisualSelection(view: EditorView, key: string, state: VimModeStat
 }
 
 function handleVisualModeKey(view: EditorView, key: string, state: VimModeState) {
+  if (isFindKey(state.pending ?? "")) return handlePendingVisualFind(view, key, state);
   if (keyStartsOrContinuesCount(key, state)) return appendCount(view, key, state);
 
   if (state.pending === "g") {
@@ -2361,6 +2401,15 @@ function handleVisualModeKey(view: EditorView, key: string, state: VimModeState)
     case "g":
       dispatchMeta(view, { pending: "g" });
       return true;
+    case "f":
+    case "F":
+    case "t":
+    case "T":
+      dispatchMeta(view, { pending: key });
+      return true;
+    case ";":
+    case ",":
+      return handleRepeatedVisualFind(view, key, state);
     case "h":
     case "ArrowLeft":
     case "l":

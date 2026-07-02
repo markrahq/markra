@@ -527,6 +527,29 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("extends Vim visual selections with character find motions", () => {
+    const find = createView(["alpha,beta"]);
+    const repeat = createView(["a-b-c"]);
+
+    try {
+      moveCursor(find, findTextPosition(find, "alpha"));
+      pressKey(find, "Escape");
+
+      expect(pressKeys(find, ["v", "f", ",", "d"])).toEqual([true, true, true, true]);
+      expect(getVimMode(find.state)).toBe("normal");
+      expect(textContent(find)).toBe("beta");
+
+      moveCursor(repeat, findTextPosition(repeat, "a-b-c"));
+      pressKey(repeat, "Escape");
+
+      expect(pressKeys(repeat, ["v", "f", "-", ";", "d"])).toEqual([true, true, true, true, true]);
+      expect(textContent(repeat)).toBe("c");
+    } finally {
+      destroyView(find);
+      destroyView(repeat);
+    }
+  });
+
   it("uses Vim visual line selections for yank, delete, and change", () => {
     const yank = createView(["alpha", "beta", "gamma"]);
     const deletion = createView(["alpha", "beta", "gamma"]);
