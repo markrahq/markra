@@ -1442,6 +1442,44 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("applies Vim counts to direct insert text changes", () => {
+    const insert = createView(["alpha"]);
+    const append = createView(["alpha"]);
+    const repeat = createView(["alpha"]);
+
+    try {
+      moveCursor(insert, findTextPosition(insert, "alpha"));
+      pressKey(insert, "Escape");
+
+      expect(pressKeys(insert, ["3", "i"])).toEqual([true, true]);
+      expect(typeText(insert, "X")).toBe(true);
+      expect(pressKey(insert, "Escape")).toBe(true);
+      expect(textContent(insert)).toBe("XXXalpha");
+      expect(insert.state.selection.from).toBe(findTextPosition(insert, "XXXalpha", 2));
+
+      moveCursor(append, findTextPosition(append, "alpha"));
+      pressKey(append, "Escape");
+
+      expect(pressKeys(append, ["2", "A"])).toEqual([true, true]);
+      expect(typeText(append, "!")).toBe(true);
+      expect(pressKey(append, "Escape")).toBe(true);
+      expect(textContent(append)).toBe("alpha!!");
+
+      moveCursor(repeat, findTextPosition(repeat, "alpha"));
+      pressKey(repeat, "Escape");
+
+      expect(pressKeys(repeat, ["3", "i"])).toEqual([true, true]);
+      expect(typeText(repeat, "X")).toBe(true);
+      expect(pressKey(repeat, "Escape")).toBe(true);
+      expect(pressKey(repeat, ".")).toBe(true);
+      expect(textContent(repeat)).toBe("XXXXXXalpha");
+    } finally {
+      destroyView(insert);
+      destroyView(append);
+      destroyView(repeat);
+    }
+  });
+
   it("consumes destructive editing keys in normal mode", () => {
     const view = createView(["alpha"]);
 

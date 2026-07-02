@@ -213,8 +213,14 @@ function enterNormalMode(view: EditorView, options: VimModePluginOptions) {
   } else if (state.mode === "insert" && view.state.selection instanceof TextSelection && view.state.selection.empty) {
     const range = currentTextblockRange(view.state);
     if (range) {
-      const target = view.state.selection.from > range.start
-        ? Math.max(range.start, view.state.selection.from - 1)
+      const insertRepeatText = repeatedDirectInsertText(state.pendingInsertChangeKeys, state.pendingInsertText);
+      const selectionPosition = view.state.selection.from + insertRepeatText.length;
+      if (insertRepeatText.length > 0) {
+        transaction = transaction.insertText(insertRepeatText, view.state.selection.from, view.state.selection.from);
+      }
+
+      const target = selectionPosition > range.start
+        ? Math.max(range.start, selectionPosition - 1)
         : range.start;
       transaction = transaction.setSelection(TextSelection.near(transaction.doc.resolve(target), -1));
     }
@@ -1619,6 +1625,35 @@ function repeatableChangeStartKeys(state: VimModeState, key: string) {
   return [...state.count, key];
 }
 
+function leadingCountEndIndex(keys: readonly string[]) {
+  let index = 0;
+
+  while (index < keys.length) {
+    const key = keys[index] ?? "";
+    if (!/^[0-9]$/u.test(key) || (key === "0" && index === 0)) break;
+    index += 1;
+  }
+
+  return index;
+}
+
+function directInsertRepeatCount(keys: readonly string[] | null) {
+  if (!keys) return 1;
+
+  const countEndIndex = leadingCountEndIndex(keys);
+  const command = keys[countEndIndex];
+  if (command !== "A" && command !== "I" && command !== "a" && command !== "i") return 1;
+
+  const count = Number.parseInt(keys.slice(0, countEndIndex).join(""), 10);
+  return Number.isFinite(count) && count > 1 ? count : 1;
+}
+
+function repeatedDirectInsertText(keys: readonly string[] | null, text: string, offset = 1) {
+  const repeatCount = directInsertRepeatCount(keys);
+  const repeats = Math.max(0, repeatCount - offset);
+  return repeats > 0 ? text.repeat(repeats) : "";
+}
+
 function changeIsWaitingForMoreKeys(state: VimModeState | undefined) {
   return Boolean(state?.operator || state?.pending);
 }
@@ -1674,8 +1709,9 @@ function repeatLastChange(view: EditorView, keys: readonly string[], text: strin
     if (state?.mode !== "insert") return false;
 
     const { from, to } = view.state.selection;
-    const transaction = view.state.tr.insertText(text, from, to);
-    const position = Math.max(from, from + text.length - 1);
+    const insertion = text + repeatedDirectInsertText(keys, text);
+    const transaction = view.state.tr.insertText(insertion, from, to);
+    const position = Math.max(from, from + insertion.length - 1);
     dispatchTransaction(
       view,
       transaction.setSelection(TextSelection.near(transaction.doc.resolve(position), 1)),
