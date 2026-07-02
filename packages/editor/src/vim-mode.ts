@@ -1339,8 +1339,8 @@ function substituteCharacters(view: EditorView, count = 1) {
   return changeRange(view, from, to);
 }
 
-function operateToTextblockEnd(view: EditorView, operator: VimOperator) {
-  const range = currentTextblockRange(view.state);
+function operateToTextblockEnd(view: EditorView, operator: VimOperator, count = 1) {
+  const range = countedTextblockRange(view.state, count);
   if (!range) return false;
 
   const from = view.state.selection.from;
@@ -2571,9 +2571,9 @@ function handleNormalModeKey(view: EditorView, key: string, state: VimModeState)
     case "c":
       return beginOperator(view, "change", state);
     case "D":
-      return operateToTextblockEnd(view, "delete");
+      return operateToTextblockEnd(view, "delete", count);
     case "C":
-      return operateToTextblockEnd(view, "change");
+      return operateToTextblockEnd(view, "change", count);
     case "p":
       return pasteRegister(view, "after", count, state.register);
     case "P":
