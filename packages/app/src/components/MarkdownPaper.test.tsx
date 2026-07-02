@@ -460,6 +460,25 @@ function pasteImage(view: EditorView, image: File) {
   return view.someProp("handlePaste", (handler) => handler(view, event, view.state.selection.content()));
 }
 
+function dispatchMixedClipboardPaste(view: EditorView, data: { files: File[]; html?: string; plainText?: string }) {
+  const event = new Event("paste", {
+    bubbles: true,
+    cancelable: true
+  }) as ClipboardEvent;
+  Object.defineProperty(event, "clipboardData", {
+    value: {
+      files: data.files,
+      getData: (type: string) => {
+        if (type === "text/html") return data.html ?? "";
+        if (type === "text/plain") return data.plainText ?? "";
+        return "";
+      }
+    }
+  });
+
+  view.dom.dispatchEvent(event);
+}
+
 function pasteFile(view: EditorView, file: File) {
   const event = new Event("paste", {
     bubbles: true,
@@ -3188,6 +3207,29 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("![Screenshot](assets/pasted-image.png)");
     expect(serializeMarkdown(view.state.doc)).not.toContain("!\\[Screenshot\\]\\(assets/pasted-image.png\\)");
     await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("![Screenshot](assets/pasted-image.png)")));
+  });
+
+  it("lets pasted spreadsheet tables use structured clipboard data instead of the bitmap preview", async () => {
+    const onSaveClipboardImage = vi.fn().mockResolvedValue({
+      alt: "Spreadsheet preview",
+      src: "assets/spreadsheet-preview.png"
+    });
+    const image = new File([new Uint8Array([1, 2, 3])], "Spreadsheet preview.png", { type: "image/png" });
+    const { container, view } = await renderEditor("", { onSaveClipboardImage });
+
+    dispatchMixedClipboardPaste(
+      view,
+      {
+        files: [image],
+        html: "<table><tbody><tr><td>Name</td><td>Role</td></tr><tr><td>Alpha</td><td>Beta</td></tr></tbody></table>",
+        plainText: "Name\tRole\nAlpha\tBeta"
+      }
+    );
+
+    expect(onSaveClipboardImage).not.toHaveBeenCalled();
+    await waitFor(() => expect(container.querySelector(".ProseMirror table")).toBeInTheDocument());
+    expect(container.querySelector(".ProseMirror table")).toHaveTextContent("Name");
+    expect(container.querySelector(".ProseMirror table")).toHaveTextContent("Beta");
   });
 
   it("saves pasted clipboard attachments and inserts markdown links", async () => {

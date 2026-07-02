@@ -90,6 +90,24 @@ function clipboardHtml(event: ClipboardEvent) {
   return event.clipboardData?.getData("text/html") ?? "";
 }
 
+function clipboardPlainText(event: ClipboardEvent) {
+  return event.clipboardData?.getData("text/plain") ?? "";
+}
+
+function isPlainTextTable(value: string) {
+  const rows = value.trim().split(/\r\n?|\n/u).filter(Boolean);
+  if (!rows.length) return false;
+
+  return rows.some((row) => row.includes("\t"));
+}
+
+function clipboardHasStructuredTableData(event: ClipboardEvent) {
+  const html = clipboardHtml(event);
+  if (/<table[\s>]/iu.test(html)) return true;
+
+  return isPlainTextTable(clipboardPlainText(event));
+}
+
 function droppedImageFiles(event: DragEvent) {
   return dataTransferImageFiles(event.dataTransfer);
 }
@@ -397,7 +415,7 @@ export function markraClipboardImagePluginWithOptions(
       props: {
         handlePaste: (view, event, slice) => {
           const files = clipboardImageFiles(event);
-          if (files.length) {
+          if (files.length && !clipboardHasStructuredTableData(event)) {
             event.preventDefault();
             saveAndInsertClipboardImages(view, files, saveClipboardImage, image).catch((error: unknown) => {
               console.error("[markra-clipboard-images] failed to insert pasted image", error);
