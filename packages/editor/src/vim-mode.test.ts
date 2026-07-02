@@ -264,6 +264,20 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("deletes with word operators across text blocks", () => {
+    const view = createView(["alpha", "beta gamma"]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["d", "w"])).toEqual([true, true]);
+      expect(textContent(view)).toBe("beta gamma");
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("multiplies operator counts with motion counts", () => {
     const view = createView(["one two three four"]);
 

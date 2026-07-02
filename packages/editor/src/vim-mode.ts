@@ -364,7 +364,12 @@ function previousTextblockWordStart(ranges: readonly TextblockRange[], currentIn
   return null;
 }
 
-function wordStartMotionPosition(state: EditorState, direction: "forward" | "backward", count: number) {
+function wordStartMotionPosition(
+  state: EditorState,
+  direction: "forward" | "backward",
+  count: number,
+  finalForwardTarget: "caret" | "boundary" = "caret"
+) {
   const ranges = textblockRanges(state);
   if (ranges.length === 0) return null;
 
@@ -385,7 +390,7 @@ function wordStartMotionPosition(state: EditorState, direction: "forward" | "bac
       }
 
       const next = nextTextblockWordStart(ranges, currentIndex);
-      if (!next) return normalTextblockEnd(range);
+      if (!next) return finalForwardTarget === "boundary" ? range.end : normalTextblockEnd(range);
 
       currentIndex = next.index;
       position = next.position;
@@ -708,11 +713,11 @@ function resolveMotionTarget(view: EditorView, key: string, count: number, prefi
     case "ArrowRight":
       return Math.min(normalTextblockEnd(range), current + count);
     case "w":
-      return Math.min(range.end, range.start + wordMotionOffset(range.text, offset, "forward", count));
+      return wordStartMotionPosition(view.state, "forward", count, "boundary");
     case "e":
       return Math.min(normalTextblockEnd(range), range.start + wordMotionOffset(range.text, offset, "end", count));
     case "b":
-      return Math.max(range.start, range.start + wordMotionOffset(range.text, offset, "backward", count));
+      return wordStartMotionPosition(view.state, "backward", count);
     case "0":
       return range.start;
     case "^":
