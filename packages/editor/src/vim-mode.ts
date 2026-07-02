@@ -1526,6 +1526,10 @@ function hasCommandModifier(event: KeyboardEvent) {
   return event.metaKey || event.ctrlKey || event.altKey;
 }
 
+function isNormalModeExitKey(event: KeyboardEvent) {
+  return event.key === "Escape" || (event.ctrlKey && !event.metaKey && !event.altKey && event.key === "[");
+}
+
 function readCount(state: VimModeState) {
   const parsed = Number.parseInt(state.count, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
@@ -2439,7 +2443,7 @@ export function createVimModePlugin(options: VimModePluginOptions = {}) {
       handleKeyDown: (view, event) => {
         if (!vimEnabled(options) || targetIsNestedControl(view, event)) return false;
 
-        if (event.key === "Escape") {
+        if (isNormalModeExitKey(event)) {
           enterNormalMode(view, options);
           event.preventDefault();
           return true;
