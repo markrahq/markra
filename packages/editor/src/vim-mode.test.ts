@@ -296,6 +296,32 @@ describe("vim mode plugin", () => {
     }
   });
 
+  it("moves to first and last nonblank characters with _ and g_", () => {
+    const view = createView(["  alpha  ", "    beta   ", "  gamma  "]);
+
+    try {
+      moveCursor(view, findTextPosition(view, "alpha", 2));
+      pressKey(view, "Escape");
+
+      expect(pressKey(view, "_")).toBe(true);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "alpha"));
+
+      expect(pressKeys(view, ["2", "_"])).toEqual([true, true]);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "beta"));
+
+      moveCursor(view, findTextPosition(view, "alpha"));
+      pressKey(view, "Escape");
+
+      expect(pressKeys(view, ["g", "_"])).toEqual([true, true]);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "alpha", "alpha".length - 1));
+
+      expect(pressKeys(view, ["2", "g", "_"])).toEqual([true, true, true]);
+      expect(view.state.selection.from).toBe(findTextPosition(view, "beta", "beta".length - 1));
+    } finally {
+      destroyView(view);
+    }
+  });
+
   it("joins the current text block with the next one using J", () => {
     const view = createView(["alpha", "beta"]);
 
