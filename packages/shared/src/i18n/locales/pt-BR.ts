@@ -681,6 +681,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "Mostra backlinks e menções sem link do documento atual na barra lateral.",
   "settings.editor.showWordCount": "Mostrar contagem de palavras",
   "settings.editor.showWordCountDescription": "Mostra a contagem de palavras na linha de status do editor.",
+  "settings.editor.vimMode": "Modo Vim",
+  "settings.editor.vimModeDescription": "Usa modos normal e inserção no estilo Vim nos editores visual e de código-fonte.",
   "settings.editor.wrapCodeBlocks": "Quebrar linhas em blocos de código",
   "settings.editor.wrapCodeBlocksDescription": "Quebra linhas longas dentro de blocos de código em vez de exigir rolagem horizontal.",
   "settings.editor.spellcheck": "Verificar ortografia",

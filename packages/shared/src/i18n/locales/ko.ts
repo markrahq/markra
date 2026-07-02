@@ -681,6 +681,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "현재 문서의 백링크와 연결되지 않은 언급을 사이드바에 표시합니다.",
   "settings.editor.showWordCount": "단어 수 표시",
   "settings.editor.showWordCountDescription": "편집기 상태 줄에 문서 단어 수를 표시합니다.",
+  "settings.editor.vimMode": "Vim mode",
+  "settings.editor.vimModeDescription": "Use Vim-style normal and insert modes in both visual and source editors.",
   "settings.editor.wrapCodeBlocks": "코드 블록 줄 바꿈",
   "settings.editor.wrapCodeBlocksDescription": "가로 스크롤 대신 코드 블록의 긴 줄을 줄 바꿈합니다.",
   "settings.editor.spellcheck": "맞춤법 검사",

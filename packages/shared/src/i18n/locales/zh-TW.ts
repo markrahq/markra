@@ -681,6 +681,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "在側欄顯示目前文件的反向連結與未連結提及。",
   "settings.editor.showWordCount": "顯示字數統計",
   "settings.editor.showWordCountDescription": "在編輯器狀態列顯示目前文件字數。",
+  "settings.editor.vimMode": "Vim 模式",
+  "settings.editor.vimModeDescription": "在所見即所得與原始碼編輯器中使用 Vim 風格的一般模式與插入模式。",
   "settings.editor.wrapCodeBlocks": "程式碼區塊自動換行",
   "settings.editor.wrapCodeBlocksDescription": "在程式碼區塊中折行顯示長行，而不是依賴水平捲動。",
   "settings.editor.spellcheck": "檢查拼字",

@@ -61,6 +61,7 @@ type MarkdownPaperProps = {
   spellchecker?: MarkdownPaperSurfaceProps["spellchecker"];
   tableColumnWidthMode?: TableColumnWidthModePreference;
   topInset?: "tabs" | "titlebar";
+  vimModeEnabled?: MarkdownPaperSurfaceProps["vimModeEnabled"];
   workspaceFiles?: MarkdownPaperSurfaceProps["workspaceFiles"];
   wrapCodeBlocks?: boolean;
 };
@@ -126,6 +127,7 @@ export function MarkdownPaper({
   spellchecker,
   tableColumnWidthMode = "auto",
   topInset = "titlebar",
+  vimModeEnabled,
   workspaceFiles,
   wrapCodeBlocks = true
 }: MarkdownPaperProps) {
@@ -195,6 +197,7 @@ export function MarkdownPaper({
             spellcheckIgnoredWords={spellcheckIgnoredWords}
             spellchecker={spellchecker}
             tableColumnWidthMode={tableColumnWidthMode}
+            vimModeEnabled={vimModeEnabled}
             workspaceFiles={workspaceFiles}
           />
         </Suspense>

@@ -352,6 +352,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       viewModeToggle: "visible"
     },
     showWordCount: true,
+    vimModeEnabled: false,
     wrapCodeBlocks: true
   },
   appThemeOptions: [
@@ -634,6 +635,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       viewModeToggle: "visible"
     },
     showWordCount: true,
+    vimModeEnabled: preferences?.vimModeEnabled ?? false,
     ...preferences,
     wrapCodeBlocks: preferences?.wrapCodeBlocks ?? true
   })),
@@ -1422,6 +1424,7 @@ export function installAppTestHarness() {
         wordCount: "visible"
       },
       showWordCount: true,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockedGetStoredExportSettings.mockResolvedValue({

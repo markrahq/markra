@@ -228,6 +228,7 @@ describe("useEditorPreferences", () => {
       viewMode: "daily",
       viewModeCustomizations: defaultViewModeCustomizations,
       showWordCount: true,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockedListenAppEditorPreferencesChanged.mockImplementation(async (listener) => {
@@ -337,6 +338,7 @@ describe("useEditorPreferences", () => {
         viewMode: "daily",
         viewModeCustomizations: defaultViewModeCustomizations,
         showWordCount: false,
+        vimModeEnabled: false,
         wrapCodeBlocks: false
       });
     });

@@ -109,6 +109,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       showWordCount: true,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
 
@@ -161,7 +162,8 @@ describe("editor preferences", () => {
       sidebarLayoutMode: "stacked",
       showAiQuickInputOnSelection: false,
       showAiSelectionToolbarOnSelection: true,
-      showWordCount: false
+      showWordCount: false,
+      vimModeEnabled: true
     });
 
     await expect(getStoredEditorPreferences()).resolves.toEqual({
@@ -259,6 +261,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       showWordCount: false,
+      vimModeEnabled: true,
       wrapCodeBlocks: true
     });
   });
@@ -372,6 +375,12 @@ describe("editor preferences", () => {
     expect(normalizeEditorPreferences({}).wrapCodeBlocks).toBe(true);
     expect(normalizeEditorPreferences({ wrapCodeBlocks: false }).wrapCodeBlocks).toBe(false);
     expect(normalizeEditorPreferences({ wrapCodeBlocks: "no" }).wrapCodeBlocks).toBe(true);
+  });
+
+  it("normalizes the Vim mode preference", () => {
+    expect(normalizeEditorPreferences({}).vimModeEnabled).toBe(false);
+    expect(normalizeEditorPreferences({ vimModeEnabled: true }).vimModeEnabled).toBe(true);
+    expect(normalizeEditorPreferences({ vimModeEnabled: "yes" }).vimModeEnabled).toBe(false);
   });
 
   it("migrates the old AI selection display mode into independent switches", () => {
@@ -768,6 +777,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       showWordCount: true,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
   });
@@ -868,6 +878,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       showWordCount: false,
+      vimModeEnabled: true,
       wrapCodeBlocks: false
     });
 
@@ -966,6 +977,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       showWordCount: false,
+      vimModeEnabled: true,
       wrapCodeBlocks: false
     });
     expect(store.save).toHaveBeenCalledTimes(1);

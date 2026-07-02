@@ -267,6 +267,29 @@ describe("MarkdownSourceEditor", () => {
     expect(handleRedo).toHaveBeenCalledTimes(1);
   });
 
+  it("enables Vim commands in source mode when requested", () => {
+    const handleChange = vi.fn();
+    const { container } = render(
+      <MarkdownSourceEditor
+        content="alpha"
+        onChange={handleChange}
+        vimModeEnabled
+      />
+    );
+    const view = getMarkdownSourceView(container);
+
+    act(() => {
+      view.dispatch({ selection: { anchor: 0 } });
+      view.focus();
+    });
+
+    fireEvent.keyDown(view.contentDOM, { key: "Escape" });
+    fireEvent.keyDown(view.contentDOM, { key: "x" });
+
+    expect(view.state.doc.toString()).toBe("lpha");
+    expect(handleChange).toHaveBeenLastCalledWith("lpha");
+  });
+
   it("keeps source mode read-only when requested", () => {
     const { container } = render(
       <MarkdownSourceEditor

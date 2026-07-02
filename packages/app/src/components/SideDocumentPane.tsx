@@ -36,6 +36,7 @@ type SideDocumentPaneProps = {
   spellchecker?: Spellchecker;
   status?: ReactNode;
   tableColumnWidthMode?: TableColumnWidthModePreference;
+  vimModeEnabled?: boolean;
   onAddSpellcheckIgnoredWord?: (word: string) => unknown;
   onSaveClipboardAttachment?: (attachment: File) => Promise<{ label: string; src: string } | null>;
   workspaceFiles?: MarkdownDocumentLinkFile[];
@@ -76,6 +77,7 @@ export function SideDocumentPane({
   spellchecker,
   status = null,
   tableColumnWidthMode = "auto",
+  vimModeEnabled = false,
   onAddSpellcheckIgnoredWord,
   onSaveClipboardAttachment,
   workspaceFiles,
@@ -110,6 +112,7 @@ export function SideDocumentPane({
           onContentWidthResizeEnd={onContentWidthResizeEnd}
           readOnly={readOnly}
           topInset="titlebar"
+          vimModeEnabled={vimModeEnabled}
         />
       ) : visualBlocked ? (
         <LargeMarkdownNotice language={language} />
@@ -145,6 +148,7 @@ export function SideDocumentPane({
           tableColumnWidthMode={tableColumnWidthMode}
           onAddSpellcheckIgnoredWord={onAddSpellcheckIgnoredWord}
           topInset="titlebar"
+          vimModeEnabled={vimModeEnabled}
           workspaceFiles={workspaceFiles}
           wrapCodeBlocks={wrapCodeBlocks}
         />

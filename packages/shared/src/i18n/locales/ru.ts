@@ -681,6 +681,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "Показывает обратные ссылки и несвязанные упоминания текущего документа на боковой панели.",
   "settings.editor.showWordCount": "Показывать число слов",
   "settings.editor.showWordCountDescription": "Показывает число слов документа в строке состояния редактора.",
+  "settings.editor.vimMode": "Режим Vim",
+  "settings.editor.vimModeDescription": "Использует обычный режим и режим вставки в стиле Vim в визуальном редакторе и редакторе исходного текста.",
   "settings.editor.wrapCodeBlocks": "Переносить строки в блоках кода",
   "settings.editor.wrapCodeBlocksDescription": "Переносит длинные строки в блоках кода вместо горизонтальной прокрутки.",
   "settings.editor.spellcheck": "Проверять орфографию",

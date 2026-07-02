@@ -399,6 +399,7 @@ function createStoredEditorPreferences(
       viewModeToggle: "visible",
       wordCount: "visible"
     },
+    vimModeEnabled: overrides.vimModeEnabled ?? false,
     wrapCodeBlocks: overrides.wrapCodeBlocks ?? true
   };
 }
@@ -904,7 +905,10 @@ describe("Markra workspace", () => {
         { id: "sourceMode", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
-      ]
+      ],
+      showWordCount: true,
+      vimModeEnabled: false,
+      wrapCodeBlocks: true
     }));
     renderApp();
 
@@ -981,6 +985,7 @@ describe("Markra workspace", () => {
           wordCount: "visible"
         },
         showWordCount: true,
+        vimModeEnabled: false,
         wrapCodeBlocks: true
       })
     );
@@ -1046,6 +1051,7 @@ describe("Markra workspace", () => {
           wordCount: "visible"
         },
         showWordCount: true,
+        vimModeEnabled: false,
         wrapCodeBlocks: true
       })
     );
@@ -2094,7 +2100,10 @@ describe("Markra workspace", () => {
         { id: "sourceMode" as const, visible: true },
         { id: "save" as const, visible: true },
         { id: "theme" as const, visible: true }
-      ]
+      ],
+      showWordCount: true,
+      vimModeEnabled: false,
+      wrapCodeBlocks: true
     });
     mockedGetStoredEditorPreferences.mockResolvedValue(initialPreferences);
     window.history.pushState({}, "", "/?settings=1");
@@ -2248,6 +2257,7 @@ describe("Markra workspace", () => {
         wordCount: "visible"
       },
       showWordCount: true,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     window.history.pushState({}, "", "/?settings=1");
@@ -5284,6 +5294,7 @@ describe("Markra workspace", () => {
         wordCount: "visible"
       },
       showWordCount: true,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockedOpenNativeMarkdownPath.mockResolvedValue({
@@ -5448,6 +5459,7 @@ describe("Markra workspace", () => {
         wordCount: "visible"
       },
       showWordCount: true,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockOpenMarkdownFile({

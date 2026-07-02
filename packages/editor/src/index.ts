@@ -25,3 +25,4 @@ export * from "./spellcheck.ts";
 export * from "./table-controls.ts";
 export * from "./task-list.ts";
 export * from "./trailing-paragraph.ts";
+export * from "./vim-mode.ts";

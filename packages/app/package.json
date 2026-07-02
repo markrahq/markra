@@ -46,6 +46,7 @@
     "@milkdown/kit": "^7.20.0",
     "@milkdown/react": "^7.20.0",
     "@noble/hashes": "^2.2.0",
+    "@replit/codemirror-vim": "6.3.0",
     "@tanstack/react-virtual": "3.14.2",
     "codemirror": "6.0.2",
     "cspell-trie-lib": "10.0.1",

@@ -295,6 +295,8 @@ const messages: BaseLocaleMessages = {
   "settings.editor.documentLinksDescription": "Show backlinks and unlinked mentions for the current document in the sidebar.",
   "settings.editor.showWordCount": "Show word count",
   "settings.editor.showWordCountDescription": "Show document word count in the editor status line.",
+  "settings.editor.vimMode": "Vim mode",
+  "settings.editor.vimModeDescription": "Use Vim-style normal and insert modes in both visual and source editors.",
   "settings.editor.wrapCodeBlocks": "Wrap code block lines",
   "settings.editor.wrapCodeBlocksDescription": "Wrap long lines inside code blocks instead of requiring horizontal scrolling.",
   "settings.editor.spellcheck": "Check spelling",

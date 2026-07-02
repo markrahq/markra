@@ -31,6 +31,22 @@ describe("editor stylesheet", () => {
     expect(surfaceRule).toContain("font-family: var(--editor-font-family);");
   });
 
+  it("styles the visual Vim normal mode caret as a block", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const blockCaretRuleStart = styles.indexOf(
+      ".markdown-paper .markra-prosemirror-caret.markra-prosemirror-caret-block"
+    );
+    const blockCaretRuleEnd = styles.indexOf(".editor-content-slot[data-document-search-open=\"true\"]", blockCaretRuleStart);
+    const blockCaretRule = styles.slice(blockCaretRuleStart, blockCaretRuleEnd);
+
+    expect(blockCaretRuleStart).toBeGreaterThanOrEqual(0);
+    expect(blockCaretRuleEnd).toBeGreaterThan(blockCaretRuleStart);
+    expect(blockCaretRule).toContain("border: 1px solid color-mix(in srgb, var(--accent) 52%, transparent);");
+    expect(blockCaretRule).toContain("background: color-mix(in srgb, var(--accent) 10%, transparent);");
+    expect(blockCaretRule).toContain("border-radius: 3px;");
+    expect(blockCaretRule).not.toContain("opacity:");
+  });
+
   it("forces a grabbing cursor during document tab pointer drags", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

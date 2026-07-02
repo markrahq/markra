@@ -861,6 +861,12 @@
     animation: markra-prosemirror-caret-blink 1.05s steps(1, end) infinite;
   }
 
+  .markdown-paper .markra-prosemirror-caret.markra-prosemirror-caret-block {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 52%, transparent);
+    border-radius: 3px;
+  }
+
   .editor-content-slot[data-document-search-open="true"] .markdown-paper .markra-prosemirror-caret {
     display: none !important;
   }

@@ -1,9 +1,11 @@
 import { Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
+import { vimNormalClassName } from "./vim-mode";
 
 const customCaretClassName = "markra-prosemirror-custom-caret";
 const caretClassName = "markra-prosemirror-caret";
+const blockCaretClassName = "markra-prosemirror-caret-block";
 
 function focused(view: EditorView) {
   return view.hasFocus() || view.dom.classList.contains("ProseMirror-focused");
@@ -18,6 +20,27 @@ function caretFontSize(view: EditorView) {
 function caretHeight(view: EditorView, lineHeight: number) {
   const targetHeight = Math.round(caretFontSize(view) * 1.125);
   return Math.max(1, Math.min(targetHeight, lineHeight > 0 ? lineHeight : targetHeight));
+}
+
+function caretWidth(view: EditorView) {
+  if (!view.dom.classList.contains(vimNormalClassName)) return "1px";
+
+  return `${Math.max(3, Math.round(caretFontSize(view) * 0.44))}px`;
+}
+
+function blockCaretWidth(view: EditorView, left: number) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return caretWidth(view);
+
+  try {
+    const next = view.coordsAtPos(selection.from + 1, -1);
+    const measuredWidth = Math.round(next.left - left);
+    if (measuredWidth > 1) return `${measuredWidth}px`;
+  } catch {
+    return caretWidth(view);
+  }
+
+  return caretWidth(view);
 }
 
 function hideCaret(caret: HTMLElement) {
@@ -100,11 +123,14 @@ class VisualCaretView {
     const lineHeight = coords.bottom - coords.top;
     const height = caretHeight(view, lineHeight);
     const top = coords.top + Math.max(0, lineHeight - height) / 2;
+    const block = view.dom.classList.contains(vimNormalClassName);
 
     this.caret.style.display = "block";
     this.caret.style.left = `${Math.round(coords.left)}px`;
     this.caret.style.top = `${Math.round(top)}px`;
     this.caret.style.height = `${height}px`;
+    this.caret.style.width = block ? blockCaretWidth(view, coords.left) : caretWidth(view);
+    this.caret.classList.toggle(blockCaretClassName, block);
   }
 
   destroy() {

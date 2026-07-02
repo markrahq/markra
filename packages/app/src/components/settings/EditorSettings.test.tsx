@@ -126,6 +126,28 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("toggles Vim mode from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          vimModeEnabled: false
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("switch", { name: "Vim mode" }));
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      vimModeEnabled: true
+    });
+  });
+
   it("toggles document links from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

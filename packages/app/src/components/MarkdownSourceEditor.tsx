@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, type CSSProperties, type Ref, type UIEvent 
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { Annotation, Compartment, EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
 import { Decoration, EditorView, keymap } from "@codemirror/view";
+import { vim } from "@replit/codemirror-vim";
 import { minimalSetup } from "codemirror";
 import { t, type AppLanguage, type SearchRange } from "@markra/shared";
 import {
@@ -43,6 +44,7 @@ export type MarkdownSourceEditorProps = {
   searchMatches?: SearchRange[];
   scrollRef?: Ref<HTMLElement>;
   topInset?: "none" | "tabs" | "titlebar";
+  vimModeEnabled?: boolean;
 };
 
 type MarkdownSourcePaperStyle = CSSProperties & {
@@ -50,6 +52,10 @@ type MarkdownSourcePaperStyle = CSSProperties & {
 };
 
 const externalSourceUpdate = Annotation.define<boolean>();
+
+function markdownSourceVimExtension(enabled: boolean): Extension {
+  return enabled ? vim() : [];
+}
 
 function markdownSourceContentAttributes(label: string, readOnly: boolean): Extension {
   return EditorView.contentAttributes.of({
@@ -195,7 +201,8 @@ export function MarkdownSourceEditor({
   searchActiveIndex = -1,
   searchMatches = [],
   scrollRef,
-  topInset = "titlebar"
+  topInset = "titlebar",
+  vimModeEnabled = false
 }: MarkdownSourceEditorProps) {
   const editorContainerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef(content);
@@ -209,6 +216,7 @@ export function MarkdownSourceEditor({
   const searchCompartmentRef = useRef(new Compartment());
   const externalContentScrollSuppressedRef = useRef(false);
   const externalContentScrollRestoreFrameRef = useRef<number | null>(null);
+  const vimCompartmentRef = useRef(new Compartment());
   const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
   const editorFontFamilyCss = editorFontFamilyCssValue(editorFontFamily);
   const sourceLabel = t(language, "app.markdownSource");
@@ -259,6 +267,7 @@ export function MarkdownSourceEditor({
 
   const extensions = useMemo(
     () => [
+      vimCompartmentRef.current.of(markdownSourceVimExtension(vimModeEnabled && !readOnly)),
       minimalSetup,
       markdownSourceSharedHistoryExtension(onUndoRef, onRedoRef),
       markdown({
@@ -324,6 +333,15 @@ export function MarkdownSourceEditor({
       ]
     });
   }, [readOnly, sourceLabel]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    view.dispatch({
+      effects: vimCompartmentRef.current.reconfigure(markdownSourceVimExtension(vimModeEnabled && !readOnly))
+    });
+  }, [readOnly, vimModeEnabled]);
 
   useEffect(() => {
     const view = viewRef.current;

@@ -246,6 +246,7 @@ describe("settings events", () => {
         wordCount: "visible"
       },
       showWordCount: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: false
     };
 

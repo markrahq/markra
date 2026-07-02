@@ -681,6 +681,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "Affiche les liens entrants et les mentions non liées du document actuel dans la barre latérale.",
   "settings.editor.showWordCount": "Afficher le nombre de mots",
   "settings.editor.showWordCountDescription": "Affiche le nombre de mots dans la ligne d’état de l’éditeur.",
+  "settings.editor.vimMode": "Mode Vim",
+  "settings.editor.vimModeDescription": "Utilise les modes normal et insertion de style Vim dans les éditeurs visuel et source.",
   "settings.editor.wrapCodeBlocks": "Renvoyer les lignes des blocs de code",
   "settings.editor.wrapCodeBlocksDescription": "Renvoie les longues lignes dans les blocs de code au lieu d’imposer un défilement horizontal.",
   "settings.editor.spellcheck": "Vérifier l’orthographe",

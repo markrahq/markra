@@ -73,6 +73,7 @@ async function renderEditor(
     readOnly?: boolean;
     resolveImageSrc?: (src: string) => string;
     markdownShortcuts?: MarkdownShortcutMap;
+    vimModeEnabled?: boolean;
     extendedSyntax?: ExtendedSyntaxPreferences;
     workspaceFiles?: Array<{
       kind?: "asset" | "attachment" | "folder";
@@ -101,6 +102,7 @@ async function renderEditor(
       }}
       extendedSyntax={options.extendedSyntax}
       markdownShortcuts={options.markdownShortcuts}
+      vimModeEnabled={options.vimModeEnabled}
       onMarkdownChange={options.onMarkdownChange ?? (() => {})}
       onSaveClipboardAttachment={options.onSaveClipboardAttachment}
       onSaveClipboardImage={options.onSaveClipboardImage}
@@ -1048,6 +1050,65 @@ describe("MarkdownPaper editing", () => {
     expect(caret?.style.left).toBe("24px");
     expect(caret?.style.top).toBe("17px");
     expect(caret?.style.height).toBe("18px");
+
+    coordsSpy.mockRestore();
+    await settleMarkdownListener();
+  });
+
+  it("enables Vim normal and insert modes in the visual editor", async () => {
+    const { view } = await renderEditor("alpha", { vimModeEnabled: true });
+
+    focusEditor(view);
+    moveCursor(view, findTextPosition(view, "alpha", 2));
+
+    expect(pressShortcut(view, "Escape")).toBe(true);
+    typeText(view, "z");
+    expect(view.state.doc.textBetween(0, view.state.doc.content.size, "\n")).toBe("alpha");
+
+    expect(pressShortcut(view, "i")).toBe(true);
+    typeText(view, "z");
+    expect(view.state.doc.textBetween(0, view.state.doc.content.size, "\n")).toBe("azlpha");
+
+    await settleMarkdownListener();
+  });
+
+  it("uses a block custom caret in visual Vim normal mode", async () => {
+    const { view } = await renderEditor("alpha", { vimModeEnabled: true });
+    const alphaPosition = findTextPosition(view, "alpha");
+    const blockPosition = alphaPosition + 1;
+    const coordsSpy = vi.spyOn(view, "coordsAtPos").mockImplementation((position) => {
+      if (position === blockPosition + 1) {
+        return {
+          bottom: 42,
+          left: 32,
+          right: 33,
+          top: 10
+        };
+      }
+
+      return {
+        bottom: 42,
+        left: 24,
+        right: 25,
+        top: 10
+      };
+    });
+
+    focusEditor(view);
+    moveCursor(view, alphaPosition + 2);
+
+    const caret = view.dom.ownerDocument.querySelector<HTMLElement>(".markra-prosemirror-caret");
+    expect(caret).toBeInTheDocument();
+    expect(caret).not.toHaveClass("markra-prosemirror-caret-block");
+    expect(caret?.style.width).toBe("1px");
+
+    expect(pressShortcut(view, "Escape")).toBe(true);
+    expect(caret).toHaveClass("markra-prosemirror-caret-block");
+    expect(caret?.style.width).toBe("8px");
+
+    expect(pressShortcut(view, "i")).toBe(true);
+    expect(caret).not.toHaveClass("markra-prosemirror-caret-block");
+    expect(caret?.style.width).toBe("1px");
 
     coordsSpy.mockRestore();
     await settleMarkdownListener();

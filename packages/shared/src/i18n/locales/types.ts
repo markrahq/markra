@@ -324,6 +324,8 @@ export type I18nKey =
   | "settings.editor.documentLinksDescription"
   | "settings.editor.showWordCount"
   | "settings.editor.showWordCountDescription"
+  | "settings.editor.vimMode"
+  | "settings.editor.vimModeDescription"
   | "settings.editor.wrapCodeBlocks"
   | "settings.editor.wrapCodeBlocksDescription"
   | "settings.editor.spellcheck"
