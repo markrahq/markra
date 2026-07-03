@@ -1,7 +1,7 @@
 import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
 import { Fragment, type MarkType, type Node as ProseNode, type NodeType, type Schema, type Slice } from "@milkdown/kit/prose/model";
-import { Plugin, Selection, TextSelection, type SelectionBookmark } from "@milkdown/kit/prose/state";
-import type { EditorView } from "@milkdown/kit/prose/view";
+import { Plugin, PluginKey, Selection, TextSelection, type SelectionBookmark, type Transaction } from "@milkdown/kit/prose/state";
+import { Decoration, DecorationSet, type EditorView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
 import {
   markdownImageDragSrcForDocument,
@@ -49,6 +49,38 @@ type ImageInsertionRange = {
   from: number;
   to: number;
 };
+
+type ImageUploadPlaceholderReplaceMode = "dynamic" | "range";
+
+type ImageUploadPlaceholder = {
+  from: number;
+  id: string;
+  position: number;
+  replaceMode: ImageUploadPlaceholderReplaceMode;
+  to: number;
+};
+
+type ImageUploadPlaceholderState = {
+  decorations: DecorationSet;
+  placeholders: ImageUploadPlaceholder[];
+};
+
+type ImageUploadPlaceholderMeta =
+  | {
+      placeholders: ImageUploadPlaceholder[];
+      type: "add";
+    }
+  | {
+      ids: string[];
+      type: "remove";
+    };
+
+const imageUploadPlaceholderKey = new PluginKey<ImageUploadPlaceholderState>("markra-clipboard-image-upload-placeholder");
+const emptyImageUploadPlaceholderState: ImageUploadPlaceholderState = {
+  decorations: DecorationSet.empty,
+  placeholders: []
+};
+let nextImageUploadPlaceholderSequence = 0;
 
 const droppedPlainMarkdownImagePattern = /^!\[((?:\\.|[^\]\\])*)\]\(([^)\s]+)\)$/u;
 
@@ -200,6 +232,176 @@ function imageInsertionRangeForSelection(selection: Selection): ImageInsertionRa
   };
 }
 
+function createImageUploadPlaceholderId() {
+  nextImageUploadPlaceholderSequence += 1;
+  return `markra-image-upload-${nextImageUploadPlaceholderSequence}`;
+}
+
+function clampDocumentPosition(position: number, docSize: number) {
+  return Math.max(0, Math.min(docSize, position));
+}
+
+function createImageUploadPlaceholderElement(ownerDocument: Document, id: string) {
+  const placeholder = ownerDocument.createElement("span");
+  placeholder.className = "markra-image-upload-placeholder";
+  placeholder.contentEditable = "false";
+  placeholder.dataset.markraImageUploadPlaceholder = id;
+  placeholder.setAttribute("aria-live", "polite");
+  placeholder.setAttribute("role", "status");
+
+  const spinner = ownerDocument.createElement("span");
+  spinner.className = "markra-image-upload-placeholder-spinner";
+  spinner.setAttribute("aria-hidden", "true");
+
+  const label = ownerDocument.createElement("span");
+  label.className = "markra-image-upload-placeholder-label";
+  label.textContent = "Uploading image...";
+
+  placeholder.append(spinner, label);
+  return placeholder;
+}
+
+function buildImageUploadPlaceholderDecorations(doc: ProseNode, placeholders: ImageUploadPlaceholder[]) {
+  if (!placeholders.length) return DecorationSet.empty;
+
+  return DecorationSet.create(
+    doc,
+    placeholders.map((placeholder) =>
+      Decoration.widget(
+        clampDocumentPosition(placeholder.position, doc.content.size),
+        (view) => createImageUploadPlaceholderElement(view.dom.ownerDocument, placeholder.id),
+        {
+          key: placeholder.id,
+          side: -1
+        }
+      )
+    )
+  );
+}
+
+function mapImageUploadPlaceholder(
+  placeholder: ImageUploadPlaceholder,
+  transaction: Transaction
+): ImageUploadPlaceholder | null {
+  if (!transaction.docChanged) return placeholder;
+
+  const docSize = transaction.doc.content.size;
+  const position = clampDocumentPosition(transaction.mapping.map(placeholder.position, 1), docSize);
+  const from = clampDocumentPosition(transaction.mapping.map(placeholder.from, 1), docSize);
+  const to = clampDocumentPosition(transaction.mapping.map(placeholder.to, -1), docSize);
+  if (from > to) return null;
+
+  return {
+    ...placeholder,
+    from,
+    position,
+    to
+  };
+}
+
+function applyImageUploadPlaceholderTransaction(
+  transaction: Transaction,
+  previous: ImageUploadPlaceholderState
+): ImageUploadPlaceholderState {
+  const meta = transaction.getMeta(imageUploadPlaceholderKey) as ImageUploadPlaceholderMeta | undefined;
+  const mappedPlaceholders = previous.placeholders.flatMap((placeholder) => {
+    const mapped = mapImageUploadPlaceholder(placeholder, transaction);
+    return mapped ? [mapped] : [];
+  });
+
+  let placeholders = mappedPlaceholders;
+  if (meta?.type === "add") {
+    placeholders = [...placeholders, ...meta.placeholders];
+  } else if (meta?.type === "remove") {
+    const removedIds = new Set(meta.ids);
+    placeholders = placeholders.filter((placeholder) => !removedIds.has(placeholder.id));
+  }
+
+  return {
+    decorations: buildImageUploadPlaceholderDecorations(transaction.doc, placeholders),
+    placeholders
+  };
+}
+
+function imageUploadPlaceholderPositionForSelection(selection: Selection, range: ImageInsertionRange) {
+  return selection.empty ? selection.from : range.from;
+}
+
+function addImageUploadPlaceholders(
+  view: EditorView,
+  count: number,
+  bookmark: SelectionBookmark
+) {
+  if (count <= 0) return [];
+
+  const selection = bookmark.resolve(view.state.doc);
+  const range = imageInsertionRangeForSelection(selection);
+  const position = clampDocumentPosition(
+    imageUploadPlaceholderPositionForSelection(selection, range),
+    view.state.doc.content.size
+  );
+  const placeholders = Array.from({ length: count }, () => ({
+    from: range.from,
+    id: createImageUploadPlaceholderId(),
+    position,
+    // Recompute empty selections at completion so typing while an upload is pending is not overwritten.
+    replaceMode: selection.empty ? "dynamic" : "range",
+    to: range.to
+  } satisfies ImageUploadPlaceholder));
+
+  view.dispatch(
+    view.state.tr
+      .setMeta(imageUploadPlaceholderKey, {
+        placeholders,
+        type: "add"
+      } satisfies ImageUploadPlaceholderMeta)
+      .scrollIntoView()
+  );
+
+  return placeholders.map((placeholder) => placeholder.id);
+}
+
+function removeImageUploadPlaceholders(view: EditorView, ids: string[]) {
+  if (!ids.length) return;
+
+  view.dispatch(
+    view.state.tr.setMeta(imageUploadPlaceholderKey, {
+      ids,
+      type: "remove"
+    } satisfies ImageUploadPlaceholderMeta)
+  );
+}
+
+function currentImageUploadPlaceholder(view: EditorView, id: string) {
+  return imageUploadPlaceholderKey.getState(view.state)?.placeholders.find((placeholder) => placeholder.id === id) ?? null;
+}
+
+function textSelectionAtPosition(doc: ProseNode, position: number) {
+  const resolvedPosition = doc.resolve(clampDocumentPosition(position, doc.content.size));
+  const nearbySelection = Selection.near(resolvedPosition);
+  return nearbySelection instanceof TextSelection ? nearbySelection : null;
+}
+
+function imageUploadPlaceholderReplacementRange(doc: ProseNode, placeholder: ImageUploadPlaceholder) {
+  if (placeholder.replaceMode === "range") {
+    return {
+      from: clampDocumentPosition(placeholder.from, doc.content.size),
+      to: clampDocumentPosition(placeholder.to, doc.content.size)
+    };
+  }
+
+  const selection = textSelectionAtPosition(doc, placeholder.position);
+  if (!selection) {
+    const position = clampDocumentPosition(placeholder.position, doc.content.size);
+    return {
+      from: position,
+      to: position
+    };
+  }
+
+  return imageInsertionRangeForSelection(selection);
+}
+
 function isRemoteImageSrc(value: unknown): value is string {
   if (typeof value !== "string") return false;
 
@@ -335,16 +537,30 @@ async function saveAndInsertClipboardImages(
   image: NodeType,
   bookmark: SelectionBookmark = view.state.selection.getBookmark()
 ) {
-  const savedImages: SavedClipboardImage[] = [];
+  const placeholderIds = addImageUploadPlaceholders(view, files.length, bookmark);
 
-  for (const file of files) {
-    const savedImage = await saveClipboardImage(file);
-    if (savedImage) savedImages.push(savedImage);
+  for (let index = 0; index < files.length; index += 1) {
+    const file = files[index];
+    const placeholderId = placeholderIds[index];
+    if (!file || !placeholderId) continue;
+
+    let savedImage: SavedClipboardImage | null = null;
+    try {
+      savedImage = await saveClipboardImage(file);
+    } catch (error) {
+      removeImageUploadPlaceholders(view, placeholderIds.slice(index));
+      throw error;
+    }
+
+    if (!savedImage) {
+      removeImageUploadPlaceholders(view, [placeholderId]);
+      continue;
+    }
+
+    if (!replaceImageUploadPlaceholder(view, placeholderId, savedImage, image)) {
+      insertSavedClipboardImages(view, [savedImage], image, bookmark);
+    }
   }
-
-  if (!savedImages.length) return;
-
-  insertSavedClipboardImages(view, savedImages, image, bookmark);
 }
 
 async function saveAndInsertClipboardAttachments(
@@ -383,6 +599,32 @@ function insertSavedClipboardImages(
   view.focus();
 }
 
+function replaceImageUploadPlaceholder(
+  view: EditorView,
+  placeholderId: string,
+  savedImage: SavedClipboardImage,
+  image: NodeType
+) {
+  const placeholder = currentImageUploadPlaceholder(view, placeholderId);
+  if (!placeholder) return false;
+
+  const fragment = createImageFragment([savedImage], image);
+  const range = imageUploadPlaceholderReplacementRange(view.state.doc, placeholder);
+  const transaction = view.state.tr
+    .replaceWith(range.from, range.to, fragment)
+    .setMeta(imageUploadPlaceholderKey, {
+      ids: [placeholderId],
+      type: "remove"
+    } satisfies ImageUploadPlaceholderMeta)
+    .scrollIntoView();
+  const cursor = Math.min(transaction.doc.content.size, range.from + fragment.size);
+
+  transaction.setSelection(Selection.near(transaction.doc.resolve(cursor), -1));
+  view.dispatch(transaction);
+  view.focus();
+  return true;
+}
+
 function insertSavedClipboardAttachments(
   view: EditorView,
   savedAttachments: SavedClipboardAttachment[],
@@ -411,8 +653,10 @@ export function markraClipboardImagePluginWithOptions(
     const image = imageSchema.type(ctx);
     const link = linkSchema.type(ctx);
 
-    return new Plugin({
+    return new Plugin<ImageUploadPlaceholderState>({
+      key: imageUploadPlaceholderKey,
       props: {
+        decorations: (state) => imageUploadPlaceholderKey.getState(state)?.decorations ?? DecorationSet.empty,
         handlePaste: (view, event, slice) => {
           const files = clipboardImageFiles(event);
           if (files.length && !clipboardHasStructuredTableData(event)) {
@@ -496,6 +740,14 @@ export function markraClipboardImagePluginWithOptions(
             console.error("[markra-clipboard-images] failed to insert dropped attachment", error);
           });
           return true;
+        }
+      },
+      state: {
+        init() {
+          return emptyImageUploadPlaceholderState;
+        },
+        apply(transaction, previous) {
+          return applyImageUploadPlaceholderTransaction(transaction, previous);
         }
       }
     });

@@ -460,6 +460,17 @@ function pasteImage(view: EditorView, image: File) {
   return view.someProp("handlePaste", (handler) => handler(view, event, view.state.selection.content()));
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => unknown;
+  let reject!: (reason?: unknown) => unknown;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+
+  return { promise, reject, resolve };
+}
+
 function dispatchMixedClipboardPaste(view: EditorView, data: { files: File[]; html?: string; plainText?: string }) {
   const event = new Event("paste", {
     bubbles: true,
@@ -3255,6 +3266,64 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain("![Screenshot](assets/pasted-image.png)");
     expect(serializeMarkdown(view.state.doc)).not.toContain("!\\[Screenshot\\]\\(assets/pasted-image.png\\)");
     await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("![Screenshot](assets/pasted-image.png)")));
+  });
+
+  it("shows an inline upload placeholder while pasted clipboard images are saving", async () => {
+    const onMarkdownChange = vi.fn();
+    const pendingSave = createDeferred<{ alt: string; src: string } | null>();
+    const onSaveClipboardImage = vi.fn(() => pendingSave.promise);
+    const image = new File([new Uint8Array([1, 2, 3])], "Mock Upload.png", { type: "image/png" });
+    const { container, editor, view } = await renderEditor("", { onMarkdownChange, onSaveClipboardImage });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(pasteImage(view, image)).toBe(true);
+
+    await waitFor(() => expect(onSaveClipboardImage).toHaveBeenCalledWith(image));
+    const placeholder = container.querySelector<HTMLElement>(".ProseMirror .markra-image-upload-placeholder");
+    expect(placeholder).toBeInTheDocument();
+    expect(placeholder).toHaveTextContent("Uploading image...");
+    expect(serializeMarkdown(view.state.doc)).not.toContain("Uploading image");
+
+    await act(async () => {
+      pendingSave.resolve({
+        alt: "Mock upload",
+        src: "assets/mock-upload.png"
+      });
+      await pendingSave.promise;
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-image-upload-placeholder")).not.toBeInTheDocument();
+    });
+    expect(container.querySelector<HTMLImageElement>('img[src="assets/mock-upload.png"]')).toHaveAttribute(
+      "alt",
+      "Mock upload"
+    );
+    expect(serializeMarkdown(view.state.doc)).toContain("![Mock upload](assets/mock-upload.png)");
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("![Mock upload](assets/mock-upload.png)")));
+  });
+
+  it("removes the inline upload placeholder when pasted clipboard image saving is skipped", async () => {
+    const pendingSave = createDeferred<{ alt: string; src: string } | null>();
+    const onSaveClipboardImage = vi.fn(() => pendingSave.promise);
+    const image = new File([new Uint8Array([1, 2, 3])], "Skipped Upload.png", { type: "image/png" });
+    const { container, editor, view } = await renderEditor("", { onSaveClipboardImage });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(pasteImage(view, image)).toBe(true);
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror .markra-image-upload-placeholder")).toBeInTheDocument());
+
+    await act(async () => {
+      pendingSave.resolve(null);
+      await pendingSave.promise;
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror .markra-image-upload-placeholder")).not.toBeInTheDocument();
+    });
+    expect(container.querySelector(".ProseMirror img")).not.toBeInTheDocument();
+    expect(serializeMarkdown(view.state.doc)).not.toContain("Uploading image");
   });
 
   it("lets pasted spreadsheet tables use structured clipboard data instead of the bitmap preview", async () => {

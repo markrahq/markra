@@ -2569,6 +2569,23 @@
     user-select: none;
   }
 
+  .markdown-paper .markra-image-upload-placeholder {
+    @apply my-6 inline-flex min-h-18 max-w-full items-center gap-2 rounded-[3px] border border-dashed border-(--border-default) bg-(--bg-secondary) px-3.5 py-3 text-[0.92em] font-medium text-(--text-secondary);
+    cursor: progress;
+    user-select: none;
+    vertical-align: middle;
+  }
+
+  .markdown-paper .markra-image-upload-placeholder-spinner {
+    @apply block size-4 shrink-0 rounded-full border-2 border-(--border-default);
+    animation: markra-ai-preview-spin 0.82s linear infinite;
+    border-top-color: var(--accent);
+  }
+
+  .markdown-paper .markra-image-upload-placeholder-label {
+    @apply min-w-0 truncate;
+  }
+
   .markdown-paper .markra-image-node-source::selection {
     background: color-mix(in srgb, var(--accent) 28%, transparent);
   }
@@ -3499,6 +3516,10 @@
     }
 
     .markdown-paper .markra-ai-preview-spinner {
+      animation: none;
+    }
+
+    .markdown-paper .markra-image-upload-placeholder-spinner {
       animation: none;
     }
   }
