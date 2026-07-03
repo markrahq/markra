@@ -1,4 +1,7 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { Editor as MilkdownEditor, editorViewCtx } from "@milkdown/kit/core";
+import { TextSelection } from "@milkdown/kit/prose/state";
+import type { EditorView as ProseMirrorEditorView } from "@milkdown/kit/prose/view";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
 import {
@@ -24,6 +27,47 @@ import {
 import { agentSessionSummary, storedAgentSession } from "./test/ai-fixtures";
 
 installAppTestHarness();
+
+async function settleEditorUpdates() {
+  await new Promise((resolve) => {
+    window.setTimeout(resolve, 300);
+  });
+}
+
+function visibleEditorView(
+  container: HTMLElement,
+  editors: Array<ReturnType<typeof MilkdownEditor.make>>
+): ProseMirrorEditorView {
+  for (const editor of editors) {
+    try {
+      const view = editor.action((ctx) => ctx.get(editorViewCtx));
+      if (container.contains(view.dom) && !view.dom.closest("[hidden]")) return view;
+    } catch {
+      // Some editor instances may be disposed while the app swaps surfaces.
+    }
+  }
+
+  throw new Error("Expected a visible Milkdown editor view.");
+}
+
+function findTextPosition(view: ProseMirrorEditorView, text: string, offset = 0) {
+  let result: number | null = null;
+
+  view.state.doc.descendants((node, nodePosition) => {
+    if (result !== null || !node.isText) return true;
+
+    const textOffset = node.text?.indexOf(text) ?? -1;
+    if (textOffset < 0) return true;
+
+    result = nodePosition + textOffset + offset;
+    return false;
+  });
+
+  if (result === null) throw new Error(`Text not found in editor: ${text}`);
+
+  return result;
+}
+
 describe("Markra AI workspace", () => {
   it("opens a right-side Markra AI workspace from the titlebar", async () => {
     mockedGetStoredAiSettings.mockResolvedValue({
@@ -70,6 +114,42 @@ describe("Markra AI workspace", () => {
     expect((container.querySelector(".editor-agent-layout") as HTMLElement).style.gridTemplateColumns).toBe(
       "minmax(0,1fr) 0px"
     );
+  });
+
+  it("keeps the selected editor text visibly held when the right-side AI input is focused", async () => {
+    const createdEditors: Array<ReturnType<typeof MilkdownEditor.make>> = [];
+    const originalMake = MilkdownEditor.make.bind(MilkdownEditor);
+    const makeSpy = vi.spyOn(MilkdownEditor, "make").mockImplementation(() => {
+      const editor = originalMake();
+      createdEditors.push(editor);
+      return editor;
+    });
+
+    try {
+      const { container } = renderApp();
+
+      await screen.findByText("Welcome to Markra");
+      await settleEditorUpdates();
+
+      const view = visibleEditorView(container, createdEditors);
+      const from = findTextPosition(view, "Welcome");
+      act(() => {
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, from, from + "Welcome".length)));
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+
+      const agentPanel = await screen.findByRole("complementary", { name: "Markra AI" });
+      const input = within(agentPanel).getByRole("textbox", { name: "Markra AI message" });
+
+      fireEvent.focus(input);
+
+      await waitFor(() => {
+        expect(container.querySelector(".ProseMirror .markra-ai-selection-hold")).toHaveTextContent("Welcome");
+      });
+    } finally {
+      makeSpy.mockRestore();
+    }
   });
 
   it("toggles the Markra AI panel from the keyboard shortcut", async () => {

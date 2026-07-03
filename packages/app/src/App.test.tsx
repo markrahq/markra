@@ -7677,7 +7677,7 @@ describe("Markra workspace", () => {
     expect(options?.getAiCommandsAvailable?.()).toBe(false);
   });
 
-  it("reloads the current file when a native watcher reports an external change", async () => {
+  it("reloads the current file as an undoable edit when a native watcher reports an external change", async () => {
     let emitExternalChange: (path: string) => unknown | Promise<unknown> = () => {};
 
     mockOpenMarkdownFile({
@@ -7695,11 +7695,13 @@ describe("Markra workspace", () => {
       return () => {};
     });
 
-    renderApp();
+    const { container } = renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
 
-    expect(await screen.findByText("Native file")).toBeInTheDocument();
+    await expectVisibleMilkdownText(container, "Native file");
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
 
     await waitFor(() =>
       expect(mockedWatchNativeMarkdownFile).toHaveBeenCalledWith(
@@ -7708,11 +7710,20 @@ describe("Markra workspace", () => {
         expect.any(Function)
       )
     );
-    await emitExternalChange(mockNativePath);
+    await act(async () => {
+      await emitExternalChange(mockNativePath);
+    });
 
-    expect(await screen.findByText("Changed elsewhere")).toBeInTheDocument();
-    expect(screen.getByText("Reloaded from disk.")).toBeInTheDocument();
+    await expectVisibleMilkdownText(container, "Changed elsewhere");
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(mockNativePath);
+
+    act(() => {
+      menuHandlers.editUndo?.();
+    });
+
+    await expectVisibleMilkdownText(container, "Native file");
+    await waitFor(() => expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument());
+    expect(within(getVisibleMilkdownEditor(container)).queryByText("Changed elsewhere")).not.toBeInTheDocument();
   });
 
   it("refreshes the markdown file tree when the native folder watcher reports a new asset", async () => {

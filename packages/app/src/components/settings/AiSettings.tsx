@@ -7,7 +7,7 @@ import {
   defaultAiQuickActionPrompts,
   type AiQuickActionId
 } from "../../lib/ai-actions";
-import type { EditorPreferences } from "../../lib/settings/app-settings";
+import { codexAcpAgentArgs, type EditorPreferences } from "../../lib/settings/app-settings";
 import {
   SettingsButton,
   SettingsRow,
@@ -28,7 +28,7 @@ function acpShellArgs(command: string) {
 
 const acpAgentPresets = [
   {
-    args: acpShellArgs("env CODEX_PATH=\"$(command -v codex)\" npx -y @agentclientprotocol/codex-acp"),
+    args: codexAcpAgentArgs,
     command: acpShellCommand,
     id: "codex-acp",
     label: "Codex"

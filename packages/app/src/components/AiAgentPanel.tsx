@@ -86,6 +86,7 @@ type AiAgentPanelProps = {
   onCreateSession?: () => unknown;
   onDeleteSession?: (sessionId: string) => unknown;
   onDisableThinking?: () => unknown;
+  onComposerFocus?: () => unknown;
   onDraftChange?: (value: string) => unknown;
   onInterrupt?: () => unknown;
   onRenameSession?: (sessionId: string, title: string) => unknown;
@@ -140,6 +141,7 @@ export function AiAgentPanel({
   onArchiveSession,
   onApplyWorkspacePlan,
   onClose,
+  onComposerFocus,
   onCreateSession,
   onDeleteSession,
   onDisableThinking,
@@ -824,6 +826,7 @@ export function AiAgentPanel({
               }}
               onCompositionEnd={handleCompositionEnd}
               onCompositionStart={handleCompositionStart}
+              onFocus={onComposerFocus}
               onKeyDown={handleKeyDown}
             />
             <div className="mt-2 flex items-center justify-between gap-3 border-t border-(--border-default) pt-2">

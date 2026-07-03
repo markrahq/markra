@@ -2,6 +2,7 @@ import { createSettingsStoreHarness, resetSettingsStoreRuntime, setupSettingsSto
 import {
   darkEditorThemeOptions,
   defaultAcpAgentSettings,
+  codexAcpAgentArgs,
   defaultEditorPreferences,
   exportStoredAppSettings,
   getStoredAcpAgentSettings,
@@ -31,6 +32,18 @@ import {
 
 const settingsStore = createSettingsStoreHarness();
 const { loadStore: mockedLoadStore, store } = settingsStore;
+const legacyCodexAcpAgentArgsWithPathFallback = [
+  "-lc '",
+  "CODEX_BIN=\"$(command -v codex || true)\"; ",
+  "if [ -z \"$CODEX_BIN\" ] && [ -x \"/Applications/Codex.app/Contents/Resources/codex\" ]; then ",
+  "CODEX_BIN=\"/Applications/Codex.app/Contents/Resources/codex\"; ",
+  "fi; ",
+  "if [ -n \"$CODEX_BIN\" ]; then ",
+  "exec env CODEX_PATH=\"$CODEX_BIN\" npx -y @agentclientprotocol/codex-acp; ",
+  "fi; ",
+  "exec npx -y @agentclientprotocol/codex-acp",
+  "'"
+].join("");
 
 describe("app settings", () => {
   beforeEach(() => {
@@ -245,6 +258,27 @@ describe("app settings", () => {
     });
 
     expect(normalizeAcpAgentSettings({ command: "", enabled: "yes" })).toEqual(defaultAcpAgentSettings);
+    expect(codexAcpAgentArgs).toContain("INITIAL_AGENT_MODE=read-only");
+    expect(normalizeAcpAgentSettings({
+      args: "-lc 'exec env CODEX_PATH=\"$(command -v codex)\" npx -y @agentclientprotocol/codex-acp'",
+      command: "/bin/zsh",
+      enabled: true
+    })).toEqual({
+      args: codexAcpAgentArgs,
+      command: "/bin/zsh",
+      cwd: "",
+      enabled: true
+    });
+    expect(normalizeAcpAgentSettings({
+      args: legacyCodexAcpAgentArgsWithPathFallback,
+      command: "/bin/zsh",
+      enabled: true
+    })).toEqual({
+      args: codexAcpAgentArgs,
+      command: "/bin/zsh",
+      cwd: "",
+      enabled: true
+    });
 
     await saveStoredAcpAgentSettings({
       args: " --acp ",

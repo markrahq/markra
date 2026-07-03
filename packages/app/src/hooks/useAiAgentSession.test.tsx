@@ -96,6 +96,7 @@ describe("useAiAgentSession", () => {
     let agentEventHandler: ((event: { connectionId: string; message: string; type: "exit" | "message" | "stderr" }) => unknown) | null = null;
     const startAgent = vi.fn(async () => ({ connectionId: "acp-1" }));
     const stopAgent = vi.fn(async () => undefined);
+    let promptBlocks: unknown = null;
     const listenAgentMessages = vi.fn(async (handler) => {
       agentEventHandler = handler;
 
@@ -123,6 +124,10 @@ describe("useAiAgentSession", () => {
       }
 
       if (message.method === "session/prompt") {
+        const params = "params" in message && message.params && typeof message.params === "object"
+          ? message.params as { prompt?: unknown }
+          : {};
+        promptBlocks = params.prompt ?? null;
         agentEventHandler?.({
           connectionId: "acp-1",
           message: JSON.stringify({
@@ -238,6 +243,13 @@ describe("useAiAgentSession", () => {
 
     const { result } = renderAiAgentSession({
       documentPath: "/mock-vault/note.md",
+      getSelection: () => ({
+        cursor: 18,
+        from: 8,
+        source: "selection",
+        text: "selected synthetic text",
+        to: 31
+      }),
       model: null,
       provider: null,
       sessionId: "session-a",
@@ -256,6 +268,11 @@ describe("useAiAgentSession", () => {
       env: []
     });
     expect(mockedRunDocumentAiAgent).not.toHaveBeenCalled();
+    const editorContextBlock = (promptBlocks as Array<{ text?: string; type?: string }>).find((block) =>
+      block.type === "text" && block.text?.includes("Markra editor context:")
+    );
+    expect(editorContextBlock?.text).toContain("Current selection snapshot:");
+    expect(editorContextBlock?.text).toContain("Selected text:\nselected synthetic text");
     expect(result.current.messages.at(-1)).toMatchObject({
       role: "assistant",
       text: "ACP summary"
@@ -469,6 +486,117 @@ describe("useAiAgentSession", () => {
       preview,
       role: "assistant",
       text: "The editor change is ready."
+    });
+  });
+
+  it("keeps ACP text responses in the transcript when no filesystem write occurs", async () => {
+    let agentEventHandler: ((event: { connectionId: string; message: string; type: "exit" | "message" | "stderr" }) => unknown) | null = null;
+    const onAiPreviewReady = vi.fn();
+    const onAiResult = vi.fn();
+    const suggestedResponse = [
+      "```markdown",
+      "Improved draft",
+      "```"
+    ].join("\n");
+    const writeAgentMessage = vi.fn(async (_connectionId, message) => {
+      if (!("id" in message) || !("method" in message)) return;
+
+      if (message.method === "initialize") {
+        agentEventHandler?.({
+          connectionId: "acp-1",
+          message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { protocolVersion: 1 } }),
+          type: "message"
+        });
+      }
+
+      if (message.method === "session/new") {
+        agentEventHandler?.({
+          connectionId: "acp-1",
+          message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { sessionId: "session-acp" } }),
+          type: "message"
+        });
+      }
+
+      if (message.method === "session/prompt") {
+        agentEventHandler?.({
+          connectionId: "acp-1",
+          message: JSON.stringify({
+            jsonrpc: "2.0",
+            method: "session/update",
+            params: {
+              sessionId: "session-acp",
+              update: {
+                content: {
+                  text: suggestedResponse,
+                  type: "text"
+                },
+                sessionUpdate: "agent_message_chunk"
+              }
+            }
+          }),
+          type: "message"
+        });
+        agentEventHandler?.({
+          connectionId: "acp-1",
+          message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { stopReason: "end_turn" } }),
+          type: "message"
+        });
+      }
+    });
+
+    configureAppRuntime({
+      ...createDefaultAppRuntime(),
+      acp: {
+        listenAgentMessages: vi.fn(async (handler) => {
+          agentEventHandler = handler;
+
+          return () => {
+            agentEventHandler = null;
+          };
+        }),
+        startAgent: vi.fn(async () => ({ connectionId: "acp-1" })),
+        stopAgent: vi.fn(async () => undefined),
+        writeAgentMessage
+      }
+    });
+    mockedGetStoredAcpAgentSettings.mockResolvedValue({
+      args: "",
+      command: "synthetic-agent",
+      cwd: "",
+      enabled: true
+    });
+
+    const { result } = renderAiAgentSession({
+      documentPath: "/mock-vault/note.md",
+      getDocumentContent: () => "# Draft\n\nOriginal draft",
+      getSelection: () => ({
+        cursor: 23,
+        from: 9,
+        source: "selection",
+        text: "Original draft",
+        to: 23
+      }),
+      model: null,
+      onAiPreviewReady,
+      onAiResult,
+      provider: null,
+      sessionId: "session-a",
+      translate: testTranslate({
+        "app.aiAgentPreviewReady": "The editor change is ready."
+      }),
+      workspaceKey: "/mock-vault"
+    });
+
+    await act(async () => {
+      await result.current.submit("Polish the selected text");
+    });
+
+    expect(onAiResult).not.toHaveBeenCalled();
+    expect(onAiPreviewReady).not.toHaveBeenCalled();
+    expect(result.current.status).toBe("idle");
+    expect(result.current.messages.at(-1)).toMatchObject({
+      role: "assistant",
+      text: suggestedResponse
     });
   });
 

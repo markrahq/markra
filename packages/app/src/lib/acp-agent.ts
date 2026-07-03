@@ -2,16 +2,23 @@ import {
   AcpClient,
   type AcpAuthMethod,
   type AcpContentBlock,
+  type AcpFileSystem,
   type AcpInitializeResponse,
   type AcpJsonRpcMessage,
+  type AcpPermissions,
   type AcpPermissionRequest,
   type AcpPermissionRequestOutcome,
   type AcpSessionNewResponse,
   type AcpSessionUpdate,
+  buildInlineAiMessages,
   extractAcpModelConfig,
   type AiDiffResult,
+  type AiEditIntent,
+  type AiSelectionContext,
   type DocumentAiHistoryMessage,
+  type InlineAiAgentTarget,
   isAcpAuthRequiredError,
+  normalizeInlineAiReplacement,
   safeAcpPermissionOutcome
 } from "@markra/ai";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
@@ -33,8 +40,23 @@ export type AcpDocumentAgentRunOptions = {
   prompt: string;
   readWorkspaceFile?: (path: string) => Promise<string>;
   selectedModelId?: string | null;
+  selection?: AiSelectionContext | null;
   settings: AcpAgentSettings;
   signal?: AbortSignal;
+  workspaceKey: string | null;
+};
+
+export type AcpInlineAiAgentRunOptions = {
+  documentContent: string;
+  documentPath: string | null;
+  intent?: AiEditIntent;
+  onTextDelta?: (text: string) => unknown;
+  prompt: string;
+  selectedModelId?: string | null;
+  settings: AcpAgentSettings;
+  signal?: AbortSignal;
+  target: InlineAiAgentTarget;
+  translationTargetLanguage?: string;
   workspaceKey: string | null;
 };
 
@@ -68,52 +90,20 @@ export async function runAcpDocumentAgent({
   prompt,
   readWorkspaceFile,
   selectedModelId,
+  selection = null,
   settings,
   signal,
   workspaceKey
 }: AcpDocumentAgentRunOptions) {
-  const runtime = getAppRuntime();
   const cwd = resolveAcpAgentCwd(settings, documentPath, workspaceKey);
   const workspaceRoot = resolveAcpWorkspaceRoot(documentPath, workspaceKey);
   throwIfAcpRunAborted(signal);
-  const connection = await runtime.acp.startAgent({
-    args: parseAcpAgentArgs(settings.args),
-    command: settings.command,
-    cwd,
-    env: []
-  });
-  let stopListening: RuntimeCleanup | null = null;
-  const agentFailure = createAcpAgentFailureSignal();
-  const stderrMessages: string[] = [];
-  const transportHandlers = new Set<(message: AcpJsonRpcMessage) => unknown>();
   let preparedPreview = false;
   let permissionRequestCount = 0;
   let writePreviewCount = 0;
 
-  try {
-    stopListening = await runtime.acp.listenAgentMessages((event) => {
-      if (event.connectionId !== connection.connectionId) return;
-      if (event.type === "stderr") {
-        appendAcpStderrMessage(stderrMessages, event.message);
-        return;
-      }
-      if (event.type === "exit") {
-        agentFailure.fail(acpAgentExitedError(event.message, stderrMessages));
-        return;
-      }
-      if (event.type !== "message") return;
-
-      const message = parseAcpJsonRpcMessage(event.message);
-      if (!message) return;
-
-      transportHandlers.forEach((handler) => handler(message));
-    });
-  } catch (error) {
-    await runtime.acp.stopAgent(connection.connectionId).catch(() => {});
-    throw error;
-  }
-
-  const client = new AcpClient({
+  const { agentFailure, client } = await createAcpRuntimeClient({
+    cwd,
     fileSystem: {
       readTextFile: ({ path }) => {
         const resolvedPath = resolveAcpRequestedPath(path, cwd);
@@ -187,23 +177,7 @@ export async function runAcpDocumentAgent({
         return outcome;
       }
     },
-    transport: {
-      close: async () => {
-        if (stopListening) {
-          await Promise.resolve(stopListening());
-          stopListening = null;
-        }
-        await runtime.acp.stopAgent(connection.connectionId);
-      },
-      onMessage: (handler) => {
-        transportHandlers.add(handler);
-
-        return () => {
-          transportHandlers.delete(handler);
-        };
-      },
-      send: (message) => runtime.acp.writeAgentMessage(connection.connectionId, message)
-    }
+    settings
   });
   let sessionId: string | null = null;
   let stopAbortListening: (() => unknown) | null = null;
@@ -254,35 +228,117 @@ export async function runAcpDocumentAgent({
     });
     sessionId = session.sessionId;
     throwIfAcpRunAborted(signal);
-    let modelState = acpModelStateFromConfigOptions(session.configOptions);
-    if (modelState) {
-      onModelState?.(modelState);
-    }
-
-    if (selectedModelId && modelState && modelState.selectedModelId !== selectedModelId && hasAcpModel(modelState, selectedModelId)) {
-      const response = await agentFailure.race(client.setSessionConfigOption({
-        configId: modelState.configId,
-        sessionId: session.sessionId,
-        value: selectedModelId
-      }));
-      modelState = acpModelStateFromConfigOptions(response.configOptions) ?? {
-        ...modelState,
-        selectedModelId
-      };
-      onModelState?.(modelState);
-    }
+    await configureAcpSelectedModel({ agentFailure, client, onModelState, selectedModelId, session });
 
     throwIfAcpRunAborted(signal);
     await agentFailure.race(client.prompt({
-      prompt: createAcpPromptBlocks({ documentContent, documentPath, history, prompt }),
+      prompt: createAcpPromptBlocks({ documentContent, documentPath, history, prompt, selection }),
       sessionId: session.sessionId
     }));
 
     return {
-      content,
+      content: preparedPreview ? "" : content,
       finishReason: "stop" as const,
       preparedPreview,
       stopReasonCode: undefined
+    };
+  } finally {
+    stopAbortListening?.();
+    unsubscribe();
+    await client.dispose().catch(() => {});
+  }
+}
+
+export async function runAcpInlineAiAgent({
+  documentContent,
+  documentPath,
+  intent = "custom",
+  onTextDelta,
+  prompt,
+  selectedModelId,
+  settings,
+  signal,
+  target,
+  translationTargetLanguage,
+  workspaceKey
+}: AcpInlineAiAgentRunOptions) {
+  const cwd = resolveAcpAgentCwd(settings, documentPath, workspaceKey);
+  throwIfAcpRunAborted(signal);
+  // Inline ACP returns text for Markra's existing preview flow; it should not write files directly.
+  const fileSystem: AcpFileSystem | undefined = documentPath
+    ? {
+        readTextFile: ({ path }) => {
+          const resolvedPath = resolveAcpRequestedPath(path, cwd);
+          if (samePath(resolvedPath, documentPath)) return documentContent;
+
+          throw new Error("ACP inline filesystem reads are only available for the current document.");
+        }
+      }
+    : undefined;
+  const { agentFailure, client } = await createAcpRuntimeClient({
+    cwd,
+    fileSystem,
+    settings
+  });
+  let sessionId: string | null = null;
+  let stopAbortListening: (() => unknown) | null = null;
+  let content = "";
+  const unsubscribe = client.subscribe((update) => {
+    const text = textFromAcpSessionUpdate(update);
+    if (!text) return;
+
+    content += text;
+    onTextDelta?.(content);
+  });
+  const cancelRun = () => {
+    agentFailure.fail(acpRunCancelledError());
+    const cancelSession = sessionId
+      ? Promise.resolve(client.cancel(sessionId)).catch(() => {})
+      : Promise.resolve(undefined);
+    cancelSession
+      .then(() => client.dispose())
+      .catch(() => {
+        client.dispose().catch(() => {});
+      });
+  };
+  if (signal) {
+    if (signal.aborted) {
+      cancelRun();
+    } else {
+      signal.addEventListener("abort", cancelRun, { once: true });
+      stopAbortListening = () => signal.removeEventListener("abort", cancelRun);
+    }
+  }
+
+  try {
+    const initializeResponse = await agentFailure.race(client.initialize({ name: "markra", title: "Markra" }));
+    const session = await createAcpSession({
+      agentFailure,
+      client,
+      cwd,
+      initializeResponse
+    });
+    sessionId = session.sessionId;
+    throwIfAcpRunAborted(signal);
+    await configureAcpSelectedModel({ agentFailure, client, selectedModelId, session });
+
+    throwIfAcpRunAborted(signal);
+    await agentFailure.race(client.prompt({
+      prompt: createAcpInlinePromptBlocks({
+        documentContent,
+        intent,
+        prompt,
+        target,
+        translationTargetLanguage
+      }),
+      sessionId: session.sessionId
+    }));
+
+    return {
+      content: normalizeInlineAiReplacement(content, {
+        preserveLeadingWhitespace: target.type === "insert"
+      }),
+      finishReason: "stop" as const
     };
   } finally {
     stopAbortListening?.();
@@ -307,6 +363,111 @@ function hasAcpModel(state: AcpAgentModelState, modelId: string) {
 }
 
 type AcpAgentFailureSignal = ReturnType<typeof createAcpAgentFailureSignal>;
+
+async function createAcpRuntimeClient({
+  cwd,
+  fileSystem,
+  permissions,
+  settings
+}: {
+  cwd: string;
+  fileSystem?: AcpFileSystem;
+  permissions?: AcpPermissions;
+  settings: AcpAgentSettings;
+}) {
+  const runtime = getAppRuntime();
+  const connection = await runtime.acp.startAgent({
+    args: parseAcpAgentArgs(settings.args),
+    command: settings.command,
+    cwd,
+    env: []
+  });
+  let stopListening: RuntimeCleanup | null = null;
+  const agentFailure = createAcpAgentFailureSignal();
+  const stderrMessages: string[] = [];
+  const transportHandlers = new Set<(message: AcpJsonRpcMessage) => unknown>();
+
+  try {
+    stopListening = await runtime.acp.listenAgentMessages((event) => {
+      if (event.connectionId !== connection.connectionId) return;
+      if (event.type === "stderr") {
+        appendAcpStderrMessage(stderrMessages, event.message);
+        return;
+      }
+      if (event.type === "exit") {
+        agentFailure.fail(acpAgentExitedError(event.message, stderrMessages));
+        return;
+      }
+      if (event.type !== "message") return;
+
+      const message = parseAcpJsonRpcMessage(event.message);
+      if (!message) return;
+
+      transportHandlers.forEach((handler) => handler(message));
+    });
+  } catch (error) {
+    await runtime.acp.stopAgent(connection.connectionId).catch(() => {});
+    throw error;
+  }
+
+  const client = new AcpClient({
+    fileSystem,
+    permissions,
+    transport: {
+      close: async () => {
+        if (stopListening) {
+          await Promise.resolve(stopListening());
+          stopListening = null;
+        }
+        await runtime.acp.stopAgent(connection.connectionId);
+      },
+      onMessage: (handler) => {
+        transportHandlers.add(handler);
+
+        return () => {
+          transportHandlers.delete(handler);
+        };
+      },
+      send: (message) => runtime.acp.writeAgentMessage(connection.connectionId, message)
+    }
+  });
+
+  return { agentFailure, client };
+}
+
+async function configureAcpSelectedModel({
+  agentFailure,
+  client,
+  onModelState,
+  selectedModelId,
+  session
+}: {
+  agentFailure: AcpAgentFailureSignal;
+  client: AcpClient;
+  onModelState?: (state: AcpAgentModelState) => unknown;
+  selectedModelId?: string | null;
+  session: AcpSessionNewResponse;
+}) {
+  let modelState = acpModelStateFromConfigOptions(session.configOptions);
+  if (modelState) {
+    onModelState?.(modelState);
+  }
+
+  if (!selectedModelId || !modelState || modelState.selectedModelId === selectedModelId || !hasAcpModel(modelState, selectedModelId)) {
+    return;
+  }
+
+  const response = await agentFailure.race(client.setSessionConfigOption({
+    configId: modelState.configId,
+    sessionId: session.sessionId,
+    value: selectedModelId
+  }));
+  modelState = acpModelStateFromConfigOptions(response.configOptions) ?? {
+    ...modelState,
+    selectedModelId
+  };
+  onModelState?.(modelState);
+}
 
 async function createAcpSession({
   agentFailure,
@@ -921,8 +1082,9 @@ function createAcpPromptBlocks({
   documentContent,
   documentPath,
   history,
-  prompt
-}: Pick<AcpDocumentAgentRunOptions, "documentContent" | "documentPath" | "history" | "prompt">): AcpContentBlock[] {
+  prompt,
+  selection
+}: Pick<AcpDocumentAgentRunOptions, "documentContent" | "documentPath" | "history" | "prompt" | "selection">): AcpContentBlock[] {
   const blocks: AcpContentBlock[] = [];
   const historyText = history
     .map((message) => `${message.role}: ${message.text}`.trim())
@@ -944,12 +1106,132 @@ function createAcpPromptBlocks({
     },
     type: "resource"
   });
+  const editorContext = formatAcpEditorContextText(selection);
+  if (editorContext) {
+    blocks.push({
+      text: editorContext,
+      type: "text"
+    });
+  }
   blocks.push({
     text: `User request:\n${prompt}`,
     type: "text"
   });
 
   return blocks;
+}
+
+function createAcpInlinePromptBlocks({
+  documentContent,
+  intent,
+  prompt,
+  target,
+  translationTargetLanguage
+}: Pick<AcpInlineAiAgentRunOptions, "documentContent" | "intent" | "prompt" | "target" | "translationTargetLanguage">): AcpContentBlock[] {
+  const targetContext = nearbyTargetContext(documentContent, target.from, target.to, {
+    direction: target.type === "insert" || intent === "continue" ? "before" : "around"
+  });
+  const messages = buildInlineAiMessages({
+    documentContent: "",
+    intent,
+    prompt,
+    suggestionContext: target.suggestionContext,
+    targetContext,
+    targetScope: target.scope,
+    targetText: target.promptText,
+    targetType: target.type,
+    translationTargetLanguage
+  });
+  const systemPrompt = messages.find((message) => message.role === "system")?.content ?? "";
+  const userPrompt = messages
+    .filter((message) => message.role !== "system")
+    .map((message) => message.content)
+    .join("\n\n");
+  const targetRange = acpInlineTargetRange(target);
+
+  return [
+    {
+      text: [
+        "Markra inline edit task:",
+        systemPrompt,
+        targetRange ? `Target range:\n${targetRange}` : null,
+        userPrompt
+      ].filter(Boolean).join("\n\n"),
+      type: "text"
+    }
+  ];
+}
+
+function formatAcpEditorContextText(selection: AiSelectionContext | null | undefined) {
+  if (!selection || !selection.text.trim()) return null;
+
+  const source = selection.source ?? "selection";
+  const snapshotLabel = source === "block" ? "Current block snapshot:" : "Current selection snapshot:";
+  const textLabel = source === "block" ? "Block text:" : "Selected text:";
+
+  return [
+    "Markra editor context:",
+    snapshotLabel,
+    `Range: ${selection.from}-${selection.to}`,
+    `Cursor: ${selection.cursor ?? selection.to}`,
+    `Source: ${source}`,
+    "",
+    `${textLabel}\n${selection.text}`
+  ].join("\n");
+}
+
+function acpInlineTargetRange(target: InlineAiAgentTarget) {
+  if (typeof target.from !== "number" || typeof target.to !== "number") return null;
+
+  return `${target.from}-${target.to}`;
+}
+
+const maxTargetContextChars = 1_600;
+
+function nearbyTargetContext(
+  documentContent: string,
+  from: number | undefined,
+  to: number | undefined,
+  {
+    direction = "around"
+  }: {
+    direction?: "around" | "before";
+  } = {}
+) {
+  if (typeof from !== "number" || typeof to !== "number") return null;
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || to < from) return null;
+
+  const targetFrom = clampPosition(from, documentContent.length);
+  const targetTo = clampPosition(to, documentContent.length);
+  const beforeChars = direction === "before" ? maxTargetContextChars : Math.floor(maxTargetContextChars / 2);
+  const afterChars = direction === "before" ? 0 : Math.floor(maxTargetContextChars / 2);
+
+  const contextStart = Math.max(0, targetFrom - beforeChars);
+  const contextEnd = Math.min(documentContent.length, targetTo + afterChars);
+  const lineStart = documentContent.lastIndexOf("\n", Math.max(0, contextStart - 1)) + 1;
+  const nextLineBreak = documentContent.indexOf("\n", contextEnd);
+  const lineEnd = nextLineBreak === -1 ? documentContent.length : nextLineBreak;
+  const excerpt = documentContent.slice(lineStart, lineEnd).trim();
+
+  if (!excerpt) return null;
+  if (excerpt.length <= maxTargetContextChars) return excerpt;
+
+  return compactTargetContext(excerpt, targetFrom - lineStart, targetTo - lineStart);
+}
+
+function compactTargetContext(excerpt: string, targetFrom: number, targetTo: number) {
+  const targetText = excerpt.slice(targetFrom, targetTo);
+  const sideLength = Math.max(0, Math.floor((maxTargetContextChars - targetText.length) / 2) - 8);
+  const start = Math.max(0, targetFrom - sideLength);
+  const end = Math.min(excerpt.length, targetTo + sideLength);
+  const prefix = start > 0 ? "[...]\n" : "";
+  const suffix = end < excerpt.length ? "\n[...]" : "";
+
+  return `${prefix}${excerpt.slice(start, end).trim()}${suffix}`;
+}
+
+function clampPosition(position: number, documentLength: number) {
+  return Math.min(Math.max(position, 0), documentLength);
 }
 
 function parseAcpJsonRpcMessage(message: string): AcpJsonRpcMessage | null {

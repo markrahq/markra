@@ -673,6 +673,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
             prompt,
             readWorkspaceFile: ctx.readWorkspaceFile,
             selectedModelId: selectedAcpModelId,
+            selection: ctx.getSelection?.() ?? null,
             settings: acpAgentSettings,
             signal: acpAbortController?.signal,
             workspaceKey: ctx.workspaceKey ?? null

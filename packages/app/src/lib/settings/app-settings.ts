@@ -508,6 +508,31 @@ export const defaultAiAgentPreferences: AiAgentPreferences = {
   thinkingEnabled: false,
   webSearchEnabled: false
 };
+const legacyCodexAcpAgentArgs = "-lc 'exec env CODEX_PATH=\"$(command -v codex)\" npx -y @agentclientprotocol/codex-acp'";
+const legacyCodexAcpAgentArgsWithPathFallback = [
+  "-lc '",
+  "CODEX_BIN=\"$(command -v codex || true)\"; ",
+  "if [ -z \"$CODEX_BIN\" ] && [ -x \"/Applications/Codex.app/Contents/Resources/codex\" ]; then ",
+  "CODEX_BIN=\"/Applications/Codex.app/Contents/Resources/codex\"; ",
+  "fi; ",
+  "if [ -n \"$CODEX_BIN\" ]; then ",
+  "exec env CODEX_PATH=\"$CODEX_BIN\" npx -y @agentclientprotocol/codex-acp; ",
+  "fi; ",
+  "exec npx -y @agentclientprotocol/codex-acp",
+  "'"
+].join("");
+export const codexAcpAgentArgs = [
+  "-lc '",
+  "CODEX_BIN=\"$(command -v codex || true)\"; ",
+  "if [ -z \"$CODEX_BIN\" ] && [ -x \"/Applications/Codex.app/Contents/Resources/codex\" ]; then ",
+  "CODEX_BIN=\"/Applications/Codex.app/Contents/Resources/codex\"; ",
+  "fi; ",
+  "if [ -n \"$CODEX_BIN\" ]; then ",
+  "exec env CODEX_PATH=\"$CODEX_BIN\" INITIAL_AGENT_MODE=read-only npx -y @agentclientprotocol/codex-acp; ",
+  "fi; ",
+  "exec env INITIAL_AGENT_MODE=read-only npx -y @agentclientprotocol/codex-acp",
+  "'"
+].join("");
 export const defaultAcpAgentSettings: AcpAgentSettings = {
   args: "",
   command: "",
@@ -1450,13 +1475,22 @@ export function normalizeAcpAgentSettings(value: unknown): AcpAgentSettings {
   if (typeof value !== "object" || value === null) return defaultAcpAgentSettings;
 
   const settings = value as Partial<AcpAgentSettings>;
+  const args = typeof settings.args === "string" ? settings.args.trim() : defaultAcpAgentSettings.args;
 
   return {
-    args: typeof settings.args === "string" ? settings.args.trim() : defaultAcpAgentSettings.args,
+    args: normalizeAcpAgentArgs(args),
     command: typeof settings.command === "string" ? settings.command.trim() : defaultAcpAgentSettings.command,
     cwd: typeof settings.cwd === "string" ? settings.cwd.trim() : defaultAcpAgentSettings.cwd,
     enabled: typeof settings.enabled === "boolean" ? settings.enabled : defaultAcpAgentSettings.enabled
   };
+}
+
+function normalizeAcpAgentArgs(args: string) {
+  if (args === legacyCodexAcpAgentArgs || args === legacyCodexAcpAgentArgsWithPathFallback) {
+    return codexAcpAgentArgs;
+  }
+
+  return args;
 }
 
 function normalizeShowAiQuickInputOnSelection(preferences: Partial<EditorPreferences> & LegacyEditorPreferences) {

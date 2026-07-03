@@ -99,6 +99,14 @@ type ApplySavedCurrentDocumentOptions = {
   targetTabId?: string | null;
 };
 
+export type ActiveDiskFileContentChange = {
+  content: string;
+  path: string;
+  previousContent: string;
+  revision: number;
+  source: string;
+};
+
 type MarkdownDocumentSummary = {
   key: string;
   outlineItems: MarkdownOutlineItem[];
@@ -143,6 +151,7 @@ type UseMarkdownDocumentOptions = {
   editorReady?: boolean | (() => boolean);
   getCurrentMarkdown: (fallbackContent: string) => string;
   isCurrentMarkdownEquivalent?: (markdown: string) => boolean | undefined;
+  onActiveDiskFileContentChange?: (change: ActiveDiskFileContentChange) => boolean | undefined;
   onMarkdownTreeChange?: (path: string) => unknown | Promise<unknown>;
   onTreeRootFromFolderPath: (
     path: string,
@@ -226,6 +235,7 @@ export function useMarkdownDocument({
   editorReady = true,
   getCurrentMarkdown,
   isCurrentMarkdownEquivalent,
+  onActiveDiskFileContentChange,
   onMarkdownTreeChange,
   onTreeRootFromFolderPath,
   onTreeRootFromFilePath,
@@ -768,6 +778,18 @@ export function useMarkdownDocument({
       return false;
     }
 
+    const activeTabChanged = targetTab.id === activeTabIdRef.current;
+    const activeEditorUpdated =
+      activeTabChanged &&
+      onActiveDiskFileContentChange?.({
+        content: file.content,
+        path: file.path,
+        previousContent: targetTab.content,
+        revision: targetTab.revision,
+        source: reason
+      }) === true;
+
+    // Keep the active editor mounted when it already accepted the disk update as an undoable transaction.
     const nextDocument = {
       path: file.path,
       name: file.name,
@@ -776,7 +798,7 @@ export function useMarkdownDocument({
       deleted: false,
       dirty: false,
       open: true,
-      revision: targetTab.revision + 1
+      revision: activeEditorUpdated ? targetTab.revision : targetTab.revision + 1
     };
     const nextTabs = currentTabs.map((tab) =>
       tab.id === targetTab.id ? createDocumentTab(nextDocument, tab.id) : tab
@@ -784,7 +806,7 @@ export function useMarkdownDocument({
 
     tabsRef.current = nextTabs;
     setTabs(nextTabs);
-    if (targetTab.id === activeTabIdRef.current) {
+    if (activeTabChanged) {
       documentRef.current = nextDocument;
       setDocument(nextDocument);
     }
@@ -797,7 +819,7 @@ export function useMarkdownDocument({
       tabId: targetTab.id
     }]);
     return true;
-  }, []);
+  }, [onActiveDiskFileContentChange]);
 
   const refreshCleanOpenTabFromDisk = useCallback((path: string, reason: string) => {
     const currentTab = tabsRef.current.find((tab) => tab.path !== null && sameNativePath(tab.path, path));

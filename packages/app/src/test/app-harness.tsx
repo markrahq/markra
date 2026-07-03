@@ -229,6 +229,7 @@ vi.mock("../lib/platform", async (importOriginal) => {
 });
 
 vi.mock("../lib/settings/app-settings", () => ({
+  codexAcpAgentArgs: "mock-codex-acp-args",
   createAiAgentSessionId: vi.fn(),
   consumeWelcomeDocumentState: vi.fn(),
   deleteStoredAiAgentSession: vi.fn(),

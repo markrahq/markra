@@ -156,7 +156,7 @@ const messages: LocaleMessages = {
   "settings.ai.acpAgentCommandPlaceholder": "/bin/zsh",
   "settings.ai.acpAgentArgs": "ACP 參數",
   "settings.ai.acpAgentArgsDescription": "可選命令參數，用空格分隔。",
-  "settings.ai.acpAgentArgsPlaceholder": "-lc 'exec env CODEX_PATH=\"$(command -v codex)\" npx -y @agentclientprotocol/codex-acp'",
+  "settings.ai.acpAgentArgsPlaceholder": "-lc 'CODEX_BIN=\"$(command -v codex || true)\"; if [ -z \"$CODEX_BIN\" ] && [ -x \"/Applications/Codex.app/Contents/Resources/codex\" ]; then CODEX_BIN=\"/Applications/Codex.app/Contents/Resources/codex\"; fi; if [ -n \"$CODEX_BIN\" ]; then exec env CODEX_PATH=\"$CODEX_BIN\" INITIAL_AGENT_MODE=read-only npx -y @agentclientprotocol/codex-acp; fi; exec env INITIAL_AGENT_MODE=read-only npx -y @agentclientprotocol/codex-acp'",
   "settings.ai.acpAgentCwd": "ACP 工作目錄",
   "settings.ai.acpAgentCwdDescription": "可選工作目錄。留空時使用目前 workspace。",
   "settings.ai.acpAgentCwdPlaceholder": "留空自動使用目前 workspace",

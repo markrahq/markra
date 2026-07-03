@@ -1,5 +1,5 @@
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests, type AppAcpAgentMessageEvent } from "../runtime";
-import { parseAcpAgentArgs, resolveAcpAgentCwd, runAcpDocumentAgent } from "./acp-agent";
+import { parseAcpAgentArgs, resolveAcpAgentCwd, runAcpDocumentAgent, runAcpInlineAiAgent } from "./acp-agent";
 
 describe("ACP agent helpers", () => {
   afterEach(() => {
@@ -193,6 +193,410 @@ describe("ACP agent helpers", () => {
       finishReason: "stop",
       preparedPreview: true,
       stopReasonCode: undefined
+    });
+  });
+
+  it("keeps ACP text responses as chat content when no filesystem write occurs", async () => {
+    let handleAgentMessage: ((event: AppAcpAgentMessageEvent) => unknown) | null = null;
+    const runtime = createDefaultAppRuntime();
+    const onPreviewResult = vi.fn();
+    const onTextDelta = vi.fn();
+    const suggestedResponse = [
+      "```markdown",
+      "Markra 是一个本地优先、开源的 Markdown 编辑器。",
+      "```"
+    ].join("\n");
+
+    configureAppRuntime({
+      ...runtime,
+      acp: {
+        listenAgentMessages: vi.fn(async (handler) => {
+          handleAgentMessage = handler;
+
+          return () => {
+            handleAgentMessage = null;
+          };
+        }),
+        startAgent: vi.fn(async () => ({ connectionId: "acp-1" })),
+        stopAgent: vi.fn(async () => undefined),
+        writeAgentMessage: vi.fn(async (_connectionId, message) => {
+          if (message && typeof message === "object" && "method" in message && message.method === "initialize") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: {} }),
+              type: "message"
+            });
+            return;
+          }
+
+          if (message && typeof message === "object" && "method" in message && message.method === "session/new") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { sessionId: "session-1" } }),
+              type: "message"
+            });
+            return;
+          }
+
+          if (message && typeof message === "object" && "method" in message && message.method === "session/prompt") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({
+                jsonrpc: "2.0",
+                method: "session/update",
+                params: {
+                  sessionId: "session-1",
+                  update: {
+                    content: {
+                      text: suggestedResponse,
+                      type: "text"
+                    },
+                    sessionUpdate: "agent_message_chunk"
+                  }
+                }
+              }),
+              type: "message"
+            });
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { stopReason: "end_turn" } }),
+              type: "message"
+            });
+          }
+        })
+      }
+    });
+
+    const result = await runAcpDocumentAgent({
+      documentContent: "# Draft\n\nMarkra 是一个 Markdown 编辑器。",
+      documentPath: "/mock-workspace/current.md",
+      history: [],
+      onPreviewResult,
+      onTextDelta,
+      prompt: "优化一下这段话",
+      selection: {
+        cursor: 29,
+        from: 9,
+        source: "selection",
+        text: "Markra 是一个 Markdown 编辑器。",
+        to: 29
+      },
+      settings: {
+        args: "",
+        command: "synthetic-acp-agent",
+        cwd: "",
+        enabled: true
+      },
+      workspaceKey: "/mock-workspace"
+    });
+
+    expect(onTextDelta).toHaveBeenCalledWith(suggestedResponse);
+    expect(onPreviewResult).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      content: suggestedResponse,
+      finishReason: "stop",
+      preparedPreview: false,
+      stopReasonCode: undefined
+    });
+  });
+
+  it("does not use replacement cue text to infer ACP editor previews", async () => {
+    let handleAgentMessage: ((event: AppAcpAgentMessageEvent) => unknown) | null = null;
+    const runtime = createDefaultAppRuntime();
+    const onPreviewResult = vi.fn();
+    const suggestedResponse = [
+      "建议替换为：",
+      "",
+      "```markdown",
+      "Markra 是一个本地优先、开源的 Markdown 编辑器。",
+      "```",
+      "",
+      "这只是普通说明，不是 Markra 编辑预览输出。"
+    ].join("\n");
+
+    configureAppRuntime({
+      ...runtime,
+      acp: {
+        listenAgentMessages: vi.fn(async (handler) => {
+          handleAgentMessage = handler;
+
+          return () => {
+            handleAgentMessage = null;
+          };
+        }),
+        startAgent: vi.fn(async () => ({ connectionId: "acp-1" })),
+        stopAgent: vi.fn(async () => undefined),
+        writeAgentMessage: vi.fn(async (_connectionId, message) => {
+          if (message && typeof message === "object" && "method" in message && message.method === "initialize") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: {} }),
+              type: "message"
+            });
+            return;
+          }
+
+          if (message && typeof message === "object" && "method" in message && message.method === "session/new") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { sessionId: "session-1" } }),
+              type: "message"
+            });
+            return;
+          }
+
+          if (message && typeof message === "object" && "method" in message && message.method === "session/prompt") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({
+                jsonrpc: "2.0",
+                method: "session/update",
+                params: {
+                  sessionId: "session-1",
+                  update: {
+                    content: {
+                      text: suggestedResponse,
+                      type: "text"
+                    },
+                    sessionUpdate: "agent_message_chunk"
+                  }
+                }
+              }),
+              type: "message"
+            });
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { stopReason: "end_turn" } }),
+              type: "message"
+            });
+          }
+        })
+      }
+    });
+
+    const result = await runAcpDocumentAgent({
+      documentContent: "# Draft\n\nMarkra 是一个 Markdown 编辑器。",
+      documentPath: "/mock-workspace/current.md",
+      history: [],
+      onPreviewResult,
+      onTextDelta: vi.fn(),
+      prompt: "优化一下这段话",
+      selection: {
+        cursor: 29,
+        from: 9,
+        source: "selection",
+        text: "Markra 是一个 Markdown 编辑器。",
+        to: 29
+      },
+      settings: {
+        args: "",
+        command: "synthetic-acp-agent",
+        cwd: "",
+        enabled: true
+      },
+      workspaceKey: "/mock-workspace"
+    });
+
+    expect(onPreviewResult).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      content: suggestedResponse,
+      finishReason: "stop",
+      preparedPreview: false,
+      stopReasonCode: undefined
+    });
+  });
+
+  it("includes current editor selection context in ACP document prompts", async () => {
+    let handleAgentMessage: ((event: AppAcpAgentMessageEvent) => unknown) | null = null;
+    const runtime = createDefaultAppRuntime();
+    let promptBlocks: unknown = null;
+
+    configureAppRuntime({
+      ...runtime,
+      acp: {
+        listenAgentMessages: vi.fn(async (handler) => {
+          handleAgentMessage = handler;
+
+          return () => {
+            handleAgentMessage = null;
+          };
+        }),
+        startAgent: vi.fn(async () => ({ connectionId: "acp-1" })),
+        stopAgent: vi.fn(async () => undefined),
+        writeAgentMessage: vi.fn(async (_connectionId, message) => {
+          if (message && typeof message === "object" && "method" in message && message.method === "initialize") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: {} }),
+              type: "message"
+            });
+            return;
+          }
+
+          if (message && typeof message === "object" && "method" in message && message.method === "session/new") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { sessionId: "session-1" } }),
+              type: "message"
+            });
+            return;
+          }
+
+          if (message && typeof message === "object" && "method" in message && message.method === "session/prompt") {
+            const params = "params" in message && message.params && typeof message.params === "object"
+              ? message.params as { prompt?: unknown }
+              : {};
+            promptBlocks = params.prompt ?? null;
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { stopReason: "end_turn" } }),
+              type: "message"
+            });
+          }
+        })
+      }
+    });
+
+    await runAcpDocumentAgent({
+      documentContent: "# Draft\n\nOriginal draft",
+      documentPath: "/mock-workspace/current.md",
+      history: [],
+      onTextDelta: vi.fn(),
+      prompt: "Polish this selection",
+      selection: {
+        cursor: 23,
+        from: 9,
+        source: "selection",
+        text: "Original draft",
+        to: 23
+      },
+      settings: {
+        args: "",
+        command: "synthetic-acp-agent",
+        cwd: "",
+        enabled: true
+      },
+      workspaceKey: "/mock-workspace"
+    });
+
+    expect(promptBlocks).toEqual(expect.any(Array));
+    const textBlocks = promptBlocks as Array<{ text?: string; type?: string }>;
+    const previewPolicyBlock = textBlocks.find((block) =>
+      block.type === "text" && block.text?.includes("Markra edit preview policy:")
+    );
+    const contextBlock = textBlocks.find((block) =>
+      block.type === "text" && block.text?.includes("Markra editor context:")
+    );
+
+    expect(previewPolicyBlock).toBeUndefined();
+    expect(contextBlock?.text).toContain("Current selection snapshot:");
+    expect(contextBlock?.text).toContain("Range: 9-23");
+    expect(contextBlock?.text).toContain("Cursor: 23");
+    expect(contextBlock?.text).toContain("Source: selection");
+    expect(contextBlock?.text).toContain("Selected text:\nOriginal draft");
+  });
+
+  it("runs ACP inline edit prompts and returns normalized replacement content", async () => {
+    let handleAgentMessage: ((event: AppAcpAgentMessageEvent) => unknown) | null = null;
+    const runtime = createDefaultAppRuntime();
+    const onTextDelta = vi.fn();
+    let promptText = "";
+
+    configureAppRuntime({
+      ...runtime,
+      acp: {
+        listenAgentMessages: vi.fn(async (handler) => {
+          handleAgentMessage = handler;
+
+          return () => {
+            handleAgentMessage = null;
+          };
+        }),
+        startAgent: vi.fn(async () => ({ connectionId: "acp-1" })),
+        stopAgent: vi.fn(async () => undefined),
+        writeAgentMessage: vi.fn(async (_connectionId, message) => {
+          if (message && typeof message === "object" && "method" in message && message.method === "initialize") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: {} }),
+              type: "message"
+            });
+            return;
+          }
+
+          if (message && typeof message === "object" && "method" in message && message.method === "session/new") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { sessionId: "session-1" } }),
+              type: "message"
+            });
+            return;
+          }
+
+          if (message && typeof message === "object" && "method" in message && message.method === "session/prompt") {
+            const params = "params" in message && message.params && typeof message.params === "object"
+              ? message.params as { prompt?: Array<{ text?: string }> }
+              : {};
+            promptText = params.prompt?.map((block) => block.text ?? "").join("\n\n") ?? "";
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({
+                jsonrpc: "2.0",
+                method: "session/update",
+                params: {
+                  sessionId: "session-1",
+                  update: {
+                    content: [{ text: "Better draft", type: "text" }],
+                    sessionUpdate: "agent_message_chunk"
+                  }
+                }
+              }),
+              type: "message"
+            });
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { stopReason: "end_turn" } }),
+              type: "message"
+            });
+          }
+        })
+      }
+    });
+
+    const result = await runAcpInlineAiAgent({
+      documentContent: "# Draft\n\nOriginal draft",
+      documentPath: "/mock-workspace/current.md",
+      intent: "polish",
+      onTextDelta,
+      prompt: "Make it clearer",
+      settings: {
+        args: "",
+        command: "synthetic-acp-agent",
+        cwd: "",
+        enabled: true
+      },
+      target: {
+        from: 9,
+        original: "Original draft",
+        promptText: "Original draft",
+        scope: "selection",
+        to: 23,
+        type: "replace"
+      },
+      workspaceKey: "/mock-workspace"
+    });
+
+    expect(promptText).toContain("Markra inline edit task:");
+    expect(promptText).toContain("Return only the Markdown fragment");
+    expect(promptText).toContain("Target scope:\nSelected text");
+    expect(promptText).toContain("Edit mode:\nReplace the target");
+    expect(promptText).toContain("Target range:\n9-23");
+    expect(promptText).toContain("Target text:\nOriginal draft");
+    expect(promptText).toContain("User instruction:\nMake it clearer");
+    expect(onTextDelta).toHaveBeenCalledWith("Better draft");
+    expect(result).toEqual({
+      content: "Better draft",
+      finishReason: "stop"
     });
   });
 

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { translate } from "../../test/settings-components";
-import { defaultAcpAgentSettings, defaultEditorPreferences } from "../../lib/settings/app-settings";
+import { codexAcpAgentArgs, defaultAcpAgentSettings, defaultEditorPreferences } from "../../lib/settings/app-settings";
 import { defaultAiQuickActionPrompt, defaultAiQuickActionPrompts } from "../../lib/ai-actions";
 import { AiSettings } from "./AiSettings";
 
@@ -65,7 +65,7 @@ describe("AiSettings", () => {
     expect(screen.getByRole("textbox", { name: "ACP command" })).toHaveAttribute("placeholder", "/bin/zsh");
     expect(screen.getByRole("textbox", { name: "ACP arguments" })).toHaveAttribute(
       "placeholder",
-      "-lc 'exec env CODEX_PATH=\"$(command -v codex)\" npx -y @agentclientprotocol/codex-acp'"
+      codexAcpAgentArgs
     );
     expect(screen.getByRole("textbox", { name: "ACP working directory" })).toHaveAttribute(
       "placeholder",
@@ -102,7 +102,7 @@ describe("AiSettings", () => {
     ]);
 
     const expectedPresets = [
-      ["codex-acp", "-lc 'exec env CODEX_PATH=\"$(command -v codex)\" npx -y @agentclientprotocol/codex-acp'"],
+      ["codex-acp", codexAcpAgentArgs],
       ["claude-acp", "-lc 'exec npx -y @agentclientprotocol/claude-agent-acp'"],
       ["gemini", "-lc 'exec npx -y @google/gemini-cli --acp'"],
       ["github-copilot-cli", "-lc 'exec npx -y @github/copilot --acp'"],

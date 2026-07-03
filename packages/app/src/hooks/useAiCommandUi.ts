@@ -11,21 +11,27 @@ import {
 import { getProviderCapabilities, type AiProviderConfig } from "@markra/providers";
 import type { I18nKey } from "@markra/shared";
 import { requestNativeChat, requestNativeChatStream } from "../lib/tauri";
+import { runAcpInlineAiAgent } from "../lib/acp-agent";
+import type { AcpAgentSettings } from "../lib/settings/app-settings";
 
 type AiTextDiffResult = Extract<AiDiffResult, { type: "insert" | "replace" }>;
 export type AiCommandStatus = "idle" | "composing" | "thinking" | "streaming" | "suggestion" | "error";
 
 type AiCommandContext = {
+  acpAgentSettings?: AcpAgentSettings | null;
   documentPath?: string | null;
   getDocumentContent: () => string;
   getPendingResult?: () => AiDiffResult | null;
+  getSelectedAcpModelId?: () => string | null;
   getSelection: () => AiSelectionContext | null;
   model: string | null;
   onAiResult: (result: AiDiffResult, previewId?: string) => unknown;
   provider: AiProviderConfig | null;
+  selectedAcpModelId?: string | null;
   settingsLoading: boolean;
   translate?: (key: I18nKey) => string;
   translationTargetLanguage?: string;
+  workspaceKey?: string | null;
   workspaceFiles?: AgentWorkspaceFile[];
 };
 
@@ -92,14 +98,17 @@ export function useAiCommandUi(ctx: AiCommandContext) {
       return;
     }
 
-    if (!ctx.provider || !ctx.model) {
+    const acpAgentSettings = ctx.acpAgentSettings;
+    const runWithAcpAgent = acpAgentSettings?.enabled === true && Boolean(acpAgentSettings.command.trim());
+
+    if (!runWithAcpAgent && (!ctx.provider || !ctx.model)) {
       ctx.onAiResult({ message: message("app.aiMissingProvider"), type: "error" });
       setStatus("error");
       return;
     }
 
-    const capabilities = getProviderCapabilities(ctx.provider.id, ctx.provider.type);
-    if (!capabilities.chat) {
+    const capabilities = ctx.provider ? getProviderCapabilities(ctx.provider.id, ctx.provider.type) : null;
+    if (!runWithAcpAgent && !capabilities?.chat) {
       ctx.onAiResult({ message: message("app.aiProviderUnsupported"), type: "error" });
       setStatus("error");
       return;
@@ -117,39 +126,62 @@ export function useAiCommandUi(ctx: AiCommandContext) {
     requestIdRef.current = requestId;
     setStatus("thinking");
     try {
-      const response = await runInlineAiAgent({
-        complete: (provider, model, messages, completionOptions) =>
-          chatCompletionStream(provider, model, messages, {
-            ...completionOptions,
-            fallbackTransport: requestNativeChat,
-            streamTransport: requestNativeChatStream,
-            useVercelAiSdk: true
-          }),
-        documentContent,
-        documentPath: ctx.documentPath ?? null,
-        intent,
-        model: ctx.model,
-        prompt: trimmedPrompt,
-        provider: ctx.provider,
-        target,
-        thinkingEnabled: options.thinkingEnabled,
-        translationTargetLanguage: ctx.translationTargetLanguage ?? "English",
-        onEvent: (event) => {
-          if (requestIdRef.current !== requestId) return;
-          setStatus(agentStatusFromEvent(event));
-          const streamedReplacement = agentReplacementFromEvent(event);
-          if (!streamedReplacement) return;
+      const response = runWithAcpAgent
+        ? await runAcpInlineAiAgent({
+            documentContent,
+            documentPath: ctx.documentPath ?? null,
+            intent,
+            onTextDelta: (text) => {
+              if (requestIdRef.current !== requestId) return;
+              setStatus("streaming");
+              ctx.onAiResult({
+                from: target.from,
+                original: target.original,
+                replacement: text,
+                to: target.to,
+                type: target.type
+              });
+            },
+            prompt: trimmedPrompt,
+            selectedModelId: ctx.getSelectedAcpModelId?.() ?? ctx.selectedAcpModelId,
+            settings: acpAgentSettings,
+            target,
+            translationTargetLanguage: ctx.translationTargetLanguage ?? "English",
+            workspaceKey: ctx.workspaceKey ?? null
+          })
+        : await runInlineAiAgent({
+            complete: (provider, model, messages, completionOptions) =>
+              chatCompletionStream(provider, model, messages, {
+                ...completionOptions,
+                fallbackTransport: requestNativeChat,
+                streamTransport: requestNativeChatStream,
+                useVercelAiSdk: true
+              }),
+            documentContent,
+            documentPath: ctx.documentPath ?? null,
+            intent,
+            model: ctx.model!,
+            prompt: trimmedPrompt,
+            provider: ctx.provider!,
+            target,
+            thinkingEnabled: options.thinkingEnabled,
+            translationTargetLanguage: ctx.translationTargetLanguage ?? "English",
+            onEvent: (event) => {
+              if (requestIdRef.current !== requestId) return;
+              setStatus(agentStatusFromEvent(event));
+              const streamedReplacement = agentReplacementFromEvent(event);
+              if (!streamedReplacement) return;
 
-          ctx.onAiResult({
-            from: target.from,
-            original: target.original,
-            replacement: streamedReplacement,
-            to: target.to,
-            type: target.type
+              ctx.onAiResult({
+                from: target.from,
+                original: target.original,
+                replacement: streamedReplacement,
+                to: target.to,
+                type: target.type
+              });
+            },
+            workspaceFiles: ctx.workspaceFiles ?? []
           });
-        },
-        workspaceFiles: ctx.workspaceFiles ?? []
-      });
       if (requestIdRef.current !== requestId) return;
 
       if (!response.content.trim()) {

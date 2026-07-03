@@ -61,7 +61,7 @@ import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { useDeferredAiSelectionReveal } from "./hooks/ai-selection-reveal";
 import { useExportSettings } from "./hooks/useExportSettings";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
-import { useMarkdownDocument } from "./hooks/useMarkdownDocument";
+import { useMarkdownDocument, type ActiveDiskFileContentChange } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
 import { useSelectionToolbarAnchorRefresh } from "./hooks/useSelectionToolbarAnchorRefresh";
 import { useSharedEditorHistory } from "./hooks/useSharedEditorHistory";
@@ -359,6 +359,7 @@ function WorkspaceApp() {
   const aiResultsRef = useRef<AiDiffResult[]>([]);
   const appliedAiPreviewKeysRef = useRef(new Set<string>());
   const activeAiSelectionRef = useRef<AiSelectionContext | null>(null);
+  const selectedAcpModelIdRef = useRef<string | null>(null);
   const aiContextMenuActionIdRef = useRef(0);
   const aiSelectionCopySuccessTimerRef = useRef<number | null>(null);
   const exportRequestIdRef = useRef(0);
@@ -389,6 +390,7 @@ function WorkspaceApp() {
   // Late visual-editor updates may arrive after focus moves to source; source edits after that focus win.
   const sourceEditSequenceRef = useRef(0);
   const sourceFocusSourceEditSequenceRef = useRef(0);
+  const syncingExternalDocumentHistoryRef = useRef(false);
   const exportContextRef = useRef({
     activeImageFile: false,
     content: "",
@@ -511,6 +513,19 @@ function WorkspaceApp() {
       visualEditorReadyRevisionRef.current = null;
     }
   }, [handleMilkdownEditorReady]);
+  const handleActiveDiskFileContentChange = useCallback((change: ActiveDiskFileContentChange) => {
+    if (largeMarkdownVisualBlockedRef.current) return false;
+
+    syncingExternalDocumentHistoryRef.current = true;
+    try {
+      return replaceEditorMarkdown(change.content, {
+        addToHistory: true,
+        historyBaselineMarkdown: change.previousContent
+      });
+    } finally {
+      syncingExternalDocumentHistoryRef.current = false;
+    }
+  }, [replaceEditorMarkdown]);
   const handleActiveOutlineIndexChange = useCallback((index: number | null) => {
     setActiveOutlineIndex((current) => current === index ? current : index);
   }, []);
@@ -598,6 +613,7 @@ function WorkspaceApp() {
     editorReady: isDocumentEditorReady,
     getCurrentMarkdown: readCurrentMarkdownForDocument,
     isCurrentMarkdownEquivalent: isCurrentMarkdownEquivalentForDocument,
+    onActiveDiskFileContentChange: handleActiveDiskFileContentChange,
     onMarkdownTreeChange: refreshMarkdownFileTree,
     onTreeRootFromFolderPath: openFolderPath,
     onTreeRootFromFilePath: setRootFromMarkdownFilePath,
@@ -1159,9 +1175,11 @@ function WorkspaceApp() {
     aiSettings.selectAgentModel(selection.agentProviderId, selection.agentModelId).catch(() => {});
   }, [aiSettings.agentModelId, aiSettings.agentProviderId, aiSettings.selectAgentModel]);
   const aiCommand = useAiCommandUi({
+    acpAgentSettings: acpAgentSettings.settings,
     documentPath: document.path,
     getDocumentContent: getAiDocumentContent,
     getPendingResult: getPendingAiResult,
+    getSelectedAcpModelId: () => selectedAcpModelIdRef.current,
     getSelection: getActiveAiSelection,
     model: aiSettings.inlineModelId,
     onAiResult: handleAiResult,
@@ -1169,6 +1187,7 @@ function WorkspaceApp() {
     settingsLoading: aiSettings.loading,
     translate,
     translationTargetLanguage: aiTranslationLanguageName(appLanguage.ready ? appLanguage.language : "en"),
+    workspaceKey,
     workspaceFiles: fileTreeFiles
   });
   const aiCommandVisible = aiCommand.open && (hasAiCommandContext || Boolean(aiResult) || aiContextMenuActionPending);
@@ -1241,6 +1260,7 @@ function WorkspaceApp() {
     workspaceKey,
     workspaceFiles: fileTreeFiles
   });
+  selectedAcpModelIdRef.current = aiAgent.selectedAcpModelId;
   aiAgentInitialSessionOptionsRef.current = {
     agentModelId: aiSettings.agentModelId,
     agentProviderId: aiSettings.agentProviderId,
@@ -1577,6 +1597,13 @@ function WorkspaceApp() {
   ]);
   const handleAiCommandSelectionContextFocus = useCallback(() => {
     const selection = aiCommandSelection(getActiveAiSelection()) ?? aiCommandSelection(getEditorSelection());
+    if (!selection) return;
+
+    holdAiSelection(selection);
+    updateActiveAiSelection(selection);
+  }, [getActiveAiSelection, getEditorSelection, holdAiSelection, updateActiveAiSelection]);
+  const handleAiAgentComposerFocus = useCallback(() => {
+    const selection = automaticAiSelection(getActiveAiSelection()) ?? automaticAiSelection(getEditorSelection());
     if (!selection) return;
 
     holdAiSelection(selection);
@@ -2605,6 +2632,7 @@ function WorkspaceApp() {
   }, []);
   const handleVisualMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
     if (isApplyingSourceToVisualSync()) return;
+    if (syncingExternalDocumentHistoryRef.current) return;
     if (sourceMode) return;
     if (readOnlyMode) return;
     if (
@@ -3051,6 +3079,7 @@ function WorkspaceApp() {
       })
     );
   }, [
+    document.content,
     document.revision,
     documentSearchAvailable,
     documentSearchCaseSensitive,
@@ -3861,6 +3890,7 @@ function WorkspaceApp() {
           aiAgent.applyWorkspacePlan().catch(() => {});
         }}
         onClose={closeAiAgentPanel}
+        onComposerFocus={handleAiAgentComposerFocus}
         onCreateSession={handleCreateAiAgentSession}
         onDeleteSession={(sessionId) => {
           handleDeleteAiAgentSession(sessionId).catch(() => {});
