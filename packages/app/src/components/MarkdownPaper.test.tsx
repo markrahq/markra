@@ -2833,8 +2833,8 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).not.toContain("<br");
   });
 
-  it("renders soft line breaks between formatted paragraph lines", async () => {
-    const source = ["**加黑**：内容 1", "**加黑**：内容 2", "**加黑**：内容 3"].join("\n");
+  it("renders formatted paragraph soft line breaks while preserving source newlines", async () => {
+    const source = ["**Mock bold**: line 1", "**Mock bold**: line 2", "**Mock bold**: line 3"].join("\n");
     const { container, editor, view } = await renderEditor(source);
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     const paragraph = container.querySelector(".ProseMirror p");
@@ -2843,6 +2843,25 @@ describe("MarkdownPaper editing", () => {
     expect(paragraph?.querySelectorAll("strong")).toHaveLength(3);
     expect(serializeMarkdown(view.state.doc)).toContain(source);
     expect(serializeMarkdown(view.state.doc)).not.toContain("<br");
+  });
+
+  it("inserts an explicit paragraph line break when pressing Enter inside paragraph text", async () => {
+    const { container, editor, view } = await renderEditor("MockBeforeMockAfter");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "MockBefore", "MockBefore".length));
+
+    expect(pressEnter(view)).toBe(true);
+
+    const paragraph = container.querySelector(".ProseMirror p");
+    expect(view.state.doc.childCount).toBe(1);
+    const hardbreak = view.state.doc.resolve(findTextPosition(view, "MockAfter")).parent.child(1);
+    expect(hardbreak.type.name).toBe("hardbreak");
+    expect(hardbreak.attrs.isInline).toBe(true);
+    expect(hardbreak.attrs.renderLineBreak).toBe(true);
+    expect(paragraph?.querySelector('span.markra-hardbreak[data-type="hardbreak"] br')).toBeInTheDocument();
+    expect(serializeMarkdown(view.state.doc)).toBe("MockBefore<br>MockAfter\n");
+    expect(serializeMarkdown(view.state.doc)).not.toContain("MockBefore\n\nMockAfter");
   });
 
   it("keeps the native caret anchor when leaving display math source at the closing delimiter", async () => {
@@ -4675,7 +4694,7 @@ describe("MarkdownPaper editing", () => {
     restoreLayout();
   });
 
-  it("loads template blank paragraphs from markdown blank lines", async () => {
+  it("loads template blank lines as editable empty paragraphs", async () => {
     const { editor, view } = await renderEditor("# Template\n\n\n\n## Next");
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
 
@@ -4683,6 +4702,27 @@ describe("MarkdownPaper editing", () => {
     expect(view.state.doc.child(1).type.name).toBe("paragraph");
     expect(view.state.doc.child(1).content.size).toBe(0);
     expect(serializeMarkdown(view.state.doc)).toBe("# Template\n\n\n\n## Next\n");
+  });
+
+  it("loads multiple paragraph blank lines as editable empty paragraphs", async () => {
+    const source = "First\n\n\n\nSecond";
+    const { editor, view } = await renderEditor(source);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(view.state.doc.childCount).toBe(3);
+    expect(view.state.doc.child(0).textContent).toBe("First");
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).content.size).toBe(0);
+    expect(view.state.doc.child(2).textContent).toBe("Second");
+    expect(serializeMarkdown(view.state.doc)).toBe(`${source}\n`);
+  });
+
+  it("loads a triple newline between paragraphs as an editable empty paragraph", async () => {
+    const { view } = await renderEditor("First\n\n\nSecond");
+
+    expect(view.state.doc.childCount).toBe(3);
+    expect(view.state.doc.child(1).type.name).toBe("paragraph");
+    expect(view.state.doc.child(1).content.size).toBe(0);
   });
 
   it("saves blank list items without br tags", async () => {
@@ -9136,9 +9176,8 @@ describe("MarkdownPaper editing", () => {
 
     expect(container.querySelector(".ProseMirror blockquote.markra-callout")).not.toBeInTheDocument();
     const blockquote = container.querySelector(".ProseMirror blockquote");
-    expect(blockquote).toHaveTextContent("[!NOTE]");
-    expect(blockquote).toHaveTextContent("Keep this in mind.");
-    expect(blockquote?.querySelectorAll("br")).toHaveLength(1);
+    expect(blockquote).toHaveTextContent("[!NOTE]Keep this in mind.");
+    expect(blockquote?.querySelector("br")).toBeInTheDocument();
     expect(container.querySelector(".markra-callout-title")).not.toBeInTheDocument();
   });
 

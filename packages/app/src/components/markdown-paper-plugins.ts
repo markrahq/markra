@@ -142,7 +142,7 @@ const markraHardbreakSchema = hardbreakSchema.extendSchema((previous) => (ctx) =
     toMarkdown: {
       ...baseSchema.toMarkdown,
       runner: (state, node) => {
-        if (node.attrs.renderLineBreak === true && serializerHasOpenNode(state, "tableCell")) {
+        if (node.attrs.renderLineBreak === true && !serializerHasOpenNode(state, "blockquote")) {
           state.addNode("html", undefined, "<br>");
           return;
         }
@@ -162,9 +162,9 @@ function blankParagraphCountBetween(previous: MarkdownTreeNode, next: MarkdownTr
   const nextStartLine = lineNumber(next.position?.start?.line);
   if (previousEndLine === null || nextStartLine === null) return 0;
 
-  // One blank line is the ordinary Markdown block separator; extra pairs represent empty paragraphs.
+  // One blank line is the ordinary Markdown block separator; any extra blank spacing is editable space.
   const blankLines = nextStartLine - previousEndLine - 1;
-  return Math.max(0, Math.floor((blankLines - 1) / 2));
+  return Math.max(0, Math.ceil((blankLines - 1) / 2));
 }
 
 function blankParagraphNode(): MarkdownTreeNode {

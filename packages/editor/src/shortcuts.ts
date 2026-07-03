@@ -666,6 +666,49 @@ function insertRenderedHardbreak(view: EditorView) {
   return true;
 }
 
+function selectionIsInsideDecoratedSource(view: EditorView) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+
+  const sourceSelector = [
+    ".markra-math-source-active",
+    ".markra-live-link-source.markra-md-delimiter",
+    ".markra-live-link-source-label",
+    ".markra-live-image-source.markra-md-delimiter"
+  ].join(", ");
+  const positions = [selection.from, selection.from - 1, selection.from + 1]
+    .filter((position) => position >= 0 && position <= view.state.doc.content.size);
+
+  return positions.some((position) => {
+    const dom = view.domAtPos(position).node;
+    const element = dom.nodeType === 1 ? dom as Element : dom.parentElement;
+    return Boolean(element?.closest(sourceSelector));
+  });
+}
+
+function insertParagraphLineBreak(view: EditorView, paragraph: NodeType, blockquote: NodeType, listItem: NodeType) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  if (selectionIsInsideDecoratedSource(view)) return false;
+  if (selection.$from.parent.type !== paragraph) return false;
+  if (selectionIsInsideNodeType(selection, blockquote)) return false;
+  if (selectionIsInsideNodeType(selection, listItem)) return false;
+  if (selectionIsInsideTableCell(selection)) return false;
+  if (selection.$from.parentOffset <= 0 || selection.$from.parentOffset >= selection.$from.parent.content.size) return false;
+
+  const hardbreak = view.state.schema.nodes.hardbreak;
+  if (!hardbreak) return false;
+
+  view.dispatch(
+    view.state.tr
+      .replaceSelectionWith(hardbreak.create({ isInline: true, renderLineBreak: true }))
+      .scrollIntoView()
+  );
+  view.focus();
+
+  return true;
+}
+
 export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap = {}) => $prose((ctx) => {
   const strong = strongSchema.type(ctx);
   const emphasis = emphasisSchema.type(ctx);
@@ -702,7 +745,20 @@ export const markraMarkdownShortcuts = (configuredShortcuts: MarkdownShortcutMap
         const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
 
         // Support both Milkdown-style shortcuts and common document-editor aliases.
-        if (event.key === "Enter" && !hasModifier && selectionIsInsideNodeType(view.state.selection, blockquote)) {
+        if (event.key === "Enter" && !hasModifier && !selectionIsInsideNodeType(view.state.selection, blockquote)) {
+          const finalizedLiveMarkdown = finalizeActiveLiveMarkdown(view, liveMarkdownSpecs);
+          if (finalizedLiveMarkdown) {
+            view.focus();
+            event.preventDefault();
+            return true;
+          }
+
+          const handled = insertParagraphLineBreak(view, paragraph, blockquote, listItem);
+          if (handled) {
+            event.preventDefault();
+            return true;
+          }
+        } else if (event.key === "Enter" && !hasModifier && selectionIsInsideNodeType(view.state.selection, blockquote)) {
           const finalizedLiveMarkdown = finalizeActiveLiveMarkdown(view, liveMarkdownSpecs);
           if (finalizedLiveMarkdown) {
             view.focus();

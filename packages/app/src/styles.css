@@ -1767,7 +1767,7 @@
   }
 
   .markdown-paper p {
-    @apply m-0 mb-4.5;
+    @apply m-0;
     color: var(--editor-text-primary);
   }
 
