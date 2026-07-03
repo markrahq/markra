@@ -77,6 +77,19 @@ const mockedGetStoredWorkspaceState = vi.mocked(getStoredWorkspaceState);
 const mockedRemoveStoredRecentMarkdownFile = vi.mocked(removeStoredRecentMarkdownFile);
 const mockedSaveStoredRecentMarkdownFile = vi.mocked(saveStoredRecentMarkdownFile);
 const mockedSaveStoredWorkspaceState = vi.mocked(saveStoredWorkspaceState);
+type NativeMarkdownFileResult = Awaited<ReturnType<typeof readNativeMarkdownFile>>;
+
+function createDeferredNativeMarkdownFile() {
+  let resolve!: (file: NativeMarkdownFileResult) => undefined;
+  const promise = new Promise<NativeMarkdownFileResult>((resolvePromise) => {
+    resolve = (file) => {
+      resolvePromise(file);
+      return undefined;
+    };
+  });
+
+  return { promise, resolve };
+}
 
 describe("useMarkdownDocument", () => {
   beforeEach(() => {
@@ -576,6 +589,78 @@ describe("useMarkdownDocument", () => {
       name: "guide.md",
       path: "/mock-files/guide.md"
     });
+  });
+
+  it("coalesces repeated native watcher file events while a disk read is in flight", async () => {
+    const path = "/mock-files/guide.md";
+    const firstWatcherRead = createDeferredNativeMarkdownFile();
+    const secondWatcherRead = createDeferredNativeMarkdownFile();
+    const thirdWatcherRead = createDeferredNativeMarkdownFile();
+    let emitExternalChange: (path: string) => unknown | Promise<unknown> = () => {};
+    mockedWatchNativeMarkdownFile.mockImplementation(async (_path, onChange) => {
+      emitExternalChange = onChange;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile
+      .mockResolvedValueOnce({
+        content: "# Guide\n\nCurrent",
+        name: "guide.md",
+        path
+      })
+      .mockReturnValueOnce(firstWatcherRead.promise)
+      .mockReturnValueOnce(secondWatcherRead.promise)
+      .mockReturnValueOnce(thirdWatcherRead.promise);
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "guide.md",
+        path,
+        relativePath: "guide.md"
+      });
+    });
+    await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenCalled());
+
+    await act(async () => {
+      emitExternalChange(path);
+      emitExternalChange(path);
+      emitExternalChange(path);
+      await Promise.resolve();
+    });
+
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      firstWatcherRead.resolve({
+        content: "# Guide\n\nIntermediate",
+        name: "guide.md",
+        path
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockedReadNativeMarkdownFile).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      secondWatcherRead.resolve({
+        content: "# Guide\n\nLatest",
+        name: "guide.md",
+        path
+      });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(result.current.document.content).toBe("# Guide\n\nLatest"));
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledTimes(3);
   });
 
   it("does not overwrite the active tab when restored history save resolves after switching tabs", async () => {

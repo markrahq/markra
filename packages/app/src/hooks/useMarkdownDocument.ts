@@ -162,6 +162,12 @@ type ClearOpenDocumentOptions = {
   persistWorkspace?: boolean;
 };
 
+type WatchedMarkdownFileReadState = {
+  changedPath: string;
+  pending: boolean;
+  promise: Promise<unknown> | null;
+};
+
 type OpenMarkdownFileOptions = {
   pickerTitle?: string;
 };
@@ -1966,6 +1972,76 @@ export function useMarkdownDocument({
 
     let active = true;
     const stopWatchers: Array<() => unknown> = [];
+    const watchedFileReadStates = new Map<string, WatchedMarkdownFileReadState>();
+
+    const readAndApplyWatchedFile = async (changedPath: string, watchedPath: string) => {
+      debug(() => ["[markra-history] watcher file event", {
+        changedPath,
+        watchedPath
+      }]);
+      let file: NativeMarkdownFile;
+      try {
+        file = await readMarkdownFileWithPerformance(changedPath, "watcher");
+      } catch (error: unknown) {
+        if (active && isMissingMarkdownFileReadError(error)) {
+          const markedDeleted = markExternallyDeletedDocumentFile(changedPath);
+          debug(() => ["[markra-history] watcher marked missing file", {
+            changedPath,
+            markedDeleted,
+            watchedPath
+          }]);
+          onMarkdownTreeChange?.(changedPath);
+          return;
+        }
+
+        debug(() => ["[markra-history] watcher read failed", {
+          changedPath,
+          error: error instanceof Error ? error.message : String(error),
+          watchedPath
+        }]);
+        return;
+      }
+      if (!active) return;
+
+      applyDiskFileToCleanOpenTab(file, "watcher");
+    };
+
+    const drainWatchedFileRead = async (watchedPath: string, state: WatchedMarkdownFileReadState) => {
+      try {
+        while (active) {
+          state.pending = false;
+          await readAndApplyWatchedFile(state.changedPath, watchedPath);
+          if (!state.pending) break;
+        }
+      } finally {
+        if (watchedFileReadStates.get(watchedPath) === state) {
+          watchedFileReadStates.delete(watchedPath);
+        }
+      }
+    };
+
+    const requestWatchedFileRead = (changedPath: string, watchedPath: string) => {
+      const existingState = watchedFileReadStates.get(watchedPath);
+      if (existingState) {
+        existingState.changedPath = changedPath;
+        existingState.pending = true;
+        debug(() => ["[markra-history] watcher file event coalesced", {
+          changedPath,
+          watchedPath
+        }]);
+        return existingState.promise ?? Promise.resolve();
+      }
+
+      const state: WatchedMarkdownFileReadState = {
+        changedPath,
+        pending: false,
+        promise: null
+      };
+      watchedFileReadStates.set(watchedPath, state);
+      const promise = drainWatchedFileRead(watchedPath, state);
+      state.promise = promise;
+      return promise;
+    };
 
     watchedPaths.forEach((watchedPath) => {
       debug(() => ["[markra-history] watcher start", {
@@ -1986,35 +2062,7 @@ export function useMarkdownDocument({
       watchNativeMarkdownFile(watchedPath, async (changedPath) => {
         if (!active) return;
 
-        debug(() => ["[markra-history] watcher file event", {
-          changedPath,
-          watchedPath
-        }]);
-        let file: NativeMarkdownFile;
-        try {
-          file = await readMarkdownFileWithPerformance(changedPath, "watcher");
-        } catch (error: unknown) {
-          if (active && isMissingMarkdownFileReadError(error)) {
-            const markedDeleted = markExternallyDeletedDocumentFile(changedPath);
-            debug(() => ["[markra-history] watcher marked missing file", {
-              changedPath,
-              markedDeleted,
-              watchedPath
-            }]);
-            onMarkdownTreeChange?.(changedPath);
-            return;
-          }
-
-          debug(() => ["[markra-history] watcher read failed", {
-            changedPath,
-            error: error instanceof Error ? error.message : String(error),
-            watchedPath
-          }]);
-          return;
-        }
-        if (!active) return;
-
-        applyDiskFileToCleanOpenTab(file, "watcher");
+        await requestWatchedFileRead(changedPath, watchedPath);
       }, treeChangeHandler).then((stopWatching) => {
         if (!active) {
           stopWatching();

@@ -460,6 +460,65 @@ describe("useMarkdownFileTree", () => {
     expect(screen.getByText("docs/added.md")).toBeInTheDocument();
   });
 
+  it("coalesces native tree watcher refreshes while a refresh is in flight", async () => {
+    let emitTreeChange: (path: string) => unknown | Promise<unknown> = () => {};
+    const firstRefresh = createDeferredMarkdownFileList();
+    const secondRefresh = createDeferredMarkdownFileList();
+    const thirdRefresh = createDeferredMarkdownFileList();
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedListNativeMarkdownFilesForPath
+      .mockResolvedValueOnce([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" }
+      ])
+      .mockReturnValueOnce(firstRefresh.promise)
+      .mockReturnValueOnce(secondRefresh.promise)
+      .mockReturnValueOnce(thirdRefresh.promise);
+    mockedWatchNativeMarkdownTree.mockImplementation(async (_rootPath, onTreeChange) => {
+      emitTreeChange = onTreeChange;
+      return () => {};
+    });
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    expect(await screen.findByText("index.md")).toBeInTheDocument();
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function)));
+
+    await act(async () => {
+      emitTreeChange("/vault/docs/first.md");
+      emitTreeChange("/vault/docs/second.md");
+      emitTreeChange("/vault/docs/third.md");
+      await Promise.resolve();
+    });
+
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      firstRefresh.resolve([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" },
+        { path: "/vault/docs/intermediate.md", name: "intermediate.md", relativePath: "docs/intermediate.md" }
+      ]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledTimes(3));
+
+    await act(async () => {
+      secondRefresh.resolve([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" },
+        { path: "/vault/docs/latest.md", name: "latest.md", relativePath: "docs/latest.md" }
+      ]);
+      await Promise.resolve();
+    });
+
+    await waitFor(() => expect(screen.getByText("docs/latest.md")).toBeInTheDocument());
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledTimes(3);
+  });
+
   it("ignores stale native tree refreshes after switching folders", async () => {
     let emitTreeChange: (path: string) => unknown | Promise<unknown> = () => {};
     const staleVaultRefresh = createDeferredMarkdownFileList();

@@ -93,6 +93,13 @@ type PendingOpenFolderLoad = {
   cancel: () => undefined;
   timeoutId: number;
 };
+type FileTreeRefreshState = {
+  managedAttachmentFolder: string;
+  path: string;
+  pending: boolean;
+  promise: Promise<unknown> | null;
+  requestId: number;
+};
 
 function filterManagedAttachmentFiles(
   files: readonly NativeMarkdownFolderFile[],
@@ -133,6 +140,7 @@ export function useMarkdownFileTree({
   const openFolderRequestIdRef = useRef(0);
   const openingFolderPathRef = useRef<string | null>(null);
   const pendingOpenFolderLoadRef = useRef<PendingOpenFolderLoad | null>(null);
+  const fileTreeRefreshStateRef = useRef<FileTreeRefreshState | null>(null);
   const openChangedBeforeWorkspaceRestoreRef = useRef(false);
   const normalizedManagedAttachmentFolder = useMemo(
     () => normalizeManagedAttachmentFolder(managedAttachmentFolder),
@@ -182,23 +190,63 @@ export function useMarkdownFileTree({
         return;
       }
 
-      try {
-        const nextFiles = await listNativeMarkdownFilesForPath(path, {
-          managedAttachmentFolder: normalizedManagedAttachmentFolder
-        });
-        if (openFolderRequestIdRef.current !== requestId) return;
-        if (openingFolderPathRef.current && openingFolderPathRef.current !== path) return;
-
-        loadedFileTreeRequestRef.current = { managedAttachmentFolder: normalizedManagedAttachmentFolder, path };
-        startTransition(() => {
-          setFiles(nextFiles);
-        });
-      } catch {
-        if (openFolderRequestIdRef.current !== requestId) return;
-        if (openingFolderPathRef.current && openingFolderPathRef.current !== path) return;
-
-        setFiles([]);
+      const existingRefresh = fileTreeRefreshStateRef.current;
+      if (
+        existingRefresh?.path === path &&
+        existingRefresh.managedAttachmentFolder === normalizedManagedAttachmentFolder &&
+        existingRefresh.requestId === requestId
+      ) {
+        existingRefresh.pending = true;
+        return existingRefresh.promise ?? undefined;
       }
+
+      const refreshState: FileTreeRefreshState = {
+        managedAttachmentFolder: normalizedManagedAttachmentFolder,
+        path,
+        pending: false,
+        promise: null,
+        requestId
+      };
+      fileTreeRefreshStateRef.current = refreshState;
+
+      const refreshPromise = (async () => {
+        try {
+          while (true) {
+            refreshState.pending = false;
+            try {
+              const nextFiles = await listNativeMarkdownFilesForPath(refreshState.path, {
+                managedAttachmentFolder: refreshState.managedAttachmentFolder
+              });
+              if (fileTreeRefreshStateRef.current !== refreshState) return;
+              if (openFolderRequestIdRef.current !== refreshState.requestId) return;
+              if (openingFolderPathRef.current && openingFolderPathRef.current !== refreshState.path) return;
+
+              loadedFileTreeRequestRef.current = {
+                managedAttachmentFolder: refreshState.managedAttachmentFolder,
+                path: refreshState.path
+              };
+              startTransition(() => {
+                setFiles(nextFiles);
+              });
+            } catch {
+              if (fileTreeRefreshStateRef.current !== refreshState) return;
+              if (openFolderRequestIdRef.current !== refreshState.requestId) return;
+              if (openingFolderPathRef.current && openingFolderPathRef.current !== refreshState.path) return;
+
+              setFiles([]);
+            }
+
+            if (!refreshState.pending) return;
+          }
+        } finally {
+          if (fileTreeRefreshStateRef.current === refreshState) {
+            fileTreeRefreshStateRef.current = null;
+          }
+        }
+      })();
+
+      refreshState.promise = refreshPromise;
+      return refreshPromise;
     },
     [normalizedManagedAttachmentFolder, sourcePath]
   );
