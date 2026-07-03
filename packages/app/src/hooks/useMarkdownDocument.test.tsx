@@ -2923,6 +2923,62 @@ describe("useMarkdownDocument", () => {
     });
   });
 
+  it("waits for dirty untitled drafts when preparing for an update restart", async () => {
+    const editorMarkdown = "# Scratch\n\nUnsaved restart draft.";
+    let resolveWorkspaceSave!: () => undefined;
+    const workspaceSavePromise = new Promise<undefined>((resolve) => {
+      resolveWorkspaceSave = () => {
+        resolve(undefined);
+        return undefined;
+      };
+    });
+    mockedSaveStoredWorkspaceState.mockImplementation(async (patch) => {
+      if (patch.draftTabs?.some((draft) => draft.content === editorMarkdown)) {
+        return workspaceSavePromise;
+      }
+
+      return undefined;
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: () => editorMarkdown,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    let prepared = false;
+    let preparePromise!: Promise<unknown>;
+    act(() => {
+      preparePromise = result.current.saveDirtyMarkdownFiles().then(() => {
+        prepared = true;
+      });
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(prepared).toBe(false);
+
+    await act(async () => {
+      resolveWorkspaceSave();
+      await preparePromise;
+    });
+
+    expect(mockedSaveNativeMarkdownFile).not.toHaveBeenCalled();
+    expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+      activeDraftId: "untitled:0",
+      draftTabs: [
+        {
+          content: editorMarkdown,
+          id: "untitled:0",
+          name: "Untitled.md",
+          path: null
+        }
+      ]
+    });
+  });
+
   it("restores additional editor windows from the saved update-restart snapshot", async () => {
     const firstPath = "/mock-files/vault/first.md";
     const secondPath = "/mock-files/vault/second.md";

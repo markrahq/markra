@@ -182,7 +182,7 @@ type OpenMarkdownFileOptions = {
 };
 
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
-  saveStoredWorkspaceState(patch).catch(() => {});
+  return saveStoredWorkspaceState(patch).catch(() => {});
 }
 
 function resolveEditorReady(editorReady: boolean | (() => boolean)) {
@@ -1543,8 +1543,16 @@ export function useMarkdownDocument({
     if (dirtyFileSavePromiseRef.current) return dirtyFileSavePromiseRef.current;
 
     const savePromise = (async () => {
-      syncActiveDocumentFromEditor();
-      const dirtyTabs = tabsRef.current.filter((tab) => tab.open && tab.dirty && tab.path !== null && !tab.deleted);
+      const syncedDocument = syncActiveDocumentFromEditor();
+      const currentActiveTabId = activeTabIdRef.current;
+      const syncedTabs = currentActiveTabId
+        ? tabsRef.current.map((tab) => tab.id === currentActiveTabId ? createDocumentTab(syncedDocument, tab.id) : tab)
+        : tabsRef.current;
+      tabsRef.current = syncedTabs;
+      // Update relaunches can happen immediately; wait so untitled drafts survive the restart.
+      await persistWorkspaceState(draftWorkspacePatchFromTabs(syncedTabs, currentActiveTabId));
+
+      const dirtyTabs = syncedTabs.filter((tab) => tab.open && tab.dirty && tab.path !== null && !tab.deleted);
       for (const tab of dirtyTabs) {
         await saveMarkdownTabContent(tab, tab.content, { skipHistorySnapshot: true });
       }
