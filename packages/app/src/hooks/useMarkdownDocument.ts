@@ -521,6 +521,25 @@ export function useMarkdownDocument({
     return nextDocument;
   }, [currentMarkdown, editorSyncState, isActiveEditorMarkdownEquivalent, setActiveDocument]);
 
+  const syncActiveDocumentDraftSnapshot = useCallback(() => {
+    const syncedDocument = syncActiveDocumentFromEditor();
+    const currentActiveTabId = activeTabIdRef.current;
+    const syncedTabs = currentActiveTabId
+      ? tabsRef.current.map((tab) => tab.id === currentActiveTabId ? createDocumentTab(syncedDocument, tab.id) : tab)
+      : tabsRef.current;
+    tabsRef.current = syncedTabs;
+
+    return {
+      activeTabId: currentActiveTabId,
+      tabs: syncedTabs
+    };
+  }, [syncActiveDocumentFromEditor]);
+
+  const persistActiveDocumentDraftSnapshot = useCallback(() => {
+    const snapshot = syncActiveDocumentDraftSnapshot();
+    return persistWorkspaceState(draftWorkspacePatchFromTabs(snapshot.tabs, snapshot.activeTabId));
+  }, [syncActiveDocumentDraftSnapshot]);
+
   const hasDiscardableUnsavedChanges = useCallback(() => {
     const current = documentRef.current;
     if (!current.open) return false;
@@ -1554,16 +1573,11 @@ export function useMarkdownDocument({
     if (dirtyFileSavePromiseRef.current) return dirtyFileSavePromiseRef.current;
 
     const savePromise = (async () => {
-      const syncedDocument = syncActiveDocumentFromEditor();
-      const currentActiveTabId = activeTabIdRef.current;
-      const syncedTabs = currentActiveTabId
-        ? tabsRef.current.map((tab) => tab.id === currentActiveTabId ? createDocumentTab(syncedDocument, tab.id) : tab)
-        : tabsRef.current;
-      tabsRef.current = syncedTabs;
+      const snapshot = syncActiveDocumentDraftSnapshot();
       // Update relaunches can happen immediately; wait so untitled drafts survive the restart.
-      await persistWorkspaceState(draftWorkspacePatchFromTabs(syncedTabs, currentActiveTabId));
+      await persistWorkspaceState(draftWorkspacePatchFromTabs(snapshot.tabs, snapshot.activeTabId));
 
-      const dirtyTabs = syncedTabs.filter((tab) => tab.open && tab.dirty && tab.path !== null && !tab.deleted);
+      const dirtyTabs = snapshot.tabs.filter((tab) => tab.open && tab.dirty && tab.path !== null && !tab.deleted);
       for (const tab of dirtyTabs) {
         await saveMarkdownTabContent(tab, tab.content, { skipHistorySnapshot: true });
       }
@@ -1573,7 +1587,7 @@ export function useMarkdownDocument({
 
     dirtyFileSavePromiseRef.current = savePromise;
     return savePromise;
-  }, [saveMarkdownTabContent, syncActiveDocumentFromEditor]);
+  }, [saveMarkdownTabContent, syncActiveDocumentDraftSnapshot]);
 
   const autoSaveDirtyMarkdownTabs = useCallback(async () => {
     try {
@@ -1752,9 +1766,14 @@ export function useMarkdownDocument({
     let cleanup: (() => unknown) | null = null;
 
     listenNativeWindowCloseRequested(async (event) => {
-      syncActiveDocumentFromEditor();
+      const draftPersistence = persistActiveDocumentDraftSnapshot();
       const canDiscard = await confirmCanDiscardCurrentDocument();
-      if (!canDiscard) event.preventDefault();
+      if (!canDiscard) {
+        event.preventDefault();
+        return;
+      }
+
+      await draftPersistence;
     }).then((nextCleanup) => {
       if (active) {
         cleanup = nextCleanup;
@@ -1768,16 +1787,17 @@ export function useMarkdownDocument({
       active = false;
       cleanup?.();
     };
-  }, [confirmCanDiscardCurrentDocument, syncActiveDocumentFromEditor]);
+  }, [confirmCanDiscardCurrentDocument, persistActiveDocumentDraftSnapshot]);
 
   useEffect(() => {
     let active = true;
     let cleanup: (() => unknown) | null = null;
 
     listenNativeAppExitRequested(async () => {
-      syncActiveDocumentFromEditor();
+      const draftPersistence = persistActiveDocumentDraftSnapshot();
       const canDiscard = await confirmCanDiscardCurrentDocument();
       if (canDiscard) {
+        await draftPersistence;
         await beforeNativeAppExit?.();
         await exitNativeApp();
       }
@@ -1794,7 +1814,7 @@ export function useMarkdownDocument({
       active = false;
       cleanup?.();
     };
-  }, [beforeNativeAppExit, confirmCanDiscardCurrentDocument, syncActiveDocumentFromEditor]);
+  }, [beforeNativeAppExit, confirmCanDiscardCurrentDocument, persistActiveDocumentDraftSnapshot]);
 
   useEffect(() => {
     const path = initialMarkdownFilePath();
