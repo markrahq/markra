@@ -190,6 +190,58 @@ describe("useAiCommandUi", () => {
     });
   });
 
+  it("aborts an in-flight ACP inline request when interrupted", async () => {
+    const onAiResult = vi.fn();
+    let capturedSignal: AbortSignal | undefined;
+    mockedRunAcpInlineAiAgent.mockImplementation((input) => {
+      capturedSignal = input.signal;
+      return new Promise((_resolve, reject) => {
+        input.signal?.addEventListener("abort", () => {
+          reject(new Error("Aborted"));
+        }, { once: true });
+      });
+    });
+    const { result } = renderHook(() =>
+      useAiCommandUi({
+        acpAgentSettings: {
+          args: "--acp",
+          command: "synthetic-acp-agent",
+          cwd: "",
+          enabled: true
+        },
+        documentPath: "/vault/README.md",
+        getDocumentContent: () => "# Draft\n\nOriginal draft",
+        getSelection: () => ({ from: 9, source: "selection", text: "Original draft", to: 23 }),
+        model: "gpt-5.5",
+        onAiResult,
+        provider: provider(),
+        settingsLoading: false,
+        workspaceKey: "/vault"
+      })
+    );
+
+    let submitPromise: Promise<unknown> = Promise.resolve();
+    act(() => {
+      submitPromise = result.current.submitPrompt("make it clearer");
+    });
+
+    expect(mockedRunAcpInlineAiAgent).toHaveBeenCalled();
+    expect(capturedSignal?.aborted).toBe(false);
+
+    act(() => {
+      result.current.interruptPrompt();
+    });
+
+    expect(capturedSignal?.aborted).toBe(true);
+    expect(result.current.submitting).toBe(false);
+
+    await act(async () => {
+      await submitPromise;
+    });
+
+    expect(onAiResult).not.toHaveBeenCalled();
+  });
+
   it("passes command thinking options into the inline agent", async () => {
     mockedRunInlineAiAgent.mockResolvedValue({ content: "Better draft", finishReason: "stop" });
     const { result } = renderHook(() =>

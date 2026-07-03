@@ -48,6 +48,7 @@ export function useAiCommandUi(ctx: AiCommandContext) {
   const [prompt, setPrompt] = useState("");
   const [status, setStatus] = useState<AiCommandStatus>("idle");
   const requestIdRef = useRef(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const submitting = isSubmittingStatus(status);
 
   const openAiCommand = useCallback((selectionOverride?: AiSelectionContext | null) => {
@@ -70,6 +71,8 @@ export function useAiCommandUi(ctx: AiCommandContext) {
 
   const interruptPrompt = useCallback(() => {
     requestIdRef.current += 1;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
     setStatus("idle");
   }, []);
 
@@ -124,6 +127,8 @@ export function useAiCommandUi(ctx: AiCommandContext) {
 
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
+    const abortController = runWithAcpAgent ? new AbortController() : null;
+    abortControllerRef.current = abortController;
     setStatus("thinking");
     try {
       const response = runWithAcpAgent
@@ -145,6 +150,7 @@ export function useAiCommandUi(ctx: AiCommandContext) {
             prompt: trimmedPrompt,
             selectedModelId: ctx.getSelectedAcpModelId?.() ?? ctx.selectedAcpModelId,
             settings: acpAgentSettings,
+            signal: abortController?.signal,
             target,
             translationTargetLanguage: ctx.translationTargetLanguage ?? "English",
             workspaceKey: ctx.workspaceKey ?? null
@@ -206,6 +212,10 @@ export function useAiCommandUi(ctx: AiCommandContext) {
         type: "error"
       });
       setStatus("error");
+    } finally {
+      if (abortControllerRef.current === abortController) {
+        abortControllerRef.current = null;
+      }
     }
   }, [ctx, prompt, submitting]);
 
