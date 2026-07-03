@@ -3260,6 +3260,91 @@ describe("MarkdownPaper editing", () => {
     ));
   });
 
+  it("adapts pasted markdown source into rich editor content", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, editor, view } = await renderEditor("", { onMarkdownChange });
+    const markdownSource = [
+      "# Pasted title",
+      "",
+      "A **bold** line with [a link](https://example.test).",
+      "",
+      "- First",
+      "- Second",
+      "",
+      "![Diagram](assets/diagram.png)"
+    ].join("\n");
+
+    expect(pasteText(view, markdownSource)).toBe(true);
+
+    expect(container.querySelector(".ProseMirror h1")).toHaveTextContent("Pasted title");
+    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
+    expect(container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="https://example.test"]')).toHaveTextContent(
+      "a link"
+    );
+    expect(container.querySelectorAll(".ProseMirror li")).toHaveLength(2);
+    expect(container.querySelector<HTMLImageElement>('.ProseMirror img[src="assets/diagram.png"]')).toHaveAttribute(
+      "alt",
+      "Diagram"
+    );
+    expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("**bold**");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("# Pasted title");
+    expect(serializeMarkdown(view.state.doc)).toContain("A **bold** line with [a link](https://example.test).");
+    expect(serializeMarkdown(view.state.doc)).toContain("![Diagram](assets/diagram.png)");
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("# Pasted title")));
+  });
+
+  it("adapts markdown source when the clipboard also includes source-shaped html", async () => {
+    const { container, editor, view } = await renderEditor("");
+    const markdownSource = [
+      "# Pasted title",
+      "",
+      "A **bold** line with [a link](https://example.test)."
+    ].join("\n");
+
+    dispatchMixedClipboardPaste(view, {
+      files: [],
+      html: [
+        '<pre class="editor-clipboard">',
+        '<span># Pasted title</span>',
+        "<br>",
+        "<br>",
+        '<span>A **bold** line with [a link](https://example.test).</span>',
+        "</pre>"
+      ].join(""),
+      plainText: markdownSource
+    });
+
+    await waitFor(() => expect(container.querySelector(".ProseMirror h1")).toHaveTextContent("Pasted title"));
+    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
+    expect(container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="https://example.test"]')).toHaveTextContent(
+      "a link"
+    );
+    expect(container.querySelector(".ProseMirror")?.textContent).not.toContain("**bold**");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain("A **bold** line with [a link](https://example.test).");
+  });
+
+  it("adapts pasted inline markdown source inside the current paragraph", async () => {
+    const { container, editor, view } = await renderEditor("Intro");
+    moveCursor(view, findTextPosition(view, "Intro", "Intro".length));
+
+    expect(pasteText(view, " with **bold** and [link](https://example.test)")).toBe(true);
+
+    expect(container.querySelector(".ProseMirror p")).toHaveTextContent("Intro with bold and link");
+    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
+    expect(container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="https://example.test"]')).toHaveTextContent(
+      "link"
+    );
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toContain(
+      "Intro with **bold** and [link](https://example.test)"
+    );
+  });
+
   it("transfers remote images from pasted web HTML through the image save pipeline", async () => {
     const onMarkdownChange = vi.fn();
     const onSaveRemoteClipboardImage = vi.fn().mockResolvedValue({

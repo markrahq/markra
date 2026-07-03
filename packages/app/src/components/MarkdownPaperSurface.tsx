@@ -37,6 +37,7 @@ import {
   markraListTogglePlugin,
   markraLinkImageLivePlugin,
   markraLiveMarkdownPlugin,
+  markraMarkdownSourcePastePlugin,
   markraMarkdownShortcuts,
   markraMathCaretAnchorSuppressionPlugin,
   markraMathPlugin,
@@ -482,6 +483,7 @@ function MilkdownEditorSurface({
         .use(markraSlashCommands(slashCommandLabels, { callout: githubAlertsEnabled }))
         .use(markraMathSourcePlugin)
         .use(markraMarkdownShortcuts(normalizedMarkdownShortcuts))
+        .use(markraMarkdownSourcePastePlugin)
         .use(markraCodeBlockPlugin)
         .use(markraMathCaretAnchorSuppressionPlugin)
         .use(markraMathPlugin)
