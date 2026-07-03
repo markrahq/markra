@@ -176,6 +176,11 @@ export async function closeNativeWindow() {
   await currentWindow?.close();
 }
 
+export async function destroyNativeWindow() {
+  const currentWindow = await getCurrentNativeWindow();
+  await currentWindow?.destroy();
+}
+
 export async function minimizeNativeWindow() {
   if (!("__TAURI_INTERNALS__" in window)) {
     return;

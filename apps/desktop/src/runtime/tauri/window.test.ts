@@ -4,6 +4,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { exit } from "@tauri-apps/plugin-process";
 import {
   closeNativeWindow,
+  destroyNativeWindow,
   exitNativeApp,
   getCurrentNativeWindowLabel,
   listenNativeAppExitRequested,
@@ -65,6 +66,15 @@ describe("native window actions", () => {
     await closeNativeWindow();
 
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("destroys the current Tauri window after app-level close handling", async () => {
+    const destroy = vi.fn().mockResolvedValue(undefined);
+    mockedGetCurrentWindow.mockReturnValue({ destroy } as unknown as ReturnType<typeof getCurrentWindow>);
+
+    await destroyNativeWindow();
+
+    expect(destroy).toHaveBeenCalledTimes(1);
   });
 
   it("listens for native window close requests", async () => {

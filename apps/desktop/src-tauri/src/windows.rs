@@ -31,6 +31,7 @@ use tauri::{utils::config::Color, Emitter, Manager, WebviewUrl, WebviewWindowBui
 const BLANK_EDITOR_WINDOW_LABEL_PREFIX: &str = "markra-editor-";
 const BLANK_EDITOR_WINDOW_URL: &str = "index.html?blank=1";
 const MAIN_WINDOW_LABEL: &str = "main";
+const RESTORABLE_EDITOR_WINDOW_URL: &str = "index.html";
 #[cfg(test)]
 pub(crate) const MINIMIZE_CURRENT_WINDOW_COMMAND: &str = "minimize_current_window";
 #[cfg(test)]
@@ -158,6 +159,10 @@ fn is_blank_editor_window_label(label: &str) -> bool {
     label.starts_with(BLANK_EDITOR_WINDOW_LABEL_PREFIX)
 }
 
+pub(crate) fn is_editor_window_label(label: &str) -> bool {
+    label == MAIN_WINDOW_LABEL || is_blank_editor_window_label(label)
+}
+
 pub(crate) fn is_settings_window_label(label: &str) -> bool {
     label == SETTINGS_WINDOW_LABEL
 }
@@ -167,7 +172,7 @@ fn should_hide_native_menu_for_window_label_on_platform(platform: &str, label: &
         return true;
     }
 
-    platform == "windows" && (label == MAIN_WINDOW_LABEL || is_blank_editor_window_label(label))
+    platform == "windows" && is_editor_window_label(label)
 }
 
 fn should_hide_native_menu_for_window_label(label: &str) -> bool {
@@ -493,15 +498,12 @@ fn settings_window_url(
     url
 }
 
-pub(crate) fn spawn_editor_window<R>(app: tauri::AppHandle<R>, url: String)
+fn spawn_editor_window_with_label<R>(app: tauri::AppHandle<R>, label: String, url: String)
 where
     R: tauri::Runtime,
 {
-    // Create secondary windows off the menu event thread to avoid WebView2 deadlocks on Windows.
+    // Create editor windows off the menu/reopen event thread to avoid WebView2 deadlocks on Windows.
     std::thread::spawn(move || {
-        let label = next_blank_editor_window_label();
-        debug_assert!(is_blank_editor_window_label(&label));
-
         let builder = WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
             .title("")
             .inner_size(1360.0, 800.0)
@@ -527,6 +529,28 @@ where
             }
         }
     });
+}
+
+pub(crate) fn spawn_editor_window<R>(app: tauri::AppHandle<R>, url: String)
+where
+    R: tauri::Runtime,
+{
+    let label = next_blank_editor_window_label();
+    debug_assert!(is_blank_editor_window_label(&label));
+    spawn_editor_window_with_label(app, label, url);
+}
+
+pub(crate) fn spawn_restorable_editor_window<R>(app: tauri::AppHandle<R>)
+where
+    R: tauri::Runtime,
+{
+    // ?blank=1 deliberately opts out of workspace restore. App/Dock reopens need index.html
+    // so the frontend can replay the saved tabs instead of starting an empty document.
+    spawn_editor_window_with_label(
+        app,
+        MAIN_WINDOW_LABEL.to_string(),
+        RESTORABLE_EDITOR_WINDOW_URL.to_string(),
+    );
 }
 
 fn editor_window_transparent() -> bool {
@@ -1450,15 +1474,22 @@ mod tests {
     }
 
     #[test]
+    fn editor_window_labels_exclude_settings_window() {
+        assert!(is_editor_window_label("main"));
+        assert!(is_editor_window_label("markra-editor-1"));
+        assert!(!is_editor_window_label("markra-settings"));
+    }
+
+    #[test]
     fn secondary_editor_windows_become_native_menu_targets_when_created() {
         let source = include_str!("windows.rs");
         let start = source
-            .find("pub(crate) fn spawn_editor_window")
-            .expect("spawn_editor_window should exist");
+            .find("fn spawn_editor_window_with_label")
+            .expect("spawn_editor_window_with_label should exist");
         let end = source[start..]
             .find("fn editor_window_transparent")
             .map(|offset| start + offset)
-            .expect("spawn_editor_window should end before editor_window_transparent");
+            .expect("spawn_editor_window_with_label should end before editor_window_transparent");
         let spawn_editor_window_source = &source[start..end];
 
         assert!(

@@ -17,7 +17,9 @@ import {
 } from "../lib/settings/app-settings";
 import { getMarkdownOutline, getWordCount, type MarkdownOutlineItem } from "@markra/markdown";
 import {
+  destroyNativeWindow,
   exitNativeApp,
+  listNativeEditorWindowRestoreStates,
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
@@ -275,6 +277,8 @@ export function useMarkdownDocument({
   const workspaceSessionIdRef = useRef<string | null>(null);
   const openedFromNativeRef = useRef(false);
   const startupWorkspaceRestoreAttemptedRef = useRef(false);
+  const nativeWindowCloseAllowedRef = useRef(false);
+  const nativeWindowCloseScheduledRef = useRef(false);
   const dirtyFileSavePromiseRef = useRef<Promise<unknown> | null>(null);
   const editorSyncStateRef = useRef<EditorSyncState | null>(null);
   if (editorSyncStateRef.current === null) editorSyncStateRef.current = createEditorSyncState();
@@ -539,6 +543,17 @@ export function useMarkdownDocument({
     const snapshot = syncActiveDocumentDraftSnapshot();
     return persistWorkspaceState(draftWorkspacePatchFromTabs(snapshot.tabs, snapshot.activeTabId));
   }, [syncActiveDocumentDraftSnapshot]);
+
+  const persistNativeEditorWindowRestoreSnapshot = useCallback(async () => {
+    try {
+      // The native window list only lives in the current process. Copy it into settings
+      // before an app-driven exit so secondary editor windows survive restart.
+      const openWindows = await listNativeEditorWindowRestoreStates();
+      await persistWorkspaceState({ openWindows });
+    } catch {
+      // Snapshot persistence is best-effort; the current window state is still saved independently.
+    }
+  }, []);
 
   const hasDiscardableUnsavedChanges = useCallback(() => {
     const current = documentRef.current;
@@ -1766,14 +1781,30 @@ export function useMarkdownDocument({
     let cleanup: (() => unknown) | null = null;
 
     listenNativeWindowCloseRequested(async (event) => {
-      const draftPersistence = persistActiveDocumentDraftSnapshot();
-      const canDiscard = await confirmCanDiscardCurrentDocument();
-      if (!canDiscard) {
-        event.preventDefault();
+      if (nativeWindowCloseAllowedRef.current) {
+        nativeWindowCloseAllowedRef.current = false;
+        nativeWindowCloseScheduledRef.current = false;
         return;
       }
 
+      event.preventDefault();
+      if (nativeWindowCloseScheduledRef.current) return;
+
+      const draftPersistence = persistActiveDocumentDraftSnapshot();
+      const canDiscard = await confirmCanDiscardCurrentDocument();
+      if (!canDiscard) return;
+
       await draftPersistence;
+      nativeWindowCloseScheduledRef.current = true;
+      window.setTimeout(() => {
+        // The close request was already intercepted for persistence. Destroy the window after
+        // saving so Tauri does not re-enter the same close confirmation path.
+        nativeWindowCloseAllowedRef.current = true;
+        destroyNativeWindow().catch(() => {
+          nativeWindowCloseAllowedRef.current = false;
+          nativeWindowCloseScheduledRef.current = false;
+        });
+      }, 0);
     }).then((nextCleanup) => {
       if (active) {
         cleanup = nextCleanup;
@@ -1798,6 +1829,7 @@ export function useMarkdownDocument({
       const canDiscard = await confirmCanDiscardCurrentDocument();
       if (canDiscard) {
         await draftPersistence;
+        await persistNativeEditorWindowRestoreSnapshot();
         await beforeNativeAppExit?.();
         await exitNativeApp();
       }
@@ -1814,7 +1846,7 @@ export function useMarkdownDocument({
       active = false;
       cleanup?.();
     };
-  }, [beforeNativeAppExit, confirmCanDiscardCurrentDocument, persistActiveDocumentDraftSnapshot]);
+  }, [beforeNativeAppExit, confirmCanDiscardCurrentDocument, persistActiveDocumentDraftSnapshot, persistNativeEditorWindowRestoreSnapshot]);
 
   useEffect(() => {
     const path = initialMarkdownFilePath();
@@ -1930,27 +1962,46 @@ export function useMarkdownDocument({
           assignWorkspaceSessionId(sessionId);
 
           if (workspace.folderPath) {
-            const folderResult = await onTreeRootFromFolderPath(
-              workspace.folderPath,
-              workspace.folderName ?? workspace.folderPath,
+            const folderPath = workspace.folderPath;
+            const folderName = workspace.folderName ?? folderPath;
+            const handleRestoredFolderResult = (folderResult: unknown) => {
+              if (folderResult === null || folderResult === false) {
+                persistWorkspaceState({
+                  fileTreeOpen: false,
+                  folderName: null,
+                  folderPath: null
+                });
+                return;
+              }
+
+              if (restoreFilePaths.length === 0) clearOpenDocument({ persistWorkspace: false });
+            };
+            const restoreFolderRoot = () => onTreeRootFromFolderPath(
+              folderPath,
+              folderName,
               sessionId,
               restoreFilePaths.length === 0,
               workspace.fileTreeOpen
             );
-            if (!active) return;
 
-            if (folderResult === null || folderResult === false) {
-              persistWorkspaceState({
-                fileTreeOpen: false,
-                folderName: null,
-                folderPath: null,
-                openFilePaths: []
-              });
-              restoreFilePaths = [];
-              restoredWorkspace = true;
+            // Some saved roots, such as metadata folders, can make tree loading stall. Restoring
+            // files independently prevents the app from staying on Untitled.md while the tree waits.
+            restoredWorkspace = true;
+
+            if (restoreFilePaths.length > 0) {
+              // File restoration should not wait for potentially slow or skipped tree roots.
+              Promise.resolve()
+                .then(restoreFolderRoot)
+                .then((folderResult) => {
+                  if (active) handleRestoredFolderResult(folderResult);
+                })
+                .catch(() => {
+                  if (active) handleRestoredFolderResult(null);
+                });
             } else {
-              if (restoreFilePaths.length === 0) clearOpenDocument({ persistWorkspace: false });
-              restoredWorkspace = true;
+              const folderResult = await Promise.resolve().then(restoreFolderRoot);
+              if (!active) return;
+              handleRestoredFolderResult(folderResult);
             }
           }
 
@@ -1958,7 +2009,7 @@ export function useMarkdownDocument({
             const restoredFiles = await restoreNativeMarkdownFiles(
               restoreFilePaths,
               activeRestoreFilePath,
-              !restoredWorkspace,
+              !workspace.folderPath && !restoredWorkspace,
               sessionId
             );
             if (!active) return;

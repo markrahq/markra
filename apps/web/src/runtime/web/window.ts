@@ -99,6 +99,18 @@ export function createWebWindowRuntime(
         dispatchBrowserRouteChange(windowTarget);
       }
     },
+    destroyWindow: async () => {
+      const windowTarget = resolveBrowserWindow(options);
+      if (!windowTarget) return;
+
+      windowTarget.close();
+      if (windowTarget.closed) return;
+
+      if (new URLSearchParams(windowTarget.location.search).has("settings")) {
+        windowTarget.history.pushState({}, "", createEditorRouteUrl(windowTarget));
+        dispatchBrowserRouteChange(windowTarget);
+      }
+    },
     listenSettingsWindowTarget: (onTarget) =>
       listenWebSettingsWindowTarget(options.eventTarget ?? resolveBrowserWindow(options), onTarget),
     openExternalUrl: async (url) => {

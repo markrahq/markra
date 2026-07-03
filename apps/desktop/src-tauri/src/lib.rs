@@ -75,9 +75,10 @@ use window_state::{
 use windows::{
     apply_main_window_chrome, apply_settings_window_lifecycle, apply_webview_window_chrome,
     apply_window_event_chrome, editor_window_url_for_folder, editor_window_url_for_path,
-    hide_settings_window, mark_settings_window_ready, minimize_current_window,
-    open_blank_editor_window, open_settings_window, prewarm_settings_window,
-    spawn_blank_editor_window, spawn_editor_window, toggle_settings_window,
+    hide_settings_window, is_editor_window_label, mark_settings_window_ready,
+    minimize_current_window, open_blank_editor_window, open_settings_window,
+    prewarm_settings_window, spawn_blank_editor_window, spawn_editor_window,
+    spawn_restorable_editor_window, toggle_settings_window,
 };
 
 const STARTUP_WINDOW_NATIVE_REVEAL_FALLBACK_MS: u64 = 2400;
@@ -128,7 +129,7 @@ fn reveal_or_open_markdown_paths<R: tauri::Runtime>(
 
     let urls = editor_window_urls_for_opened_markdown_paths(&paths);
     if urls.is_empty() {
-        spawn_blank_editor_window(app.clone());
+        spawn_restorable_editor_window(app.clone());
         return;
     }
 
@@ -146,6 +147,12 @@ fn show_main_window_if_hidden<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
         let _ = window.show();
         let _ = window.set_focus();
     }
+}
+
+fn has_visible_editor_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> bool {
+    app.webview_windows().values().any(|window| {
+        is_editor_window_label(window.label()) && window.is_visible().unwrap_or(false)
+    })
 }
 
 fn spawn_startup_window_reveal_fallback<R: tauri::Runtime>(app: &tauri::AppHandle<R>) {
@@ -313,6 +320,14 @@ pub fn run() {
             tauri::RunEvent::Opened { urls } => {
                 queue_opened_markdown_paths(app, opened_markdown_paths_from_urls(&urls));
             }
+            #[cfg(target_os = "macos")]
+            tauri::RunEvent::Reopen { .. } => {
+                // Settings may stay visible after prewarm. Treating that as an editor would skip
+                // workspace restore when the user reopens Markra from the Dock.
+                if !has_visible_editor_window(app) {
+                    reveal_or_open_markdown_paths(app, Vec::new(), true);
+                }
+            }
             _ => {}
         });
 }
@@ -445,6 +460,63 @@ mod tests {
         assert!(
             lib_source.contains("reveal_or_open_markdown_paths(&app.handle(), paths, false);"),
             "initial CLI-opened paths should trigger a native window reveal instead of only being queued"
+        );
+    }
+
+    #[test]
+    fn empty_app_reopen_uses_restorable_editor_window() {
+        let lib_source = include_str!("lib.rs");
+        let start = lib_source
+            .find("fn reveal_or_open_markdown_paths")
+            .expect("reveal_or_open_markdown_paths should exist");
+        let end = lib_source[start..]
+            .find("fn show_main_window_if_hidden")
+            .map(|offset| start + offset)
+            .expect("reveal_or_open_markdown_paths should end before show_main_window_if_hidden");
+        let reveal_source = &lib_source[start..end];
+
+        assert!(
+            reveal_source.contains("spawn_restorable_editor_window(app.clone());"),
+            "reopening Markra without a live main window should create a restore-capable editor window"
+        );
+        assert!(
+            !reveal_source.contains("spawn_blank_editor_window(app.clone());"),
+            "empty app reopen should not use index.html?blank=1 because that skips workspace restore"
+        );
+    }
+
+    #[test]
+    fn desktop_handles_macos_reopen_without_visible_windows() {
+        let lib_source = include_str!("lib.rs");
+        let reopen_event = ["tauri::RunEvent::", "Reopen {"].concat();
+        let empty_reveal = ["reveal_or_open_markdown_paths(app, Vec::new(), ", "true);"].concat();
+
+        assert!(
+            lib_source.contains(&reopen_event),
+            "macOS Dock reopen should be handled when all editor windows are closed"
+        );
+        assert!(
+            lib_source.contains("if !has_visible_editor_window(app) {"),
+            "reopen handling should only create a window when no editor window is visible"
+        );
+        assert!(
+            lib_source.contains(&empty_reveal),
+            "macOS Dock reopen should use the restore-capable empty reveal path"
+        );
+    }
+
+    #[test]
+    fn desktop_reopen_ignores_visible_settings_windows() {
+        let lib_source = include_str!("lib.rs");
+        let generic_visible_window_guard = ["if !has", "_visible_windows {"].concat();
+
+        assert!(
+            lib_source.contains("if !has_visible_editor_window(app) {"),
+            "macOS Dock reopen should restore an editor when the only visible window is Settings"
+        );
+        assert!(
+            !lib_source.contains(&generic_visible_window_guard),
+            "macOS Dock reopen should not treat visible Settings windows as visible editor windows"
         );
     }
 

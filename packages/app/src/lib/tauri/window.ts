@@ -71,6 +71,10 @@ export function closeNativeWindow() {
   return getAppRuntime().window.closeWindow();
 }
 
+export function destroyNativeWindow() {
+  return getAppRuntime().window.destroyWindow();
+}
+
 export function minimizeNativeWindow() {
   return getAppRuntime().window.minimizeWindow();
 }

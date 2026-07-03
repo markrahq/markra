@@ -12,6 +12,7 @@ import {
   getNativeShellCommandStatus,
   installNativeShellCommand,
   closeNativeWindow,
+  destroyNativeWindow,
   exitNativeApp,
   hideSettingsWindow,
   markSettingsWindowReady,
@@ -23,6 +24,7 @@ import {
   openNativeMarkdownPath,
   listenNativeAppExitRequested,
   listenNativeWindowCloseRequested,
+  listNativeEditorWindowRestoreStates,
   listenNativeOpenedMarkdownPaths,
   listNativeMarkdownFileHistory,
   readNativeLocalImageFile,
@@ -202,11 +204,13 @@ vi.mock("../lib/tauri", () => ({
   installNativeEditorContextMenu: vi.fn(),
   openNativeExternalUrl: vi.fn(),
   closeNativeWindow: vi.fn(),
+  destroyNativeWindow: vi.fn(),
   hideSettingsWindow: vi.fn(),
   markSettingsWindowReady: vi.fn(),
   exitNativeApp: vi.fn(),
   listenNativeAppExitRequested: vi.fn(),
   listenNativeWindowCloseRequested: vi.fn(),
+  listNativeEditorWindowRestoreStates: vi.fn(),
   openSettingsWindow: vi.fn(),
   prewarmSettingsWindow: vi.fn(),
   setNativeWindowTitle: vi.fn(),
@@ -847,10 +851,12 @@ export const mockedOpenSettingsWindow = vi.mocked(openSettingsWindow);
 export const mockedPrewarmSettingsWindow = vi.mocked(prewarmSettingsWindow);
 export const mockedOpenNativeExternalUrl = vi.mocked(openNativeExternalUrl);
 export const mockedCloseNativeWindow = vi.mocked(closeNativeWindow);
+export const mockedDestroyNativeWindow = vi.mocked(destroyNativeWindow);
 export const mockedToggleNativeWindowFullscreen = vi.mocked(toggleNativeWindowFullscreen);
 export const mockedExitNativeApp = vi.mocked(exitNativeApp);
 export const mockedListenNativeAppExitRequested = vi.mocked(listenNativeAppExitRequested);
 export const mockedListenNativeWindowCloseRequested = vi.mocked(listenNativeWindowCloseRequested);
+export const mockedListNativeEditorWindowRestoreStates = vi.mocked(listNativeEditorWindowRestoreStates);
 export const mockedCheckNativeAppUpdate = vi.mocked(checkNativeAppUpdate);
 export const mockedResolveDesktopOsVersion = vi.mocked(resolveDesktopOsVersion);
 export const mockedResolveDesktopPlatform = vi.mocked(resolveDesktopPlatform);
@@ -1043,6 +1049,7 @@ export function installAppTestHarness() {
     mockedInstallNativeEditorContextMenu.mockReset();
     mockedOpenNativeExternalUrl.mockReset();
     mockedCloseNativeWindow.mockReset();
+    mockedDestroyNativeWindow.mockReset();
     mockedShowNativeWindow.mockReset();
     mockedHideSettingsWindow.mockReset();
     mockedMarkSettingsWindowReady.mockReset();
@@ -1050,6 +1057,7 @@ export function installAppTestHarness() {
     mockedExitNativeApp.mockReset();
     mockedListenNativeAppExitRequested.mockReset();
     mockedListenNativeWindowCloseRequested.mockReset();
+    mockedListNativeEditorWindowRestoreStates.mockReset();
     mockedCheckNativeAppUpdate.mockReset();
     mockedResolveDesktopOsVersion.mockReset();
     mockedResolveDesktopPlatform.mockReset();
@@ -1157,6 +1165,7 @@ export function installAppTestHarness() {
     mockedInstallNativeEditorContextMenu.mockResolvedValue(() => {});
     mockedOpenNativeExternalUrl.mockResolvedValue(undefined);
     mockedCloseNativeWindow.mockResolvedValue(undefined);
+    mockedDestroyNativeWindow.mockResolvedValue(undefined);
     mockedShowNativeWindow.mockResolvedValue(undefined);
     mockedHideSettingsWindow.mockResolvedValue(undefined);
     mockedMarkSettingsWindowReady.mockResolvedValue(undefined);
@@ -1164,6 +1173,7 @@ export function installAppTestHarness() {
     mockedExitNativeApp.mockResolvedValue(undefined);
     mockedListenNativeAppExitRequested.mockResolvedValue(() => {});
     mockedListenNativeWindowCloseRequested.mockResolvedValue(() => {});
+    mockedListNativeEditorWindowRestoreStates.mockResolvedValue([]);
     mockedDownloadNativeWebImage.mockResolvedValue(new File([new Uint8Array([1, 2, 3])], "web-image.png", {
       type: "image/png"
     }));

@@ -331,6 +331,7 @@ export type AppFeatureRuntime = {
 
 export type AppWindowRuntime = {
   closeWindow: () => Promise<unknown>;
+  destroyWindow: () => Promise<unknown>;
   exitApp: () => Promise<unknown>;
   getCurrentWindowLabel: () => Promise<string | null>;
   listEditorWindowRestoreStates: () => Promise<NativeEditorWindowRestoreState[]>;
@@ -533,6 +534,7 @@ export function createDefaultAppRuntime(): AppRuntime {
     },
     window: {
       closeWindow: async () => undefined,
+      destroyWindow: async () => undefined,
       exitApp: async () => undefined,
       getCurrentWindowLabel: async () => "main",
       listEditorWindowRestoreStates: async () => [],

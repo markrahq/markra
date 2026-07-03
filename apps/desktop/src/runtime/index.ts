@@ -159,6 +159,7 @@ export const desktopRuntime = {
   },
   window: {
     closeWindow: windowRuntime.closeNativeWindow,
+    destroyWindow: windowRuntime.destroyNativeWindow,
     exitApp: windowRuntime.exitNativeApp,
     getCurrentWindowLabel: windowRuntime.getCurrentNativeWindowLabel,
     listEditorWindowRestoreStates: windowRuntime.listNativeEditorWindowRestoreStates,
