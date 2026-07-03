@@ -22,7 +22,7 @@ import {
 } from "@milkdown/kit/preset/gfm";
 import { Fragment, type Node as ProseNode, type ResolvedPos, type Slice } from "@milkdown/kit/prose/model";
 import type { Selection } from "@milkdown/kit/prose/state";
-import { Plugin } from "@milkdown/kit/prose/state";
+import { Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { $prose, $remark } from "@milkdown/kit/utils";
 import type { AiSelectionContext } from "@markra/ai";
@@ -604,11 +604,31 @@ type ExternalLinkClickPluginOptions = {
 const markdownDocumentHrefPattern = /\.(md|markdown)(?:[?#].*)?$/iu;
 const markdownImageHrefPattern = /\.(avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/iu;
 const markdownClipboardTableRowNodeNames = new Set(["table_header_row", "table_row"]);
+const markdownClipboardTableCellNodeNames = new Set(["table_cell", "table_header"]);
 
 type MarkdownSerializer = (doc: ProseNode) => string;
 
 function defaultClipboardText(slice: Slice) {
   return slice.content.textBetween(0, slice.content.size, "\n\n");
+}
+
+function tableCellAncestorPosition($pos: ResolvedPos) {
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    if (markdownClipboardTableCellNodeNames.has($pos.node(depth).type.name)) {
+      return $pos.before(depth);
+    }
+  }
+
+  return null;
+}
+
+function selectionIsInsideSingleTableCell(selection: Selection) {
+  if (!(selection instanceof TextSelection) || selection.empty) return false;
+
+  const fromCellPosition = tableCellAncestorPosition(selection.$from);
+  if (fromCellPosition === null) return false;
+
+  return fromCellPosition === tableCellAncestorPosition(selection.$to);
 }
 
 function fragmentContainsTableMarkdown(fragment: Fragment) {
@@ -663,6 +683,10 @@ function trimSerializerDocumentNewline(markdown: string) {
 }
 
 export function serializeMarkdownClipboardText(slice: Slice, view: EditorView, serializeMarkdown: MarkdownSerializer) {
+  if (selectionIsInsideSingleTableCell(view.state.selection)) {
+    return defaultClipboardText(slice);
+  }
+
   if (!fragmentContainsTableMarkdown(slice.content)) {
     return defaultClipboardText(slice);
   }

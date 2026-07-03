@@ -479,6 +479,35 @@ function dispatchMixedClipboardPaste(view: EditorView, data: { files: File[]; ht
   view.dom.dispatchEvent(event);
 }
 
+function dispatchCopy(view: EditorView) {
+  const data = new Map<string, string>();
+  const event = new Event("copy", {
+    bubbles: true,
+    cancelable: true
+  }) as ClipboardEvent;
+
+  Object.defineProperty(event, "clipboardData", {
+    value: {
+      clearData: (type?: string) => {
+        if (type) {
+          data.delete(type);
+          return;
+        }
+
+        data.clear();
+      },
+      getData: (type: string) => data.get(type) ?? "",
+      setData: (type: string, value: string) => {
+        data.set(type, value);
+      }
+    }
+  });
+
+  view.dom.dispatchEvent(event);
+
+  return data;
+}
+
 function pasteFile(view: EditorView, file: File) {
   const event = new Event("paste", {
     bubbles: true,
@@ -10179,6 +10208,27 @@ describe("MarkdownPaper editing", () => {
     selectNode(view, findNodeStartPosition(view, "table"));
 
     expect(selectedPlainClipboardText(view)).toBe(expectedClipboardMarkdown);
+  });
+
+  it("copies selected text inside a table cell as plain text", async () => {
+    const tableMarkdown = ["| Alpha | Beta |", "| --- | --- |", "| Gamma | Delta |"].join("\n");
+    const { view } = await renderEditor(tableMarkdown);
+
+    selectText(view, findTextPosition(view, "Alpha", 1), findTextPosition(view, "Alpha", 4));
+
+    expect(selectedPlainClipboardText(view)).toBe("lph");
+  });
+
+  it("copies selected text inside a table cell without table html", async () => {
+    const tableMarkdown = ["| Alpha | Beta |", "| --- | --- |", "| Gamma | Delta |"].join("\n");
+    const { view } = await renderEditor(tableMarkdown);
+
+    selectText(view, findTextPosition(view, "Alpha"), findTextPosition(view, "Alpha", "Alpha".length));
+
+    const clipboardData = dispatchCopy(view);
+
+    expect(clipboardData.get("text/plain")).toBe("Alpha");
+    expect(clipboardData.get("text/html") ?? "").not.toContain("<table");
   });
 
   it("copies table row clipboard slices as markdown plain text", async () => {
