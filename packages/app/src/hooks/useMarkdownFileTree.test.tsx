@@ -1,8 +1,10 @@
+import { useEffect } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import {
   createNativeMarkdownTreeFile,
   createNativeMarkdownTreeFolder,
   deleteNativeMarkdownTreeFile,
+  loadNativeMarkdownFilesForPath,
   listNativeMarkdownFilesForPath,
   moveNativeMarkdownTreeFile,
   openNativeMarkdownFolder,
@@ -26,6 +28,7 @@ vi.mock("../lib/tauri", () => ({
   createNativeMarkdownTreeFile: vi.fn(),
   createNativeMarkdownTreeFolder: vi.fn(),
   deleteNativeMarkdownTreeFile: vi.fn(),
+  loadNativeMarkdownFilesForPath: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn(),
   moveNativeMarkdownTreeFile: vi.fn(),
   openNativeMarkdownFolder: vi.fn(),
@@ -56,6 +59,7 @@ vi.mock("../lib/settings/app-settings", () => ({
 const mockedCreateNativeMarkdownTreeFile = vi.mocked(createNativeMarkdownTreeFile);
 const mockedCreateNativeMarkdownTreeFolder = vi.mocked(createNativeMarkdownTreeFolder);
 const mockedDeleteNativeMarkdownTreeFile = vi.mocked(deleteNativeMarkdownTreeFile);
+const mockedLoadNativeMarkdownFilesForPath = vi.mocked(loadNativeMarkdownFilesForPath);
 const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
 const mockedMoveNativeMarkdownTreeFile = vi.mocked(moveNativeMarkdownTreeFile);
 const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
@@ -100,12 +104,18 @@ function mockWorkspaceState(
 
 function FileTreeProbe({
   currentPath = null,
-  managedAttachmentFolder
+  managedAttachmentFolder,
+  onFilesChange
 }: {
   currentPath?: string | null;
   managedAttachmentFolder?: string;
+  onFilesChange?: (files: ReturnType<typeof useMarkdownFileTree>["files"]) => unknown;
 }) {
   const tree = useMarkdownFileTree({ managedAttachmentFolder });
+
+  useEffect(() => {
+    onFilesChange?.(tree.files);
+  }, [onFilesChange, tree.files]);
 
   return (
     <section>
@@ -234,6 +244,7 @@ describe("useMarkdownFileTree", () => {
     mockedCreateNativeMarkdownTreeFile.mockReset();
     mockedCreateNativeMarkdownTreeFolder.mockReset();
     mockedDeleteNativeMarkdownTreeFile.mockReset();
+    mockedLoadNativeMarkdownFilesForPath.mockReset();
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedMoveNativeMarkdownTreeFile.mockReset();
     mockedOpenNativeMarkdownFolder.mockReset();
@@ -280,6 +291,11 @@ describe("useMarkdownFileTree", () => {
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
     mockedSaveStoredFileTreeSortForWorkspace.mockResolvedValue(undefined);
     mockedWatchNativeMarkdownTree.mockResolvedValue(() => {});
+    mockedLoadNativeMarkdownFilesForPath.mockImplementation((path, options = {}) => {
+      return mockedListNativeMarkdownFilesForPath(path, {
+        managedAttachmentFolder: options.managedAttachmentFolder
+      });
+    });
   });
 
   it("opens a selected markdown folder as the tree root", async () => {
@@ -313,6 +329,156 @@ describe("useMarkdownFileTree", () => {
       name: "vault",
       path: "/vault"
     });
+  });
+
+  it("streams selected folder files before the full tree load resolves", async () => {
+    const folderLoad = createDeferredMarkdownFileList();
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedLoadNativeMarkdownFilesForPath.mockImplementation((_path, options = {}) => {
+      options.onBatch?.([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" }
+      ]);
+      return folderLoad.promise;
+    });
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    expect(await screen.findByText("index.md")).toBeInTheDocument();
+    expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
+    expect(screen.getByTestId("open-state")).toHaveTextContent("open");
+
+    await act(async () => {
+      folderLoad.resolve([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" },
+        { path: "/vault/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" }
+      ]);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("docs/guide.md")).toBeInTheDocument();
+  });
+
+  it("buffers follow-up folder load batches before refreshing the tree again", async () => {
+    vi.useFakeTimers();
+
+    const folderLoad = createDeferredMarkdownFileList();
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedLoadNativeMarkdownFilesForPath.mockImplementation((_path, options = {}) => {
+      options.onBatch?.([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" }
+      ]);
+      options.onBatch?.([
+        { path: "/vault/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" }
+      ]);
+      options.onBatch?.([
+        { path: "/vault/docs/reference.md", name: "reference.md", relativePath: "docs/reference.md" }
+      ]);
+      return folderLoad.promise;
+    });
+
+    try {
+      render(<FileTreeProbe />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+      await act(async () => {
+        await Promise.resolve();
+        await Promise.resolve();
+        vi.runOnlyPendingTimers();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText("index.md")).toBeInTheDocument();
+      expect(screen.queryByText("docs/guide.md")).not.toBeInTheDocument();
+      expect(screen.queryByText("docs/reference.md")).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(179);
+        await Promise.resolve();
+      });
+
+      expect(screen.queryByText("docs/guide.md")).not.toBeInTheDocument();
+      expect(screen.queryByText("docs/reference.md")).not.toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText("docs/guide.md")).toBeInTheDocument();
+      expect(screen.getByText("docs/reference.md")).toBeInTheDocument();
+
+      await act(async () => {
+        folderLoad.resolve([
+          { path: "/vault/index.md", name: "index.md", relativePath: "index.md" },
+          { path: "/vault/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" },
+          { path: "/vault/docs/reference.md", name: "reference.md", relativePath: "docs/reference.md" }
+        ]);
+        await Promise.resolve();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("skips the final file tree update when streamed batches already match the resolved files", async () => {
+    const files = [
+      { path: "/vault/index.md", name: "index.md", relativePath: "index.md" },
+      { path: "/vault/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" }
+    ];
+    const folderLoad = createDeferredMarkdownFileList();
+    const onFilesChange = vi.fn();
+
+    mockedLoadNativeMarkdownFilesForPath.mockImplementation((_path, options = {}) => {
+      options.onBatch?.(files);
+      return folderLoad.promise;
+    });
+
+    render(<FileTreeProbe onFilesChange={onFilesChange} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore collapsed folder" }));
+
+    expect(await screen.findByText("index.md")).toBeInTheDocument();
+
+    await act(async () => {
+      folderLoad.resolve(files);
+      await Promise.resolve();
+    });
+
+    const nonEmptyFileUpdates = onFilesChange.mock.calls.filter(([nextFiles]) => nextFiles.length > 0);
+    expect(nonEmptyFileUpdates).toHaveLength(1);
+  });
+
+  it("aborts the previous native file tree load when switching folders", async () => {
+    const firstLoad = createDeferredMarkdownFileList();
+    const secondLoad = createDeferredMarkdownFileList();
+    const firstSignalRef: { current: AbortSignal | null } = { current: null };
+
+    mockedLoadNativeMarkdownFilesForPath
+      .mockImplementationOnce((_path, options = {}) => {
+        firstSignalRef.current = options.signal ?? null;
+        return firstLoad.promise;
+      })
+      .mockImplementationOnce(() => secondLoad.promise);
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore collapsed folder" }));
+
+    await waitFor(() => expect(firstSignalRef.current).not.toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Open second docs folder" }));
+
+    expect(firstSignalRef.current?.aborted).toBe(true);
   });
 
   it("hides attachment files outside the managed attachment folder while keeping folders visible", async () => {

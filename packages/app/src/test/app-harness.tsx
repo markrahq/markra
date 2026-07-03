@@ -45,6 +45,7 @@ import {
   syncNativeMarkdownFolder,
   uninstallNativeShellCommand,
   installNativeMarkdownFileDrop,
+  loadNativeMarkdownFilesForPath,
   listNativeMarkdownFilesForPath,
   takeNativeOpenedMarkdownPaths,
   toggleNativeWindowFullscreen,
@@ -194,6 +195,7 @@ vi.mock("../lib/tauri", () => ({
   watchNativeMarkdownFile: vi.fn(),
   writeNativeMarkdownTemplateFile: vi.fn(),
   watchNativeMarkdownTree: vi.fn(),
+  loadNativeMarkdownFilesForPath: vi.fn(),
   listNativeMarkdownFilesForPath: vi.fn(),
   takeNativeOpenedMarkdownPaths: vi.fn(),
   installNativeApplicationMenu: vi.fn(),
@@ -832,6 +834,7 @@ export const mockedSyncNativeMarkdownFolder = vi.mocked(syncNativeMarkdownFolder
 export const mockedUninstallNativeShellCommand = vi.mocked(uninstallNativeShellCommand);
 export const mockedInstallNativeMarkdownFileDrop = vi.mocked(installNativeMarkdownFileDrop);
 export const mockedListNativeMarkdownFileHistory = vi.mocked(listNativeMarkdownFileHistory);
+export const mockedLoadNativeMarkdownFilesForPath = vi.mocked(loadNativeMarkdownFilesForPath);
 export const mockedListNativeMarkdownFilesForPath = vi.mocked(listNativeMarkdownFilesForPath);
 export const mockedTakeNativeOpenedMarkdownPaths = vi.mocked(takeNativeOpenedMarkdownPaths);
 export const mockedRenameNativeMarkdownTreeFile = vi.mocked(renameNativeMarkdownTreeFile);
@@ -1030,6 +1033,7 @@ export function installAppTestHarness() {
     mockedSyncNativeMarkdownFolder.mockReset();
     mockedSetNativeEditorWindowRestoreState.mockReset();
     mockedListNativeMarkdownFileHistory.mockReset();
+    mockedLoadNativeMarkdownFilesForPath.mockReset();
     mockedListNativeMarkdownFilesForPath.mockReset();
     mockedTakeNativeOpenedMarkdownPaths.mockReset();
     mockedWatchNativeMarkdownFile.mockReset();
@@ -1137,6 +1141,13 @@ export function installAppTestHarness() {
     mockedReadNativeMarkdownFileHistory.mockRejectedValue(new Error("markdown history file is not mocked"));
     mockedReadNativeLocalImageFile.mockRejectedValue(new Error("local image file is not mocked"));
     mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
+    mockedLoadNativeMarkdownFilesForPath.mockImplementation(async (path, options = {}) => {
+      const files = await mockedListNativeMarkdownFilesForPath(path, {
+        managedAttachmentFolder: options.managedAttachmentFolder
+      });
+      if (!options.signal?.aborted) options.onBatch?.(files);
+      return files;
+    });
     mockedSearchNativeMarkdownFilesForPath.mockResolvedValue(null);
     mockedTakeNativeOpenedMarkdownPaths.mockResolvedValue([]);
     mockedInstallNativeMarkdownFileDrop.mockResolvedValue(() => {});

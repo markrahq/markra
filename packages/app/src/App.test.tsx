@@ -43,6 +43,7 @@ import {
   mockedInstallNativeEditorContextMenu,
   mockedInstallNativeMarkdownFileDrop,
   mockedListNativeMarkdownFileHistory,
+  mockedLoadNativeMarkdownFilesForPath,
   mockedListNativeMarkdownFilesForPath,
   mockedListenNativeOpenedMarkdownPaths,
   mockedListenAppEditorPreferencesChanged,
@@ -7202,11 +7203,57 @@ describe("Markra workspace", () => {
     await waitFor(() =>
       expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockNativePath, defaultFileTreeListOptions)
     );
+    await waitFor(() =>
+      expect(mockedLoadNativeMarkdownFilesForPath).toHaveBeenCalledWith(
+        mockNativePath,
+        expect.objectContaining(defaultFileTreeListOptions)
+      )
+    );
     link!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true }));
 
     expect(await screen.findByText("Opened through a document link.")).toBeInTheDocument();
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
     expect(mockedOpenNativeExternalUrl).not.toHaveBeenCalled();
+  });
+
+  it("opens relative markdown links before the current folder tree finishes loading", async () => {
+    const guidePath = "/mock-files/docs/guide.md";
+    let finishTreeLoad = () => {};
+    mockOpenMarkdownFile({
+      content: "[Guide](./docs/guide.md)",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedLoadNativeMarkdownFilesForPath.mockImplementation((_path, options = {}) =>
+      new Promise((resolve) => {
+        finishTreeLoad = () => {
+          const files = [{ name: "native.md", path: mockNativePath, relativePath: "native.md" }];
+          if (!options.signal?.aborted) options.onBatch?.(files);
+          resolve(files);
+        };
+      })
+    );
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Guide\n\nOpened before the tree finished loading.",
+      name: "guide.md",
+      path: guidePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    let link: HTMLAnchorElement | null = null;
+    await waitFor(() => {
+      link = document.querySelector<HTMLAnchorElement>('.ProseMirror a[href="./docs/guide.md"]');
+      expect(link).toHaveTextContent("Guide");
+    });
+    link!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true }));
+
+    expect(await screen.findByText("Opened before the tree finished loading.")).toBeInTheDocument();
+    expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
+    expect(mockedOpenNativeExternalUrl).not.toHaveBeenCalled();
+
+    finishTreeLoad();
   });
 
   it("wires native menu file actions to the current document commands", async () => {

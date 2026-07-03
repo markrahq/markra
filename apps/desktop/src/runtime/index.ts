@@ -86,6 +86,7 @@ export const desktopRuntime = {
     installMarkdownFileDrop: files.installNativeMarkdownFileDrop,
     listenOpenedMarkdownPaths: files.listenNativeOpenedMarkdownPaths,
     listMarkdownFileHistory: files.listNativeMarkdownFileHistory,
+    loadMarkdownFilesForPath: files.loadNativeMarkdownFilesForPath,
     listMarkdownFilesForPath: files.listNativeMarkdownFilesForPath,
     moveMarkdownTreeFile: files.moveNativeMarkdownTreeFile,
     openContainingFolder: files.openNativeContainingFolder,

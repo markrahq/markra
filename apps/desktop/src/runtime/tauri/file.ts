@@ -66,6 +66,13 @@ type MarkdownWorkspaceSearchResponse = Omit<WorkspaceSearchResponse, "results"> 
   results: MarkdownWorkspaceSearchResultResponse[];
 };
 
+type MarkdownFileTreeLoadEventResponse = {
+  done?: boolean;
+  error?: string;
+  files?: MarkdownFolderFileResponse[];
+  requestId: string;
+};
+
 export type NativeMarkdownFile = {
   path: string;
   name: string;
@@ -555,6 +562,11 @@ export type ListNativeMarkdownFilesOptions = {
   managedAttachmentFolder?: string | null;
 };
 
+export type LoadNativeMarkdownFilesForPathOptions = ListNativeMarkdownFilesOptions & {
+  onBatch?: (files: NativeMarkdownFolderFile[]) => unknown;
+  signal?: AbortSignal | null;
+};
+
 export async function listNativeMarkdownFilesForPath(
   path: string,
   options: ListNativeMarkdownFilesOptions = {}
@@ -569,6 +581,109 @@ export async function listNativeMarkdownFilesForPath(
   const files = await invoke<MarkdownFolderFileResponse[]>("list_markdown_files_for_path", args);
 
   return files.map(markdownFolderFileFromResponse);
+}
+
+const markdownFileTreeLoadEvent = "markra://markdown-tree-load";
+let markdownFileTreeLoadRequestIndex = 0;
+
+function nextMarkdownFileTreeLoadRequestId() {
+  markdownFileTreeLoadRequestIndex += 1;
+  return `markdown-tree-load-${Date.now()}-${markdownFileTreeLoadRequestIndex}`;
+}
+
+function canceledMarkdownFileTreeLoadError() {
+  return new Error("Markdown file tree load was canceled.");
+}
+
+export async function loadNativeMarkdownFilesForPath(
+  path: string,
+  options: LoadNativeMarkdownFilesForPathOptions = {}
+): Promise<NativeMarkdownFolderFile[]> {
+  const requestId = nextMarkdownFileTreeLoadRequestId();
+  const allFiles: NativeMarkdownFolderFile[] = [];
+  let removeListener: (() => unknown) | null = null;
+  let abortHandler: EventListener | null = null;
+  let settled = false;
+
+  const cleanup = (cancelNativeLoad: boolean) => {
+    const currentRemoveListener = removeListener;
+    removeListener = null;
+    currentRemoveListener?.();
+
+    if (options.signal && abortHandler) {
+      options.signal.removeEventListener("abort", abortHandler);
+      abortHandler = null;
+    }
+
+    if (cancelNativeLoad) {
+      invoke("cancel_markdown_files_load", { requestId }).catch(() => {});
+    }
+  };
+
+  return new Promise<NativeMarkdownFolderFile[]>((resolve, reject) => {
+    const fail = (error: unknown, cancelNativeLoad = true) => {
+      if (settled) return;
+
+      settled = true;
+      cleanup(cancelNativeLoad);
+      reject(error);
+    };
+    const complete = () => {
+      if (settled) return;
+
+      settled = true;
+      cleanup(false);
+      resolve(allFiles);
+    };
+
+    abortHandler = () => fail(canceledMarkdownFileTreeLoadError());
+
+    if (options.signal?.aborted) {
+      fail(canceledMarkdownFileTreeLoadError());
+      return;
+    }
+
+    options.signal?.addEventListener("abort", abortHandler);
+
+    listen<MarkdownFileTreeLoadEventResponse>(markdownFileTreeLoadEvent, (event) => {
+      const payload = event.payload;
+      if (payload.requestId !== requestId) return;
+
+      if (payload.error) {
+        fail(new Error(payload.error), false);
+        return;
+      }
+
+      const batchFiles = payload.files?.map(markdownFolderFileFromResponse) ?? [];
+      if (batchFiles.length > 0) {
+        allFiles.push(...batchFiles);
+        options.onBatch?.(batchFiles);
+      }
+
+      if (payload.done) complete();
+    }).then((listenerCleanup) => {
+      if (settled) {
+        listenerCleanup();
+        return;
+      }
+
+      removeListener = listenerCleanup;
+      const args: {
+        managedAttachmentFolder?: string | null;
+        path: string;
+        requestId: string;
+      } = { path, requestId };
+      if (options.managedAttachmentFolder !== undefined) {
+        args.managedAttachmentFolder = options.managedAttachmentFolder;
+      }
+
+      invoke("load_markdown_files_for_path", args).catch((error: unknown) => {
+        fail(error);
+      });
+    }).catch((error: unknown) => {
+      fail(error, false);
+    });
+  });
 }
 
 export async function searchNativeMarkdownFilesForPath({

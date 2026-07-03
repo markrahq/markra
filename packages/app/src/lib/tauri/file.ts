@@ -45,6 +45,11 @@ export type ListNativeMarkdownFilesOptions = {
   managedAttachmentFolder?: string | null;
 };
 
+export type LoadNativeMarkdownFilesForPathOptions = ListNativeMarkdownFilesOptions & {
+  onBatch?: (files: NativeMarkdownFolderFile[]) => unknown;
+  signal?: AbortSignal | null;
+};
+
 export type NativeMarkdownFolder = {
   path: string;
   name: string;
@@ -302,6 +307,20 @@ export function readNativeLocalImageFile(path: string) {
 
 export function listNativeMarkdownFilesForPath(path: string, options: ListNativeMarkdownFilesOptions = {}) {
   return getAppRuntime().files.listMarkdownFilesForPath(path, options);
+}
+
+export async function loadNativeMarkdownFilesForPath(
+  path: string,
+  options: LoadNativeMarkdownFilesForPathOptions = {}
+) {
+  const loadMarkdownFilesForPath = getAppRuntime().files.loadMarkdownFilesForPath;
+  if (loadMarkdownFilesForPath) return loadMarkdownFilesForPath(path, options);
+
+  const files = await listNativeMarkdownFilesForPath(path, {
+    managedAttachmentFolder: options.managedAttachmentFolder
+  });
+  if (!options.signal?.aborted) options.onBatch?.(files);
+  return files;
 }
 
 export function createNativeMarkdownTreeFile(

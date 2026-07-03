@@ -57,9 +57,13 @@ export const fileTreeVirtualizationThreshold = 200;
 export const fallbackFileTreeViewportHeight = 320;
 
 const fileTreeVirtualOverscanCount = 10;
+const fileTreeNameCollator = new Intl.Collator(undefined, {
+  numeric: true,
+  sensitivity: "base"
+});
 
 function nodeNameSort(left: TreeNode, right: TreeNode) {
-  return left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: "base" });
+  return fileTreeNameCollator.compare(left.name, right.name);
 }
 
 function nodeTimestamp(node: TreeNode, key: Exclude<FileTreeSortKey, "name">) {

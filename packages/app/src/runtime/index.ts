@@ -13,6 +13,7 @@ import type {
   CreateNativeMarkdownTreeFileOptions,
   BackupNativeMarkdownFolderInput,
   DownloadNativeWebImageInput,
+  LoadNativeMarkdownFilesForPathOptions,
   ListNativeMarkdownFilesOptions,
   NativeMarkdownDroppedTarget,
   NativeMarkdownFile,
@@ -163,6 +164,10 @@ export type AppFileRuntime = {
   listMarkdownFilesForPath: (
     path: string,
     options?: ListNativeMarkdownFilesOptions
+  ) => Promise<NativeMarkdownFolderFile[]>;
+  loadMarkdownFilesForPath?: (
+    path: string,
+    options?: LoadNativeMarkdownFilesForPathOptions
   ) => Promise<NativeMarkdownFolderFile[]>;
   moveMarkdownTreeFile: (
     rootPath: string,

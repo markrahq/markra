@@ -1,5 +1,10 @@
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc, Mutex,
+};
 
 use super::asset::allow_asset_directory;
 use super::path::{
@@ -8,6 +13,72 @@ use super::path::{
     normalize_markdown_tree_single_file_name, should_skip_markdown_tree_directory,
 };
 use super::types::{MarkdownFolderEntryKind, MarkdownFolderFile};
+use tauri::Emitter;
+
+const MARKDOWN_TREE_LOAD_EVENT: &str = "markra://markdown-tree-load";
+const MARKDOWN_TREE_INITIAL_LOAD_BATCH_SIZE: usize = 128;
+const MARKDOWN_TREE_LOAD_BATCH_SIZE: usize = 1024;
+
+fn is_false(value: &bool) -> bool {
+    !*value
+}
+
+fn markdown_tree_load_batch_size(first_batch_sent: bool) -> usize {
+    if first_batch_sent {
+        MARKDOWN_TREE_LOAD_BATCH_SIZE
+    } else {
+        MARKDOWN_TREE_INITIAL_LOAD_BATCH_SIZE
+    }
+}
+
+#[derive(Clone, Default)]
+pub(crate) struct MarkdownTreeLoadState(Arc<Mutex<HashMap<String, Arc<AtomicBool>>>>);
+
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MarkdownTreeLoadEvent {
+    request_id: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    files: Vec<MarkdownFolderFile>,
+    #[serde(skip_serializing_if = "is_false")]
+    done: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+impl MarkdownTreeLoadState {
+    fn remember(&self, request_id: String, cancel: Arc<AtomicBool>) -> Result<(), String> {
+        let mut loads = self
+            .0
+            .lock()
+            .map_err(|_| "markdown tree load state lock is poisoned".to_string())?;
+
+        if let Some(existing_cancel) = loads.insert(request_id, cancel) {
+            existing_cancel.store(true, Ordering::Relaxed);
+        }
+
+        Ok(())
+    }
+
+    fn cancel(&self, request_id: &str) -> Result<(), String> {
+        let mut loads = self
+            .0
+            .lock()
+            .map_err(|_| "markdown tree load state lock is poisoned".to_string())?;
+
+        if let Some(cancel) = loads.remove(request_id) {
+            cancel.store(true, Ordering::Relaxed);
+        }
+
+        Ok(())
+    }
+
+    fn forget(&self, request_id: &str) {
+        if let Ok(mut loads) = self.0.lock() {
+            loads.remove(request_id);
+        }
+    }
+}
 
 fn collect_markdown_tree_files(
     root: &Path,
@@ -61,6 +132,123 @@ fn collect_markdown_tree_files(
                     &path,
                     MarkdownFolderEntryKind::Attachment,
                 )?);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn emit_markdown_tree_load_event(
+    app: &tauri::AppHandle,
+    request_id: &str,
+    files: Vec<MarkdownFolderFile>,
+    done: bool,
+    error: Option<String>,
+) -> Result<(), String> {
+    app.emit(
+        MARKDOWN_TREE_LOAD_EVENT,
+        MarkdownTreeLoadEvent {
+            request_id: request_id.to_string(),
+            files,
+            done,
+            error,
+        },
+    )
+    .map_err(|emit_error| emit_error.to_string())
+}
+
+fn flush_markdown_tree_load_batch(
+    app: &tauri::AppHandle,
+    request_id: &str,
+    batch: &mut Vec<MarkdownFolderFile>,
+    done: bool,
+) -> Result<(), String> {
+    if batch.is_empty() && !done {
+        return Ok(());
+    }
+
+    emit_markdown_tree_load_event(app, request_id, std::mem::take(batch), done, None)
+}
+
+fn push_markdown_tree_load_file(
+    app: &tauri::AppHandle,
+    request_id: &str,
+    batch: &mut Vec<MarkdownFolderFile>,
+    first_batch_sent: &mut bool,
+    file: MarkdownFolderFile,
+) -> Result<(), String> {
+    batch.push(file);
+    if batch.len() >= markdown_tree_load_batch_size(*first_batch_sent) {
+        flush_markdown_tree_load_batch(app, request_id, batch, false)?;
+        *first_batch_sent = true;
+    }
+
+    Ok(())
+}
+
+fn collect_markdown_tree_files_incrementally(
+    app: &tauri::AppHandle,
+    request_id: &str,
+    cancel: &AtomicBool,
+    root: &Path,
+    directory: &Path,
+    managed_attachment_folder: Option<&str>,
+    batch: &mut Vec<MarkdownFolderFile>,
+    first_batch_sent: &mut bool,
+) -> Result<(), String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+
+    let mut entries = fs::read_dir(directory)
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+
+    entries.sort_by(|a, b| {
+        a.file_name()
+            .to_string_lossy()
+            .to_lowercase()
+            .cmp(&b.file_name().to_string_lossy().to_lowercase())
+    });
+
+    for entry in entries {
+        if cancel.load(Ordering::Relaxed) {
+            return Ok(());
+        }
+
+        let path = entry.path();
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+
+        if file_type.is_dir() {
+            if !should_skip_markdown_tree_directory(&path) {
+                push_markdown_tree_load_file(
+                    app,
+                    request_id,
+                    batch,
+                    first_batch_sent,
+                    markdown_folder_file(root, &path, MarkdownFolderEntryKind::Folder)?,
+                )?;
+                collect_markdown_tree_files_incrementally(
+                    app,
+                    request_id,
+                    cancel,
+                    root,
+                    &path,
+                    managed_attachment_folder,
+                    batch,
+                    first_batch_sent,
+                )?;
+            }
+            continue;
+        }
+
+        if file_type.is_file() {
+            let kind = markdown_tree_file_kind(&path)?;
+            let file = markdown_folder_file(root, &path, kind)?;
+            if should_include_markdown_tree_file(&file, managed_attachment_folder) {
+                push_markdown_tree_load_file(app, request_id, batch, first_batch_sent, file)?;
             }
         }
     }
@@ -345,6 +533,87 @@ pub(crate) fn list_markdown_files_for_path(
 }
 
 #[tauri::command]
+pub(crate) fn load_markdown_files_for_path(
+    app: tauri::AppHandle,
+    load_state: tauri::State<'_, MarkdownTreeLoadState>,
+    path: String,
+    managed_attachment_folder: Option<String>,
+    request_id: String,
+) -> Result<(), String> {
+    let trimmed_request_id = request_id.trim().to_string();
+    if trimmed_request_id.is_empty() {
+        return Err("Markdown tree load request id is required".to_string());
+    }
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    let task_load_state = load_state.inner().clone();
+    task_load_state.remember(trimmed_request_id.clone(), cancel.clone())?;
+
+    std::thread::spawn(move || {
+        let result = load_markdown_files_for_path_in_background(
+            &app,
+            path,
+            managed_attachment_folder,
+            trimmed_request_id.clone(),
+            cancel,
+        );
+        if let Err(error) = result {
+            let _ = emit_markdown_tree_load_event(
+                &app,
+                &trimmed_request_id,
+                Vec::new(),
+                false,
+                Some(error),
+            );
+        }
+        task_load_state.forget(&trimmed_request_id);
+    });
+
+    Ok(())
+}
+
+fn load_markdown_files_for_path_in_background(
+    app: &tauri::AppHandle,
+    path: String,
+    managed_attachment_folder: Option<String>,
+    request_id: String,
+    cancel: Arc<AtomicBool>,
+) -> Result<(), String> {
+    let source_path = PathBuf::from(path);
+    let root = markdown_tree_root_for_path(&source_path)?;
+    let normalized_managed_attachment_folder =
+        normalize_managed_attachment_folder(managed_attachment_folder.as_deref());
+    let mut batch = Vec::new();
+    let mut first_batch_sent = false;
+
+    allow_asset_directory(app, &root)?;
+    collect_markdown_tree_files_incrementally(
+        app,
+        &request_id,
+        &cancel,
+        &root,
+        &root,
+        normalized_managed_attachment_folder.as_deref(),
+        &mut batch,
+        &mut first_batch_sent,
+    )?;
+
+    if cancel.load(Ordering::Relaxed) {
+        return Ok(());
+    }
+
+    flush_markdown_tree_load_batch(app, &request_id, &mut batch, true)
+}
+
+#[tauri::command]
+pub(crate) fn cancel_markdown_files_load(
+    load_state: tauri::State<'_, MarkdownTreeLoadState>,
+    request_id: String,
+) -> Result<(), String> {
+    load_state.cancel(&request_id)
+}
+
+#[tauri::command]
 pub(crate) fn create_markdown_tree_file(
     root_path: String,
     file_name: String,
@@ -479,6 +748,12 @@ mod tests {
         assert_eq!(file.relative_path, relative_path);
         assert!(file.created_at.is_some());
         assert!(file.modified_at.is_some());
+    }
+
+    #[test]
+    fn uses_a_small_first_load_batch_then_larger_followup_batches() {
+        assert_eq!(markdown_tree_load_batch_size(false), 128);
+        assert_eq!(markdown_tree_load_batch_size(true), 1024);
     }
 
     #[test]

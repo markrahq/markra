@@ -32,15 +32,16 @@ use external_urls::open_external_url;
 use fonts::list_system_font_families;
 use image_upload::{upload_picgo_image, upload_s3_image, upload_webdav_image};
 use markdown_files::{
-    check_pandoc_available, create_markdown_tree_file, create_markdown_tree_folder,
-    delete_markdown_template_file, delete_markdown_tree_file, detect_pandoc_path,
-    export_pandoc_file, export_pdf_file, list_markdown_file_history, list_markdown_files_for_path,
-    move_markdown_tree_file, open_containing_folder, open_markdown_attachment,
-    open_markdown_file_in_new_window, open_markdown_folder_in_new_window, open_markdown_path,
-    read_local_image_file, read_markdown_file, read_markdown_file_history,
-    read_markdown_image_file, read_markdown_template_file, rename_markdown_tree_file,
-    resolve_markdown_path, save_clipboard_attachment, save_clipboard_image,
-    search_markdown_files_for_path, write_markdown_file, write_markdown_template_file,
+    cancel_markdown_files_load, check_pandoc_available, create_markdown_tree_file,
+    create_markdown_tree_folder, delete_markdown_template_file, delete_markdown_tree_file,
+    detect_pandoc_path, export_pandoc_file, export_pdf_file, list_markdown_file_history,
+    list_markdown_files_for_path, load_markdown_files_for_path, move_markdown_tree_file,
+    open_containing_folder, open_markdown_attachment, open_markdown_file_in_new_window,
+    open_markdown_folder_in_new_window, open_markdown_path, read_local_image_file,
+    read_markdown_file, read_markdown_file_history, read_markdown_image_file,
+    read_markdown_template_file, rename_markdown_tree_file, resolve_markdown_path,
+    save_clipboard_attachment, save_clipboard_image, search_markdown_files_for_path,
+    write_markdown_file, write_markdown_template_file, MarkdownTreeLoadState,
 };
 use menu::{
     apply_native_application_menu_for_window_event, create_application_menu,
@@ -163,6 +164,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .manage(MarkdownFileWatcherState::default())
         .manage(MarkdownTreeWatcherState::default())
+        .manage(MarkdownTreeLoadState::default())
         .manage(OpenedMarkdownPathsState::default())
         .manage(NativeApplicationMenuState::default())
         .manage(NativeMenuTargetState::default())
@@ -232,6 +234,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             list_markdown_files_for_path,
+            load_markdown_files_for_path,
+            cancel_markdown_files_load,
             search_markdown_files_for_path,
             create_markdown_tree_file,
             create_markdown_tree_folder,

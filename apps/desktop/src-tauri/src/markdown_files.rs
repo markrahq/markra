@@ -28,6 +28,7 @@ pub(crate) use template::{
     delete_markdown_template_file, read_markdown_template_file, write_markdown_template_file,
 };
 pub(crate) use tree::{
-    create_markdown_tree_file, create_markdown_tree_folder, delete_markdown_tree_file,
-    list_markdown_files_for_path, move_markdown_tree_file, rename_markdown_tree_file,
+    cancel_markdown_files_load, create_markdown_tree_file, create_markdown_tree_folder,
+    delete_markdown_tree_file, list_markdown_files_for_path, load_markdown_files_for_path,
+    move_markdown_tree_file, rename_markdown_tree_file, MarkdownTreeLoadState,
 };

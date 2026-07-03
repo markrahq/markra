@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -208,6 +209,18 @@ const sidebarAutoRevealDelayMs = 220;
 const defaultDocumentLinksHeightPercent = 28;
 const minDocumentLinksHeightPercent = 16;
 const maxDocumentLinksHeightPercent = 60;
+
+function requestFileTreeAnimationFrame(callback: FrameRequestCallback) {
+  const scheduler = window.requestAnimationFrame ?? ((frameCallback: FrameRequestCallback) =>
+    window.setTimeout(() => frameCallback(performance.now()), 16));
+
+  return scheduler(callback);
+}
+
+function cancelFileTreeAnimationFrame(handle: number) {
+  const cancel = window.cancelAnimationFrame ?? window.clearTimeout;
+  cancel(handle);
+}
 const documentLinksResizeKeyboardStepPercent = 5;
 const recentFolderPathDisplayMaxLength = 48;
 const fileTreeContextRowSelectionClassName = "select-none [-webkit-user-select:none]";
@@ -495,6 +508,8 @@ export function MarkdownFileTreeDrawer({
   const [fileTreeScrollElement, setFileTreeScrollElement] = useState<HTMLDivElement | null>(null);
   const [fileTreeScrollOffset, setFileTreeScrollOffset] = useState(0);
   const [fileTreeViewportHeight, setFileTreeViewportHeight] = useState(fallbackFileTreeViewportHeight);
+  const pendingFileTreeScrollOffsetRef = useRef(fileTreeScrollOffset);
+  const fileTreeScrollAnimationFrameRef = useRef<number | null>(null);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => new Set());
   const [hoveredRecentFolderPath, setHoveredRecentFolderPath] = useState<string | null>(null);
   const [focusedRecentFolderActionPath, setFocusedRecentFolderActionPath] = useState<string | null>(null);
@@ -563,6 +578,7 @@ export function MarkdownFileTreeDrawer({
   const fileTreeSortKey = fileTreeSort.key;
   const fileTreeSortDirection = fileTreeSort.direction;
   const fileTreeAssetsVisible = controlledFileTreeAssetsVisible ?? localFileTreeAssetsVisible;
+  const deferredFiles = useDeferredValue(files);
   const updateFileTreeSort = useCallback((sort: FileTreeSort) => {
     if (controlledFileTreeSort === undefined) setLocalFileTreeSort(sort);
     onFileTreeSortChange?.(sort);
@@ -571,7 +587,10 @@ export function MarkdownFileTreeDrawer({
     if (controlledFileTreeAssetsVisible === undefined) setLocalFileTreeAssetsVisible(visible);
     onFileTreeAssetsVisibleChange?.(visible);
   }, [controlledFileTreeAssetsVisible, onFileTreeAssetsVisibleChange]);
-  const fullTree = useMemo(() => buildMarkdownFileTree(files, rootPath, fileTreeSort), [files, rootPath, fileTreeSort]);
+  const fullTree = useMemo(
+    () => buildMarkdownFileTree(deferredFiles, rootPath, fileTreeSort),
+    [deferredFiles, rootPath, fileTreeSort]
+  );
   const assetFilteredTree = useMemo(
     () => fileTreeAssetsVisible ? fullTree : filterMarkdownFileTreeAssets(fullTree),
     [fileTreeAssetsVisible, fullTree]
@@ -627,8 +646,8 @@ export function MarkdownFileTreeDrawer({
     [visibleFileTreeRows]
   );
   const allFileTreeFilePaths = useMemo(
-    () => files.filter((file) => file.kind !== "folder").map((file) => file.path),
-    [files]
+    () => deferredFiles.filter((file) => file.kind !== "folder").map((file) => file.path),
+    [deferredFiles]
   );
   const pathInFileTree = useCallback((path: string | null | undefined, paths: readonly string[]) => (
     paths.some((candidatePath) => sameNativePath(candidatePath, path))
@@ -670,10 +689,27 @@ export function MarkdownFileTreeDrawer({
 
     setFileTreeViewportHeight((current) => current === nextHeight ? current : nextHeight);
   }, [fileTreeScrollElement]);
-  const handleFileTreeScroll = useCallback((event: ReactUIEvent<HTMLDivElement>) => {
-    const nextOffset = Math.max(0, event.currentTarget.scrollTop);
+  const flushFileTreeScrollOffset = useCallback(() => {
+    fileTreeScrollAnimationFrameRef.current = null;
+    const nextOffset = pendingFileTreeScrollOffsetRef.current;
+
     setFileTreeScrollOffset((current) => current === nextOffset ? current : nextOffset);
   }, []);
+  const scheduleFileTreeScrollOffset = useCallback(() => {
+    if (fileTreeScrollAnimationFrameRef.current !== null) return;
+
+    fileTreeScrollAnimationFrameRef.current = requestFileTreeAnimationFrame(flushFileTreeScrollOffset);
+  }, [flushFileTreeScrollOffset]);
+  const cancelPendingFileTreeScrollFrame = useCallback(() => {
+    if (fileTreeScrollAnimationFrameRef.current === null) return;
+
+    cancelFileTreeAnimationFrame(fileTreeScrollAnimationFrameRef.current);
+    fileTreeScrollAnimationFrameRef.current = null;
+  }, []);
+  const handleFileTreeScroll = useCallback((event: ReactUIEvent<HTMLDivElement>) => {
+    pendingFileTreeScrollOffsetRef.current = Math.max(0, event.currentTarget.scrollTop);
+    scheduleFileTreeScrollOffset();
+  }, [scheduleFileTreeScrollOffset]);
   const folderPaths = useMemo(() => collectMarkdownFolderPaths(assetFilteredTree), [assetFilteredTree]);
   const folderTargetPaths = useMemo(() => collectMarkdownFolderTargetPaths(assetFilteredTree), [assetFilteredTree]);
   const availableMarkdownTemplates = useMemo(() => mergeMarkdownTemplates(customTemplates), [customTemplates]);
@@ -701,7 +737,7 @@ export function MarkdownFileTreeDrawer({
   const folderActionsAvailable = fileCreationAvailable || folderCreationAvailable;
   const backgroundContextMenuAvailable = folderActionsAvailable || Boolean(onOpenContainingFolder && rootPath);
   const folderExpansionAvailable = folderPaths.length > 0;
-  const assetVisibilityToggleAvailable = files.some((file) => file.kind === "asset");
+  const assetVisibilityToggleAvailable = deferredFiles.some((file) => file.kind === "asset");
   const allFoldersExpanded = folderExpansionAvailable && folderPaths.every((folderPath) => expandedFolders.has(folderPath));
   const outlineExpansionAvailable = collapsibleOutlineKeys.length > 0;
   const allOutlineItemsCollapsed = outlineExpansionAvailable &&
@@ -825,10 +861,18 @@ export function MarkdownFileTreeDrawer({
   useEffect(() => {
     if (filePanelVisible) return;
 
+    cancelPendingFileTreeScrollFrame();
+    pendingFileTreeScrollOffsetRef.current = 0;
     fileTreeScrollNodeRef.current = null;
     setFileTreeScrollElement(null);
     setFileTreeScrollOffset(0);
-  }, [filePanelVisible]);
+  }, [cancelPendingFileTreeScrollFrame, filePanelVisible]);
+
+  useEffect(() => {
+    return () => {
+      cancelPendingFileTreeScrollFrame();
+    };
+  }, [cancelPendingFileTreeScrollFrame]);
 
   useEffect(() => {
     if (activeSidebarPanel !== "links" || linkPanelAvailable) return;
@@ -1092,6 +1136,8 @@ export function MarkdownFileTreeDrawer({
         scrollElement.scrollTop = Math.max(0, rowBottom - viewportHeight);
       }
 
+      cancelPendingFileTreeScrollFrame();
+      pendingFileTreeScrollOffsetRef.current = scrollElement.scrollTop;
       setFileTreeScrollOffset(scrollElement.scrollTop);
     }
 
@@ -1109,6 +1155,7 @@ export function MarkdownFileTreeDrawer({
   }, [
     filePanelVisible,
     fileTreeViewportHeight,
+    cancelPendingFileTreeScrollFrame,
     pendingRevealPath,
     virtualFileTreeEnabled,
     visibleFileTreeRows

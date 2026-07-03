@@ -174,10 +174,12 @@ export function resolveMarkdownDocumentLinkFile(
   currentDocumentPath: string | null | undefined,
   files: readonly MarkdownDocumentLinkFile[]
 ) {
-  const hrefPath = localMarkdownHrefPath(href);
-  if (!hrefPath || !markdownDocumentExtensionPattern.test(hrefPath)) return null;
+  const resolvedPath = resolveMarkdownDocumentLinkPath(href, currentDocumentPath);
+  if (!resolvedPath) return null;
 
-  const resolvedPath = resolvePathFromDocument(hrefPath, currentDocumentPath);
+  const hrefPath = localMarkdownHrefPath(href);
+  if (!hrefPath) return null;
+
   const normalizedHrefRelativePath = trimPathSlashes(normalizePathSeparators(hrefPath).replace(/^\.\//u, ""));
 
   return files.find((file) => {
@@ -185,4 +187,14 @@ export function resolveMarkdownDocumentLinkFile(
 
     return normalizeAbsolutePath(file.path) === resolvedPath || normalizePathSeparators(file.relativePath) === normalizedHrefRelativePath;
   }) ?? null;
+}
+
+export function resolveMarkdownDocumentLinkPath(
+  href: string,
+  currentDocumentPath: string | null | undefined
+) {
+  const hrefPath = localMarkdownHrefPath(href);
+  if (!hrefPath || !markdownDocumentExtensionPattern.test(hrefPath)) return null;
+
+  return resolvePathFromDocument(hrefPath, currentDocumentPath);
 }

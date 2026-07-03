@@ -90,13 +90,14 @@ import {
   debug,
   markdownImageDragPayloadForFile,
   markdownImageDragSrcForDocument,
+  pathNameFromPath,
   t,
   type I18nKey
 } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { createMarkdownImageSrcResolver, getWordCount } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
-import { resolveMarkdownDocumentLinkFile } from "./lib/document-links";
+import { resolveMarkdownDocumentLinkFile, resolveMarkdownDocumentLinkPath } from "./lib/document-links";
 import { saveEditorImage, saveLocalEditorImage } from "./lib/image-upload";
 import { aiCommandSelection, automaticAiSelection } from "./lib/ai-selection";
 import { createWorkspaceChangePlanOperations } from "./lib/workspace-plan-apply";
@@ -1104,10 +1105,16 @@ function WorkspaceApp() {
   }, [activeTabId]);
   const handleOpenEditorLink = useCallback(async (href: string) => {
     const linkedFile = resolveMarkdownDocumentLinkFile(href, document.path, fileTreeFiles);
-    if (linkedFile) {
+    const linkedPath = linkedFile?.path ?? resolveMarkdownDocumentLinkPath(href, document.path);
+    if (linkedPath) {
+      const fallbackFileName = pathNameFromPath(linkedPath);
       captureActiveDocumentViewState();
       setActiveImageFile(null);
-      await openTreeMarkdownFile(linkedFile);
+      await openTreeMarkdownFile(linkedFile ?? {
+        name: fallbackFileName,
+        path: linkedPath,
+        relativePath: fallbackFileName
+      });
       return;
     }
 

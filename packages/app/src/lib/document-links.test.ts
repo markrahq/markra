@@ -1,7 +1,8 @@
 import {
   documentLinkCompletionFiles,
   markdownDocumentLinkForFile,
-  resolveMarkdownDocumentLinkFile
+  resolveMarkdownDocumentLinkFile,
+  resolveMarkdownDocumentLinkPath
 } from "./document-links";
 
 const workspaceFiles = [
@@ -40,5 +41,15 @@ describe("document links", () => {
       workspaceFiles[2]
     );
     expect(resolveMarkdownDocumentLinkFile("https://example.com", "/mock-files/vault/index.md", workspaceFiles)).toBeNull();
+  });
+
+  it("resolves local markdown link paths without requiring the file tree entry", () => {
+    expect(resolveMarkdownDocumentLinkPath("./docs/Guide%20Notes.md", "/mock-files/vault/index.md")).toBe(
+      "/mock-files/vault/docs/Guide Notes.md"
+    );
+    expect(resolveMarkdownDocumentLinkPath("../Roadmap.markdown#plan", "/mock-files/vault/docs/current.md")).toBe(
+      "/mock-files/vault/Roadmap.markdown"
+    );
+    expect(resolveMarkdownDocumentLinkPath("https://example.com/guide.md", "/mock-files/vault/index.md")).toBeNull();
   });
 });

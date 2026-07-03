@@ -15,6 +15,7 @@ import {
   installNativeMarkdownFileDrop,
   listenNativeOpenedMarkdownPaths,
   listNativeMarkdownFileHistory,
+  loadNativeMarkdownFilesForPath,
   listNativeMarkdownFilesForPath,
   moveNativeMarkdownTreeFile,
   openNativeLocalImages,
@@ -510,6 +511,72 @@ describe("native file access", () => {
       managedAttachmentFolder: "media/files",
       path: mockReadmePath
     });
+  });
+
+  it("loads markdown files incrementally through native tree load events", async () => {
+    const unlisten = vi.fn();
+    let emitTreeLoad: (payload: unknown) => unknown = () => {};
+    const batches: Array<Awaited<ReturnType<typeof loadNativeMarkdownFilesForPath>>> = [];
+
+    mockedListen.mockImplementation(async (event, handler) => {
+      if (event === "markra://markdown-tree-load") {
+        emitTreeLoad = (payload) => handler({ payload } as never);
+      }
+
+      return unlisten;
+    });
+    mockedInvoke.mockImplementation(async (command, args) => {
+      if (command === "load_markdown_files_for_path") {
+        const requestId = (args as { requestId: string }).requestId;
+        emitTreeLoad({
+          requestId,
+          files: [
+            { path: "/mock-files/readme.md", relativePath: "readme.md", createdAt: 10, modifiedAt: 20 }
+          ]
+        });
+        emitTreeLoad({
+          requestId,
+          files: [
+            { kind: "asset", path: "/mock-files/assets/pasted-image.png", relativePath: "assets/pasted-image.png" }
+          ],
+          done: true
+        });
+      }
+
+      return undefined;
+    });
+
+    await expect(loadNativeMarkdownFilesForPath(mockFolderPath, {
+      managedAttachmentFolder: "assets",
+      onBatch: (files) => {
+        batches.push(files);
+      }
+    })).resolves.toEqual([
+      { path: "/mock-files/readme.md", name: "readme.md", relativePath: "readme.md", createdAt: 10, modifiedAt: 20 },
+      {
+        kind: "asset",
+        path: "/mock-files/assets/pasted-image.png",
+        name: "pasted-image.png",
+        relativePath: "assets/pasted-image.png"
+      }
+    ]);
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://markdown-tree-load", expect.any(Function));
+    expect(mockedInvoke).toHaveBeenCalledWith("load_markdown_files_for_path", {
+      managedAttachmentFolder: "assets",
+      path: mockFolderPath,
+      requestId: expect.any(String)
+    });
+    expect(batches).toEqual([
+      [{ path: "/mock-files/readme.md", name: "readme.md", relativePath: "readme.md", createdAt: 10, modifiedAt: 20 }],
+      [{
+        kind: "asset",
+        path: "/mock-files/assets/pasted-image.png",
+        name: "pasted-image.png",
+        relativePath: "assets/pasted-image.png"
+      }]
+    ]);
+    expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
   it("creates folders, creates files, moves files, renames files, and deletes files through Tauri commands", async () => {

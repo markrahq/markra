@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MarkdownFileTreeDrawer } from "./MarkdownFileTreeDrawer";
+import { fileTreeRowHeight } from "./file-tree/file-tree-model";
 import { getMarkdownOutline } from "@markra/markdown";
 import { readNativeClipboardText, showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 import type { WorkspaceLinkIndex } from "../lib/workspace-links";
@@ -1695,6 +1696,61 @@ describe("MarkdownFileTreeDrawer", () => {
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "notes/note-299.md" })).toBeInTheDocument();
     });
+  });
+
+  it("coalesces virtual file tree scroll updates into one animation frame", () => {
+    const manyNotes = Array.from({ length: 600 }, (_, index) => {
+      const noteNumber = String(index).padStart(3, "0");
+
+      return {
+        name: `note-${noteNumber}.md`,
+        path: `/vault/notes/note-${noteNumber}.md`,
+        relativePath: `notes/note-${noteNumber}.md`
+      };
+    });
+    const notesFolder = { kind: "folder" as const, name: "notes", path: "/vault/notes", relativePath: "notes" };
+    const animationFrames: FrameRequestCallback[] = [];
+    const requestAnimationFrameSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      animationFrames.push(callback);
+      return animationFrames.length;
+    });
+    const cancelAnimationFrameSpy = vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
+
+    try {
+      const { container } = render(
+        <MarkdownFileTreeDrawer
+          currentPath="/vault/notes/note-000.md"
+          files={[notesFolder, ...manyNotes]}
+          open
+          outlineItems={[]}
+          rootName="Obsidian Vault"
+          onOpenFile={() => {}}
+          onSelectOutlineItem={() => {}}
+        />
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "notes" }));
+
+      const scroll = container.querySelector(".file-tree-scroll") as HTMLElement;
+      scroll.scrollTop = 40 * fileTreeRowHeight;
+      fireEvent.scroll(scroll);
+      scroll.scrollTop = 120 * fileTreeRowHeight;
+      fireEvent.scroll(scroll);
+      scroll.scrollTop = 240 * fileTreeRowHeight;
+      fireEvent.scroll(scroll);
+
+      expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole("button", { name: "notes/note-240.md" })).not.toBeInTheDocument();
+
+      act(() => {
+        animationFrames[0]?.(performance.now());
+      });
+
+      expect(screen.getByRole("button", { name: "notes/note-240.md" })).toBeInTheDocument();
+    } finally {
+      requestAnimationFrameSpy.mockRestore();
+      cancelAnimationFrameSpy.mockRestore();
+    }
   });
 
   it("sorts file tree entries by name, modified time, and created time", () => {
