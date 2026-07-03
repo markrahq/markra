@@ -181,8 +181,19 @@ type OpenMarkdownFileOptions = {
   pickerTitle?: string;
 };
 
+let pendingWorkspaceStateSave: Promise<unknown> | null = null;
+
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
-  return saveStoredWorkspaceState(patch).catch(() => {});
+  // Workspace writes are read-modify-write operations; keep draft snapshots ordered.
+  const save = () => saveStoredWorkspaceState(patch).catch(() => {});
+  const savePromise = pendingWorkspaceStateSave
+    ? pendingWorkspaceStateSave.then(save, save)
+    : save();
+  const queuedPromise = savePromise.finally(() => {
+    if (pendingWorkspaceStateSave === queuedPromise) pendingWorkspaceStateSave = null;
+  });
+  pendingWorkspaceStateSave = queuedPromise;
+  return queuedPromise;
 }
 
 function resolveEditorReady(editorReady: boolean | (() => boolean)) {

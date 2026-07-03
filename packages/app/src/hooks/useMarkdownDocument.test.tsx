@@ -2979,6 +2979,60 @@ describe("useMarkdownDocument", () => {
     });
   });
 
+  it("waits for pending draft persistence before preparing for an update restart", async () => {
+    const firstMarkdown = "# Scratch\n\nFirst draft.";
+    const latestMarkdown = "# Scratch\n\nLatest restart draft.";
+    const savedDraftContents: string[] = [];
+    let editorMarkdown = firstMarkdown;
+    let resolveFirstWorkspaceSave!: () => undefined;
+    const firstWorkspaceSavePromise = new Promise<undefined>((resolve) => {
+      resolveFirstWorkspaceSave = () => {
+        resolve(undefined);
+        return undefined;
+      };
+    });
+    mockedSaveStoredWorkspaceState.mockImplementation(async (patch) => {
+      const draftContent = patch.draftTabs?.[0]?.content;
+      if (draftContent) savedDraftContents.push(draftContent);
+      if (draftContent === firstMarkdown) return firstWorkspaceSavePromise;
+
+      return undefined;
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: () => editorMarkdown,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    act(() => {
+      result.current.handleMarkdownChange(firstMarkdown);
+    });
+    await waitFor(() => expect(savedDraftContents).toEqual([firstMarkdown]));
+
+    editorMarkdown = latestMarkdown;
+    let prepared = false;
+    let preparePromise!: Promise<unknown>;
+    act(() => {
+      preparePromise = result.current.saveDirtyMarkdownFiles().then(() => {
+        prepared = true;
+      });
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(prepared).toBe(false);
+
+    await act(async () => {
+      resolveFirstWorkspaceSave();
+      await preparePromise;
+    });
+
+    expect(savedDraftContents.at(-1)).toBe(latestMarkdown);
+  });
+
   it("restores additional editor windows from the saved update-restart snapshot", async () => {
     const firstPath = "/mock-files/vault/first.md";
     const secondPath = "/mock-files/vault/second.md";
