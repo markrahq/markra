@@ -626,6 +626,48 @@ describe("useMarkdownFileTree", () => {
     expect(screen.getByText("docs/added.md")).toBeInTheDocument();
   });
 
+  it("preserves the loaded file tree when a native watcher refresh rejects", async () => {
+    let emitTreeChange: (path: string) => unknown | Promise<unknown> = () => {};
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedLoadNativeMarkdownFilesForPath
+      .mockResolvedValueOnce([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" },
+        { path: "/vault/docs/guide.md", name: "guide.md", relativePath: "docs/guide.md" }
+      ])
+      .mockImplementationOnce((_path, options = {}) => {
+        options.onBatch?.([
+          { path: "/vault/docs/partial.md", name: "partial.md", relativePath: "docs/partial.md" }
+        ]);
+
+        return Promise.reject(new Error("transient file tree load failure"));
+      });
+    mockedWatchNativeMarkdownTree.mockImplementation(async (_rootPath, onTreeChange) => {
+      emitTreeChange = onTreeChange;
+      return () => {};
+    });
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    expect(await screen.findByText("index.md")).toBeInTheDocument();
+    expect(screen.getByText("docs/guide.md")).toBeInTheDocument();
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function)));
+
+    await act(async () => {
+      await emitTreeChange("/vault/docs/partial.md");
+    });
+
+    expect(screen.getByText("index.md")).toBeInTheDocument();
+    expect(screen.getByText("docs/guide.md")).toBeInTheDocument();
+    expect(screen.queryByText("docs/partial.md")).not.toBeInTheDocument();
+    expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
+    expect(screen.getByTestId("open-state")).toHaveTextContent("open");
+  });
+
   it("coalesces native tree watcher refreshes while a refresh is in flight", async () => {
     let emitTreeChange: (path: string) => unknown | Promise<unknown> = () => {};
     const firstRefresh = createDeferredMarkdownFileList();

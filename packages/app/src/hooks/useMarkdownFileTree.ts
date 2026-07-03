@@ -370,6 +370,7 @@ export function useMarkdownFileTree({
         try {
           while (true) {
             refreshState.pending = false;
+            const filesBeforeRefresh = fileTreeFilesRef.current;
             try {
               cancelPendingFileTreeBatchFlush();
               let firstBatch = true;
@@ -397,7 +398,8 @@ export function useMarkdownFileTree({
               if (openingFolderPathRef.current && openingFolderPathRef.current !== refreshState.path) return;
 
               cancelPendingFileTreeBatchFlush();
-              replaceFileTreeFiles([], { transition: false });
+              // A failed refresh cannot prove the folder is empty, so keep the last trusted tree.
+              replaceFileTreeFiles(filesBeforeRefresh, { transition: false });
             }
 
             if (!refreshState.pending) return;
