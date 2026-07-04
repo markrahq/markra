@@ -2422,9 +2422,10 @@ describe("Markra workspace", () => {
       "relative",
       "inline-flex",
       "size-4",
+      "shrink-0",
       "items-center",
       "justify-center",
-      "self-center"
+      "self-start"
     );
 
     await act(async () => {
