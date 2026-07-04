@@ -133,6 +133,33 @@ describe("MarkdownSourceEditor", () => {
     expect(view.state.doc.toString()).toBe("# External");
   });
 
+  it("does not report scroll events caused by externally synced content", () => {
+    const handleScroll = vi.fn();
+    const { container, rerender } = render(
+      <MarkdownSourceEditor
+        content="# First"
+        onChange={() => {}}
+        onScroll={handleScroll}
+      />
+    );
+    const sourceScroll = container.querySelector<HTMLElement>(".paper-scroll");
+    expect(sourceScroll).toBeInTheDocument();
+
+    fireEvent.scroll(sourceScroll!);
+    expect(handleScroll).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <MarkdownSourceEditor
+        content="# External"
+        onChange={() => {}}
+        onScroll={handleScroll}
+      />
+    );
+    fireEvent.scroll(sourceScroll!);
+
+    expect(handleScroll).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps externally synced content when autofocus changes", () => {
     const { container, rerender } = render(
       <MarkdownSourceEditor

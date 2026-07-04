@@ -50,6 +50,7 @@ import type {
   ExtendedSyntaxPreferences,
   TableColumnWidthModePreference
 } from "../lib/settings/app-settings";
+import { deferredMarkdownChangeDelayMs } from "../lib/deferred-markdown-change";
 
 const tableColumnWidthModeLabel = "Column width mode";
 
@@ -133,7 +134,7 @@ async function renderEditor(
 
 async function settleMarkdownListener() {
   await new Promise((resolve) => {
-    window.setTimeout(resolve, 250);
+    window.setTimeout(resolve, 250 + deferredMarkdownChangeDelayMs);
   });
 }
 

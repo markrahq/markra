@@ -67,6 +67,7 @@ import {
 import { matchesKeyboardShortcutEvent, t, type AppLanguage } from "@markra/shared";
 import type { ExtendedSyntaxPreferences, TableColumnWidthModePreference } from "../lib/settings/app-settings";
 import type { MarkdownDocumentLinkFile } from "../lib/document-links";
+import { createDeferredMarkdownChangeEmitter } from "../lib/deferred-markdown-change";
 import { markraDocumentLinkCompletionPlugin } from "./document-link-completion";
 import {
   markraCommonmark,
@@ -247,6 +248,7 @@ function MilkdownEditorSurface({
   const spellcheckMenuViewRef = useRef<EditorView | null>(null);
   const onAddSpellcheckIgnoredWordRef = useRef(onAddSpellcheckIgnoredWord);
   const workspaceFilesRef = useRef(workspaceFiles ?? []);
+  const deferredMarkdownChangeRef = useRef<ReturnType<typeof createDeferredMarkdownChangeEmitter<() => unknown>> | null>(null);
   const [spellcheckMenu, setSpellcheckMenu] = useState<SpellcheckSuggestionMenuState | null>(null);
   const externalLinkOpeningEnabled = Boolean(openExternalUrl || openLocalAttachment);
   const markdownDocumentLabel = t(language, "app.markdownDocument");
@@ -257,6 +259,11 @@ function MilkdownEditorSurface({
     () => normalizeMarkdownShortcuts(markdownShortcuts),
     [shortcutsSignature]
   );
+  if (deferredMarkdownChangeRef.current === null) {
+    deferredMarkdownChangeRef.current = createDeferredMarkdownChangeEmitter((emitMarkdownChange) => {
+      emitMarkdownChange();
+    });
+  }
   const tableControlLabels = {
     addColumnRight: t(language, "editor.table.addColumnRight"),
     addRowBelow: t(language, "editor.table.addRowBelow"),
@@ -367,6 +374,14 @@ function MilkdownEditorSurface({
   }, [workspaceFiles]);
 
   useEffect(() => {
+    const deferredMarkdownChange = deferredMarkdownChangeRef.current;
+
+    return () => {
+      deferredMarkdownChange?.flush();
+    };
+  }, []);
+
+  useEffect(() => {
     if (!spellcheckMenu) return;
 
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -446,15 +461,25 @@ function MilkdownEditorSurface({
           }));
           ctx.get(listenerCtx).updated((editorCtx, doc) => {
             try {
+              const deferredMarkdownChange = deferredMarkdownChangeRef.current;
+              if (!deferredMarkdownChange) return;
+
               const view = editorCtx.get(editorViewCtx);
-              onMarkdownChangeRef.current(
-                serializeLinkImageLiveMarkdown(
-                  view.state.doc === doc ? doc : view.state.doc,
-                  editorCtx.get(serializerCtx),
-                  linkSchema.type(editorCtx),
-                  imageSchema.type(editorCtx)
-                )
-              );
+              const markdownDocument = view.state.doc === doc ? doc : view.state.doc;
+              const serializeMarkdown = editorCtx.get(serializerCtx);
+              const link = linkSchema.type(editorCtx);
+              const image = imageSchema.type(editorCtx);
+
+              // Serializing the whole ProseMirror document on every transaction is the hot path for long files.
+              deferredMarkdownChange.schedule(() => {
+                try {
+                  onMarkdownChangeRef.current(
+                    serializeLinkImageLiveMarkdown(markdownDocument, serializeMarkdown, link, image)
+                  );
+                } catch {
+                  // Milkdown can flush a delayed update after teardown in tests or fast window closes.
+                }
+              });
             } catch {
               // Milkdown can flush a delayed update after teardown in tests or fast window closes.
             }

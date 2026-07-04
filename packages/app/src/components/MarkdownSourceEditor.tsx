@@ -207,6 +207,8 @@ export function MarkdownSourceEditor({
   const contentAttributesCompartmentRef = useRef(new Compartment());
   const editableCompartmentRef = useRef(new Compartment());
   const searchCompartmentRef = useRef(new Compartment());
+  const externalContentScrollSuppressedRef = useRef(false);
+  const externalContentScrollRestoreFrameRef = useRef<number | null>(null);
   const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
   const editorFontFamilyCss = editorFontFamilyCssValue(editorFontFamily);
   const sourceLabel = t(language, "app.markdownSource");
@@ -239,6 +241,21 @@ export function MarkdownSourceEditor({
   useEffect(() => {
     onUndoRef.current = onUndo;
   }, [onUndo]);
+
+  useEffect(() => {
+    return () => {
+      if (externalContentScrollRestoreFrameRef.current !== null) {
+        window.cancelAnimationFrame(externalContentScrollRestoreFrameRef.current);
+        externalContentScrollRestoreFrameRef.current = null;
+      }
+    };
+  }, []);
+
+  const handlePaperScroll = (event: UIEvent<HTMLElement>) => {
+    if (externalContentScrollSuppressedRef.current) return;
+
+    onScroll?.(event);
+  };
 
   const extensions = useMemo(
     () => [
@@ -317,6 +334,9 @@ export function MarkdownSourceEditor({
     if (currentContent === content) return;
 
     const cursor = Math.min(view.state.selection.main.head, content.length);
+    const scrollElement = view.dom.closest<HTMLElement>(".paper-scroll");
+    const scrollTop = scrollElement?.scrollTop ?? 0;
+    externalContentScrollSuppressedRef.current = true;
     view.dispatch({
       annotations: [externalSourceUpdate.of(true), Transaction.addToHistory.of(false)],
       changes: {
@@ -325,6 +345,22 @@ export function MarkdownSourceEditor({
         to: view.state.doc.length
       },
       selection: EditorSelection.cursor(cursor)
+    });
+
+    if (!scrollElement) {
+      externalContentScrollSuppressedRef.current = false;
+      return;
+    }
+
+    // Split panes synchronize user scrolls; external text sync must not bounce the active visual pane.
+    scrollElement.scrollTop = scrollTop;
+    if (externalContentScrollRestoreFrameRef.current !== null) {
+      window.cancelAnimationFrame(externalContentScrollRestoreFrameRef.current);
+    }
+    externalContentScrollRestoreFrameRef.current = window.requestAnimationFrame(() => {
+      externalContentScrollRestoreFrameRef.current = null;
+      if (scrollElement.isConnected) scrollElement.scrollTop = scrollTop;
+      externalContentScrollSuppressedRef.current = false;
     });
   }, [content]);
 
@@ -359,7 +395,7 @@ export function MarkdownSourceEditor({
     <section
       className="paper-scroll h-full min-h-0 overflow-x-hidden overflow-y-auto overscroll-none bg-transparent"
       aria-label={t(language, "app.writingSurface")}
-      onScroll={onScroll}
+      onScroll={handlePaperScroll}
       ref={scrollRef}
     >
       <article
