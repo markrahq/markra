@@ -1,6 +1,7 @@
 import {
   Bot,
   Code2,
+  Focus,
   History,
   Moon,
   RotateCcw,
@@ -73,6 +74,11 @@ const titlebarActionOptions: Array<{
     icon: Bot,
     id: "aiAgent",
     labelKey: "app.toggleAiAgent"
+  },
+  {
+    icon: Focus,
+    id: "viewMode",
+    labelKey: "settings.editor.viewMode"
   },
   {
     icon: Code2,

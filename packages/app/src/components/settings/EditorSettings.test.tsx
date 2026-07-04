@@ -88,6 +88,22 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("keeps view mode controls out of the editor tab", () => {
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          viewMode: "custom"
+        }}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("combobox", { name: "View mode" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "File tree" })).not.toBeInTheDocument();
+  });
+
   it("toggles automatic active file reveal from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 
@@ -549,7 +565,8 @@ describe("EditorSettings", () => {
         { id: "theme", visible: true },
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
-        { id: "aiAgent", visible: true }
+        { id: "aiAgent", visible: true },
+        { id: "viewMode", visible: true }
       ]
     };
 
@@ -561,14 +578,15 @@ describe("EditorSettings", () => {
       />
     );
 
-    const group = screen.getByRole("group", { name: "Toolbar buttons" });
-    const buttons = within(group).getAllByRole("button").filter((button) => button.ariaLabel !== "Reset toolbar buttons");
+    const group = screen.getByRole("group", { name: "Top-right buttons" });
+    const buttons = within(group).getAllByRole("button").filter((button) => button.ariaLabel !== "Reset top-right buttons");
 
     expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
       "Switch to dark theme",
       "Save Markdown",
       "Editor view mode",
-      "Toggle Markra AI"
+      "Toggle Markra AI",
+      "View mode"
     ]);
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Switch to dark theme" })).toHaveAttribute("data-visible", "true");
@@ -587,12 +605,13 @@ describe("EditorSettings", () => {
         { id: "theme", visible: true },
         { id: "save", visible: true },
         { id: "sourceMode", visible: true },
-        { id: "aiAgent", visible: true }
+        { id: "aiAgent", visible: true },
+        { id: "viewMode", visible: true }
       ]
     });
 
     const themeButton = screen.getByRole("button", { name: "Switch to dark theme" });
-    mockTitlebarActionRects(["theme", "save", "sourceMode", "aiAgent"]);
+    mockTitlebarActionRects(["theme", "save", "sourceMode", "aiAgent", "viewMode"]);
 
     fireEvent.mouseDown(themeButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
@@ -607,6 +626,7 @@ describe("EditorSettings", () => {
         { id: "theme", visible: true },
         { id: "sourceMode", visible: true },
         { id: "aiAgent", visible: true },
+        { id: "viewMode", visible: true },
         { id: "history", visible: true }
       ]
     });
@@ -630,16 +650,18 @@ describe("EditorSettings", () => {
         { id: "sourceMode", visible: true },
         { id: "save", visible: false },
         { id: "aiAgent", visible: true },
+        { id: "viewMode", visible: true },
         { id: "history", visible: true }
       ]
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset toolbar buttons" }));
+    fireEvent.click(screen.getByRole("button", { name: "Reset top-right buttons" }));
 
     expect(onUpdatePreferences).toHaveBeenLastCalledWith({
       ...preferences,
       titlebarActions: [
         { id: "aiAgent", visible: true },
+        { id: "viewMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },

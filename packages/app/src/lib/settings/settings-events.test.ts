@@ -218,8 +218,27 @@ describe("settings events", () => {
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
         { id: "aiAgent", visible: true },
-        { id: "history", visible: true }
+        { id: "history", visible: true },
+        { id: "viewMode", visible: true }
       ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: false,
       wrapCodeBlocks: false
     };

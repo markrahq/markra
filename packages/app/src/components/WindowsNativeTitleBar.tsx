@@ -32,6 +32,7 @@ type WindowsNativeTitleBarProps = {
   documentName: string;
   historyDisabled: boolean;
   label: (key: Parameters<typeof t>[1]) => string;
+  markdownFilesButtonVisible: boolean;
   markdownFilesOpen: boolean;
   markdownFilesResizing: boolean;
   markdownFilesWidth: number;
@@ -100,6 +101,7 @@ export function WindowsNativeTitleBar({
   documentName,
   historyDisabled,
   label,
+  markdownFilesButtonVisible,
   markdownFilesOpen,
   markdownFilesResizing,
   markdownFilesWidth,
@@ -309,6 +311,7 @@ export function WindowsNativeTitleBar({
         data-tauri-drag-region={nativeWindowChrome ? true : undefined}
       >
         <div className="windows-app-chrome-tools flex h-10 shrink-0 items-center gap-0.5">
+          {markdownFilesButtonVisible ? (
           <button
             aria-label="Toggle workspace sidebar"
             aria-pressed={markdownFilesOpen}
@@ -319,6 +322,7 @@ export function WindowsNativeTitleBar({
           >
             <WindowsSidebarIcon aria-hidden="true" size={15} />
           </button>
+          ) : null}
         </div>
         <button
           className="h-7 shrink-0 rounded-sm border-0 bg-transparent px-2 text-[12px] leading-none font-[620] text-(--text-heading) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"

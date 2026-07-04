@@ -14,6 +14,7 @@ import {
   SyncSettings,
   StorageSettings,
   TemplatesSettings,
+  ViewSettings,
   WebSearchSettings
 } from "./SettingsSections";
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
@@ -268,6 +269,13 @@ export function SettingsWindow() {
               onSelectAppearanceMode={appTheme.selectAppearanceMode}
               onSelectDarkTheme={appTheme.selectDarkTheme}
               onSelectLightTheme={appTheme.selectLightTheme}
+            />
+          ) : null}
+          {activeSettingsCategory === "view" ? (
+            <ViewSettings
+              preferences={editorPreferences}
+              translate={translate}
+              onUpdatePreferences={handleUpdateEditorPreferences}
             />
           ) : null}
           {activeSettingsCategory === "editor" ? (

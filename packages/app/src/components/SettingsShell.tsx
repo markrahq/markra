@@ -2,6 +2,7 @@ import {
   Archive,
   Cloud,
   Download,
+  Eye,
   Globe2,
   HardDrive,
   Keyboard,
@@ -69,6 +70,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: Palette,
     id: "appearance",
     labelKey: "settings.categories.appearance"
+  },
+  {
+    icon: Eye,
+    id: "view",
+    labelKey: "settings.categories.view"
   },
   {
     icon: PenLine,

@@ -1,8 +1,10 @@
 import {
   Bot,
+  Check,
   Code2,
   Eye,
   FileText,
+  Focus,
   FolderOpen,
   History,
   ImageIcon,
@@ -41,6 +43,7 @@ import {
   type TitlebarActionId,
   type TitlebarActionPreference
 } from "../lib/settings/app-settings";
+import { viewModeOptions, type ViewMode } from "../lib/view-mode";
 import type { NativeMenuHandlers } from "../lib/tauri/menu";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import { t, type AppLanguage } from "@markra/shared";
@@ -65,7 +68,9 @@ type NativeTitleBarProps = {
   markdownFilesResizing?: boolean;
   markdownFilesWidth?: number;
   menuHandlers?: NativeMenuHandlers;
+  markdownFilesButtonVisible?: boolean;
   nativeWindowChrome?: boolean;
+  openMarkdownButtonVisible?: boolean;
   platform?: DesktopPlatform;
   quickCreateMarkdownFileVisible?: boolean;
   historyDisabled?: boolean;
@@ -76,6 +81,9 @@ type NativeTitleBarProps = {
   theme: ResolvedAppTheme;
   titlebarActions?: readonly TitlebarActionPreference[];
   titleContent?: ReactNode;
+  viewMode?: ViewMode;
+  onCycleViewMode?: () => unknown;
+  onSelectViewMode?: (mode: ViewMode) => unknown;
   onCreateMarkdownFile?: () => unknown;
   onExitApp?: () => unknown;
   onOpenMarkdown: () => unknown;
@@ -115,7 +123,9 @@ export function NativeTitleBar({
   markdownFilesResizing = false,
   markdownFilesWidth = 288,
   menuHandlers,
+  markdownFilesButtonVisible = true,
   nativeWindowChrome = true,
+  openMarkdownButtonVisible = true,
   platform = resolveDesktopPlatform(),
   quickCreateMarkdownFileVisible = false,
   historyDisabled = false,
@@ -126,6 +136,9 @@ export function NativeTitleBar({
   theme,
   titlebarActions,
   titleContent,
+  viewMode = "daily",
+  onCycleViewMode,
+  onSelectViewMode,
   onCreateMarkdownFile,
   onExitApp,
   onOpenMarkdown,
@@ -145,20 +158,26 @@ export function NativeTitleBar({
   workspaceName
 }: NativeTitleBarProps) {
   const openMenuRef = useRef<HTMLDivElement | null>(null);
+  const viewModeMenuRef = useRef<HTMLDivElement | null>(null);
   const draggingActionIdRef = useRef<TitlebarActionId | null>(null);
   const suppressActionClickIdsRef = useRef(new Set<TitlebarActionId>());
   const [openMenuVisible, setOpenMenuVisible] = useState(false);
+  const [viewModeMenuVisible, setViewModeMenuVisible] = useState(false);
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
   const editorViewMode = splitMode ? "split" : sourceMode ? "source" : "visual";
   const openChoiceMenuAvailable = Boolean(onOpenMarkdownFolder) && (!nativeWindowChrome || platform !== "macos");
   const openChoiceMenuAlignmentClassName = platform === "windows" ? "right-0" : "left-0";
   const titlebarSideSlotWidth = 164;
-  const normalizedTitlebarActions = useMemo(() => normalizeTitlebarActions(titlebarActions), [titlebarActions]);
+  const normalizedTitlebarActions = useMemo(
+    () => titlebarActions?.length === 0 ? [] : normalizeTitlebarActions(titlebarActions),
+    [titlebarActions]
+  );
   const visibleTitlebarActionIds = useMemo(
     () => normalizedTitlebarActions.filter((action) => action.visible).map((action) => action.id),
     [normalizedTitlebarActions]
   );
+  const viewModeActionVisible = visibleTitlebarActionIds.includes("viewMode");
   const sensors = useSensors(useSensor(MouseSensor, {
     activationConstraint: {
       distance: titlebarActionDragThresholdPx
@@ -166,13 +185,26 @@ export function NativeTitleBar({
   }));
 
   useEffect(() => {
-    if (!openMenuVisible) return;
+    if (!openMarkdownButtonVisible) setOpenMenuVisible(false);
+  }, [openMarkdownButtonVisible]);
+
+  useEffect(() => {
+    if (!viewModeActionVisible) setViewModeMenuVisible(false);
+  }, [viewModeActionVisible]);
+
+  useEffect(() => {
+    if (!openMenuVisible && !viewModeMenuVisible) return;
 
     const handlePointerDown = (event: PointerEvent) => {
-      if (!openMenuRef.current?.contains(event.target as Node)) setOpenMenuVisible(false);
+      const target = event.target as Node;
+      if (openMenuVisible && !openMenuRef.current?.contains(target)) setOpenMenuVisible(false);
+      if (viewModeMenuVisible && !viewModeMenuRef.current?.contains(target)) setViewModeMenuVisible(false);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpenMenuVisible(false);
+      if (event.key === "Escape") {
+        setOpenMenuVisible(false);
+        setViewModeMenuVisible(false);
+      }
     };
 
     window.addEventListener("pointerdown", handlePointerDown);
@@ -182,11 +214,17 @@ export function NativeTitleBar({
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [openMenuVisible]);
+  }, [openMenuVisible, viewModeMenuVisible]);
 
   const runOpenAction = (action: () => unknown) => {
     setOpenMenuVisible(false);
     action();
+  };
+  const runViewModeAction = (mode: ViewMode) => {
+    setViewModeMenuVisible(false);
+    if (mode === viewMode) return;
+
+    onSelectViewMode?.(mode);
   };
 
   const titlebarActionIdFromDndId = (id: UniqueIdentifier) => {
@@ -267,6 +305,8 @@ export function NativeTitleBar({
     if (!splitMode) onToggleSplitMode?.();
   };
   const renderFixedOpenAction = (className = dimTitlebarIconButtonClassName) => {
+    if (!openMarkdownButtonVisible) return null;
+
     if (!openChoiceMenuAvailable || !onOpenMarkdownFolder) {
       return (
         <IconButton
@@ -362,6 +402,68 @@ export function NativeTitleBar({
         >
           <Bot aria-hidden="true" size={15} />
         </IconButton>
+      );
+    }
+
+    if (id === "viewMode") {
+      if (!onSelectViewMode && !onCycleViewMode) return null;
+
+      const currentViewModeLabel = label(`settings.editor.viewMode.${viewMode}` as Parameters<typeof t>[1]);
+
+      return (
+        <div className="relative" ref={viewModeMenuRef}>
+          <IconButton
+            className={mergeClassNames(
+              viewMode === "daily" && !viewModeMenuVisible ? "" : "bg-(--bg-active) text-(--text-heading) opacity-100",
+              sortable.actionClassName
+            )}
+            label={`${label("settings.editor.viewMode")}: ${currentViewModeLabel}`}
+            aria-expanded={onSelectViewMode ? viewModeMenuVisible : undefined}
+            aria-haspopup={onSelectViewMode ? "menu" : undefined}
+            onClick={(event) => {
+              handleTitlebarActionClick("viewMode", event, () => {
+                if (!onSelectViewMode) {
+                  onCycleViewMode?.();
+                  return;
+                }
+
+                setOpenMenuVisible(false);
+                setViewModeMenuVisible((current) => !current);
+              });
+            }}
+            {...sortable.actionAttributes}
+            {...sortable.actionListeners}
+          >
+            <Focus aria-hidden="true" size={15} />
+          </IconButton>
+          {onSelectViewMode && viewModeMenuVisible ? (
+            <PopoverSurface
+              className="absolute top-[calc(100%+6px)] right-0 z-40 w-44 overflow-hidden rounded-lg p-1"
+              open
+              role="menu"
+              aria-label={label("settings.editor.viewMode")}
+            >
+              {viewModeOptions.map((mode) => {
+                const selected = mode === viewMode;
+                const optionLabel = label(`settings.editor.viewMode.${mode}` as Parameters<typeof t>[1]);
+
+                return (
+                  <button
+                    key={mode}
+                    className="flex h-8 w-full cursor-pointer items-center justify-between gap-3 rounded-md border-0 bg-transparent px-2.5 text-left text-[12px] leading-5 font-[560] text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-checked:text-(--text-heading)"
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={selected}
+                    onClick={() => runViewModeAction(mode)}
+                  >
+                    <span className="truncate">{optionLabel}</span>
+                    {selected ? <Check aria-hidden="true" className="shrink-0 text-(--accent)" size={14} /> : null}
+                  </button>
+                );
+              })}
+            </PopoverSurface>
+          ) : null}
+        </div>
       );
     }
 
@@ -547,6 +649,7 @@ export function NativeTitleBar({
         markdownFilesWidth={markdownFilesWidth}
         menuHandlers={menuHandlers}
         nativeWindowChrome={nativeWindowChrome}
+        markdownFilesButtonVisible={markdownFilesButtonVisible}
         saveDisabled={saveDisabled}
         sourceMode={sourceMode}
         sourceModeDisabled={sourceModeDisabled}
@@ -612,14 +715,16 @@ export function NativeTitleBar({
         data-tauri-drag-region={nativeWindowChrome ? true : undefined}
       >
         {showMacWindowControls ? <MacWindowControls /> : null}
-        <IconButton
-          className={dimTitlebarIconButtonClassName}
-          label={label("app.toggleMarkdownFiles")}
-          pressed={markdownFilesOpen}
-          onClick={onToggleMarkdownFiles}
-        >
-          <MarkdownFilesIcon aria-hidden="true" size={15} />
-        </IconButton>
+        {markdownFilesButtonVisible ? (
+          <IconButton
+            className={dimTitlebarIconButtonClassName}
+            label={label("app.toggleMarkdownFiles")}
+            pressed={markdownFilesOpen}
+            onClick={onToggleMarkdownFiles}
+          >
+            <MarkdownFilesIcon aria-hidden="true" size={15} />
+          </IconButton>
+        ) : null}
         {renderFixedOpenAction()}
         {showQuickCreateMarkdownFile ? (
           <IconButton

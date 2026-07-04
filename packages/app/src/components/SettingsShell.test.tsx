@@ -84,6 +84,14 @@ describe("SettingsShell", () => {
     expect(onCategoryChange).toHaveBeenCalledWith("storage");
   });
 
+  it("shows view as its own settings category", () => {
+    const onCategoryChange = renderSettingsSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    expect(onCategoryChange).toHaveBeenCalledWith("view");
+  });
+
   it("shows network as its own settings category", () => {
     const onCategoryChange = renderSettingsSidebar();
 
@@ -167,6 +175,16 @@ describe("SettingsShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Storage" })).toBeInTheDocument();
+  });
+
+  it("uses the view category title for the active panel", () => {
+    render(
+      <SettingsContent activeCategory="view" translate={translate}>
+        <div />
+      </SettingsContent>
+    );
+
+    expect(screen.getByRole("heading", { name: "View" })).toBeInTheDocument();
   });
 
   it("uses the network category title for the active panel", () => {

@@ -33,6 +33,13 @@ import {
   isSpellcheckLanguage,
   type SpellcheckLanguage
 } from "../spellcheck-languages";
+import {
+  defaultViewModeCustomizations,
+  isViewMode,
+  normalizeViewModeCustomizations,
+  type ViewMode,
+  type ViewModeCustomizations
+} from "../view-mode";
 import { getAppRuntime } from "../../runtime";
 import {
   defaultBackupSettings,
@@ -275,7 +282,7 @@ export const defaultAppThemePreferences: AppThemePreferences = {
   darkTheme: "dark",
   lightTheme: "light"
 };
-export type TitlebarActionId = "aiAgent" | "sourceMode" | "history" | "save" | "theme";
+export type TitlebarActionId = "aiAgent" | "viewMode" | "sourceMode" | "history" | "save" | "theme";
 export type TitlebarActionPreference = {
   id: TitlebarActionId;
   visible: boolean;
@@ -377,6 +384,8 @@ export type EditorPreferences = {
   spellcheckLanguage: SpellcheckLanguage;
   tableColumnWidthMode: TableColumnWidthModePreference;
   titlebarActions: TitlebarActionPreference[];
+  viewMode: ViewMode;
+  viewModeCustomizations: ViewModeCustomizations;
   showWordCount: boolean;
   wrapCodeBlocks: boolean;
 };
@@ -425,6 +434,7 @@ export const defaultCustomThemeCssValues: CustomThemeCssValues = {
 
 export const defaultTitlebarActions: readonly TitlebarActionPreference[] = [
   { id: "aiAgent", visible: true },
+  { id: "viewMode", visible: true },
   { id: "sourceMode", visible: true },
   { id: "history", visible: true },
   { id: "save", visible: true },
@@ -500,6 +510,8 @@ export const defaultEditorPreferences: EditorPreferences = {
   spellcheckLanguage: defaultSpellcheckLanguage,
   tableColumnWidthMode: "auto",
   titlebarActions: [...defaultTitlebarActions],
+  viewMode: "daily",
+  viewModeCustomizations: { ...defaultViewModeCustomizations },
   showWordCount: true,
   wrapCodeBlocks: true
 };
@@ -1547,7 +1559,8 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       ...defaultEditorPreferences,
       editorFontFamily: { ...defaultEditorFontFamily },
       extendedSyntax: { ...defaultExtendedSyntaxPreferences },
-      titlebarActions: [...defaultTitlebarActions]
+      titlebarActions: [...defaultTitlebarActions],
+      viewModeCustomizations: { ...defaultViewModeCustomizations }
     };
   }
 
@@ -1630,6 +1643,8 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     spellcheckIgnoredWords: normalizeSpellcheckIgnoredWords(preferences.spellcheckIgnoredWords),
     tableColumnWidthMode: normalizeTableColumnWidthMode(preferences.tableColumnWidthMode),
     titlebarActions: normalizeTitlebarActions(preferences.titlebarActions),
+    viewMode: isViewMode(preferences.viewMode) ? preferences.viewMode : defaultEditorPreferences.viewMode,
+    viewModeCustomizations: normalizeViewModeCustomizations(preferences.viewModeCustomizations),
     showWordCount:
       typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount,
     wrapCodeBlocks:

@@ -84,11 +84,30 @@ describe("editor preferences", () => {
       tableColumnWidthMode: "auto",
       titlebarActions: [
         { id: "aiAgent", visible: true },
+        { id: "viewMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -215,13 +234,71 @@ describe("editor preferences", () => {
       tableColumnWidthMode: "auto",
       titlebarActions: [
         { id: "aiAgent", visible: true },
+        { id: "viewMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: false,
       wrapCodeBlocks: true
+    });
+  });
+
+  it("normalizes view mode preferences", () => {
+    expect(normalizeEditorPreferences({}).viewMode).toBe("daily");
+    expect(normalizeEditorPreferences({ viewMode: "focus" }).viewMode).toBe("focus");
+    expect(normalizeEditorPreferences({ viewMode: "zen" }).viewMode).toBe("daily");
+    expect(normalizeEditorPreferences({
+      viewMode: "custom",
+      viewModeCustomizations: {
+        aiPanel: "hidden",
+        documentLinks: "hidden",
+        documentTabs: "visible",
+        fileTree: "hidden",
+        fileTreeButton: "hidden",
+        openButton: "hidden",
+        quickCreateButton: "hidden",
+        sidebarLayout: "hidden",
+        statusBar: "no",
+        titlebarActions: "hidden",
+        viewModeToggle: "hidden",
+        wordCount: "hidden"
+      }
+    }).viewModeCustomizations).toEqual({
+      aiPanel: "hidden",
+      documentLinks: "hidden",
+      documentTabs: "visible",
+      fileList: "visible",
+      fileTree: "hidden",
+      fileTreeButton: "hidden",
+      openButton: "hidden",
+      outline: "visible",
+      quickCreateButton: "hidden",
+      recentFolders: "visible",
+      sidebarLayout: "hidden",
+      statusBar: "visible",
+      titlebarActions: "hidden",
+      viewModeToggle: "hidden",
+      wordCount: "hidden"
     });
   });
 
@@ -240,6 +317,7 @@ describe("editor preferences", () => {
       { id: "save", visible: false },
       { id: "theme", visible: true },
       { id: "aiAgent", visible: true },
+      { id: "viewMode", visible: true },
       { id: "sourceMode", visible: true },
       { id: "history", visible: true }
     ]);
@@ -377,6 +455,7 @@ describe("editor preferences", () => {
   it("moves titlebar actions to the target slot in both directions", () => {
     const actions = [
       { id: "aiAgent", visible: true },
+      { id: "viewMode", visible: true },
       { id: "sourceMode", visible: true },
       { id: "history", visible: true },
       { id: "save", visible: true },
@@ -384,6 +463,7 @@ describe("editor preferences", () => {
     ] as const;
 
     expect(reorderTitlebarActions(actions, "aiAgent", "save")).toEqual([
+      { id: "viewMode", visible: true },
       { id: "sourceMode", visible: true },
       { id: "history", visible: true },
       { id: "save", visible: true },
@@ -392,6 +472,7 @@ describe("editor preferences", () => {
     ]);
     expect(reorderTitlebarActions(actions, "save", "sourceMode")).toEqual([
       { id: "aiAgent", visible: true },
+      { id: "viewMode", visible: true },
       { id: "save", visible: true },
       { id: "sourceMode", visible: true },
       { id: "history", visible: true },
@@ -660,11 +741,30 @@ describe("editor preferences", () => {
       tableColumnWidthMode: "auto",
       titlebarActions: [
         { id: "aiAgent", visible: true },
+        { id: "viewMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -744,8 +844,27 @@ describe("editor preferences", () => {
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
         { id: "aiAgent", visible: true },
-        { id: "history", visible: true }
+        { id: "history", visible: true },
+        { id: "viewMode", visible: true }
       ],
+      viewMode: "custom",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "hidden",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "hidden",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: false,
       wrapCodeBlocks: false
     });
@@ -823,8 +942,27 @@ describe("editor preferences", () => {
         { id: "save", visible: false },
         { id: "sourceMode", visible: true },
         { id: "aiAgent", visible: true },
-        { id: "history", visible: true }
+        { id: "history", visible: true },
+        { id: "viewMode", visible: true }
       ],
+      viewMode: "custom",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "hidden",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "hidden",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: false,
       wrapCodeBlocks: false
     });

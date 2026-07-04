@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   defaultEditorPreferences,
   getStoredEditorPreferences,
@@ -10,6 +10,10 @@ export function useEditorPreferences() {
   const [preferences, setPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
   const [loading, setLoading] = useState(true);
   const livePreferencesReceivedRef = useRef(false);
+  const updatePreferences = useCallback((nextPreferences: EditorPreferences) => {
+    livePreferencesReceivedRef.current = true;
+    setPreferences(nextPreferences);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -48,6 +52,7 @@ export function useEditorPreferences() {
 
   return {
     loading,
-    preferences
+    preferences,
+    updatePreferences
   };
 }

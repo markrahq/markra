@@ -359,6 +359,7 @@ function createStoredEditorPreferences(
     tableColumnWidthMode: overrides.tableColumnWidthMode ?? "auto",
     titlebarActions: [
       { id: "aiAgent", visible: true },
+      { id: "viewMode", visible: true },
       { id: "sourceMode", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
@@ -366,6 +367,24 @@ function createStoredEditorPreferences(
     showWordCount: true,
     ...overrides,
     aiWorkspaceAnimationEnabled: overrides.aiWorkspaceAnimationEnabled ?? false,
+    viewMode: overrides.viewMode ?? "daily",
+    viewModeCustomizations: overrides.viewModeCustomizations ?? {
+      aiPanel: "visible",
+      documentLinks: "visible",
+      documentTabs: "visible",
+      fileList: "visible",
+      fileTree: "visible",
+      fileTreeButton: "visible",
+      openButton: "visible",
+      outline: "visible",
+      quickCreateButton: "visible",
+      recentFolders: "visible",
+      sidebarLayout: "visible",
+      statusBar: "visible",
+      titlebarActions: "visible",
+      viewModeToggle: "visible",
+      wordCount: "visible"
+    },
     wrapCodeBlocks: overrides.wrapCodeBlocks ?? true
   };
 }
@@ -825,56 +844,23 @@ describe("Markra workspace", () => {
   });
 
   it("persists titlebar action order changes by holding and dragging", async () => {
-    mockedGetStoredEditorPreferences.mockResolvedValue({
-      aiQuickActionPrompts: defaultAiQuickActionPrompts,
-      aiWorkspaceAnimationEnabled: false,
-      autoRevealActiveFile: true,
-      autoSaveEnabled: true,
-      autoSaveIntervalMinutes: 10,
-      autoUpdateEnabled: true,
-      bodyFontSize: 16,
-      clipboardImageFolder: "assets",
-      copyExternalFilesToStorage: true,
-      closeAiCommandOnAgentPanelOpen: false,
-      contentWidth: "default",
-      contentWidthPx: null,
-      documentLinksOpen: true,
-      documentLinksVisible: false,
-      editorFontFamily: { family: null, source: "theme" as const },
-      extendedSyntax: {
-        githubAlerts: true,
-        highlight: true
-      },
-      imageUpload: defaultImageUpload,
-      lineHeight: 1.65,
-      markdownShortcuts: defaultMarkdownShortcuts,
-      markdownTemplates: [],
-      restoreWorkspaceOnStartup: true,
-      sidebarLayoutMode: "stacked",
-      showAiQuickInputOnSelection: true,
-      showAiSelectionToolbarOnSelection: false,
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
       suggestAiPanelForComplexInlinePrompts: true,
-      showDocumentTabs: true,
-      splitVisualPanePercent: 50,
-      spellcheckEnabled: false,
-      spellcheckIgnoredWords: [],
-      spellcheckLanguage: "en" as const,
       tableColumnWidthMode: "even",
       titlebarActions: [
         { id: "aiAgent", visible: true },
+        { id: "viewMode", visible: true },
         { id: "sourceMode", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
-      ],
-      showWordCount: true,
-      wrapCodeBlocks: true
-    });
+      ]
+    }));
     renderApp();
 
     await screen.findByText("Welcome to Markra");
 
     const aiButton = screen.getByRole("button", { name: "Toggle Markra AI" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme"]);
+    mockTitlebarActionRects(["aiAgent", "viewMode", "sourceMode", "save", "theme"]);
 
     fireEvent.mouseDown(aiButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
@@ -919,11 +905,30 @@ describe("Markra workspace", () => {
         spellcheckLanguage: "en",
         tableColumnWidthMode: "even",
         titlebarActions: [
+          { id: "viewMode", visible: true },
           { id: "sourceMode", visible: true },
           { id: "save", visible: true },
-          { id: "theme", visible: true },
-          { id: "aiAgent", visible: true }
+          { id: "aiAgent", visible: true },
+          { id: "theme", visible: true }
         ],
+        viewMode: "daily",
+        viewModeCustomizations: {
+          aiPanel: "visible",
+          documentLinks: "visible",
+          documentTabs: "visible",
+          fileList: "visible",
+          fileTree: "visible",
+          fileTreeButton: "visible",
+          openButton: "visible",
+          outline: "visible",
+          quickCreateButton: "visible",
+          recentFolders: "visible",
+          sidebarLayout: "visible",
+          statusBar: "visible",
+          titlebarActions: "visible",
+          viewModeToggle: "visible",
+          wordCount: "visible"
+        },
         showWordCount: true,
         wrapCodeBlocks: true
       })
@@ -965,11 +970,30 @@ describe("Markra workspace", () => {
         spellcheckLanguage: "en",
         tableColumnWidthMode: "even",
         titlebarActions: [
+          { id: "viewMode", visible: true },
           { id: "sourceMode", visible: true },
           { id: "save", visible: true },
-          { id: "theme", visible: true },
-          { id: "aiAgent", visible: true }
+          { id: "aiAgent", visible: true },
+          { id: "theme", visible: true }
         ],
+        viewMode: "daily",
+        viewModeCustomizations: {
+          aiPanel: "visible",
+          documentLinks: "visible",
+          documentTabs: "visible",
+          fileList: "visible",
+          fileTree: "visible",
+          fileTreeButton: "visible",
+          openButton: "visible",
+          outline: "visible",
+          quickCreateButton: "visible",
+          recentFolders: "visible",
+          sidebarLayout: "visible",
+          statusBar: "visible",
+          titlebarActions: "visible",
+          viewModeToggle: "visible",
+          wordCount: "visible"
+        },
         showWordCount: true,
         wrapCodeBlocks: true
       })
@@ -1047,6 +1071,223 @@ describe("Markra workspace", () => {
     expect(await screen.findByRole("heading", { name: "Guide" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Notes" })).not.toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /guide\.md/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("hides supporting workspace chrome in focus view mode", async () => {
+    const guidePath = "/mock-files/vault/guide.md";
+    const notesPath = "/mock-files/vault/notes.md";
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      viewMode: "focus"
+    }));
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-focus-view",
+      filePath: notesPath,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault",
+      openFilePaths: [guidePath, notesPath]
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "guide.md" },
+      { name: "notes.md", path: notesPath, relativePath: "notes.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => path === guidePath
+      ? {
+        content: "# Guide",
+        name: "guide.md",
+        path
+      }
+      : {
+        content: "# Notes",
+        name: "notes.md",
+        path
+      });
+
+    const { container } = renderApp();
+
+    expect(await screen.findByRole("heading", { name: "Notes" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: /notes\.md/ })).not.toBeInTheDocument();
+    expect(container.querySelector(".workspace-layout")).toHaveStyle({
+      gridTemplateColumns: "0px minmax(0,1fr)"
+    });
+    expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
+    expect(container.querySelector(".quiet-status")).not.toBeInTheDocument();
+  });
+
+  it("selects the workspace view mode from the titlebar action menu", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      viewMode: "daily"
+    }));
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "View mode: Daily" }));
+    fireEvent.click(await screen.findByRole("menuitemradio", { name: "Immersive" }));
+
+    await waitFor(() => expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(expect.objectContaining({
+      viewMode: "immersive"
+    })));
+    expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith(expect.objectContaining({
+      viewMode: "immersive"
+    }));
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: "View mode: Immersive" })).not.toBeInTheDocument()
+    );
+    expect(screen.queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
+  });
+
+  it("hides fixed titlebar buttons from custom view mode visibility", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      viewMode: "custom",
+      viewModeCustomizations: {
+        ...createStoredEditorPreferences().viewModeCustomizations,
+        fileTreeButton: "hidden",
+        openButton: "hidden",
+        quickCreateButton: "hidden"
+      }
+    }));
+
+    renderApp();
+
+    expect(await screen.findByRole("button", { name: "View mode: Custom" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New Markdown File" })).not.toBeInTheDocument();
+  });
+
+  it("hides sidebar content areas from custom view mode visibility", async () => {
+    const notesPath = "/mock-files/vault/notes.md";
+    const defaultPreferences = createStoredEditorPreferences();
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      viewMode: "custom",
+      viewModeCustomizations: {
+        ...defaultPreferences.viewModeCustomizations,
+        fileList: "hidden",
+        outline: "hidden",
+        recentFolders: "hidden"
+      }
+    }));
+    mockedGetStoredRecentMarkdownFolders.mockResolvedValue([
+      { name: "notes", path: "/mock-files/notes" }
+    ]);
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-custom-view",
+      filePath: notesPath,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: mockFolderPath,
+      openFilePaths: [notesPath]
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Notes\n\n## Details",
+      name: "notes.md",
+      path: notesPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "notes.md", path: notesPath, relativePath: "notes.md", sizeBytes: 10 }
+    ]);
+
+    const { container } = renderApp();
+
+    expect(await screen.findByRole("heading", { name: "Notes" })).toBeInTheDocument();
+    expect(container.querySelector(".workspace-layout")).toHaveStyle({
+      gridTemplateColumns: "0px minmax(0,1fr)"
+    });
+    expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Recently used directories" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tree", { name: "Markdown files" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Document outline" })).not.toBeInTheDocument();
+  });
+
+  it("hides top-right titlebar buttons from custom view mode visibility", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      viewMode: "custom",
+      viewModeCustomizations: {
+        ...createStoredEditorPreferences().viewModeCustomizations,
+        titlebarActions: "hidden"
+      }
+    }));
+
+    renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Toggle Markra AI" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View mode: Custom" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Editor view mode: Preview" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save Markdown" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Switch to dark theme" })).not.toBeInTheDocument();
+  });
+
+  it("hides document links and word count from custom view mode visibility", async () => {
+    const notesPath = "/mock-files/vault/notes.md";
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      documentLinksOpen: false,
+      documentLinksVisible: true,
+      showWordCount: true,
+      viewMode: "custom",
+      viewModeCustomizations: {
+        ...createStoredEditorPreferences().viewModeCustomizations,
+        documentLinks: "hidden",
+        wordCount: "hidden"
+      }
+    }));
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-custom-view",
+      filePath: notesPath,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: mockFolderPath,
+      openFilePaths: [notesPath]
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Notes\n\nOne two three.",
+      name: "notes.md",
+      path: notesPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "notes.md", path: notesPath, relativePath: "notes.md", sizeBytes: 10 }
+    ]);
+
+    const { container } = renderApp();
+
+    expect(await screen.findByRole("heading", { name: "Notes" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Document links" })).not.toBeInTheDocument();
+    const quietStatus = container.querySelector(".quiet-status");
+    expect(quietStatus).toBeInTheDocument();
+    expect(quietStatus?.textContent ?? "").not.toContain("words");
+  });
+
+  it("keeps the editor sidebar layout outside custom view mode visibility", async () => {
+    const notesPath = "/mock-files/vault/notes.md";
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      sidebarLayoutMode: "tabs",
+      viewMode: "custom",
+      viewModeCustomizations: {
+        ...createStoredEditorPreferences().viewModeCustomizations,
+        sidebarLayout: "hidden"
+      }
+    }));
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-custom-view",
+      filePath: notesPath,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: mockFolderPath,
+      openFilePaths: [notesPath]
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Notes",
+      name: "notes.md",
+      path: notesPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "notes.md", path: notesPath, relativePath: "notes.md", sizeBytes: 10 }
+    ]);
+
+    const { container } = renderApp();
+
+    expect(await screen.findByRole("heading", { name: "Notes" })).toBeInTheDocument();
+    expect(container.querySelector(".markdown-file-tree-panel-tabs")).toBeInTheDocument();
   });
 
   it("restores a saved side-by-side tab group on app launch", async () => {
@@ -1594,6 +1835,7 @@ describe("Markra workspace", () => {
       "Backups",
       "Sync",
       "Appearance",
+      "View",
       "Editor",
       "Spellcheck",
       "Templates",
@@ -1761,64 +2003,32 @@ describe("Markra workspace", () => {
       onEditorPreferencesChanged = listener;
       return () => {};
     });
-    const initialPreferences = {
-      aiQuickActionPrompts: defaultAiQuickActionPrompts,
-      aiWorkspaceAnimationEnabled: false,
-      autoRevealActiveFile: true,
-      autoSaveEnabled: true,
-      autoSaveIntervalMinutes: 10,
-      autoUpdateEnabled: true,
-      bodyFontSize: 16,
-      clipboardImageFolder: "assets",
-      copyExternalFilesToStorage: true,
-      closeAiCommandOnAgentPanelOpen: false,
-      contentWidth: "default" as const,
-      contentWidthPx: null,
-      documentLinksOpen: true,
-      documentLinksVisible: false,
-      editorFontFamily: { family: null, source: "theme" as const },
-      extendedSyntax: {
-        githubAlerts: true,
-        highlight: true
-      },
-      imageUpload: defaultImageUpload,
-      lineHeight: 1.65,
-      markdownShortcuts: defaultMarkdownShortcuts,
-      markdownTemplates: [],
-      restoreWorkspaceOnStartup: true,
-      sidebarLayoutMode: "stacked" as const,
-      showAiQuickInputOnSelection: true,
-      showAiSelectionToolbarOnSelection: false,
+    const initialPreferences = createStoredEditorPreferences({
       suggestAiPanelForComplexInlinePrompts: true,
-      showDocumentTabs: true,
-      splitVisualPanePercent: 50,
-      spellcheckEnabled: false,
-      spellcheckIgnoredWords: [],
-      spellcheckLanguage: "en" as const,
-      tableColumnWidthMode: "even" as const,
+      tableColumnWidthMode: "even",
       titlebarActions: [
         { id: "aiAgent" as const, visible: true },
+        { id: "viewMode" as const, visible: true },
         { id: "sourceMode" as const, visible: true },
         { id: "save" as const, visible: true },
         { id: "theme" as const, visible: true }
-      ],
-      showWordCount: true,
-      wrapCodeBlocks: true
-    };
+      ]
+    });
     mockedGetStoredEditorPreferences.mockResolvedValue(initialPreferences);
     window.history.pushState({}, "", "/?settings=1");
 
     renderApp();
 
     fireEvent.click(await screen.findByRole("button", { name: "Editor" }));
-    const toolbarGroup = await screen.findByRole("group", { name: "Toolbar buttons" });
+    const toolbarGroup = await screen.findByRole("group", { name: "Top-right buttons" });
 
     expect(within(toolbarGroup).getAllByRole("button").map((button) => button.getAttribute("aria-label"))).toEqual([
       "Toggle Markra AI",
+      "View mode",
       "Editor view mode",
       "Save Markdown",
       "Switch to dark theme",
-      "Reset toolbar buttons"
+      "Reset top-right buttons"
     ]);
 
     act(() => {
@@ -1828,6 +2038,7 @@ describe("Markra workspace", () => {
           { id: "sourceMode", visible: true },
           { id: "save", visible: true },
           { id: "aiAgent", visible: true },
+          { id: "viewMode", visible: true },
           { id: "theme", visible: true }
         ]
       });
@@ -1837,8 +2048,9 @@ describe("Markra workspace", () => {
       "Editor view mode",
       "Save Markdown",
       "Toggle Markra AI",
+      "View mode",
       "Switch to dark theme",
-      "Reset toolbar buttons"
+      "Reset top-right buttons"
     ]);
   });
 
@@ -1935,6 +2147,24 @@ describe("Markra workspace", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -4891,6 +5121,24 @@ describe("Markra workspace", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -5037,6 +5285,24 @@ describe("Markra workspace", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: true,
       wrapCodeBlocks: true
     });

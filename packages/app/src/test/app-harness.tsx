@@ -330,11 +330,27 @@ vi.mock("../lib/settings/app-settings", () => ({
     tableColumnWidthMode: "auto",
     titlebarActions: [
       { id: "aiAgent", visible: true },
+      { id: "viewMode", visible: true },
       { id: "sourceMode", visible: true },
       { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ],
+    viewMode: "daily",
+    viewModeCustomizations: {
+      aiPanel: "visible",
+      documentTabs: "visible",
+      fileList: "visible",
+      fileTree: "visible",
+      fileTreeButton: "visible",
+      openButton: "visible",
+      outline: "visible",
+      quickCreateButton: "visible",
+      recentFolders: "visible",
+      statusBar: "visible",
+      titlebarActions: "visible",
+      viewModeToggle: "visible"
+    },
     showWordCount: true,
     wrapCodeBlocks: true
   },
@@ -481,6 +497,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   }),
   defaultTitlebarActions: [
     { id: "aiAgent", visible: true },
+    { id: "viewMode", visible: true },
     { id: "sourceMode", visible: true },
     { id: "history", visible: true },
     { id: "save", visible: true },
@@ -598,11 +615,24 @@ vi.mock("../lib/settings/app-settings", () => ({
     spellcheckLanguage: preferences?.spellcheckLanguage ?? "en",
     titlebarActions: [
       { id: "aiAgent", visible: true },
+      { id: "viewMode", visible: true },
       { id: "sourceMode", visible: true },
       { id: "history", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ],
+    viewMode: preferences?.viewMode ?? "daily",
+    viewModeCustomizations: preferences?.viewModeCustomizations ?? {
+      aiPanel: "visible",
+      documentTabs: "visible",
+      fileTree: "visible",
+      fileTreeButton: "visible",
+      openButton: "visible",
+      quickCreateButton: "visible",
+      statusBar: "visible",
+      titlebarActions: "visible",
+      viewModeToggle: "visible"
+    },
     showWordCount: true,
     ...preferences,
     wrapCodeBlocks: preferences?.wrapCodeBlocks ?? true
@@ -618,6 +648,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   }),
   normalizeTitlebarActions: vi.fn((actions) => Array.isArray(actions) ? actions : [
     { id: "aiAgent", visible: true },
+    { id: "viewMode", visible: true },
     { id: "sourceMode", visible: true },
     { id: "save", visible: true },
     { id: "theme", visible: true }
@@ -629,6 +660,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   reorderTitlebarActions: vi.fn((actions, draggedId, targetId) => {
     const normalized = Array.isArray(actions) ? actions : [
       { id: "aiAgent", visible: true },
+      { id: "viewMode", visible: true },
       { id: "sourceMode", visible: true },
       { id: "save", visible: true },
       { id: "theme", visible: true }
@@ -1363,13 +1395,32 @@ export function installAppTestHarness() {
       spellcheckIgnoredWords: [],
       spellcheckLanguage: "en",
       tableColumnWidthMode: "auto",
-      titlebarActions: [
-        { id: "aiAgent", visible: true },
-        { id: "sourceMode", visible: true },
+        titlebarActions: [
+          { id: "aiAgent", visible: true },
+          { id: "viewMode", visible: true },
+          { id: "sourceMode", visible: true },
         { id: "history", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      },
       showWordCount: true,
       wrapCodeBlocks: true
     });

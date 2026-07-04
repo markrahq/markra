@@ -244,7 +244,25 @@ describe("Markra AI workspace", () => {
         { id: "sourceMode", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
-      ]
+      ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      }
     });
 
     renderApp();
@@ -337,7 +355,25 @@ describe("Markra AI workspace", () => {
         { id: "sourceMode", visible: true },
         { id: "save", visible: true },
         { id: "theme", visible: true }
-      ]
+      ],
+      viewMode: "daily",
+      viewModeCustomizations: {
+        aiPanel: "visible",
+        documentLinks: "visible",
+        documentTabs: "visible",
+        fileList: "visible",
+        fileTree: "visible",
+        fileTreeButton: "visible",
+        openButton: "visible",
+        outline: "visible",
+        quickCreateButton: "visible",
+        recentFolders: "visible",
+        sidebarLayout: "visible",
+        statusBar: "visible",
+        titlebarActions: "visible",
+        viewModeToggle: "visible",
+        wordCount: "visible"
+      }
     });
 
     renderApp();

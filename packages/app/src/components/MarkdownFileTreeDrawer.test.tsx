@@ -257,6 +257,33 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(container.querySelector(".markdown-file-tree-outline")).toContainElement(container.querySelector(".lucide-table-of-contents"));
   });
 
+  it("hides recent folders, file list, and outline independently for view mode chrome", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        fileListVisible={false}
+        open
+        outlineItems={[
+          { level: 1, title: "Intro" },
+          { level: 2, title: "Details" }
+        ]}
+        outlineVisible={false}
+        recentFolders={[{ name: "mock-workspace", path: "/mock-files/workspace" }]}
+        recentFoldersVisible={false}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onOpenRecentFolder={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    expect(screen.queryByRole("region", { name: "Recently used directories" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tree", { name: "Markdown files" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Document outline" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Outline")).not.toBeInTheDocument();
+  });
+
   it("uses safe line height for truncated compact labels", () => {
     const { container } = render(
       <MarkdownFileTreeDrawer

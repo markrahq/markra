@@ -105,6 +105,7 @@ export type SettingsCategory =
   | "backup"
   | "sync"
   | "appearance"
+  | "view"
   | "editor"
   | "spellcheck"
   | "templates"

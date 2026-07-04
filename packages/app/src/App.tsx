@@ -110,6 +110,7 @@ import { markAppPerformance } from "./lib/performance-marks";
 import { replaceMovedPath, sameNativePath } from "./lib/path-move";
 import { createAppSpellcheckerForLanguage } from "./lib/spellcheck";
 import { editorContentWidthPixels, shouldShowEditorWidthResizer } from "./lib/editor-width";
+import { resolveViewModeChrome, type ViewMode } from "./lib/view-mode";
 import {
   resolveDesktopOsVersion,
   resolveDesktopPlatform,
@@ -667,10 +668,31 @@ function WorkspaceApp() {
     path: document.path,
     sizeBytes: document.sizeBytes ?? null
   };
+  const viewModeChrome = useMemo(
+    () => resolveViewModeChrome(
+      editorPreferences.preferences.viewMode,
+      editorPreferences.preferences.viewModeCustomizations
+    ),
+    [
+      editorPreferences.preferences.viewMode,
+      editorPreferences.preferences.viewModeCustomizations
+    ]
+  );
   const documentLinksOpen = editorPreferences.preferences.documentLinksOpen;
-  const documentLinksVisible = editorPreferences.preferences.documentLinksVisible;
-  const documentLinksIndexEnabled = documentLinksVisible === true && (
-    editorPreferences.preferences.sidebarLayoutMode === "tabs" || documentLinksOpen === true
+  const documentLinksVisible = viewModeChrome.documentLinks && editorPreferences.preferences.documentLinksVisible;
+  const fileTreeContentVisible =
+    viewModeChrome.recentFolders ||
+    viewModeChrome.fileList ||
+    viewModeChrome.outline ||
+    documentLinksVisible;
+  const visibleFileTreeOpen = viewModeChrome.fileTree && fileTreeContentVisible && fileTreeOpen;
+  const visibleWorkspaceLayoutStyle = {
+    ...workspaceLayoutStyle,
+    gridTemplateColumns: visibleFileTreeOpen ? `${fileTreeWidth}px minmax(0,1fr)` : "0px minmax(0,1fr)"
+  } satisfies CSSProperties;
+  const sidebarLayoutMode = editorPreferences.preferences.sidebarLayoutMode;
+  const documentLinksIndexEnabled = viewModeChrome.fileTree && documentLinksVisible === true && (
+    sidebarLayoutMode === "tabs" || documentLinksOpen === true
   );
   const workspaceLinkIndex = useWorkspaceLinkIndex({
     deferMs: workspaceLinkIndexDeferMs,
@@ -1226,13 +1248,14 @@ function WorkspaceApp() {
   const handleAiAgentSessionRestore = useCallback((session: { panelOpen: boolean; panelWidth: number | null }) => {
     restoreAiAgentPanelSession(session);
   }, [restoreAiAgentPanelSession]);
-  const aiAgentInset = aiFeatureEnabled && aiAgentOpen ? `${aiAgentPanelWidth}px` : "0px";
+  const visibleAiAgentOpen = viewModeChrome.aiPanel && aiFeatureEnabled && aiAgentOpen;
+  const aiAgentInset = visibleAiAgentOpen ? `${aiAgentPanelWidth}px` : "0px";
   const editorAreaWidth = Math.max(0, viewportWidth -
-    (fileTreeOpen ? fileTreeWidth : 0) -
-    (aiFeatureEnabled && aiAgentOpen ? aiAgentPanelWidth : 0));
+    (visibleFileTreeOpen ? fileTreeWidth : 0) -
+    (visibleAiAgentOpen ? aiAgentPanelWidth : 0));
   const activeEditorContentWidthValue = activeEditorContentWidthPx ?? editorContentWidthPixels[activeEditorContentWidth];
   const editorWidthResizerVisible = shouldShowEditorWidthResizer({
-    aiAgentOpen: aiFeatureEnabled && aiAgentOpen,
+    aiAgentOpen: visibleAiAgentOpen,
     editorAreaWidth,
     editorContentWidth: activeEditorContentWidthValue
   });
@@ -1348,14 +1371,14 @@ function WorkspaceApp() {
   }, [handleAiCommandClose, readOnlyMode]);
   useEffect(() => {
     if (!shouldHideAiCommandForAiAgentPanel({
-      aiAgentOpen,
+      aiAgentOpen: visibleAiAgentOpen,
       closeAiCommandOnAgentPanelOpen: editorPreferences.preferences.closeAiCommandOnAgentPanelOpen
     })) {
       return;
     }
 
     aiCommand.closeAiCommand();
-  }, [aiAgentOpen, aiCommand.closeAiCommand, editorPreferences.preferences.closeAiCommandOnAgentPanelOpen]);
+  }, [aiCommand.closeAiCommand, editorPreferences.preferences.closeAiCommandOnAgentPanelOpen, visibleAiAgentOpen]);
   const handleCreateAiAgentSession = useCallback(() => {
     openAiAgentPanel();
     createInitializedAiAgentSession().then(() => {
@@ -1633,9 +1656,9 @@ function WorkspaceApp() {
     !aiContextMenuActionPending &&
     !aiResult;
   const aiSelectionToolbarLayoutSignature = useMemo(() => [
-    fileTreeOpen ? fileTreeWidth : "file-tree-closed",
+    visibleFileTreeOpen ? fileTreeWidth : "file-tree-closed",
     fileTreeResizing ? "file-tree-resizing" : "file-tree-idle",
-    aiFeatureEnabled && aiAgentOpen ? aiAgentPanelWidth : "agent-closed",
+    visibleAiAgentOpen ? aiAgentPanelWidth : "agent-closed",
     aiAgentPanelResizing ? "agent-resizing" : "agent-idle",
     sideDocumentOpen ? resolvedSideDocumentMainPanePercent : "side-document-closed",
     splitMode ? resolvedSplitVisualPanePercent : "split-closed",
@@ -1649,21 +1672,20 @@ function WorkspaceApp() {
     activeEditorContentWidth,
     activeEditorContentWidthPx,
     activeEditorSurface,
-    aiAgentOpen,
     aiAgentPanelResizing,
     aiAgentPanelWidth,
-    aiFeatureEnabled,
     documentSearchAvailable,
     documentSearchOpen,
     documentSearchReplaceOpen,
     editorPreferences.preferences.showDocumentTabs,
-    fileTreeOpen,
     fileTreeResizing,
     fileTreeWidth,
     resolvedSideDocumentMainPanePercent,
     resolvedSplitVisualPanePercent,
     sideDocumentOpen,
-    splitMode
+    splitMode,
+    visibleAiAgentOpen,
+    visibleFileTreeOpen
   ]);
   const refreshAiSelectionToolbarAnchor = useCallback(() => {
     if (!aiFeatureEnabled || sourceSurfaceActive || readOnlyMode) return;
@@ -2124,6 +2146,19 @@ function WorkspaceApp() {
       .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
       .catch(() => {});
   }, [editorPreferences.preferences]);
+  const handleViewModeSelect = useCallback((viewMode: ViewMode) => {
+    if (viewMode === editorPreferences.preferences.viewMode) return;
+
+    const nextPreferences = {
+      ...editorPreferences.preferences,
+      viewMode
+    };
+
+    editorPreferences.updatePreferences(nextPreferences);
+    saveStoredEditorPreferences(nextPreferences)
+      .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
+      .catch(() => {});
+  }, [editorPreferences.preferences, editorPreferences.updatePreferences]);
   const handleCreateMarkdownTreeFile = useCallback(async (
     fileName: string,
     parentPath: string | null = null,
@@ -2604,6 +2639,7 @@ function WorkspaceApp() {
     [sideDocumentTab?.content]
   );
   const documentTabsVisible =
+    viewModeChrome.documentTabs &&
     editorPreferences.preferences.showDocumentTabs &&
     (hasOpenDocument || Boolean(activeImageFile)) &&
     titlebarTabs.some((tab) => titlebarTabs.length > 1 || tab.path !== null || tab.dirty);
@@ -3760,10 +3796,25 @@ function WorkspaceApp() {
     />
   ) : null;
   const appTitlebarActions = useMemo(
-    () => aiFeatureEnabled
-      ? editorPreferences.preferences.titlebarActions
-      : editorPreferences.preferences.titlebarActions.filter((action) => action.id !== "aiAgent"),
-    [aiFeatureEnabled, editorPreferences.preferences.titlebarActions]
+    () => {
+      const availableActions = aiFeatureEnabled
+        ? editorPreferences.preferences.titlebarActions
+        : editorPreferences.preferences.titlebarActions.filter((action) => action.id !== "aiAgent");
+
+      if (viewModeChrome.titlebarActions) {
+        return viewModeChrome.viewModeToggle
+          ? availableActions
+          : availableActions.filter((action) => action.id !== "viewMode");
+      }
+
+      return [];
+    },
+    [
+      aiFeatureEnabled,
+      editorPreferences.preferences.titlebarActions,
+      viewModeChrome.titlebarActions,
+      viewModeChrome.viewModeToggle
+    ]
   );
   const mainVisualEditorTabs = documentTabs.filter((tab) => tab.open);
   const mainVisualEditors = (
@@ -3858,7 +3909,7 @@ function WorkspaceApp() {
       })}
     </>
   );
-  const aiAgentPanel = aiFeatureEnabled && aiAgentOpen ? (
+  const aiAgentPanel = visibleAiAgentOpen ? (
     <Suspense fallback={null}>
       <AiAgentPanel
         activeSessionId={activeAiAgentSessionId}
@@ -3872,7 +3923,7 @@ function WorkspaceApp() {
         language={appLanguage.language}
         messages={aiAgent.messages}
         modelName={aiAgentModelName}
-        open={aiAgentOpen}
+        open={visibleAiAgentOpen}
         pendingAcpPermission={aiAgent.pendingAcpPermission}
         providerName={aiAgentProviderName}
         sessions={aiAgentSessions.sessions}
@@ -3953,19 +4004,21 @@ function WorkspaceApp() {
       <AppToaster language={appLanguage.language} />
       <main className="app-shell group/app relative grid h-full w-full grid-rows-[minmax(0,1fr)] overflow-hidden overscroll-none bg-(--bg-primary) text-(--text-primary)">
         <NativeTitleBar
-          aiAgentOpen={aiAgentOpen}
+          aiAgentOpen={visibleAiAgentOpen}
           aiAgentResizing={aiAgentPanelResizing}
           aiAgentWidth={aiAgentPanelWidth}
           dirty={!activeImageFile && hasOpenDocument && document.dirty}
           documentKind={titleDocumentKind}
           documentName={titleDocumentName}
           language={appLanguage.language}
-          markdownFilesOpen={fileTreeOpen}
+          markdownFilesButtonVisible={viewModeChrome.fileTreeButton && viewModeChrome.fileTree && fileTreeContentVisible}
+          markdownFilesOpen={visibleFileTreeOpen}
           markdownFilesResizing={fileTreeResizing}
           markdownFilesWidth={fileTreeWidth}
           menuHandlers={nativeMenuHandlers}
           nativeWindowChrome={nativeWindowChromeEnabled}
-          quickCreateMarkdownFileVisible={!fileTreeOpen}
+          openMarkdownButtonVisible={viewModeChrome.openButton}
+          quickCreateMarkdownFileVisible={viewModeChrome.quickCreateButton && !visibleFileTreeOpen}
           historyDisabled={!documentHistoryAvailable}
           saveDisabled={!hasOpenDocument || Boolean(activeImageFile)}
           splitMode={splitMode}
@@ -3974,6 +4027,8 @@ function WorkspaceApp() {
           theme={appTheme.resolvedTheme}
           titlebarActions={appTitlebarActions}
           titleContent={titlebarDocumentTabs}
+          viewMode={editorPreferences.preferences.viewMode}
+          onSelectViewMode={handleViewModeSelect}
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
           onExitApp={handleExitApp}
           onOpenMarkdown={handleOpenMarkdownFile}
@@ -4019,6 +4074,7 @@ function WorkspaceApp() {
             customTemplates: markdownTemplates,
             documentLinksOpen,
             documentLinksVisible,
+            fileListVisible: viewModeChrome.fileList,
             fileTreeAssetsVisible,
             fileTreeSort,
             files: fileTreeFiles,
@@ -4028,16 +4084,18 @@ function WorkspaceApp() {
             linkIndexLoading: workspaceLinkIndex.loading,
             maxWidth: fileTreeMaxWidth,
             minWidth: fileTreeMinWidth,
-            open: fileTreeOpen,
+            open: visibleFileTreeOpen,
             operationRevealPaths: workspaceOperationRevealPaths,
             outlineItems,
+            outlineVisible: viewModeChrome.outline,
             recentFolders: recentMarkdownFolders,
             recentFoldersOpen: recentMarkdownFoldersOpen,
+            recentFoldersVisible: viewModeChrome.recentFolders,
             revealPathRequest: fileTreeRevealPathRequest,
             resizing: fileTreeResizing,
             rootPath: fileTree.sourcePath,
             rootName: fileTreeRootName,
-            sidebarLayoutMode: editorPreferences.preferences.sidebarLayoutMode,
+            sidebarLayoutMode,
             width: fileTreeWidth,
             onCreateFile: handleCreateMarkdownTreeFile,
             onCreateFolder: handleCreateMarkdownTreeFolder,
@@ -4068,7 +4126,7 @@ function WorkspaceApp() {
           windowsSelfDrawnChrome={windowsSelfDrawnChromeEnabled}
           workspaceOperationOverlay={workspaceOperationOverlay}
           workspaceLayoutClassName={workspaceLayoutClassName}
-          workspaceLayoutStyle={workspaceLayoutStyle}
+          workspaceLayoutStyle={visibleWorkspaceLayoutStyle}
           onEditorContentDragLeave={handleEditorContentDragLeave}
           onEditorContentDragOver={handleEditorContentDragOver}
           onEditorContentDrop={handleEditorContentDrop}
@@ -4227,16 +4285,18 @@ function WorkspaceApp() {
                       ) : null}
                     </div>
                   )}
-                  <QuietStatus
-                    backupLabel={backupStatusLabel}
-                    dirty={document.dirty}
-                    language={appLanguage.language}
-                    readOnly={readOnlyMode}
-                    selectedWordCount={selectedWordCount}
-                    showWordCount={editorPreferences.preferences.showWordCount}
-                    syncLabel={syncStatusLabel}
-                    wordCount={wordCount}
-                  />
+                  {viewModeChrome.statusBar ? (
+                    <QuietStatus
+                      backupLabel={backupStatusLabel}
+                      dirty={document.dirty}
+                      language={appLanguage.language}
+                      readOnly={readOnlyMode}
+                      selectedWordCount={selectedWordCount}
+                      showWordCount={viewModeChrome.wordCount && editorPreferences.preferences.showWordCount}
+                      syncLabel={syncStatusLabel}
+                      wordCount={wordCount}
+                    />
+                  ) : null}
                   </div>
                   {sideDocumentOpen && sideDocumentTab ? (
                     <>
@@ -4255,7 +4315,7 @@ function WorkspaceApp() {
                         <span className="pointer-events-none absolute top-10 bottom-5 left-1/2 w-px -translate-x-1/2 bg-(--border-default) transition-colors duration-150 ease-out group-hover/side-resizer:bg-(--accent) group-focus/side-resizer:bg-(--accent)" />
                       </div>
                       <SideDocumentPane
-                        bottomOverlayInset={quietStatusOverlayInset}
+                        bottomOverlayInset={viewModeChrome.statusBar ? quietStatusOverlayInset : 0}
                         bodyFontSize={editorPreferences.preferences.bodyFontSize}
                         content={sideDocumentTab.content}
                         contentWidth={activeEditorContentWidth}
@@ -4279,15 +4339,15 @@ function WorkspaceApp() {
                         spellcheckEnabled={spellcheckFeatureEnabled && editorPreferences.preferences.spellcheckEnabled}
                         spellcheckIgnoredWords={editorPreferences.preferences.spellcheckIgnoredWords}
                         spellchecker={appSpellchecker}
-                        status={(
+                        status={viewModeChrome.statusBar ? (
                           <QuietStatus
                             dirty={sideDocumentTab.dirty}
                             language={appLanguage.language}
                             readOnly={readOnlyMode}
-                            showWordCount={editorPreferences.preferences.showWordCount}
+                            showWordCount={viewModeChrome.wordCount && editorPreferences.preferences.showWordCount}
                             wordCount={sideDocumentWordCount}
                           />
-                        )}
+                        ) : null}
                         tableColumnWidthMode={editorPreferences.preferences.tableColumnWidthMode}
                         onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
                         workspaceFiles={fileTreeFiles}
@@ -4327,7 +4387,7 @@ function WorkspaceApp() {
           <AiCommandBar
           aiResult={aiResult}
           availableModels={aiSettings.availableTextModels}
-          editorLeftInset={fileTreeOpen ? `${fileTreeWidth}px` : "0px"}
+          editorLeftInset={visibleFileTreeOpen ? `${fileTreeWidth}px` : "0px"}
           editorRightInset={aiAgentInset}
           externalActionPending={aiContextMenuActionPending}
           language={appLanguage.language}
@@ -4347,7 +4407,7 @@ function WorkspaceApp() {
           onSelectModel={aiSettings.selectInlineModel}
           onSubmit={aiCommand.submitPrompt}
           onTransferToAiPanel={
-            editorPreferences.preferences.suggestAiPanelForComplexInlinePrompts
+            editorPreferences.preferences.suggestAiPanelForComplexInlinePrompts && viewModeChrome.aiPanel
               ? handleAiCommandTransferToAgentPanel
               : undefined
           }

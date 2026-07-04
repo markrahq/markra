@@ -137,6 +137,7 @@ type MarkdownFileTreeDrawerProps = {
   customTemplates?: readonly MarkdownTemplate[];
   documentLinksOpen?: boolean;
   documentLinksVisible?: boolean;
+  fileListVisible?: boolean;
   fileTreeSort?: FileTreeSort;
   fileTreeAssetsVisible?: boolean;
   files: NativeMarkdownFolderFile[];
@@ -149,9 +150,11 @@ type MarkdownFileTreeDrawerProps = {
   open: boolean;
   operationRevealPaths?: readonly string[];
   outlineItems: MarkdownOutlineItem[];
+  outlineVisible?: boolean;
   platform?: DesktopPlatform;
   recentFolders?: readonly RecentMarkdownFolder[];
   recentFoldersOpen?: boolean;
+  recentFoldersVisible?: boolean;
   revealPathRequest?: { id: number; path: string | null } | null;
   resizing?: boolean;
   rootPath?: string | null;
@@ -449,6 +452,7 @@ export function MarkdownFileTreeDrawer({
   customTemplates = emptyMarkdownTemplates,
   documentLinksOpen: controlledDocumentLinksOpen,
   documentLinksVisible = false,
+  fileListVisible = true,
   fileTreeSort: controlledFileTreeSort,
   fileTreeAssetsVisible: controlledFileTreeAssetsVisible,
   files,
@@ -461,9 +465,11 @@ export function MarkdownFileTreeDrawer({
   open,
   operationRevealPaths = [],
   outlineItems,
+  outlineVisible = true,
   platform = resolveDesktopPlatform(),
   recentFolders = [],
   recentFoldersOpen: controlledRecentFoldersOpen,
+  recentFoldersVisible = true,
   revealPathRequest = null,
   resizing = false,
   rootPath = null,
@@ -779,7 +785,7 @@ export function MarkdownFileTreeDrawer({
     [recentFolderChoices]
   );
   const documentLinksOpen = controlledDocumentLinksOpen ?? localDocumentLinksOpen;
-  const recentFolderAreaVisible = recentFolderChoices.length > 0 && Boolean(onOpenRecentFolder);
+  const recentFolderAreaVisible = recentFoldersVisible && recentFolderChoices.length > 0 && Boolean(onOpenRecentFolder);
   const tabbedSidebarLayout = sidebarLayoutMode === "tabs";
   const activeFileInLinkIndex = Boolean(
     linkIndex && currentPath && linkIndex.files.some((file) => file.file.path === currentPath)
@@ -791,11 +797,12 @@ export function MarkdownFileTreeDrawer({
   ));
   const activeBacklinks = linkIndex && currentPath ? workspaceBacklinksForPath(linkIndex, currentPath) : [];
   const activeUnlinkedMentions = linkIndex && currentPath ? workspaceUnlinkedMentionsForPath(linkIndex, currentPath) : [];
-  const filePanelAvailable = folderOpen || (open && fileCreationAvailable);
+  const filePanelAvailable = fileListVisible && (folderOpen || (open && fileCreationAvailable));
+  const outlinePanelAvailable = outlineVisible;
   const filePanelVisible = filePanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "files");
   const filePanelClassName = tabbedSidebarLayout || !outlineOpen ? "flex-1" : "min-h-24";
   const filePanelStyle = !tabbedSidebarLayout && outlineOpen ? { flex: `0 1 ${100 - outlineHeightPercent}%` } : undefined;
-  const outlinePanelVisible = !tabbedSidebarLayout || activeSidebarPanel === "outline";
+  const outlinePanelVisible = outlinePanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "outline");
   const linksPanelVisible = linkPanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "links");
   const linksPanelOpen = tabbedSidebarLayout || documentLinksOpen;
   const linksPanelClassName = tabbedSidebarLayout
@@ -812,11 +819,25 @@ export function MarkdownFileTreeDrawer({
   const outlinePanelFlexible = tabbedSidebarLayout || !filePanelAvailable;
   const outlineResizerVisible = !tabbedSidebarLayout && outlineOpen && filePanelAvailable;
   const documentLinksResizerVisible = !tabbedSidebarLayout && linkPanelAvailable && documentLinksOpen;
-  const fileSearchVisible = !tabbedSidebarLayout || activeSidebarPanel === "files";
-  const folderAccessVisible = !tabbedSidebarLayout || activeSidebarPanel === "files";
+  const fileSearchVisible = filePanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "files");
+  const folderAccessVisible = recentFolderAreaVisible && (!tabbedSidebarLayout || activeSidebarPanel === "files");
   const fileTreeSurfaceClassName = platform === "windows" ? "bg-(--bg-chrome)" : "bg-(--bg-secondary)";
   const outlineToolbarVisible = !tabbedSidebarLayout ||
     (outlinePanelOpen && (outlineItems.length > 0 || outlineExpansionAvailable));
+  const sidebarPanelTabs = useMemo(() => {
+    const panels: SidebarPanel[] = [];
+
+    if (filePanelAvailable) panels.push("files");
+    if (outlinePanelAvailable) panels.push("outline");
+    if (linkPanelAvailable) panels.push("links");
+
+    return panels;
+  }, [filePanelAvailable, linkPanelAvailable, outlinePanelAvailable]);
+  const sidebarPanelTabGridClassName = sidebarPanelTabs.length >= 3
+    ? "grid-cols-3"
+    : sidebarPanelTabs.length === 2
+      ? "grid-cols-2"
+      : "grid-cols-1";
   const setDocumentLinksExpanded = useCallback((openDocumentLinks: boolean) => {
     if (controlledDocumentLinksOpen === undefined) {
       setLocalDocumentLinksOpen(openDocumentLinks);
@@ -875,10 +896,11 @@ export function MarkdownFileTreeDrawer({
   }, [cancelPendingFileTreeScrollFrame]);
 
   useEffect(() => {
-    if (activeSidebarPanel !== "links" || linkPanelAvailable) return;
+    if (!tabbedSidebarLayout || sidebarPanelTabs.includes(activeSidebarPanel)) return;
 
-    setActiveSidebarPanel("files");
-  }, [activeSidebarPanel, linkPanelAvailable]);
+    const nextPanel = sidebarPanelTabs[0];
+    if (nextPanel) setActiveSidebarPanel(nextPanel);
+  }, [activeSidebarPanel, sidebarPanelTabs, tabbedSidebarLayout]);
 
   useEffect(() => {
     if (!fileTreeScrollElement) return;
@@ -1002,6 +1024,7 @@ export function MarkdownFileTreeDrawer({
   };
 
   const revealFileTreePath = useCallback((path: string | null | undefined) => {
+    if (!fileListVisible) return false;
     if (!path?.trim()) return false;
 
     const revealFolderPaths = expandedFolderPathsForFileTreePath(assetFilteredTree, path);
@@ -1027,7 +1050,7 @@ export function MarkdownFileTreeDrawer({
     });
     setPendingRevealPath(path);
     return true;
-  }, [assetFilteredTree]);
+  }, [assetFilteredTree, fileListVisible]);
 
   useEffect(() => {
     if (!open || !revealPathRequest || lastRevealRequestIdRef.current === revealPathRequest.id) return;
@@ -2570,56 +2593,47 @@ export function MarkdownFileTreeDrawer({
     ) : null
   );
 
+  const sidebarPanelLabelKey = (panel: SidebarPanel): Parameters<typeof t>[1] => {
+    if (panel === "files") return "app.files";
+    if (panel === "outline") return "app.outline";
+
+    return "app.links";
+  };
+
+  const selectSidebarPanel = (panel: SidebarPanel) => {
+    setActiveSidebarPanel(panel);
+
+    if (panel !== "files") {
+      setCreateMenuOpen(false);
+      setFileTreeSortMenuOpen(false);
+    }
+
+    if (panel !== "outline") setOutlineLevelMenuOpen(false);
+  };
+
   const renderSidebarPanelTabs = () => (
-    tabbedSidebarLayout ? (
+    tabbedSidebarLayout && sidebarPanelTabs.length > 1 ? (
       <div
-        className={`markdown-file-tree-panel-tabs grid h-10 shrink-0 border-b border-(--border-default) px-3 ${linkPanelAvailable ? "grid-cols-3" : "grid-cols-2"}`}
+        className={`markdown-file-tree-panel-tabs grid h-10 shrink-0 border-b border-(--border-default) px-3 ${sidebarPanelTabGridClassName}`}
         role="group"
-        aria-label={linkPanelAvailable
-          ? `${label("app.files")} / ${label("app.outline")} / ${label("app.links")}`
-          : `${label("app.files")} / ${label("app.outline")}`}
+        aria-label={sidebarPanelTabs.map((panel) => label(sidebarPanelLabelKey(panel))).join(" / ")}
       >
-        <button
-          className={sidebarPanelTabClassName(activeSidebarPanel === "files")}
-          type="button"
-          aria-label={label("app.files")}
-          aria-pressed={activeSidebarPanel === "files"}
-          onClick={() => {
-            setActiveSidebarPanel("files");
-            setOutlineLevelMenuOpen(false);
-          }}
-        >
-          {label("app.files")}
-        </button>
-        <button
-          className={sidebarPanelTabClassName(activeSidebarPanel === "outline")}
-          type="button"
-          aria-label={label("app.outline")}
-          aria-pressed={activeSidebarPanel === "outline"}
-          onClick={() => {
-            setActiveSidebarPanel("outline");
-            setCreateMenuOpen(false);
-            setFileTreeSortMenuOpen(false);
-          }}
-        >
-          {label("app.outline")}
-        </button>
-        {linkPanelAvailable ? (
-          <button
-            className={sidebarPanelTabClassName(activeSidebarPanel === "links")}
-            type="button"
-            aria-label={label("app.links")}
-            aria-pressed={activeSidebarPanel === "links"}
-            onClick={() => {
-              setActiveSidebarPanel("links");
-              setCreateMenuOpen(false);
-              setFileTreeSortMenuOpen(false);
-              setOutlineLevelMenuOpen(false);
-            }}
-          >
-            {label("app.links")}
-          </button>
-        ) : null}
+        {sidebarPanelTabs.map((panel) => {
+          const panelLabel = label(sidebarPanelLabelKey(panel));
+
+          return (
+            <button
+              className={sidebarPanelTabClassName(activeSidebarPanel === panel)}
+              type="button"
+              aria-label={panelLabel}
+              aria-pressed={activeSidebarPanel === panel}
+              key={panel}
+              onClick={() => selectSidebarPanel(panel)}
+            >
+              {panelLabel}
+            </button>
+          );
+        })}
       </div>
     ) : null
   );
@@ -2679,7 +2693,7 @@ export function MarkdownFileTreeDrawer({
             onPointerDown={handleResizePointerDown}
           />
         ) : null}
-        {!tabbedSidebarLayout ? (
+        {!tabbedSidebarLayout && filePanelAvailable ? (
           <div className="grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center border-b border-(--border-default) px-3">
             <h2 className="m-0 truncate text-[14px] leading-5 font-[560] tracking-normal text-(--text-heading)">
               {label("app.files")}
@@ -2708,7 +2722,7 @@ export function MarkdownFileTreeDrawer({
           </div>
         ) : null}
 
-        {!tabbedSidebarLayout ? renderFileSearchInput() : null}
+        {!tabbedSidebarLayout && filePanelAvailable ? renderFileSearchInput() : null}
 
         {folderAccessVisible ? renderFolderAccessArea() : null}
 

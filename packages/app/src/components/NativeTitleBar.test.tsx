@@ -60,6 +60,32 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector("[data-titlebar-action='aiAgent']")).toHaveClass("transition-transform");
   });
 
+  it("renders no configurable titlebar actions when the action list is empty", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[]}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Toggle Markra AI" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Editor view mode: Preview" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Save Markdown" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Switch to dark theme" })).not.toBeInTheDocument();
+    expect(container.querySelector("[data-titlebar-action]")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open Markdown or Folder" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toBeInTheDocument();
+  });
+
   it("uses custom titlebar content instead of the centered document title", () => {
     const { container } = render(
       <NativeTitleBar
@@ -882,6 +908,159 @@ describe("NativeTitleBar", () => {
     expect(selectEditorMode).toHaveBeenLastCalledWith("visual");
   });
 
+  it("opens a workspace view mode menu from a configurable titlebar action", () => {
+    const selectViewMode = vi.fn();
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[
+          { id: "viewMode", visible: true }
+        ]}
+        viewMode="focus"
+        onSelectViewMode={selectViewMode}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    const viewModeButton = screen.getByRole("button", { name: "View mode: Focus" });
+
+    expect(viewModeButton).toContainElement(container.querySelector(".lucide-focus"));
+
+    fireEvent.click(viewModeButton);
+
+    expect(screen.getByRole("menu", { name: "View mode" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "Focus" })).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(screen.getByRole("menuitemradio", { name: "Immersive" }));
+
+    expect(selectViewMode).toHaveBeenCalledWith("immersive");
+    expect(screen.queryByRole("menu", { name: "View mode" })).not.toBeInTheDocument();
+  });
+
+  it("closes the workspace view mode menu when the titlebar action is hidden", () => {
+    const selectViewMode = vi.fn();
+    const { rerender } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[
+          { id: "viewMode", visible: true }
+        ]}
+        viewMode="focus"
+        onSelectViewMode={selectViewMode}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View mode: Focus" }));
+    expect(screen.getByRole("menu", { name: "View mode" })).toBeInTheDocument();
+
+    rerender(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[]}
+        viewMode="focus"
+        onSelectViewMode={selectViewMode}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+    expect(screen.queryByRole("menu", { name: "View mode" })).not.toBeInTheDocument();
+
+    rerender(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[
+          { id: "viewMode", visible: true }
+        ]}
+        viewMode="focus"
+        onSelectViewMode={selectViewMode}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(screen.queryByRole("menu", { name: "View mode" })).not.toBeInTheDocument();
+  });
+
+  it("hides fixed left titlebar buttons when configured", () => {
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesButtonVisible={false}
+        markdownFilesOpen={false}
+        openMarkdownButtonVisible={false}
+        quickCreateMarkdownFileVisible={false}
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onCreateMarkdownFile={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Toggle file list" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New Markdown File" })).not.toBeInTheDocument();
+  });
+
+  it("hides the workspace view mode titlebar action when configured hidden", () => {
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        theme="light"
+        titlebarActions={[
+          { id: "viewMode", visible: false }
+        ]}
+        viewMode="daily"
+        onCycleViewMode={() => {}}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "View mode: Daily" })).not.toBeInTheDocument();
+  });
+
   it("renders right-side file actions in the configured order and hides disabled actions", () => {
     const { container } = render(
       <NativeTitleBar
@@ -947,7 +1126,7 @@ describe("NativeTitleBar", () => {
     );
 
     const aiButton = screen.getByRole("button", { name: "Toggle Markra AI" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "history"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "viewMode", "history"]);
 
     fireEvent.mouseDown(aiButton, { button: 0, clientX: 10, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 20, clientY: 10 });
@@ -960,6 +1139,7 @@ describe("NativeTitleBar", () => {
       { id: "save", visible: true },
       { id: "aiAgent", visible: true },
       { id: "theme", visible: true },
+      { id: "viewMode", visible: true },
       { id: "history", visible: true }
     ]);
   });
@@ -990,7 +1170,7 @@ describe("NativeTitleBar", () => {
     );
 
     const saveButton = screen.getByRole("button", { name: "Save Markdown" });
-    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "history"]);
+    mockTitlebarActionRects(["aiAgent", "sourceMode", "save", "theme", "viewMode", "history"]);
 
     fireEvent.mouseDown(saveButton, { button: 0, clientX: 80, clientY: 10 });
     fireEvent.mouseMove(document, { buttons: 1, clientX: 70, clientY: 10 });
@@ -1003,6 +1183,7 @@ describe("NativeTitleBar", () => {
       { id: "save", visible: true },
       { id: "sourceMode", visible: true },
       { id: "theme", visible: true },
+      { id: "viewMode", visible: true },
       { id: "history", visible: true }
     ]);
   });

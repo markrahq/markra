@@ -10,4 +10,5 @@ export { SpellcheckSettings } from "./settings/SpellcheckSettings";
 export { StorageSettings } from "./settings/StorageSettings";
 export { SyncSettings } from "./settings/SyncSettings";
 export { TemplatesSettings } from "./settings/TemplatesSettings";
+export { ViewSettings } from "./settings/ViewSettings";
 export { WebSearchSettings } from "./settings/WebSearchSettings";

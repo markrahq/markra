@@ -4,6 +4,24 @@ import { defaultEditorPreferences, getStoredEditorPreferences } from "../lib/set
 import { listenAppEditorPreferencesChanged } from "../lib/settings/settings-events";
 import { useEditorPreferences } from "./useEditorPreferences";
 
+const defaultViewModeCustomizations = vi.hoisted(() => ({
+  aiPanel: "visible" as const,
+  documentLinks: "visible" as const,
+  documentTabs: "visible" as const,
+  fileList: "visible" as const,
+  fileTree: "visible" as const,
+  fileTreeButton: "visible" as const,
+  openButton: "visible" as const,
+  outline: "visible" as const,
+  quickCreateButton: "visible" as const,
+  recentFolders: "visible" as const,
+  sidebarLayout: "visible" as const,
+  statusBar: "visible" as const,
+  titlebarActions: "visible" as const,
+  viewModeToggle: "visible" as const,
+  wordCount: "visible" as const
+}));
+
 vi.mock("../lib/settings/app-settings", () => ({
   defaultEditorPreferences: {
     aiQuickActionPrompts: {
@@ -92,6 +110,8 @@ vi.mock("../lib/settings/app-settings", () => ({
     spellcheckLanguage: "en",
     showWordCount: true,
     tableColumnWidthMode: "auto",
+    viewMode: "daily",
+    viewModeCustomizations: defaultViewModeCustomizations,
     wrapCodeBlocks: true
   },
   getStoredEditorPreferences: vi.fn()
@@ -205,6 +225,8 @@ describe("useEditorPreferences", () => {
         { id: "save", visible: true },
         { id: "theme", visible: true }
       ],
+      viewMode: "daily",
+      viewModeCustomizations: defaultViewModeCustomizations,
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -312,6 +334,8 @@ describe("useEditorPreferences", () => {
           { id: "sourceMode", visible: true },
           { id: "aiAgent", visible: true }
         ],
+        viewMode: "daily",
+        viewModeCustomizations: defaultViewModeCustomizations,
         showWordCount: false,
         wrapCodeBlocks: false
       });
