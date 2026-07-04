@@ -1,4 +1,5 @@
 export { default, default as App } from "./App";
+export { AppErrorBoundary } from "./components/AppErrorBoundary";
 export {
   configureAppRuntime,
   createDefaultAppRuntime,

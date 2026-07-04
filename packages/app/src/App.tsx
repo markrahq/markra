@@ -92,11 +92,17 @@ import {
   markdownImageDragSrcForDocument,
   pathNameFromPath,
   t,
+  type AppLanguage,
   type I18nKey
 } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
+import { appVersion } from "./lib/app-version";
 import { createMarkdownImageSrcResolver, getWordCount } from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
+import {
+  generateCrashDiagnosticsReport,
+  generateDiagnosticsIssueUrl
+} from "./lib/diagnostics/diagnostics-report";
 import { resolveMarkdownDocumentLinkFile, resolveMarkdownDocumentLinkPath } from "./lib/document-links";
 import { saveEditorImage, saveLocalEditorImage } from "./lib/image-upload";
 import { aiCommandSelection, automaticAiSelection } from "./lib/ai-selection";
@@ -286,11 +292,90 @@ const SettingsWindow = lazy(async () => {
 });
 const workspaceLinkIndexDeferMs = 320;
 const settingsWindowPrewarmDelayMs = 600;
+const runtimeErrorDiagnosticsToastId = "runtime-error-diagnostics";
+
+export function shouldTriggerDevMockRuntimeError(search: string, dev = import.meta.env.DEV) {
+  if (!dev) return false;
+
+  return new URLSearchParams(search).get("mockError") === "1";
+}
 
 export default function App() {
   const isSettingsRoute = useSettingsWindowRoute();
 
   return isSettingsRoute ? <SettingsRouteApp /> : <WorkspaceApp />;
+}
+
+function runtimeErrorFromEvent(event: ErrorEvent | PromiseRejectionEvent) {
+  if ("error" in event) return event.error ?? event.message;
+
+  return event.reason;
+}
+
+function createRuntimeDiagnosticsReport(error: unknown, language: AppLanguage) {
+  return generateCrashDiagnosticsReport({
+    appVersion,
+    componentStack: null,
+    error,
+    generatedAt: new Date(),
+    language,
+    osVersion: resolveDesktopOsVersion(),
+    platform: resolveDesktopPlatform()
+  });
+}
+
+function showRuntimeErrorDiagnosticsToast(error: unknown, language: AppLanguage) {
+  showAppToast({
+    action: {
+      label: t(language, "app.errorToast.submitIssue"),
+      onClick: () => {
+        openNativeExternalUrl(
+          generateDiagnosticsIssueUrl(createRuntimeDiagnosticsReport(error, language), {
+            title: "Runtime error report"
+          })
+        ).catch(() => {
+          showAppToast({
+            id: `${runtimeErrorDiagnosticsToastId}-action`,
+            message: t(language, "app.errorBoundary.issueFailed"),
+            status: "error"
+          });
+        });
+      }
+    },
+    description: t(language, "app.errorToast.description"),
+    id: runtimeErrorDiagnosticsToastId,
+    message: t(language, "app.errorToast.title"),
+    status: "error",
+    surface: "notice"
+  });
+}
+
+function useRuntimeErrorDiagnostics(language: AppLanguage) {
+  const mockErrorShownRef = useRef(false);
+
+  useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      showRuntimeErrorDiagnosticsToast(runtimeErrorFromEvent(event), language);
+    };
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      showRuntimeErrorDiagnosticsToast(runtimeErrorFromEvent(event), language);
+    };
+
+    window.addEventListener("error", handleError);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener("error", handleError);
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+    };
+  }, [language]);
+
+  useEffect(() => {
+    if (mockErrorShownRef.current || !shouldTriggerDevMockRuntimeError(window.location.search)) return;
+
+    mockErrorShownRef.current = true;
+    showRuntimeErrorDiagnosticsToast(new Error("Mock runtime error preview"), language);
+  }, [language]);
 }
 
 function SettingsRouteApp() {
@@ -322,6 +407,7 @@ function WorkspaceApp() {
   const updaterFeatureEnabled = appFeatures.updater;
   const appTheme = useAppTheme();
   const appLanguage = useAppLanguage();
+  useRuntimeErrorDiagnostics(appLanguage.language);
   const acpAgentSettings = useAcpAgentSettings();
   const aiSettings = useAiSettings();
   const backupSettings = useBackupSettings();

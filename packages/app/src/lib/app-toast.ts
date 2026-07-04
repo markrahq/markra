@@ -2,9 +2,11 @@ import type { ReactNode } from "react";
 import { toast, type ExternalToast } from "sonner";
 
 export type AppToastStatus = "error" | "loading" | "success";
+export type AppToastSurface = "notice" | "toast";
 export type AppToastAction = ExternalToast["action"];
 
 export const defaultAppToastId = "app-toast";
+export const appNoticeToasterId = "app-notice-toaster";
 
 export function showAppToast({
   action,
@@ -12,7 +14,8 @@ export function showAppToast({
   duration,
   id = defaultAppToastId,
   message,
-  status
+  status,
+  surface = "toast"
 }: {
   action?: AppToastAction;
   description?: ExternalToast["description"];
@@ -20,12 +23,19 @@ export function showAppToast({
   id?: string;
   message: ReactNode;
   status: AppToastStatus;
+  surface?: AppToastSurface;
 }) {
   const options: ExternalToast = {
     ...(action ? { action } : {}),
     ...(description ? { description } : {}),
     duration: duration ?? (status === "success" ? 4500 : Infinity),
-    id
+    id,
+    ...(surface === "notice"
+      ? {
+          position: "bottom-right" as const,
+          toasterId: appNoticeToasterId
+        }
+      : {})
   };
 
   if (status === "error") {

@@ -69,6 +69,25 @@ describe("GeneralSettings", () => {
     });
   });
 
+  it("keeps diagnostics actions out of general settings", () => {
+    render(
+      <GeneralSettings
+        appVersion="0.0.7"
+        language="en"
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        welcomeReset={false}
+        onCheckForUpdates={vi.fn()}
+        onResetWelcomeDocument={vi.fn()}
+        onSelectLanguage={vi.fn()}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Copy diagnostic report" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open prefilled diagnostics issue" })).not.toBeInTheDocument();
+  });
+
   it("installs, repairs, and uninstalls the command line tool from general settings", () => {
     const onInstallShellCommand = vi.fn();
     const onUninstallShellCommand = vi.fn();

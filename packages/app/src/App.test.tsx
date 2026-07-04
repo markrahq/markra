@@ -98,7 +98,12 @@ import {
   mockedWriteNativeMarkdownTemplateFile,
   renderApp
 } from "./test/app-harness";
-import { clipboardImageSaveFailureDescription, clipboardImageSaveFailureMessage, runEditorLinkCommand } from "./App";
+import {
+  clipboardImageSaveFailureDescription,
+  clipboardImageSaveFailureMessage,
+  runEditorLinkCommand,
+  shouldTriggerDevMockRuntimeError
+} from "./App";
 import type { NativeMenuHandlers } from "./test/app-harness";
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests } from "./runtime";
 import { showAppToast } from "./lib/app-toast";
@@ -106,6 +111,14 @@ import { showAppToast } from "./lib/app-toast";
 installAppTestHarness();
 
 const defaultFileTreeListOptions = { managedAttachmentFolder: "assets" };
+
+describe("dev mock runtime error preview", () => {
+  it("enables the mock runtime error preview only in development with an explicit query param", () => {
+    expect(shouldTriggerDevMockRuntimeError("?mockError=1", true)).toBe(true);
+    expect(shouldTriggerDevMockRuntimeError("?mockError=true", true)).toBe(false);
+    expect(shouldTriggerDevMockRuntimeError("?mockError=1", false)).toBe(false);
+  });
+});
 
 async function selectEditorViewMode(optionName: "Preview" | "Source code" | "Preview + Source") {
   const modeOrder = ["Preview", "Source code", "Preview + Source"] as const;
@@ -2387,6 +2400,35 @@ describe("Markra workspace", () => {
     expect(toastDescription).toHaveTextContent("S3 image upload failed: HTTP 403");
     expect(toastDescription).toHaveClass("whitespace-normal", "break-words", "text-(--text-secondary)");
     expect(toastTitle).not.toHaveTextContent("S3 image upload failed: HTTP 403");
+  });
+
+  it("shows runtime error diagnostics as a non-blocking notice", async () => {
+    window.history.pushState({}, "", "/?mockError=1");
+
+    renderApp();
+
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Markra caught an error."));
+    const notice = document.querySelector(".app-toast");
+    expect(notice).toHaveClass("app-toast-notice");
+    expect(notice).toHaveClass("w-[min(23rem,calc(100vw-1.5rem))]");
+    expect(notice).toHaveClass("shadow-[0_2px_6px_rgba(15,23,42,0.08)]");
+    expect(notice).not.toHaveClass("app-toast-centered");
+    expect(notice).not.toHaveClass("left-1/2", "-translate-x-1/2");
+    expect(screen.queryByRole("heading", { name: "Markra needs to reload" })).not.toBeInTheDocument();
+
+    const submitIssueButton = screen.getByRole("button", { name: "Submit issue" });
+    expect(submitIssueButton).toHaveClass("bg-(--accent)", "text-(--bg-primary)");
+    expect(submitIssueButton).not.toHaveClass("bg-transparent", "text-(--accent)");
+
+    fireEvent.click(submitIssueButton);
+
+    await waitFor(() => expect(mockedOpenNativeExternalUrl).toHaveBeenCalledTimes(1));
+    const issueUrl = new URL(mockedOpenNativeExternalUrl.mock.calls[0][0]);
+
+    expect(issueUrl.pathname).toBe("/markrahq/markra/issues/new");
+    expect(issueUrl.searchParams.get("title")).toBe("Runtime error report");
+    expect(issueUrl.searchParams.get("body")).toContain("## Markra Crash Report");
+    expect(issueUrl.searchParams.get("body")).toContain("- Error message: Mock runtime error preview");
   });
 
   it("resets the welcome document from settings", async () => {

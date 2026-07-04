@@ -1,5 +1,5 @@
 import { toast } from "sonner";
-import { dismissAppToast, showAppToast } from "./app-toast";
+import { appNoticeToasterId, dismissAppToast, showAppToast } from "./app-toast";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -69,6 +69,22 @@ describe("appToast", () => {
       description: "S3 image upload failed: HTTP 403",
       duration: Infinity,
       id: "app-toast"
+    });
+  });
+
+  it("routes diagnostic notices through the bottom-right notice toaster", () => {
+    showAppToast({
+      id: "runtime-error-diagnostics",
+      message: "Markra caught an error.",
+      status: "error",
+      surface: "notice"
+    });
+
+    expect(mockedToast.error).toHaveBeenCalledWith("Markra caught an error.", {
+      duration: Infinity,
+      id: "runtime-error-diagnostics",
+      position: "bottom-right",
+      toasterId: appNoticeToasterId
     });
   });
 });
