@@ -679,6 +679,8 @@ function WorkspaceApp() {
     ]
   );
   const documentLinksOpen = editorPreferences.preferences.documentLinksOpen;
+  // View mode is a visibility filter: feature availability and existing user
+  // preferences still win, and view mode can only hide what they allow.
   const documentLinksVisible = viewModeChrome.documentLinks && editorPreferences.preferences.documentLinksVisible;
   const fileTreeContentVisible =
     viewModeChrome.recentFolders ||
