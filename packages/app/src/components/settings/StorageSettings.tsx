@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Download, Upload } from "lucide-react";
+import { Download, Upload, Wifi } from "lucide-react";
 import type {
   EditorPreferences,
   ImageUploadProvider
@@ -19,18 +19,22 @@ import type { SettingsTranslate } from "./translate";
 export function StorageSettings({
   onExportSettings,
   onImportSettings,
+  onTestStorageProvider = () => {},
   onUpdatePreferences,
   preferences,
   s3ImageUploadEnabled = true,
   settingsTransferRunning = false,
+  testingStorageProvider = null,
   translate
 }: {
   onExportSettings?: () => unknown;
   onImportSettings?: () => unknown;
+  onTestStorageProvider?: (provider: ImageUploadProvider) => unknown;
   onUpdatePreferences: (preferences: EditorPreferences) => unknown;
   preferences: EditorPreferences;
   s3ImageUploadEnabled?: boolean;
   settingsTransferRunning?: boolean;
+  testingStorageProvider?: ImageUploadProvider | null;
   translate: SettingsTranslate;
 }) {
   const imageUpload = preferences.imageUpload;
@@ -38,6 +42,11 @@ export function StorageSettings({
     availableImageUploadProvider(imageUpload.provider, s3ImageUploadEnabled)
   );
   const activeSettingsProvider = availableImageUploadProvider(settingsProvider, s3ImageUploadEnabled);
+  const storageConnectionTestRunning = testingStorageProvider !== null;
+  const activeStorageConnectionTestRunning = testingStorageProvider === activeSettingsProvider;
+  const storageConnectionTestLabel = activeStorageConnectionTestRunning
+    ? translate("settings.storage.testingConnection")
+    : translate("settings.storage.testConnection");
   useEffect(() => {
     setSettingsProvider(availableImageUploadProvider(imageUpload.provider, s3ImageUploadEnabled));
   }, [imageUpload.provider, s3ImageUploadEnabled]);
@@ -114,6 +123,20 @@ export function StorageSettings({
             translate={translate}
             onSelectProvider={setSettingsProvider}
           />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.storage.connectionTest")}
+        description={translate("settings.storage.connectionTestDescription")}
+        action={
+          <SettingsButton
+            disabled={storageConnectionTestRunning}
+            label={storageConnectionTestLabel}
+            onClick={() => onTestStorageProvider(activeSettingsProvider)}
+          >
+            <Wifi aria-hidden="true" size={13} />
+            {storageConnectionTestLabel}
+          </SettingsButton>
         }
       />
       <SettingsRow

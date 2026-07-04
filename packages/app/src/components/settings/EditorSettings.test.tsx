@@ -231,6 +231,9 @@ describe("EditorSettings", () => {
     const fontFamilySelect = screen.getByRole("combobox", { name: "Editor font" });
 
     expect(fontFamilySelect).toHaveValue("Theme default");
+    expect(fontFamilySelect).toHaveAttribute("autocapitalize", "none");
+    expect(fontFamilySelect).toHaveAttribute("autocorrect", "off");
+    expect(fontFamilySelect).toHaveAttribute("spellcheck", "false");
 
     fireEvent.focus(fontFamilySelect);
 
@@ -509,6 +512,9 @@ describe("EditorSettings", () => {
     expect(screen.queryByRole("group", { name: "Content width" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Narrow" })).not.toBeInTheDocument();
     expect(widthInput).toHaveAttribute("inputmode", "numeric");
+    expect(widthInput).toHaveAttribute("autocapitalize", "none");
+    expect(widthInput).toHaveAttribute("autocorrect", "off");
+    expect(widthInput).toHaveAttribute("spellcheck", "false");
     expect(widthInput).toHaveAttribute("min", "0");
     expect(widthInput).toHaveAttribute("max", "100");
     expect(widthInput).toHaveValue("53");

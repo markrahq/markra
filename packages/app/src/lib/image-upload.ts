@@ -3,6 +3,7 @@ import { bytesToHex } from "@noble/hashes/utils.js";
 
 import type {
   EditorPreferences,
+  ImageUploadProvider,
   PicGoImageUploadSettings,
   S3ImageUploadSettings,
   WebDavImageUploadSettings
@@ -60,10 +61,28 @@ export type SaveLocalEditorImageInput = {
   saveLocalImage?: SaveLocalImage;
 };
 
+export type TestImageUploadStorageConnectionInput = {
+  preferences: EditorPreferences;
+  provider: ImageUploadProvider;
+  s3ImageUploadEnabled?: boolean;
+  uploadPicGoImage?: UploadPicGoImage;
+  uploadS3Image?: UploadS3Image;
+  uploadWebDavImage?: UploadWebDavImage;
+};
+
 type ImageUploadFileNameOptions = {
   random?: () => string;
   timestamp?: () => string;
 };
+
+const storageConnectionTestFileName = "markra-connection-test.png";
+const transparentOnePixelPng = new Uint8Array([
+  137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82,
+  0, 0, 0, 1, 0, 0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196,
+  137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0,
+  0, 5, 0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78,
+  68, 174, 66, 96, 130
+]);
 
 const imageMimeExtensions: Record<string, string> = {
   "image/avif": "avif",
@@ -101,7 +120,6 @@ export function isS3ImageUploadConfigured(settings: S3ImageUploadSettings) {
     settings.accessKeyId.trim().length > 0 &&
     settings.bucket.trim().length > 0 &&
     settings.endpointUrl.trim().length > 0 &&
-    settings.region.trim().length > 0 &&
     settings.secretAccessKey.length > 0
   );
 }
@@ -112,6 +130,56 @@ export function isWebDavImageUploadConfigured(settings: WebDavImageUploadSetting
 
 export function isPicGoImageUploadConfigured(settings: PicGoImageUploadSettings) {
   return settings.serverUrl.trim().length > 0;
+}
+
+function createStorageConnectionTestImage() {
+  return new File([transparentOnePixelPng], storageConnectionTestFileName, { type: "image/png" });
+}
+
+export async function testImageUploadStorageConnection({
+  preferences,
+  provider,
+  s3ImageUploadEnabled = true,
+  uploadPicGoImage = uploadNativePicGoImage,
+  uploadS3Image = uploadNativeS3Image,
+  uploadWebDavImage = uploadNativeWebDavImage
+}: TestImageUploadStorageConnectionInput) {
+  if (provider === "local") return;
+
+  if (provider === "picgo") {
+    const settings = preferences.imageUpload.picgo;
+    if (!isPicGoImageUploadConfigured(settings)) throw new Error("PicGo/PicList server URL is required.");
+
+    await uploadPicGoImage({
+      fileName: storageConnectionTestFileName,
+      image: createStorageConnectionTestImage(),
+      settings
+    });
+    return;
+  }
+
+  if (provider === "s3") {
+    if (!s3ImageUploadEnabled) throw new Error("S3-compatible uploads are unavailable.");
+
+    const settings = preferences.imageUpload.s3;
+    if (!isS3ImageUploadConfigured(settings)) throw new Error("S3-compatible storage settings are incomplete.");
+
+    await uploadS3Image({
+      fileName: storageConnectionTestFileName,
+      image: createStorageConnectionTestImage(),
+      settings
+    });
+    return;
+  }
+
+  const settings = preferences.imageUpload.webdav;
+  if (!isWebDavImageUploadConfigured(settings)) throw new Error("WebDAV server URL is required.");
+
+  await uploadWebDavImage({
+    fileName: storageConnectionTestFileName,
+    image: createStorageConnectionTestImage(),
+    settings
+  });
 }
 
 export async function saveEditorImage({

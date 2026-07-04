@@ -1,13 +1,16 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { showAppToast } from "../lib/app-toast";
 import {
-  defaultEditorPreferences
+  defaultEditorPreferences,
+  type EditorPreferences,
+  type ImageUploadProvider
 } from "../lib/settings/app-settings";
 import {
   configureAppRuntime,
   createDefaultAppRuntime,
   resetAppRuntimeForTests
 } from "../runtime";
+import type { UploadNativeWebDavImageInput } from "../lib/tauri/file";
 import {
   canonicalizeEditorFontFamilyPreference,
   shellCommandActionFailureMessage,
@@ -19,6 +22,29 @@ vi.mock("../lib/app-toast", () => ({
 }));
 
 const mockedShowAppToast = vi.mocked(showAppToast);
+
+function createSettingsRuntimeWithEditorPreferences(preferences: EditorPreferences) {
+  const store = new Map<string, unknown>([["editorPreferences", preferences]]);
+
+  return {
+    async loadStore() {
+      return {
+        async delete(key: string) {
+          store.delete(key);
+        },
+        async get<T>(key: string) {
+          return store.get(key) as T | undefined;
+        },
+        async save() {
+          return undefined;
+        },
+        async set(key: string, value: unknown) {
+          store.set(key, value);
+        }
+      };
+    }
+  };
+}
 
 describe("settings window import and export", () => {
   beforeEach(() => {
@@ -102,6 +128,135 @@ describe("settings window import and export", () => {
     expect(mockedShowAppToast).toHaveBeenCalledWith({
       message: "Settings imported.",
       status: "success"
+    });
+  });
+});
+
+describe("settings window storage connection tests", () => {
+  beforeEach(() => {
+    mockedShowAppToast.mockReset();
+    resetAppRuntimeForTests();
+  });
+
+  afterEach(() => {
+    resetAppRuntimeForTests();
+  });
+
+  it("tests each storage provider without user data", async () => {
+    const defaultRuntime = createDefaultAppRuntime();
+    const uploadWebDavImage = vi.fn(async (_input: UploadNativeWebDavImageInput) => ({
+      alt: "Connection test",
+      src: "https://cdn.example.test/webdav.png"
+    }));
+    const uploadPicGoImage = vi.fn(async () => ({ alt: "Connection test", src: "https://cdn.example.test/picgo.png" }));
+    const uploadS3Image = vi.fn(async () => ({ alt: "Connection test", src: "https://cdn.example.test/s3.png" }));
+    const providerPreferences = {
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        picgo: {
+          secret: "server-secret",
+          serverUrl: "http://127.0.0.1:36677/upload"
+        },
+        s3: {
+          accessKeyId: "access-key",
+          bucket: "mock-images",
+          endpointUrl: "https://s3.example.test",
+          publicBaseUrl: "",
+          region: "us-east-1",
+          secretAccessKey: "secret",
+          uploadPath: "notes"
+        },
+        webdav: {
+          password: "secret",
+          publicBaseUrl: "",
+          serverUrl: "https://dav.example.test/images",
+          uploadPath: "notes",
+          username: "ada"
+        }
+      }
+    };
+    configureAppRuntime({
+      ...defaultRuntime,
+      files: {
+        ...defaultRuntime.files,
+        uploadPicGoImage,
+        uploadS3Image,
+        uploadWebDavImage
+      },
+      settings: createSettingsRuntimeWithEditorPreferences(providerPreferences)
+    });
+    const { result } = renderHook(() => useSettingsWindowState());
+
+    await waitFor(() => {
+      expect(result.current.editorPreferences.imageUpload.webdav.serverUrl).toBe("https://dav.example.test/images");
+    });
+
+    for (const provider of ["local", "webdav", "picgo", "s3"] satisfies ImageUploadProvider[]) {
+      await act(async () => {
+        await result.current.handleTestStorageProvider(provider);
+      });
+    }
+
+    expect(uploadWebDavImage).toHaveBeenCalledWith({
+      fileName: "markra-connection-test.png",
+      image: expect.any(File),
+      settings: providerPreferences.imageUpload.webdav
+    });
+    expect(uploadPicGoImage).toHaveBeenCalledWith({
+      fileName: "markra-connection-test.png",
+      image: expect.any(File),
+      settings: providerPreferences.imageUpload.picgo
+    });
+    expect(uploadS3Image).toHaveBeenCalledWith({
+      fileName: "markra-connection-test.png",
+      image: expect.any(File),
+      settings: providerPreferences.imageUpload.s3
+    });
+    const webDavUploadInput = uploadWebDavImage.mock.lastCall?.[0];
+    expect(webDavUploadInput?.image.name).toBe("markra-connection-test.png");
+    expect(webDavUploadInput?.image.type).toBe("image/png");
+    expect(mockedShowAppToast).toHaveBeenCalledWith({
+      message: "Storage connection verified.",
+      status: "success"
+    });
+    expect(mockedShowAppToast).toHaveBeenCalledTimes(4);
+  });
+
+  it("reports storage connection test failures", async () => {
+    const defaultRuntime = createDefaultAppRuntime();
+    const providerPreferences = {
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        webdav: {
+          ...defaultEditorPreferences.imageUpload.webdav,
+          serverUrl: "https://dav.example.test/images"
+        }
+      }
+    };
+    configureAppRuntime({
+      ...defaultRuntime,
+      files: {
+        ...defaultRuntime.files,
+        uploadWebDavImage: vi.fn(async () => {
+          throw new Error("HTTP 401");
+        })
+      },
+      settings: createSettingsRuntimeWithEditorPreferences(providerPreferences)
+    });
+    const { result } = renderHook(() => useSettingsWindowState());
+
+    await waitFor(() => {
+      expect(result.current.editorPreferences.imageUpload.webdav.serverUrl).toBe("https://dav.example.test/images");
+    });
+    await act(async () => {
+      await result.current.handleTestStorageProvider("webdav");
+    });
+
+    expect(mockedShowAppToast).toHaveBeenCalledWith({
+      message: "Could not verify storage connection. HTTP 401",
+      status: "error"
     });
   });
 });

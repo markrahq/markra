@@ -98,9 +98,10 @@ import {
   mockedWriteNativeMarkdownTemplateFile,
   renderApp
 } from "./test/app-harness";
-import { runEditorLinkCommand } from "./App";
+import { clipboardImageSaveFailureDescription, clipboardImageSaveFailureMessage, runEditorLinkCommand } from "./App";
 import type { NativeMenuHandlers } from "./test/app-harness";
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests } from "./runtime";
+import { showAppToast } from "./lib/app-toast";
 
 installAppTestHarness();
 
@@ -481,6 +482,23 @@ describe("Markra workspace", () => {
     expect(insertMarkdownLink).toHaveBeenCalledTimes(1);
     expect(syncVisualMarkdownAfterEditorCommand).toHaveBeenCalledTimes(1);
     expect(syncAiSelectionToolbarFormattingState).toHaveBeenCalledTimes(1);
+  });
+
+  it("includes upload error details in pasted image save failures", () => {
+    expect(clipboardImageSaveFailureDescription(new Error("S3 image upload failed: HTTP 403"))).toBe(
+      "S3 image upload failed: HTTP 403"
+    );
+    expect(clipboardImageSaveFailureDescription("Connection refused")).toBe("Connection refused");
+    expect(clipboardImageSaveFailureDescription("")).toBe("");
+    expect(clipboardImageSaveFailureMessage("Could not save the pasted image.", new Error("S3 image upload failed: HTTP 403"))).toBe(
+      "Could not save the pasted image. S3 image upload failed: HTTP 403"
+    );
+    expect(clipboardImageSaveFailureMessage("Could not save the pasted image.", "Connection refused")).toBe(
+      "Could not save the pasted image. Connection refused"
+    );
+    expect(clipboardImageSaveFailureMessage("Could not save the pasted image.", "")).toBe(
+      "Could not save the pasted image."
+    );
   });
 
   it("renders a Typora-like minimal writing surface", async () => {
@@ -2274,8 +2292,15 @@ describe("Markra workspace", () => {
     expect(document.querySelector(".app-toaster")).toHaveStyle({ width: "fit-content" });
     expect(document.querySelector(".app-toast")).toHaveClass("app-toast-centered");
     expect(document.querySelector(".app-toast")).toHaveClass("left-1/2", "-translate-x-1/2");
-    expect(document.querySelector(".app-toast")).toHaveClass("w-fit", "min-w-40");
-    expect(document.querySelector(".app-toast")).not.toHaveClass("w-[24rem]");
+    expect(document.querySelector(".app-toast")).toHaveClass(
+      "w-fit",
+      "max-w-[min(var(--app-toast-max-width,28rem),calc(100vw-3rem))]"
+    );
+    expect(document.querySelector(".app-toast")).not.toHaveClass("w-[min(var(--app-toast-width,20rem),calc(100vw-3rem))]");
+    const toastTitle = document.querySelector(".app-toast [data-title]");
+    expect(toastTitle).toHaveClass("whitespace-nowrap");
+    expect(toastTitle).not.toHaveClass("break-words");
+    expect(toastTitle).not.toHaveClass("truncate");
     expect(document.querySelector(".app-toast-close")).toBeInTheDocument();
     expect(document.querySelector(".app-toast-close")).toHaveClass("absolute", "right-2");
     expect(document.querySelector(".app-toast-close")).not.toHaveClass("ml-auto");
@@ -2337,6 +2362,31 @@ describe("Markra workspace", () => {
     expect(screen.queryByRole("button", { name: "Delete provider" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "OpenAI" })).toHaveAttribute("aria-current", "page");
     await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Provider deleted."));
+  });
+
+  it("renders long error details as a readable toast description", async () => {
+    renderApp();
+
+    act(() => {
+      showAppToast({
+        description: "S3 image upload failed: HTTP 403",
+        message: "Could not save the pasted image.",
+        status: "error"
+      });
+    });
+
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Could not save the pasted image."));
+    const toast = document.querySelector(".app-toast");
+    const toastTitle = document.querySelector(".app-toast [data-title]");
+    const toastDescription = document.querySelector(".app-toast [data-description]");
+
+    expect(toast).toHaveClass("app-toast-readable-error");
+    expect(toast).toHaveClass("w-fit", "[--app-toast-max-width:32rem]");
+    expect(toast).not.toHaveClass("w-[min(var(--app-toast-width,20rem),calc(100vw-3rem))]");
+    expect(toastTitle).toHaveTextContent("Could not save the pasted image.");
+    expect(toastDescription).toHaveTextContent("S3 image upload failed: HTTP 403");
+    expect(toastDescription).toHaveClass("whitespace-normal", "break-words", "text-(--text-secondary)");
+    expect(toastTitle).not.toHaveTextContent("S3 image upload failed: HTTP 403");
   });
 
   it("resets the welcome document from settings", async () => {

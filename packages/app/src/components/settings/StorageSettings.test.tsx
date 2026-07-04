@@ -51,11 +51,13 @@ describe("StorageSettings", () => {
 
   it("switches between provider settings without changing the active storage type", () => {
     const onUpdatePreferences = vi.fn();
+    const onTestStorageProvider = vi.fn();
 
     render(
       <StorageSettings
         preferences={defaultEditorPreferences}
         translate={translate}
+        onTestStorageProvider={onTestStorageProvider}
         onUpdatePreferences={onUpdatePreferences}
       />
     );
@@ -81,6 +83,8 @@ describe("StorageSettings", () => {
       "aria-pressed",
       "true"
     );
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(onTestStorageProvider).toHaveBeenLastCalledWith("local");
 
     expect(screen.queryByRole("heading", { name: "Local" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "Clipboard image folder" })).toBeInTheDocument();
@@ -118,6 +122,8 @@ describe("StorageSettings", () => {
     expect(screen.getByRole("textbox", { name: "WebDAV server URL" })).toBeInTheDocument();
     expect(screen.getByLabelText("WebDAV password")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "S3 endpoint URL" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(onTestStorageProvider).toHaveBeenLastCalledWith("webdav");
 
     fireEvent.change(screen.getByRole("textbox", { name: "WebDAV server URL" }), {
       target: { value: "https://dav.example.com/images" }
@@ -157,6 +163,8 @@ describe("StorageSettings", () => {
     expect(screen.getByRole("textbox", { name: "PicGo/PicList server URL" })).toBeInTheDocument();
     expect(screen.getByLabelText("PicGo/PicList secret")).toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "S3 endpoint URL" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(onTestStorageProvider).toHaveBeenLastCalledWith("picgo");
 
     fireEvent.change(screen.getByRole("textbox", { name: "PicGo/PicList server URL" }), {
       target: { value: "http://127.0.0.1:36677/upload" }
@@ -197,6 +205,8 @@ describe("StorageSettings", () => {
     expect(screen.queryByRole("heading", { name: "S3" })).not.toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "S3 endpoint URL" })).toBeInTheDocument();
     expect(screen.getByRole("textbox", { name: "S3 bucket" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Test connection" }));
+    expect(onTestStorageProvider).toHaveBeenLastCalledWith("s3");
 
     fireEvent.change(screen.getByRole("textbox", { name: "S3 endpoint URL" }), {
       target: { value: "https://s3.example.com" }
@@ -255,5 +265,25 @@ describe("StorageSettings", () => {
     expect(within(settingsType).getByRole("button", { name: "Show PicGo/PicList settings" })).toBeInTheDocument();
     expect(within(settingsType).queryByRole("button", { name: "Show S3-compatible settings" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "S3 endpoint URL" })).not.toBeInTheDocument();
+  });
+
+  it("disables the storage connection test while the active provider is testing", () => {
+    render(
+      <StorageSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          imageUpload: {
+            ...defaultEditorPreferences.imageUpload,
+            provider: "webdav"
+          }
+        }}
+        testingStorageProvider="webdav"
+        translate={translate}
+        onTestStorageProvider={vi.fn()}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Testing connection" })).toBeDisabled();
   });
 });

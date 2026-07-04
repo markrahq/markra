@@ -8,12 +8,14 @@ export const defaultAppToastId = "app-toast";
 
 export function showAppToast({
   action,
+  description,
   duration,
   id = defaultAppToastId,
   message,
   status
 }: {
   action?: AppToastAction;
+  description?: ExternalToast["description"];
   duration?: ExternalToast["duration"];
   id?: string;
   message: ReactNode;
@@ -21,6 +23,7 @@ export function showAppToast({
 }) {
   const options: ExternalToast = {
     ...(action ? { action } : {}),
+    ...(description ? { description } : {}),
     duration: duration ?? (status === "success" ? 4500 : Infinity),
     id
   };

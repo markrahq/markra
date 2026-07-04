@@ -281,7 +281,10 @@ function SearchableEditorFontFamilySelect({
         aria-controls={editorFontFamilyListboxId}
         aria-expanded={open}
         aria-label={label}
+        autoCapitalize="none"
+        autoCorrect="off"
         placeholder={value.label}
+        spellCheck={false}
         style={inputStyle}
         value={inputValue}
         onBlur={() => {
@@ -350,10 +353,13 @@ function SettingsContentWidthInput({
           className="h-full w-18 border-0 bg-transparent py-0 pr-7 pl-3 text-[12px] leading-5 font-[560] text-(--text-heading) outline-none"
           type="text"
           aria-label={label}
+          autoCapitalize="none"
+          autoCorrect="off"
           inputMode="numeric"
           min={contentWidthRatioMin}
           max={contentWidthRatioMax}
           pattern="[0-9]*"
+          spellCheck={false}
           value={draftRatio}
           onChange={(event) => {
             const digits = event.currentTarget.value.replace(/\D/g, "");

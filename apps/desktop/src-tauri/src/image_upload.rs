@@ -253,8 +253,8 @@ pub(crate) fn s3_image_upload_targets(
     file_name: &str,
 ) -> Result<ImageUploadTargets, String> {
     let bucket = normalize_s3_bucket(bucket)?;
-    let upload_segments = [vec![bucket], normalize_upload_path_segments(upload_path)?].concat();
-    let upload_url = remote_url_with_segments(endpoint_url, &upload_segments, file_name)?;
+    let upload_segments = normalize_upload_path_segments(upload_path)?;
+    let upload_url = s3_upload_url(endpoint_url, &bucket, &upload_segments, file_name)?;
     let public_url = if public_base_url.trim().is_empty() {
         upload_url.to_string()
     } else {
@@ -265,6 +265,61 @@ pub(crate) fn s3_image_upload_targets(
         public_url,
         upload_url,
     })
+}
+
+fn s3_upload_url(
+    endpoint_url: &str,
+    bucket: &str,
+    upload_segments: &[String],
+    file_name: &str,
+) -> Result<Url, String> {
+    let mut url = validated_upload_base_url(endpoint_url)?;
+
+    if s3_endpoint_uses_virtual_hosted_bucket(&url, bucket) {
+        return url_with_segments(url, upload_segments, file_name);
+    }
+
+    if s3_endpoint_requires_virtual_hosted_bucket(&url) {
+        let host = url
+            .host_str()
+            .ok_or_else(|| "S3 endpoint host is required".to_string())?
+            .to_string();
+        let virtual_host = format!("{bucket}.{host}");
+        url.set_host(Some(&virtual_host))
+            .map_err(|_| "S3 endpoint host is invalid".to_string())?;
+
+        return url_with_segments(url, upload_segments, file_name);
+    }
+
+    let path_style_segments = [vec![bucket.to_string()], upload_segments.to_vec()].concat();
+
+    url_with_segments(url, &path_style_segments, file_name)
+}
+
+fn s3_endpoint_uses_virtual_hosted_bucket(url: &Url, bucket: &str) -> bool {
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let host = host.to_ascii_lowercase();
+    let bucket = bucket.to_ascii_lowercase();
+
+    host == bucket || host.starts_with(&format!("{bucket}."))
+}
+
+fn s3_endpoint_requires_virtual_hosted_bucket(url: &Url) -> bool {
+    let Some(host) = url.host_str() else {
+        return false;
+    };
+    let host = host.to_ascii_lowercase();
+
+    // Several S3-compatible providers reject path-style addressing even though
+    // generic self-hosted services such as MinIO still depend on it.
+    (host.ends_with(".aliyuncs.com") && host.starts_with("oss-"))
+        || (host.ends_with(".myqcloud.com") && host.starts_with("cos."))
+        || host.contains(".digitaloceanspaces.com")
+        || host.ends_with(".cwobject.com")
+        || host == "cwobject.com"
+        || host.contains(".myhuaweicloud.com")
 }
 
 fn image_upload_http_client(network: Option<&NetworkSettings>) -> Result<Client, String> {
@@ -344,7 +399,16 @@ fn remote_url_with_segments(
     upload_segments: &[String],
     file_name: &str,
 ) -> Result<Url, String> {
-    let mut url = validated_upload_base_url(base_url)?;
+    let url = validated_upload_base_url(base_url)?;
+
+    url_with_segments(url, upload_segments, file_name)
+}
+
+fn url_with_segments(
+    mut url: Url,
+    upload_segments: &[String],
+    file_name: &str,
+) -> Result<Url, String> {
     {
         let mut path_segments = url
             .path_segments_mut()
@@ -652,6 +716,104 @@ mod tests {
         assert_eq!(
             upload_url.as_str(),
             "http://127.0.0.1:36677/upload?secret=server-secret&key=server-secret"
+        );
+    }
+
+    #[test]
+    fn builds_path_style_s3_upload_targets_for_generic_endpoints() {
+        let targets = s3_image_upload_targets(
+            "https://s3.example.com",
+            "markra-images",
+            "notes",
+            "",
+            "pasted-image.png",
+        )
+        .expect("S3 upload targets should be built");
+
+        assert_eq!(
+            targets.upload_url.as_str(),
+            "https://s3.example.com/markra-images/notes/pasted-image.png"
+        );
+        assert_eq!(
+            targets.public_url,
+            "https://s3.example.com/markra-images/notes/pasted-image.png"
+        );
+    }
+
+    #[test]
+    fn builds_virtual_hosted_s3_upload_targets_for_aliyun_oss() {
+        let targets = s3_image_upload_targets(
+            "https://oss-cn-hangzhou.aliyuncs.com",
+            "blocknews-dev",
+            "Notes",
+            "https://blocknews-dev.oss-cn-hangzhou.aliyuncs.com",
+            "pasted-image.png",
+        )
+        .expect("Aliyun OSS upload targets should be built");
+
+        assert_eq!(
+            targets.upload_url.as_str(),
+            "https://blocknews-dev.oss-cn-hangzhou.aliyuncs.com/Notes/pasted-image.png"
+        );
+        assert_eq!(
+            targets.public_url,
+            "https://blocknews-dev.oss-cn-hangzhou.aliyuncs.com/Notes/pasted-image.png"
+        );
+    }
+
+    #[test]
+    fn builds_virtual_hosted_s3_upload_targets_for_providers_that_require_it() {
+        let cases = [
+            (
+                "https://cos.ap-beijing.myqcloud.com",
+                "markra-1250000000",
+                "https://markra-1250000000.cos.ap-beijing.myqcloud.com/notes/pasted-image.png",
+            ),
+            (
+                "https://obs.cn-north-4.myhuaweicloud.com",
+                "markra-images",
+                "https://markra-images.obs.cn-north-4.myhuaweicloud.com/notes/pasted-image.png",
+            ),
+            (
+                "https://cwobject.com",
+                "markra-images",
+                "https://markra-images.cwobject.com/notes/pasted-image.png",
+            ),
+            (
+                "https://nyc3.digitaloceanspaces.com",
+                "markra-images",
+                "https://markra-images.nyc3.digitaloceanspaces.com/notes/pasted-image.png",
+            ),
+        ];
+
+        for (endpoint, bucket, expected_upload_url) in cases {
+            let targets =
+                s3_image_upload_targets(endpoint, bucket, "notes", "", "pasted-image.png")
+                    .expect("S3 upload targets should be built");
+
+            assert_eq!(targets.upload_url.as_str(), expected_upload_url);
+            assert_eq!(targets.public_url, expected_upload_url);
+        }
+    }
+
+    #[test]
+    fn does_not_duplicate_bucket_for_virtual_hosted_s3_endpoints() {
+        let targets = s3_image_upload_targets(
+            "https://blocknews-dev.oss-cn-hangzhou.aliyuncs.com",
+            "blocknews-dev",
+            "Notes",
+            "",
+            "pasted-image.png",
+        )
+        .expect("Virtual-hosted S3 upload targets should be built");
+
+        assert_eq!(
+            targets.upload_url.as_str(),
+            "https://blocknews-dev.oss-cn-hangzhou.aliyuncs.com/Notes/pasted-image.png"
+        );
+        assert_eq!(
+            targets.public_url,
+            "https://blocknews-dev.oss-cn-hangzhou.aliyuncs.com/Notes/pasted-image.png"
         );
     }
 }

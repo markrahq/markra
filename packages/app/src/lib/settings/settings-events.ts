@@ -34,6 +34,8 @@ const backupSettingsChangedEvent = "markra://backup-settings-changed";
 const syncSettingsChangedEvent = "markra://sync-settings-changed";
 const aiSettingsChangedEvent = "markra://ai-settings-changed";
 const acpAgentSettingsChangedEvent = "markra://acp-agent-settings-changed";
+const settingsEventsSourceId =
+  globalThis.crypto?.randomUUID?.() ?? `markra-settings-${Math.random().toString(36).slice(2)}`;
 
 type ThemeChangedPayload = {
   preferences?: AppThemePreferences;
@@ -51,6 +53,7 @@ type LanguageChangedPayload = {
 
 type EditorPreferencesChangedPayload = {
   preferences: EditorPreferences;
+  sourceId?: string;
 };
 
 type ExportSettingsChangedPayload = {
@@ -157,7 +160,7 @@ export async function listenAppLanguageChanged(onLanguageChanged: (language: App
 export async function notifyAppEditorPreferencesChanged(preferences: EditorPreferences) {
   if (!getAppRuntime().events.isAvailable()) return;
 
-  await getAppRuntime().events.emit(editorPreferencesChangedEvent, { preferences });
+  await getAppRuntime().events.emit(editorPreferencesChangedEvent, { preferences, sourceId: settingsEventsSourceId });
 }
 
 export async function listenAppEditorPreferencesChanged(
@@ -166,6 +169,9 @@ export async function listenAppEditorPreferencesChanged(
   if (!getAppRuntime().events.isAvailable()) return () => {};
 
   return getAppRuntime().events.listen<EditorPreferencesChangedPayload>(editorPreferencesChangedEvent, (event) => {
+    // Local state was already updated before emitting; replaying our own normalized event can erase in-progress input.
+    if (event.payload.sourceId === settingsEventsSourceId) return;
+
     if (isEditorPreferencesPayload(event.payload.preferences)) {
       onPreferencesChanged(normalizeEditorPreferences(event.payload.preferences));
     }

@@ -46,6 +46,7 @@ import {
   type BackupSettings,
   type EditorPreferences,
   type ExportSettings,
+  type ImageUploadProvider,
   type NetworkSettings,
   type PortableStoredAppSettings,
   type WebSearchSettings,
@@ -81,6 +82,7 @@ import {
 } from "../lib/tauri";
 import type { NativeShellCommandStatus } from "../lib/tauri/shell-command";
 import { showAppToast } from "../lib/app-toast";
+import { testImageUploadStorageConnection } from "../lib/image-upload";
 import {
   listenNativeSettingsWindowTarget,
   type NativeSettingsWindowTarget
@@ -197,6 +199,7 @@ export function useSettingsWindowState() {
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncSourcePath, setSyncSourcePath] = useState<string | null>(null);
   const [settingsTransferRunning, setSettingsTransferRunning] = useState(false);
+  const [testingStorageProvider, setTestingStorageProvider] = useState<ImageUploadProvider | null>(null);
   const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
   const [markdownTemplates, setMarkdownTemplates] = useState<MarkdownTemplate[]>([]);
   const [exportSettings, setExportSettings] = useState<ExportSettings>(defaultExportSettings);
@@ -733,6 +736,30 @@ export function useSettingsWindowState() {
     }
   }, [applyImportedSettings, settingsTransferRunning, translate]);
 
+  const handleTestStorageProvider = useCallback(async (provider: ImageUploadProvider) => {
+    if (testingStorageProvider) return;
+
+    setTestingStorageProvider(provider);
+    try {
+      await testImageUploadStorageConnection({
+        preferences: editorPreferences,
+        provider,
+        s3ImageUploadEnabled: getAppRuntime().features.s3ImageUpload
+      });
+      showAppToast({
+        message: translate("settings.storage.connectionSucceeded"),
+        status: "success"
+      });
+    } catch (error) {
+      showAppToast({
+        message: shellCommandActionFailureMessage(translate("settings.storage.connectionFailed"), error),
+        status: "error"
+      });
+    } finally {
+      setTestingStorageProvider(null);
+    }
+  }, [editorPreferences, testingStorageProvider, translate]);
+
   const handleChooseBackupTargetPath = useCallback(() => {
     openNativeMarkdownFolder({
       title: translate("settings.backup.targetPickerTitle")
@@ -867,6 +894,7 @@ export function useSettingsWindowState() {
     handleUpdateEditorPreferences,
     handleUpdateExportSettings,
     handleUpdateNetworkSettings,
+    handleTestStorageProvider,
     handleDetectPandocPath,
     handleRefreshShellCommandStatus: refreshShellCommandStatus,
     handleUninstallShellCommand,
@@ -878,6 +906,7 @@ export function useSettingsWindowState() {
     networkSettings,
     settingsFocusTarget,
     settingsTransferRunning,
+    testingStorageProvider,
     shellCommandRunning,
     shellCommandStatus,
     syncRunning,

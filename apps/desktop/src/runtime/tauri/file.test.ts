@@ -1275,6 +1275,33 @@ describe("native file access", () => {
     });
   });
 
+  it("defaults a blank S3 region when uploading through Tauri", async () => {
+    const image = new File([new Uint8Array([7, 8, 9])], "Object.png", { type: "image/png" });
+    mockedInvoke.mockResolvedValue({
+      url: "https://cdn.example.com/images/notes/pasted-image-123.png"
+    });
+
+    await uploadNativeS3Image({
+      fileName: "custom-image.png",
+      image,
+      settings: {
+        accessKeyId: "access-key",
+        bucket: "markra-images",
+        endpointUrl: "https://s3.example.com",
+        publicBaseUrl: "https://cdn.example.com/images",
+        region: "",
+        secretAccessKey: "secret",
+        uploadPath: "notes"
+      }
+    });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("upload_s3_image", {
+      request: expect.objectContaining({
+        region: "us-east-1"
+      })
+    });
+  });
+
   it("backs up the selected markdown folder through Tauri", async () => {
     mockedInvoke.mockResolvedValue({
       bytesCopied: 12,

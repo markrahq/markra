@@ -1403,7 +1403,7 @@ export async function uploadNativeS3Image({
       fileName,
       mimeType: image.type,
       publicBaseUrl: settings.publicBaseUrl,
-      region: settings.region,
+      region: settings.region.trim() || "us-east-1",
       secretAccessKey: settings.secretAccessKey,
       uploadPath: settings.uploadPath
     })

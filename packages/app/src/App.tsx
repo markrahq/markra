@@ -236,14 +236,26 @@ function editorBottomOverlayInset(aiCommandActive: boolean, aiCommandInset: numb
   return Math.max(quietStatusOverlayInset, aiCommandActive ? aiCommandInset : 0);
 }
 
-function nativeFileOperationFailureMessage(message: string, error: unknown) {
-  const detail = error instanceof Error
+function nativeFileOperationFailureDescription(error: unknown) {
+  return error instanceof Error
     ? error.message.trim()
     : typeof error === "string"
       ? error.trim()
       : "";
+}
+
+function nativeFileOperationFailureMessage(message: string, error: unknown) {
+  const detail = nativeFileOperationFailureDescription(error);
 
   return detail ? `${message} ${detail}` : message;
+}
+
+export function clipboardImageSaveFailureDescription(error: unknown) {
+  return nativeFileOperationFailureDescription(error);
+}
+
+export function clipboardImageSaveFailureMessage(message: string, error: unknown) {
+  return nativeFileOperationFailureMessage(message, error);
 }
 
 type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
@@ -1798,15 +1810,18 @@ function WorkspaceApp() {
   const handleSaveClipboardImage = useCallback(async (image: File) => {
     if (readOnlyMode) return null;
 
-    const result = await saveEditorImage({
-      documentPath: document.path,
-      image,
-      preferences: editorPreferences.preferences,
-      s3ImageUploadEnabled: s3ImageUploadFeatureEnabled
-    }).catch(() => null);
-
-    if (!result) {
+    let result: Awaited<ReturnType<typeof saveEditorImage>>;
+    try {
+      result = await saveEditorImage({
+        documentPath: document.path,
+        image,
+        preferences: editorPreferences.preferences,
+        s3ImageUploadEnabled: s3ImageUploadFeatureEnabled
+      });
+    } catch (error) {
+      const description = clipboardImageSaveFailureDescription(error);
       showAppToast({
+        ...(description ? { description } : {}),
         message: translate("app.clipboardImageSaveFailed"),
         status: "error"
       });

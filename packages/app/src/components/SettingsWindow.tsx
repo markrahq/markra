@@ -54,6 +54,7 @@ export function SettingsWindow() {
     handleInstallShellCommand,
     handleSaveAiSettings,
     handleTestAiProvider,
+    handleTestStorageProvider,
     handleChooseBackupTargetPath,
     handleDetectPandocPath,
     handleRefreshShellCommandStatus,
@@ -74,6 +75,7 @@ export function SettingsWindow() {
     setSelectedAiProviderId,
     settingsFocusTarget,
     settingsTransferRunning,
+    testingStorageProvider,
     shellCommandRunning,
     shellCommandStatus,
     syncRunning,
@@ -231,9 +233,11 @@ export function SettingsWindow() {
               preferences={editorPreferences}
               s3ImageUploadEnabled={appFeatures.s3ImageUpload}
               settingsTransferRunning={settingsTransferRunning}
+              testingStorageProvider={testingStorageProvider}
               translate={translate}
               onExportSettings={handleExportSettings}
               onImportSettings={handleImportSettings}
+              onTestStorageProvider={handleTestStorageProvider}
               onUpdatePreferences={handleUpdateEditorPreferences}
             />
           ) : null}

@@ -144,6 +144,9 @@ export function SettingsTextInput({
       className={`h-8 ${widthClassName} rounded-md border border-(--border-default) bg-(--bg-primary) px-3 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out placeholder:text-(--text-secondary) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)`}
       type={type}
       aria-label={label}
+      autoCapitalize="none"
+      autoCorrect="off"
+      spellCheck={false}
       value={value}
       placeholder={placeholder}
       onChange={(event) => onChange(event.currentTarget.value)}
@@ -170,7 +173,9 @@ export function SettingsTextarea({
     <textarea
       className={`min-h-18 ${widthClassName} resize-y rounded-md border border-(--border-default) bg-(--bg-primary) px-3 py-2 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out placeholder:text-(--text-secondary) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) max-[760px]:w-full ${className ?? ""}`}
       aria-label={label}
-      spellCheck={spellCheck}
+      autoCapitalize="none"
+      autoCorrect="off"
+      spellCheck={spellCheck ?? false}
       value={value}
       onChange={(event) => onChange(event.currentTarget.value)}
     />

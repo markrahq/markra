@@ -298,6 +298,50 @@ describe("save editor image", () => {
     expect(saveLocalImage).not.toHaveBeenCalled();
   });
 
+  it("does not treat a blank S3 region as missing storage configuration", async () => {
+    const image = new File([new Uint8Array([1, 2, 3])], "Object.png", { type: "image/png" });
+    const uploadS3Image = vi.fn().mockResolvedValue({
+      alt: "Object",
+      src: "https://cdn.example.com/images/notes/pasted-image.png"
+    });
+    const s3 = {
+      accessKeyId: "access-key",
+      bucket: "markra-images",
+      endpointUrl: "https://s3.example.com",
+      publicBaseUrl: "https://cdn.example.com/images",
+      region: "",
+      secretAccessKey: "secret",
+      uploadPath: "notes"
+    };
+
+    await expect(
+      saveEditorImage({
+        documentPath: null,
+        image,
+        preferences: {
+          ...defaultEditorPreferences,
+          imageUpload: {
+            ...defaultEditorPreferences.imageUpload,
+            provider: "s3",
+            s3
+          }
+        },
+        saveLocalImage: vi.fn(),
+        uploadS3Image,
+        uploadWebDavImage: vi.fn()
+      })
+    ).resolves.toMatchObject({
+      refreshTree: false,
+      status: "saved"
+    });
+
+    expect(uploadS3Image).toHaveBeenCalledWith({
+      fileName: expect.stringMatching(/^pasted-image-\d+\.png$/u),
+      image,
+      settings: s3
+    });
+  });
+
   it("falls back to local image storage when S3 uploads are unavailable", async () => {
     const image = new File([new Uint8Array([1, 2, 3])], "Object.png", { type: "image/png" });
     const saveLocalImage = vi.fn().mockResolvedValue({

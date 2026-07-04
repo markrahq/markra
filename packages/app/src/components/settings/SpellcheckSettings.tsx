@@ -282,8 +282,11 @@ export function SpellcheckSettings({
               className="h-6 min-w-0 flex-1 bg-transparent px-1 text-[12px] leading-5 font-[560] text-(--text-heading) placeholder:text-(--text-secondary) focus-visible:outline-none"
               type="text"
               aria-label={translate("settings.editor.spellcheckWhitelistInput")}
+              autoCapitalize="none"
+              autoCorrect="off"
               value={whitelistWordInput}
               placeholder={translate("settings.editor.spellcheckWhitelistInputPlaceholder")}
+              spellCheck={false}
               onChange={(event) => setWhitelistWordInput(event.currentTarget.value)}
             />
             <IconButton

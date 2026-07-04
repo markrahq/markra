@@ -28,7 +28,11 @@ describe("appToast", () => {
 
     showAppToast({ message: "Saved", status: "success" });
     showAppToast({ action, id: "update-test", message: "Downloading", status: "loading" });
-    showAppToast({ id: "provider-test", message: "Failed", status: "error" });
+    showAppToast({
+      id: "provider-test",
+      message: "Failed",
+      status: "error"
+    });
     showAppToast({ duration: Infinity, id: "update-ready", message: "Ready", status: "success" });
     dismissAppToast("provider-test");
 
@@ -50,5 +54,21 @@ describe("appToast", () => {
       id: "update-ready"
     });
     expect(mockedToast.dismiss).toHaveBeenCalledWith("provider-test");
+  });
+
+  it("passes long error detail through as a toast description", () => {
+    const toastWithDescription = {
+      description: "S3 image upload failed: HTTP 403",
+      message: "Could not save the pasted image.",
+      status: "error"
+    } as Parameters<typeof showAppToast>[0] & { description: string };
+
+    showAppToast(toastWithDescription);
+
+    expect(mockedToast.error).toHaveBeenCalledWith("Could not save the pasted image.", {
+      description: "S3 image upload failed: HTTP 403",
+      duration: Infinity,
+      id: "app-toast"
+    });
   });
 });

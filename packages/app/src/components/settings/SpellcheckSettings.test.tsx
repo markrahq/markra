@@ -267,6 +267,9 @@ describe("SpellcheckSettings", () => {
     const input = within(whitelistWords).getByRole<HTMLInputElement>("textbox", { name: "Whitelist word" });
     const addButton = within(whitelistWords).getByRole("button", { name: "Add to whitelist" });
     expect(input.closest("form")).toHaveClass("w-28", "flex-none");
+    expect(input).toHaveAttribute("autocapitalize", "none");
+    expect(input).toHaveAttribute("autocorrect", "off");
+    expect(input).toHaveAttribute("spellcheck", "false");
 
     expect(addButton).toBeDisabled();
 

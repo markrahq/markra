@@ -19,7 +19,13 @@ import {
   notifyAppSyncSettingsChanged,
   notifyAppThemeChanged
 } from "./settings-events";
-import type { AcpAgentSettings, BackupSettings, EditorPreferences, SyncSettings } from "./app-settings";
+import {
+  defaultEditorPreferences,
+  type AcpAgentSettings,
+  type BackupSettings,
+  type EditorPreferences,
+  type SyncSettings
+} from "./app-settings";
 
 const mockedEmit = vi.fn();
 const mockedListen = vi.fn();
@@ -258,10 +264,39 @@ describe("settings events", () => {
 
     expect(mockedListen).toHaveBeenCalledWith("markra://editor-preferences-changed", expect.any(Function));
     expect(mockedEmit).toHaveBeenCalledWith("markra://editor-preferences-changed", {
-      preferences
+      preferences,
+      sourceId: expect.any(String)
     });
     expect(onPreferencesChanged).toHaveBeenCalledWith(preferences);
     expect(onPreferencesChanged).toHaveBeenCalledTimes(1);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores editor preference events emitted by the current window", async () => {
+    const unlisten = vi.fn();
+    const onPreferencesChanged = vi.fn();
+    eventsAvailable = true;
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppEditorPreferencesChanged(onPreferencesChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+    const preferences: EditorPreferences = {
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        provider: "webdav",
+        webdav: {
+          ...defaultEditorPreferences.imageUpload.webdav,
+          serverUrl: "h"
+        }
+      }
+    };
+
+    await notifyAppEditorPreferencesChanged(preferences);
+    listener?.({ payload: mockedEmit.mock.calls[0]?.[1] } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(onPreferencesChanged).not.toHaveBeenCalled();
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
