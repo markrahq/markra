@@ -30,8 +30,10 @@ import {
   defaultMarkdownShortcuts,
   findSearchMatchesInDoc,
   findVisibleSearchMatchesInState,
+  markraLiveMarkdownSpecs,
   mermaidThemeFromElement,
   scrollAiEditorPreviewIntoView,
+  setLiveMarkdownSourceContext,
   showAiEditorPreview,
   showAiSelectionHold,
   updateSearchDecorations,
@@ -6993,6 +6995,31 @@ describe("MarkdownPaper editing", () => {
 
     const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
     expect(markdown).toBe("`\\*literal\\*`\n\n*literal* after");
+  });
+
+  it("keeps escaped source markdown literal after replacing the visual document", async () => {
+    const onMarkdownChange = vi.fn();
+    const { editor, view } = await renderEditor("mock", { onMarkdownChange });
+    const transaction = editor.action((ctx) => {
+      const sourceMarkdown = "\\*\\*12\\*\\*";
+      const sourceDocument = ctx.get(parserCtx)(sourceMarkdown);
+      return setLiveMarkdownSourceContext(
+        view.state.tr
+          .replace(0, view.state.doc.content.size, new Slice(sourceDocument.content, 0, 0))
+          .setMeta("addToHistory", false),
+        markraLiveMarkdownSpecs(ctx),
+        sourceMarkdown
+      );
+    });
+
+    view.dispatch(transaction);
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, "x");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("\\*\\*12\\*\\*x");
   });
 
   it("keeps intraword underscores in identifiers as plain text", async () => {

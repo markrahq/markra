@@ -1082,6 +1082,16 @@ export function restoreEscapedLiveMarkdownSource(markdown: string, state: Editor
   return restoreProtectedMarkdownSegments(restored, protectedSegments);
 }
 
+export function setLiveMarkdownSourceContext(
+  transaction: Transaction,
+  specs: LiveMarkdownSpec[],
+  markdown: string
+) {
+  return transaction.setMeta(liveMarkdownKey, {
+    suppressedLiteralRanges: findSuppressedLiteralRanges(transaction.doc, specs, markdown)
+  } satisfies Partial<LiveMarkdownPluginState>);
+}
+
 function moveCursorOverLiveMarkdownDelimiter(
   view: EditorView,
   specs: LiveMarkdownSpec[],
@@ -1304,7 +1314,10 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       }),
       apply: (tr, value, _oldState, newState): LiveMarkdownPluginState => {
         const meta = tr.getMeta(liveMarkdownKey) as Partial<LiveMarkdownPluginState> | undefined;
-        const suppressedLiteralRanges = mapSuppressedLiteralRanges(value.suppressedLiteralRanges, tr);
+        const suppressedLiteralRanges =
+          meta && "suppressedLiteralRanges" in meta
+            ? meta.suppressedLiteralRanges ?? []
+            : mapSuppressedLiteralRanges(value.suppressedLiteralRanges, tr);
         if (meta && "exitedFoldedRange" in meta) {
           return {
             suppressActiveAt: null,

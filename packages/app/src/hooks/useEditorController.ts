@@ -18,6 +18,7 @@ import {
   scrollSearchMatchIntoView,
   restoreEscapedLiveMarkdownSource,
   serializeLinkImageLiveMarkdown,
+  setLiveMarkdownSourceContext,
   showAiEditorPreview,
   showAiSelectionHold,
   updateSearchDecorations,
@@ -515,12 +516,13 @@ export function useEditorController() {
         const serializer = ctx.get(serializerCtx);
         const link = linkSchema.type(ctx);
         const image = imageSchema.type(ctx);
+        const liveMarkdownSpecs = markraLiveMarkdownSpecs(ctx);
         const currentMarkdown = serializeCurrentEditorMarkdown(
           view,
           serializer,
           link,
           image,
-          markraLiveMarkdownSpecs(ctx)
+          liveMarkdownSpecs
         );
         const parsedMarkdown = serializeLinkImageLiveMarkdown(parseMarkdown(markdown), serializer, link, image);
 
@@ -551,12 +553,13 @@ export function useEditorController() {
         const serializer = ctx.get(serializerCtx);
         const link = linkSchema.type(ctx);
         const image = imageSchema.type(ctx);
+        const liveMarkdownSpecs = markraLiveMarkdownSpecs(ctx);
         const currentMarkdown = serializeCurrentEditorMarkdown(
           view,
           serializer,
           link,
           image,
-          markraLiveMarkdownSpecs(ctx)
+          liveMarkdownSpecs
         );
         if (comparableSerializedMarkdown(currentMarkdown) === comparableSerializedMarkdown(markdown)) {
           if (
@@ -565,15 +568,23 @@ export function useEditorController() {
             comparableSerializedMarkdown(options.historyBaselineMarkdown) !== comparableSerializedMarkdown(markdown)
           ) {
             const baselineDocument = parseMarkdown(options.historyBaselineMarkdown);
-            const baselineTransaction = view.state.tr
-              .replace(0, view.state.doc.content.size, new Slice(baselineDocument.content, 0, 0))
-              .setMeta("addToHistory", false);
+            const baselineTransaction = setLiveMarkdownSourceContext(
+              view.state.tr
+                .replace(0, view.state.doc.content.size, new Slice(baselineDocument.content, 0, 0))
+                .setMeta("addToHistory", false),
+              liveMarkdownSpecs,
+              options.historyBaselineMarkdown
+            );
             view.dispatch(baselineTransaction);
 
             const parsedDocument = parseMarkdown(markdown);
             const selectionPosition = Math.min(view.state.selection.from, parsedDocument.content.size);
-            const historyTransaction = view.state.tr
-              .replace(0, view.state.doc.content.size, new Slice(parsedDocument.content, 0, 0));
+            const historyTransaction = setLiveMarkdownSourceContext(
+              view.state.tr
+                .replace(0, view.state.doc.content.size, new Slice(parsedDocument.content, 0, 0)),
+              liveMarkdownSpecs,
+              markdown
+            );
 
             historyTransaction.setSelection(TextSelection.near(historyTransaction.doc.resolve(selectionPosition))).scrollIntoView();
             view.dispatch(historyTransaction);
@@ -595,8 +606,12 @@ export function useEditorController() {
 
         const parsedDocument = parseMarkdown(markdown);
         const selectionPosition = Math.min(view.state.selection.from, parsedDocument.content.size);
-        const tr = view.state.tr
-          .replace(0, view.state.doc.content.size, new Slice(parsedDocument.content, 0, 0));
+        const tr = setLiveMarkdownSourceContext(
+          view.state.tr
+            .replace(0, view.state.doc.content.size, new Slice(parsedDocument.content, 0, 0)),
+          liveMarkdownSpecs,
+          markdown
+        );
 
         if (!options.addToHistory) {
           tr.setMeta("addToHistory", false);
