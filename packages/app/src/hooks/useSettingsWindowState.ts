@@ -111,6 +111,7 @@ export type SettingsCategory =
   | "editor"
   | "spellcheck"
   | "templates"
+  | "extensions"
   | "keyboardShortcuts"
   | "export";
 

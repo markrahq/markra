@@ -8,6 +8,7 @@ import {
   Keyboard,
   KeyRound,
   LayoutTemplate,
+  Package,
   Palette,
   PenLine,
   SlidersHorizontal,
@@ -92,6 +93,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     labelKey: "settings.categories.templates"
   },
   {
+    icon: Package,
+    id: "extensions",
+    labelKey: "settings.categories.extensions"
+  },
+  {
     icon: Keyboard,
     id: "keyboardShortcuts",
     labelKey: "settings.sections.keyboardShortcuts"
@@ -130,22 +136,22 @@ export function SettingsSidebar({
   translate: Translate;
 }) {
   const headerClassName = platform === "windows"
-    ? "settings-sidebar-header flex h-14 items-center px-7"
-    : "settings-sidebar-header px-7 pt-14 pb-5";
+    ? "settings-sidebar-header flex h-14 shrink-0 items-center px-7"
+    : "settings-sidebar-header shrink-0 px-7 pt-14 pb-5";
   const sidebarSurfaceClassName = platform === "windows"
     ? "border-r-0 bg-(--bg-chrome)"
     : "border-r border-(--border-default) bg-(--bg-secondary)";
   const visibleCategories = settingsCategories.filter((category) => !hiddenCategories.includes(category.id));
 
   return (
-    <aside className={`settings-sidebar flex min-h-0 flex-col ${sidebarSurfaceClassName}`}>
+    <aside className={`settings-sidebar flex h-full min-h-0 flex-col overflow-hidden ${sidebarSurfaceClassName}`}>
       <div className={headerClassName}>
         <h1 className="settings-sidebar-title m-0 text-[17px] leading-6 font-bold tracking-normal text-(--text-heading)">
           {translate("settings.title")}
         </h1>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3" aria-label={translate("settings.aria.categories")}>
+      <nav className="settings-sidebar-nav flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain px-3 pb-3" aria-label={translate("settings.aria.categories")}>
         {visibleCategories.map((category) => (
           <SettingsNavButton
             key={category.id}
@@ -157,7 +163,7 @@ export function SettingsSidebar({
         ))}
       </nav>
 
-      <div className="border-t border-(--border-default) px-7 py-4 text-[12px] leading-5 font-[560] text-(--text-secondary)">
+      <div className="settings-sidebar-footer shrink-0 border-t border-(--border-default) px-7 py-4 text-[12px] leading-5 font-[560] text-(--text-secondary)">
         Markra v{appVersion}
       </div>
     </aside>

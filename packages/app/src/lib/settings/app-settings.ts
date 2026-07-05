@@ -183,6 +183,7 @@ const webSearchKey = "webSearch";
 const networkKey = "network";
 const backupSettingsKey = "backupSettings";
 const syncSettingsKey = "syncSettings";
+const pluginSettingsKey = "pluginSettings";
 const fileTreeSortByWorkspaceKey = "fileTreeSortByWorkspace";
 const workspaceKey = "workspace";
 const recentMarkdownFilesKey = "recentMarkdownFiles";
@@ -325,6 +326,9 @@ export type AcpAgentSettings = {
   cwd: string;
   enabled: boolean;
 };
+export type PluginSettings = {
+  enabledPluginIds: string[];
+};
 export type PortableStoredAppSettings = {
   acpAgentSettings: AcpAgentSettings;
   aiAgentPreferences: AiAgentPreferences;
@@ -338,6 +342,7 @@ export type PortableStoredAppSettings = {
   language: AppLanguage;
   lightTheme: LightEditorTheme;
   network: NetworkSettings;
+  pluginSettings: PluginSettings;
   syncSettings: SyncSettings;
   webSearch: WebSearchSettings;
 };
@@ -551,6 +556,9 @@ export const defaultAcpAgentSettings: AcpAgentSettings = {
   cwd: "",
   enabled: false
 };
+export const defaultPluginSettings: PluginSettings = {
+  enabledPluginIds: []
+};
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
@@ -609,6 +617,7 @@ function normalizePortableStoredAppSettings(value: Record<string, unknown>): Por
     language: isAppLanguage(value.language) ? value.language : "en",
     lightTheme: themePreferences.lightTheme,
     network: normalizeNetworkSettings(value.network),
+    pluginSettings: normalizePluginSettings(value.pluginSettings),
     syncSettings: normalizeSyncSettings(value.syncSettings),
     webSearch: normalizeWebSearchSettings(value.webSearch)
   };
@@ -640,6 +649,7 @@ async function readPortableStoredAppSettings(): Promise<PortableStoredAppSetting
   const network = await store.get<Partial<NetworkSettings>>(networkKey);
   const backupSettings = await store.get<Partial<BackupSettings>>(backupSettingsKey);
   const syncSettings = await store.get<Partial<SyncSettings>>(syncSettingsKey);
+  const pluginSettings = await store.get<Partial<PluginSettings>>(pluginSettingsKey);
 
   return {
     acpAgentSettings: normalizeAcpAgentSettings(acpAgentSettings),
@@ -654,6 +664,7 @@ async function readPortableStoredAppSettings(): Promise<PortableStoredAppSetting
     language: isAppLanguage(language) ? language : "en",
     lightTheme: themePreferences.lightTheme,
     network: normalizeNetworkSettings(network),
+    pluginSettings: normalizePluginSettings(pluginSettings),
     syncSettings: normalizeSyncSettings(syncSettings),
     webSearch: normalizeWebSearchSettings(webSearch)
   };
@@ -675,6 +686,7 @@ async function writePortableStoredAppSettings(settings: PortableStoredAppSetting
   await store.set(lightCustomThemeCssKey, settings.customThemeCss.light);
   await store.set(lightThemeKey, settings.lightTheme);
   await store.set(networkKey, settings.network);
+  await store.set(pluginSettingsKey, settings.pluginSettings);
   await store.set(syncSettingsKey, settings.syncSettings);
   await store.set(webSearchKey, settings.webSearch);
   await store.save();
@@ -918,6 +930,13 @@ export async function getStoredAcpAgentSettings(): Promise<AcpAgentSettings> {
   return normalizeAcpAgentSettings(settings);
 }
 
+export async function getStoredPluginSettings(): Promise<PluginSettings> {
+  const store = await loadSettingsStore();
+  const settings = await store.get<Partial<PluginSettings>>(pluginSettingsKey);
+
+  return normalizePluginSettings(settings);
+}
+
 export async function getStoredAiAgentPreferences(): Promise<AiAgentPreferences> {
   const store = await loadSettingsStore();
   const preferences = await store.get<Partial<AiAgentPreferences>>(aiAgentPreferencesKey);
@@ -1109,6 +1128,13 @@ export async function saveStoredAcpAgentSettings(settings: AcpAgentSettings) {
   const store = await loadSettingsStore();
 
   await store.set(acpAgentSettingsKey, normalizeAcpAgentSettings(settings));
+  await store.save();
+}
+
+export async function saveStoredPluginSettings(settings: PluginSettings) {
+  const store = await loadSettingsStore();
+
+  await store.set(pluginSettingsKey, normalizePluginSettings(settings));
   await store.save();
 }
 
@@ -1495,6 +1521,23 @@ export function normalizeAcpAgentSettings(value: unknown): AcpAgentSettings {
     cwd: typeof settings.cwd === "string" ? settings.cwd.trim() : defaultAcpAgentSettings.cwd,
     enabled: typeof settings.enabled === "boolean" ? settings.enabled : defaultAcpAgentSettings.enabled
   };
+}
+
+export function normalizePluginSettings(value: unknown): PluginSettings {
+  if (typeof value !== "object" || value === null) return defaultPluginSettings;
+
+  const settings = value as Partial<PluginSettings>;
+  const enabledPluginIds = Array.isArray(settings.enabledPluginIds)
+    ? settings.enabledPluginIds.filter(isPluginSettingsId)
+    : defaultPluginSettings.enabledPluginIds;
+
+  return {
+    enabledPluginIds: Array.from(new Set(enabledPluginIds))
+  };
+}
+
+function isPluginSettingsId(value: unknown): value is string {
+  return typeof value === "string" && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(value);
 }
 
 function normalizeAcpAgentArgs(args: string) {

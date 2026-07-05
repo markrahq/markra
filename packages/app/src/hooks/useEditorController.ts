@@ -923,6 +923,24 @@ export function useEditorController() {
     view.focus();
   }, []);
 
+  const insertMarkdown = useCallback((markdown: string) => {
+    try {
+      const editor = editorRef.current;
+      if (!editor) return false;
+
+      const view = editor.action((ctx) => ctx.get(editorViewCtx));
+      const { from, to } = view.state.selection;
+      const tr = view.state.tr.insertText(markdown, from, to);
+      tr.setSelection(TextSelection.create(tr.doc, from + markdown.length)).scrollIntoView();
+      view.dispatch(tr);
+      view.focus();
+
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   const insertMarkdownImage = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -1239,6 +1257,7 @@ export function useEditorController() {
     insertMarkdownImages,
     insertMarkdownImagesAtPoint,
     insertMarkdownLink,
+    insertMarkdown,
     insertMarkdownSnippet,
     insertMarkdownTable,
     listAiPreviews,

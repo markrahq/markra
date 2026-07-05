@@ -34,6 +34,7 @@ import {
   type MarkdownTabsBarDocumentItem
 } from "./components/MarkdownTabsBar";
 import { NativeTitleBar } from "./components/NativeTitleBar";
+import { PluginSidePanelHost } from "./components/PluginSidePanelHost";
 import { QuietStatus } from "./components/QuietStatus";
 import { QuickOpenPanel } from "./components/QuickOpenPanel";
 import { SideDocumentPane } from "./components/SideDocumentPane";
@@ -60,6 +61,7 @@ import { useEditorContentWidthState } from "./hooks/useEditorContentWidthState";
 import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { useDeferredAiSelectionReveal } from "./hooks/ai-selection-reveal";
 import { useExportSettings } from "./hooks/useExportSettings";
+import { useExtensionsSettingsPlugins } from "./hooks/useExtensionsSettingsPlugins";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument, type ActiveDiskFileContentChange } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
@@ -90,6 +92,7 @@ import {
   debug,
   markdownImageDragPayloadForFile,
   markdownImageDragSrcForDocument,
+  parentPathFromPath,
   pathNameFromPath,
   t,
   type AppLanguage,
@@ -125,6 +128,10 @@ import {
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
 import { runEditorLinkCommand } from "./app/editor-link-command";
 import { isPandocSetupError, runPandocSetupAction } from "./app/pandoc-setup";
+import {
+  applyPluginPandocBeforeExportHooks,
+  runPluginPandocAfterExportHooks
+} from "./lib/plugins/export";
 import type { WorkspaceSearchResult } from "./lib/workspace-search";
 import type {
   SelectionHeadingLevel,
@@ -565,6 +572,7 @@ function WorkspaceApp() {
   const insertEditorMarkdownImages = editor.insertMarkdownImages;
   const insertEditorMarkdownImagesAtPoint = editor.insertMarkdownImagesAtPoint;
   const insertEditorMarkdownLink = editor.insertMarkdownLink;
+  const insertEditorMarkdown = editor.insertMarkdown;
   const insertEditorMarkdownSnippet = editor.insertMarkdownSnippet;
   const insertEditorMarkdownTable = editor.insertMarkdownTable;
   const isEditorCurrentMarkdownEquivalent = editor.isCurrentMarkdownEquivalent;
@@ -754,6 +762,85 @@ function WorkspaceApp() {
     wordCount
   } = markdownDocument;
   documentRevisionRef.current = document.revision;
+  const pluginContextStateRef = useRef({
+    activeImageFile,
+    document,
+    insertEditorMarkdown,
+    readCurrentMarkdownForDocument,
+    readOnlyMode,
+    sourceSurfaceActive
+  });
+  pluginContextStateRef.current = {
+    activeImageFile,
+    document,
+    insertEditorMarkdown,
+    readCurrentMarkdownForDocument,
+    readOnlyMode,
+    sourceSurfaceActive
+  };
+  const pluginWorkspaceRootPath = useMemo(
+    () => fileTreeSourcePath ?? parentPathFromPath(document.path),
+    [document.path, fileTreeSourcePath]
+  );
+  const pluginDocumentContext = useMemo(() => ({
+    async getActive() {
+      const current = pluginContextStateRef.current;
+      const activeDocument = current.document;
+      if (!activeDocument.open || current.activeImageFile) return null;
+
+      return {
+        content: current.readCurrentMarkdownForDocument(activeDocument.content),
+        dirty: activeDocument.dirty,
+        name: activeDocument.name,
+        path: activeDocument.path,
+        revision: activeDocument.revision,
+        ...(typeof activeDocument.sizeBytes === "number" ? { sizeBytes: activeDocument.sizeBytes } : {})
+      };
+    }
+  }), []);
+  const insertPluginEditorMarkdown = useCallback((markdown: string) =>
+    new Promise<boolean>((resolve) => {
+      const startedAt = performance.now();
+      const attemptInsert = () => {
+        const current = pluginContextStateRef.current;
+
+        if (
+          current.readOnlyMode ||
+          current.activeImageFile ||
+          current.sourceSurfaceActive ||
+          largeMarkdownVisualBlockedRef.current
+        ) {
+          resolve(false);
+          return;
+        }
+
+        if (current.insertEditorMarkdown(markdown)) {
+          resolve(true);
+          return;
+        }
+
+        if (performance.now() - startedAt >= 1000) {
+          resolve(false);
+          return;
+        }
+
+        window.setTimeout(attemptInsert, 16);
+      };
+
+      attemptInsert();
+    }), []);
+  const pluginEditorContext = useMemo(() => ({
+    async insertMarkdown(markdown: string) {
+      return insertPluginEditorMarkdown(markdown);
+    }
+  }), [insertPluginEditorMarkdown]);
+  const extensionPlugins = useExtensionsSettingsPlugins({
+    document: pluginDocumentContext,
+    editor: pluginEditorContext,
+    language: appLanguage.language,
+    platform: desktopPlatform ?? "web",
+    workspaceRootPath: pluginWorkspaceRootPath
+  });
   const activeDocumentOutlineIndex =
     !sourceSurfaceActive &&
     activeOutlineIndex !== null &&
@@ -1345,22 +1432,80 @@ function WorkspaceApp() {
     enabled: aiFeatureEnabled,
     onCloseInlineAiCommand: closeInlineAiCommandForAgentPanel
   });
+  const [pluginSidePanelOpen, setPluginSidePanelOpen] = useState(false);
+  const [activePluginSidePanelId, setActivePluginSidePanelId] = useState<string | null>(null);
+  const pluginCommands = extensionPlugins.commands;
+  const runPluginCommand = extensionPlugins.runCommand;
+  const pluginSidePanels = extensionPlugins.sidePanels;
+  const activePluginSidePanel = useMemo(
+    () => pluginSidePanels.find((panel) => panel.id === activePluginSidePanelId) ?? pluginSidePanels[0] ?? null,
+    [activePluginSidePanelId, pluginSidePanels]
+  );
+  const visiblePluginSidePanelOpen = pluginSidePanelOpen && Boolean(activePluginSidePanel);
+  const pluginSidePanelWidth = clampNumber(activePluginSidePanel?.defaultWidth, 280, 560) ?? 340;
+  useEffect(() => {
+    if (pluginSidePanels.length === 0) {
+      setPluginSidePanelOpen(false);
+      setActivePluginSidePanelId(null);
+      return;
+    }
+
+    if (!activePluginSidePanelId || !pluginSidePanels.some((panel) => panel.id === activePluginSidePanelId)) {
+      setActivePluginSidePanelId(pluginSidePanels[0]?.id ?? null);
+    }
+  }, [activePluginSidePanelId, pluginSidePanels]);
+  const handleClosePluginSidePanel = useCallback(() => {
+    setPluginSidePanelOpen(false);
+  }, []);
+  const handlePluginSidePanelSelect = useCallback((id: string) => {
+    setActivePluginSidePanelId(id);
+    setPluginSidePanelOpen(true);
+    closeAiAgentPanel();
+  }, [closeAiAgentPanel]);
+  const handlePluginSidePanelToggle = useCallback(() => {
+    if (pluginSidePanels.length === 0) return;
+
+    setActivePluginSidePanelId((currentId) =>
+      currentId && pluginSidePanels.some((panel) => panel.id === currentId)
+        ? currentId
+        : pluginSidePanels[0]?.id ?? null
+    );
+    setPluginSidePanelOpen((currentOpen) => {
+      const nextOpen = !currentOpen;
+      if (nextOpen) closeAiAgentPanel();
+      return nextOpen;
+    });
+  }, [closeAiAgentPanel, pluginSidePanels]);
+  const handlePluginCommandRun = useCallback((id: string) => {
+    runPluginCommand(id).catch((error: unknown) => {
+      showAppToast({
+        message: nativeFileOperationFailureMessage(translate("app.pluginCommandFailed"), error),
+        status: "error"
+      });
+    });
+  }, [runPluginCommand, translate]);
   const handleAiAgentSessionRestore = useCallback((session: { panelOpen: boolean; panelWidth: number | null }) => {
     restoreAiAgentPanelSession(session);
   }, [restoreAiAgentPanelSession]);
   const visibleAiAgentOpen = viewModeChrome.aiPanel && aiFeatureEnabled && aiAgentOpen;
-  const aiAgentInset = visibleAiAgentOpen ? `${aiAgentPanelWidth}px` : "0px";
+  useEffect(() => {
+    if (visibleAiAgentOpen && pluginSidePanelOpen) setPluginSidePanelOpen(false);
+  }, [pluginSidePanelOpen, visibleAiAgentOpen]);
+  const rightPanelOpen = visibleAiAgentOpen || visiblePluginSidePanelOpen;
+  const rightPanelWidth = visibleAiAgentOpen ? aiAgentPanelWidth : pluginSidePanelWidth;
+  const rightPanelResizing = visibleAiAgentOpen && aiAgentPanelResizing;
+  const rightPanelInset = rightPanelOpen ? `${rightPanelWidth}px` : "0px";
   const editorAreaWidth = Math.max(0, viewportWidth -
     (visibleFileTreeOpen ? fileTreeWidth : 0) -
-    (visibleAiAgentOpen ? aiAgentPanelWidth : 0));
+    (rightPanelOpen ? rightPanelWidth : 0));
   const activeEditorContentWidthValue = activeEditorContentWidthPx ?? editorContentWidthPixels[activeEditorContentWidth];
   const editorWidthResizerVisible = shouldShowEditorWidthResizer({
-    aiAgentOpen: visibleAiAgentOpen,
+    aiAgentOpen: rightPanelOpen,
     editorAreaWidth,
     editorContentWidth: activeEditorContentWidthValue
   });
   const editorAgentLayoutClassName = `editor-agent-layout grid min-h-0 ${
-    aiAgentPanelResizing
+    rightPanelResizing
       ? "transition-none"
       : "transition-[grid-template-columns] duration-220 ease-out motion-reduce:transition-none"
   }`;
@@ -1758,8 +1903,8 @@ function WorkspaceApp() {
   const aiSelectionToolbarLayoutSignature = useMemo(() => [
     visibleFileTreeOpen ? fileTreeWidth : "file-tree-closed",
     fileTreeResizing ? "file-tree-resizing" : "file-tree-idle",
-    visibleAiAgentOpen ? aiAgentPanelWidth : "agent-closed",
-    aiAgentPanelResizing ? "agent-resizing" : "agent-idle",
+    rightPanelOpen ? rightPanelWidth : "right-panel-closed",
+    rightPanelResizing ? "right-panel-resizing" : "right-panel-idle",
     sideDocumentOpen ? resolvedSideDocumentMainPanePercent : "side-document-closed",
     splitMode ? resolvedSplitVisualPanePercent : "split-closed",
     activeEditorSurface,
@@ -1772,8 +1917,6 @@ function WorkspaceApp() {
     activeEditorContentWidth,
     activeEditorContentWidthPx,
     activeEditorSurface,
-    aiAgentPanelResizing,
-    aiAgentPanelWidth,
     documentSearchAvailable,
     documentSearchOpen,
     documentSearchReplaceOpen,
@@ -1782,9 +1925,11 @@ function WorkspaceApp() {
     fileTreeWidth,
     resolvedSideDocumentMainPanePercent,
     resolvedSplitVisualPanePercent,
+    rightPanelOpen,
+    rightPanelResizing,
+    rightPanelWidth,
     sideDocumentOpen,
     splitMode,
-    visibleAiAgentOpen,
     visibleFileTreeOpen
   ]);
   const refreshAiSelectionToolbarAnchor = useCallback(() => {
@@ -2680,8 +2825,9 @@ function WorkspaceApp() {
     setDocumentHistoryRefreshKey((current) => current + 1);
   }, [document.path, documentHistoryOpen]);
   const handleAiAgentToggle = useCallback(() => {
+    if (!visibleAiAgentOpen) setPluginSidePanelOpen(false);
     toggleAiAgentPanel();
-  }, [toggleAiAgentPanel]);
+  }, [toggleAiAgentPanel, visibleAiAgentOpen]);
   const handleAiCommandTransferToAgentPanel = useCallback((promptValue: string) => {
     const draft = promptValue.trim();
     if (draft) aiAgent.setDraft(draft);
@@ -3418,33 +3564,46 @@ function WorkspaceApp() {
     const context = exportContextRef.current;
     if (!context.hasOpenDocument || context.activeImageFile) return;
 
-    saveNativePandocFile({
+    const pandocInput = {
       documentPath: context.path,
       format,
       markdown: readCurrentMarkdownForDocument(context.content),
       pandocArgs: exportSettings.settings.pandocArgs,
       pandocPath: exportSettings.settings.pandocPath,
       suggestedName: exportDocumentFileName(context.name, format)
-    }).catch((error: unknown) => {
-      if (!isPandocSetupError(error)) {
-        showAppToast({
-          message: translate("app.pandocExportFailed"),
-          status: "error"
-        });
-        return;
-      }
+    };
 
-      showNativePandocSetup({
-        cancelLabel: translate("app.cancelPandocSetup"),
-        installLabel: translate("app.installPandoc"),
-        message: translate("app.pandocRequiredMessage"),
-        setPathLabel: translate("app.setPandocPath"),
-        title: translate("app.pandocRequiredTitle")
+    applyPluginPandocBeforeExportHooks(pandocInput, extensionPlugins.exportContributions)
+      .then(async (pluginPatchedInput) => {
+        const output = await saveNativePandocFile(pluginPatchedInput);
+        if (!output) return;
+
+        await runPluginPandocAfterExportHooks({
+          ...pluginPatchedInput,
+          outputPath: output.path
+        }, extensionPlugins.exportContributions);
       })
-        .then(runPandocSetupAction)
-        .catch(() => {});
-    });
+      .catch((error: unknown) => {
+        if (!isPandocSetupError(error)) {
+          showAppToast({
+            message: translate("app.pandocExportFailed"),
+            status: "error"
+          });
+          return;
+        }
+
+        showNativePandocSetup({
+          cancelLabel: translate("app.cancelPandocSetup"),
+          installLabel: translate("app.installPandoc"),
+          message: translate("app.pandocRequiredMessage"),
+          setPathLabel: translate("app.setPandocPath"),
+          title: translate("app.pandocRequiredTitle")
+        })
+          .then(runPandocSetupAction)
+          .catch(() => {});
+      });
   }, [
+    extensionPlugins.exportContributions,
     exportFeatureEnabled,
     exportSettings.settings.pandocArgs,
     exportSettings.settings.pandocPath,
@@ -4077,6 +4236,17 @@ function WorkspaceApp() {
       />
     </Suspense>
   ) : null;
+  const pluginSidePanel = visiblePluginSidePanelOpen ? (
+    <PluginSidePanelHost
+      activePanelId={activePluginSidePanel?.id ?? null}
+      closeLabel={translate("app.closeExtensionPanel")}
+      panels={pluginSidePanels}
+      panelListLabel={translate("app.extensionPanels")}
+      onClose={handleClosePluginSidePanel}
+      onSelectPanel={handlePluginSidePanelSelect}
+    />
+  ) : null;
+  const rightPanel = visibleAiAgentOpen ? aiAgentPanel : pluginSidePanel;
   const workspaceOperationEvents = useMemo(
     () => workspaceOperationEventsFromPlanEvents(aiAgent.workspacePlanEvents),
     [aiAgent.workspacePlanEvents]
@@ -4148,6 +4318,14 @@ function WorkspaceApp() {
           onToggleSourceMode={handleEditorModeToggle}
           onToggleTheme={appTheme.toggleTheme}
           onToggleWindowMaximized={toggleNativeWindowMaximized}
+          extensionCommands={pluginCommands}
+          extensionPanelAvailable={pluginSidePanels.length > 0}
+          extensionPanelOpen={visiblePluginSidePanelOpen}
+          rightPanelOpen={rightPanelOpen}
+          rightPanelResizing={rightPanelResizing}
+          rightPanelWidth={rightPanelWidth}
+          onRunExtensionCommand={handlePluginCommandRun}
+          onToggleExtensionPanel={handlePluginSidePanelToggle}
           workspaceName={fileTree.sourcePath ? fileTreeRootName : undefined}
         />
 
@@ -4164,11 +4342,10 @@ function WorkspaceApp() {
         <span className="screen-reader-title sr-only">{titleDocumentName}</span>
 
         <WorkspaceLayout
-          aiAgentPanel={aiAgentPanel}
           documentSearchAvailable={documentSearchAvailable}
           documentSearchOpen={documentSearchOpen}
           editorAgentLayoutClassName={editorAgentLayoutClassName}
-          editorAgentLayoutStyle={{ gridTemplateColumns: `minmax(0,1fr) ${aiAgentInset}` }}
+          editorAgentLayoutStyle={{ gridTemplateColumns: `minmax(0,1fr) ${rightPanelInset}` }}
           editorDropTargetActive={editorTabDropTargetActive}
           fileTree={{
             activeOutlineIndex: activeDocumentOutlineIndex,
@@ -4226,6 +4403,7 @@ function WorkspaceApp() {
             onSelectOutlineItem: editor.selectOutlineItem,
             onToggleMarkdownFiles: handleFileTreeToggle
           }}
+          rightPanel={rightPanel}
           windowsSelfDrawnChrome={windowsSelfDrawnChromeEnabled}
           workspaceOperationOverlay={workspaceOperationOverlay}
           workspaceLayoutClassName={workspaceLayoutClassName}
@@ -4491,7 +4669,7 @@ function WorkspaceApp() {
           aiResult={aiResult}
           availableModels={aiSettings.availableTextModels}
           editorLeftInset={visibleFileTreeOpen ? `${fileTreeWidth}px` : "0px"}
-          editorRightInset={aiAgentInset}
+          editorRightInset={rightPanelInset}
           externalActionPending={aiContextMenuActionPending}
           language={appLanguage.language}
           open={aiCommandVisible}

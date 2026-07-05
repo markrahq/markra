@@ -8,6 +8,7 @@ import {
   normalizeCustomThemeCssValues,
   normalizeEditorPreferences,
   normalizeExportSettings,
+  normalizePluginSettings,
   normalizeSyncSettings,
   normalizeWebSearchSettings,
   type AiProviderSettings,
@@ -18,6 +19,7 @@ import {
   type CustomThemeCssValues,
   type EditorPreferences,
   type ExportSettings,
+  type PluginSettings,
   type SyncSettings,
   type WebSearchSettings
 } from "./app-settings";
@@ -34,6 +36,7 @@ const backupSettingsChangedEvent = "markra://backup-settings-changed";
 const syncSettingsChangedEvent = "markra://sync-settings-changed";
 const aiSettingsChangedEvent = "markra://ai-settings-changed";
 const acpAgentSettingsChangedEvent = "markra://acp-agent-settings-changed";
+const pluginSettingsChangedEvent = "markra://plugin-settings-changed";
 const settingsEventsSourceId =
   globalThis.crypto?.randomUUID?.() ?? `markra-settings-${Math.random().toString(36).slice(2)}`;
 
@@ -78,6 +81,10 @@ type AiSettingsChangedPayload = {
 
 type AcpAgentSettingsChangedPayload = {
   settings: AcpAgentSettings;
+};
+
+type PluginSettingsChangedPayload = {
+  settings: PluginSettings;
 };
 
 function isEditorPreferencesPayload(value: unknown) {
@@ -269,5 +276,21 @@ export async function listenAppAcpAgentSettingsChanged(
 
   return getAppRuntime().events.listen<AcpAgentSettingsChangedPayload>(acpAgentSettingsChangedEvent, (event) => {
     onSettingsChanged(normalizeAcpAgentSettings(event.payload.settings));
+  });
+}
+
+export async function notifyAppPluginSettingsChanged(settings: PluginSettings) {
+  if (!getAppRuntime().events.isAvailable()) return;
+
+  await getAppRuntime().events.emit(pluginSettingsChangedEvent, { settings: normalizePluginSettings(settings) });
+}
+
+export async function listenAppPluginSettingsChanged(
+  onSettingsChanged: (settings: PluginSettings) => unknown
+) {
+  if (!getAppRuntime().events.isAvailable()) return () => {};
+
+  return getAppRuntime().events.listen<PluginSettingsChangedPayload>(pluginSettingsChangedEvent, (event) => {
+    onSettingsChanged(normalizePluginSettings(event.payload.settings));
   });
 }

@@ -40,6 +40,7 @@
     "@markra/ai": "workspace:*",
     "@markra/editor": "workspace:*",
     "@markra/markdown": "workspace:*",
+    "@markra/plugin-api": "workspace:*",
     "@markra/providers": "workspace:*",
     "@markra/shared": "workspace:*",
     "@markra/ui": "workspace:*",

@@ -6,6 +6,7 @@ import {
   defaultEditorPreferences,
   exportStoredAppSettings,
   getStoredAcpAgentSettings,
+  getStoredPluginSettings,
   getStoredThemePreferences,
   appThemeOptions,
   consumeWelcomeDocumentState,
@@ -26,6 +27,7 @@ import {
   saveStoredAcpAgentSettings,
   saveStoredCustomThemeCss,
   saveStoredLanguage,
+  saveStoredPluginSettings,
   saveStoredTheme,
   saveStoredThemePreferences
 } from "./app-settings";
@@ -103,6 +105,28 @@ describe("app settings", () => {
     await saveStoredTheme("solarized-dark");
 
     expect(store.set).toHaveBeenCalledWith("theme", "solarized-dark");
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads plugin settings after normalizing enabled plugin ids", async () => {
+    store.get.mockResolvedValue({
+      enabledPluginIds: ["reference", "Reference", "bad id", "reference", "pandoc-tools", 42]
+    });
+
+    await expect(getStoredPluginSettings()).resolves.toEqual({
+      enabledPluginIds: ["reference", "pandoc-tools"]
+    });
+    expect(store.get).toHaveBeenCalledWith("pluginSettings");
+  });
+
+  it("persists normalized plugin settings", async () => {
+    await saveStoredPluginSettings({
+      enabledPluginIds: ["reference", "bad id", "reference"]
+    });
+
+    expect(store.set).toHaveBeenCalledWith("pluginSettings", {
+      enabledPluginIds: ["reference"]
+    });
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 
@@ -344,6 +368,11 @@ describe("app settings", () => {
           }
         };
       }
+      if (key === "pluginSettings") {
+        return {
+          enabledPluginIds: ["reference", "bad id", "pandoc-tools"]
+        };
+      }
       if (key === "workspace") {
         return {
           filePath: "/private/example.md"
@@ -378,7 +407,10 @@ describe("app settings", () => {
           }
         },
         language: "zh-CN",
-        lightTheme: "minimal"
+        lightTheme: "minimal",
+        pluginSettings: {
+          enabledPluginIds: ["reference", "pandoc-tools"]
+        }
       }
     });
     expect(exported.settings).not.toHaveProperty("workspace");
@@ -406,6 +438,9 @@ describe("app settings", () => {
         },
         language: "zh-CN",
         lightTheme: "minimal",
+        pluginSettings: {
+          enabledPluginIds: ["reference", "bad id", "pandoc-tools"]
+        },
         recentMarkdownFiles: [{ name: "example.md", path: "/private/example.md" }],
         workspace: {
           filePath: "/private/example.md"
@@ -426,6 +461,9 @@ describe("app settings", () => {
     expect(store.set).toHaveBeenCalledWith("appearanceMode", "dark");
     expect(store.set).toHaveBeenCalledWith("lightTheme", "minimal");
     expect(store.set).toHaveBeenCalledWith("darkTheme", "night");
+    expect(store.set).toHaveBeenCalledWith("pluginSettings", {
+      enabledPluginIds: ["reference", "pandoc-tools"]
+    });
     expect(store.set).toHaveBeenCalledWith(
       "editorPreferences",
       expect.objectContaining({

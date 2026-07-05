@@ -7,6 +7,7 @@ import {
   BackupSettings,
   EditorSettings,
   ExportSettings,
+  ExtensionsSettings,
   GeneralSettings,
   KeyboardShortcutsSettings,
   NetworkSettings,
@@ -19,6 +20,7 @@ import {
 } from "./SettingsSections";
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
 import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
+import { useExtensionsSettingsPlugins } from "../hooks/useExtensionsSettingsPlugins";
 import { useAutoUpdater } from "../hooks/useAutoUpdater";
 import { useDefaultContextMenuBlocker } from "../hooks/useDefaultContextMenuBlocker";
 import { appVersion } from "../lib/app-version";
@@ -95,12 +97,16 @@ export function SettingsWindow() {
   ];
   const activeSettingsCategory = hiddenCategories.includes(activeCategory) ? "general" : activeCategory;
   const platform = resolveDesktopPlatform();
+  const extensionPlugins = useExtensionsSettingsPlugins({
+    language: appLanguage.language,
+    platform: platform ?? "web"
+  });
   const showWindowsWindowChrome = platform === "windows" && appFeatures.nativeWindowChrome;
   const showMacosWindowChrome = platform === "macos" && appFeatures.nativeWindowChrome;
   const settingsStartupReady = appLanguage.ready && appTheme.ready;
   const settingsLayoutClassName = showWindowsWindowChrome
-    ? "settings-layout absolute inset-x-0 top-10 bottom-0 grid grid-cols-[180px_minmax(0,1fr)]"
-    : "settings-layout grid h-screen grid-cols-[180px_minmax(0,1fr)]";
+    ? "settings-layout absolute inset-x-0 top-10 bottom-0 grid min-h-0 grid-cols-[180px_minmax(0,1fr)] overflow-hidden"
+    : "settings-layout grid h-screen min-h-0 grid-cols-[180px_minmax(0,1fr)] overflow-hidden";
   const handleCloseSettings = () => {
     hideSettingsWindow().catch(() => {});
   };
@@ -307,6 +313,13 @@ export function SettingsWindow() {
               onCreateTemplate={handleCreateMarkdownTemplate}
               onDeleteTemplate={handleDeleteMarkdownTemplate}
               onUpdateTemplate={handleUpdateMarkdownTemplate}
+            />
+          ) : null}
+          {activeSettingsCategory === "extensions" ? (
+            <ExtensionsSettings
+              plugins={extensionPlugins.plugins}
+              translate={translate}
+              onTogglePlugin={extensionPlugins.togglePlugin}
             />
           ) : null}
           {activeSettingsCategory === "keyboardShortcuts" ? (

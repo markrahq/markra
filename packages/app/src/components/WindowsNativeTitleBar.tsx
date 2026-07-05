@@ -24,9 +24,6 @@ type WindowsAppMenuConfig = {
 };
 
 type WindowsNativeTitleBarProps = {
-  aiAgentOpen: boolean;
-  aiAgentResizing: boolean;
-  aiAgentWidth: number;
   dirty: boolean;
   documentKind: "file" | "folder" | "image";
   documentName: string;
@@ -38,6 +35,9 @@ type WindowsNativeTitleBarProps = {
   markdownFilesWidth: number;
   menuHandlers?: NativeMenuHandlers;
   nativeWindowChrome: boolean;
+  rightPanelOpen: boolean;
+  rightPanelResizing: boolean;
+  rightPanelWidth: number;
   saveDisabled: boolean;
   sourceMode: boolean;
   sourceModeDisabled: boolean;
@@ -93,9 +93,6 @@ const windowsMenuItem = (
 ) => contextMenuItem(id, itemLabel, accelerator, handler);
 
 export function WindowsNativeTitleBar({
-  aiAgentOpen,
-  aiAgentResizing,
-  aiAgentWidth,
   dirty,
   documentKind,
   documentName,
@@ -107,6 +104,9 @@ export function WindowsNativeTitleBar({
   markdownFilesWidth,
   menuHandlers,
   nativeWindowChrome,
+  rightPanelOpen,
+  rightPanelResizing,
+  rightPanelWidth,
   saveDisabled,
   sourceMode,
   sourceModeDisabled,
@@ -143,10 +143,10 @@ export function WindowsNativeTitleBar({
   const windowsTitlebarPositionTransitionClassName = markdownFilesResizing
     ? "transition-none"
     : "transition-[left] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
-  const windowsTitlebarActionsTransitionClassName = aiAgentResizing
+  const windowsTitlebarActionsTransitionClassName = rightPanelResizing
     ? "transition-none"
     : "transition-[opacity,background-color,color,transform] duration-150 ease-out";
-  const windowsAiReserveWidth = aiAgentOpen ? aiAgentWidth : 0;
+  const windowsRightPanelReserveWidth = rightPanelOpen ? rightPanelWidth : 0;
   const WindowsSidebarIcon = markdownFilesOpen ? PanelLeft : PanelRight;
   const windowsWorkspaceName = (workspaceName ?? (documentKind === "folder" ? documentName : "")).trim();
   const showWindowsFolderContext = windowsWorkspaceName.length > 0;
@@ -389,7 +389,7 @@ export function WindowsNativeTitleBar({
       gridTemplateColumns: [
         "minmax(0,1fr)",
         `${titlebarSideSlotWidth}px`,
-        ...(windowsAiReserveWidth > 0 ? [`${windowsAiReserveWidth}px`] : [])
+        ...(windowsRightPanelReserveWidth > 0 ? [`${windowsRightPanelReserveWidth}px`] : [])
       ].join(" ")
     };
 
@@ -412,14 +412,14 @@ export function WindowsNativeTitleBar({
           >
             {renderDocumentActions("document-actions relative flex h-10 items-center justify-end gap-0.5")}
           </div>
-          {windowsAiReserveWidth > 0 ? <span aria-hidden="true" data-tauri-drag-region="true" /> : null}
+          {windowsRightPanelReserveWidth > 0 ? <span aria-hidden="true" data-tauri-drag-region="true" /> : null}
         </header>
       </>
     );
   }
 
   const windowsTitleOffset = nativeWindowChrome
-    ? ((markdownFilesOpen ? markdownFilesWidth : 0) - (aiAgentOpen ? aiAgentWidth : 0)) / 2
+    ? ((markdownFilesOpen ? markdownFilesWidth : 0) - (rightPanelOpen ? rightPanelWidth : 0)) / 2
     : 0;
   const windowsTitleTransform = windowsTitleOffset === 0 ? undefined : `translateX(${windowsTitleOffset}px)`;
   const windowsTitlebarStyle: CSSProperties = {
@@ -427,7 +427,7 @@ export function WindowsNativeTitleBar({
     gridTemplateColumns: [
       "minmax(0,1fr)",
       `${titlebarSideSlotWidth}px`,
-      ...(windowsAiReserveWidth > 0 ? [`${windowsAiReserveWidth}px`] : [])
+      ...(windowsRightPanelReserveWidth > 0 ? [`${windowsRightPanelReserveWidth}px`] : [])
     ].join(" ")
   };
   const TitleIcon = documentKind === "folder" ? FolderOpen : documentKind === "image" ? ImageIcon : FileText;
@@ -449,7 +449,7 @@ export function WindowsNativeTitleBar({
         {showWindowsDocumentTitle ? (
           <h1
             className={`native-title pointer-events-none m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary) motion-reduce:transition-none ${
-              aiAgentResizing || markdownFilesResizing ? "transition-none" : "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
+              rightPanelResizing || markdownFilesResizing ? "transition-none" : "transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
             }`}
             data-tauri-drag-region={nativeWindowChrome ? true : undefined}
             style={{ transform: windowsTitleTransform }}
@@ -470,7 +470,7 @@ export function WindowsNativeTitleBar({
         >
           {renderDocumentActions("document-actions relative flex h-10 items-center justify-end gap-0.5")}
         </div>
-        {windowsAiReserveWidth > 0 ? <span aria-hidden="true" data-tauri-drag-region="true" /> : null}
+        {windowsRightPanelReserveWidth > 0 ? <span aria-hidden="true" data-tauri-drag-region="true" /> : null}
       </header>
     </>
   );

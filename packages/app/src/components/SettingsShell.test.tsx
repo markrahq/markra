@@ -39,10 +39,36 @@ describe("SettingsShell", () => {
     expect(onCategoryChange).toHaveBeenCalledWith("keyboardShortcuts");
   });
 
+  it("shows extensions as its own settings category", () => {
+    const onCategoryChange = renderSettingsSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Extensions" }));
+
+    expect(onCategoryChange).toHaveBeenCalledWith("extensions");
+  });
+
   it("shows the configured app version in the sidebar footer", () => {
     renderSettingsSidebar();
 
     expect(screen.getByText("Markra v9.9.9")).toBeInTheDocument();
+  });
+
+  it("keeps the category list scrollable while the version footer stays fixed", () => {
+    const { container } = render(
+      <SettingsSidebar
+        activeCategory="general"
+        appVersion="9.9.9"
+        platform="macos"
+        translate={translate}
+        onCategoryChange={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".settings-sidebar")).toHaveClass("h-full", "overflow-hidden");
+    expect(container.querySelector(".settings-sidebar-header")).toHaveClass("shrink-0");
+    expect(container.querySelector(".settings-sidebar-nav")).toHaveClass("min-h-0", "flex-1", "overflow-y-auto", "overscroll-contain");
+    expect(container.querySelector(".settings-sidebar-footer")).toHaveClass("shrink-0");
+    expect(container.querySelector(".settings-sidebar-footer")).toHaveTextContent("Markra v9.9.9");
   });
 
   it("keeps settings shell chrome treatment scoped to Windows", () => {
@@ -245,6 +271,16 @@ describe("SettingsShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Providers" })).toBeInTheDocument();
+  });
+
+  it("uses the extensions category title for the extensions panel", () => {
+    render(
+      <SettingsContent activeCategory="extensions" translate={translate}>
+        <div />
+      </SettingsContent>
+    );
+
+    expect(screen.getByRole("heading", { name: "Extensions" })).toBeInTheDocument();
   });
 
   it("resets the content scroll position when switching settings categories", () => {

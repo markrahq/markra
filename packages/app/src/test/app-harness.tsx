@@ -80,6 +80,7 @@ import {
   getStoredExportSettings,
   getStoredLanguage,
   getStoredNetworkSettings,
+  getStoredPluginSettings,
   getStoredRecentMarkdownFiles,
   getStoredRecentMarkdownFolders,
   getStoredTheme,
@@ -103,6 +104,7 @@ import {
   saveStoredExportSettings,
   saveStoredLanguage,
   saveStoredNetworkSettings,
+  saveStoredPluginSettings,
   saveStoredRecentMarkdownFile,
   saveStoredRecentMarkdownFolder,
   saveStoredTheme,
@@ -125,6 +127,7 @@ import {
   listenAppEditorPreferencesChanged,
   listenAppExportSettingsChanged,
   listenAppLanguageChanged,
+  listenAppPluginSettingsChanged,
   listenAppThemeChanged,
   listenAppWebSearchSettingsChanged,
   notifyAppAcpAgentSettingsChanged,
@@ -135,12 +138,14 @@ import {
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
   notifyAppLanguageChanged,
+  notifyAppPluginSettingsChanged,
   notifyAppThemeChanged,
   notifyAppWebSearchSettingsChanged
 } from "../lib/settings/settings-events";
 import { fetchAiProviderModels, testAiProviderConnection } from "@markra/providers";
 import { chatCompletion, generateAiAgentSessionTitle } from "@markra/ai";
 import { resolveDesktopOsVersion, resolveDesktopPlatform } from "../lib/platform";
+import type { BuiltInPluginFactory } from "../lib/plugins/registry";
 
 const testAiQuickActionPrompts = vi.hoisted(() => ({
   continue: "",
@@ -149,6 +154,7 @@ const testAiQuickActionPrompts = vi.hoisted(() => ({
   summarize: "",
   translate: ""
 }));
+const testBuiltInPluginFactories = vi.hoisted(() => [] as BuiltInPluginFactory[]);
 
 vi.mock("../lib/tauri", () => ({
   confirmNativeMarkdownFileDelete: vi.fn(),
@@ -233,6 +239,10 @@ vi.mock("../lib/platform", async (importOriginal) => {
     resolveDesktopPlatform: vi.fn(() => "macos")
   };
 });
+
+vi.mock("../lib/plugins/built-ins", () => ({
+  builtInPluginFactories: testBuiltInPluginFactories
+}));
 
 vi.mock("../lib/settings/app-settings", () => ({
   codexAcpAgentArgs: "mock-codex-acp-args",
@@ -546,6 +556,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   getStoredFileTreeSortByWorkspace: vi.fn(async () => ({})),
   getStoredLanguage: vi.fn(),
   getStoredNetworkSettings: vi.fn(),
+  getStoredPluginSettings: vi.fn(),
   getStoredRecentMarkdownFiles: vi.fn(),
   getStoredRecentMarkdownFolders: vi.fn(),
   getStoredTheme: vi.fn(),
@@ -779,6 +790,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   saveStoredFileTreeSortForWorkspace: vi.fn(async () => {}),
   saveStoredLanguage: vi.fn(),
   saveStoredNetworkSettings: vi.fn(),
+  saveStoredPluginSettings: vi.fn(),
   saveStoredRecentMarkdownFile: vi.fn(),
   saveStoredRecentMarkdownFolder: vi.fn(),
   saveStoredTheme: vi.fn(),
@@ -797,6 +809,7 @@ vi.mock("../lib/settings/settings-events", () => ({
   listenAppEditorPreferencesChanged: vi.fn(),
   listenAppExportSettingsChanged: vi.fn(),
   listenAppLanguageChanged: vi.fn(),
+  listenAppPluginSettingsChanged: vi.fn(),
   listenAppThemeChanged: vi.fn(),
   listenAppWebSearchSettingsChanged: vi.fn(),
   notifyAppAcpAgentSettingsChanged: vi.fn(),
@@ -807,6 +820,7 @@ vi.mock("../lib/settings/settings-events", () => ({
   notifyAppEditorPreferencesChanged: vi.fn(),
   notifyAppExportSettingsChanged: vi.fn(),
   notifyAppLanguageChanged: vi.fn(),
+  notifyAppPluginSettingsChanged: vi.fn(),
   notifyAppThemeChanged: vi.fn(),
   notifyAppWebSearchSettingsChanged: vi.fn()
 }));
@@ -892,6 +906,7 @@ export const mockedListNativeEditorWindowRestoreStates = vi.mocked(listNativeEdi
 export const mockedCheckNativeAppUpdate = vi.mocked(checkNativeAppUpdate);
 export const mockedResolveDesktopOsVersion = vi.mocked(resolveDesktopOsVersion);
 export const mockedResolveDesktopPlatform = vi.mocked(resolveDesktopPlatform);
+export const mockedBuiltInPluginFactories = testBuiltInPluginFactories;
 export const mockedConsumeWelcomeDocumentState = vi.mocked(consumeWelcomeDocumentState);
 export const mockedCreateAiAgentSessionId = vi.mocked(createAiAgentSessionId);
 export const mockedDeleteStoredAiAgentSession = vi.mocked(deleteStoredAiAgentSession);
@@ -907,6 +922,7 @@ export const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPrefere
 export const mockedGetStoredExportSettings = vi.mocked(getStoredExportSettings);
 export const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
 export const mockedGetStoredNetworkSettings = vi.mocked(getStoredNetworkSettings);
+export const mockedGetStoredPluginSettings = vi.mocked(getStoredPluginSettings);
 export const mockedGetStoredRecentMarkdownFiles = vi.mocked(getStoredRecentMarkdownFiles);
 export const mockedGetStoredRecentMarkdownFolders = vi.mocked(getStoredRecentMarkdownFolders);
 export const mockedGetStoredTheme = vi.mocked(getStoredTheme);
@@ -931,6 +947,7 @@ export const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPrefe
 export const mockedSaveStoredExportSettings = vi.mocked(saveStoredExportSettings);
 export const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
 export const mockedSaveStoredNetworkSettings = vi.mocked(saveStoredNetworkSettings);
+export const mockedSaveStoredPluginSettings = vi.mocked(saveStoredPluginSettings);
 export const mockedSaveStoredRecentMarkdownFile = vi.mocked(saveStoredRecentMarkdownFile);
 export const mockedSaveStoredRecentMarkdownFolder = vi.mocked(saveStoredRecentMarkdownFolder);
 export const mockedSaveStoredTheme = vi.mocked(saveStoredTheme);
@@ -949,6 +966,7 @@ export const mockedListenAppCustomThemeCssChanged = vi.mocked(listenAppCustomThe
 export const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditorPreferencesChanged);
 export const mockedListenAppExportSettingsChanged = vi.mocked(listenAppExportSettingsChanged);
 export const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
+export const mockedListenAppPluginSettingsChanged = vi.mocked(listenAppPluginSettingsChanged);
 export const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
 export const mockedListenAppWebSearchSettingsChanged = vi.mocked(listenAppWebSearchSettingsChanged);
 export const mockedNotifyAppAcpAgentSettingsChanged = vi.mocked(notifyAppAcpAgentSettingsChanged);
@@ -959,6 +977,7 @@ export const mockedNotifyAppCustomThemeCssChanged = vi.mocked(notifyAppCustomThe
 export const mockedNotifyAppEditorPreferencesChanged = vi.mocked(notifyAppEditorPreferencesChanged);
 export const mockedNotifyAppExportSettingsChanged = vi.mocked(notifyAppExportSettingsChanged);
 export const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
+export const mockedNotifyAppPluginSettingsChanged = vi.mocked(notifyAppPluginSettingsChanged);
 export const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
 export const mockedNotifyAppWebSearchSettingsChanged = vi.mocked(notifyAppWebSearchSettingsChanged);
 export const mockedFetchAiProviderModels = vi.mocked(fetchAiProviderModels);
@@ -1037,6 +1056,7 @@ export function installAppTestHarness() {
 
   beforeEach(() => {
     window.history.pushState({}, "", "/");
+    mockedBuiltInPluginFactories.splice(0);
     mockedConsumeWelcomeDocumentState.mockReset();
     mockedCreateAiAgentSessionId.mockReset();
     mockedDeleteStoredAiAgentSession.mockReset();
@@ -1109,6 +1129,7 @@ export function installAppTestHarness() {
     mockedGetStoredEditorPreferences.mockReset();
     mockedGetStoredExportSettings.mockReset();
     mockedGetStoredNetworkSettings.mockReset();
+    mockedGetStoredPluginSettings.mockReset();
     mockedGetStoredTheme.mockReset();
     mockedGetStoredThemePreferences.mockReset();
     mockedGetStoredWorkspaceState.mockReset();
@@ -1134,6 +1155,7 @@ export function installAppTestHarness() {
     mockedSaveStoredExportSettings.mockReset();
     mockedSaveStoredLanguage.mockReset();
     mockedSaveStoredNetworkSettings.mockReset();
+    mockedSaveStoredPluginSettings.mockReset();
     mockedSaveStoredRecentMarkdownFile.mockReset();
     mockedSaveStoredRecentMarkdownFolder.mockReset();
     mockedSaveStoredTheme.mockReset();
@@ -1148,6 +1170,7 @@ export function installAppTestHarness() {
     mockedListenAppSyncSettingsChanged.mockReset();
     mockedListenAppExportSettingsChanged.mockReset();
     mockedListenAppLanguageChanged.mockReset();
+    mockedListenAppPluginSettingsChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
     mockedNotifyAppAcpAgentSettingsChanged.mockReset();
     mockedNotifyAppAiSettingsChanged.mockReset();
@@ -1157,6 +1180,7 @@ export function installAppTestHarness() {
     mockedNotifyAppSyncSettingsChanged.mockReset();
     mockedNotifyAppExportSettingsChanged.mockReset();
     mockedNotifyAppLanguageChanged.mockReset();
+    mockedNotifyAppPluginSettingsChanged.mockReset();
     mockedNotifyAppThemeChanged.mockReset();
     mockedFetchAiProviderModels.mockReset();
     mockedTestAiProviderConnection.mockReset();
@@ -1335,6 +1359,9 @@ export function installAppTestHarness() {
       bypassLocalAddresses: true,
       proxyEnabled: false,
       proxyUrl: ""
+    });
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: []
     });
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredEditorPreferences.mockResolvedValue({
@@ -1571,6 +1598,7 @@ export function installAppTestHarness() {
     mockedSaveStoredAiSettings.mockResolvedValue(undefined);
     mockedSaveStoredLanguage.mockResolvedValue(undefined);
     mockedSaveStoredNetworkSettings.mockResolvedValue(undefined);
+    mockedSaveStoredPluginSettings.mockResolvedValue(undefined);
     mockedSaveStoredRecentMarkdownFile.mockResolvedValue([]);
     mockedSaveStoredRecentMarkdownFolder.mockResolvedValue([]);
     mockedSaveStoredTheme.mockResolvedValue(undefined);
@@ -1578,8 +1606,10 @@ export function installAppTestHarness() {
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
     mockedSetStoredAiAgentSessionArchived.mockResolvedValue(undefined);
     mockedListenAppLanguageChanged.mockResolvedValue(() => {});
+    mockedListenAppPluginSettingsChanged.mockResolvedValue(() => {});
     mockedListenAppThemeChanged.mockResolvedValue(() => {});
     mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);
+    mockedNotifyAppPluginSettingsChanged.mockResolvedValue(undefined);
     mockedNotifyAppCustomThemeCssChanged.mockResolvedValue(undefined);
     mockedNotifyAppThemeChanged.mockResolvedValue(undefined);
     mockedNotifyAppSyncSettingsChanged.mockResolvedValue(undefined);

@@ -9,7 +9,6 @@ import { MarkdownFileTreeDrawer } from "./MarkdownFileTreeDrawer";
 type MarkdownFileTreeDrawerProps = ComponentProps<typeof MarkdownFileTreeDrawer>;
 
 type WorkspaceLayoutProps = {
-  aiAgentPanel: ReactNode;
   children: ReactNode;
   documentSearchAvailable: boolean;
   documentSearchOpen: boolean;
@@ -18,6 +17,7 @@ type WorkspaceLayoutProps = {
   editorDropTargetActive: boolean;
   fileTree: MarkdownFileTreeDrawerProps;
   windowsSelfDrawnChrome: boolean;
+  rightPanel: ReactNode;
   workspaceOperationOverlay?: ReactNode;
   workspaceLayoutClassName: string;
   workspaceLayoutStyle: CSSProperties;
@@ -27,7 +27,6 @@ type WorkspaceLayoutProps = {
 };
 
 export function WorkspaceLayout({
-  aiAgentPanel,
   children,
   documentSearchAvailable,
   documentSearchOpen,
@@ -36,6 +35,7 @@ export function WorkspaceLayout({
   editorDropTargetActive,
   fileTree,
   windowsSelfDrawnChrome,
+  rightPanel,
   workspaceOperationOverlay = null,
   workspaceLayoutClassName,
   workspaceLayoutStyle,
@@ -72,7 +72,7 @@ export function WorkspaceLayout({
         </div>
 
         <div className="ai-agent-panel-slot relative z-20 min-h-0 overflow-hidden">
-          {aiAgentPanel}
+          {rightPanel}
         </div>
       </div>
 

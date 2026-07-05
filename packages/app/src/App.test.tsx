@@ -4,6 +4,7 @@ import { Editor as MilkdownEditor, editorViewCtx } from "@milkdown/kit/core";
 import { TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView as ProseMirrorEditorView } from "@milkdown/kit/prose/view";
 import { defaultMarkdownShortcuts } from "@markra/editor";
+import { definePlugin, type PluginManifest } from "@markra/plugin-api";
 import desktopPackage from "../package.json";
 import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
 import {
@@ -15,6 +16,7 @@ import {
   mockOpenMarkdownFile,
   mockSystemColorScheme,
   mockUntitledPath,
+  mockedBuiltInPluginFactories,
   mockedCloseNativeWindow,
   mockedConfirmNativeMarkdownFileDelete,
   mockedConfirmNativeUnsavedMarkdownDocumentDiscard,
@@ -33,6 +35,7 @@ import {
   mockedGetStoredExportSettings,
   mockedGetStoredEditorPreferences,
   mockedGetStoredLanguage,
+  mockedGetStoredPluginSettings,
   mockedGetStoredRecentMarkdownFiles,
   mockedGetStoredRecentMarkdownFolders,
   mockedGetStoredBackupSettings,
@@ -45,6 +48,7 @@ import {
   mockedListNativeMarkdownFileHistory,
   mockedLoadNativeMarkdownFilesForPath,
   mockedListNativeMarkdownFilesForPath,
+  mockedListenAppPluginSettingsChanged,
   mockedListenNativeOpenedMarkdownPaths,
   mockedListenAppEditorPreferencesChanged,
   mockedListenAppLanguageChanged,
@@ -731,8 +735,8 @@ describe("Markra workspace", () => {
     expect(screen.queryByRole("complementary", { name: "Markra AI" })).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox", { name: "AI command" })).not.toBeInTheDocument();
 
-    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
-    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
 
     expect(menuHandlers.exportDocx).toBeUndefined();
     expect(menuHandlers.exportEpub).toBeUndefined();
@@ -796,8 +800,8 @@ describe("Markra workspace", () => {
     const { unmount } = renderApp();
 
     await screen.findByText("Welcome to Markra");
-    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
-    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
 
     expect(menuHandlers.exportHtml).toEqual(expect.any(Function));
     expect(menuHandlers.exportPdf).toEqual(expect.any(Function));
@@ -1844,8 +1848,8 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".settings-scroll")).toHaveClass("overscroll-none");
     expect(container.querySelector(".settings-sidebar-title")).toBeInTheDocument();
     expect(container.querySelector(".settings-sidebar nav")).toBeInTheDocument();
-    expect(container.querySelector(".settings-layout")).toHaveClass("grid-cols-[180px_minmax(0,1fr)]");
-    expect(container.querySelector(".settings-sidebar")).toHaveClass("bg-(--bg-secondary)");
+    expect(container.querySelector(".settings-layout")).toHaveClass("min-h-0", "overflow-hidden", "grid-cols-[180px_minmax(0,1fr)]");
+    expect(container.querySelector(".settings-sidebar")).toHaveClass("h-full", "overflow-hidden", "bg-(--bg-secondary)");
     expect(container.querySelector(".settings-content")).not.toHaveClass("rounded-tl-md");
     expect(container.querySelector(".settings-content-header")).toHaveClass("border-b");
     expect(container.querySelector(".settings-panel-title")).toHaveClass("text-[16px]");
@@ -1856,6 +1860,8 @@ describe("Markra workspace", () => {
     expect(settingsGroups.some((group) => group.classList.contains("divide-y"))).toBe(true);
     expect(screen.getByText(`Markra ${desktopPackage.version}`)).toBeInTheDocument();
     expect(screen.getByText(`Markra v${desktopPackage.version}`)).toBeInTheDocument();
+    expect(container.querySelector(".settings-sidebar-nav")).toHaveClass("overflow-y-auto", "overscroll-contain");
+    expect(container.querySelector(".settings-sidebar-footer")).toHaveClass("shrink-0");
     const categoryButtons = Array.from(container.querySelectorAll(".settings-sidebar nav button"));
     expect(categoryButtons.map((button) => button.textContent)).toEqual([
       "General",
@@ -1870,6 +1876,7 @@ describe("Markra workspace", () => {
       "Editor",
       "Spellcheck",
       "Templates",
+      "Extensions",
       "Keyboard shortcuts",
       "Export",
       "Network"
@@ -2105,11 +2112,13 @@ describe("Markra workspace", () => {
     expect(within(settingsChrome).getByRole("button", { name: "Minimize window" })).toBeInTheDocument();
     expect(within(settingsChrome).getByRole("button", { name: "Maximize or restore window" })).toBeInTheDocument();
     expect(within(settingsChrome).getByRole("button", { name: "Close window" })).toBeInTheDocument();
-    expect(container.querySelector(".settings-layout")).toHaveClass("absolute", "top-10", "bottom-0");
-    expect(container.querySelector(".settings-sidebar")).toHaveClass("border-r-0", "bg-(--bg-chrome)");
+    expect(container.querySelector(".settings-layout")).toHaveClass("absolute", "top-10", "bottom-0", "min-h-0", "overflow-hidden");
+    expect(container.querySelector(".settings-sidebar")).toHaveClass("h-full", "overflow-hidden", "border-r-0", "bg-(--bg-chrome)");
     expect(container.querySelector(".settings-content")).toHaveClass("border-t", "border-l", "rounded-tl-md");
-    expect(container.querySelector(".settings-sidebar-header")).toHaveClass("h-14", "items-center");
+    expect(container.querySelector(".settings-sidebar-header")).toHaveClass("h-14", "items-center", "shrink-0");
     expect(container.querySelector(".settings-sidebar-header")).not.toHaveClass("pt-14");
+    expect(container.querySelector(".settings-sidebar-nav")).toHaveClass("overflow-y-auto", "overscroll-contain");
+    expect(container.querySelector(".settings-sidebar-footer")).toHaveClass("shrink-0");
     expect(container.querySelector(".settings-sidebar-title")).toBeInTheDocument();
   });
 
@@ -7876,6 +7885,392 @@ describe("Markra workspace", () => {
         pandocPath: "/usr/local/bin/pandoc",
         suggestedName: "portable.docx"
       })
+    );
+  });
+
+  it("runs enabled plugin Pandoc hooks before exporting from the workspace app", async () => {
+    const referenceManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["pandocExport"],
+      description: "Reference export hooks for synthetic examples.",
+      id: "reference",
+      main: "./dist/index.js",
+      name: "Reference",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    const beforeExport = vi.fn(async (ctx) => ({
+      appendArgs: ["--bibliography=/mock-workspace/refs.bib"],
+      markdown: `${ctx.export.markdown}\n\n::: references\n:::\n`
+    }));
+    const activate = vi.fn(() => ({
+      export: [
+        {
+          id: "reference.pandocBibliography",
+          pandoc: {
+            beforeExport
+          }
+        }
+      ]
+    }));
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate,
+      manifest: referenceManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: ["reference"]
+    });
+    mockedSaveNativePandocFile.mockResolvedValue({
+      name: "portable.docx",
+      path: "/mock-files/portable.docx"
+    });
+    mockedGetStoredExportSettings.mockResolvedValue({
+      pandocArgs: "--toc",
+      pandocPath: "/usr/local/bin/pandoc",
+      pdfAuthor: "",
+      pdfFooter: "",
+      pdfHeader: "",
+      pdfHeightMm: 297,
+      pdfMarginMm: 18,
+      pdfMarginPreset: "default",
+      pdfPageBreakOnH1: false,
+      pdfPageSize: "default",
+      pdfWidthMm: 210
+    });
+    mockOpenMarkdownFile({
+      content: "# Portable\n\nExport me.",
+      name: "portable.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    await waitFor(() => expect(activate).toHaveBeenCalledWith(expect.objectContaining({
+      app: expect.objectContaining({ apiVersion: 1 }),
+      storage: expect.objectContaining({
+        get: expect.any(Function),
+        remove: expect.any(Function),
+        set: expect.any(Function)
+      })
+    })));
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.openDocument?.();
+    });
+    expect(await screen.findByRole("heading", { name: "Portable" })).toBeInTheDocument();
+
+    await act(async () => {
+      await menuHandlers.exportDocx?.();
+    });
+
+    await waitFor(() =>
+      expect(mockedSaveNativePandocFile).toHaveBeenCalledWith({
+        documentPath: mockNativePath,
+        format: "docx",
+        markdown: expect.stringContaining("::: references"),
+        pandocArgs: "--toc --bibliography=/mock-workspace/refs.bib",
+        pandocPath: "/usr/local/bin/pandoc",
+        suggestedName: "portable.docx"
+      })
+    );
+    expect(beforeExport).toHaveBeenCalledWith({
+      export: expect.objectContaining({
+        documentPath: mockNativePath,
+        format: "docx",
+        markdown: expect.stringContaining("Export me."),
+        pandocArgs: "--toc",
+        suggestedName: "portable.docx"
+      }),
+      plugin: expect.objectContaining({
+        app: expect.objectContaining({ apiVersion: 1 }),
+        storage: expect.objectContaining({
+          get: expect.any(Function),
+          remove: expect.any(Function),
+          set: expect.any(Function)
+        })
+      })
+    });
+  });
+
+  it("applies plugin settings changes to Pandoc export without restarting the workspace app", async () => {
+    const referenceManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["pandocExport"],
+      description: "Reference export hooks for synthetic examples.",
+      id: "reference",
+      main: "./dist/index.js",
+      name: "Reference",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    const beforeExport = vi.fn(async (ctx) => ({
+      appendArgs: ["--bibliography=/mock-workspace/live-refs.bib"],
+      markdown: `${ctx.export.markdown}\n\n::: live-references\n:::\n`
+    }));
+    const activate = vi.fn(() => ({
+      export: [
+        {
+          id: "reference.pandocBibliography",
+          pandoc: {
+            beforeExport
+          }
+        }
+      ]
+    }));
+    let onPluginSettingsChanged: ((settings: { enabledPluginIds: string[] }) => unknown) | null = null;
+    mockedListenAppPluginSettingsChanged.mockImplementation(async (listener) => {
+      onPluginSettingsChanged = listener;
+      return () => {};
+    });
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate,
+      manifest: referenceManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: []
+    });
+    mockedSaveNativePandocFile.mockResolvedValue({
+      name: "portable.docx",
+      path: "/mock-files/portable.docx"
+    });
+    mockedGetStoredExportSettings.mockResolvedValue({
+      pandocArgs: "--toc",
+      pandocPath: "/usr/local/bin/pandoc",
+      pdfAuthor: "",
+      pdfFooter: "",
+      pdfHeader: "",
+      pdfHeightMm: 297,
+      pdfMarginMm: 18,
+      pdfMarginPreset: "default",
+      pdfPageBreakOnH1: false,
+      pdfPageSize: "default",
+      pdfWidthMm: 210
+    });
+    mockOpenMarkdownFile({
+      content: "# Portable\n\nExport me after settings update.",
+      name: "portable.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    await waitFor(() => expect(onPluginSettingsChanged).not.toBeNull());
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const initialMenuInstallCount = mockedInstallNativeApplicationMenu.mock.calls.length;
+    expect(activate).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await onPluginSettingsChanged?.({ enabledPluginIds: ["reference"] });
+    });
+
+    await waitFor(() => expect(activate).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(mockedInstallNativeApplicationMenu.mock.calls.length).toBe(initialMenuInstallCount);
+    const openMenuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await openMenuHandlers.openDocument?.();
+    });
+    expect(await screen.findByRole("heading", { name: "Portable" })).toBeInTheDocument();
+    const exportMenuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await exportMenuHandlers.exportDocx?.();
+    });
+
+    await waitFor(() =>
+      expect(mockedSaveNativePandocFile).toHaveBeenCalledWith({
+        documentPath: mockNativePath,
+        format: "docx",
+        markdown: expect.stringContaining("::: live-references"),
+        pandocArgs: "--toc --bibliography=/mock-workspace/live-refs.bib",
+        pandocPath: "/usr/local/bin/pandoc",
+        suggestedName: "portable.docx"
+      })
+    );
+  });
+
+  it("opens enabled plugin side panels from the titlebar without showing them by default", async () => {
+    const referenceManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["sidePanel"],
+      description: "Reference side panel for synthetic examples.",
+      id: "reference",
+      main: "./dist/index.js",
+      name: "Reference",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    let onPluginSettingsChanged: ((settings: { enabledPluginIds: string[] }) => unknown) | null = null;
+    mockedListenAppPluginSettingsChanged.mockImplementation(async (listener) => {
+      onPluginSettingsChanged = listener;
+      return () => {};
+    });
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate: () => ({
+        sidePanels: [
+          {
+            component: () => <section aria-label="Reference panel">Synthetic citations</section>,
+            defaultWidth: 340,
+            icon: "book-open",
+            id: "reference.panel",
+            location: "right",
+            title: "References"
+          }
+        ]
+      }),
+      manifest: referenceManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: []
+    });
+
+    renderApp();
+
+    await waitFor(() => expect(onPluginSettingsChanged).not.toBeNull());
+    expect(screen.queryByRole("button", { name: "Toggle extension panel" })).not.toBeInTheDocument();
+
+    await act(async () => {
+      await onPluginSettingsChanged?.({ enabledPluginIds: ["reference"] });
+    });
+
+    const togglePanel = await screen.findByRole("button", { name: "Toggle extension panel" });
+    expect(screen.queryByText("Synthetic citations")).not.toBeInTheDocument();
+
+    fireEvent.click(togglePanel);
+
+    expect(screen.getByRole("complementary", { name: "References" })).toBeInTheDocument();
+    expect(screen.getByText("Synthetic citations")).toBeInTheDocument();
+  });
+
+  it("runs enabled plugin commands from the titlebar extension command menu", async () => {
+    const referenceManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["commands"],
+      description: "Reference commands for synthetic examples.",
+      id: "reference",
+      main: "./dist/index.js",
+      name: "Reference",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    const insertCitation = vi.fn();
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate: () => ({
+        commands: [
+          {
+            description: "Insert a synthetic citation.",
+            id: "reference.insertCitation",
+            run: insertCitation,
+            title: "Insert synthetic citation"
+          }
+        ]
+      }),
+      manifest: referenceManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: ["reference"]
+    });
+
+    renderApp();
+
+    const commandMenuButton = await screen.findByRole("button", { name: "Extension commands" });
+    fireEvent.click(commandMenuButton);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Insert synthetic citation Reference" }));
+
+    await waitFor(() => expect(insertCitation).toHaveBeenCalledWith(expect.objectContaining({
+      app: expect.objectContaining({ apiVersion: 1 }),
+      storage: expect.objectContaining({
+        get: expect.any(Function),
+        remove: expect.any(Function),
+        set: expect.any(Function)
+      })
+    })));
+  });
+
+  it("lets plugin commands read the active document and insert markdown into the editor", async () => {
+    const referenceManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["commands"],
+      description: "Reference commands for synthetic examples.",
+      id: "reference",
+      main: "./dist/index.js",
+      name: "Reference",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    const activeDocumentNames: Array<string | undefined> = [];
+    const insertResults: Array<boolean | undefined> = [];
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate: () => ({
+        commands: [
+          {
+            id: "reference.insertCitation",
+            run: async (ctx) => {
+              const activeDocument = await ctx.document?.getActive();
+              activeDocumentNames.push(activeDocument?.name);
+              insertResults.push(
+                await ctx.editor?.insertMarkdown(`Synthetic citation for ${activeDocument?.name ?? "missing"}`)
+              );
+            },
+            title: "Insert synthetic citation"
+          }
+        ]
+      }),
+      manifest: referenceManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: ["reference"]
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Extension commands" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Insert synthetic citation Reference" }));
+
+    await waitFor(() => expect(activeDocumentNames).toEqual(["Untitled.md"]));
+    await waitFor(() => expect(insertResults).toEqual([true]));
+    await waitFor(() =>
+      expect(getVisibleMilkdownEditor(container)).toHaveTextContent("Synthetic citation for Untitled.md")
     );
   });
 

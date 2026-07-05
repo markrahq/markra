@@ -8,6 +8,7 @@ import {
   listenAppEditorPreferencesChanged,
   listenAppExportSettingsChanged,
   listenAppLanguageChanged,
+  listenAppPluginSettingsChanged,
   listenAppThemeChanged,
   listenAppSyncSettingsChanged,
   notifyAppCustomThemeCssChanged,
@@ -16,6 +17,7 @@ import {
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
   notifyAppLanguageChanged,
+  notifyAppPluginSettingsChanged,
   notifyAppSyncSettingsChanged,
   notifyAppThemeChanged
 } from "./settings-events";
@@ -24,6 +26,7 @@ import {
   type AcpAgentSettings,
   type BackupSettings,
   type EditorPreferences,
+  type PluginSettings,
   type SyncSettings
 } from "./app-settings";
 
@@ -414,6 +417,34 @@ describe("settings events", () => {
       settings
     });
     expect(onSettingsChanged).toHaveBeenCalledWith(settings);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits and listens for plugin setting changes inside Tauri", async () => {
+    const unlisten = vi.fn();
+    const onSettingsChanged = vi.fn();
+    const settings: PluginSettings = {
+      enabledPluginIds: ["reference", "Reference", "bad id", "reference", "pandoc-tools"]
+    };
+    eventsAvailable = true;
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppPluginSettingsChanged(onSettingsChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await notifyAppPluginSettingsChanged(settings);
+    listener?.({ payload: { settings } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://plugin-settings-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://plugin-settings-changed", {
+      settings: {
+        enabledPluginIds: ["reference", "pandoc-tools"]
+      }
+    });
+    expect(onSettingsChanged).toHaveBeenCalledWith({
+      enabledPluginIds: ["reference", "pandoc-tools"]
+    });
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
