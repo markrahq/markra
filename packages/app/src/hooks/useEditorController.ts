@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 import { editorViewCtx, parserCtx, serializerCtx, type Editor } from "@milkdown/kit/core";
 import { imageSchema, linkSchema } from "@milkdown/kit/preset/commonmark";
-import { Fragment, Slice, type Node as ProseNode, type NodeType } from "@milkdown/kit/prose/model";
+import { Fragment, Slice, type MarkType, type Node as ProseNode, type NodeType } from "@milkdown/kit/prose/model";
 import { NodeSelection, Selection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "@markra/ai";
@@ -13,8 +13,10 @@ import {
   confirmAiEditorResultApplied,
   listAiEditorPreviewResults,
   findVisibleSearchMatchesInState,
+  markraLiveMarkdownSpecs,
   scrollAiEditorPreviewIntoView,
   scrollSearchMatchIntoView,
+  restoreEscapedLiveMarkdownSource,
   serializeLinkImageLiveMarkdown,
   showAiEditorPreview,
   showAiSelectionHold,
@@ -92,6 +94,20 @@ function comparableSerializedMarkdown(markdown: string) {
     .replace(/\r\n?/gu, "\n")
     .replace(/[ \t]+$/gmu, "")
     .trim();
+}
+
+function serializeCurrentEditorMarkdown(
+  view: EditorView,
+  serializeMarkdown: (doc: ProseNode) => string,
+  link: MarkType,
+  image: NodeType,
+  liveMarkdownSpecs: ReturnType<typeof markraLiveMarkdownSpecs>
+) {
+  return restoreEscapedLiveMarkdownSource(
+    serializeLinkImageLiveMarkdown(view.state.doc, serializeMarkdown, link, image),
+    view.state,
+    liveMarkdownSpecs
+  );
 }
 
 type EditorReadyOptions = {
@@ -475,11 +491,12 @@ export function useEditorController() {
     try {
       return editorRef.current?.action((ctx) => {
         const view = ctx.get(editorViewCtx);
-        return serializeLinkImageLiveMarkdown(
-          view.state.doc,
+        return serializeCurrentEditorMarkdown(
+          view,
           ctx.get(serializerCtx),
           linkSchema.type(ctx),
-          imageSchema.type(ctx)
+          imageSchema.type(ctx),
+          markraLiveMarkdownSpecs(ctx)
         );
       }) ?? fallbackContent;
     } catch {
@@ -498,7 +515,13 @@ export function useEditorController() {
         const serializer = ctx.get(serializerCtx);
         const link = linkSchema.type(ctx);
         const image = imageSchema.type(ctx);
-        const currentMarkdown = serializeLinkImageLiveMarkdown(view.state.doc, serializer, link, image);
+        const currentMarkdown = serializeCurrentEditorMarkdown(
+          view,
+          serializer,
+          link,
+          image,
+          markraLiveMarkdownSpecs(ctx)
+        );
         const parsedMarkdown = serializeLinkImageLiveMarkdown(parseMarkdown(markdown), serializer, link, image);
 
         return comparableSerializedMarkdown(currentMarkdown) === comparableSerializedMarkdown(parsedMarkdown);
@@ -528,7 +551,13 @@ export function useEditorController() {
         const serializer = ctx.get(serializerCtx);
         const link = linkSchema.type(ctx);
         const image = imageSchema.type(ctx);
-        const currentMarkdown = serializeLinkImageLiveMarkdown(view.state.doc, serializer, link, image);
+        const currentMarkdown = serializeCurrentEditorMarkdown(
+          view,
+          serializer,
+          link,
+          image,
+          markraLiveMarkdownSpecs(ctx)
+        );
         if (comparableSerializedMarkdown(currentMarkdown) === comparableSerializedMarkdown(markdown)) {
           if (
             options.addToHistory &&

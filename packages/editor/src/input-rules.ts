@@ -235,7 +235,7 @@ function mapSuppressedLiteralRanges(
 
   return ranges.flatMap((range) => {
     const from = tr.mapping.map(range.from, -1);
-    const to = tr.mapping.map(range.to, 1);
+    const to = tr.mapping.map(range.to, -1);
 
     if (to <= from) return [];
 
@@ -415,6 +415,27 @@ function insertTextAfterExitedFoldedMarkdown(
   if (selection.from !== pluginState?.exitedFoldedRange?.cursor) return false;
 
   const marks = selection.$from.marks().filter((mark) => !markTypes.includes(mark.type));
+  const insertedText = view.state.schema.text(text, marks);
+  const transaction = view.state.tr.replaceSelectionWith(insertedText, false).setStoredMarks(marks);
+
+  view.dispatch(transaction.scrollIntoView());
+  return true;
+}
+
+function insertMulticharTextWithoutStaleManagedMarks(
+  view: EditorView,
+  text: string,
+  markTypes: MarkType[]
+) {
+  // IME commits can arrive after an empty paragraph inherits stale inline marks from a nearby live Markdown span.
+  if (Array.from(text).length <= 1) return false;
+
+  const { selection, storedMarks } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  if (!emptyTextblockSelection(view.state)) return false;
+  if (!hasManagedMark(storedMarks, markTypes)) return false;
+
+  const marks = storedMarks?.filter((mark) => !markTypes.includes(mark.type)) ?? [];
   const insertedText = view.state.schema.text(text, marks);
   const transaction = view.state.tr.replaceSelectionWith(insertedText, false).setStoredMarks(marks);
 
@@ -839,6 +860,228 @@ export function finalizeActiveLiveMarkdown(view: EditorView, specs: LiveMarkdown
   return true;
 }
 
+const hasRestorableLiveMarkdownDelimiterPattern = /\\[*_~`=]/u;
+const restorableLiveMarkdownDelimiterCharacters = new Set(["*", "_", "~", "`", "="]);
+const singleRestorableLiveMarkdownDelimiters = new Set(["*", "_", "~", "`", "="]);
+
+type SerializedMarkdownOperation = {
+  candidates: string[];
+  from: number;
+  replacement: string;
+  to: number;
+};
+
+type ProtectedMarkdownSegment = {
+  placeholder: string;
+  value: string;
+};
+
+function hasRestorableLiveMarkdownDelimiter(text: string) {
+  return Array.from(text).some((character) => restorableLiveMarkdownDelimiterCharacters.has(character));
+}
+
+function escapedLiveMarkdownDelimiters(text: string) {
+  return text.replace(/([*_~`=])/gu, "\\$1");
+}
+
+function escapedLiteralMarkdownSource(source: string, marker: string) {
+  const content = source.slice(marker.length, source.length - marker.length);
+  return `${escapedMarkerSource(marker)}${content}${escapedMarkerSource(marker)}`;
+}
+
+function serializedLiveMarkdownCandidates(source: string, marker: string) {
+  const candidates = [escapedLiveMarkdownDelimiters(source)];
+
+  // The Markdown serializer only needs one escaped leading "=" to keep a highlight-looking literal inert.
+  if (marker === "=".repeat(marker.length)) {
+    candidates.push(`\\${source}`);
+  }
+
+  return [...new Set(candidates)];
+}
+
+function escapedLiteralMarkdownOperation(
+  state: EditorState,
+  range: SuppressedLiteralMarkdownRange
+): SerializedMarkdownOperation | null {
+  const source = state.doc.textBetween(range.from, range.to);
+  if (!hasRestorableLiveMarkdownDelimiter(source)) return null;
+
+  return {
+    candidates: serializedLiveMarkdownCandidates(source, range.marker),
+    from: range.from,
+    replacement: escapedLiteralMarkdownSource(source, range.marker),
+    to: range.to
+  };
+}
+
+function singleDelimiterOperation(
+  node: ProseNode,
+  blockStart: number,
+  specs: LiveMarkdownSpec[]
+): SerializedMarkdownOperation | null {
+  const source = node.textContent;
+  if (!singleRestorableLiveMarkdownDelimiters.has(source)) return null;
+  if (!textRangeAvoidsMarks(node, 0, source.length, getMarkTypesForKind(specs, "inlineCode"))) return null;
+
+  return {
+    candidates: [`\\${source}`],
+    from: blockStart,
+    replacement: source,
+    to: blockStart + source.length
+  };
+}
+
+function liveMarkdownOperation(
+  node: ProseNode,
+  blockStart: number,
+  range: LiveMarkdownRange
+): SerializedMarkdownOperation {
+  const source = node.textContent.slice(range.from, range.to);
+
+  return {
+    candidates: serializedLiveMarkdownCandidates(source, range.marker),
+    from: blockStart + range.from,
+    replacement: source,
+    to: blockStart + range.to
+  };
+}
+
+function serializedMarkdownOperations(state: EditorState, specs: LiveMarkdownSpec[]) {
+  const pluginState = liveMarkdownKey.getState(state) as LiveMarkdownPluginState | undefined;
+  const suppressedLiteralRanges = pluginState?.suppressedLiteralRanges ?? [];
+  const operations: SerializedMarkdownOperation[] = [];
+
+  for (const range of suppressedLiteralRanges) {
+    const operation = escapedLiteralMarkdownOperation(state, range);
+    if (operation) operations.push(operation);
+  }
+
+  state.doc.descendants((node, position) => {
+    if (!node.isTextblock || node.type.spec.code) return;
+
+    const blockStart = position + 1;
+    const singleOperation = singleDelimiterOperation(node, blockStart, specs);
+    if (singleOperation) operations.push(singleOperation);
+
+    for (const range of getLiveMarkdownRangesInTextblock(node, specs)) {
+      const from = blockStart + range.from;
+      const to = blockStart + range.to;
+      if (isSuppressedLiteralRange(suppressedLiteralRanges, from, to, range.marker)) continue;
+
+      operations.push(liveMarkdownOperation(node, blockStart, range));
+    }
+  });
+
+  return operations.sort((left, right) => left.from - right.from || right.to - left.to);
+}
+
+function protectMarkdownSegment(value: string, protectedSegments: ProtectedMarkdownSegment[]) {
+  const placeholder = `\u0000markra-protected-markdown-${protectedSegments.length}\u0000`;
+  protectedSegments.push({ placeholder, value });
+  return placeholder;
+}
+
+function protectFencedCodeBlocks(markdown: string, protectedSegments: ProtectedMarkdownSegment[]) {
+  return markdown.replace(
+    /(^|\n)([ \t]{0,3})(`{3,}|~{3,})[^\n]*(?:\n[\s\S]*?\n[ \t]{0,3}\3[ \t]*(?=\n|$))/g,
+    (match) => protectMarkdownSegment(match, protectedSegments)
+  );
+}
+
+function protectInlineCodeSpans(markdown: string, protectedSegments: ProtectedMarkdownSegment[]) {
+  let protectedMarkdown = "";
+  let index = 0;
+
+  while (index < markdown.length) {
+    const character = markdown[index];
+    if (character === "\\") {
+      protectedMarkdown += markdown.slice(index, index + 2);
+      index += 2;
+      continue;
+    }
+
+    if (character !== "`") {
+      protectedMarkdown += character;
+      index += 1;
+      continue;
+    }
+
+    const openingStart = index;
+    while (markdown[index] === "`") index += 1;
+
+    const marker = markdown.slice(openingStart, index);
+    const closingStart = markdown.indexOf(marker, index);
+    if (closingStart < 0) {
+      protectedMarkdown += marker;
+      continue;
+    }
+
+    const closingEnd = closingStart + marker.length;
+    protectedMarkdown += protectMarkdownSegment(markdown.slice(openingStart, closingEnd), protectedSegments);
+    index = closingEnd;
+  }
+
+  return protectedMarkdown;
+}
+
+function protectMarkdownCode(markdown: string) {
+  const protectedSegments: ProtectedMarkdownSegment[] = [];
+  const protectedMarkdown = protectInlineCodeSpans(
+    protectFencedCodeBlocks(markdown, protectedSegments),
+    protectedSegments
+  );
+
+  return { protectedMarkdown, protectedSegments };
+}
+
+function restoreProtectedMarkdownSegments(markdown: string, protectedSegments: ProtectedMarkdownSegment[]) {
+  let restored = markdown;
+
+  for (const { placeholder, value } of protectedSegments) {
+    restored = restored.split(placeholder).join(value);
+  }
+
+  return restored;
+}
+
+function findSerializedMarkdownCandidate(markdown: string, candidates: string[], from: number) {
+  let match: { index: number; value: string } | null = null;
+
+  for (const value of candidates) {
+    const index = markdown.indexOf(value, from);
+    if (index < 0) continue;
+    if (!match || index < match.index || (index === match.index && value.length > match.value.length)) {
+      match = { index, value };
+    }
+  }
+
+  return match;
+}
+
+export function restoreEscapedLiveMarkdownSource(markdown: string, state: EditorState, specs: LiveMarkdownSpec[]) {
+  if (!hasRestorableLiveMarkdownDelimiterPattern.test(markdown)) return markdown;
+
+  const operations = serializedMarkdownOperations(state, specs);
+  if (operations.length === 0) return markdown;
+
+  const { protectedMarkdown, protectedSegments } = protectMarkdownCode(markdown);
+  let restored = "";
+  let markdownCursor = 0;
+
+  for (const operation of operations) {
+    const match = findSerializedMarkdownCandidate(protectedMarkdown, operation.candidates, markdownCursor);
+    if (!match) continue;
+
+    restored += protectedMarkdown.slice(markdownCursor, match.index);
+    restored += operation.replacement;
+    markdownCursor = match.index + match.value.length;
+  }
+
+  restored += protectedMarkdown.slice(markdownCursor);
+  return restoreProtectedMarkdownSegments(restored, protectedSegments);
+}
+
 function moveCursorOverLiveMarkdownDelimiter(
   view: EditorView,
   specs: LiveMarkdownSpec[],
@@ -1149,7 +1392,9 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           pluginState?.suppressedLiteralRanges ?? []
         );
       },
-      handleTextInput: (view, _from, _to, text) => insertTextAfterExitedFoldedMarkdown(view, text, managedMarkTypes),
+      handleTextInput: (view, _from, _to, text) =>
+        insertMulticharTextWithoutStaleManagedMarks(view, text, managedMarkTypes) ||
+        insertTextAfterExitedFoldedMarkdown(view, text, managedMarkTypes),
       handleKeyDown: (view, event) => {
         const hasModifier = event.shiftKey || event.metaKey || event.ctrlKey || event.altKey;
 

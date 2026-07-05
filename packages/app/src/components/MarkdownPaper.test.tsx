@@ -6894,6 +6894,107 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it.each([
+    { source: "*示例*", kind: "emphasis", expected: "*示例*" },
+    { source: "_示例_", kind: "emphasis", expected: "_示例_" },
+    { source: "**示例**，123123", kind: "strong", expected: "**示例**，123123" },
+    { source: "__示例__", kind: "strong", expected: "__示例__" },
+    { source: "~~示例~~", kind: "strikethrough", expected: "~~示例~~" },
+    { source: "==示例==", kind: "highlight", expected: "==示例==" },
+    { source: "`示例`", kind: "inlineCode", expected: "`示例`" }
+  ])("serializes typed live $kind markdown without escaping delimiters", async ({ source, kind, expected }) => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", { onMarkdownChange });
+
+    typeText(view, source);
+
+    expectLiveMark(container, kind, "示例");
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe(expected);
+  });
+
+  it.each(["*", "_", "~", "`", "="])("serializes a typed %s delimiter without escaping it", async (delimiter) => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("", { onMarkdownChange });
+
+    typeText(view, delimiter);
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe(delimiter);
+  });
+
+  it.each(["\\*\\*literal\\*\\*", "\\_literal\\_", "\\~\\~literal\\~\\~", "\\=\\=literal\\=\\=", "\\`literal\\`"])(
+    "keeps escaped literal markdown escaped while serializing later edits",
+    async (source) => {
+      const onMarkdownChange = vi.fn();
+      const { view } = await renderEditor(source, { onMarkdownChange });
+
+      moveCursor(view, findLastTextBlockEndCursor(view));
+      typeText(view, " after");
+
+      await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+      const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+      expect(markdown).toBe(`${source} after`);
+    }
+  );
+
+  it("keeps a single escaped markdown delimiter escaped while serializing later edits", async () => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("\\*", { onMarkdownChange });
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, "x");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("\\*x");
+  });
+
+  it("keeps escaped code content intact while serializing later edits", async () => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("`\\*` tail", { onMarkdownChange });
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, " after");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("`\\*` tail after");
+  });
+
+  it("keeps identical escaped literals separate from live markdown while serializing later edits", async () => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("\\*literal\\*\n\n*literal*", { onMarkdownChange });
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, " after");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("\\*literal\\*\n\n*literal* after");
+  });
+
+  it("keeps identical escaped code content separate from live markdown while serializing later edits", async () => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("`\\*literal\\*`\n\n*literal*", { onMarkdownChange });
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, " after");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("`\\*literal\\*`\n\n*literal* after");
+  });
+
   it("keeps intraword underscores in identifiers as plain text", async () => {
     const { container, view } = await renderEditor("user_info_data user__meta__data");
 
@@ -7761,6 +7862,20 @@ describe("MarkdownPaper editing", () => {
       expect(serializeMarkdown(view.state.doc).trimEnd()).toBe(expected);
     }
 
+    await settleMarkdownListener();
+  });
+
+  it("keeps IME text plain when stale strong marks carry into a new paragraph", async () => {
+    const { editor, view } = await renderEditor("**mock**");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const strong = view.state.schema.marks.strong;
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    expect(pressEnter(view)).toBe(true);
+    view.dispatch(view.state.tr.setStoredMarks([strong.create()]));
+    insertTextThroughInputHandler(view, "示例");
+
+    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("**mock**\n\n示例");
     await settleMarkdownListener();
   });
 

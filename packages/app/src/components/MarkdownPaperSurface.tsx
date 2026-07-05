@@ -37,6 +37,7 @@ import {
   markraListTogglePlugin,
   markraLinkImageLivePlugin,
   markraLiveMarkdownPlugin,
+  markraLiveMarkdownSpecs,
   markraMarkdownSourcePastePlugin,
   markraMarkdownShortcuts,
   markraMathCaretAnchorSuppressionPlugin,
@@ -54,6 +55,7 @@ import {
   getActiveSpellcheckMatch,
   normalizeMarkdownShortcuts,
   replaceSpellcheckMatch,
+  restoreEscapedLiveMarkdownSource,
   serializeLinkImageLiveMarkdown,
   updateSpellcheckOptions,
   type MarkdownShortcutMap,
@@ -465,16 +467,22 @@ function MilkdownEditorSurface({
               if (!deferredMarkdownChange) return;
 
               const view = editorCtx.get(editorViewCtx);
-              const markdownDocument = view.state.doc === doc ? doc : view.state.doc;
+              const markdownState = view.state;
+              const markdownDocument = markdownState.doc === doc ? doc : markdownState.doc;
               const serializeMarkdown = editorCtx.get(serializerCtx);
               const link = linkSchema.type(editorCtx);
               const image = imageSchema.type(editorCtx);
+              const liveMarkdownSpecs = markraLiveMarkdownSpecs(editorCtx, { highlight: highlightSyntaxEnabled });
 
               // Serializing the whole ProseMirror document on every transaction is the hot path for long files.
               deferredMarkdownChange.schedule(() => {
                 try {
                   onMarkdownChangeRef.current(
-                    serializeLinkImageLiveMarkdown(markdownDocument, serializeMarkdown, link, image)
+                    restoreEscapedLiveMarkdownSource(
+                      serializeLinkImageLiveMarkdown(markdownDocument, serializeMarkdown, link, image),
+                      markdownState,
+                      liveMarkdownSpecs
+                    )
                   );
                 } catch {
                   // Milkdown can flush a delayed update after teardown in tests or fast window closes.
