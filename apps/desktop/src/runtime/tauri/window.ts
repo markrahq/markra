@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeNative } from "./invoke";
 import { exit } from "@tauri-apps/plugin-process";
 import { listenNativeEvent, safeNativeEventCleanup } from "./events";
 
@@ -31,21 +31,21 @@ function isNativeSettingsWindowTarget(value: unknown): value is NativeSettingsWi
 }
 
 export function openSettingsWindow(target?: NativeSettingsWindowTarget) {
-  return invoke("open_settings_window", {
+  return invokeNative("open_settings_window", {
     target: target ?? null
   });
 }
 
 export function prewarmSettingsWindow() {
-  return invoke("prewarm_settings_window");
+  return invokeNative("prewarm_settings_window");
 }
 
 export function markSettingsWindowReady() {
-  return invoke("mark_settings_window_ready");
+  return invokeNative("mark_settings_window_ready");
 }
 
 export function hideSettingsWindow() {
-  return invoke("hide_settings_window");
+  return invokeNative("hide_settings_window");
 }
 
 export async function listenNativeSettingsWindowTarget(onTarget: (target: NativeSettingsWindowTarget) => unknown) {
@@ -74,7 +74,7 @@ export function openNativeExternalUrl(url: string) {
     return Promise.resolve();
   }
 
-  return invoke("open_external_url", { url });
+  return invokeNative("open_external_url", { url });
 }
 
 export async function setNativeWindowTitle(title: string) {
@@ -137,7 +137,7 @@ export async function setNativeEditorWindowRestoreState(input: SetNativeEditorWi
     return;
   }
 
-  await invoke("set_editor_window_restore_state", input);
+  await invokeNative("set_editor_window_restore_state", input);
 }
 
 export async function listNativeEditorWindowRestoreStates() {
@@ -145,7 +145,7 @@ export async function listNativeEditorWindowRestoreStates() {
     return [];
   }
 
-  return normalizeNativeEditorWindowRestoreStates(await invoke("list_editor_window_restore_states"));
+  return normalizeNativeEditorWindowRestoreStates(await invokeNative("list_editor_window_restore_states"));
 }
 
 export async function exitNativeApp() {
@@ -185,7 +185,7 @@ export async function minimizeNativeWindow() {
     return;
   }
 
-  await invoke("minimize_current_window");
+  await invokeNative("minimize_current_window");
 }
 
 export async function showNativeWindow() {

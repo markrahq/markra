@@ -6,6 +6,7 @@ export { ExportSettings } from "./settings/ExportSettings";
 export { GeneralSettings } from "./settings/GeneralSettings";
 export { KeyboardShortcutsSettings } from "./settings/KeyboardShortcutsSettings";
 export { NetworkSettings } from "./settings/NetworkSettings";
+export { RuntimeLogSettings } from "./settings/RuntimeLogSettings";
 export { SpellcheckSettings } from "./settings/SpellcheckSettings";
 export { StorageSettings } from "./settings/StorageSettings";
 export { SyncSettings } from "./settings/SyncSettings";

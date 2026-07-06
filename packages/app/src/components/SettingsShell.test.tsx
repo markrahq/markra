@@ -116,6 +116,14 @@ describe("SettingsShell", () => {
     expect(onCategoryChange).toHaveBeenCalledWith("sync");
   });
 
+  it("shows logs as its own settings category", () => {
+    const onCategoryChange = renderSettingsSidebar();
+
+    fireEvent.click(screen.getByRole("button", { name: "Logs" }));
+
+    expect(onCategoryChange).toHaveBeenCalledWith("logs");
+  });
+
   it("shows templates as its own settings category", () => {
     const onCategoryChange = renderSettingsSidebar();
 
@@ -215,6 +223,16 @@ describe("SettingsShell", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Sync" })).toBeInTheDocument();
+  });
+
+  it("uses the logs category title for the active panel", () => {
+    render(
+      <SettingsContent activeCategory="logs" translate={translate}>
+        <div />
+      </SettingsContent>
+    );
+
+    expect(screen.getByRole("heading", { name: "Logs" })).toBeInTheDocument();
   });
 
   it("uses the templates category title for the active panel", () => {

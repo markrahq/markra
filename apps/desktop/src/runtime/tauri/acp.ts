@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeNative } from "./invoke";
 import { listenNativeEvent } from "./events";
 
 const acpAgentMessageEvent = "markra://acp-agent-message";
@@ -26,7 +26,7 @@ export type NativeAcpAgentMessageEvent = {
 };
 
 export function startNativeAcpAgent(config: NativeAcpAgentStartConfig) {
-  return invoke<NativeAcpAgentConnection>("start_acp_agent", {
+  return invokeNative<NativeAcpAgentConnection>("start_acp_agent", {
     config: {
       args: config.args ?? [],
       command: config.command,
@@ -37,14 +37,14 @@ export function startNativeAcpAgent(config: NativeAcpAgentStartConfig) {
 }
 
 export function writeNativeAcpAgentMessage(connectionId: string, message: unknown) {
-  return invoke("write_acp_agent_message", {
+  return invokeNative("write_acp_agent_message", {
     connectionId,
     message: JSON.stringify(message)
   });
 }
 
 export function stopNativeAcpAgent(connectionId: string) {
-  return invoke("stop_acp_agent", {
+  return invokeNative("stop_acp_agent", {
     connectionId
   });
 }

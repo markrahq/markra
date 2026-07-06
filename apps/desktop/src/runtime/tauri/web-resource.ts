@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeNative } from "./invoke";
 import { networkSettingsForNativeRequest, type NativeNetworkSettings } from "./network";
 
 export type NativeWebResourceRequest = {
@@ -18,7 +18,7 @@ export type NativeWebResourceResponse = {
 export async function requestNativeWebResource(request: NativeWebResourceRequest): Promise<NativeWebResourceResponse> {
   const network = await networkSettingsForNativeRequest();
 
-  return invoke<NativeWebResourceResponse>("request_web_resource", {
+  return invokeNative<NativeWebResourceResponse>("request_web_resource", {
     request: network ? { ...request, network } : request
   });
 }

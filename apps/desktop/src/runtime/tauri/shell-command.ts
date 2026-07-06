@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeNative } from "./invoke";
 
 export type NativeShellCommandStatusValue =
   | "conflict"
@@ -35,13 +35,13 @@ function normalizeNativeShellCommandStatus(value: unknown): NativeShellCommandSt
 }
 
 export async function getNativeShellCommandStatus() {
-  return normalizeNativeShellCommandStatus(await invoke("get_shell_command_status"));
+  return normalizeNativeShellCommandStatus(await invokeNative("get_shell_command_status"));
 }
 
 export async function installNativeShellCommand() {
-  return normalizeNativeShellCommandStatus(await invoke("install_shell_command"));
+  return normalizeNativeShellCommandStatus(await invokeNative("install_shell_command"));
 }
 
 export async function uninstallNativeShellCommand() {
-  return normalizeNativeShellCommandStatus(await invoke("uninstall_shell_command"));
+  return normalizeNativeShellCommandStatus(await invokeNative("uninstall_shell_command"));
 }

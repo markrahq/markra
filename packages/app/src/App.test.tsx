@@ -1865,6 +1865,7 @@ describe("Markra workspace", () => {
       "Storage",
       "Backups",
       "Sync",
+      "Logs",
       "Appearance",
       "View",
       "Editor",

@@ -73,6 +73,7 @@ import { useSyncSettings } from "./hooks/useSyncSettings";
 import { useWorkspaceLinkIndex } from "./hooks/useWorkspaceLinkIndex";
 import { useWebSearchSettings } from "./hooks/useWebSearchSettings";
 import { useSettingsWindowRoute } from "./hooks/useSettingsWindowRoute";
+import { useRuntimeLogCapture } from "./hooks/useRuntimeLogCapture";
 import { useStartupWindowReveal } from "./hooks/useStartupWindowReveal";
 import { useWorkspaceBackupSync } from "./hooks/useWorkspaceBackupSync";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
@@ -407,6 +408,7 @@ function WorkspaceApp() {
   const updaterFeatureEnabled = appFeatures.updater;
   const appTheme = useAppTheme();
   const appLanguage = useAppLanguage();
+  useRuntimeLogCapture();
   useRuntimeErrorDiagnostics(appLanguage.language);
   const acpAgentSettings = useAcpAgentSettings();
   const aiSettings = useAiSettings();

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeNative } from "./invoke";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { debug, fileNameFromPath } from "@markra/shared";
@@ -441,7 +441,7 @@ function nativeDefaultSavePath(defaultDirectory: string | null | undefined, sugg
 }
 
 export async function takeNativeOpenedMarkdownPaths(): Promise<string[]> {
-  return normalizeOpenedMarkdownPaths(await invoke("take_opened_markdown_paths"));
+  return normalizeOpenedMarkdownPaths(await invokeNative("take_opened_markdown_paths"));
 }
 
 export async function listenNativeOpenedMarkdownPaths(onPaths: (paths: string[]) => unknown | Promise<unknown>) {
@@ -457,7 +457,7 @@ export async function readNativeMarkdownFile(path: string): Promise<NativeMarkdo
   debug(() => ["[markra-history] native read file start", {
     path
   }]);
-  const file = await invoke<MarkdownFileResponse>("read_markdown_file", {
+  const file = await invokeNative<MarkdownFileResponse>("read_markdown_file", {
     path
   });
   debug(() => ["[markra-history] native read file success", {
@@ -478,7 +478,7 @@ export async function listNativeMarkdownFileHistory(path: string): Promise<Nativ
   debug(() => ["[markra-history] native list history start", {
     path
   }]);
-  const entries = await invoke<MarkdownFileHistoryEntryResponse[]>("list_markdown_file_history", {
+  const entries = await invokeNative<MarkdownFileHistoryEntryResponse[]>("list_markdown_file_history", {
     path
   });
   debug(() => ["[markra-history] native list history success", {
@@ -497,7 +497,7 @@ export async function readNativeMarkdownFileHistory(
     historyId: id,
     path
   }]);
-  const file = await invoke<MarkdownFileHistoryFileResponse>("read_markdown_file_history", {
+  const file = await invokeNative<MarkdownFileHistoryFileResponse>("read_markdown_file_history", {
     id,
     path
   });
@@ -510,7 +510,7 @@ export async function readNativeMarkdownFileHistory(
 }
 
 export async function readNativeMarkdownTemplateFile(fileName: string): Promise<string> {
-  const file = await invoke<MarkdownTemplateFileResponse>("read_markdown_template_file", {
+  const file = await invokeNative<MarkdownTemplateFileResponse>("read_markdown_template_file", {
     fileName
   });
 
@@ -518,14 +518,14 @@ export async function readNativeMarkdownTemplateFile(fileName: string): Promise<
 }
 
 export async function writeNativeMarkdownTemplateFile(fileName: string, contents: string) {
-  await invoke("write_markdown_template_file", {
+  await invokeNative("write_markdown_template_file", {
     contents,
     fileName
   });
 }
 
 export async function deleteNativeMarkdownTemplateFile(fileName: string) {
-  await invoke("delete_markdown_template_file", {
+  await invokeNative("delete_markdown_template_file", {
     fileName
   });
 }
@@ -545,7 +545,7 @@ export async function readNativeMarkdownImageFile({
   documentPath,
   src
 }: ReadNativeMarkdownImageInput): Promise<NativeMarkdownImageFile> {
-  const image = await invoke<MarkdownImageFileResponse>("read_markdown_image_file", {
+  const image = await invokeNative<MarkdownImageFileResponse>("read_markdown_image_file", {
     documentPath,
     src
   });
@@ -578,7 +578,7 @@ export async function listNativeMarkdownFilesForPath(
   if (options.managedAttachmentFolder !== undefined) {
     args.managedAttachmentFolder = options.managedAttachmentFolder;
   }
-  const files = await invoke<MarkdownFolderFileResponse[]>("list_markdown_files_for_path", args);
+  const files = await invokeNative<MarkdownFolderFileResponse[]>("list_markdown_files_for_path", args);
 
   return files.map(markdownFolderFileFromResponse);
 }
@@ -616,7 +616,7 @@ export async function loadNativeMarkdownFilesForPath(
     }
 
     if (cancelNativeLoad) {
-      invoke("cancel_markdown_files_load", { requestId }).catch(() => {});
+      invokeNative("cancel_markdown_files_load", { requestId }).catch(() => {});
     }
   };
 
@@ -677,7 +677,7 @@ export async function loadNativeMarkdownFilesForPath(
         args.managedAttachmentFolder = options.managedAttachmentFolder;
       }
 
-      invoke("load_markdown_files_for_path", args).catch((error: unknown) => {
+      invokeNative("load_markdown_files_for_path", args).catch((error: unknown) => {
         fail(error);
       });
     }).catch((error: unknown) => {
@@ -694,7 +694,7 @@ export async function searchNativeMarkdownFilesForPath({
   path,
   query
 }: WorkspaceSearchRequest): Promise<WorkspaceSearchResponse> {
-  const search = await invoke<MarkdownWorkspaceSearchResponse>("search_markdown_files_for_path", {
+  const search = await invokeNative<MarkdownWorkspaceSearchResponse>("search_markdown_files_for_path", {
     caseSensitive: caseSensitive === true,
     currentDocumentContent: currentDocument?.content,
     currentDocumentPath: currentDocument?.path,
@@ -762,7 +762,7 @@ export async function createNativeMarkdownTreeFile(
     args.contents = options.contents;
   }
 
-  const file = await invoke<MarkdownFolderFileResponse>("create_markdown_tree_file", args);
+  const file = await invokeNative<MarkdownFolderFileResponse>("create_markdown_tree_file", args);
 
   return markdownFolderFileFromResponse(file);
 }
@@ -772,7 +772,7 @@ export async function createNativeMarkdownTreeFolder(
   folderName: string,
   parentPath: string | null = null
 ): Promise<NativeMarkdownFolderFile> {
-  const folder = await invoke<MarkdownFolderFileResponse>("create_markdown_tree_folder", {
+  const folder = await invokeNative<MarkdownFolderFileResponse>("create_markdown_tree_folder", {
     folderName,
     parentPath: normalizeNativeParentPath(parentPath),
     rootPath
@@ -786,7 +786,7 @@ export async function renameNativeMarkdownTreeFile(
   path: string,
   fileName: string
 ): Promise<NativeMarkdownFolderFile> {
-  const file = await invoke<MarkdownFolderFileResponse>("rename_markdown_tree_file", {
+  const file = await invokeNative<MarkdownFolderFileResponse>("rename_markdown_tree_file", {
     fileName,
     path,
     rootPath
@@ -800,7 +800,7 @@ export async function moveNativeMarkdownTreeFile(
   path: string,
   targetParentPath: string | null = null
 ): Promise<NativeMarkdownFolderFile> {
-  const file = await invoke<MarkdownFolderFileResponse>("move_markdown_tree_file", {
+  const file = await invokeNative<MarkdownFolderFileResponse>("move_markdown_tree_file", {
     path,
     rootPath,
     targetParentPath: normalizeNativeParentPath(targetParentPath)
@@ -810,7 +810,7 @@ export async function moveNativeMarkdownTreeFile(
 }
 
 export async function deleteNativeMarkdownTreeFile(rootPath: string, path: string) {
-  await invoke("delete_markdown_tree_file", {
+  await invokeNative("delete_markdown_tree_file", {
     path,
     rootPath
   });
@@ -841,15 +841,15 @@ export async function confirmNativeUnsavedMarkdownDocumentDiscard(
 }
 
 export async function openNativeMarkdownFileInNewWindow(path: string) {
-  await invoke("open_markdown_file_in_new_window", { path });
+  await invokeNative("open_markdown_file_in_new_window", { path });
 }
 
 export async function openNativeMarkdownFolderInNewWindow(path: string) {
-  await invoke("open_markdown_folder_in_new_window", { path });
+  await invokeNative("open_markdown_folder_in_new_window", { path });
 }
 
 export async function openNativeContainingFolder(path: string) {
-  await invoke("open_containing_folder", { path });
+  await invokeNative("open_containing_folder", { path });
 }
 
 export async function openNativeMarkdownAttachment({
@@ -859,7 +859,7 @@ export async function openNativeMarkdownAttachment({
 }: OpenNativeMarkdownAttachmentInput) {
   if (!rootPath) throw new Error("Markdown attachment root path is required.");
 
-  await invoke("open_markdown_attachment", {
+  await invokeNative("open_markdown_attachment", {
     documentPath,
     rootPath,
     src
@@ -908,7 +908,7 @@ export async function openNativeLocalImages(labels?: NativeMarkdownPickerLabels)
 }
 
 export async function readNativeLocalImageFile(path: string): Promise<File> {
-  const image = await invoke<MarkdownImageFileResponse>("read_local_image_file", {
+  const image = await invokeNative<MarkdownImageFileResponse>("read_local_image_file", {
     path
   });
 
@@ -920,8 +920,8 @@ export async function readNativeLocalImageFile(path: string): Promise<File> {
 export async function openNativeMarkdownPath(labels?: NativeMarkdownPickerLabels): Promise<NativeMarkdownOpenTarget | null> {
   const title = labels?.title.trim();
   const target = title
-    ? await invoke<MarkdownOpenPathResponse | null>("open_markdown_path", { title })
-    : await invoke<MarkdownOpenPathResponse | null>("open_markdown_path");
+    ? await invokeNative<MarkdownOpenPathResponse | null>("open_markdown_path", { title })
+    : await invokeNative<MarkdownOpenPathResponse | null>("open_markdown_path");
   if (!target) return null;
 
   if (target.kind === "folder") {
@@ -950,7 +950,7 @@ export async function openNativeSettingsFile(labels?: NativeMarkdownPickerLabels
 
   if (!selectedPath || Array.isArray(selectedPath)) return null;
 
-  const file = await invoke<TextFileResponse>("read_text_file", {
+  const file = await invokeNative<TextFileResponse>("read_text_file", {
     path: selectedPath
   });
 
@@ -970,7 +970,7 @@ function droppedTargetFromResponse(target: MarkdownOpenPathResponse): NativeMark
 }
 
 export async function resolveNativeMarkdownPath(path: string): Promise<NativeMarkdownDroppedTarget> {
-  const target = await invoke<MarkdownOpenPathResponse>("resolve_markdown_path", {
+  const target = await invokeNative<MarkdownOpenPathResponse>("resolve_markdown_path", {
     path
   });
 
@@ -1007,7 +1007,7 @@ function nativeDropPointFromPosition(position: unknown): NativeMarkdownDropPoint
 async function firstDroppedMarkdownTarget(paths: string[], point?: NativeMarkdownDropPoint) {
   for (const path of paths) {
     try {
-      return droppedTargetFromResponse(await invoke<MarkdownOpenPathResponse>("resolve_markdown_path", {
+      return droppedTargetFromResponse(await invokeNative<MarkdownOpenPathResponse>("resolve_markdown_path", {
         path
       }));
     } catch {
@@ -1082,7 +1082,7 @@ export async function saveNativeMarkdownFile({
     writeArgs.skipHistorySnapshot = true;
   }
 
-  await invoke("write_markdown_file", writeArgs);
+  await invokeNative("write_markdown_file", writeArgs);
   debug(() => ["[markra-history] native save markdown success", {
     skipHistorySnapshot: skipHistorySnapshot === true,
     targetPath
@@ -1105,7 +1105,7 @@ export async function saveNativeHtmlFile({
 
   if (!targetPath) return null;
 
-  await invoke("write_markdown_file", {
+  await invokeNative("write_markdown_file", {
     path: targetPath,
     contents
   });
@@ -1127,7 +1127,7 @@ export async function saveNativePdfFile({
 
   if (!targetPath) return null;
 
-  await invoke("export_pdf_file", {
+  await invokeNative("export_pdf_file", {
     path: targetPath,
     html: contents
   });
@@ -1149,7 +1149,7 @@ export async function saveNativeSettingsFile({
 
   if (!targetPath) return null;
 
-  await invoke("write_text_file", {
+  await invokeNative("write_text_file", {
     path: targetPath,
     contents
   });
@@ -1168,7 +1168,7 @@ export async function saveNativePandocFile({
   pandocPath,
   suggestedName
 }: SaveNativePandocFileInput): Promise<SavedNativePandocFile | null> {
-  await invoke("check_pandoc_available", {
+  await invokeNative("check_pandoc_available", {
     pandocPath
   });
 
@@ -1179,7 +1179,7 @@ export async function saveNativePandocFile({
 
   if (!targetPath) return null;
 
-  await invoke("export_pandoc_file", {
+  await invokeNative("export_pandoc_file", {
     documentPath,
     format,
     markdown,
@@ -1195,7 +1195,7 @@ export async function saveNativePandocFile({
 }
 
 export async function detectNativePandocPath(): Promise<string | null> {
-  const path = await invoke<string | null>("detect_pandoc_path");
+  const path = await invokeNative<string | null>("detect_pandoc_path");
   const trimmedPath = typeof path === "string" ? path.trim() : "";
 
   return trimmedPath || null;
@@ -1286,7 +1286,7 @@ export async function saveNativeClipboardImage({
   if (!documentPath) throw new Error("Current document must be a saved Markdown file.");
 
   const bytes = Array.from(new Uint8Array(await image.arrayBuffer()));
-  const savedImage = await invoke<ClipboardImageFileResponse>("save_clipboard_image", {
+  const savedImage = await invokeNative<ClipboardImageFileResponse>("save_clipboard_image", {
     bytes,
     documentPath,
     fileName,
@@ -1316,7 +1316,7 @@ export async function saveNativeClipboardAttachment({
   if (!documentPath) throw new Error("Current document must be a saved Markdown file.");
 
   const bytes = Array.from(new Uint8Array(await attachment.arrayBuffer()));
-  const savedAttachment = await invoke<ClipboardImageFileResponse>("save_clipboard_attachment", {
+  const savedAttachment = await invokeNative<ClipboardImageFileResponse>("save_clipboard_attachment", {
     bytes,
     documentPath,
     fileName: attachment.name,
@@ -1330,7 +1330,7 @@ export async function saveNativeClipboardAttachment({
 }
 
 export async function downloadNativeWebImage({ src }: DownloadNativeWebImageInput): Promise<File> {
-  const downloadedImage = await invoke<WebImageDownloadResponse>("download_web_image", {
+  const downloadedImage = await invokeNative<WebImageDownloadResponse>("download_web_image", {
     request: await requestWithNetwork({
       url: src
     })
@@ -1347,7 +1347,7 @@ export async function uploadNativeWebDavImage({
   settings
 }: UploadNativeWebDavImageInput): Promise<SavedNativeClipboardImage> {
   const bytes = Array.from(new Uint8Array(await image.arrayBuffer()));
-  const uploadedImage = await invoke<RemoteImageUploadResponse>("upload_webdav_image", {
+  const uploadedImage = await invokeNative<RemoteImageUploadResponse>("upload_webdav_image", {
     request: await requestWithNetwork({
       bytes,
       fileName,
@@ -1372,7 +1372,7 @@ export async function uploadNativePicGoImage({
   settings
 }: UploadNativePicGoImageInput): Promise<SavedNativeClipboardImage> {
   const bytes = Array.from(new Uint8Array(await image.arrayBuffer()));
-  const uploadedImage = await invoke<RemoteImageUploadResponse>("upload_picgo_image", {
+  const uploadedImage = await invokeNative<RemoteImageUploadResponse>("upload_picgo_image", {
     request: await requestWithNetwork({
       bytes,
       fileName,
@@ -1394,7 +1394,7 @@ export async function uploadNativeS3Image({
   settings
 }: UploadNativeS3ImageInput): Promise<SavedNativeClipboardImage> {
   const bytes = Array.from(new Uint8Array(await image.arrayBuffer()));
-  const uploadedImage = await invoke<RemoteImageUploadResponse>("upload_s3_image", {
+  const uploadedImage = await invokeNative<RemoteImageUploadResponse>("upload_s3_image", {
     request: await requestWithNetwork({
       accessKeyId: settings.accessKeyId,
       bucket: settings.bucket,
@@ -1419,7 +1419,7 @@ export async function backupNativeMarkdownFolder({
   sourcePath,
   targetPath
 }: BackupNativeMarkdownFolderInput): Promise<NativeMarkdownBackupSummary> {
-  return invoke<NativeMarkdownBackupResponse>("backup_markdown_folder", {
+  return invokeNative<NativeMarkdownBackupResponse>("backup_markdown_folder", {
     sourcePath,
     targetPath
   });
@@ -1434,7 +1434,7 @@ export async function syncNativeMarkdownFolder({
     throw new Error("Only WebDAV sync is supported.");
   }
 
-  return invoke<NativeMarkdownSyncResponse>("sync_webdav_markdown_folder", {
+  return invokeNative<NativeMarkdownSyncResponse>("sync_webdav_markdown_folder", {
     request: await requestWithNetwork({
       password: webdav.password,
       remotePath: webdav.remotePath,
@@ -1475,7 +1475,7 @@ export async function watchNativeMarkdownFile(
       });
     }
 
-    await invoke("watch_markdown_file", { path });
+    await invokeNative("watch_markdown_file", { path });
     debug(() => ["[markra-history] native watch ready", {
       path
     }]);
@@ -1495,7 +1495,7 @@ export async function watchNativeMarkdownFile(
     }]);
     unlistenFile();
     unlistenTree?.();
-    invoke("unwatch_markdown_file", { path });
+    invokeNative("unwatch_markdown_file", { path });
   };
 }
 
@@ -1510,7 +1510,7 @@ export async function watchNativeMarkdownTree(
   });
 
   try {
-    await invoke("watch_markdown_tree", { rootPath: path });
+    await invokeNative("watch_markdown_tree", { rootPath: path });
   } catch (error) {
     unlistenTree();
     throw error;
@@ -1518,7 +1518,7 @@ export async function watchNativeMarkdownTree(
 
   return () => {
     unlistenTree();
-    invoke("unwatch_markdown_tree", { rootPath: path });
+    invokeNative("unwatch_markdown_tree", { rootPath: path });
   };
 }
 

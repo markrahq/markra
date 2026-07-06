@@ -1,4 +1,5 @@
-import { Channel, invoke } from "@tauri-apps/api/core";
+import { Channel } from "@tauri-apps/api/core";
+import { invokeNative } from "./invoke";
 import { networkSettingsForNativeRequest, type NativeNetworkSettings } from "./network";
 
 export type NativeAiHttpRequest = {
@@ -37,7 +38,7 @@ type NativeAiChatStreamEvent =
 
 export function requestNativeAiJson(request: NativeAiHttpRequest): Promise<NativeAiHttpResponse> {
   return networkSettingsForNativeRequest().then((network) =>
-    invoke<NativeAiHttpResponse>("request_ai_provider_json", {
+    invokeNative<NativeAiHttpResponse>("request_ai_provider_json", {
       request: network ? { ...request, network } : request
     })
   );
@@ -45,7 +46,7 @@ export function requestNativeAiJson(request: NativeAiHttpRequest): Promise<Nativ
 
 export function requestNativeChat(request: NativeAiChatRequest): Promise<NativeAiHttpResponse> {
   return networkSettingsForNativeRequest().then((network) =>
-    invoke<NativeAiHttpResponse>("request_native_chat", {
+    invokeNative<NativeAiHttpResponse>("request_native_chat", {
       request: network ? { ...request, network } : request
     })
   );
@@ -61,7 +62,7 @@ export async function requestNativeChatStream(
     }
   });
   const network = await networkSettingsForNativeRequest();
-  const response = await invoke<NativeAiStreamResponse>("request_native_chat_stream", {
+  const response = await invokeNative<NativeAiStreamResponse>("request_native_chat_stream", {
     onEvent,
     request: network ? { ...request, network } : request
   });

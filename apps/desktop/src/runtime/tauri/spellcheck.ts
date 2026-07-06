@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeNative } from "./invoke";
 import type {
   NativeSpellcheckDictionary,
   NativeSpellcheckDictionaryLoadOptions,
@@ -10,7 +10,7 @@ import { networkSettingsForNativeRequest } from "./network";
 export async function deleteNativeSpellcheckDictionary(
   manifest: NativeSpellcheckDictionaryManifest
 ): Promise<unknown> {
-  return invoke("delete_spellcheck_dictionary", {
+  return invokeNative("delete_spellcheck_dictionary", {
     request: manifest
   });
 }
@@ -18,7 +18,7 @@ export async function deleteNativeSpellcheckDictionary(
 export async function getNativeSpellcheckDictionaryStatus(
   manifest: NativeSpellcheckDictionaryManifest
 ): Promise<NativeSpellcheckDictionaryStatus> {
-  return invoke("get_spellcheck_dictionary_status", {
+  return invokeNative("get_spellcheck_dictionary_status", {
     request: manifest
   });
 }
@@ -35,7 +35,7 @@ export async function loadNativeSpellcheckDictionary(
     ...(network ? { network } : {})
   };
 
-  return invoke<NativeSpellcheckDictionary>("load_spellcheck_dictionary", {
+  return invokeNative<NativeSpellcheckDictionary>("load_spellcheck_dictionary", {
     request
   });
 }

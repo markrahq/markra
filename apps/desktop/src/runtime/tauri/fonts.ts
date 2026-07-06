@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeNative } from "./invoke";
 import type { AppSystemFontFamily } from "@markra/app/runtime";
 
 const fontFamilySorter = new Intl.Collator("en", { sensitivity: "base" });
@@ -46,5 +46,5 @@ export async function listNativeSystemFontFamilies() {
     return [];
   }
 
-  return normalizeNativeSystemFontFamilies(await invoke("list_system_font_families"));
+  return normalizeNativeSystemFontFamilies(await invokeNative("list_system_font_families"));
 }

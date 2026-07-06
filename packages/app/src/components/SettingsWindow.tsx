@@ -10,6 +10,7 @@ import {
   GeneralSettings,
   KeyboardShortcutsSettings,
   NetworkSettings,
+  RuntimeLogSettings,
   SpellcheckSettings,
   SyncSettings,
   StorageSettings,
@@ -21,7 +22,10 @@ import { SettingsContent, SettingsSidebar } from "./SettingsShell";
 import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
 import { useAutoUpdater } from "../hooks/useAutoUpdater";
 import { useDefaultContextMenuBlocker } from "../hooks/useDefaultContextMenuBlocker";
+import { useRuntimeLogCapture } from "../hooks/useRuntimeLogCapture";
+import { useRuntimeLogEntries } from "../hooks/useRuntimeLogEntries";
 import { appVersion } from "../lib/app-version";
+import { showAppToast } from "../lib/app-toast";
 import { resolveDesktopPlatform } from "../lib/platform";
 import { hideSettingsWindow, markSettingsWindowReady } from "../lib/tauri";
 import { MacWindowControls } from "./MacWindowControls";
@@ -31,6 +35,7 @@ import type { SettingsCategory } from "../hooks/useSettingsWindowState";
 
 export function SettingsWindow() {
   const settingsState = useSettingsWindowState();
+  const runtimeLog = useRuntimeLogEntries();
   const {
     acpAgentSettings,
     activeCategory,
@@ -87,6 +92,7 @@ export function SettingsWindow() {
     welcomeReset
   } = settingsState;
   const appFeatures = getAppRuntime().features;
+  useRuntimeLogCapture();
   const hiddenCategories: SettingsCategory[] = [
     ...(appFeatures.ai ? [] : (["ai", "providers", "web"] as SettingsCategory[])),
     ...(appFeatures.networkProxy ? [] : (["network"] as SettingsCategory[])),
@@ -103,6 +109,31 @@ export function SettingsWindow() {
     : "settings-layout grid h-screen grid-cols-[180px_minmax(0,1fr)]";
   const handleCloseSettings = () => {
     hideSettingsWindow().catch(() => {});
+  };
+  const handleCopyRuntimeLogs = (contents: string) => {
+    const writeText = navigator.clipboard?.writeText?.bind(navigator.clipboard);
+    if (!writeText) {
+      showAppToast({
+        id: "runtime-log-copy",
+        message: translate("settings.logs.copyFailed"),
+        status: "error"
+      });
+      return;
+    }
+
+    writeText(contents).then(() => {
+      showAppToast({
+        id: "runtime-log-copy",
+        message: translate("settings.logs.copySucceeded"),
+        status: "success"
+      });
+    }).catch(() => {
+      showAppToast({
+        id: "runtime-log-copy",
+        message: translate("settings.logs.copyFailed"),
+        status: "error"
+      });
+    });
   };
   useDefaultContextMenuBlocker();
   const updater = useAutoUpdater(appLanguage.language, appFeatures.updater && appLanguage.ready, {
@@ -258,6 +289,14 @@ export function SettingsWindow() {
               translate={translate}
               onRunSync={handleRunSync}
               onUpdateSettings={handleUpdateSyncSettings}
+            />
+          ) : null}
+          {activeSettingsCategory === "logs" ? (
+            <RuntimeLogSettings
+              entries={runtimeLog.entries}
+              translate={translate}
+              onClearLogs={runtimeLog.clearEntries}
+              onCopyLogs={handleCopyRuntimeLogs}
             />
           ) : null}
           {activeSettingsCategory === "appearance" ? (

@@ -106,6 +106,7 @@ export type SettingsCategory =
   | "storage"
   | "backup"
   | "sync"
+  | "logs"
   | "appearance"
   | "view"
   | "editor"

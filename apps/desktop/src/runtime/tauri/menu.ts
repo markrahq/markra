@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invokeNative } from "./invoke";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
   createEditorContextMenuEntries,
@@ -154,7 +154,7 @@ export async function installNativeApplicationMenu(
   const stopListening = await listenNativeApplicationMenuCommands(handlers);
 
   try {
-    await invoke("install_application_menu", {
+    await invokeNative("install_application_menu", {
       accelerators: nativeAcceleratorsForMarkdownShortcuts(markdownShortcuts),
       language,
       recentFiles: normalizeRecentFilesForNativeMenu(recentFiles)
@@ -180,7 +180,7 @@ function normalizeRecentFilesForNativeMenu(files: readonly RecentMarkdownFile[])
 
 export async function readNativeClipboardText() {
   try {
-    const text = await invoke<string | null>("read_clipboard_text");
+    const text = await invokeNative<string | null>("read_clipboard_text");
 
     return typeof text === "string" ? text : null;
   } catch {

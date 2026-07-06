@@ -10,6 +10,7 @@ import {
   LayoutTemplate,
   Palette,
   PenLine,
+  ScrollText,
   SlidersHorizontal,
   SpellCheck,
   Sparkles,
@@ -65,6 +66,11 @@ const settingsCategories: SettingsCategoryDefinition[] = [
     icon: Cloud,
     id: "sync",
     labelKey: "settings.categories.sync"
+  },
+  {
+    icon: ScrollText,
+    id: "logs",
+    labelKey: "settings.categories.logs"
   },
   {
     icon: Palette,
@@ -145,7 +151,7 @@ export function SettingsSidebar({
         </h1>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-1 px-3" aria-label={translate("settings.aria.categories")}>
+      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-3" aria-label={translate("settings.aria.categories")}>
         {visibleCategories.map((category) => (
           <SettingsNavButton
             key={category.id}
