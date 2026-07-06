@@ -220,13 +220,18 @@ export function useMarkdownFileTree({
     (!openingFolderPathRef.current || openingFolderPathRef.current === path)
   ), []);
 
-  const abortCurrentFileTreeLoad = useCallback(() => {
-    const controller = fileTreeLoadAbortControllerRef.current;
+  const abortFileTreeLoad = useCallback((controller: AbortController | null) => {
     if (!controller) return;
 
-    fileTreeLoadAbortControllerRef.current = null;
+    if (fileTreeLoadAbortControllerRef.current === controller) {
+      fileTreeLoadAbortControllerRef.current = null;
+    }
     controller.abort();
   }, []);
+
+  const abortCurrentFileTreeLoad = useCallback(() => {
+    abortFileTreeLoad(fileTreeLoadAbortControllerRef.current);
+  }, [abortFileTreeLoad]);
 
   const loadFileTreeFilesForPath = useCallback((
     path: string,
@@ -774,7 +779,7 @@ export function useMarkdownFileTree({
     cancelPendingFileTreeBatchFlush();
     const requestId = openFolderRequestIdRef.current;
     let firstBatch = true;
-    loadFileTreeFilesForPath(sourcePath, {
+    const loadPromise = loadFileTreeFilesForPath(sourcePath, {
       managedAttachmentFolder: normalizedManagedAttachmentFolder,
       onBatch: (batchFiles) => {
         if (!active) return;
@@ -783,7 +788,10 @@ export function useMarkdownFileTree({
         firstBatch = false;
         applyLoadedFileTreeBatch(batchFiles, requestId, sourcePath, immediate);
       }
-    }).then((nextFiles) => {
+    });
+    const loadController = fileTreeLoadAbortControllerRef.current;
+
+    loadPromise.then((nextFiles) => {
       if (active) {
         cancelPendingFileTreeBatchFlush();
         replaceFileTreeFiles(nextFiles);
@@ -798,11 +806,12 @@ export function useMarkdownFileTree({
 
     return () => {
       active = false;
-      abortCurrentFileTreeLoad();
+      abortFileTreeLoad(loadController);
       cancelPendingFileTreeBatchFlush();
     };
   }, [
     applyLoadedFileTreeBatch,
+    abortFileTreeLoad,
     abortCurrentFileTreeLoad,
     cancelPendingFileTreeBatchFlush,
     loadFileTreeFilesForPath,

@@ -152,6 +152,12 @@ function FileTreeProbe({
       >
         Restore collapsed folder
       </button>
+      <button
+        type="button"
+        onClick={() => tree.openFolderPath("/vault", "vault")}
+      >
+        Open vault path
+      </button>
       <button type="button" onClick={() => tree.setRootFromMarkdownFilePath("/mock-workspaces/notes/daily.md")}>
         Use file root
       </button>
@@ -479,6 +485,68 @@ describe("useMarkdownFileTree", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open second docs folder" }));
 
     expect(firstSignalRef.current?.aborted).toBe(true);
+  });
+
+  it("keeps the first selected folder load alive when switching from a file root", async () => {
+    const fileRootLoad = createDeferredMarkdownFileList();
+    const folderLoad = createDeferredMarkdownFileList();
+    const folderSignalRef: { current: AbortSignal | null } = { current: null };
+
+    mockedLoadNativeMarkdownFilesForPath.mockImplementation((path, options = {}) => {
+      if (path === "/mock-workspaces/notes/daily.md") {
+        options.signal?.addEventListener("abort", () => {
+          fileRootLoad.resolve([]);
+        });
+        return fileRootLoad.promise;
+      }
+
+      if (path === "/vault") {
+        folderSignalRef.current = options.signal ?? null;
+        options.signal?.addEventListener("abort", () => {
+          folderLoad.resolve([]);
+        });
+        return folderLoad.promise;
+      }
+
+      return Promise.resolve([]);
+    });
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Use file root" }));
+    await waitFor(() =>
+      expect(mockedLoadNativeMarkdownFilesForPath).toHaveBeenCalledWith(
+        "/mock-workspaces/notes/daily.md",
+        expect.objectContaining({
+          managedAttachmentFolder: "assets",
+          signal: expect.any(AbortSignal)
+        })
+      )
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open vault path" }));
+
+    await waitFor(() =>
+      expect(mockedLoadNativeMarkdownFilesForPath).toHaveBeenCalledWith(
+        "/vault",
+        expect.objectContaining({
+          managedAttachmentFolder: "assets",
+          signal: expect.any(AbortSignal)
+        })
+      )
+    );
+    expect(folderSignalRef.current?.aborted).toBe(false);
+
+    await act(async () => {
+      folderLoad.resolve([
+        { path: "/vault/index.md", name: "index.md", relativePath: "index.md" }
+      ]);
+      await Promise.resolve();
+    });
+
+    expect(screen.getByText("index.md")).toBeInTheDocument();
+    expect(screen.getByTestId("root-name")).toHaveTextContent("vault");
+    expect(screen.getByTestId("open-state")).toHaveTextContent("open");
   });
 
   it("hides attachment files outside the managed attachment folder while keeping folders visible", async () => {
