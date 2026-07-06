@@ -2128,6 +2128,84 @@ describe("MarkdownPaper editing", () => {
   });
 
   it.each([
+    { expectedMarkdown: "- [ ] \\---\n", source: "- [ ] ---", text: "---" },
+    { expectedMarkdown: "- [x] \\---\n", source: "- [x] ---", text: "---" },
+    { expectedMarkdown: "- [ ] \\----\n", source: "- [ ] ----", text: "----" },
+    { expectedMarkdown: "- [ ] \\_\\_\\_&#x20;\n", source: "- [ ] ___ ", text: "___" },
+    { expectedMarkdown: "- [ ] \\*\\*\\*&#x20;\n", source: "- [ ] *** ", text: "***" }
+  ])("keeps typed thematic break marker $text as text inside task list items", async ({ expectedMarkdown, source, text }) => {
+    const { container, editor, view } = await renderEditor();
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, source);
+
+    const checkbox = container.querySelector<HTMLInputElement>('.ProseMirror input[type="checkbox"]');
+
+    expect(checkbox).toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror hr")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror li")).toHaveTextContent(text);
+    expect(serializeMarkdown(view.state.doc)).toBe(expectedMarkdown);
+  });
+
+  it.each([
+    { source: "- [ ] \\---", text: "---" },
+    { source: "- [ ] \\----", text: "----" },
+    { source: "- [ ] \\_\\_\\_&#x20;", text: "___" },
+    { source: "- [ ] \\*\\*\\*&#x20;", text: "***" }
+  ])("loads escaped thematic break marker $text as task list text", async ({ source, text }) => {
+    const { container } = await renderEditor(source);
+
+    expect(container.querySelector(".ProseMirror hr")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror li")).toHaveTextContent(text);
+  });
+
+  it("keeps typed thematic break markers as text inside blockquoted task list items", async () => {
+    const { container, editor, view } = await renderEditor();
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "> - [ ] ---");
+
+    expect(container.querySelector(".ProseMirror blockquote hr")).not.toBeInTheDocument();
+    expect(container.querySelector(".ProseMirror blockquote li")).toHaveTextContent("---");
+    expect(serializeMarkdown(view.state.doc)).toBe("> - [ ] \\---\n");
+  });
+
+  it.each(["---", "___ ", "*** "])(
+    "turns typed thematic break marker %s into a horizontal rule outside task list items",
+    async (source) => {
+      const { container, editor, view } = await renderEditor();
+      const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+      typeText(view, source);
+
+      expect(container.querySelector(".ProseMirror hr")).toBeInTheDocument();
+      expect(serializeMarkdown(view.state.doc)).toBe("***\n");
+    }
+  );
+
+  it("turns typed thematic break markers into a horizontal rule inside ordinary list items", async () => {
+    const { container, editor, view } = await renderEditor();
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    typeText(view, "- ---");
+
+    expect(container.querySelector(".ProseMirror li hr")).toBeInTheDocument();
+    expect(serializeMarkdown(view.state.doc)).toContain("***");
+  });
+
+  it("turns typed thematic break markers into a horizontal rule inside ordinary nested lists below task items", async () => {
+    const { container, editor, view } = await renderEditor("- [ ] Parent\n  - Child");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    moveCursor(view, findTextPosition(view, "Child", "Child".length));
+    expect(pressEnter(view)).toBe(true);
+    typeText(view, "---");
+
+    expect(container.querySelector(".ProseMirror li li hr")).toBeInTheDocument();
+    expect(serializeMarkdown(view.state.doc)).toContain("***");
+  });
+
+  it.each([
     {
       label: "YAML",
       source: [

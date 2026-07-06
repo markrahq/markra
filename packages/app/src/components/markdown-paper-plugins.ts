@@ -3,7 +3,9 @@ import {
   emphasisSchema,
   hardbreakAttr,
   hardbreakSchema,
+  hrSchema,
   imageSchema,
+  insertHrInputRule,
   inputRules as commonmarkInputRules,
   keymap as commonmarkKeymap,
   plugins as commonmarkPlugins,
@@ -21,10 +23,11 @@ import {
   strikethroughSchema
 } from "@milkdown/kit/preset/gfm";
 import { Fragment, type Node as ProseNode, type ResolvedPos, type Slice } from "@milkdown/kit/prose/model";
+import { InputRule } from "@milkdown/kit/prose/inputrules";
 import type { Selection } from "@milkdown/kit/prose/state";
 import { Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
-import { $prose, $remark } from "@milkdown/kit/utils";
+import { $inputRule, $prose, $remark } from "@milkdown/kit/utils";
 import type { AiSelectionContext } from "@markra/ai";
 import { parseMarkdownCalloutMarker } from "@markra/shared";
 import { readAiSelectionContextFromView } from "../hooks/useEditorController";
@@ -335,6 +338,34 @@ const markraMarkdownStyleRemarkPlugin = $remark<"markraMarkdownStyleRemark", und
   () => markraMarkdownStyleRemark
 );
 
+function positionIsInsideTaskListItem($pos: ResolvedPos) {
+  for (let depth = $pos.depth; depth > 0; depth -= 1) {
+    const node = $pos.node(depth);
+    if (node.type.name === "list_item") return node.attrs.checked !== null;
+  }
+
+  return false;
+}
+
+function selectionIsInsideTaskListItem(selection: Selection) {
+  return [selection.$from, selection.$to].every(positionIsInsideTaskListItem);
+}
+
+const markraInsertHrInputRule = $inputRule((ctx) =>
+  new InputRule(/^(?:---|___\s|\*\*\*\s)$/, (state, match, start, end) => {
+    if (selectionIsInsideTaskListItem(state.selection)) return null;
+
+    const { tr } = state;
+    if (match[0]) tr.replaceWith(start - 1, end, hrSchema.type(ctx).create());
+
+    return tr;
+  })
+);
+
+const markraCommonmarkInputRules = commonmarkInputRules.map((plugin) =>
+  plugin === insertHrInputRule ? markraInsertHrInputRule : plugin
+);
+
 export const markraCommonmark = [
   markraMarkdownStyleRemarkPlugin,
   markraBlankParagraphRemarkPlugin,
@@ -344,7 +375,7 @@ export const markraCommonmark = [
   markraStrongSchema,
   markraBlockImageSchema,
   markraHardbreakSchema,
-  commonmarkInputRules,
+  markraCommonmarkInputRules,
   commonmarkCommands,
   commonmarkKeymap,
   commonmarkPlugins.filter((plugin) =>

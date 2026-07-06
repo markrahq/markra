@@ -175,6 +175,19 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .markra-list-collapsed-content");
   });
 
+  it("centers task list checkboxes against the current text line", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const checkboxStart = styles.indexOf(".markdown-paper .markra-task-list-checkbox {");
+    const checkboxEnd = styles.indexOf(".markdown-paper .markra-task-list-checkbox:disabled", checkboxStart);
+    const checkboxStyles = styles.slice(checkboxStart, checkboxEnd);
+
+    expect(checkboxStart).toBeGreaterThanOrEqual(0);
+    expect(checkboxEnd).toBeGreaterThan(checkboxStart);
+    expect(checkboxStyles).toContain("line-height: inherit;");
+    expect(checkboxStyles).toContain("margin-top: calc((1lh - 1rem) / 2);");
+    expect(checkboxStyles).not.toContain("mt-1");
+  });
+
   it("uses distinct unordered list markers for nested editor lists", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

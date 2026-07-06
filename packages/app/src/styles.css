@@ -870,7 +870,9 @@
   }
 
   .markdown-paper .markra-task-list-checkbox {
-    @apply mt-1 h-4 w-4 shrink-0 cursor-pointer rounded-sm border border-(--border-strong) accent-(--accent);
+    @apply h-4 w-4 shrink-0 cursor-pointer rounded-sm border border-(--border-strong) accent-(--accent);
+    line-height: inherit;
+    margin-top: calc((1lh - 1rem) / 2);
   }
 
   .markdown-paper .markra-task-list-checkbox:disabled {
