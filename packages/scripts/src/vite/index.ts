@@ -110,6 +110,35 @@ function vendorChunkName(id: string) {
   return null;
 }
 
+function workspacePackageSourcePath(browserNodeStubUrl: string | URL, packageSourcePath: string) {
+  return fileURLToPath(new URL(`../../../${packageSourcePath}`, browserNodeStubUrl));
+}
+
+function workspacePackageSourceAliases(browserNodeStubUrl: string | URL) {
+  return [
+    {
+      find: "@markra/document-stats",
+      replacement: workspacePackageSourcePath(browserNodeStubUrl, "document-stats/src/index.ts")
+    },
+    {
+      find: "@markra/plugin-api/react",
+      replacement: workspacePackageSourcePath(browserNodeStubUrl, "plugin-api/src/react.ts")
+    },
+    {
+      find: "@markra/plugin-api",
+      replacement: workspacePackageSourcePath(browserNodeStubUrl, "plugin-api/src/index.ts")
+    },
+    {
+      find: "@markra/ui/settings",
+      replacement: workspacePackageSourcePath(browserNodeStubUrl, "ui/src/settings.tsx")
+    },
+    {
+      find: "@markra/ui",
+      replacement: workspacePackageSourcePath(browserNodeStubUrl, "ui/src/index.ts")
+    }
+  ];
+}
+
 export function createMarkraAppViteConfig(options: MarkraAppViteConfigOptions) {
   const version = readPackageVersion(options.packageJsonUrl);
   const browserNodeStubPath = fileURLToPath(options.browserNodeStubUrl);
@@ -126,7 +155,8 @@ export function createMarkraAppViteConfig(options: MarkraAppViteConfigOptions) {
             {
               find: /^node:(?:fs|os|path)$/,
               replacement: browserNodeStubPath
-            }
+            },
+            ...workspacePackageSourceAliases(options.browserNodeStubUrl)
           ]
         },
     plugins: [
