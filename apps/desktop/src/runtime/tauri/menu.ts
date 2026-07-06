@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
@@ -16,6 +15,7 @@ import {
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { AppLanguage } from "@markra/shared";
 import type { NativeMarkdownFolderFile } from "./file";
+import { listenNativeEvent } from "./events";
 
 export type NativeMenuHandlers = Partial<Record<NativeStaticMenuCommand, () => unknown | Promise<unknown>>> & {
   clearRecentFiles?: () => unknown | Promise<unknown>;
@@ -140,7 +140,7 @@ function runNativeMenuAction(payload: NativeMenuCommandPayload, handlers: Native
 }
 
 export async function listenNativeApplicationMenuCommands(handlers: NativeMenuHandlers) {
-  return listen<NativeMenuCommandPayload>("markra://menu-command", (event) => {
+  return listenNativeEvent<NativeMenuCommandPayload>("markra://menu-command", (event) => {
     runNativeMenuAction(event.payload, handlers);
   });
 }

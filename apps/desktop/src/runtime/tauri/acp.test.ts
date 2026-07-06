@@ -65,7 +65,7 @@ describe("native ACP runtime", () => {
     const handler = vi.fn();
     mockedListen.mockResolvedValue(cleanup);
 
-    await expect(listenNativeAcpAgentMessages(handler)).resolves.toBe(cleanup);
+    const stopListening = await listenNativeAcpAgentMessages(handler);
 
     expect(mockedListen).toHaveBeenCalledWith("markra://acp-agent-message", expect.any(Function));
     const eventHandler = mockedListen.mock.calls[0]?.[1];
@@ -81,6 +81,8 @@ describe("native ACP runtime", () => {
       message: "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}",
       type: "message"
     });
+    await Promise.resolve(stopListening());
+    expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
   it("stops an ACP agent subprocess", async () => {

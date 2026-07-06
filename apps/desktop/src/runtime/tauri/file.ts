@@ -1,9 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { debug, fileNameFromPath } from "@markra/shared";
 import { networkSettingsForNativeRequest } from "./network";
+import { listenNativeEvent, safeNativeEventCleanup } from "./events";
 import type {
   PicGoImageUploadSettings,
   S3ImageUploadSettings,
@@ -445,7 +445,7 @@ export async function takeNativeOpenedMarkdownPaths(): Promise<string[]> {
 }
 
 export async function listenNativeOpenedMarkdownPaths(onPaths: (paths: string[]) => unknown | Promise<unknown>) {
-  return listen<OpenedMarkdownPathsPayload>(openedMarkdownPathsEvent, (event) => {
+  return listenNativeEvent<OpenedMarkdownPathsPayload>(openedMarkdownPathsEvent, (event) => {
     const paths = normalizeOpenedMarkdownPaths(event.payload?.paths);
     if (paths.length === 0) return;
 
@@ -645,7 +645,7 @@ export async function loadNativeMarkdownFilesForPath(
 
     options.signal?.addEventListener("abort", abortHandler);
 
-    listen<MarkdownFileTreeLoadEventResponse>(markdownFileTreeLoadEvent, (event) => {
+    listenNativeEvent<MarkdownFileTreeLoadEventResponse>(markdownFileTreeLoadEvent, (event) => {
       const payload = event.payload;
       if (payload.requestId !== requestId) return;
 
@@ -1453,7 +1453,7 @@ export async function watchNativeMarkdownFile(
   debug(() => ["[markra-history] native watch subscribe", {
     path
   }]);
-  const unlistenFile = await listen<MarkdownFileChangedPayload>(markdownFileChangedEvent, (event) => {
+  const unlistenFile = await listenNativeEvent<MarkdownFileChangedPayload>(markdownFileChangedEvent, (event) => {
     if (event.payload.path !== path) return;
     debug(() => ["[markra-history] native watch file event", {
       path: event.payload.path
@@ -1465,7 +1465,7 @@ export async function watchNativeMarkdownFile(
   try {
     if (onTreeChange) {
       const rootPath = parentPathFromPath(path);
-      unlistenTree = await listen<MarkdownTreeChangedPayload>(markdownTreeChangedEvent, (event) => {
+      unlistenTree = await listenNativeEvent<MarkdownTreeChangedPayload>(markdownTreeChangedEvent, (event) => {
         if (event.payload.rootPath !== rootPath) return;
         debug(() => ["[markra-history] native watch tree event", {
           path: event.payload.path,
@@ -1504,7 +1504,7 @@ export async function watchNativeMarkdownTree(
   onTreeChange: NativeMarkdownTreeChangeHandler
 ) {
   const rootPath = treeRootPathFromPath(path);
-  const unlistenTree = await listen<MarkdownTreeChangedPayload>(markdownTreeChangedEvent, (event) => {
+  const unlistenTree = await listenNativeEvent<MarkdownTreeChangedPayload>(markdownTreeChangedEvent, (event) => {
     if (event.payload.rootPath !== rootPath) return;
     onTreeChange(event.payload.path);
   });
@@ -1524,7 +1524,7 @@ export async function watchNativeMarkdownTree(
 
 export async function installNativeMarkdownFileDrop(onDrop: NativeMarkdownFileDropHandler) {
   try {
-    return await getCurrentWindow().onDragDropEvent((event) => {
+    return safeNativeEventCleanup(await getCurrentWindow().onDragDropEvent((event) => {
       if (event.payload.type !== "drop") return;
       const point = nativeDropPointFromPosition(event.payload.position);
 
@@ -1533,7 +1533,7 @@ export async function installNativeMarkdownFileDrop(onDrop: NativeMarkdownFileDr
 
         onDrop(target);
       }).catch(() => {});
-    });
+    }));
   } catch {
     return () => {};
   }

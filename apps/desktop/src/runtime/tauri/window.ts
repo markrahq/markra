@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { exit } from "@tauri-apps/plugin-process";
+import { listenNativeEvent, safeNativeEventCleanup } from "./events";
 
 export type NativeSettingsWindowTarget = "exportPandocPath";
 
@@ -52,8 +53,7 @@ export async function listenNativeSettingsWindowTarget(onTarget: (target: Native
     return () => {};
   }
 
-  const { listen } = await import("@tauri-apps/api/event");
-  return listen<NativeSettingsWindowTargetPayload>(nativeSettingsWindowTargetEvent, (event) => {
+  return listenNativeEvent<NativeSettingsWindowTargetPayload>(nativeSettingsWindowTargetEvent, (event) => {
     if (isNativeSettingsWindowTarget(event.payload.target)) {
       onTarget(event.payload.target);
     }
@@ -65,8 +65,7 @@ export async function listenNativeAppExitRequested(onExitRequested: () => unknow
     return () => {};
   }
 
-  const { listen } = await import("@tauri-apps/api/event");
-  return listen(nativeAppExitRequestedEvent, () => onExitRequested());
+  return listenNativeEvent(nativeAppExitRequestedEvent, () => onExitRequested());
 }
 
 export function openNativeExternalUrl(url: string) {
@@ -164,11 +163,11 @@ export async function listenNativeWindowCloseRequested(
   const currentWindow = await getCurrentNativeWindow();
   if (!currentWindow) return () => {};
 
-  return currentWindow.onCloseRequested(async (event) => {
+  return safeNativeEventCleanup(await currentWindow.onCloseRequested(async (event) => {
     await onCloseRequested({
       preventDefault: () => event.preventDefault()
     });
-  });
+  }));
 }
 
 export async function closeNativeWindow() {

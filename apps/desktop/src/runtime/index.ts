@@ -1,4 +1,4 @@
-import { emit, listen } from "@tauri-apps/api/event";
+import { emit } from "@tauri-apps/api/event";
 import { platform as tauriPlatform, version as tauriVersion, type Platform as TauriPlatform } from "@tauri-apps/plugin-os";
 import { load } from "@tauri-apps/plugin-store";
 import { hasTauriRuntime } from "@markra/shared";
@@ -14,6 +14,7 @@ import * as spellcheck from "./tauri/spellcheck";
 import * as updater from "./tauri/updater";
 import * as webResource from "./tauri/web-resource";
 import * as windowRuntime from "./tauri/window";
+import { listenNativeEvent } from "./tauri/events";
 
 type DesktopPlatform = "macos" | "windows" | "linux";
 
@@ -61,7 +62,7 @@ export const desktopRuntime = {
   events: {
     emit,
     isAvailable: hasTauriRuntime,
-    listen
+    listen: listenNativeEvent
   },
   features: {
     ai: true,

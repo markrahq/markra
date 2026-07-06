@@ -85,17 +85,19 @@ describe("native window actions", () => {
       onCloseRequested: onCloseRequestedNative
     } as unknown as ReturnType<typeof getCurrentWindow>);
 
-    await expect(listenNativeWindowCloseRequested(onCloseRequested)).resolves.toBe(cleanup);
+    const stopListening = await listenNativeWindowCloseRequested(onCloseRequested);
     const nativeHandler = onCloseRequestedNative.mock.calls[0]?.[0] as ((event: { preventDefault: () => unknown }) => unknown) | undefined;
     if (!nativeHandler) throw new Error("close request listener was not registered");
     const preventDefault = vi.fn();
     await nativeHandler({ preventDefault });
+    await Promise.resolve(stopListening());
 
     expect(onCloseRequestedNative).toHaveBeenCalledWith(expect.any(Function));
     expect(onCloseRequested).toHaveBeenCalledWith({ preventDefault: expect.any(Function) });
     const closeRequestEvent = onCloseRequested.mock.calls[0]?.[0] as { preventDefault: () => unknown } | undefined;
     closeRequestEvent?.preventDefault();
     expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
   it("listens for native app exit requests", async () => {
@@ -103,13 +105,26 @@ describe("native window actions", () => {
     mockedListen.mockImplementation((_event, callback) => Promise.resolve(cleanup));
     const onExitRequested = vi.fn();
 
-    await expect(listenNativeAppExitRequested(onExitRequested)).resolves.toBe(cleanup);
+    const stopListening = await listenNativeAppExitRequested(onExitRequested);
     const onEvent = mockedListen.mock.calls[0]?.[1] as (() => unknown) | undefined;
     if (!onEvent) throw new Error("app exit request listener was not registered");
     onEvent();
+    await Promise.resolve(stopListening());
 
     expect(mockedListen).toHaveBeenCalledWith("markra://app-exit-requested", expect.any(Function));
     expect(onExitRequested).toHaveBeenCalledTimes(1);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores stale Tauri unlisten failures for native app exit requests", async () => {
+    const cleanup = vi.fn().mockRejectedValue(new Error("undefined is not an object (evaluating 'listeners[eventId].handlerId')"));
+    mockedListen.mockResolvedValue(cleanup);
+
+    const stopListening = await listenNativeAppExitRequested(() => {});
+
+    await expect(Promise.resolve(stopListening())).resolves.toBeUndefined();
+    await expect(Promise.resolve(stopListening())).resolves.toBeUndefined();
+    expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
   it("confirms and exits the native app", async () => {
@@ -260,15 +275,17 @@ describe("native window actions", () => {
     });
     const onTarget = vi.fn();
 
-    await expect(listenNativeSettingsWindowTarget(onTarget)).resolves.toBe(cleanup);
+    const stopListening = await listenNativeSettingsWindowTarget(onTarget);
     const onEvent = mockedListen.mock.calls[0]?.[1] as ((event: { payload: { target?: unknown } }) => unknown) | undefined;
     if (!onEvent) throw new Error("settings target listener was not registered");
     onEvent({ payload: { target: "exportPandocPath" } });
     onEvent({ payload: { target: "unknown" } });
+    await Promise.resolve(stopListening());
 
     expect(mockedListen).toHaveBeenCalledWith("markra://settings-window-target", expect.any(Function));
     expect(onTarget).toHaveBeenCalledTimes(1);
     expect(onTarget).toHaveBeenCalledWith("exportPandocPath");
+    expect(cleanup).toHaveBeenCalledTimes(1);
   });
 
   it("lists normalized editor window restore states from Tauri", async () => {

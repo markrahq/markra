@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
+import { listenNativeEvent } from "./events";
 
 const acpAgentMessageEvent = "markra://acp-agent-message";
 
@@ -50,7 +50,7 @@ export function stopNativeAcpAgent(connectionId: string) {
 }
 
 export function listenNativeAcpAgentMessages(handler: (event: NativeAcpAgentMessageEvent) => unknown) {
-  return listen<NativeAcpAgentMessageEvent>(acpAgentMessageEvent, (event) => {
+  return listenNativeEvent<NativeAcpAgentMessageEvent>(acpAgentMessageEvent, (event) => {
     handler(event.payload);
   });
 }
