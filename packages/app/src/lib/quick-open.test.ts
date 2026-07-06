@@ -1,5 +1,5 @@
 import type { NativeMarkdownFolderFile } from "./tauri";
-import { quickOpenFiles } from "./quick-open";
+import { quickOpenCommands, quickOpenFiles } from "./quick-open";
 
 const files = [
   {
@@ -41,6 +41,39 @@ describe("quickOpenFiles", () => {
     }).map((result) => result.file.relativePath)).toEqual([
       "alpha/project.md",
       "notes/alpha.md"
+    ]);
+  });
+});
+
+describe("quickOpenCommands", () => {
+  const commands = [
+    {
+      id: "document-stats.insertSummary",
+      pluginId: "document-stats",
+      pluginName: "Document Stats",
+      title: "Insert document stats"
+    },
+    {
+      id: "reference.insertCitation",
+      pluginId: "reference",
+      pluginName: "Reference",
+      title: "Insert citation"
+    }
+  ];
+
+  it("keeps commands hidden for an empty query", () => {
+    expect(quickOpenCommands(commands, "")).toEqual([]);
+  });
+
+  it("finds commands by title, plugin name, and id", () => {
+    expect(quickOpenCommands(commands, "stats").map((result) => result.command.id)).toEqual([
+      "document-stats.insertSummary"
+    ]);
+    expect(quickOpenCommands(commands, "reference").map((result) => result.command.id)).toEqual([
+      "reference.insertCitation"
+    ]);
+    expect(quickOpenCommands(commands, "insertCitation").map((result) => result.command.id)).toEqual([
+      "reference.insertCitation"
     ]);
   });
 });

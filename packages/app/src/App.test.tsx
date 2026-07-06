@@ -1,10 +1,11 @@
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { EditorView } from "@codemirror/view";
 import { Editor as MilkdownEditor, editorViewCtx } from "@milkdown/kit/core";
-import { TextSelection } from "@milkdown/kit/prose/state";
+import { Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView as ProseMirrorEditorView } from "@milkdown/kit/prose/view";
+import { $prose } from "@milkdown/kit/utils";
 import { defaultMarkdownShortcuts } from "@markra/editor";
-import { definePlugin, type PluginManifest } from "@markra/plugin-api";
+import { definePlugin, type PluginCommandContext, type PluginManifest } from "@markra/plugin-api";
 import desktopPackage from "../package.json";
 import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
 import {
@@ -302,6 +303,27 @@ function typeVisualText(view: ProseMirrorEditorView, text: string) {
       }
     }
   });
+}
+
+function findVisualTextPosition(view: ProseMirrorEditorView, text: string, offset = 0) {
+  let position: number | null = null;
+
+  view.state.doc.descendants((node, pos) => {
+    if (position !== null) return false;
+    if (!node.isText || !node.text) return true;
+
+    const index = node.text.indexOf(text);
+    if (index < 0) return true;
+
+    position = pos + index + offset;
+    return false;
+  });
+
+  if (position === null) {
+    throw new Error(`Could not find text "${text}" in the visual editor.`);
+  }
+
+  return position;
 }
 
 function queryVisibleMilkdownEditor(container: HTMLElement) {
@@ -8168,7 +8190,320 @@ describe("Markra workspace", () => {
     expect(screen.getByText("Synthetic citations")).toBeInTheDocument();
   });
 
-  it("runs enabled plugin commands from the titlebar extension command menu", async () => {
+  it("opens enabled plugin side panels from plugin commands", async () => {
+    const referenceManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["commands", "sidePanel"],
+      description: "Reference side panel command for synthetic examples.",
+      id: "reference",
+      main: "./dist/index.js",
+      name: "Reference",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    const runOpenPanel = vi.fn((ctx: PluginCommandContext) => ctx.ui?.openSidePanel("reference.panel"));
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate: () => ({
+        commands: [
+          {
+            description: "Open the references panel.",
+            id: "reference.openPanel",
+            run: runOpenPanel,
+            title: "Open references panel"
+          }
+        ],
+        sidePanels: [
+          {
+            component: () => <section aria-label="Reference panel">Synthetic citations</section>,
+            defaultWidth: 340,
+            icon: "book-open",
+            id: "reference.panel",
+            location: "right",
+            title: "References"
+          }
+        ]
+      }),
+      manifest: referenceManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: ["reference"]
+    });
+
+    renderApp();
+
+    await waitFor(() => expect(screen.getByRole("button", { name: "Toggle extension panel" })).toBeInTheDocument());
+    expect(screen.queryByText("Synthetic citations")).not.toBeInTheDocument();
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.openQuickOpen?.();
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Quick open" });
+    const input = within(dialog).getByRole("searchbox", { name: "Quick open" });
+
+    fireEvent.change(input, { target: { value: "references panel" } });
+    expect(await within(dialog).findByRole("button", { name: /Open references panel/i })).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(runOpenPanel).toHaveBeenCalledWith(expect.objectContaining({
+        invocation: {
+          source: "quickOpen"
+        },
+        ui: expect.objectContaining({
+          openSidePanel: expect.any(Function)
+        })
+      }))
+    );
+    expect(screen.getByRole("complementary", { name: "References" })).toBeInTheDocument();
+    expect(screen.getByText("Synthetic citations")).toBeInTheDocument();
+  });
+
+  it("shows plugin toasts from plugin commands", async () => {
+    const referenceManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["commands"],
+      description: "Reference command toasts for synthetic examples.",
+      id: "reference",
+      main: "./dist/index.js",
+      name: "Reference",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    const runRefresh = vi.fn((ctx: PluginCommandContext) => ctx.ui?.showToast("References refreshed", {
+      description: "2 entries",
+      durationMs: 1200,
+      status: "success"
+    }));
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate: () => ({
+        commands: [
+          {
+            description: "Refresh synthetic references.",
+            id: "reference.refresh",
+            run: runRefresh,
+            title: "Refresh references"
+          }
+        ]
+      }),
+      manifest: referenceManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: ["reference"]
+    });
+
+    renderApp();
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.openQuickOpen?.();
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Quick open" });
+    const input = within(dialog).getByRole("searchbox", { name: "Quick open" });
+
+    fireEvent.change(input, { target: { value: "refresh references" } });
+    expect(await within(dialog).findByRole("button", { name: /Refresh references/i })).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(runRefresh).toHaveBeenCalledWith(expect.objectContaining({
+        invocation: {
+          source: "quickOpen"
+        },
+        ui: expect.objectContaining({
+          showToast: expect.any(Function)
+        })
+      }))
+    );
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("References refreshed"));
+    expect(document.querySelector(".app-toast [data-description]")).toHaveTextContent("2 entries");
+  });
+
+  it("passes the current editor selection to plugin commands", async () => {
+    const referenceManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["commands"],
+      description: "Reference selection command for synthetic examples.",
+      id: "reference",
+      main: "./dist/index.js",
+      name: "Reference",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    const runSelection = vi.fn(async (ctx: PluginCommandContext) => {
+      const selection = await ctx.editor?.getSelection();
+
+      ctx.ui?.showToast(selection?.text ?? "No selection", {
+        description: selection?.source ?? "none",
+        status: "info"
+      });
+
+      return selection?.text ?? "";
+    });
+    const createdEditors: Array<ReturnType<typeof MilkdownEditor.make>> = [];
+    const originalMake = MilkdownEditor.make.bind(MilkdownEditor);
+    const makeSpy = vi.spyOn(MilkdownEditor, "make").mockImplementation(() => {
+      const editor = originalMake();
+      createdEditors.push(editor);
+      return editor;
+    });
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate: () => ({
+        commands: [
+          {
+            description: "Read the current editor selection.",
+            id: "reference.readSelection",
+            run: runSelection,
+            title: "Read editor selection"
+          }
+        ]
+      }),
+      manifest: referenceManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: ["reference"]
+    });
+
+    const { container } = renderApp();
+
+    try {
+      expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+      await settleEditorUpdates();
+
+      const visualView = createdEditors.reduce<ProseMirrorEditorView | null>((visibleView, editor) => {
+        if (visibleView) return visibleView;
+
+        try {
+          const view = editor.action((ctx) => ctx.get(editorViewCtx));
+          return container.contains(view.dom) && !view.dom.closest("[hidden]") ? view : null;
+        } catch {
+          return null;
+        }
+      }, null);
+      if (!visualView) throw new Error("Expected a visible Milkdown editor view.");
+
+      const selectionStart = findVisualTextPosition(visualView, "Welcome");
+      act(() => {
+        visualView.dispatch(
+          visualView.state.tr.setSelection(TextSelection.create(visualView.state.doc, selectionStart, selectionStart + "Welcome".length))
+        );
+      });
+
+      await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+      const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+      await act(async () => {
+        await menuHandlers.openQuickOpen?.();
+      });
+
+      const dialog = screen.getByRole("dialog", { name: "Quick open" });
+      const input = within(dialog).getByRole("searchbox", { name: "Quick open" });
+
+      fireEvent.change(input, { target: { value: "read editor selection" } });
+      expect(await within(dialog).findByRole("button", { name: /Read editor selection/i })).toBeInTheDocument();
+      fireEvent.keyDown(input, { key: "Enter" });
+
+      await waitFor(() =>
+        expect(runSelection).toHaveBeenCalledWith(expect.objectContaining({
+          editor: expect.objectContaining({
+            getSelection: expect.any(Function)
+          }),
+          invocation: {
+            source: "quickOpen"
+          }
+        }))
+      );
+      await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Welcome"));
+      expect(document.querySelector(".app-toast [data-description]")).toHaveTextContent("selection");
+    } finally {
+      makeSpy.mockRestore();
+    }
+  });
+
+  it("installs enabled plugin editor contributions into the workspace editor", async () => {
+    const referenceManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["editor"],
+      description: "Reference editor contribution for synthetic examples.",
+      id: "reference",
+      main: "./dist/index.js",
+      name: "Reference",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    const referenceEditorPlugin = $prose(() => new Plugin({
+      view(view) {
+        view.dom.setAttribute("data-plugin-editor", "reference");
+
+        return {
+          destroy() {
+            view.dom.removeAttribute("data-plugin-editor");
+          }
+        };
+      }
+    }));
+    const setupEditorContribution = vi.fn(() => referenceEditorPlugin);
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate: () => ({
+        editor: [
+          {
+            id: "reference.renderCitations",
+            setup: setupEditorContribution,
+            stage: "prosePlugins"
+          }
+        ]
+      }),
+      manifest: referenceManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: ["reference"]
+    });
+
+    const { container } = renderApp();
+
+    await waitFor(() => expect(setupEditorContribution).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(getVisibleMilkdownEditor(container).querySelector(".ProseMirror")).toHaveAttribute(
+        "data-plugin-editor",
+        "reference"
+      )
+    );
+  });
+
+  it("does not expose enabled plugin commands from the titlebar", async () => {
     const referenceManifest: PluginManifest = {
       apiVersion: 1,
       capabilities: ["commands"],
@@ -8186,14 +8521,13 @@ describe("Markra workspace", () => {
       },
       version: "0.1.0"
     };
-    const insertCitation = vi.fn();
     mockedBuiltInPluginFactories.push(() => definePlugin({
       activate: () => ({
         commands: [
           {
             description: "Insert a synthetic citation.",
             id: "reference.insertCitation",
-            run: insertCitation,
+            run: vi.fn(),
             title: "Insert synthetic citation"
           }
         ]
@@ -8206,25 +8540,17 @@ describe("Markra workspace", () => {
 
     renderApp();
 
-    const commandMenuButton = await screen.findByRole("button", { name: "Extension commands" });
-    fireEvent.click(commandMenuButton);
-    fireEvent.click(screen.getByRole("menuitem", { name: "Insert synthetic citation Reference" }));
+    await waitFor(() => expect(mockedBuiltInPluginFactories.length).toBeGreaterThan(0));
 
-    await waitFor(() => expect(insertCitation).toHaveBeenCalledWith(expect.objectContaining({
-      app: expect.objectContaining({ apiVersion: 1 }),
-      storage: expect.objectContaining({
-        get: expect.any(Function),
-        remove: expect.any(Function),
-        set: expect.any(Function)
-      })
-    })));
+    expect(screen.queryByRole("button", { name: "Extension commands" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Insert synthetic citation Reference" })).not.toBeInTheDocument();
   });
 
-  it("lets plugin commands read the active document and insert markdown into the editor", async () => {
+  it("exposes enabled plugin file tree context menu commands from the workspace app", async () => {
     const referenceManifest: PluginManifest = {
       apiVersion: 1,
-      capabilities: ["commands"],
-      description: "Reference commands for synthetic examples.",
+      capabilities: ["commands", "contextMenu"],
+      description: "Reference file tree commands for synthetic examples.",
       id: "reference",
       main: "./dist/index.js",
       name: "Reference",
@@ -8238,21 +8564,30 @@ describe("Markra workspace", () => {
       },
       version: "0.1.0"
     };
-    const activeDocumentNames: Array<string | undefined> = [];
-    const insertResults: Array<boolean | undefined> = [];
+    const runCopyPath = vi.fn((ctx: PluginCommandContext) =>
+      ctx.invocation?.source === "fileTreeContextMenu" ? ctx.invocation.file.relativePath : "");
     mockedBuiltInPluginFactories.push(() => definePlugin({
       activate: () => ({
         commands: [
           {
-            id: "reference.insertCitation",
-            run: async (ctx) => {
-              const activeDocument = await ctx.document?.getActive();
-              activeDocumentNames.push(activeDocument?.name);
-              insertResults.push(
-                await ctx.editor?.insertMarkdown(`Synthetic citation for ${activeDocument?.name ?? "missing"}`)
-              );
-            },
-            title: "Insert synthetic citation"
+            id: "reference.copyPath",
+            run: runCopyPath,
+            title: "Copy relative path"
+          }
+        ],
+        contextMenus: [
+          {
+            id: "reference.fileTree",
+            scope: "fileTree",
+            items: [
+              {
+                command: "reference.copyPath",
+                id: "reference.copyPath.fileTree",
+                when: {
+                  file: "markdown"
+                }
+              }
+            ]
           }
         ]
       }),
@@ -8261,16 +8596,126 @@ describe("Markra workspace", () => {
     mockedGetStoredPluginSettings.mockResolvedValue({
       enabledPluginIds: ["reference"]
     });
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: mockFolderPath,
+      name: "vault"
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "note.md", path: "/mock-files/vault/note.md", relativePath: "note.md" }
+    ]);
 
-    const { container } = renderApp();
+    renderApp();
 
-    fireEvent.click(await screen.findByRole("button", { name: "Extension commands" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Insert synthetic citation Reference" }));
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    const note = await screen.findByRole("button", { name: "note.md" });
+    fireEvent.contextMenu(note);
 
-    await waitFor(() => expect(activeDocumentNames).toEqual(["Untitled.md"]));
-    await waitFor(() => expect(insertResults).toEqual([true]));
+    const menuOptions = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[3];
+    expect(menuOptions).toEqual(expect.objectContaining({
+      pluginFileTreeItems: [
+        expect.objectContaining({
+          commandId: "reference.copyPath",
+          id: "reference.copyPath.fileTree",
+          pluginId: "reference",
+          pluginName: "Reference",
+          title: "Copy relative path"
+        })
+      ],
+      runPluginCommand: expect.any(Function)
+    }));
+
+    act(() => {
+      menuOptions?.runPluginCommand?.("reference.copyPath", {
+        source: "fileTreeContextMenu",
+        file: {
+          kind: "markdown",
+          name: "note.md",
+          path: "/mock-files/vault/note.md",
+          relativePath: "note.md"
+        }
+      });
+    });
+
     await waitFor(() =>
-      expect(getVisibleMilkdownEditor(container)).toHaveTextContent("Synthetic citation for Untitled.md")
+      expect(runCopyPath).toHaveBeenCalledWith(expect.objectContaining({
+        invocation: {
+          source: "fileTreeContextMenu",
+          file: {
+            kind: "markdown",
+            name: "note.md",
+            path: "/mock-files/vault/note.md",
+            relativePath: "note.md"
+          }
+        }
+      }))
+    );
+  });
+
+  it("runs enabled plugin commands from quick open", async () => {
+    const documentStatsManifest: PluginManifest = {
+      apiVersion: 1,
+      capabilities: ["commands"],
+      description: "Document statistics for synthetic examples.",
+      id: "document-stats",
+      main: "./dist/index.js",
+      name: "Document Stats",
+      permissions: {
+        files: {
+          read: "none",
+          write: "none"
+        },
+        native: false,
+        network: false
+      },
+      version: "0.1.0"
+    };
+    const runInsertStats = vi.fn((ctx: PluginCommandContext) => ctx.app?.language);
+    const activate = vi.fn(() => ({
+      commands: [
+        {
+          description: "Insert a short statistics summary.",
+          id: "document-stats.insertSummary",
+          run: runInsertStats,
+          title: "Insert document stats"
+        }
+      ]
+    }));
+    mockedBuiltInPluginFactories.push(() => definePlugin({
+      activate,
+      manifest: documentStatsManifest
+    }));
+    mockedGetStoredPluginSettings.mockResolvedValue({
+      enabledPluginIds: ["document-stats"]
+    });
+
+    renderApp();
+
+    await waitFor(() => expect(activate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.openQuickOpen?.();
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Quick open" });
+    const input = within(dialog).getByRole("searchbox", { name: "Quick open" });
+
+    fireEvent.change(input, { target: { value: "stats" } });
+    const commandButton = await within(dialog).findByRole("button", { name: /Insert document stats/i });
+    expect(commandButton).toHaveTextContent("Document Stats");
+
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() =>
+      expect(runInsertStats).toHaveBeenCalledWith(expect.objectContaining({
+        app: expect.objectContaining({
+          language: "en"
+        }),
+        invocation: {
+          source: "quickOpen"
+        }
+      }))
     );
   });
 

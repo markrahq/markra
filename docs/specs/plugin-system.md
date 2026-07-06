@@ -2,13 +2,13 @@
 
 Status: Draft
 
-This document captures the initial design direction for a Markra plugin system. It is intentionally scoped to the foundation needed for built-in extensions such as academic reference tools, citation rendering, side panels, settings, editor contributions, and Pandoc export hooks.
+This document captures the initial design direction for a Markra plugin system. It is intentionally scoped to the foundation needed for built-in extensions such as academic reference tools, citation rendering, side panels, settings, commands, context menu placements, editor contributions, and Pandoc export hooks.
 
 ## Goals
 
 - Let specialized features live in their own packages instead of spreading domain code through app shell, editor, settings, and export files.
 - Start with built-in extensions that are shipped and built with Markra.
-- Expose stable extension points for settings, side panels, commands, editor behavior, document context, workspace file access, and Pandoc export.
+- Expose stable extension points for settings, side panels, commands, context menus, editor behavior, document context, workspace file access, and Pandoc export.
 - Keep Markra quiet by default: disabled extensions should not affect the editor or settings surface.
 - Keep the internal developer API narrow and versioned so it can become public later.
 
@@ -106,7 +106,64 @@ Examples:
 - `reference.refreshBibliography`
 - `reference.openPanel`
 
-The first implementation collects command contributions from enabled plugins only. App code can list commands through the plugin command adapter and execute a command by id. The command runner creates a plugin-scoped context for the contributing plugin, so commands get the same app metadata, namespaced storage model, active-document reader, editor insertion API, and workspace file access as activation. The workspace titlebar exposes enabled commands through a compact Extensions command menu; the menu is hidden when no enabled plugin contributes commands.
+The first implementation collects command contributions from enabled plugins only. App code can list commands through the plugin command adapter and execute a command by id. Plugin command ids should still be namespaced, but app-owned surfaces that know the contributing plugin, such as Settings, context menus, and Quick Open command results, pass the plugin id into the command runner so command lookup is stable even if two internal plugins accidentally expose the same command id. The command runner creates a plugin-scoped context for the contributing plugin, so commands get the same app metadata, namespaced storage model, active-document reader, editor insertion API, and workspace file access as activation. Commands may also receive optional invocation metadata when the command is triggered from a specific surface such as the editor context menu or file tree context menu. Enabled commands are displayed in `Settings -> Extensions -> <plugin>` as plugin-specific actions and can be searched/run from Quick Open alongside files. A richer dedicated command palette can build on the same command adapter later; the workspace titlebar should stay reserved for stable workspace controls such as panel toggles.
+
+### Context Menus
+
+Context menus are placements for existing commands. Plugins should not register arbitrary right-click callbacks; they contribute menu items that point at command ids from the same plugin activation. This keeps Settings buttons, context menus, future command palette entries, and future shortcuts on the same command execution path.
+
+The first implementation supports editor and file tree context menus:
+
+```ts
+type FileTreeTargetKind = "markdown" | "folder" | "asset" | "attachment";
+
+type ContextMenuContribution = {
+  id: string;
+  scope: "editor" | "fileTree";
+  items: Array<{
+    id: string;
+    command: string;
+    title?: string;
+    when?: {
+      document?: "markdown";
+      file?: "any" | FileTreeTargetKind;
+      selection?: "any" | "nonEmpty";
+    };
+  }>;
+};
+```
+
+The app adapter collects enabled plugin context menu contributions, resolves each item to a command contributed by the same plugin, and skips items whose command target is unavailable. The workspace editor and file tree right-click menus show collected items under an **Extension commands** submenu. When a menu item runs, the command receives its normal plugin command context plus invocation metadata:
+
+```ts
+type CommandInvocation =
+  | {
+      source: "editorContextMenu";
+      editor?: {
+        selectionText?: string;
+      };
+    }
+  | {
+      source: "fileTreeContextMenu";
+      file: {
+        kind: FileTreeTargetKind;
+        name: string;
+        path: string;
+        relativePath: string;
+        sizeBytes?: number;
+        createdAt?: number;
+        modifiedAt?: number;
+      };
+    }
+  | {
+      source: "quickOpen";
+    }
+  | {
+      source: "settings";
+    };
+```
+
+Richer invocation context such as clicked editor node and structured selection range can be added later without changing the command placement model.
 
 ### Settings UI
 
@@ -167,13 +224,13 @@ type ExtensionsSettingsPlugin = PluginRegistryItem & {
 };
 ```
 
-Internal plugins are registered through the built-in plugin factory list. Until that list contains plugins, the Extensions page shows an empty state; once a factory is added, its manifest appears in the list and its activation settings contributions render after the plugin is enabled. Enabled plugin ids are persisted in app settings as `pluginSettings.enabledPluginIds` and included in settings import/export. When the settings window changes enabled plugin ids, it emits `markra://plugin-settings-changed`; workspace windows listen for that event and reconcile the built-in plugin registry so commands and Pandoc hooks become active without requiring an app restart.
+Internal plugins are registered through the built-in plugin factory list. The first registered plugin is Document Stats, a small built-in extension used to validate settings, commands, editor context menu placements, side panels, active-document reads, editor insertion, plugin-scoped UI helpers, and plugin-scoped storage. Its manifest appears in the Extensions list while remaining disabled by default. Enabled plugin ids are persisted in app settings as `pluginSettings.enabledPluginIds` and included in settings import/export. When the settings window changes enabled plugin ids, it emits `markra://plugin-settings-changed`; workspace windows listen for that event and reconcile the built-in plugin registry so commands and Pandoc hooks become active without requiring an app restart.
 
 ### Side Panels
 
 Plugins can contribute right-side panels, such as a References panel. Panels should be opened explicitly by the user or from a command. Enabling an extension should not automatically make the workspace noisy.
 
-The first implementation adapts enabled plugin side panel contributions into a host model with `pluginId`, `pluginName`, `id`, `title`, `icon`, `defaultWidth`, `location`, and rendered `content`. `useExtensionsSettingsPlugins` exposes the collected `sidePanels`; the workspace titlebar shows an Extensions panel button only when enabled plugins provide panels. Clicking it opens a quiet right-side `PluginSidePanelHost` that uses the panel title, plugin name, optional tab list for multiple panels, and contributed content. Panels remain closed by default when an extension is enabled.
+The first implementation adapts enabled plugin side panel contributions into a host model with `pluginId`, `pluginName`, `id`, `title`, `icon`, `defaultWidth`, `location`, and rendered `content`. `useExtensionsSettingsPlugins` exposes the collected `sidePanels`; the workspace titlebar shows an Extensions panel button only when enabled plugins provide panels. Clicking it opens a quiet right-side `PluginSidePanelHost` that uses the panel title, plugin name, optional tab list for multiple panels, and contributed content. Plugins can also call `ctx.ui.openSidePanel(panelId?)` from commands to open one of their own side panels; Markra resolves the request by the calling plugin id, so an extension cannot open another extension's panel. Plugins can call `ctx.ui.showToast(message, options?)` for lightweight host notifications without reaching into the toast implementation. Panels remain closed by default when an extension is enabled.
 
 ### Editor
 
@@ -187,7 +244,7 @@ Plugins can contribute editor behavior:
 
 Editor contributions should declare a stage and optional priority. Avoid a single unstructured `externalPlugins` array because editor plugin ordering matters.
 
-The first app adapter collects editor contributions from enabled plugins and exposes them through `useExtensionsSettingsPlugins`. Contributions are sorted by stage order (`inputRules`, `prosePlugins`, `serializer`, `afterCore`), then by higher `priority` first, then by plugin id and contribution id for deterministic output. Calling a contribution's `setup` creates a plugin-scoped context for the contributing plugin. Wiring those contributions into the actual Milkdown initialization is a later integration pass.
+The first app adapter collects editor contributions from enabled plugins and exposes them through `useExtensionsSettingsPlugins`. Contributions are sorted by stage order (`inputRules`, `prosePlugins`, `serializer`, `afterCore`), then by higher `priority` first, then by plugin id and contribution id for deterministic output. Calling a contribution's `setup` creates a plugin-scoped context for the contributing plugin. The workspace app resolves enabled editor contributions into Milkdown plugins and passes them into the visual editor; when the enabled editor contribution set changes, the editor instance is recreated so the plugin set is applied predictably.
 
 ### Documents And Workspace
 
@@ -203,6 +260,7 @@ Plugins need controlled document and workspace context:
 The first implementation exposes the active-document and editor surface through `ctx.document` and `ctx.editor`:
 
 - `document.getActive()` returns the currently open Markdown document snapshot with `path`, `name`, `content`, `dirty`, `revision`, and optional `sizeBytes`, or `null` when no Markdown document is active.
+- `editor.getSelection()` returns a pure-data snapshot of the current visual editor selection with `text`, `from`, `to`, `cursor`, and optional `source`, or `null` when the visual editor selection is unavailable.
 - `editor.insertMarkdown(markdown)` inserts Markdown source text at the current editor selection when the visual editor is available and returns whether insertion succeeded.
 
 It also exposes the workspace file surface through `ctx.workspace`:
@@ -252,6 +310,7 @@ Example:
     "settings",
     "commands",
     "sidePanel",
+    "contextMenu",
     "editor",
     "workspaceFiles",
     "pandocExport"
@@ -282,7 +341,7 @@ Example:
 - `capabilities`: Feature contributions the extension can add to Markra.
 - `permissions`: Resource access requested by the extension.
 
-Capabilities are enforced when a plugin activates. If a plugin returns `commands`, `settings`, `sidePanels`, `editor`, or `export` contributions without the matching manifest capability, Markra rejects activation and shows the extension as failed. Empty contribution arrays do not require a capability.
+Capabilities are enforced when a plugin activates. If a plugin returns `commands`, `settings`, `sidePanels`, `contextMenus`, `editor`, or `export` contributions without the matching manifest capability, Markra rejects activation and shows the extension as failed. Empty contribution arrays do not require a capability.
 
 ### Capabilities vs Permissions
 
@@ -293,6 +352,7 @@ Capabilities describe what the extension contributes to Markra:
   "settings",
   "commands",
   "sidePanel",
+  "contextMenu",
   "editor",
   "workspaceFiles",
   "pandocExport"
@@ -356,7 +416,9 @@ export default definePlugin({
     description: "Citation tools and Pandoc bibliography export.",
     capabilities: [
       "settings",
+      "commands",
       "sidePanel",
+      "contextMenu",
       "editor",
       "workspaceFiles",
       "pandocExport"
@@ -380,6 +442,19 @@ export default definePlugin({
           run: async () => {
             await ctx.editor.insertText("[@citekey]");
           }
+        }
+      ],
+
+      contextMenus: [
+        {
+          id: "reference.editor",
+          scope: "editor",
+          items: [
+            {
+              id: "reference.insertCitation.editor",
+              command: "reference.insertCitation"
+            }
+          ]
         }
       ],
 
@@ -498,16 +573,26 @@ export type PluginContext = {
   };
 
   editor: {
-    focus(): Promise<unknown>;
-    insertText(text: string): Promise<unknown>;
-    replaceSelection(text: string): Promise<unknown>;
-    getSelection(): Promise<EditorSelection | null>;
+    getSelection(): Promise<{
+      cursor: number;
+      from: number;
+      source?: "block" | "selection";
+      text: string;
+      to: number;
+    } | null>;
+    insertMarkdown(markdown: string): Promise<boolean>;
   };
 
   ui: {
-    toast(message: string, options?: ToastOptions): unknown;
-    showOpenDialog(options: OpenFileOptions): Promise<string | null>;
-    showSaveDialog(options: SaveFileOptions): Promise<string | null>;
+    openSidePanel(panelId?: string): Promise<boolean>;
+    showToast(
+      message: string,
+      options?: {
+        description?: string;
+        durationMs?: number;
+        status?: "error" | "info" | "success";
+      }
+    ): unknown;
   };
 };
 ```
@@ -524,11 +609,44 @@ window.markra
 
 If low-level editor access is needed, expose it through `@markra/plugin-api/editor` as an explicit advanced API.
 
+### Command Context
+
+```ts
+export type CommandInvocation = {
+  source: "editorContextMenu";
+  editor?: {
+    selectionText?: string;
+  };
+} | {
+  source: "fileTreeContextMenu";
+  file: {
+    kind: "markdown" | "folder" | "asset" | "attachment";
+    name: string;
+    path: string;
+    relativePath: string;
+    sizeBytes?: number;
+    createdAt?: number;
+    modifiedAt?: number;
+  };
+} | {
+  source: "quickOpen";
+} | {
+  source: "settings";
+};
+
+export type CommandContext = PluginContext & {
+  invocation?: CommandInvocation;
+};
+```
+
+Commands launched from Settings include `source: "settings"`. Commands launched from Quick Open include `source: "quickOpen"`. Commands launched from the editor right-click menu include `source: "editorContextMenu"` and the current selected text when available. Commands launched from the file tree right-click menu include `source: "fileTreeContextMenu"` and the clicked file or folder target.
+
 ### Activation Result
 
 ```ts
 export type PluginActivation = {
   commands?: CommandContribution[];
+  contextMenus?: ContextMenuContribution[];
   settings?: SettingsContribution[];
   sidePanels?: SidePanelContribution[];
   editor?: EditorContribution[];
@@ -721,7 +839,7 @@ Example index:
       "latestVersion": "0.2.0",
       "apiVersion": 1,
       "verified": true,
-      "capabilities": ["settings", "commands", "sidePanel", "editor", "pandocExport"],
+      "capabilities": ["settings", "commands", "sidePanel", "contextMenu", "editor", "pandocExport"],
       "permissionsSummary": {
         "filesRead": "userSelected",
         "filesWrite": "none",
@@ -853,7 +971,7 @@ Example registry entry:
   "source": "https://github.com/markrahq/markra-reference",
   "updateUrl": "https://markrahq.github.io/markra-reference/markra-updates.json",
   "publicKeys": ["..."],
-  "allowedCapabilities": ["settings", "commands", "sidePanel", "editor", "pandocExport"],
+  "allowedCapabilities": ["settings", "commands", "sidePanel", "contextMenu", "editor", "pandocExport"],
   "allowedPermissions": {
     "files": {
       "read": "userSelected",
@@ -887,7 +1005,7 @@ Example:
       "signature": "...",
       "releasedAt": "2026-07-05T00:00:00Z",
       "changelog": "Adds bibliography file discovery.",
-      "capabilities": ["settings", "commands", "sidePanel", "editor", "pandocExport"],
+      "capabilities": ["settings", "commands", "sidePanel", "contextMenu", "editor", "pandocExport"],
       "permissions": {
         "files": {
           "read": "userSelected",
@@ -1057,7 +1175,7 @@ Only install extensions from sources you trust. Extensions run code inside Markr
 
 - Add `@markra/plugin-api`.
 - Add a built-in plugin registry in `@markra/app`.
-- Add lifecycle, storage, command, settings, side panel, editor, document, workspace, and Pandoc export contribution plumbing.
+- Add lifecycle, storage, command, context menu, settings, side panel, editor, document, workspace, and Pandoc export contribution plumbing.
 - Verify that no enabled plugins preserves current behavior.
 
 ### Phase 2: Internal Extensions UI
@@ -1065,14 +1183,15 @@ Only install extensions from sources you trust. Extensions run code inside Markr
 - Add Settings -> Extensions.
 - Add extension list, details view, capability display, enable/disable switch, and error states.
 - Broadcast enabled extension changes from the settings window and refresh workspace plugin registries without restart.
-- Render enabled command contributions through the workspace titlebar Extensions command menu.
+- Render enabled command contributions in each extension detail view and Quick Open.
+- Render enabled editor and file tree context menu command placements in workspace right-click menus.
 - Render enabled side panel contributions through the workspace right-side panel host.
 - Add built-in extension registration.
 
 ### Phase 3: Reference Extension
 
 - Move citation/reference functionality into `packages/reference`.
-- Use only the plugin API to add settings, side panel, editor contribution, commands, and Pandoc export hooks.
+- Use only the plugin API to add settings, side panel, context menu items, editor contribution, commands, and Pandoc export hooks.
 - Keep Markra usable when the extension is disabled.
 
 ### Phase 4: Developer Load Unpacked

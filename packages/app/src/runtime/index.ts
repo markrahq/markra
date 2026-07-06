@@ -55,6 +55,7 @@ import type {
 import type {
   NativeEditorContextMenuEntryOptions,
   NativeEditorContextMenuOptions,
+  NativeMarkdownFileTreeContextMenuOptions,
   NativeMarkdownFileTreeContextMenuHandlers,
   NativeMenuHandlers
 } from "../lib/tauri/menu";
@@ -228,7 +229,8 @@ export type AppMenuRuntime = {
   createMarkdownFileTreeContextMenuItems: (
     handlers: NativeMarkdownFileTreeContextMenuHandlers,
     language?: AppLanguage,
-    file?: NativeMarkdownFolderFile
+    file?: NativeMarkdownFolderFile,
+    options?: NativeMarkdownFileTreeContextMenuOptions
   ) => ContextMenuEntry[];
   installApplicationMenu: (
     handlers: NativeMenuHandlers,
@@ -247,7 +249,8 @@ export type AppMenuRuntime = {
   showMarkdownFileTreeContextMenu: (
     handlers: NativeMarkdownFileTreeContextMenuHandlers,
     language?: AppLanguage,
-    file?: NativeMarkdownFolderFile
+    file?: NativeMarkdownFolderFile,
+    options?: NativeMarkdownFileTreeContextMenuOptions
   ) => Promise<unknown>;
 };
 
@@ -654,6 +657,7 @@ export {
 } from "./context-menu-items";
 export type {
   NativeEditorContextMenuOptions,
+  NativeMarkdownFileTreeContextMenuOptions,
   NativeMarkdownFileTreeContextMenuHandlers,
   NativeMenuCommand,
   NativeMenuHandlers

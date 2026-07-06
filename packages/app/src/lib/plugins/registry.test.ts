@@ -3,7 +3,7 @@ import { createPluginRegistry, type BuiltInPluginFactory } from "./registry";
 
 const referenceManifest: PluginManifest = {
   apiVersion: 1,
-  capabilities: ["settings", "commands"],
+  capabilities: ["settings", "commands", "contextMenu"],
   description: "Reference tools for synthetic examples.",
   id: "reference",
   main: "./dist/index.js",
@@ -138,6 +138,38 @@ describe("plugin registry", () => {
       error: 'Plugin "reference" contributed commands but does not declare the "commands" capability.',
       status: "failed"
     });
+  });
+
+  it("rejects context menu contributions that are not declared in manifest capabilities", async () => {
+    const registry = createPluginRegistry({ apiVersion: 1 });
+    registry.registerBuiltIn(createFactory({
+      ...referenceManifest,
+      capabilities: ["commands"]
+    }, () => ({
+      commands: [
+        {
+          id: "reference.insertCitation",
+          run: () => "inserted",
+          title: "Insert citation"
+        }
+      ],
+      contextMenus: [
+        {
+          id: "reference.editor",
+          scope: "editor",
+          items: [
+            {
+              command: "reference.insertCitation",
+              id: "reference.insertCitation.editor"
+            }
+          ]
+        }
+      ]
+    })));
+
+    await expect(registry.enable("reference", {})).rejects.toThrow(
+      'Plugin "reference" contributed context menu items but does not declare the "contextMenu" capability.'
+    );
   });
 
   it("allows empty undeclared contribution arrays", async () => {

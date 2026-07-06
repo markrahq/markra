@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { I18nKey } from "@markra/shared";
 import type {
+  PluginCommandInvocation,
   PluginCapability,
   PluginFileReadPermissionGrant,
   PluginFileWritePermissionGrant
 } from "@markra/plugin-api";
 import type { ExtensionsSettingsPlugin } from "../../lib/plugins/settings";
 import type { PluginRegistryStatus } from "../../lib/plugins/registry";
-import { SettingsRow, SettingsSection, SettingsSwitch } from "./SettingsControls";
+import { SettingsButton, SettingsRow, SettingsSection, SettingsSwitch } from "./SettingsControls";
 
 type Translate = (key: I18nKey) => string;
 
 export type ExtensionsSettingsProps = {
+  onRunPluginCommand?: (id: string, invocation: PluginCommandInvocation, pluginId: string) => unknown;
   onTogglePlugin?: (id: string, enabled: boolean) => unknown;
   plugins: readonly ExtensionsSettingsPlugin[];
   translate: Translate;
@@ -19,6 +21,7 @@ export type ExtensionsSettingsProps = {
 
 const capabilityLabelKeys: Record<PluginCapability, I18nKey> = {
   commands: "settings.extensions.capability.commands",
+  contextMenu: "settings.extensions.capability.contextMenu",
   editor: "settings.extensions.capability.editor",
   pandocExport: "settings.extensions.capability.pandocExport",
   settings: "settings.extensions.capability.settings",
@@ -26,7 +29,7 @@ const capabilityLabelKeys: Record<PluginCapability, I18nKey> = {
   workspaceFiles: "settings.extensions.capability.workspaceFiles"
 };
 
-export function ExtensionsSettings({ onTogglePlugin, plugins, translate }: ExtensionsSettingsProps) {
+export function ExtensionsSettings({ onRunPluginCommand, onTogglePlugin, plugins, translate }: ExtensionsSettingsProps) {
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(() => plugins[0]?.manifest.id ?? null);
 
   useEffect(() => {
@@ -57,9 +60,9 @@ export function ExtensionsSettings({ onTogglePlugin, plugins, translate }: Exten
   }
 
   return (
-    <div className="extensions-settings grid min-h-0 grid-cols-[minmax(190px,240px)_minmax(0,1fr)] gap-7 max-[860px]:grid-cols-1">
+    <div className="extensions-settings grid h-full min-h-0 grid-cols-[minmax(190px,240px)_minmax(0,1fr)] gap-7 overflow-hidden max-[860px]:h-auto max-[860px]:grid-cols-1 max-[860px]:overflow-visible">
       <nav
-        className="extensions-settings-list flex min-w-0 flex-col gap-1"
+        className="extensions-settings-list flex min-h-0 min-w-0 flex-col gap-1 overflow-y-auto overscroll-contain pr-1 max-[860px]:max-h-56"
         aria-label={translate("settings.extensions.pluginListLabel")}
       >
         {plugins.map((plugin) => {
@@ -90,7 +93,10 @@ export function ExtensionsSettings({ onTogglePlugin, plugins, translate }: Exten
       </nav>
 
       {selectedPlugin ? (
-        <section className="extensions-settings-detail min-w-0" aria-labelledby="extensions-plugin-title">
+        <section
+          className="extensions-settings-detail min-h-0 min-w-0 overflow-y-auto overscroll-contain pr-1 max-[860px]:overflow-visible max-[860px]:pr-0"
+          aria-labelledby="extensions-plugin-title"
+        >
           <header className="mb-6 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-5">
             <div className="min-w-0">
               <h3
@@ -140,6 +146,30 @@ export function ExtensionsSettings({ onTogglePlugin, plugins, translate }: Exten
               </div>
             )}
           </section>
+
+          {selectedPlugin.commands.length > 0 ? (
+            <SettingsSection label={translate("settings.extensions.capability.commands")}>
+              {selectedPlugin.commands.map((command) => (
+                <SettingsRow
+                  key={command.id}
+                  title={command.title}
+                  description={command.description}
+                  action={onRunPluginCommand ? (
+                    <SettingsButton
+                      label={`Run ${command.title}`}
+                      onClick={() => onRunPluginCommand(
+                        command.id,
+                        { source: "settings" },
+                        selectedPlugin.manifest.id
+                      )}
+                    >
+                      {translate("settings.extensions.runCommand")}
+                    </SettingsButton>
+                  ) : undefined}
+                />
+              ))}
+            </SettingsSection>
+          ) : null}
 
           <SettingsSection label={translate("settings.extensions.permissions")}>
             <SettingsRow

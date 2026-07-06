@@ -3,6 +3,7 @@ export const pluginCapabilities = [
   "commands",
   "sidePanel",
   "editor",
+  "contextMenu",
   "workspaceFiles",
   "pandocExport"
 ] as const;

@@ -1,17 +1,36 @@
 import { Fragment, createElement, isValidElement, type ComponentType, type ReactNode } from "react";
-import type { PluginSettingsContribution } from "@markra/plugin-api";
+import type { PluginCommandContribution, PluginSettingsContribution } from "@markra/plugin-api";
 import type { PluginRegistry, PluginRegistryItem } from "./registry";
 
 type PluginSettingsComponent = ComponentType<Record<string, never>>;
 
+export type ExtensionsSettingsPluginCommand = Pick<
+  PluginCommandContribution,
+  "description" | "id" | "title"
+>;
+
 export type ExtensionsSettingsPlugin = PluginRegistryItem & {
+  commands: ExtensionsSettingsPluginCommand[];
   settings?: ReactNode;
 };
 
 export function listExtensionsSettingsPlugins(registry: PluginRegistry): ExtensionsSettingsPlugin[] {
-  return registry.listPlugins().map((plugin) => ({
-    ...plugin,
-    settings: renderPluginSettings(registry.getActivation(plugin.manifest.id)?.settings)
+  return registry.listPlugins().map((plugin) => {
+    const activation = registry.getActivation(plugin.manifest.id);
+
+    return {
+      ...plugin,
+      commands: listPluginSettingCommands(activation?.commands),
+      settings: renderPluginSettings(activation?.settings)
+    };
+  });
+}
+
+function listPluginSettingCommands(commands: readonly PluginCommandContribution[] | undefined) {
+  return (commands ?? []).map((command) => ({
+    description: command.description,
+    id: command.id,
+    title: command.title
   }));
 }
 

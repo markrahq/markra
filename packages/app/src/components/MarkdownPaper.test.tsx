@@ -11,9 +11,11 @@ vi.mock("mermaid", () => ({
 
 import type { Editor } from "@milkdown/kit/core";
 import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/kit/core";
+import type { MilkdownPlugin } from "@milkdown/kit/ctx";
 import { Fragment, Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
-import { NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
+import { NodeSelection, Plugin, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
+import { $prose } from "@milkdown/kit/utils";
 import { MarkdownPaper } from "./MarkdownPaper";
 import {
   AI_EDITOR_PREVIEW_APPLIED_EVENT,
@@ -62,6 +64,7 @@ async function renderEditor(
     documentPath?: string | null;
     editorTheme?: EditorTheme;
     editorFontFamily?: EditorFontFamilyPreference;
+    editorPlugins?: readonly MilkdownPlugin[];
     onMarkdownChange?: (content: string) => unknown;
     onSaveClipboardImage?: (image: File) => Promise<{ alt: string; src: string } | null>;
     onSaveClipboardAttachment?: (attachment: File) => Promise<{ label: string; src: string } | null>;
@@ -94,6 +97,7 @@ async function renderEditor(
       documentPath={options.documentPath}
       editorTheme={options.editorTheme}
       editorFontFamily={options.editorFontFamily}
+      editorPlugins={options.editorPlugins}
       bottomOverlayInset={options.bottomOverlayInset}
       initialContent={initialContent}
       onEditorReady={(instance) => {
@@ -999,6 +1003,26 @@ afterAll(async () => {
 });
 
 describe("MarkdownPaper editing", () => {
+  it("installs external editor plugins into the visual editor", async () => {
+    const externalPlugin = $prose(() => new Plugin({
+      view(view) {
+        view.dom.setAttribute("data-plugin-editor", "reference");
+
+        return {
+          destroy() {
+            view.dom.removeAttribute("data-plugin-editor");
+          }
+        };
+      }
+    }));
+
+    const { view } = await renderEditor("# Example", {
+      editorPlugins: [externalPlugin]
+    });
+
+    expect(view.dom).toHaveAttribute("data-plugin-editor", "reference");
+  });
+
   it("marks whether code blocks should wrap long lines", async () => {
     const { container } = await renderEditor("```ts\nconst syntheticValue = 'mock';\n```", { wrapCodeBlocks: false });
 

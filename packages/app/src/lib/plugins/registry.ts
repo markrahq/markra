@@ -43,6 +43,7 @@ const activationCapabilityRequirements: readonly ActivationCapabilityRequirement
   { capability: "settings", contribution: "settings", label: "settings" },
   { capability: "sidePanel", contribution: "sidePanels", label: "side panels" },
   { capability: "editor", contribution: "editor", label: "editor contributions" },
+  { capability: "contextMenu", contribution: "contextMenus", label: "context menu items" },
   { capability: "pandocExport", contribution: "export", label: "Pandoc export hooks" }
 ];
 

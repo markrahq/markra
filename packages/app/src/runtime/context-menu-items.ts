@@ -5,6 +5,7 @@ import {
   type MarkdownShortcutAction,
   type MarkdownShortcutMap
 } from "@markra/editor";
+import type { PluginFileTreeTarget, PluginFileTreeTargetKind } from "@markra/plugin-api";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import {
   collapseContextMenuEntries,
@@ -16,6 +17,7 @@ import {
 import type {
   NativeEditorContextMenuEntryOptions,
   NativeEditorContextMenuOptions,
+  NativeMarkdownFileTreeContextMenuOptions,
   NativeMarkdownFileTreeContextMenuHandlers,
   NativeMenuCommand,
   NativeMenuHandlers
@@ -25,6 +27,7 @@ import type { NativeMarkdownFolderFile } from "../lib/tauri/file";
 type BrowserEditCommand = "copy" | "cut" | "paste" | "selectAll";
 
 type EditorContextMenuEntryOptions = NativeEditorContextMenuEntryOptions;
+type MarkdownFileTreeContextMenuOptions = NativeMarkdownFileTreeContextMenuOptions;
 
 export type ContextMenuIdPrefixes = {
   editor: string;
@@ -173,6 +176,105 @@ function readAiCommandsAvailable(options: NativeEditorContextMenuOptions) {
   }
 }
 
+function selectionTextAvailable() {
+  return readSelectionText().trim().length > 0;
+}
+
+function readSelectionText() {
+  if (typeof window === "undefined") return "";
+
+  try {
+    return window.getSelection()?.toString() ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function pluginEditorItemVisible(item: NonNullable<EditorContextMenuEntryOptions["pluginEditorItems"]>[number]) {
+  if (item.when?.selection === "nonEmpty" && !selectionTextAvailable()) return false;
+
+  return true;
+}
+
+function createPluginEditorContextMenuEntries(
+  items: EditorContextMenuEntryOptions["pluginEditorItems"],
+  editorId: (suffix: string) => string,
+  runPluginCommand: EditorContextMenuEntryOptions["runPluginCommand"]
+) {
+  return (items ?? [])
+    .filter(pluginEditorItemVisible)
+    .map((item) =>
+      contextMenuItem(
+        editorId(`plugin:${item.id}`),
+        item.title,
+        undefined,
+        runPluginCommand ? () => runPluginCommand(
+          item.commandId,
+          {
+            source: "editorContextMenu",
+            editor: {
+              selectionText: readSelectionText()
+            }
+          },
+          item.pluginId
+        ) : undefined
+      ));
+}
+
+function fileTreeTargetKind(file: NativeMarkdownFolderFile): PluginFileTreeTargetKind {
+  return file.kind ?? "markdown";
+}
+
+function pluginFileTreeTarget(file: NativeMarkdownFolderFile): PluginFileTreeTarget {
+  return {
+    ...(typeof file.createdAt === "number" ? { createdAt: file.createdAt } : {}),
+    kind: fileTreeTargetKind(file),
+    ...(typeof file.modifiedAt === "number" ? { modifiedAt: file.modifiedAt } : {}),
+    name: file.name,
+    path: file.path,
+    relativePath: file.relativePath,
+    ...(typeof file.sizeBytes === "number" ? { sizeBytes: file.sizeBytes } : {})
+  };
+}
+
+function pluginFileTreeItemVisible(
+  item: NonNullable<MarkdownFileTreeContextMenuOptions["pluginFileTreeItems"]>[number],
+  file?: NativeMarkdownFolderFile
+) {
+  if (!file) return false;
+  const expectedKind = item.when?.file;
+  if (!expectedKind || expectedKind === "any") return true;
+
+  return expectedKind === fileTreeTargetKind(file);
+}
+
+function createPluginFileTreeContextMenuEntries(
+  file: NativeMarkdownFolderFile | undefined,
+  items: MarkdownFileTreeContextMenuOptions["pluginFileTreeItems"],
+  fileTreeId: (suffix: string) => string,
+  runPluginCommand: MarkdownFileTreeContextMenuOptions["runPluginCommand"]
+) {
+  if (!file) return [];
+  const target = pluginFileTreeTarget(file);
+
+  return (items ?? [])
+    .filter((item) => pluginFileTreeItemVisible(item, file))
+    .map((item) =>
+      contextMenuItem(
+        fileTreeId(`plugin:${item.id}`),
+        item.title,
+        undefined,
+        runPluginCommand ? () => runPluginCommand(
+          item.commandId,
+          {
+            file: target,
+            source: "fileTreeContextMenu"
+          },
+          item.pluginId
+        ) : undefined
+      ));
+}
+
 export function createEditorContextMenuEntries(
   handlers: NativeMenuHandlers,
   language: AppLanguage = "en",
@@ -249,6 +351,18 @@ export function createEditorContextMenuEntries(
     );
   }
 
+  const pluginItems = createPluginEditorContextMenuEntries(
+    options.pluginEditorItems,
+    editorId,
+    options.runPluginCommand
+  );
+  if (pluginItems.length > 0) {
+    entries.push(
+      contextMenuSeparator(),
+      contextMenuSubmenu(editorId("extensions"), label("app.extensionCommands"), pluginItems)
+    );
+  }
+
   return collapseContextMenuEntries(entries);
 }
 
@@ -264,6 +378,8 @@ export function createEditorContextMenuEntriesFromOptions(
     {
       aiCommandsAvailable: readAiCommandsAvailable(options),
       markdownShortcuts: options.markdownShortcuts,
+      pluginEditorItems: options.pluginEditorItems,
+      runPluginCommand: options.runPluginCommand,
       readClipboardText: options.readClipboardText
     },
     idPrefixes
@@ -274,7 +390,8 @@ export function createMarkdownFileTreeContextMenuEntries(
   handlers: NativeMarkdownFileTreeContextMenuHandlers,
   language: AppLanguage = "en",
   file?: NativeMarkdownFolderFile,
-  idPrefixes: Partial<ContextMenuIdPrefixes> = {}
+  idPrefixes: Partial<ContextMenuIdPrefixes> = {},
+  options: MarkdownFileTreeContextMenuOptions = {}
 ): ContextMenuEntry[] {
   const prefixes = {
     ...defaultContextMenuIdPrefixes,
@@ -308,6 +425,21 @@ export function createMarkdownFileTreeContextMenuEntries(
     return collapseContextMenuEntries(entries);
   }
 
+  const appendPluginFileTreeEntries = () => {
+    const pluginItems = createPluginFileTreeContextMenuEntries(
+      file,
+      options.pluginFileTreeItems,
+      fileTreeId,
+      options.runPluginCommand
+    );
+    if (pluginItems.length === 0) return;
+
+    entries.push(
+      contextMenuSeparator(),
+      contextMenuSubmenu(fileTreeId("extensions"), label("app.extensionCommands"), pluginItems)
+    );
+  };
+
   if (fileIsFolder) {
     entries.push(
       contextMenuSeparator(),
@@ -316,6 +448,7 @@ export function createMarkdownFileTreeContextMenuEntries(
       contextMenuItem(fileTreeId("delete"), label("app.deleteMarkdownFolder"), undefined, () => handlers.deleteFile?.(file), !handlers.deleteFile)
     );
 
+    appendPluginFileTreeEntries();
     return collapseContextMenuEntries(entries);
   }
 
@@ -349,6 +482,7 @@ export function createMarkdownFileTreeContextMenuEntries(
     contextMenuItem(fileTreeId("rename"), label("app.renameMarkdownFile"), undefined, () => handlers.renameFile?.(file), multiSelect || !handlers.renameFile),
     contextMenuItem(fileTreeId("delete"), label("app.deleteMarkdownFile"), undefined, () => handlers.deleteFile?.(file), !handlers.deleteFile)
   );
+  appendPluginFileTreeEntries();
 
   return collapseContextMenuEntries(entries);
 }

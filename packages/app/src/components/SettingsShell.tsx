@@ -120,6 +120,18 @@ function categoryLabel(categoryId: SettingsCategory, translate: Translate) {
   return category ? translate(category.labelKey) : translate("settings.title");
 }
 
+function settingsScrollClassName(activeCategory: SettingsCategory) {
+  if (activeCategory === "providers") {
+    return "settings-scroll min-h-0 flex-1 overflow-hidden overscroll-none p-0";
+  }
+
+  if (activeCategory === "extensions") {
+    return "settings-scroll min-h-0 flex-1 overflow-hidden overscroll-none px-8 py-7";
+  }
+
+  return "settings-scroll min-h-0 flex-1 overflow-auto overscroll-none px-8 py-7";
+}
+
 export function SettingsSidebar({
   activeCategory,
   appVersion,
@@ -247,11 +259,7 @@ export function SettingsContent({
 
       <div
         ref={scrollRef}
-        className={
-          activeCategory === "providers"
-            ? "settings-scroll min-h-0 flex-1 overflow-hidden overscroll-none p-0"
-            : "settings-scroll min-h-0 flex-1 overflow-auto overscroll-none px-8 py-7"
-        }
+        className={settingsScrollClassName(activeCategory)}
       >
         {children}
       </div>

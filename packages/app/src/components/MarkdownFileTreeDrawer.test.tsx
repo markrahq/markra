@@ -1427,6 +1427,47 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(deleteFile).toHaveBeenCalledTimes(1);
   });
 
+  it("passes plugin file tree context menu items to the native context menu", () => {
+    const runPluginCommand = vi.fn();
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        pluginFileTreeContextMenuItems={[
+          {
+            commandId: "reference.copyPath",
+            id: "reference.copyPath.fileTree",
+            pluginId: "reference",
+            pluginName: "Reference",
+            title: "Copy relative path"
+          }
+        ]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onRunPluginCommand={runPluginCommand}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("button", { name: "AWS.md" }));
+
+    expect(mockedShowNativeMarkdownFileTreeContextMenu.mock.calls.at(-1)?.[3]).toEqual({
+      pluginFileTreeItems: [
+        {
+          commandId: "reference.copyPath",
+          id: "reference.copyPath.fileTree",
+          pluginId: "reference",
+          pluginName: "Reference",
+          title: "Copy relative path"
+        }
+      ],
+      runPluginCommand
+    });
+  });
+
   it("reveals a requested file path in the tree", () => {
     const { rerender } = render(
       <MarkdownFileTreeDrawer

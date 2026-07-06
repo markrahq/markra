@@ -283,6 +283,17 @@ describe("SettingsShell", () => {
     expect(screen.getByRole("heading", { name: "Extensions" })).toBeInTheDocument();
   });
 
+  it("reserves extensions panel scrolling for its inner panes", () => {
+    const { container } = render(
+      <SettingsContent activeCategory="extensions" translate={translate}>
+        <div />
+      </SettingsContent>
+    );
+
+    expect(container.querySelector(".settings-scroll")).toHaveClass("overflow-hidden", "px-8", "py-7");
+    expect(container.querySelector(".settings-scroll")).not.toHaveClass("overflow-auto");
+  });
+
   it("resets the content scroll position when switching settings categories", () => {
     const { container, rerender } = render(
       <SettingsContent activeCategory="ai" translate={translate}>

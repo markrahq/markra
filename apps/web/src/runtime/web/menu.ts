@@ -34,8 +34,8 @@ export function createWebMenuRuntime(
     ...defaultMenuRuntime,
     createEditorContextMenuItems: (handlers, language, menuOptions) =>
       createEditorContextMenuEntries(handlers, language, menuOptions, webContextMenuIdPrefixes),
-    createMarkdownFileTreeContextMenuItems: (handlers, language, file) =>
-      createMarkdownFileTreeContextMenuEntries(handlers, language, file, webContextMenuIdPrefixes),
+    createMarkdownFileTreeContextMenuItems: (handlers, language, file, menuOptions) =>
+      createMarkdownFileTreeContextMenuEntries(handlers, language, file, webContextMenuIdPrefixes, menuOptions),
     installEditorContextMenu: async (target, handlers, language = "en", menuOptions = {}) => {
       let closeCurrentMenu: RuntimeCleanup | null = null;
       const handleContextMenu = (event: Event) => {
@@ -68,7 +68,8 @@ export function createWebMenuRuntime(
     showMarkdownFileTreeContextMenu: async (
       handlers: NativeMarkdownFileTreeContextMenuHandlers,
       language?: AppLanguage,
-      file?: NativeMarkdownFolderFile
+      file?: NativeMarkdownFolderFile,
+      menuOptions = {}
     ) => {
       const documentTarget = resolveDocument(options);
       if (!documentTarget) return;
@@ -78,7 +79,8 @@ export function createWebMenuRuntime(
           handlers,
           language,
           file,
-          webContextMenuIdPrefixes
+          webContextMenuIdPrefixes,
+          menuOptions
         ),
         position: currentContextMenuPosition(documentTarget)
       });

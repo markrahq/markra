@@ -1,5 +1,6 @@
 import type { MarkdownShortcutMap } from "@markra/editor";
 import type { AppLanguage } from "@markra/shared";
+import type { PluginCommandInvocation, PluginContextMenuWhen } from "@markra/plugin-api";
 import { getAppRuntime } from "../../runtime";
 import type { RecentMarkdownFile } from "../settings/app-settings";
 import type { NativeMarkdownFolderFile } from "./file";
@@ -8,6 +9,12 @@ export type NativeMenuHandlers = Partial<Record<NativeStaticMenuCommand, () => u
   clearRecentFiles?: () => unknown | Promise<unknown>;
   openRecentFile?: (file: RecentMarkdownFile) => unknown | Promise<unknown>;
 };
+
+export type NativePluginCommandRunner = (
+  id: string,
+  invocation?: PluginCommandInvocation,
+  pluginId?: string
+) => unknown | Promise<unknown>;
 
 export type NativeMarkdownFileTreeContextMenuHandlers = {
   canOpenFileToSide?: (file: NativeMarkdownFolderFile) => boolean;
@@ -28,16 +35,46 @@ export type NativeMarkdownFileTreeContextMenuHandlers = {
 
 export type NativeClipboardTextReader = () => string | null | undefined | Promise<string | null | undefined>;
 
+export type NativePluginEditorContextMenuItem = {
+  commandId: string;
+  id: string;
+  pluginId: string;
+  pluginName: string;
+  title: string;
+  when?: {
+    document?: "markdown";
+    selection?: "any" | "nonEmpty";
+  };
+};
+
+export type NativePluginFileTreeContextMenuItem = {
+  commandId: string;
+  id: string;
+  pluginId: string;
+  pluginName: string;
+  title: string;
+  when?: PluginContextMenuWhen;
+};
+
 export type NativeEditorContextMenuOptions = {
   getAiCommandsAvailable?: () => boolean;
   markdownShortcuts?: MarkdownShortcutMap;
+  pluginEditorItems?: readonly NativePluginEditorContextMenuItem[];
   readClipboardText?: NativeClipboardTextReader;
+  runPluginCommand?: NativePluginCommandRunner;
 };
 
 export type NativeEditorContextMenuEntryOptions = {
   aiCommandsAvailable?: boolean;
   markdownShortcuts?: MarkdownShortcutMap;
+  pluginEditorItems?: readonly NativePluginEditorContextMenuItem[];
   readClipboardText?: NativeClipboardTextReader;
+  runPluginCommand?: NativePluginCommandRunner;
+};
+
+export type NativeMarkdownFileTreeContextMenuOptions = {
+  pluginFileTreeItems?: readonly NativePluginFileTreeContextMenuItem[];
+  runPluginCommand?: NativePluginCommandRunner;
 };
 
 export type NativeStaticMenuCommand =
@@ -127,15 +164,17 @@ export function installNativeEditorContextMenu(
 export function createNativeMarkdownFileTreeContextMenuItems(
   handlers: NativeMarkdownFileTreeContextMenuHandlers,
   language: AppLanguage = "en",
-  file?: NativeMarkdownFolderFile
+  file?: NativeMarkdownFolderFile,
+  options?: NativeMarkdownFileTreeContextMenuOptions
 ) {
-  return getAppRuntime().menu.createMarkdownFileTreeContextMenuItems(handlers, language, file);
+  return getAppRuntime().menu.createMarkdownFileTreeContextMenuItems(handlers, language, file, options);
 }
 
 export function showNativeMarkdownFileTreeContextMenu(
   handlers: NativeMarkdownFileTreeContextMenuHandlers,
   language: AppLanguage = "en",
-  file?: NativeMarkdownFolderFile
+  file?: NativeMarkdownFolderFile,
+  options?: NativeMarkdownFileTreeContextMenuOptions
 ) {
-  return getAppRuntime().menu.showMarkdownFileTreeContextMenu(handlers, language, file);
+  return getAppRuntime().menu.showMarkdownFileTreeContextMenu(handlers, language, file, options);
 }

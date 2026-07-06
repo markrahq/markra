@@ -38,6 +38,7 @@
     "@dnd-kit/utilities": "3.2.2",
     "@earendil-works/pi-agent-core": "0.75.5",
     "@markra/ai": "workspace:*",
+    "@markra/document-stats": "workspace:*",
     "@markra/editor": "workspace:*",
     "@markra/markdown": "workspace:*",
     "@markra/plugin-api": "workspace:*",

@@ -1,5 +1,12 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { definePlugin, type PluginActivation, type PluginContext, type PluginExportHookContext, type PluginManifest } from "@markra/plugin-api";
+import {
+  definePlugin,
+  type PluginActivation,
+  type PluginCommandContext,
+  type PluginContext,
+  type PluginExportHookContext,
+  type PluginManifest
+} from "@markra/plugin-api";
 import { SettingsRow, SettingsSection, SettingsTextInput } from "../components/settings/SettingsControls";
 import type { BuiltInPluginFactory } from "../lib/plugins/registry";
 import {
@@ -25,6 +32,14 @@ const referenceManifest: PluginManifest = {
     network: false
   },
   version: "0.1.0"
+};
+
+const notesManifest: PluginManifest = {
+  ...referenceManifest,
+  capabilities: ["commands"],
+  description: "Note tools for synthetic examples.",
+  id: "notes",
+  name: "Notes"
 };
 
 function createFactory(
@@ -301,6 +316,181 @@ describe("useExtensionsSettingsPlugins", () => {
     await expect(result.current.runCommand("reference.readBibliographyPath")).resolves.toBe("refs.bib");
   });
 
+  it("runs a command from the requested plugin when command ids overlap", async () => {
+    const { result } = renderHook(() =>
+      useExtensionsSettingsPlugins({
+        factories: [
+          createFactory({ ...referenceManifest, capabilities: ["commands"] }, () => ({
+            commands: [
+              {
+                id: "shared.describe",
+                run: () => "reference",
+                title: "Describe"
+              }
+            ]
+          })),
+          createFactory(notesManifest, () => ({
+            commands: [
+              {
+                id: "shared.describe",
+                run: () => "notes",
+                title: "Describe"
+              }
+            ]
+          }))
+        ],
+        language: "en",
+        platform: "macos"
+      })
+    );
+
+    await act(async () => {
+      await result.current.togglePlugin("reference", true);
+      await result.current.togglePlugin("notes", true);
+    });
+
+    await expect(result.current.runCommand("shared.describe", undefined, "notes")).resolves.toBe("notes");
+  });
+
+  it("exposes enabled plugin editor context menu command placements", async () => {
+    const activate = vi.fn(() => ({
+      commands: [
+        {
+          id: "reference.insertCitation",
+          run: () => "inserted",
+          title: "Insert citation"
+        }
+      ],
+      contextMenus: [
+        {
+          id: "reference.editor",
+          scope: "editor" as const,
+          items: [
+            {
+              command: "reference.insertCitation",
+              id: "reference.insertCitation.editor"
+            }
+          ]
+        }
+      ]
+    }));
+    const { result } = renderHook(() =>
+      useExtensionsSettingsPlugins({
+        factories: [createFactory({ ...referenceManifest, capabilities: ["commands", "contextMenu"] }, activate)],
+        language: "en",
+        platform: "macos"
+      })
+    );
+
+    expect(result.current.editorContextMenuItems).toEqual([]);
+
+    await act(async () => {
+      await result.current.togglePlugin("reference", true);
+    });
+
+    expect(result.current.editorContextMenuItems).toEqual([
+      expect.objectContaining({
+        commandId: "reference.insertCitation",
+        id: "reference.insertCitation.editor",
+        pluginId: "reference",
+        pluginName: "Reference",
+        title: "Insert citation"
+      })
+    ]);
+  });
+
+  it("exposes enabled plugin file tree context menu command placements", async () => {
+    const activate = vi.fn(() => ({
+      commands: [
+        {
+          id: "reference.copyPath",
+          run: () => "copied",
+          title: "Copy relative path"
+        }
+      ],
+      contextMenus: [
+        {
+          id: "reference.fileTree",
+          scope: "fileTree" as const,
+          items: [
+            {
+              command: "reference.copyPath",
+              id: "reference.copyPath.fileTree",
+              when: {
+                file: "markdown" as const
+              }
+            }
+          ]
+        }
+      ]
+    }));
+    const { result } = renderHook(() =>
+      useExtensionsSettingsPlugins({
+        factories: [createFactory({ ...referenceManifest, capabilities: ["commands", "contextMenu"] }, activate)],
+        language: "en",
+        platform: "macos"
+      })
+    );
+
+    expect(result.current.fileTreeContextMenuItems).toEqual([]);
+
+    await act(async () => {
+      await result.current.togglePlugin("reference", true);
+    });
+
+    expect(result.current.fileTreeContextMenuItems).toEqual([
+      expect.objectContaining({
+        commandId: "reference.copyPath",
+        id: "reference.copyPath.fileTree",
+        pluginId: "reference",
+        pluginName: "Reference",
+        title: "Copy relative path"
+      })
+    ]);
+  });
+
+  it("passes invocation details when running plugin commands", async () => {
+    const run = vi.fn((commandCtx: PluginCommandContext) =>
+      commandCtx.invocation?.source === "editorContextMenu"
+        ? commandCtx.invocation.editor?.selectionText
+        : undefined);
+    const activate = vi.fn(() => ({
+      commands: [
+        {
+          id: "reference.wrapSelection",
+          run,
+          title: "Wrap selection"
+        }
+      ]
+    }));
+    const { result } = renderHook(() =>
+      useExtensionsSettingsPlugins({
+        factories: [createFactory({ ...referenceManifest, capabilities: ["commands"] }, activate)],
+        language: "en",
+        platform: "macos"
+      })
+    );
+
+    await act(async () => {
+      await result.current.togglePlugin("reference", true);
+    });
+
+    await expect(result.current.runCommand("reference.wrapSelection", {
+      source: "editorContextMenu",
+      editor: {
+        selectionText: "selected citation"
+      }
+    })).resolves.toBe("selected citation");
+    expect(run).toHaveBeenCalledWith(expect.objectContaining({
+      invocation: {
+        source: "editorContextMenu",
+        editor: {
+          selectionText: "selected citation"
+        }
+      }
+    }));
+  });
+
   it("passes active document and editor access into plugin activation and commands", async () => {
     const getActive = vi.fn(async () => ({
       content: "# Synthetic",
@@ -309,6 +499,13 @@ describe("useExtensionsSettingsPlugins", () => {
       path: "/mock-workspace/synthetic.md",
       revision: 7
     }));
+    const getSelection = vi.fn(async () => ({
+      cursor: 13,
+      from: 1,
+      source: "selection" as const,
+      text: "Synthetic",
+      to: 10
+    }));
     const insertMarkdown = vi.fn(async () => true);
     const activate = vi.fn(() => ({
       commands: [
@@ -316,8 +513,9 @@ describe("useExtensionsSettingsPlugins", () => {
           id: "reference.insertCitation",
           run: async (commandCtx: PluginContext) => {
             const document = await commandCtx.document?.getActive();
+            const selection = await commandCtx.editor?.getSelection();
 
-            return commandCtx.editor?.insertMarkdown(`[@${document?.name ?? "missing"}]`);
+            return commandCtx.editor?.insertMarkdown(`[@${document?.name ?? "missing"}:${selection?.text ?? "none"}]`);
           },
           title: "Insert citation"
         }
@@ -326,7 +524,7 @@ describe("useExtensionsSettingsPlugins", () => {
     const { result } = renderHook(() =>
       useExtensionsSettingsPlugins({
         document: { getActive },
-        editor: { insertMarkdown },
+        editor: { getSelection, insertMarkdown },
         factories: [createFactory({ ...referenceManifest, capabilities: ["commands"] }, activate)],
         language: "en",
         platform: "macos"
@@ -339,11 +537,12 @@ describe("useExtensionsSettingsPlugins", () => {
 
     expect(activate).toHaveBeenCalledWith(expect.objectContaining({
       document: { getActive },
-      editor: { insertMarkdown }
+      editor: { getSelection, insertMarkdown }
     }));
     await expect(result.current.runCommand("reference.insertCitation")).resolves.toBe(true);
     expect(getActive).toHaveBeenCalledTimes(1);
-    expect(insertMarkdown).toHaveBeenCalledWith("[@synthetic.md]");
+    expect(getSelection).toHaveBeenCalledTimes(1);
+    expect(insertMarkdown).toHaveBeenCalledWith("[@synthetic.md:Synthetic]");
   });
 
   it("refreshes enabled plugins when plugin settings change in another window", async () => {
@@ -699,6 +898,92 @@ describe("useExtensionsSettingsPlugins", () => {
         title: "References"
       })
     ]);
+  });
+
+  it("passes plugin-scoped side panel opening into activation and commands", async () => {
+    const openSidePanel = vi.fn(async () => true);
+    const activate = vi.fn((ctx: PluginContext) => ({
+      commands: [
+        {
+          id: "reference.openPanel",
+          run: () => ctx.ui?.openSidePanel("reference.panel"),
+          title: "Open references"
+        }
+      ],
+      sidePanels: [
+        {
+          component: ReferencePanel,
+          defaultWidth: 360,
+          icon: "book-open",
+          id: "reference.panel",
+          location: "right" as const,
+          title: "References"
+        }
+      ]
+    }));
+    const { result } = renderHook(() =>
+      useExtensionsSettingsPlugins({
+        factories: [createFactory({ ...referenceManifest, capabilities: ["commands", "sidePanel"] }, activate)],
+        language: "en",
+        openSidePanel,
+        platform: "macos"
+      })
+    );
+
+    await act(async () => {
+      await result.current.togglePlugin("reference", true);
+    });
+
+    expect(activate).toHaveBeenCalledWith(expect.objectContaining({
+      ui: expect.objectContaining({
+        openSidePanel: expect.any(Function),
+        showToast: expect.any(Function)
+      })
+    }));
+    await expect(result.current.runCommand("reference.openPanel", undefined, "reference")).resolves.toBe(true);
+    expect(openSidePanel).toHaveBeenCalledWith("reference", "reference.panel");
+  });
+
+  it("passes plugin-scoped toast requests into activation and commands", async () => {
+    const showToast = vi.fn();
+    const activate = vi.fn((ctx: PluginContext) => ({
+      commands: [
+        {
+          id: "reference.refresh",
+          run: () => ctx.ui?.showToast("References refreshed", {
+            description: "2 entries",
+            durationMs: 1200,
+            status: "success"
+          }),
+          title: "Refresh references"
+        }
+      ]
+    }));
+    const { result } = renderHook(() =>
+      useExtensionsSettingsPlugins({
+        factories: [createFactory({ ...referenceManifest, capabilities: ["commands"] }, activate)],
+        language: "en",
+        platform: "macos",
+        showToast
+      })
+    );
+
+    await act(async () => {
+      await result.current.togglePlugin("reference", true);
+    });
+
+    expect(activate).toHaveBeenCalledWith(expect.objectContaining({
+      ui: expect.objectContaining({
+        openSidePanel: expect.any(Function),
+        showToast: expect.any(Function)
+      })
+    }));
+    await result.current.runCommand("reference.refresh", undefined, "reference");
+    expect(showToast).toHaveBeenCalledWith("reference", "References refreshed", {
+      description: "2 entries",
+      durationMs: 1200,
+      status: "success"
+    });
   });
 
   it("exposes enabled plugin editor contributions with plugin-scoped setup context", async () => {

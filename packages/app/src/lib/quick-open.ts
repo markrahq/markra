@@ -13,6 +13,22 @@ export type QuickOpenResult = {
   pathMatches: QuickOpenMatchRange[];
 };
 
+export type QuickOpenCommand = {
+  description?: string;
+  id: string;
+  pluginId: string;
+  pluginName: string;
+  title: string;
+};
+
+export type QuickOpenCommandResult = {
+  command: QuickOpenCommand;
+  descriptionMatches: QuickOpenMatchRange[];
+  idMatches: QuickOpenMatchRange[];
+  pluginNameMatches: QuickOpenMatchRange[];
+  titleMatches: QuickOpenMatchRange[];
+};
+
 type QuickOpenOptions = {
   currentPath?: string | null;
   limit?: number;
@@ -20,6 +36,11 @@ type QuickOpenOptions = {
 };
 
 type ScoredQuickOpenResult = QuickOpenResult & {
+  order: number;
+  score: number;
+};
+
+type ScoredQuickOpenCommandResult = QuickOpenCommandResult & {
   order: number;
   score: number;
 };
@@ -77,6 +98,46 @@ export function quickOpenFiles(
 
   return scoredResults
     .sort((left, right) => compareQuickOpenResults(left, right))
+    .slice(0, options.limit ?? scoredResults.length)
+    .map(({ score: _score, order: _order, ...result }) => result);
+}
+
+export function quickOpenCommands(
+  commands: readonly QuickOpenCommand[],
+  query: string,
+  options: Pick<QuickOpenOptions, "limit"> = {}
+): QuickOpenCommandResult[] {
+  const normalizedQuery = normalizeQuery(query);
+  if (!normalizedQuery) return [];
+
+  const scoredResults = commands.flatMap((command, order): ScoredQuickOpenCommandResult[] => {
+    const titleMatch = fuzzyMatch(command.title, normalizedQuery);
+    const pluginNameMatch = fuzzyMatch(command.pluginName, normalizedQuery);
+    const idMatch = fuzzyMatch(command.id, normalizedQuery);
+    const descriptionMatch = command.description ? fuzzyMatch(command.description, normalizedQuery) : null;
+    if (!titleMatch && !pluginNameMatch && !idMatch && !descriptionMatch) return [];
+
+    const scores = [
+      titleMatch ? titleMatch.score : Number.POSITIVE_INFINITY,
+      pluginNameMatch ? pluginNameMatch.score + 120 : Number.POSITIVE_INFINITY,
+      idMatch ? idMatch.score + 180 : Number.POSITIVE_INFINITY,
+      descriptionMatch ? descriptionMatch.score + 260 : Number.POSITIVE_INFINITY
+    ];
+    const score = Math.min(...scores);
+
+    return [{
+      command,
+      descriptionMatches: score === scores[3] ? descriptionMatch?.ranges ?? [] : [],
+      idMatches: score === scores[2] ? idMatch?.ranges ?? [] : [],
+      order,
+      pluginNameMatches: score === scores[1] ? pluginNameMatch?.ranges ?? [] : [],
+      score,
+      titleMatches: score === scores[0] ? titleMatch?.ranges ?? [] : []
+    }];
+  });
+
+  return scoredResults
+    .sort((left, right) => compareQuickOpenCommandResults(left, right))
     .slice(0, options.limit ?? scoredResults.length)
     .map(({ score: _score, order: _order, ...result }) => result);
 }
@@ -172,6 +233,24 @@ function compareQuickOpenResults(left: ScoredQuickOpenResult, right: ScoredQuick
     sensitivity: "base"
   });
   if (pathComparison !== 0) return pathComparison;
+
+  return left.order - right.order;
+}
+
+function compareQuickOpenCommandResults(left: ScoredQuickOpenCommandResult, right: ScoredQuickOpenCommandResult) {
+  if (left.score !== right.score) return left.score - right.score;
+
+  const titleComparison = left.command.title.localeCompare(right.command.title, undefined, {
+    numeric: true,
+    sensitivity: "base"
+  });
+  if (titleComparison !== 0) return titleComparison;
+
+  const pluginComparison = left.command.pluginName.localeCompare(right.command.pluginName, undefined, {
+    numeric: true,
+    sensitivity: "base"
+  });
+  if (pluginComparison !== 0) return pluginComparison;
 
   return left.order - right.order;
 }

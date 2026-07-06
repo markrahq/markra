@@ -13,6 +13,7 @@ import {
   type UIEvent as ReactUIEvent
 } from "react";
 import { flushSync } from "react-dom";
+import type { MilkdownPlugin } from "@milkdown/kit/ctx";
 import { AppToaster } from "./components/AppToaster";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { AiSelectionToolbar } from "./components/AiSelectionToolbar";
@@ -36,7 +37,7 @@ import {
 import { NativeTitleBar } from "./components/NativeTitleBar";
 import { PluginSidePanelHost } from "./components/PluginSidePanelHost";
 import { QuietStatus } from "./components/QuietStatus";
-import { QuickOpenPanel } from "./components/QuickOpenPanel";
+import { QuickOpenPanel, type QuickOpenCommand } from "./components/QuickOpenPanel";
 import { SideDocumentPane } from "./components/SideDocumentPane";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
 import { WorkspaceOperationOverlay } from "./components/WorkspaceOperationOverlay";
@@ -62,6 +63,7 @@ import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { useDeferredAiSelectionReveal } from "./hooks/ai-selection-reveal";
 import { useExportSettings } from "./hooks/useExportSettings";
 import { useExtensionsSettingsPlugins } from "./hooks/useExtensionsSettingsPlugins";
+import type { PluginSidePanel } from "./lib/plugins/side-panels";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument, type ActiveDiskFileContentChange } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
@@ -98,6 +100,7 @@ import {
   type AppLanguage,
   type I18nKey
 } from "@markra/shared";
+import type { PluginEditorSelection, PluginToastOptions } from "@markra/plugin-api";
 import { showAppToast } from "./lib/app-toast";
 import { appVersion } from "./lib/app-version";
 import { createMarkdownImageSrcResolver, getWordCount } from "@markra/markdown";
@@ -305,6 +308,35 @@ export function shouldTriggerDevMockRuntimeError(search: string, dev = import.me
   if (!dev) return false;
 
   return new URLSearchParams(search).get("mockError") === "1";
+}
+
+function isMilkdownPlugin(value: unknown): value is MilkdownPlugin {
+  return typeof value === "function";
+}
+
+function normalizePluginEditorPlugins(value: unknown): MilkdownPlugin[] {
+  const values = Array.isArray(value) ? value : [value];
+
+  return values.filter(isMilkdownPlugin);
+}
+
+type PluginEditorPluginsState = {
+  key: string;
+  plugins: readonly MilkdownPlugin[];
+};
+
+const emptyPluginEditorPluginsState: PluginEditorPluginsState = {
+  key: "",
+  plugins: []
+};
+
+function pluginEditorPluginsStateEqual(
+  first: PluginEditorPluginsState,
+  second: PluginEditorPluginsState
+) {
+  if (first.key !== second.key || first.plugins.length !== second.plugins.length) return false;
+
+  return first.plugins.every((plugin, index) => plugin === second.plugins[index]);
 }
 
 export default function App() {
@@ -581,6 +613,7 @@ function WorkspaceApp() {
   const replaceEditorSearchMatch = editor.replaceSearchMatch;
   const revealEditorSearchMatch = editor.revealSearchMatch;
   const runEditorShortcut = editor.runEditorShortcut;
+  const getEditorSelection = editor.getSelection;
   const getEditorSelectionAnchor = editor.getSelectionAnchor;
   const getEditorSelectionFormattingState = editor.getSelectionFormattingState;
   const setEditorSelectionHeadingLevel = editor.setSelectionHeadingLevel;
@@ -765,6 +798,7 @@ function WorkspaceApp() {
   const pluginContextStateRef = useRef({
     activeImageFile,
     document,
+    getEditorSelection,
     insertEditorMarkdown,
     readCurrentMarkdownForDocument,
     readOnlyMode,
@@ -773,6 +807,7 @@ function WorkspaceApp() {
   pluginContextStateRef.current = {
     activeImageFile,
     document,
+    getEditorSelection,
     insertEditorMarkdown,
     readCurrentMarkdownForDocument,
     readOnlyMode,
@@ -829,18 +864,107 @@ function WorkspaceApp() {
 
       attemptInsert();
     }), []);
+  const getPluginEditorSelection = useCallback(async (): Promise<PluginEditorSelection | null> => {
+    const current = pluginContextStateRef.current;
+    if (
+      current.activeImageFile ||
+      current.sourceSurfaceActive ||
+      largeMarkdownVisualBlockedRef.current
+    ) return null;
+
+    const selection = current.getEditorSelection();
+    if (!selection) return null;
+
+    return {
+      cursor: selection.cursor ?? selection.to,
+      from: selection.from,
+      ...(selection.source ? { source: selection.source } : {}),
+      text: selection.text,
+      to: selection.to
+    };
+  }, []);
   const pluginEditorContext = useMemo(() => ({
+    getSelection: getPluginEditorSelection,
     async insertMarkdown(markdown: string) {
       return insertPluginEditorMarkdown(markdown);
     }
-  }), [insertPluginEditorMarkdown]);
+  }), [getPluginEditorSelection, insertPluginEditorMarkdown]);
+  const [pluginSidePanelOpen, setPluginSidePanelOpen] = useState(false);
+  const [activePluginSidePanelId, setActivePluginSidePanelId] = useState<string | null>(null);
+  const pluginSidePanelsRef = useRef<readonly PluginSidePanel[]>([]);
+  const closeAiAgentPanelRef = useRef<(() => unknown) | null>(null);
+  const openPluginSidePanel = useCallback((pluginId: string, panelId?: string) => {
+    const pluginPanels = pluginSidePanelsRef.current.filter((panel) => panel.pluginId === pluginId);
+    const panel = panelId
+      ? pluginPanels.find((candidate) => candidate.id === panelId)
+      : pluginPanels[0];
+    if (!panel) return false;
+
+    setActivePluginSidePanelId(panel.id);
+    setPluginSidePanelOpen(true);
+    closeAiAgentPanelRef.current?.();
+    return true;
+  }, []);
+  const showPluginToast = useCallback((_pluginId: string, message: string, options?: PluginToastOptions) => {
+    showAppToast({
+      description: options?.description,
+      duration: options?.durationMs,
+      message,
+      status: options?.status ?? "info"
+    });
+  }, []);
   const extensionPlugins = useExtensionsSettingsPlugins({
     document: pluginDocumentContext,
     editor: pluginEditorContext,
     language: appLanguage.language,
+    openSidePanel: openPluginSidePanel,
     platform: desktopPlatform ?? "web",
+    showToast: showPluginToast,
     workspaceRootPath: pluginWorkspaceRootPath
   });
+  const [pluginEditorPlugins, setPluginEditorPlugins] = useState<PluginEditorPluginsState>(emptyPluginEditorPluginsState);
+  useEffect(() => {
+    let cancelled = false;
+    const key = extensionPlugins.editorContributions
+      .map((contribution) => `${contribution.pluginId}:${contribution.id}`)
+      .join("|");
+
+    Promise.all(extensionPlugins.editorContributions.map(async (contribution) =>
+      contribution.setup()
+        .then(normalizePluginEditorPlugins)
+        .catch(() => [])
+    ))
+      .then((pluginGroups) => {
+        if (!cancelled) {
+          const nextState = {
+            key,
+            plugins: pluginGroups.flat()
+          };
+          setPluginEditorPlugins((currentState) =>
+            pluginEditorPluginsStateEqual(currentState, nextState) ? currentState : nextState
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPluginEditorPlugins(emptyPluginEditorPluginsState);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [extensionPlugins.editorContributions]);
+  const handlePluginCommandRun = useCallback((
+    commandId: string,
+    invocation?: Parameters<typeof extensionPlugins.runCommand>[1],
+    pluginId?: Parameters<typeof extensionPlugins.runCommand>[2]
+  ) => {
+    extensionPlugins.runCommand(commandId, invocation, pluginId).catch((error) => {
+      showAppToast({
+        message: nativeFileOperationFailureMessage(translate("app.pluginCommandFailed"), error),
+        status: "error"
+      });
+    });
+  }, [extensionPlugins.runCommand, translate]);
   const activeDocumentOutlineIndex =
     !sourceSurfaceActive &&
     activeOutlineIndex !== null &&
@@ -1432,11 +1556,9 @@ function WorkspaceApp() {
     enabled: aiFeatureEnabled,
     onCloseInlineAiCommand: closeInlineAiCommandForAgentPanel
   });
-  const [pluginSidePanelOpen, setPluginSidePanelOpen] = useState(false);
-  const [activePluginSidePanelId, setActivePluginSidePanelId] = useState<string | null>(null);
-  const pluginCommands = extensionPlugins.commands;
-  const runPluginCommand = extensionPlugins.runCommand;
+  closeAiAgentPanelRef.current = closeAiAgentPanel;
   const pluginSidePanels = extensionPlugins.sidePanels;
+  pluginSidePanelsRef.current = pluginSidePanels;
   const activePluginSidePanel = useMemo(
     () => pluginSidePanels.find((panel) => panel.id === activePluginSidePanelId) ?? pluginSidePanels[0] ?? null,
     [activePluginSidePanelId, pluginSidePanels]
@@ -1476,14 +1598,6 @@ function WorkspaceApp() {
       return nextOpen;
     });
   }, [closeAiAgentPanel, pluginSidePanels]);
-  const handlePluginCommandRun = useCallback((id: string) => {
-    runPluginCommand(id).catch((error: unknown) => {
-      showAppToast({
-        message: nativeFileOperationFailureMessage(translate("app.pluginCommandFailed"), error),
-        status: "error"
-      });
-    });
-  }, [runPluginCommand, translate]);
   const handleAiAgentSessionRestore = useCallback((session: { panelOpen: boolean; panelWidth: number | null }) => {
     restoreAiAgentPanelSession(session);
   }, [restoreAiAgentPanelSession]);
@@ -1775,7 +1889,6 @@ function WorkspaceApp() {
     updateSelectedWordCount,
     updateActiveAiSelection
   ]);
-  const getEditorSelection = editor.getSelection;
   const holdAiSelection = editor.holdAiSelection;
   const scrollAiSelectionAboveCommand = editor.scrollAiSelectionAboveCommand;
   const interruptAiCommandPrompt = aiCommand.interruptPrompt;
@@ -2683,6 +2796,10 @@ function WorkspaceApp() {
 
     await handleOpenTreeFile(file);
   }, [handleOpenTreeFile, handleOpenTreeFileToSide]);
+  const handleQuickOpenCommandRun = useCallback((command: QuickOpenCommand) => {
+    setQuickOpenOpen(false);
+    handlePluginCommandRun(command.id, { source: "quickOpen" }, command.pluginId);
+  }, [handlePluginCommandRun]);
   const handleOpenMarkdownFile = useCallback(async () => {
     captureActiveDocumentViewState();
     setActiveImageFile(null);
@@ -3724,7 +3841,9 @@ function WorkspaceApp() {
   useNativeMenus(nativeMenuHandlers, appLanguage.ready ? appLanguage.language : null, {
     getAiCommandsAvailable: aiFeatureEnabled ? getAiContextMenuAvailable : () => false,
     markdownShortcuts: editorPreferences.preferences.markdownShortcuts,
-    recentFiles: recentMarkdownFiles
+    pluginEditorItems: extensionPlugins.editorContextMenuItems,
+    recentFiles: recentMarkdownFiles,
+    runPluginCommand: handlePluginCommandRun
   });
   useApplicationShortcuts({
     closeDocument: handleCloseCurrentFile,
@@ -4127,6 +4246,8 @@ function WorkspaceApp() {
               documentKey={tab.id}
               documentPath={tab.path}
               editorFontFamily={editorPreferences.preferences.editorFontFamily}
+              editorPluginKey={pluginEditorPlugins.key}
+              editorPlugins={pluginEditorPlugins.plugins}
               editorTheme={appTheme.editorTheme}
               extendedSyntax={editorPreferences.preferences.extendedSyntax}
               initialContent={tab.content}
@@ -4318,13 +4439,11 @@ function WorkspaceApp() {
           onToggleSourceMode={handleEditorModeToggle}
           onToggleTheme={appTheme.toggleTheme}
           onToggleWindowMaximized={toggleNativeWindowMaximized}
-          extensionCommands={pluginCommands}
           extensionPanelAvailable={pluginSidePanels.length > 0}
           extensionPanelOpen={visiblePluginSidePanelOpen}
           rightPanelOpen={rightPanelOpen}
           rightPanelResizing={rightPanelResizing}
           rightPanelWidth={rightPanelWidth}
-          onRunExtensionCommand={handlePluginCommandRun}
           onToggleExtensionPanel={handlePluginSidePanelToggle}
           workspaceName={fileTree.sourcePath ? fileTreeRootName : undefined}
         />
@@ -4368,6 +4487,7 @@ function WorkspaceApp() {
             operationRevealPaths: workspaceOperationRevealPaths,
             outlineItems,
             outlineVisible: viewModeChrome.outline,
+            pluginFileTreeContextMenuItems: extensionPlugins.fileTreeContextMenuItems,
             recentFolders: recentMarkdownFolders,
             recentFoldersOpen: recentMarkdownFoldersOpen,
             recentFoldersVisible: viewModeChrome.recentFolders,
@@ -4399,6 +4519,7 @@ function WorkspaceApp() {
             onResize: resizeFileTree,
             onResizeEnd: endFileTreeResize,
             onResizeStart: startFileTreeResize,
+            onRunPluginCommand: handlePluginCommandRun,
             onSaveFileAsTemplate: handleSaveMarkdownFileAsTemplate,
             onSelectOutlineItem: editor.selectOutlineItem,
             onToggleMarkdownFiles: handleFileTreeToggle
@@ -4432,12 +4553,14 @@ function WorkspaceApp() {
               ) : null}
               {quickOpenOpen ? (
                 <QuickOpenPanel
+                  commands={extensionPlugins.commands}
                   currentPath={currentFileTreePath}
                   files={fileTreeFiles}
                   language={appLanguage.language}
                   openFilePaths={quickOpenFilePaths}
                   onClose={handleQuickOpenClose}
                   onOpenFile={handleQuickOpenFileOpen}
+                  onRunCommand={handleQuickOpenCommandRun}
                 />
               ) : null}
               {documentSearchOpen && documentSearchAvailable ? (

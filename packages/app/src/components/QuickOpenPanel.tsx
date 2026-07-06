@@ -1,19 +1,40 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
-import { FileText, PanelRight, Search, X } from "lucide-react";
+import { Command as CommandIcon, FileText, PanelRight, Search, X } from "lucide-react";
 import { t, type AppLanguage, type I18nKey } from "@markra/shared";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
-import { quickOpenFiles, type QuickOpenMatchRange, type QuickOpenResult } from "../lib/quick-open";
+import {
+  quickOpenCommands,
+  quickOpenFiles,
+  type QuickOpenCommand,
+  type QuickOpenCommandResult,
+  type QuickOpenMatchRange,
+  type QuickOpenResult
+} from "../lib/quick-open";
+
+export type { QuickOpenCommand } from "../lib/quick-open";
 
 type QuickOpenPanelProps = {
+  commands?: readonly QuickOpenCommand[];
   currentPath?: string | null;
   files: readonly NativeMarkdownFolderFile[];
   language?: AppLanguage;
   openFilePaths?: readonly string[];
   onClose: () => unknown;
   onOpenFile: (file: NativeMarkdownFolderFile, options: { toSide: boolean }) => unknown;
+  onRunCommand?: (command: QuickOpenCommand) => unknown;
 };
 
 const quickOpenResultLimit = 80;
+
+type QuickOpenEntry =
+  | {
+      kind: "command";
+      result: QuickOpenCommandResult;
+    }
+  | {
+      kind: "file";
+      result: QuickOpenResult;
+    };
 
 function formatQuickOpenMessage(message: string, values: Record<string, string>) {
   return Object.entries(values).reduce(
@@ -48,12 +69,14 @@ function renderHighlightedText(text: string, ranges: readonly QuickOpenMatchRang
 }
 
 export function QuickOpenPanel({
+  commands = [],
   currentPath = null,
   files,
   language = "en",
   openFilePaths = [],
   onClose,
-  onOpenFile
+  onOpenFile,
+  onRunCommand
 }: QuickOpenPanelProps) {
   const label = (key: I18nKey) => t(language, key);
   const quickOpenLabel = (key: I18nKey, values: Record<string, string>) =>
@@ -61,7 +84,7 @@ export function QuickOpenPanel({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const results = useMemo(
+  const fileResults = useMemo(
     () => quickOpenFiles(files, query, {
       currentPath,
       limit: quickOpenResultLimit,
@@ -69,6 +92,16 @@ export function QuickOpenPanel({
     }),
     [currentPath, files, openFilePaths, query]
   );
+  const commandResults = useMemo(
+    () => quickOpenCommands(commands, query, {
+      limit: quickOpenResultLimit
+    }),
+    [commands, query]
+  );
+  const entries = useMemo<QuickOpenEntry[]>(() => [
+    ...fileResults.map((result): QuickOpenEntry => ({ kind: "file", result })),
+    ...commandResults.map((result): QuickOpenEntry => ({ kind: "command", result }))
+  ], [commandResults, fileResults]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -80,13 +113,18 @@ export function QuickOpenPanel({
   }, [query]);
 
   useEffect(() => {
-    setSelectedIndex((current) => Math.min(current, Math.max(0, results.length - 1)));
-  }, [results.length]);
+    setSelectedIndex((current) => Math.min(current, Math.max(0, entries.length - 1)));
+  }, [entries.length]);
 
-  const openResult = (result: QuickOpenResult | undefined, toSide: boolean) => {
-    if (!result) return;
+  const openEntry = (entry: QuickOpenEntry | undefined, toSide: boolean) => {
+    if (!entry) return;
 
-    onOpenFile(result.file, { toSide });
+    if (entry.kind === "command") {
+      onRunCommand?.(entry.result.command);
+      return;
+    }
+
+    onOpenFile(entry.result.file, { toSide });
   };
 
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -98,7 +136,7 @@ export function QuickOpenPanel({
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setSelectedIndex((current) => Math.min(results.length - 1, current + 1));
+      setSelectedIndex((current) => Math.min(Math.max(0, entries.length - 1), current + 1));
       return;
     }
 
@@ -116,13 +154,13 @@ export function QuickOpenPanel({
 
     if (event.key === "End") {
       event.preventDefault();
-      setSelectedIndex(Math.max(0, results.length - 1));
+      setSelectedIndex(Math.max(0, entries.length - 1));
       return;
     }
 
     if (event.key === "Enter") {
       event.preventDefault();
-      openResult(results[selectedIndex], event.metaKey || event.ctrlKey);
+      openEntry(entries[selectedIndex], event.metaKey || event.ctrlKey);
     }
   };
 
@@ -159,10 +197,43 @@ export function QuickOpenPanel({
         </button>
       </div>
       <div className="min-h-0 max-h-[min(52vh,420px)] overflow-y-auto px-2 py-1">
-        {results.length > 0 ? (
+        {entries.length > 0 ? (
           <div className="m-0 list-none p-0" role="listbox" aria-label={label("app.quickOpen.results")}>
-            {results.map((result, index) => {
+            {entries.map((entry, index) => {
               const selected = index === selectedIndex;
+              if (entry.kind === "command") {
+                const result = entry.result;
+
+                return (
+                  <div
+                    className={`group grid min-h-11 w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-sm px-1.5 py-1.5 transition-colors duration-150 ${
+                      selected ? "bg-(--bg-active)" : "hover:bg-(--bg-hover)"
+                    }`}
+                    aria-selected={selected}
+                    key={`command:${result.command.pluginId}:${result.command.id}`}
+                    role="option"
+                    onMouseEnter={() => setSelectedIndex(index)}
+                  >
+                    <CommandIcon aria-hidden="true" className="text-(--text-secondary)" size={15} />
+                    <button
+                      className="min-w-0 cursor-pointer border-0 bg-transparent p-0 text-left outline-none"
+                      type="button"
+                      onClick={() => openEntry(entry, false)}
+                    >
+                      <span className="block min-w-0 truncate text-[13px] font-[680] text-(--text-heading)">
+                        {renderHighlightedText(result.command.title, result.titleMatches)}
+                      </span>
+                      <span className="block min-w-0 truncate font-mono text-[11px] text-(--text-secondary)">
+                        {renderHighlightedText(result.command.pluginName, result.pluginNameMatches)}
+                        <span className="px-1 text-(--text-tertiary)">/</span>
+                        {renderHighlightedText(result.command.id, result.idMatches)}
+                      </span>
+                    </button>
+                  </div>
+                );
+              }
+
+              const result = entry.result;
 
               return (
                 <div
@@ -180,7 +251,7 @@ export function QuickOpenPanel({
                   <button
                     className="min-w-0 cursor-pointer border-0 bg-transparent p-0 text-left outline-none"
                     type="button"
-                    onClick={() => openResult(result, false)}
+                    onClick={() => openEntry(entry, false)}
                   >
                     <span className="block min-w-0 truncate text-[13px] font-[680] text-(--text-heading)">
                       {renderHighlightedText(result.file.name, result.nameMatches)}
@@ -193,7 +264,7 @@ export function QuickOpenPanel({
                     className="document-search-icon-button opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100"
                     aria-label={quickOpenLabel("app.quickOpen.openToSide", { path: result.file.relativePath })}
                     type="button"
-                    onClick={() => openResult(result, true)}
+                    onClick={() => openEntry(entry, true)}
                   >
                     <PanelRight aria-hidden="true" size={14} />
                   </button>

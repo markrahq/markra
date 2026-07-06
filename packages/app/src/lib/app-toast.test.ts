@@ -2,30 +2,32 @@ import { toast } from "sonner";
 import { appNoticeToasterId, dismissAppToast, showAppToast } from "./app-toast";
 
 vi.mock("sonner", () => ({
-  toast: {
+  toast: Object.assign(vi.fn(), {
     dismiss: vi.fn(),
     error: vi.fn(),
     loading: vi.fn(),
     success: vi.fn()
-  }
+  })
 }));
 
 const mockedToast = vi.mocked(toast);
 
 describe("appToast", () => {
   beforeEach(() => {
+    mockedToast.mockReset();
     mockedToast.dismiss.mockReset();
     mockedToast.error.mockReset();
     mockedToast.loading.mockReset();
     mockedToast.success.mockReset();
   });
 
-  it("routes success, loading, error, and dismiss through one shared toast API", () => {
+  it("routes info, success, loading, error, and dismiss through one shared toast API", () => {
     const action = {
       label: "Restart",
       onClick: vi.fn()
     };
 
+    showAppToast({ message: "Heads up", status: "info" });
     showAppToast({ message: "Saved", status: "success" });
     showAppToast({ action, id: "update-test", message: "Downloading", status: "loading" });
     showAppToast({
@@ -36,6 +38,10 @@ describe("appToast", () => {
     showAppToast({ duration: Infinity, id: "update-ready", message: "Ready", status: "success" });
     dismissAppToast("provider-test");
 
+    expect(mockedToast).toHaveBeenCalledWith("Heads up", {
+      duration: 4500,
+      id: "app-toast"
+    });
     expect(mockedToast.success).toHaveBeenCalledWith("Saved", {
       duration: 4500,
       id: "app-toast"

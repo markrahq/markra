@@ -11,6 +11,7 @@ import {
   showContextMenu,
   type ContextMenuEntry,
   type ContextMenuIdPrefixes,
+  type NativeMarkdownFileTreeContextMenuOptions,
   type RecentMarkdownFile
 } from "@markra/app/runtime";
 import type { MarkdownShortcutMap } from "@markra/editor";
@@ -241,21 +242,23 @@ export async function installNativeEditorContextMenu(
 export function createNativeMarkdownFileTreeContextMenuItems(
   handlers: NativeMarkdownFileTreeContextMenuHandlers,
   language: AppLanguage = "en",
-  file?: NativeMarkdownFolderFile
+  file?: NativeMarkdownFolderFile,
+  options: NativeMarkdownFileTreeContextMenuOptions = {}
 ): ContextMenuEntry[] {
-  return createMarkdownFileTreeContextMenuEntries(handlers, language, file, desktopContextMenuIdPrefixes);
+  return createMarkdownFileTreeContextMenuEntries(handlers, language, file, desktopContextMenuIdPrefixes, options);
 }
 
 export async function showNativeMarkdownFileTreeContextMenu(
   handlers: NativeMarkdownFileTreeContextMenuHandlers,
   language: AppLanguage = "en",
-  file?: NativeMarkdownFolderFile
+  file?: NativeMarkdownFolderFile,
+  options: NativeMarkdownFileTreeContextMenuOptions = {}
 ) {
   const documentTarget = typeof document === "undefined" ? null : document;
   if (!documentTarget) return;
 
   showContextMenu(documentTarget, {
-    entries: createNativeMarkdownFileTreeContextMenuItems(handlers, language, file),
+    entries: createNativeMarkdownFileTreeContextMenuItems(handlers, language, file, options),
     position: currentContextMenuPosition(documentTarget)
   });
 }

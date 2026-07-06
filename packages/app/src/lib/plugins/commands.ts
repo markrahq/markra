@@ -1,6 +1,7 @@
 import type {
   PluginCommandContext,
-  PluginCommandContribution
+  PluginCommandContribution,
+  PluginCommandInvocation
 } from "@markra/plugin-api";
 import type { PluginRegistry } from "./registry";
 
@@ -28,10 +29,19 @@ export function listPluginCommands(registry: PluginRegistry): PluginCommand[] {
 export async function runPluginCommand(
   registry: PluginRegistry,
   commandId: string,
-  createContext: PluginCommandContextFactory
+  createContext: PluginCommandContextFactory,
+  invocation?: PluginCommandInvocation,
+  pluginId?: string
 ) {
-  const command = listPluginCommands(registry).find((candidate) => candidate.id === commandId);
-  if (!command) throw new Error(`Plugin command "${commandId}" is not available.`);
+  const command = listPluginCommands(registry).find((candidate) =>
+    candidate.id === commandId && (!pluginId || candidate.pluginId === pluginId));
+  if (!command) {
+    throw new Error(pluginId
+      ? `Plugin command "${commandId}" from plugin "${pluginId}" is not available.`
+      : `Plugin command "${commandId}" is not available.`);
+  }
 
-  return command.run(await createContext(command.pluginId));
+  const context = await createContext(command.pluginId);
+
+  return command.run(invocation ? { ...context, invocation } : context);
 }

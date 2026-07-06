@@ -55,7 +55,29 @@ export type PluginDocument = {
 };
 
 export type PluginEditor = {
+  getSelection: () => Promise<PluginEditorSelection | null>;
   insertMarkdown: (markdown: string) => Promise<boolean>;
+};
+
+export type PluginEditorSelection = {
+  cursor: number;
+  from: number;
+  source?: "block" | "selection";
+  text: string;
+  to: number;
+};
+
+export type PluginToastStatus = "error" | "info" | "success";
+
+export type PluginToastOptions = {
+  description?: string;
+  durationMs?: number;
+  status?: PluginToastStatus;
+};
+
+export type PluginUi = {
+  openSidePanel: (panelId?: string) => Promise<boolean>;
+  showToast: (message: string, options?: PluginToastOptions) => unknown;
 };
 
 export type PluginContext = {
@@ -68,16 +90,66 @@ export type PluginContext = {
   document?: PluginDocument;
   editor?: PluginEditor;
   storage?: PluginStorage;
+  ui?: PluginUi;
   workspace?: PluginWorkspace;
 };
 
-export type PluginCommandContext = PluginContext;
+export type PluginFileTreeTargetKind = "asset" | "attachment" | "folder" | "markdown";
+
+export type PluginFileTreeTarget = {
+  createdAt?: number;
+  kind: PluginFileTreeTargetKind;
+  modifiedAt?: number;
+  name: string;
+  path: string;
+  relativePath: string;
+  sizeBytes?: number;
+};
+
+export type PluginCommandInvocation = {
+  editor?: {
+    selectionText?: string;
+  };
+  source: "editorContextMenu";
+} | {
+  file: PluginFileTreeTarget;
+  source: "fileTreeContextMenu";
+} | {
+  source: "quickOpen";
+} | {
+  source: "settings";
+};
+
+export type PluginCommandContext = PluginContext & {
+  invocation?: PluginCommandInvocation;
+};
 
 export type PluginCommandContribution = {
   description?: string;
   id: string;
   run: (ctx: PluginCommandContext) => unknown | Promise<unknown>;
   title: string;
+};
+
+export type PluginContextMenuScope = "editor" | "fileTree";
+
+export type PluginContextMenuWhen = {
+  document?: "markdown";
+  file?: "any" | PluginFileTreeTargetKind;
+  selection?: "any" | "nonEmpty";
+};
+
+export type PluginContextMenuItemContribution = {
+  command: string;
+  id: string;
+  title?: string;
+  when?: PluginContextMenuWhen;
+};
+
+export type PluginContextMenuContribution = {
+  id: string;
+  items: PluginContextMenuItemContribution[];
+  scope: PluginContextMenuScope;
 };
 
 export type PluginSettingsContribution = {
@@ -117,6 +189,7 @@ export type PluginExportContribution = {
 
 export type PluginActivation = {
   commands?: PluginCommandContribution[];
+  contextMenus?: PluginContextMenuContribution[];
   dispose?: () => unknown | Promise<unknown>;
   editor?: PluginEditorContribution[];
   export?: PluginExportContribution[];

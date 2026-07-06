@@ -13,7 +13,6 @@ import {
   PanelLeft,
   PanelRight,
   Save,
-  SquareTerminal,
   SquarePen,
   Sun
 } from "lucide-react";
@@ -58,13 +57,6 @@ import { WindowsNativeTitleBar } from "./WindowsNativeTitleBar";
 
 type EditorViewMode = "visual" | "source" | "split";
 
-type NativeTitleBarExtensionCommand = {
-  description?: string;
-  id: string;
-  pluginName: string;
-  title: string;
-};
-
 type NativeTitleBarProps = {
   aiAgentOpen: boolean;
   aiAgentResizing?: boolean;
@@ -90,7 +82,6 @@ type NativeTitleBarProps = {
   theme: ResolvedAppTheme;
   titlebarActions?: readonly TitlebarActionPreference[];
   titleContent?: ReactNode;
-  extensionCommands?: readonly NativeTitleBarExtensionCommand[];
   extensionPanelAvailable?: boolean;
   extensionPanelOpen?: boolean;
   rightPanelOpen?: boolean;
@@ -110,7 +101,6 @@ type NativeTitleBarProps = {
   onShowAbout?: () => unknown;
   onTitlebarActionsChange?: (actions: TitlebarActionPreference[]) => unknown;
   onToggleAiAgent: () => unknown;
-  onRunExtensionCommand?: (id: string) => unknown;
   onToggleExtensionPanel?: () => unknown;
   onToggleMarkdownFiles: () => unknown;
   onToggleSplitMode?: () => unknown;
@@ -153,7 +143,6 @@ export function NativeTitleBar({
   theme,
   titlebarActions,
   titleContent,
-  extensionCommands = [],
   extensionPanelAvailable = false,
   extensionPanelOpen = false,
   rightPanelOpen,
@@ -173,7 +162,6 @@ export function NativeTitleBar({
   onShowAbout,
   onTitlebarActionsChange,
   onToggleAiAgent,
-  onRunExtensionCommand,
   onToggleExtensionPanel,
   onToggleMarkdownFiles,
   onToggleSplitMode,
@@ -183,12 +171,10 @@ export function NativeTitleBar({
   workspaceName
 }: NativeTitleBarProps) {
   const openMenuRef = useRef<HTMLDivElement | null>(null);
-  const extensionCommandMenuRef = useRef<HTMLDivElement | null>(null);
   const viewModeMenuRef = useRef<HTMLDivElement | null>(null);
   const draggingActionIdRef = useRef<TitlebarActionId | null>(null);
   const suppressActionClickIdsRef = useRef(new Set<TitlebarActionId>());
   const [openMenuVisible, setOpenMenuVisible] = useState(false);
-  const [extensionCommandMenuVisible, setExtensionCommandMenuVisible] = useState(false);
   const [viewModeMenuVisible, setViewModeMenuVisible] = useState(false);
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
@@ -219,31 +205,20 @@ export function NativeTitleBar({
   }, [openMarkdownButtonVisible]);
 
   useEffect(() => {
-    if (extensionCommands.length === 0 || !onRunExtensionCommand) setExtensionCommandMenuVisible(false);
-  }, [extensionCommands.length, onRunExtensionCommand]);
-
-  useEffect(() => {
     if (!viewModeActionVisible) setViewModeMenuVisible(false);
   }, [viewModeActionVisible]);
 
   useEffect(() => {
-    if (!openMenuVisible && !extensionCommandMenuVisible && !viewModeMenuVisible) return;
+    if (!openMenuVisible && !viewModeMenuVisible) return;
 
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (openMenuVisible && !openMenuRef.current?.contains(target)) setOpenMenuVisible(false);
-      if (
-        extensionCommandMenuVisible &&
-        !extensionCommandMenuRef.current?.contains(target)
-      ) {
-        setExtensionCommandMenuVisible(false);
-      }
       if (viewModeMenuVisible && !viewModeMenuRef.current?.contains(target)) setViewModeMenuVisible(false);
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setOpenMenuVisible(false);
-        setExtensionCommandMenuVisible(false);
         setViewModeMenuVisible(false);
       }
     };
@@ -255,15 +230,11 @@ export function NativeTitleBar({
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [extensionCommandMenuVisible, openMenuVisible, viewModeMenuVisible]);
+  }, [openMenuVisible, viewModeMenuVisible]);
 
   const runOpenAction = (action: () => unknown) => {
     setOpenMenuVisible(false);
     action();
-  };
-  const runExtensionCommand = (id: string) => {
-    setExtensionCommandMenuVisible(false);
-    onRunExtensionCommand?.(id);
   };
   const runViewModeAction = (mode: ViewMode) => {
     setViewModeMenuVisible(false);
@@ -597,57 +568,6 @@ export function NativeTitleBar({
       aria-label={label("app.fileActions")}
       style={style}
     >
-      {extensionCommands.length > 0 && onRunExtensionCommand ? (
-        <div className="relative" ref={extensionCommandMenuRef}>
-          <IconButton
-            className={
-              extensionCommandMenuVisible
-                ? "bg-(--bg-active) text-(--text-heading) opacity-100"
-                : "bg-transparent text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading)"
-            }
-            label={label("app.extensionCommands")}
-            aria-expanded={extensionCommandMenuVisible}
-            aria-haspopup="menu"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              setOpenMenuVisible(false);
-              setViewModeMenuVisible(false);
-              setExtensionCommandMenuVisible((current) => !current);
-            }}
-          >
-            <SquareTerminal aria-hidden="true" size={15} />
-          </IconButton>
-          {extensionCommandMenuVisible ? (
-            <PopoverSurface
-              className="absolute top-[calc(100%+6px)] right-0 z-40 w-64 overflow-hidden rounded-lg p-1"
-              open
-              role="menu"
-              aria-label={label("app.extensionCommands")}
-            >
-              <div className="max-h-[min(52vh,340px)] overflow-y-auto">
-                {extensionCommands.map((command) => (
-                  <button
-                    key={command.id}
-                    className="flex min-h-10 w-full cursor-pointer flex-col items-start justify-center gap-0.5 rounded-md border-0 bg-transparent px-2.5 py-1.5 text-left transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:bg-(--bg-hover) focus-visible:outline-none"
-                    type="button"
-                    role="menuitem"
-                    aria-label={`${command.title} ${command.pluginName}`}
-                    onClick={() => runExtensionCommand(command.id)}
-                  >
-                    <span className="max-w-full truncate text-[12px] leading-4 font-[620] text-(--text-heading)">
-                      {command.title}
-                    </span>
-                    <span className="max-w-full truncate text-[11px] leading-4 font-[520] text-(--text-secondary)">
-                      {command.pluginName}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </PopoverSurface>
-          ) : null}
-        </div>
-      ) : null}
       {extensionPanelAvailable && onToggleExtensionPanel ? (
         <IconButton
           className={

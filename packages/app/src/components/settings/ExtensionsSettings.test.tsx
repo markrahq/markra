@@ -46,6 +46,7 @@ const failedManifest: PluginManifest = {
 
 function createPlugin(overrides: Partial<ExtensionsSettingsPlugin> = {}): ExtensionsSettingsPlugin {
   return {
+    commands: [],
     enabled: true,
     manifest: referenceManifest,
     settings: (
@@ -75,6 +76,37 @@ describe("ExtensionsSettings", () => {
     expect(screen.getByText("Internal plugins will appear here once they are registered.")).toBeInTheDocument();
   });
 
+  it("lets the plugin list and detail panes scroll independently", () => {
+    const { container } = render(
+      <ExtensionsSettings
+        plugins={[
+          createPlugin(),
+          createPlugin({
+            manifest: {
+              ...referenceManifest,
+              description: "Synthetic notes extension.",
+              id: "notes",
+              name: "Notes"
+            }
+          })
+        ]}
+        translate={translate}
+      />
+    );
+
+    expect(container.querySelector(".extensions-settings")).toHaveClass("h-full", "overflow-hidden");
+    expect(container.querySelector(".extensions-settings-list")).toHaveClass(
+      "min-h-0",
+      "overflow-y-auto",
+      "overscroll-contain"
+    );
+    expect(container.querySelector(".extensions-settings-detail")).toHaveClass(
+      "min-h-0",
+      "overflow-y-auto",
+      "overscroll-contain"
+    );
+  });
+
   it("shows plugin details, settings, permissions, and enable controls", () => {
     const onTogglePlugin = vi.fn();
 
@@ -100,6 +132,42 @@ describe("ExtensionsSettings", () => {
     fireEvent.click(screen.getByRole("switch", { name: "Disable extension" }));
 
     expect(onTogglePlugin).toHaveBeenCalledWith("reference", false);
+  });
+
+  it("shows enabled plugin commands in the plugin detail view", () => {
+    const onRunPluginCommand = vi.fn();
+
+    render(
+      <ExtensionsSettings
+        plugins={[
+          createPlugin({
+            commands: [
+              {
+                description: "Insert a synthetic citation.",
+                id: "reference.insertCitation",
+                title: "Insert synthetic citation"
+              }
+            ]
+          })
+        ]}
+        onRunPluginCommand={onRunPluginCommand}
+        translate={translate}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Commands" })).toBeInTheDocument();
+    expect(screen.getByText("Insert synthetic citation")).toBeInTheDocument();
+    expect(screen.getByText("Insert a synthetic citation.")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Run Insert synthetic citation" }));
+
+    expect(onRunPluginCommand).toHaveBeenCalledWith(
+      "reference.insertCitation",
+      {
+        source: "settings"
+      },
+      "reference"
+    );
   });
 
   it("switches between plugin details and shows activation errors", () => {

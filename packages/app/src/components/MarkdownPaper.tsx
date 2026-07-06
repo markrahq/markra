@@ -31,6 +31,8 @@ type MarkdownPaperProps = {
   contentWidthPx?: number | null;
   documentKey?: string | null;
   documentPath?: MarkdownPaperSurfaceProps["documentPath"];
+  editorPluginKey?: string;
+  editorPlugins?: MarkdownPaperSurfaceProps["editorPlugins"];
   editorFontFamily?: EditorFontFamilyPreference;
   editorTheme?: EditorTheme;
   extendedSyntax?: MarkdownPaperSurfaceProps["extendedSyntax"];
@@ -96,6 +98,8 @@ export function MarkdownPaper({
   contentWidthPx = null,
   documentKey,
   documentPath,
+  editorPluginKey = "",
+  editorPlugins,
   editorFontFamily = { family: null, source: "theme" },
   editorTheme = "light",
   extendedSyntax,
@@ -144,7 +148,7 @@ export function MarkdownPaper({
     paddingBottom: editorBottomPadding(bottomOverlayInset)
   } satisfies MarkdownPaperStyle;
   const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";
-  const editorInstanceKey = `${documentKey ?? "untitled"}:${revision}`;
+  const editorInstanceKey = `${documentKey ?? "untitled"}:${revision}:${editorPluginKey}`;
 
   return (
     <section
@@ -175,6 +179,7 @@ export function MarkdownPaper({
           <MarkdownPaperSurface
             autoFocus={autoFocus}
             documentPath={documentPath}
+            editorPlugins={editorPlugins}
             extendedSyntax={extendedSyntax}
             initialContent={initialContent}
             language={language}

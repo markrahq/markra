@@ -59,7 +59,11 @@ import {
 import { IconButton, Tooltip } from "@markra/ui";
 import { markraHighlightRemarkPlugin, type MarkdownOutlineItem } from "@markra/markdown";
 import { DocumentLinksPanel } from "./DocumentLinksPanel";
-import type { NativeMarkdownFolderFile } from "../lib/tauri";
+import type {
+  NativeMarkdownFolderFile,
+  NativePluginCommandRunner,
+  NativePluginFileTreeContextMenuItem
+} from "../lib/tauri";
 import { normalizeMovedPath, sameNativePath } from "../lib/path-move";
 import { readNativeClipboardText, showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
@@ -152,6 +156,7 @@ type MarkdownFileTreeDrawerProps = {
   outlineItems: MarkdownOutlineItem[];
   outlineVisible?: boolean;
   platform?: DesktopPlatform;
+  pluginFileTreeContextMenuItems?: readonly NativePluginFileTreeContextMenuItem[];
   recentFolders?: readonly RecentMarkdownFolder[];
   recentFoldersOpen?: boolean;
   recentFoldersVisible?: boolean;
@@ -187,6 +192,7 @@ type MarkdownFileTreeDrawerProps = {
   onResize?: (width: number) => unknown;
   onResizeEnd?: () => unknown;
   onResizeStart?: () => unknown;
+  onRunPluginCommand?: NativePluginCommandRunner;
   onSaveFileAsTemplate?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onSelectOutlineItem: (item: MarkdownOutlineItem, index: number) => unknown;
   onToggleMarkdownFiles?: () => unknown;
@@ -467,6 +473,7 @@ export function MarkdownFileTreeDrawer({
   outlineItems,
   outlineVisible = true,
   platform = resolveDesktopPlatform(),
+  pluginFileTreeContextMenuItems = [],
   recentFolders = [],
   recentFoldersOpen: controlledRecentFoldersOpen,
   recentFoldersVisible = true,
@@ -496,6 +503,7 @@ export function MarkdownFileTreeDrawer({
   onResize,
   onResizeEnd,
   onResizeStart,
+  onRunPluginCommand,
   onSaveFileAsTemplate,
   onSelectOutlineItem,
   onToggleMarkdownFiles
@@ -1476,49 +1484,56 @@ export function MarkdownFileTreeDrawer({
     const createTargetFolderPath = normalizeCreateParentPath(targetFolderPath ?? targetFolderPathForFile(file));
     const contextTargets = fileTreeContextTargets(file);
     const multiSelect = contextTargets.length > 1;
+    const pluginContextMenuOptions = pluginFileTreeContextMenuItems.length > 0
+      ? {
+        pluginFileTreeItems: pluginFileTreeContextMenuItems,
+        runPluginCommand: onRunPluginCommand
+      }
+      : undefined;
 
-    showNativeMarkdownFileTreeContextMenu(
-      {
-        canOpenFileToSide: (targetFile) =>
-          Boolean(onOpenFileToSide && fileTreeContextTargets(targetFile).some(canOpenFileTreeContextTargetToSide)),
-        createFile: fileCreationAvailable ? () => startCreatingFile(createTargetFolderPath) : undefined,
-        createFileFromTemplates: fileCreationAvailable
-          ? availableMarkdownTemplates.map((template) => ({
-            create: () => startCreatingFile(createTargetFolderPath, template),
-            id: template.id,
-            name: template.name
-          }))
-          : undefined,
-        createFolder: folderCreationAvailable ? () => startCreatingFolder(createTargetFolderPath) : undefined,
-        deleteFile: (targetFile) => {
-          const targetFiles = fileTreeContextTargets(targetFile);
-          if (targetFiles.length > 1) return onDeleteFile?.(targetFile, { files: targetFiles });
+    const handlers = {
+      canOpenFileToSide: (targetFile: NativeMarkdownFolderFile) =>
+        Boolean(onOpenFileToSide && fileTreeContextTargets(targetFile).some(canOpenFileTreeContextTargetToSide)),
+      createFile: fileCreationAvailable ? () => startCreatingFile(createTargetFolderPath) : undefined,
+      createFileFromTemplates: fileCreationAvailable
+        ? availableMarkdownTemplates.map((template) => ({
+          create: () => startCreatingFile(createTargetFolderPath, template),
+          id: template.id,
+          name: template.name
+        }))
+        : undefined,
+      createFolder: folderCreationAvailable ? () => startCreatingFolder(createTargetFolderPath) : undefined,
+      deleteFile: (targetFile: NativeMarkdownFolderFile) => {
+        const targetFiles = fileTreeContextTargets(targetFile);
+        if (targetFiles.length > 1) return onDeleteFile?.(targetFile, { files: targetFiles });
 
-          return onDeleteFile?.(targetFile);
-        },
-        openContainingFolder: onOpenContainingFolder
-          ? (targetFile) => {
-            const path = targetFile?.path ?? rootPath;
-            if (!path) return;
-
-            return onOpenContainingFolder(path);
-          }
-          : undefined,
-        openFileToSide: onOpenFileToSide
-          ? (targetFile) =>
-            Promise.all(
-              fileTreeContextTargets(targetFile)
-                .filter(canOpenFileTreeContextTargetToSide)
-                .map((target) => Promise.resolve(onOpenFileToSide(target)))
-            )
-          : undefined,
-        multiSelect,
-        renameFile: startRenamingFile,
-        saveFileAsTemplate: onSaveFileAsTemplate
+        return onDeleteFile?.(targetFile);
       },
-      language,
-      file
-    ).catch(() => {});
+      openContainingFolder: onOpenContainingFolder
+        ? (targetFile?: NativeMarkdownFolderFile) => {
+          const path = targetFile?.path ?? rootPath;
+          if (!path) return;
+
+          return onOpenContainingFolder(path);
+        }
+        : undefined,
+      openFileToSide: onOpenFileToSide
+        ? (targetFile: NativeMarkdownFolderFile) =>
+          Promise.all(
+            fileTreeContextTargets(targetFile)
+              .filter(canOpenFileTreeContextTargetToSide)
+              .map((target) => Promise.resolve(onOpenFileToSide(target)))
+          )
+        : undefined,
+      multiSelect,
+      renameFile: startRenamingFile,
+      saveFileAsTemplate: onSaveFileAsTemplate
+    };
+    const menu = pluginContextMenuOptions
+      ? showNativeMarkdownFileTreeContextMenu(handlers, language, file, pluginContextMenuOptions)
+      : showNativeMarkdownFileTreeContextMenu(handlers, language, file);
+
+    menu.catch(() => {});
   };
 
   const openTextInputContextMenu = (

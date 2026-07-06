@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import { AppToaster } from "./AppToaster";
 import { AiProviderSettingsPanel } from "./AiProviderSettingsPanel";
 import {
@@ -23,12 +23,14 @@ import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
 import { useExtensionsSettingsPlugins } from "../hooks/useExtensionsSettingsPlugins";
 import { useAutoUpdater } from "../hooks/useAutoUpdater";
 import { useDefaultContextMenuBlocker } from "../hooks/useDefaultContextMenuBlocker";
+import type { PluginCommandInvocation } from "@markra/plugin-api";
 import { appVersion } from "../lib/app-version";
 import { resolveDesktopPlatform } from "../lib/platform";
 import { hideSettingsWindow, markSettingsWindowReady } from "../lib/tauri";
 import { MacWindowControls } from "./MacWindowControls";
 import { WindowsWindowControls } from "./WindowsWindowControls";
 import { getAppRuntime } from "../runtime";
+import { showAppToast } from "../lib/app-toast";
 import type { SettingsCategory } from "../hooks/useSettingsWindowState";
 
 export function SettingsWindow() {
@@ -101,6 +103,14 @@ export function SettingsWindow() {
     language: appLanguage.language,
     platform: platform ?? "web"
   });
+  const handleRunPluginCommand = useCallback((id: string, invocation: PluginCommandInvocation, pluginId: string) => {
+    extensionPlugins.runCommand(id, invocation, pluginId).catch((error: unknown) => {
+      showAppToast({
+        message: pluginCommandFailureMessage(translate("app.pluginCommandFailed"), error),
+        status: "error"
+      });
+    });
+  }, [extensionPlugins, translate]);
   const showWindowsWindowChrome = platform === "windows" && appFeatures.nativeWindowChrome;
   const showMacosWindowChrome = platform === "macos" && appFeatures.nativeWindowChrome;
   const settingsStartupReady = appLanguage.ready && appTheme.ready;
@@ -319,6 +329,7 @@ export function SettingsWindow() {
             <ExtensionsSettings
               plugins={extensionPlugins.plugins}
               translate={translate}
+              onRunPluginCommand={handleRunPluginCommand}
               onTogglePlugin={extensionPlugins.togglePlugin}
             />
           ) : null}
@@ -346,4 +357,11 @@ export function SettingsWindow() {
       </div>
     </main>
   );
+}
+
+function pluginCommandFailureMessage(message: string, error: unknown) {
+  if (error instanceof Error && error.message) return `${message} ${error.message}`;
+  if (typeof error === "string" && error) return `${message} ${error}`;
+
+  return message;
 }

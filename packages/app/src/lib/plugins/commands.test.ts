@@ -1,4 +1,10 @@
-import { definePlugin, type PluginActivation, type PluginContext, type PluginManifest } from "@markra/plugin-api";
+import {
+  definePlugin,
+  type PluginActivation,
+  type PluginCommandContext,
+  type PluginContext,
+  type PluginManifest
+} from "@markra/plugin-api";
 import { createPluginRegistry, type BuiltInPluginFactory } from "./registry";
 import { listPluginCommands, runPluginCommand } from "./commands";
 
@@ -109,6 +115,79 @@ describe("plugin commands adapter", () => {
 
     await expect(runPluginCommand(registry, "reference.readBibliographyPath", createContext)).resolves.toBe("refs.bib");
     expect(createContext).toHaveBeenCalledWith("reference");
+  });
+
+  it("runs the command from the requested plugin when command ids overlap", async () => {
+    const registry = createPluginRegistry({ apiVersion: 1 });
+    registry.registerBuiltIn(createFactory(referenceManifest, () => ({
+      commands: [
+        {
+          id: "shared.describe",
+          run: () => "reference",
+          title: "Describe"
+        }
+      ]
+    })));
+    registry.registerBuiltIn(createFactory(notesManifest, () => ({
+      commands: [
+        {
+          id: "shared.describe",
+          run: () => "notes",
+          title: "Describe"
+        }
+      ]
+    })));
+    const createContext = vi.fn((pluginId: string): PluginContext => ({
+      app: {
+        apiVersion: 1,
+        language: "en",
+        platform: "macos",
+        version: "0.0.0-test"
+      },
+      storage: {
+        get: vi.fn(),
+        remove: vi.fn(),
+        set: vi.fn()
+      }
+    }));
+
+    await registry.enable("reference", {});
+    await registry.enable("notes", {});
+
+    await expect(runPluginCommand(registry, "shared.describe", createContext, undefined, "notes")).resolves.toBe("notes");
+    expect(createContext).toHaveBeenCalledWith("notes");
+  });
+
+  it("passes command invocation details into the command context", async () => {
+    const registry = createPluginRegistry({ apiVersion: 1 });
+    const run = vi.fn((ctx: PluginCommandContext) =>
+      ctx.invocation?.source === "editorContextMenu" ? ctx.invocation.editor?.selectionText : undefined);
+    registry.registerBuiltIn(createFactory(referenceManifest, () => ({
+      commands: [
+        {
+          id: "reference.wrapSelection",
+          run,
+          title: "Wrap selection"
+        }
+      ]
+    })));
+
+    await registry.enable("reference", {});
+
+    await expect(runPluginCommand(registry, "reference.wrapSelection", () => ({}), {
+      source: "editorContextMenu",
+      editor: {
+        selectionText: "selected citation"
+      }
+    })).resolves.toBe("selected citation");
+    expect(run).toHaveBeenCalledWith({
+      invocation: {
+        source: "editorContextMenu",
+        editor: {
+          selectionText: "selected citation"
+        }
+      }
+    });
   });
 
   it("rejects unknown or disabled commands", async () => {

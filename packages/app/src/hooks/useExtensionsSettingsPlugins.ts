@@ -1,8 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { PluginContext, PluginDocument, PluginEditor } from "@markra/plugin-api";
+import type {
+  PluginCommandInvocation,
+  PluginContext,
+  PluginDocument,
+  PluginEditor,
+  PluginToastOptions
+} from "@markra/plugin-api";
 import { appVersion } from "../lib/app-version";
 import { builtInPluginFactories } from "../lib/plugins/built-ins";
 import { listPluginCommands, runPluginCommand, type PluginCommand } from "../lib/plugins/commands";
+import {
+  listPluginEditorContextMenuItems,
+  listPluginFileTreeContextMenuItems,
+  type PluginEditorContextMenuItem,
+  type PluginFileTreeContextMenuItem
+} from "../lib/plugins/context-menus";
 import { listPluginEditorContributions, type PluginEditorContribution } from "../lib/plugins/editor";
 import { listPluginExportContributions, type PluginExportContribution } from "../lib/plugins/export";
 import { listExtensionsSettingsPlugins } from "../lib/plugins/settings";
@@ -34,15 +46,19 @@ export type UseExtensionsSettingsPluginsOptions = {
   editor?: PluginEditor;
   factories?: readonly BuiltInPluginFactory[];
   language: string;
+  openSidePanel?: (pluginId: string, panelId?: string) => boolean | Promise<boolean>;
   platform: ExtensionsSettingsPluginPlatform;
+  showToast?: (pluginId: string, message: string, options?: PluginToastOptions) => unknown;
   workspaceRootPath?: string | null;
 };
 
 export type UseExtensionsSettingsPluginsResult = {
   commands: PluginCommand[];
+  editorContextMenuItems: PluginEditorContextMenuItem[];
   editorContributions: PluginEditorContribution[];
   exportContributions: PluginExportContribution[];
-  runCommand: (id: string) => Promise<unknown>;
+  fileTreeContextMenuItems: PluginFileTreeContextMenuItem[];
+  runCommand: (id: string, invocation?: PluginCommandInvocation, pluginId?: string) => Promise<unknown>;
   sidePanels: PluginSidePanel[];
   plugins: ExtensionsSettingsPlugin[];
   togglePlugin: (id: string, enabled: boolean) => Promise<unknown>;
@@ -53,7 +69,9 @@ export function useExtensionsSettingsPlugins({
   editor,
   factories = builtInPluginFactories,
   language,
+  openSidePanel,
   platform,
+  showToast,
   workspaceRootPath = null
 }: UseExtensionsSettingsPluginsOptions): UseExtensionsSettingsPluginsResult {
   const registryRef = useRef<PluginRegistry | null>(null);
@@ -82,11 +100,23 @@ export function useExtensionsSettingsPlugins({
   }), [document, editor, language, platform, workspace]);
   const createPluginContext = useCallback((id: string): PluginContext => ({
     ...pluginContext,
-    storage: createPluginStorage(id)
-  }), [pluginContext]);
+    storage: createPluginStorage(id),
+    ...(openSidePanel || showToast ? {
+      ui: {
+        async openSidePanel(panelId?: string) {
+          return openSidePanel ? Boolean(await openSidePanel(id, panelId)) : false;
+        },
+        showToast(message: string, options?: PluginToastOptions) {
+          return showToast?.(id, message, options);
+        }
+      }
+    } : {})
+  }), [openSidePanel, pluginContext, showToast]);
   const createPluginContextRef = useRef(createPluginContext);
   createPluginContextRef.current = createPluginContext;
   const commands = useMemo(() => listPluginCommands(registry), [registry, revision]);
+  const editorContextMenuItems = useMemo(() => listPluginEditorContextMenuItems(registry), [registry, revision]);
+  const fileTreeContextMenuItems = useMemo(() => listPluginFileTreeContextMenuItems(registry), [registry, revision]);
   const editorContributions = useMemo(() =>
     listPluginEditorContributions(registry, createPluginContext), [createPluginContext, registry, revision]);
   const exportContributions = useMemo(() =>
@@ -182,13 +212,15 @@ export function useExtensionsSettingsPlugins({
       });
   }, [createPluginContext, registry]);
 
-  const runCommand = useCallback((id: string) =>
-    runPluginCommand(registry, id, createPluginContext), [createPluginContext, registry]);
+  const runCommand = useCallback((id: string, invocation?: PluginCommandInvocation, pluginId?: string) =>
+    runPluginCommand(registry, id, createPluginContext, invocation, pluginId), [createPluginContext, registry]);
 
   return {
     commands,
+    editorContextMenuItems,
     editorContributions,
     exportContributions,
+    fileTreeContextMenuItems,
     plugins,
     sidePanels,
     runCommand,

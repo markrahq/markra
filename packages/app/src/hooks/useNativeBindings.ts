@@ -3,6 +3,8 @@ import { installNativeMarkdownFileDrop, type NativeMarkdownDroppedTarget } from 
 import {
   installNativeApplicationMenu,
   installNativeEditorContextMenu,
+  type NativePluginEditorContextMenuItem,
+  type NativePluginCommandRunner,
   type NativeMenuHandlers
 } from "../lib/tauri";
 import type { RecentMarkdownFile } from "../lib/settings/app-settings";
@@ -343,7 +345,9 @@ export function useNativeMenus(
   options: {
     getAiCommandsAvailable?: () => boolean;
     markdownShortcuts?: MarkdownShortcutMap;
+    pluginEditorItems?: readonly NativePluginEditorContextMenuItem[];
     recentFiles?: readonly RecentMarkdownFile[];
+    runPluginCommand?: NativePluginCommandRunner;
   } = {}
 ) {
   const markdownShortcuts = hasMarkdownShortcutOverrides(options.markdownShortcuts)
@@ -382,7 +386,9 @@ export function useNativeMenus(
 
     installNativeEditorContextMenu(globalThis.document, handlers, language, {
       getAiCommandsAvailable: options.getAiCommandsAvailable,
-      markdownShortcuts
+      markdownShortcuts,
+      pluginEditorItems: options.pluginEditorItems,
+      runPluginCommand: options.runPluginCommand
     }).then((removeContextMenu) => {
       if (!active) {
         removeContextMenu();
@@ -396,7 +402,14 @@ export function useNativeMenus(
       active = false;
       cleanup?.();
     };
-  }, [handlers, language, options.getAiCommandsAvailable, markdownShortcuts]);
+  }, [
+    handlers,
+    language,
+    options.getAiCommandsAvailable,
+    markdownShortcuts,
+    options.pluginEditorItems,
+    options.runPluginCommand
+  ]);
 }
 
 export function useSettingsWindowShortcut(openSettings?: () => unknown | Promise<unknown>) {

@@ -8,6 +8,7 @@ import {
   rootCtx,
   serializerCtx
 } from "@milkdown/kit/core";
+import type { MilkdownPlugin } from "@milkdown/kit/ctx";
 import { history } from "@milkdown/kit/plugin/history";
 import { listener, listenerCtx } from "@milkdown/kit/plugin/listener";
 import { Plugin } from "@milkdown/kit/prose/state";
@@ -83,6 +84,7 @@ import { SpellcheckSuggestionMenu, type SpellcheckSuggestionMenuState } from "./
 export type MarkdownPaperSurfaceProps = {
   autoFocus: boolean;
   documentPath?: string | null;
+  editorPlugins?: readonly MilkdownPlugin[];
   initialContent: string;
   language: AppLanguage;
   extendedSyntax?: ExtendedSyntaxPreferences;
@@ -107,6 +109,7 @@ export type MarkdownPaperSurfaceProps = {
 };
 
 const emptySpellcheckIgnoredWords: readonly string[] = [];
+const emptyEditorPlugins: readonly MilkdownPlugin[] = [];
 
 function markdownShortcutSignature(shortcuts: MarkdownShortcutMap | undefined) {
   return JSON.stringify(normalizeMarkdownShortcuts(shortcuts));
@@ -210,6 +213,7 @@ function markraSpellcheckMenuShortcutPlugin(
 function MilkdownEditorSurface({
   autoFocus,
   documentPath,
+  editorPlugins = emptyEditorPlugins,
   extendedSyntax,
   initialContent,
   language,
@@ -598,9 +602,14 @@ function MilkdownEditorSurface({
         );
       }
 
+      for (const plugin of editorPlugins) {
+        editor.use(plugin);
+      }
+
       return editor;
     },
     [
+      editorPlugins,
       externalLinkOpeningEnabled,
       githubAlertsEnabled,
       highlightSyntaxEnabled,

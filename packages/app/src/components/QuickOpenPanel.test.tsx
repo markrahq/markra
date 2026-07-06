@@ -37,4 +37,39 @@ describe("QuickOpenPanel", () => {
 
     expect(openFile).toHaveBeenCalledWith(files[1], { toSide: false });
   });
+
+  it("runs the keyboard-selected plugin command", () => {
+    const runCommand = vi.fn();
+
+    render(
+      <QuickOpenPanel
+        commands={[
+          {
+            id: "document-stats.insertSummary",
+            pluginId: "document-stats",
+            pluginName: "Document Stats",
+            title: "Insert document stats"
+          }
+        ]}
+        files={files}
+        language="en"
+        onClose={() => {}}
+        onOpenFile={() => {}}
+        onRunCommand={runCommand}
+      />
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Quick open" });
+    const input = within(dialog).getByRole("searchbox", { name: "Quick open" });
+
+    fireEvent.change(input, { target: { value: "stats" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(runCommand).toHaveBeenCalledWith(expect.objectContaining({
+      id: "document-stats.insertSummary",
+      pluginId: "document-stats",
+      pluginName: "Document Stats",
+      title: "Insert document stats"
+    }));
+  });
 });

@@ -10,7 +10,7 @@ import {
 describe("plugin api", () => {
   const referenceManifest: PluginManifest = {
     apiVersion: 1,
-    capabilities: ["settings", "commands", "sidePanel", "editor", "pandocExport"],
+    capabilities: ["settings", "commands", "sidePanel", "editor", "contextMenu", "pandocExport"],
     description: "Citation tools for example documents.",
     id: "reference",
     main: "./dist/index.js",
@@ -132,7 +132,7 @@ describe("plugin api", () => {
     const insertedMarkdown: string[] = [];
     const plugin = definePlugin({
       manifest: referenceManifest,
-      activate: () => ({
+      activate: (_ctx) => ({
         commands: [
           {
             id: "reference.insertCitation",
@@ -159,6 +159,9 @@ describe("plugin api", () => {
         }
       },
       editor: {
+        async getSelection() {
+          return null;
+        },
         async insertMarkdown(markdown: string) {
           insertedMarkdown.push(markdown);
           return true;
@@ -170,6 +173,114 @@ describe("plugin api", () => {
 
     await expect(activation?.commands?.[0]?.run(commandContext)).resolves.toBe(true);
     expect(insertedMarkdown).toEqual(["[@example.md]"]);
+  });
+
+  it("defines plugins that can read the current editor selection", async () => {
+    const plugin = definePlugin({
+      manifest: referenceManifest,
+      activate: (_ctx) => ({
+        commands: [
+          {
+            id: "reference.wrapSelection",
+            run: async (commandCtx) => {
+              const selection = await commandCtx.editor?.getSelection();
+
+              return selection?.text ?? "";
+            },
+            title: "Read selection"
+          }
+        ]
+      })
+    });
+
+    const activation = plugin.activate?.({});
+
+    await expect(activation?.commands?.[0]?.run({
+      editor: {
+        async getSelection() {
+          return {
+            cursor: 21,
+            from: 10,
+            source: "selection",
+            text: "selected citation",
+            to: 21
+          };
+        },
+        async insertMarkdown() {
+          return true;
+        }
+      }
+    })).resolves.toBe("selected citation");
+  });
+
+  it("defines plugins that can request their own side panel to open", async () => {
+    const openSidePanel = vi.fn(async (_panelId?: string) => true);
+    const plugin = definePlugin({
+      manifest: referenceManifest,
+      activate: (ctx) => ({
+        commands: [
+          {
+            id: "reference.openPanel",
+            run: () => ctx.ui?.openSidePanel("reference.panel"),
+            title: "Open references"
+          }
+        ],
+        sidePanels: [
+          {
+            component: {},
+            id: "reference.panel",
+            location: "right",
+            title: "References"
+          }
+        ]
+      })
+    });
+
+    const activation = plugin.activate?.({
+      ui: {
+        openSidePanel,
+        showToast: vi.fn()
+      }
+    });
+
+    await expect(activation?.commands?.[0]?.run()).resolves.toBe(true);
+    expect(openSidePanel).toHaveBeenCalledWith("reference.panel");
+  });
+
+  it("defines plugins that can show host toasts", async () => {
+    const showToast = vi.fn();
+    const plugin = definePlugin({
+      manifest: referenceManifest,
+      activate: (ctx) => ({
+        commands: [
+          {
+            id: "reference.refresh",
+            run: () => ctx.ui?.showToast("References refreshed", {
+              description: "2 entries",
+              durationMs: 1200,
+              status: "success"
+            }),
+            title: "Refresh references"
+          }
+        ]
+      })
+    });
+
+    const activation = plugin.activate?.({
+      ui: {
+        async openSidePanel() {
+          return false;
+        },
+        showToast
+      }
+    });
+
+    await activation?.commands?.[0]?.run();
+    expect(showToast).toHaveBeenCalledWith("References refreshed", {
+      description: "2 entries",
+      durationMs: 1200,
+      status: "success"
+    });
   });
 
   it("defines plugins with Pandoc export hooks that receive export and plugin context", async () => {
@@ -215,8 +326,219 @@ describe("plugin api", () => {
     });
   });
 
+  it("defines editor context menu items that point at plugin commands", () => {
+    const plugin = definePlugin({
+      manifest: referenceManifest,
+      activate: (_ctx) => ({
+        commands: [
+          {
+            id: "reference.insertCitation",
+            run: () => "inserted",
+            title: "Insert citation"
+          }
+        ],
+        contextMenus: [
+          {
+            id: "reference.editor",
+            scope: "editor",
+            items: [
+              {
+                command: "reference.insertCitation",
+                id: "reference.insertCitation.editor",
+                when: {
+                  document: "markdown",
+                  selection: "any"
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    const activation = plugin.activate?.({});
+
+    expect(activation?.contextMenus?.[0]).toMatchObject({
+      id: "reference.editor",
+      scope: "editor",
+      items: [
+        {
+          command: "reference.insertCitation",
+          id: "reference.insertCitation.editor",
+          when: {
+            document: "markdown",
+            selection: "any"
+          }
+        }
+      ]
+    });
+  });
+
+  it("defines file tree context menu items that point at plugin commands", () => {
+    const plugin = definePlugin({
+      manifest: referenceManifest,
+      activate: (_ctx) => ({
+        commands: [
+          {
+            id: "reference.copyPath",
+            run: (commandCtx) =>
+              commandCtx.invocation?.source === "fileTreeContextMenu"
+                ? commandCtx.invocation.file.relativePath
+                : "",
+            title: "Copy relative path"
+          }
+        ],
+        contextMenus: [
+          {
+            id: "reference.fileTree",
+            scope: "fileTree",
+            items: [
+              {
+                command: "reference.copyPath",
+                id: "reference.copyPath.fileTree",
+                when: {
+                  file: "markdown"
+                }
+              }
+            ]
+          }
+        ]
+      })
+    });
+
+    const activation = plugin.activate?.({});
+
+    expect(activation?.contextMenus?.[0]).toMatchObject({
+      id: "reference.fileTree",
+      scope: "fileTree",
+      items: [
+        {
+          command: "reference.copyPath",
+          id: "reference.copyPath.fileTree",
+          when: {
+            file: "markdown"
+          }
+        }
+      ]
+    });
+  });
+
+  it("defines commands that can inspect invocation context", async () => {
+    const plugin = definePlugin({
+      manifest: referenceManifest,
+      activate: (_ctx) => ({
+        commands: [
+          {
+            id: "reference.wrapSelection",
+            run: (commandCtx) =>
+              commandCtx.invocation?.source === "editorContextMenu"
+                ? commandCtx.invocation.editor?.selectionText ?? ""
+                : "",
+            title: "Wrap selection"
+          }
+        ]
+      })
+    });
+
+    const activation = plugin.activate?.({});
+
+    await expect(Promise.resolve(activation?.commands?.[0]?.run({
+      invocation: {
+        source: "editorContextMenu",
+        editor: {
+          selectionText: "selected citation"
+        }
+      }
+    }))).resolves.toBe("selected citation");
+  });
+
+  it("defines commands that can inspect file tree invocation context", async () => {
+    const plugin = definePlugin({
+      manifest: referenceManifest,
+      activate: (_ctx) => ({
+        commands: [
+          {
+            id: "reference.copyPath",
+            run: (commandCtx) =>
+              commandCtx.invocation?.source === "fileTreeContextMenu"
+                ? commandCtx.invocation.file.relativePath
+                : "",
+            title: "Copy relative path"
+          }
+        ]
+      })
+    });
+
+    const activation = plugin.activate?.({});
+
+    await expect(Promise.resolve(activation?.commands?.[0]?.run({
+      invocation: {
+        source: "fileTreeContextMenu",
+        file: {
+          kind: "markdown",
+          name: "example.md",
+          path: "/mock-workspace/example.md",
+          relativePath: "example.md"
+        }
+      }
+    }))).resolves.toBe("example.md");
+  });
+
+  it("defines commands that can inspect quick open invocation context", async () => {
+    const plugin = definePlugin({
+      manifest: referenceManifest,
+      activate: (_ctx) => ({
+        commands: [
+          {
+            id: "reference.refreshBibliography",
+            run: (commandCtx) =>
+              commandCtx.invocation?.source === "quickOpen"
+                ? commandCtx.invocation.source
+                : "",
+            title: "Refresh bibliography"
+          }
+        ]
+      })
+    });
+
+    const activation = plugin.activate?.({});
+
+    await expect(Promise.resolve(activation?.commands?.[0]?.run({
+      invocation: {
+        source: "quickOpen"
+      }
+    }))).resolves.toBe("quickOpen");
+  });
+
+  it("defines commands that can inspect settings invocation context", async () => {
+    const plugin = definePlugin({
+      manifest: referenceManifest,
+      activate: (_ctx) => ({
+        commands: [
+          {
+            id: "reference.resetSettings",
+            run: (commandCtx) =>
+              commandCtx.invocation?.source === "settings"
+                ? commandCtx.invocation.source
+                : "",
+            title: "Reset settings"
+          }
+        ]
+      })
+    });
+
+    const activation = plugin.activate?.({});
+
+    await expect(Promise.resolve(activation?.commands?.[0]?.run({
+      invocation: {
+        source: "settings"
+      }
+    }))).resolves.toBe("settings");
+  });
+
   it("recognizes supported capabilities and permission grants", () => {
     expect(isPluginCapability("sidePanel")).toBe(true);
+    expect(isPluginCapability("contextMenu")).toBe(true);
     expect(isPluginCapability("aiPromptHooks")).toBe(false);
     expect(isPluginPermissionGrant("userSelected")).toBe(true);
     expect(isPluginPermissionGrant("network")).toBe(false);
