@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use quick_xml::events::Event;
 use quick_xml::Reader;
-use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, ETAG, IF_MATCH, IF_NONE_MATCH, LAST_MODIFIED};
+use reqwest::header::{CONTENT_LENGTH, CONTENT_TYPE, ETAG, IF_NONE_MATCH, LAST_MODIFIED};
 use reqwest::{Client, Method, RequestBuilder, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -510,7 +510,7 @@ async fn list_webdav_remote_files(
             else {
                 continue;
             };
-            if relative_path.is_empty() {
+            if should_skip_webdav_listing_path(&relative_path, &directory_path) {
                 continue;
             }
             if relative_path
@@ -545,6 +545,10 @@ async fn list_webdav_remote_files(
     }
 
     Ok(files)
+}
+
+fn should_skip_webdav_listing_path(relative_path: &str, directory_path: &str) -> bool {
+    relative_path.is_empty() || relative_path == directory_path
 }
 
 async fn propfind_webdav_directory(
@@ -881,10 +885,7 @@ async fn delete_webdav_file(
     )
     .await?;
     let response = apply_basic_auth(
-        apply_webdav_match_precondition(
-            client.request(webdav_delete_method()?, file_url),
-            expected_remote_identity,
-        ),
+        client.request(webdav_delete_method()?, file_url),
         &request.username,
         &request.password,
     )
@@ -1018,7 +1019,7 @@ async fn ensure_remote_sync_identity(
 ) -> Result<(), String> {
     let actual_identity =
         webdav_file_identity_optional(client, request, relative_path, file_url).await?;
-    if actual_identity.as_deref() == expected_identity {
+    if same_optional_remote_identity(actual_identity.as_deref(), expected_identity) {
         return Ok(());
     }
 
@@ -1044,14 +1045,10 @@ async fn download_webdav_file(
         Some(expected_remote_identity),
     )
     .await?;
-    let response = apply_basic_auth(
-        apply_webdav_match_precondition(client.get(file_url), expected_remote_identity),
-        &request.username,
-        &request.password,
-    )
-    .send()
-    .await
-    .map_err(|error| webdav_request_error("download", "GET", relative_path, error))?;
+    let response = apply_basic_auth(client.get(file_url), &request.username, &request.password)
+        .send()
+        .await
+        .map_err(|error| webdav_request_error("download", "GET", relative_path, error))?;
 
     if !response.status().is_success() {
         return Err(webdav_status_error(
@@ -1132,7 +1129,7 @@ fn plan_webdav_file_sync(
             let Some(manifest) = manifest else {
                 return WebDavFileSyncAction::Download;
             };
-            if remote == manifest.remote_etag {
+            if same_remote_identity(remote, &manifest.remote_etag) {
                 WebDavFileSyncAction::DeleteRemote
             } else {
                 WebDavFileSyncAction::Download
@@ -1144,7 +1141,7 @@ fn plan_webdav_file_sync(
                 return WebDavFileSyncAction::Conflict;
             };
             let local_changed = local != manifest.local_hash;
-            let remote_changed = remote != manifest.remote_etag;
+            let remote_changed = !same_remote_identity(remote, &manifest.remote_etag);
 
             match (local_changed, remote_changed) {
                 (false, false) => WebDavFileSyncAction::Skip,
@@ -1175,21 +1172,11 @@ fn apply_webdav_remote_precondition(
     builder: RequestBuilder,
     expected_remote_identity: Option<&str>,
 ) -> RequestBuilder {
-    let Some(expected_remote_identity) = expected_remote_identity else {
+    if expected_remote_identity.is_none() {
         return builder.header(IF_NONE_MATCH, "*");
-    };
-
-    apply_webdav_match_precondition(builder, expected_remote_identity)
-}
-
-fn apply_webdav_match_precondition(
-    builder: RequestBuilder,
-    expected_remote_identity: &str,
-) -> RequestBuilder {
-    if let Some(etag) = webdav_etag_precondition(expected_remote_identity) {
-        return builder.header(IF_MATCH, etag);
     }
 
+    // Some WebDAV servers expose weak/strong ETag variants across methods, so rely on the explicit identity probe above.
     builder
 }
 
@@ -1257,22 +1244,37 @@ fn webdav_diagnostic_relative_path(relative_path: &str) -> String {
     }
 }
 
-fn webdav_etag_precondition(identity: &str) -> Option<&str> {
+fn same_optional_remote_identity(actual: Option<&str>, expected: Option<&str>) -> bool {
+    match (actual, expected) {
+        (Some(actual), Some(expected)) => same_remote_identity(actual, expected),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+fn same_remote_identity(left: &str, right: &str) -> bool {
+    canonical_webdav_etag_identity(left) == canonical_webdav_etag_identity(right)
+}
+
+fn canonical_webdav_etag_identity(identity: &str) -> &str {
     let trimmed = identity.trim();
-    if trimmed.is_empty()
-        || trimmed.starts_with("modified:")
-        || trimmed.starts_with("len:")
-        || trimmed.starts_with("sha256:")
-    {
-        return None;
+    let weak_value = trimmed
+        .strip_prefix("W/")
+        .or_else(|| trimmed.strip_prefix("w/"));
+
+    if let Some(value) = weak_value {
+        let value = value.trim_start();
+        if value.starts_with('"') {
+            return value;
+        }
     }
 
-    Some(trimmed)
+    trimmed
 }
 
 fn remote_identity(etag: Option<&str>, last_modified: Option<&str>, size: u64) -> String {
     if let Some(etag) = etag.map(str::trim).filter(|value| !value.is_empty()) {
-        return etag.to_string();
+        return canonical_webdav_etag_identity(etag).to_string();
     }
 
     if let Some(last_modified) = last_modified
@@ -1564,6 +1566,43 @@ mod tests {
     }
 
     #[test]
+    fn normalizes_webdav_weak_etags_for_remote_identity() {
+        assert_eq!(
+            remote_identity(Some(" W/\"8-656032d37efc2\" "), None, 8),
+            "\"8-656032d37efc2\""
+        );
+    }
+
+    #[test]
+    fn treats_weak_and_strong_webdav_etag_variants_as_same_remote_identity() {
+        let action = plan_webdav_file_sync(
+            Some("local-old"),
+            Some("\"8-656032d37efc2\""),
+            Some(&SyncManifestEntry {
+                local_hash: "local-old".to_string(),
+                remote_etag: "W/\"8-656032d37efc2\"".to_string(),
+            }),
+        );
+
+        assert_eq!(action, WebDavFileSyncAction::Skip);
+    }
+
+    #[test]
+    fn omits_webdav_if_match_after_explicit_remote_identity_check() {
+        let client = Client::new();
+        let request = apply_webdav_remote_precondition(
+            client
+                .put("https://dav.example.test/base/draft.md")
+                .body("hello"),
+            Some("\"8-656032d37efc2\""),
+        )
+        .build()
+        .expect("request should be built");
+
+        assert!(request.headers().get("if-match").is_none());
+    }
+
+    #[test]
     fn formats_webdav_http_errors_with_request_context() {
         assert_eq!(
             webdav_status_error("folder creation", "MKCOL", "notes", 409),
@@ -1626,6 +1665,14 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(diagnostic_paths, vec!["notes", "notes/2026"]);
+    }
+
+    #[test]
+    fn skips_current_collection_href_when_listing_nested_webdav_directory() {
+        assert!(should_skip_webdav_listing_path("", ""));
+        assert!(should_skip_webdav_listing_path("notes", "notes"));
+        assert!(!should_skip_webdav_listing_path("notes/draft.md", "notes"));
+        assert!(!should_skip_webdav_listing_path("notes/child", "notes"));
     }
 
     #[test]
