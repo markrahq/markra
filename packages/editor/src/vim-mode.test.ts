@@ -7,6 +7,28 @@ import {
   getVimMode
 } from "./vim-mode";
 
+const emptyRect = {
+  bottom: 0,
+  height: 0,
+  left: 0,
+  right: 0,
+  toJSON: () => ({}),
+  top: 0,
+  width: 0,
+  x: 0,
+  y: 0
+} as DOMRect;
+const originalElementGetBoundingClientRect = Element.prototype.getBoundingClientRect;
+const originalElementGetClientRects = Element.prototype.getClientRects;
+const originalRangeGetBoundingClientRect = Range.prototype.getBoundingClientRect;
+const originalRangeGetClientRects = Range.prototype.getClientRects;
+const textPrototype = Text.prototype as Text & {
+  getBoundingClientRect?: () => DOMRect;
+  getClientRects?: () => DOMRectList;
+};
+const originalTextGetBoundingClientRect = textPrototype.getBoundingClientRect;
+const originalTextGetClientRects = textPrototype.getClientRects;
+
 const schema = new Schema({
   nodes: {
     doc: { content: "block+" },
@@ -98,6 +120,36 @@ function typeText(view: EditorView, text: string) {
 }
 
 describe("vim mode plugin", () => {
+  beforeEach(() => {
+    Element.prototype.getBoundingClientRect = () => emptyRect;
+    Element.prototype.getClientRects = () => [emptyRect] as unknown as DOMRectList;
+    Range.prototype.getBoundingClientRect = () => emptyRect;
+    Range.prototype.getClientRects = () => [emptyRect] as unknown as DOMRectList;
+    Object.assign(Text.prototype, {
+      getBoundingClientRect: () => emptyRect,
+      getClientRects: () => [emptyRect] as unknown as DOMRectList
+    });
+  });
+
+  afterEach(() => {
+    Element.prototype.getBoundingClientRect = originalElementGetBoundingClientRect;
+    Element.prototype.getClientRects = originalElementGetClientRects;
+    Range.prototype.getBoundingClientRect = originalRangeGetBoundingClientRect;
+    Range.prototype.getClientRects = originalRangeGetClientRects;
+
+    if (originalTextGetBoundingClientRect) {
+      textPrototype.getBoundingClientRect = originalTextGetBoundingClientRect;
+    } else {
+      delete textPrototype.getBoundingClientRect;
+    }
+
+    if (originalTextGetClientRects) {
+      textPrototype.getClientRects = originalTextGetClientRects;
+    } else {
+      delete textPrototype.getClientRects;
+    }
+  });
+
   it("marks the editor DOM with the active Vim mode", () => {
     const view = createView(["alpha"]);
 
@@ -272,18 +324,24 @@ describe("vim mode plugin", () => {
 
   it("moves between text blocks with j and k", () => {
     const view = createView(["alpha", "beta"]);
+    const dispatchSpy = vi.spyOn(view, "dispatch");
 
     try {
       const alphaOffset = 2;
       moveCursor(view, findTextPosition(view, "alpha", alphaOffset));
 
       pressKey(view, "Escape");
+      dispatchSpy.mockClear();
+
       expect(pressKey(view, "j")).toBe(true);
+      expect(dispatchSpy.mock.calls.at(-1)?.[0].scrolledIntoView).toBe(true);
       expect(view.state.selection.from).toBe(findTextPosition(view, "beta", alphaOffset - 1));
 
       expect(pressKey(view, "k")).toBe(true);
+      expect(dispatchSpy.mock.calls.at(-1)?.[0].scrolledIntoView).toBe(true);
       expect(view.state.selection.from).toBe(findTextPosition(view, "alpha", alphaOffset - 1));
     } finally {
+      dispatchSpy.mockRestore();
       destroyView(view);
     }
   });

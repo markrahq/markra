@@ -306,7 +306,7 @@ function textblockDepth(state: EditorState) {
 function moveSelection(view: EditorView, position: number, bias: -1 | 1 = 1, meta: VimModeMeta = clearedInputMeta()) {
   const clamped = Math.max(0, Math.min(view.state.doc.content.size, position));
   const selection = TextSelection.near(view.state.doc.resolve(clamped), bias);
-  dispatchTransaction(view, view.state.tr.setSelection(selection), meta);
+  dispatchTransaction(view, view.state.tr.setSelection(selection).scrollIntoView(), meta);
   return true;
 }
 
