@@ -93,6 +93,23 @@ type AiSelectionToolbarProps = {
 };
 
 const toolbarOffsetPx = 12;
+const toolbarViewportMarginPx = 12;
+const toolbarHeightPx = 42;
+
+function selectionToolbarPlacement(anchor: SelectionAnchor) {
+  return anchor.top - toolbarOffsetPx - toolbarHeightPx >= toolbarViewportMarginPx ? "top" : "bottom";
+}
+
+function selectionToolbarTop(anchor: SelectionAnchor, placement: ReturnType<typeof selectionToolbarPlacement>) {
+  if (placement === "top") {
+    return Math.round(anchor.top - toolbarOffsetPx);
+  }
+
+  const viewportHeight = typeof window === "undefined" ? Number.POSITIVE_INFINITY : window.innerHeight;
+  const maxTop = Math.max(toolbarViewportMarginPx, viewportHeight - toolbarViewportMarginPx - toolbarHeightPx);
+
+  return Math.round(Math.max(toolbarViewportMarginPx, Math.min(anchor.bottom + toolbarOffsetPx, maxTop)));
+}
 
 const aiSelectionActions: AiSelectionAction[] = [
   {
@@ -309,10 +326,12 @@ export function AiSelectionToolbar({
     : label("menu.headingLevel");
   const copyLabel = label(copySucceeded ? "app.aiCopied" : "app.aiCopy");
   const translationTargetLanguage = aiTranslationLanguageName(language);
+  const toolbarPlacement = selectionToolbarPlacement(anchor);
   const style: CSSProperties = {
     left: `${Math.round((anchor.left + anchor.right) / 2)}px`,
-    top: `${Math.max(12, Math.round(anchor.top - toolbarOffsetPx))}px`
+    top: `${selectionToolbarTop(anchor, toolbarPlacement)}px`
   };
+  const toolbarPlacementClass = toolbarPlacement === "top" ? "-translate-y-full" : "translate-y-0";
   const headingLevelMenu =
     headingLevelMenuOpen && headingLevelMenuStyle && typeof document !== "undefined"
       ? createPortal(
@@ -362,7 +381,7 @@ export function AiSelectionToolbar({
 
   return (
     <section
-      className="ai-selection-toolbar pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-full animate-[markra-ai-float-in_160ms_ease-out_both] motion-reduce:animate-none"
+      className={`ai-selection-toolbar pointer-events-none fixed z-50 -translate-x-1/2 ${toolbarPlacementClass} animate-[markra-ai-float-in_160ms_ease-out_both] motion-reduce:animate-none`}
       ref={toolbarRef}
       style={style}
       role="toolbar"

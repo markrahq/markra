@@ -38,6 +38,35 @@ describe("AiSelectionToolbar", () => {
     expect(screen.getByRole("button", { name: "Translate" })).toBeInTheDocument();
   });
 
+  it("places itself below the selection near the viewport top", () => {
+    render(
+      <AiSelectionToolbar
+        anchor={{
+          bottom: 30,
+          left: 240,
+          right: 420,
+          top: 10
+        }}
+        language="en"
+        open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
+        onRunAction={vi.fn()}
+      />
+    );
+
+    const toolbar = screen.getByRole("toolbar", { name: "AI quick actions" });
+
+    expect(toolbar).toHaveStyle({
+      left: "330px",
+      top: "42px"
+    });
+    expect(toolbar).toHaveClass("translate-y-0");
+    expect(toolbar).not.toHaveClass("-translate-y-full");
+  });
+
   it("renders basic selection tools and routes them to editor commands", () => {
     const onRunFormattingAction = vi.fn();
     const onInsertLink = vi.fn();
