@@ -1055,6 +1055,30 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps the custom caret visible when the editor DOM remains active without ProseMirror focus markers", async () => {
+    const { view } = await renderEditor("Alpha");
+    const coordsSpy = vi.spyOn(view, "coordsAtPos").mockReturnValue({
+      bottom: 42,
+      left: 24,
+      right: 25,
+      top: 10
+    });
+    const hasFocusSpy = vi.spyOn(view, "hasFocus").mockReturnValue(false);
+
+    focusEditor(view);
+    view.dom.classList.remove("ProseMirror-focused");
+    moveCursor(view, findTextPosition(view, "Alpha", 2));
+
+    const caret = view.dom.ownerDocument.querySelector<HTMLElement>(".markra-prosemirror-caret");
+
+    expect(view.dom.ownerDocument.activeElement).toBe(view.dom);
+    expect(caret?.style.display).toBe("block");
+
+    hasFocusSpy.mockRestore();
+    coordsSpy.mockRestore();
+    await settleMarkdownListener();
+  });
+
   it("enables Vim normal and insert modes in the visual editor", async () => {
     const { view } = await renderEditor("alpha", { vimModeEnabled: true });
 
@@ -1109,6 +1133,82 @@ describe("MarkdownPaper editing", () => {
     expect(pressShortcut(view, "i")).toBe(true);
     expect(caret).not.toHaveClass("markra-prosemirror-caret-block");
     expect(caret?.style.width).toBe("1px");
+
+    coordsSpy.mockRestore();
+    await settleMarkdownListener();
+  });
+
+  it("keeps the custom Vim caret visible after line motions scroll the selection", async () => {
+    const { view } = await renderEditor("alpha\n\nbeta", { vimModeEnabled: true });
+    const alphaPosition = findTextPosition(view, "alpha");
+    const betaPosition = findTextPosition(view, "beta");
+    const alphaCaret = alphaPosition + 1;
+    const betaCaret = betaPosition + 1;
+    let selectionHasScrolled = false;
+    const coordsSpy = vi.spyOn(view, "coordsAtPos").mockImplementation((position) => {
+      const betaTop = selectionHasScrolled ? 50 : 210;
+      const betaBottom = selectionHasScrolled ? 82 : 242;
+
+      if (position === betaCaret + 1) {
+        return {
+          bottom: betaBottom,
+          left: 56,
+          right: 57,
+          top: betaTop
+        };
+      }
+
+      if (position === betaCaret) {
+        return {
+          bottom: betaBottom,
+          left: 48,
+          right: 49,
+          top: betaTop
+        };
+      }
+
+      if (position === alphaCaret + 1) {
+        return {
+          bottom: 42,
+          left: 32,
+          right: 33,
+          top: 10
+        };
+      }
+
+      return {
+        bottom: 42,
+        left: 24,
+        right: 25,
+        top: 10
+      };
+    });
+
+    focusEditor(view);
+    moveCursor(view, alphaPosition + 2);
+    expect(pressShortcut(view, "Escape")).toBe(true);
+
+    const caret = view.dom.ownerDocument.querySelector<HTMLElement>(".markra-prosemirror-caret");
+    expect(caret).toBeInTheDocument();
+    expect(caret).toHaveClass("markra-prosemirror-caret-block");
+    expect(caret?.style.display).toBe("block");
+    expect(caret?.style.left).toBe("24px");
+    expect(caret?.style.top).toBe("17px");
+
+    expect(pressShortcut(view, "j")).toBe(true);
+    expect(view.state.selection.from).toBe(betaCaret);
+    expect(caret).toHaveClass("markra-prosemirror-caret-block");
+    expect(caret?.style.display).toBe("block");
+    expect(caret?.style.left).toBe("48px");
+    expect(caret?.style.top).toBe("217px");
+
+    selectionHasScrolled = true;
+    const scrollRoot = view.dom.closest(".paper-scroll");
+    expect(scrollRoot).toBeInstanceOf(HTMLElement);
+    fireEvent.scroll(scrollRoot as HTMLElement);
+
+    expect(caret?.style.top).toBe("57px");
+    expect(caret?.style.width).toBe("8px");
 
     coordsSpy.mockRestore();
     await settleMarkdownListener();

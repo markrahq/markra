@@ -8,7 +8,13 @@ const caretClassName = "markra-prosemirror-caret";
 const blockCaretClassName = "markra-prosemirror-caret-block";
 
 function focused(view: EditorView) {
-  return view.hasFocus() || view.dom.classList.contains("ProseMirror-focused");
+  const activeElement = view.dom.ownerDocument.activeElement;
+  return (
+    view.hasFocus() ||
+    view.dom.classList.contains("ProseMirror-focused") ||
+    activeElement === view.dom ||
+    Boolean(activeElement && view.dom.contains(activeElement))
+  );
 }
 
 function caretFontSize(view: EditorView) {
