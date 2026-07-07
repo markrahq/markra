@@ -324,7 +324,9 @@ describe("editor preferences", () => {
   });
 
   it("normalizes the automatic update preference", () => {
+    expect(defaultEditorPreferences.autoUpdateEnabled).toBe(true);
     expect(normalizeEditorPreferences({}).autoUpdateEnabled).toBe(true);
+    expect(normalizeEditorPreferences({ autoUpdateEnabled: true }).autoUpdateEnabled).toBe(true);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: false }).autoUpdateEnabled).toBe(false);
     expect(normalizeEditorPreferences({ autoUpdateEnabled: "no" }).autoUpdateEnabled).toBe(true);
   });

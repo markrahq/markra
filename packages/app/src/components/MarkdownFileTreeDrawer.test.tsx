@@ -133,6 +133,31 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(onOpenSettings).toHaveBeenCalledTimes(1);
   });
 
+  it("shows an install update action in the footer when an update is available", () => {
+    const onInstallAvailableUpdate = vi.fn();
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath={null}
+        files={[]}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        updateAvailable
+        onInstallAvailableUpdate={onInstallAvailableUpdate}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const updateButton = screen.getByRole("button", { name: "Install and restart" });
+
+    expect(updateButton).toContainElement(document.querySelector(".lucide-download"));
+
+    fireEvent.click(updateButton);
+
+    expect(onInstallAvailableUpdate).toHaveBeenCalledTimes(1);
+  });
+
   it("collapses its own width so the drawer contents clip with the workspace animation", () => {
     const { container, rerender } = render(
       <MarkdownFileTreeDrawer

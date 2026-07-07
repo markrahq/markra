@@ -1,4 +1,4 @@
-import { createElement, useCallback, useEffect, useRef } from "react";
+import { createElement, useCallback, useEffect, useRef, useState } from "react";
 import { t, type AppLanguage } from "@markra/shared";
 import { UpdateProgressToast } from "../components/UpdateProgressToast";
 import { showAppToast } from "../lib/app-toast";
@@ -25,6 +25,7 @@ function formatUpdateMessage(message: string, update: NativeAppUpdate, progress?
 }
 
 export function useAutoUpdater(language: AppLanguage, enabled = true, options: AutoUpdaterOptions = {}) {
+  const [availableUpdate, setAvailableUpdate] = useState<NativeAppUpdate | null>(null);
   const checkingRef = useRef(false);
   const downloadingRef = useRef(false);
   const downloadedUpdateRef = useRef<NativeAppUpdate | null>(null);
@@ -88,6 +89,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
   const downloadUpdate = useCallback(async (update: NativeAppUpdate, options: { notifyFailure: boolean }) => {
     if (downloadingRef.current) return;
     if (downloadedUpdateRef.current?.version === update.version) {
+      setAvailableUpdate((currentUpdate) => currentUpdate?.version === update.version ? null : currentUpdate);
       showReadyToRestart(downloadedUpdateRef.current);
       return;
     }
@@ -102,6 +104,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
       await update.downloadAndInstall({
         onProgress: (progress) => showDownloadProgress(update, progress)
       });
+      setAvailableUpdate((currentUpdate) => currentUpdate?.version === update.version ? null : currentUpdate);
       showReadyToRestart(update);
     } catch {
       if (options.notifyFailure) {
@@ -116,6 +119,36 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
     }
   }, [showDownloadProgress, showReadyToRestart, language]);
 
+  const installUpdate = useCallback((update: NativeAppUpdate) => {
+    if (!enabled) return;
+
+    downloadUpdate(update, { notifyFailure: true });
+  }, [downloadUpdate, enabled]);
+
+  const showAvailableUpdate = useCallback((update: NativeAppUpdate, options: { notify: boolean }) => {
+    setAvailableUpdate(update);
+    if (!options.notify) return;
+
+    showAppToast({
+      action: {
+        label: t(language, "app.updateInstallAndRestart"),
+        onClick: () => {
+          installUpdate(update);
+        }
+      },
+      duration: Infinity,
+      id: appUpdateToastId,
+      message: formatUpdateMessage(t(language, "app.updateAvailable"), update),
+      status: "success"
+    });
+  }, [installUpdate, language]);
+
+  const installAvailableUpdate = useCallback(() => {
+    if (!availableUpdate) return;
+
+    installUpdate(availableUpdate);
+  }, [availableUpdate, installUpdate]);
+
   const checkForUpdates = useCallback(async () => {
     if (!enabled || checkingRef.current) return;
 
@@ -129,10 +162,11 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
     try {
       const update = await checkNativeAppUpdate();
       if (update) {
-        await downloadUpdate(update, { notifyFailure: true });
+        showAvailableUpdate(update, { notify: true });
         return;
       }
 
+      setAvailableUpdate(null);
       showAppToast({
         id: appUpdateToastId,
         message: t(language, "app.updateCurrent"),
@@ -147,7 +181,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
     } finally {
       checkingRef.current = false;
     }
-  }, [downloadUpdate, enabled, language]);
+  }, [enabled, language, showAvailableUpdate]);
 
   useEffect(() => {
     if (!autoCheck || !enabled) return;
@@ -159,7 +193,12 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
       checkingRef.current = true;
       try {
         const update = await checkNativeAppUpdate();
-        if (!cancelled && update) await downloadUpdate(update, { notifyFailure: false });
+        if (cancelled) return;
+        if (update) {
+          showAvailableUpdate(update, { notify: false });
+        } else {
+          setAvailableUpdate(null);
+        }
       } catch {
         // Background update checks should not interrupt normal app usage.
       } finally {
@@ -174,9 +213,11 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
       cancelled = true;
       window.clearInterval(interval);
     };
-  }, [autoCheck, checkIntervalMs, downloadUpdate, enabled]);
+  }, [autoCheck, checkIntervalMs, enabled, showAvailableUpdate]);
 
   return {
-    checkForUpdates
+    availableUpdate,
+    checkForUpdates,
+    installAvailableUpdate
   };
 }

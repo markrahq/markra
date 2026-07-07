@@ -52,7 +52,7 @@ const messages: BaseLocaleMessages = {
   "settings.update.description": "Check whether a newer Markra release is available.",
   "settings.update.check": "Check for updates",
   "settings.update.autoCheck": "Automatically check for updates",
-  "settings.update.autoCheckDescription": "Check in the background when Markra starts and periodically while it is open.",
+  "settings.update.autoCheckDescription": "Check for new versions when Markra starts and periodically. You choose when to install.",
   "settings.shellCommand.title": "markra command",
   "settings.shellCommand.descriptionChecking": "Checking whether the markra command is available.",
   "settings.shellCommand.descriptionInstalled": "Installed at",

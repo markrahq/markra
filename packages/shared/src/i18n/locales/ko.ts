@@ -40,7 +40,7 @@ const messages: LocaleMessages = {
   "settings.update.description": "새 Markra 릴리스가 있는지 확인합니다.",
   "settings.update.check": "업데이트 확인",
   "settings.update.autoCheck": "업데이트 자동 확인",
-  "settings.update.autoCheckDescription": "Markra 시작 시와 실행 중에 백그라운드에서 주기적으로 확인합니다.",
+  "settings.update.autoCheckDescription": "Markra 시작 시와 주기적으로 새 버전을 확인합니다. 설치 시점은 직접 선택합니다.",
   "settings.shellCommand.title": "markra command",
   "settings.shellCommand.descriptionChecking": "Checking whether the markra command is available.",
   "settings.shellCommand.descriptionInstalled": "Installed at",

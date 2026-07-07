@@ -47,7 +47,7 @@ const messages: LocaleMessages = {
   "settings.update.description": "檢查是否有新的 Markra 版本可用。",
   "settings.update.check": "檢查更新",
   "settings.update.autoCheck": "自動檢查更新",
-  "settings.update.autoCheckDescription": "啟動 Markra 時並在執行期間定期於背景檢查更新。",
+  "settings.update.autoCheckDescription": "啟動 Markra 時並定期檢查新版本。發現更新後會提示你手動安裝。",
   "settings.shellCommand.title": "markra 命令",
   "settings.shellCommand.descriptionChecking": "正在檢查 markra 命令是否可用。",
   "settings.shellCommand.descriptionInstalled": "已安裝到",

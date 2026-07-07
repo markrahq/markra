@@ -40,7 +40,7 @@ const messages: LocaleMessages = {
   "settings.update.description": "Controlla se è disponibile una versione più recente di Markra.",
   "settings.update.check": "Controlla aggiornamenti",
   "settings.update.autoCheck": "Controlla aggiornamenti automaticamente",
-  "settings.update.autoCheckDescription": "Controlla in background all'avvio di Markra e periodicamente mentre è aperto.",
+  "settings.update.autoCheckDescription": "Controlla nuove versioni all'avvio di Markra e periodicamente. Scegli tu quando installarle.",
   "settings.shellCommand.title": "markra command",
   "settings.shellCommand.descriptionChecking": "Checking whether the markra command is available.",
   "settings.shellCommand.descriptionInstalled": "Installed at",

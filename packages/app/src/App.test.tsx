@@ -1061,6 +1061,36 @@ describe("Markra workspace", () => {
     expect(mockedOpenSettingsWindow).toHaveBeenCalledTimes(1);
   });
 
+  it("shows an available update in the sidebar footer without downloading until clicked", async () => {
+    const downloadAndInstall = vi.fn();
+    mockedCheckNativeAppUpdate.mockResolvedValue({
+      body: "Release notes",
+      currentVersion: "0.0.6",
+      date: "2026-05-11T00:00:00Z",
+      downloadAndInstall,
+      restart: vi.fn(),
+      version: "0.0.7"
+    });
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-app",
+      filePath: null,
+      fileTreeOpen: true,
+      folderName: "mock-files",
+      folderPath: mockFolderPath,
+      openFilePaths: []
+    });
+
+    renderApp();
+
+    const installUpdateButton = await screen.findByRole("button", { name: "Install and restart" });
+
+    expect(downloadAndInstall).not.toHaveBeenCalled();
+
+    fireEvent.click(installUpdateButton);
+
+    await waitFor(() => expect(downloadAndInstall).toHaveBeenCalledTimes(1));
+  });
+
   it("restores the last opened markdown file on app launch", async () => {
     mockedGetStoredWorkspaceState.mockResolvedValue({
       aiAgentSessionId: "session-app",

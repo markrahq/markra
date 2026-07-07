@@ -31,6 +31,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  Download,
   FileText,
   Folder,
   FolderOpen,
@@ -160,6 +161,7 @@ type MarkdownFileTreeDrawerProps = {
   rootPath?: string | null;
   rootName: string;
   sidebarLayoutMode?: SidebarLayoutMode;
+  updateAvailable?: boolean;
   width?: number;
   onCreateFile?: (fileName: string, parentPath?: string | null, contents?: string) => unknown | Promise<unknown>;
   onCreateFolder?: (folderName: string, parentPath?: string | null) => unknown | Promise<unknown>;
@@ -180,6 +182,7 @@ type MarkdownFileTreeDrawerProps = {
   onOpenFolder?: () => unknown | Promise<unknown>;
   onOpenRecentFolder?: (folder: RecentMarkdownFolder) => unknown | Promise<unknown>;
   onOpenSettings?: () => unknown | Promise<unknown>;
+  onInstallAvailableUpdate?: () => unknown | Promise<unknown>;
   onRecentFoldersOpenChange?: (open: boolean) => unknown;
   onRemoveRecentFolder?: (folder: RecentMarkdownFolder) => unknown | Promise<unknown>;
   onMoveFile?: (file: NativeMarkdownFolderFile, targetParentPath: string | null) => unknown | Promise<unknown>;
@@ -475,6 +478,7 @@ export function MarkdownFileTreeDrawer({
   rootPath = null,
   rootName,
   sidebarLayoutMode = "stacked",
+  updateAvailable = false,
   width = 288,
   onCreateFile,
   onCreateFolder,
@@ -489,6 +493,7 @@ export function MarkdownFileTreeDrawer({
   onOpenFolder,
   onOpenRecentFolder,
   onOpenSettings = () => {},
+  onInstallAvailableUpdate,
   onRecentFoldersOpenChange,
   onRemoveRecentFolder,
   onMoveFile,
@@ -3114,6 +3119,17 @@ export function MarkdownFileTreeDrawer({
             >
               <Settings aria-hidden="true" size={15} />
             </IconButton>
+
+            {updateAvailable && onInstallAvailableUpdate ? (
+              <IconButton
+                className="relative ml-auto rounded-md text-(--accent) hover:opacity-90 focus-visible:bg-(--link-color) focus-visible:text-(--link-color)"
+                label={label("app.updateInstallAndRestart")}
+                onClick={onInstallAvailableUpdate}
+              >
+                <Download aria-hidden="true" size={15} className="text-(--link-color)" />
+                <span className="absolute top-1 right-1 size-1.5 rounded-full bg-(--link-color)" />
+              </IconButton>
+            ) : null}
 
           </div>
         ) : null}
