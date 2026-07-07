@@ -7120,6 +7120,19 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("serializes intraword underscores in identifiers without escaping them", async () => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("MOCK_CODE1, SAMPLE_CODE2, ORDER_BOX", { onMarkdownChange });
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, " ok");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("MOCK_CODE1, SAMPLE_CODE2, ORDER_BOX ok");
+  });
+
   it("keeps escaped literal asterisks between inline code visible", async () => {
     const source = "`n!`/`(n1!` \\* `n2!` \\* ... \\* `nk!`)";
     const { container } = await renderEditor(source);

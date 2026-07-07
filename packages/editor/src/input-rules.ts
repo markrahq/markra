@@ -861,6 +861,7 @@ export function finalizeActiveLiveMarkdown(view: EditorView, specs: LiveMarkdown
 }
 
 const hasRestorableLiveMarkdownDelimiterPattern = /\\[*_~`=]/u;
+const escapedIntrawordUnderscorePattern = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
 const restorableLiveMarkdownDelimiterCharacters = new Set(["*", "_", "~", "`", "="]);
 const singleRestorableLiveMarkdownDelimiters = new Set(["*", "_", "~", "`", "="]);
 
@@ -1059,12 +1060,14 @@ function findSerializedMarkdownCandidate(markdown: string, candidates: string[],
   return match;
 }
 
+function restoreIntrawordEscapedUnderscores(markdown: string) {
+  return markdown.replace(escapedIntrawordUnderscorePattern, "_");
+}
+
 export function restoreEscapedLiveMarkdownSource(markdown: string, state: EditorState, specs: LiveMarkdownSpec[]) {
   if (!hasRestorableLiveMarkdownDelimiterPattern.test(markdown)) return markdown;
 
   const operations = serializedMarkdownOperations(state, specs);
-  if (operations.length === 0) return markdown;
-
   const { protectedMarkdown, protectedSegments } = protectMarkdownCode(markdown);
   let restored = "";
   let markdownCursor = 0;
@@ -1079,7 +1082,7 @@ export function restoreEscapedLiveMarkdownSource(markdown: string, state: Editor
   }
 
   restored += protectedMarkdown.slice(markdownCursor);
-  return restoreProtectedMarkdownSegments(restored, protectedSegments);
+  return restoreProtectedMarkdownSegments(restoreIntrawordEscapedUnderscores(restored), protectedSegments);
 }
 
 export function setLiveMarkdownSourceContext(
