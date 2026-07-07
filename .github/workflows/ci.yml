@@ -17,8 +17,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  frontend:
-    name: Frontend
+  frontend-tests:
+    name: Frontend Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -44,11 +44,85 @@ jobs:
       - name: Test
         run: pnpm test
 
+  frontend-test-typecheck:
+    name: Frontend Test Typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Typecheck tests
         run: pnpm run typecheck:test
 
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.30.3
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Build
         run: pnpm build
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs:
+      - frontend-tests
+      - frontend-test-typecheck
+      - frontend-build
+    if: always()
+
+    steps:
+      - name: Check frontend jobs
+        run: |
+          if [ "${{ needs.frontend-tests.result }}" != "success" ]; then
+            echo "Frontend Tests result: ${{ needs.frontend-tests.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.frontend-test-typecheck.result }}" != "success" ]; then
+            echo "Frontend Test Typecheck result: ${{ needs.frontend-test-typecheck.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.frontend-build.result }}" != "success" ]; then
+            echo "Frontend Build result: ${{ needs.frontend-build.result }}"
+            exit 1
+          fi
 
   tauri-rust:
     name: Tauri Rust
