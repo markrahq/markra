@@ -18,9 +18,23 @@ concurrency:
 
 jobs:
   frontend-tests:
-    name: Frontend Tests
+    name: Frontend Tests (${{ matrix.package }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          - "@markra/desktop"
+          - "@markra/web"
+          - "@markra/ai"
+          - "@markra/app"
+          - "@markra/editor"
+          - "@markra/markdown"
+          - "@markra/providers"
+          - "@markra/scripts"
+          - "@markra/shared"
+          - "@markra/ui"
 
     steps:
       - name: Checkout
@@ -42,7 +56,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test
-        run: pnpm test
+        run: pnpm --filter "${{ matrix.package }}" test
 
   frontend-test-typecheck:
     name: Frontend Test Typecheck
