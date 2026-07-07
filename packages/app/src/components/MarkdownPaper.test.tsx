@@ -7133,6 +7133,47 @@ describe("MarkdownPaper editing", () => {
     expect(markdown).toBe("MOCK_CODE1, SAMPLE_CODE2, ORDER_BOX ok");
   });
 
+  it("serializes unicode and numeric intraword underscores without escaping them", async () => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("字段_CODE1, CODE_123, 字段_名称", { onMarkdownChange });
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, " ok");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("字段_CODE1, CODE_123, 字段_名称 ok");
+  });
+
+  it("keeps escaped underscore emphasis literals while restoring identifier underscores", async () => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("\\_literal\\_ MOCK_CODE1", { onMarkdownChange });
+
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    typeText(view, " ok");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("\\_literal\\_ MOCK_CODE1 ok");
+  });
+
+  it("keeps escaped underscores inside code while restoring identifier underscores", async () => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("`MOCK\\_CODE1` SAMPLE_CODE2\n\n```sql\nSELECT MOCK\\_CODE1\n```", {
+      onMarkdownChange
+    });
+
+    moveCursor(view, findTextPosition(view, "SAMPLE_CODE2", "SAMPLE_CODE2".length));
+    typeText(view, " ok");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("`MOCK\\_CODE1` SAMPLE_CODE2 ok\n\n```sql\nSELECT MOCK\\_CODE1\n```");
+  });
+
   it("keeps escaped literal asterisks between inline code visible", async () => {
     const source = "`n!`/`(n1!` \\* `n2!` \\* ... \\* `nk!`)";
     const { container } = await renderEditor(source);
