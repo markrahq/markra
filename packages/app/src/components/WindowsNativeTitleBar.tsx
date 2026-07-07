@@ -137,7 +137,7 @@ export function WindowsNativeTitleBar({
   const windowsTitlebarLeft = markdownFilesWidth + (showWindowsAppChrome ? -1 : 1);
   const windowsTitlebarEdgeClassName = showWindowsAppChrome
     ? markdownFilesOpen
-      ? "rounded-tl-md overflow-hidden"
+      ? "rounded-tl-md"
       : "border-t border-(--border-default)"
     : "";
   const windowsTitlebarPositionTransitionClassName = markdownFilesResizing

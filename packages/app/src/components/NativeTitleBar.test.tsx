@@ -346,7 +346,8 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
       left: "219px"
     });
-    expect(container.querySelector(".native-titlebar")).toHaveClass("rounded-tl-md", "overflow-hidden");
+    expect(container.querySelector(".native-titlebar")).toHaveClass("rounded-tl-md");
+    expect(container.querySelector(".native-titlebar")).not.toHaveClass("overflow-hidden");
     expect(container.querySelector(".native-titlebar")).not.toHaveClass("border-t");
     expect(container.querySelector(".native-titlebar")).not.toHaveClass("border-l");
     expect(container.querySelector(".native-titlebar")).toHaveClass("transition-[left]");
@@ -943,6 +944,43 @@ describe("NativeTitleBar", () => {
 
     expect(selectViewMode).toHaveBeenCalledWith("immersive");
     expect(screen.queryByRole("menu", { name: "View mode" })).not.toBeInTheDocument();
+  });
+
+  it("keeps the Windows workspace view mode menu outside clipped titlebar overflow", () => {
+    const selectViewMode = vi.fn();
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen
+        markdownFilesWidth={220}
+        platform="windows"
+        theme="light"
+        titlebarActions={[
+          { id: "viewMode", visible: true }
+        ]}
+        titleContent={(
+          <div role="tablist" aria-label="Open documents">
+            <button type="button" role="tab" aria-selected="true">Draft.md</button>
+          </div>
+        )}
+        viewMode="focus"
+        onSelectViewMode={selectViewMode}
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View mode: Focus" }));
+
+    const menu = screen.getByRole("menu", { name: "View mode" });
+
+    expect(menu).toBeInTheDocument();
+    expect(menu.closest(".native-titlebar.overflow-hidden")).toBeNull();
   });
 
   it("closes the workspace view mode menu when the titlebar action is hidden", () => {
