@@ -2787,6 +2787,8 @@
 
   .markdown-paper .markra-live-mark-emphasis {
     @apply italic;
+    /* CJK system fonts often lack italic faces, so live Markdown needs local style synthesis. */
+    font-synthesis: style;
   }
 
   .markdown-paper .markra-live-mark-strikethrough {
