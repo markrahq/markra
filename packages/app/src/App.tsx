@@ -397,6 +397,7 @@ function WorkspaceApp() {
   const desktopPlatform = resolveDesktopPlatform();
   const desktopOsVersion = resolveDesktopOsVersion();
   const webKitScrollWorkaround = webKitScrollWorkaroundForPlatform(desktopPlatform, desktopOsVersion);
+  const nativeRuntimeAvailable = getAppRuntime().events.isAvailable();
   const appFeatures = getAppRuntime().features;
   const aiFeatureEnabled = appFeatures.ai;
   const exportFeatureEnabled = appFeatures.export;
@@ -1602,7 +1603,8 @@ function WorkspaceApp() {
     }
 
     if (showSelectionToolbar) {
-      holdAiSelection(automaticSelection);
+      // Windows and browsers already paint native selections; this fallback covers the macOS Tauri paint gap.
+      if (desktopPlatform === "macos" && nativeRuntimeAvailable) holdAiSelection(automaticSelection);
       syncAiSelectionToolbarFormattingState();
       setAiSelectionToolbarAnchorIfChanged(
         getEditorSelectionAnchor() ?? selectionAnchorFromDomSelection(window.getSelection())
@@ -1628,8 +1630,10 @@ function WorkspaceApp() {
     editorPreferences.preferences.showAiSelectionToolbarOnSelection,
     getEditorSelectionAnchor,
     holdAiSelection,
+    nativeRuntimeAvailable,
     syncAiSelectionToolbarFormattingState,
     clearAiSelectionToolbarCopySuccess,
+    desktopPlatform,
     readOnlyMode,
     setAiSelectionToolbarAnchorIfChanged,
     updateSelectedWordCount,

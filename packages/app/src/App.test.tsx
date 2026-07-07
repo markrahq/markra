@@ -452,6 +452,26 @@ function mockTitlebarActionRects(actionIds: string[]) {
   });
 }
 
+function getVisibleProseMirrorView(
+  container: HTMLElement,
+  editors: Array<ReturnType<typeof MilkdownEditor.make>>
+): ProseMirrorEditorView {
+  const visualView = editors.reduce<ProseMirrorEditorView | null>((visibleView, editor) => {
+    if (visibleView) return visibleView;
+
+    try {
+      const view = editor.action((ctx) => ctx.get(editorViewCtx));
+      return container.contains(view.dom) && !view.dom.closest("[hidden]") ? view : null;
+    } catch {
+      return null;
+    }
+  }, null);
+
+  if (!visualView) throw new Error("Expected a visible Milkdown editor view.");
+
+  return visualView;
+}
+
 describe("Markra workspace", () => {
   it("marks macOS 27 windows for the WebKit scrolling workaround", async () => {
     mockedResolveDesktopPlatform.mockReturnValue("macos");
@@ -6183,6 +6203,15 @@ describe("Markra workspace", () => {
   });
 
   it("keeps full-document selections visibly highlighted when the selection toolbar opens", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      events: {
+        ...runtime.events,
+        isAvailable: () => true
+      }
+    });
+    mockedResolveDesktopPlatform.mockReturnValue("macos");
     mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
       showAiQuickInputOnSelection: false,
       showAiSelectionToolbarOnSelection: true
@@ -6199,17 +6228,7 @@ describe("Markra workspace", () => {
     try {
       await expectVisibleMilkdownText(container, "Welcome to Markra");
       await settleEditorUpdates();
-      const visualView = createdEditors.reduce<ProseMirrorEditorView | null>((visibleView, editor) => {
-        if (visibleView) return visibleView;
-
-        try {
-          const view = editor.action((ctx) => ctx.get(editorViewCtx));
-          return container.contains(view.dom) && !view.dom.closest("[hidden]") ? view : null;
-        } catch {
-          return null;
-        }
-      }, null);
-      if (!visualView) throw new Error("Expected a visible Milkdown editor view.");
+      const visualView = getVisibleProseMirrorView(container, createdEditors);
 
       act(() => {
         visualView.focus();
@@ -6221,6 +6240,46 @@ describe("Markra workspace", () => {
           "Welcome to Markra"
         );
       });
+    } finally {
+      makeSpy.mockRestore();
+    }
+  });
+
+  it("does not add a fallback highlight over Windows full-document selections", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      events: {
+        ...runtime.events,
+        isAvailable: () => true
+      }
+    });
+    mockedResolveDesktopPlatform.mockReturnValue("windows");
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true
+    }));
+    const createdEditors: Array<ReturnType<typeof MilkdownEditor.make>> = [];
+    const originalMake = MilkdownEditor.make.bind(MilkdownEditor);
+    const makeSpy = vi.spyOn(MilkdownEditor, "make").mockImplementation(() => {
+      const editor = originalMake();
+      createdEditors.push(editor);
+      return editor;
+    });
+    const { container } = renderApp();
+
+    try {
+      await expectVisibleMilkdownText(container, "Welcome to Markra");
+      await settleEditorUpdates();
+      const visualView = getVisibleProseMirrorView(container, createdEditors);
+
+      act(() => {
+        visualView.focus();
+        visualView.dispatch(visualView.state.tr.setSelection(new AllSelection(visualView.state.doc)));
+      });
+
+      await settleEditorUpdates();
+      expect(container.querySelector(".ProseMirror .markra-ai-selection-hold")).not.toBeInTheDocument();
     } finally {
       makeSpy.mockRestore();
     }
