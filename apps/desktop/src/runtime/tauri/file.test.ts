@@ -1501,9 +1501,15 @@ describe("native file access", () => {
   it("routes dropped markdown files and folders from the native window event", async () => {
     const unlisten = vi.fn();
     const onDrop = vi.fn();
-    let emitDragDrop: (event: unknown) => unknown = () => {};
-    onDragDropEvent.mockImplementation(async (handler) => {
-      emitDragDrop = handler;
+    let emitDragDrop: (payload: unknown) => unknown = () => {};
+    mockedGetCurrentWindow.mockReturnValue({
+      label: "main"
+    } as unknown as ReturnType<typeof getCurrentWindow>);
+    mockedListen.mockImplementation(async (event, handler) => {
+      if (event === "tauri://drag-drop") {
+        emitDragDrop = (payload) => handler({ payload } as never);
+      }
+
       return unlisten;
     });
     mockedInvoke
@@ -1513,9 +1519,8 @@ describe("native file access", () => {
 
     const cleanup = await installNativeMarkdownFileDrop(onDrop);
 
-    emitDragDrop({ payload: { type: "enter", paths: [mockReadmePath] } });
-    emitDragDrop({ payload: { type: "drop", paths: ["/mock-files/archive.zip", mockReadmePath] } });
-    emitDragDrop({ payload: { type: "drop", paths: [mockFolderPath] } });
+    emitDragDrop({ paths: ["/mock-files/archive.zip", mockReadmePath] });
+    emitDragDrop({ paths: [mockFolderPath] });
 
     await vi.waitFor(() => expect(onDrop).toHaveBeenCalledTimes(2));
     expect(onDrop).toHaveBeenNthCalledWith(1, {
@@ -1531,15 +1536,58 @@ describe("native file access", () => {
 
     cleanup();
 
-    expect(unlisten).toHaveBeenCalledTimes(1);
+    expect(unlisten).toHaveBeenCalledTimes(4);
+  });
+
+  it("cleans up native drag drop listeners without leaking stale Tauri listener failures", async () => {
+    const cleanupByEvent = new Map<string, () => unknown>();
+    mockedGetCurrentWindow.mockReturnValue({
+      label: "main"
+    } as unknown as ReturnType<typeof getCurrentWindow>);
+    mockedListen.mockImplementation(async (event) => {
+      const cleanup = vi.fn().mockRejectedValue(new Error("undefined is not an object (evaluating 'listeners[eventId].handlerId')"));
+      cleanupByEvent.set(String(event), cleanup);
+
+      return cleanup;
+    });
+
+    const cleanup = await installNativeMarkdownFileDrop(vi.fn());
+
+    expect(onDragDropEvent).not.toHaveBeenCalled();
+    expect(mockedListen).toHaveBeenCalledWith("tauri://drag-enter", expect.any(Function), {
+      target: { kind: "Window", label: "main" }
+    });
+    expect(mockedListen).toHaveBeenCalledWith("tauri://drag-over", expect.any(Function), {
+      target: { kind: "Window", label: "main" }
+    });
+    expect(mockedListen).toHaveBeenCalledWith("tauri://drag-drop", expect.any(Function), {
+      target: { kind: "Window", label: "main" }
+    });
+    expect(mockedListen).toHaveBeenCalledWith("tauri://drag-leave", expect.any(Function), {
+      target: { kind: "Window", label: "main" }
+    });
+
+    await expect(Promise.resolve(cleanup())).resolves.toBeUndefined();
+    await expect(Promise.resolve(cleanup())).resolves.toBeUndefined();
+
+    expect(cleanupByEvent.get("tauri://drag-enter")).toHaveBeenCalledTimes(1);
+    expect(cleanupByEvent.get("tauri://drag-over")).toHaveBeenCalledTimes(1);
+    expect(cleanupByEvent.get("tauri://drag-drop")).toHaveBeenCalledTimes(1);
+    expect(cleanupByEvent.get("tauri://drag-leave")).toHaveBeenCalledTimes(1);
   });
 
   it("routes dropped image files with their native drop position", async () => {
     const unlisten = vi.fn();
     const onDrop = vi.fn();
-    let emitDragDrop: (event: unknown) => unknown = () => {};
-    onDragDropEvent.mockImplementation(async (handler) => {
-      emitDragDrop = handler;
+    let emitDragDrop: (payload: unknown) => unknown = () => {};
+    mockedGetCurrentWindow.mockReturnValue({
+      label: "main"
+    } as unknown as ReturnType<typeof getCurrentWindow>);
+    mockedListen.mockImplementation(async (event, handler) => {
+      if (event === "tauri://drag-drop") {
+        emitDragDrop = (payload) => handler({ payload } as never);
+      }
+
       return unlisten;
     });
     mockedInvoke.mockRejectedValueOnce(new Error("Unsupported path"));
@@ -1547,11 +1595,8 @@ describe("native file access", () => {
     const cleanup = await installNativeMarkdownFileDrop(onDrop);
 
     emitDragDrop({
-      payload: {
-        type: "drop",
-        paths: ["/mock-files/Diagram.png"],
-        position: { x: 340, y: 160 }
-      }
+      paths: ["/mock-files/Diagram.png"],
+      position: { x: 340, y: 160 }
     });
 
     await vi.waitFor(() => expect(onDrop).toHaveBeenCalledTimes(1));
@@ -1567,7 +1612,91 @@ describe("native file access", () => {
 
     cleanup();
 
-    expect(unlisten).toHaveBeenCalledTimes(1);
+    expect(unlisten).toHaveBeenCalledTimes(4);
+  });
+
+  it("routes dropped image file positions from tagged Tauri physical payloads", async () => {
+    const unlisten = vi.fn();
+    const onDrop = vi.fn();
+    let emitDragDrop: (payload: unknown) => unknown = () => {};
+    mockedGetCurrentWindow.mockReturnValue({
+      label: "main"
+    } as unknown as ReturnType<typeof getCurrentWindow>);
+    mockedListen.mockImplementation(async (event, handler) => {
+      if (event === "tauri://drag-drop") {
+        emitDragDrop = (payload) => handler({ payload } as never);
+      }
+
+      return unlisten;
+    });
+    mockedInvoke.mockRejectedValueOnce(new Error("Unsupported path"));
+
+    const cleanup = await installNativeMarkdownFileDrop(onDrop);
+
+    emitDragDrop({
+      paths: ["/mock-files/Tagged.png"],
+      position: { Physical: { x: 420, y: 180 } }
+    });
+
+    await vi.waitFor(() => expect(onDrop).toHaveBeenCalledTimes(1));
+    expect(onDrop).toHaveBeenCalledWith({
+      kind: "image",
+      name: "Tagged.png",
+      path: "/mock-files/Tagged.png",
+      point: {
+        left: 420,
+        top: 180
+      }
+    });
+
+    cleanup();
+  });
+
+  it("converts physical image drop positions to logical editor coordinates", async () => {
+    const originalDevicePixelRatio = window.devicePixelRatio;
+    Object.defineProperty(window, "devicePixelRatio", {
+      configurable: true,
+      value: 2
+    });
+
+    try {
+      const unlisten = vi.fn();
+      const onDrop = vi.fn();
+      let emitDragDrop: (payload: unknown) => unknown = () => {};
+      mockedGetCurrentWindow.mockReturnValue({
+        label: "main"
+      } as unknown as ReturnType<typeof getCurrentWindow>);
+      mockedListen.mockImplementation(async (event, handler) => {
+        if (event === "tauri://drag-drop") {
+          emitDragDrop = (payload) => handler({ payload } as never);
+        }
+
+        return unlisten;
+      });
+      mockedInvoke.mockRejectedValueOnce(new Error("Unsupported path"));
+
+      const cleanup = await installNativeMarkdownFileDrop(onDrop);
+
+      emitDragDrop({
+        paths: ["/mock-files/Retina.png"],
+        position: { x: 680, y: 320 }
+      });
+
+      await vi.waitFor(() => expect(onDrop).toHaveBeenCalledTimes(1));
+      expect(onDrop).toHaveBeenCalledWith(expect.objectContaining({
+        point: {
+          left: 340,
+          top: 160
+        }
+      }));
+
+      cleanup();
+    } finally {
+      Object.defineProperty(window, "devicePixelRatio", {
+        configurable: true,
+        value: originalDevicePixelRatio
+      });
+    }
   });
 
   it("opens markdown file and folder paths in a new native window", async () => {

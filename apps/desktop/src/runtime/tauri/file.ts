@@ -3,7 +3,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { confirm, open, save } from "@tauri-apps/plugin-dialog";
 import { debug, fileNameFromPath } from "@markra/shared";
 import { networkSettingsForNativeRequest } from "./network";
-import { listenNativeEvent, safeNativeEventCleanup } from "./events";
+import { listenNativeEvent } from "./events";
 import type {
   PicGoImageUploadSettings,
   S3ImageUploadSettings,
@@ -306,6 +306,28 @@ type MarkdownTreeChangedPayload = {
   path: string;
   rootPath: string;
 };
+
+type NativeDragDropPositionPayload = {
+  position?: unknown;
+};
+
+type NativeDragDropPathPayload = NativeDragDropPositionPayload & {
+  paths?: unknown;
+};
+
+type NativeDragDropEventPayload =
+  | {
+      paths: string[];
+      position?: unknown;
+      type: "enter" | "drop";
+    }
+  | {
+      position?: unknown;
+      type: "over";
+    }
+  | {
+      type: "leave";
+    };
 
 type ClipboardImageFileResponse = {
   relativePath: string;
@@ -991,7 +1013,10 @@ function imageDropTargetFromPath(path: string, point?: NativeMarkdownDropPoint):
 
 function nativeDropPointFromPosition(position: unknown): NativeMarkdownDropPoint | undefined {
   if (!position || typeof position !== "object") return undefined;
-  const { x, y } = position as { x?: unknown; y?: unknown };
+  const coordinates = "Physical" in position && typeof position.Physical === "object" && position.Physical !== null
+    ? position.Physical
+    : position;
+  const { x, y } = coordinates as { x?: unknown; y?: unknown };
   if (typeof x !== "number" || typeof y !== "number") return undefined;
 
   const scaleFactor = typeof window.devicePixelRatio === "number" && window.devicePixelRatio > 0
@@ -1002,6 +1027,12 @@ function nativeDropPointFromPosition(position: unknown): NativeMarkdownDropPoint
     left: x / scaleFactor,
     top: y / scaleFactor
   };
+}
+
+function normalizeNativeDropPaths(paths: unknown) {
+  if (!Array.isArray(paths)) return [];
+
+  return paths.filter((path): path is string => typeof path === "string");
 }
 
 async function firstDroppedMarkdownTarget(paths: string[], point?: NativeMarkdownDropPoint) {
@@ -1018,6 +1049,67 @@ async function firstDroppedMarkdownTarget(paths: string[], point?: NativeMarkdow
   }
 
   return null;
+}
+
+async function cleanupNativeEventListeners(cleanups: Array<() => unknown>) {
+  await Promise.all(cleanups.map(async (cleanup) => {
+    await cleanup();
+  }));
+}
+
+async function listenNativeWindowDragDropEvent(handler: (event: { payload: NativeDragDropEventPayload }) => unknown) {
+  const currentWindow = getCurrentWindow();
+  const target = { kind: "Window" as const, label: currentWindow.label };
+  const cleanups: Array<() => unknown> = [];
+
+  try {
+    // Tauri's composite onDragDropEvent cleanup can leak stale listener rejections from its internal unlisten calls.
+    cleanups.push(await listenNativeEvent<NativeDragDropPathPayload>("tauri://drag-enter", (event) => {
+      handler({
+        payload: {
+          paths: normalizeNativeDropPaths(event.payload.paths),
+          position: event.payload.position,
+          type: "enter"
+        }
+      });
+    }, { target }));
+    cleanups.push(await listenNativeEvent<NativeDragDropPositionPayload>("tauri://drag-over", (event) => {
+      handler({
+        payload: {
+          position: event.payload.position,
+          type: "over"
+        }
+      });
+    }, { target }));
+    cleanups.push(await listenNativeEvent<NativeDragDropPathPayload>("tauri://drag-drop", (event) => {
+      handler({
+        payload: {
+          paths: normalizeNativeDropPaths(event.payload.paths),
+          position: event.payload.position,
+          type: "drop"
+        }
+      });
+    }, { target }));
+    cleanups.push(await listenNativeEvent<unknown>("tauri://drag-leave", () => {
+      handler({
+        payload: {
+          type: "leave"
+        }
+      });
+    }, { target }));
+  } catch (error) {
+    await cleanupNativeEventListeners(cleanups);
+    throw error;
+  }
+
+  let cleaned = false;
+
+  return async () => {
+    if (cleaned) return;
+
+    cleaned = true;
+    await cleanupNativeEventListeners(cleanups);
+  };
 }
 
 export async function openNativeMarkdownFolder(labels?: NativeMarkdownPickerLabels): Promise<NativeMarkdownFolder | null> {
@@ -1524,7 +1616,7 @@ export async function watchNativeMarkdownTree(
 
 export async function installNativeMarkdownFileDrop(onDrop: NativeMarkdownFileDropHandler) {
   try {
-    return safeNativeEventCleanup(await getCurrentWindow().onDragDropEvent((event) => {
+    return await listenNativeWindowDragDropEvent((event) => {
       if (event.payload.type !== "drop") return;
       const point = nativeDropPointFromPosition(event.payload.position);
 
@@ -1533,7 +1625,7 @@ export async function installNativeMarkdownFileDrop(onDrop: NativeMarkdownFileDr
 
         onDrop(target);
       }).catch(() => {});
-    }));
+    });
   } catch {
     return () => {};
   }
