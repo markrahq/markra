@@ -135,6 +135,7 @@ async fn download_dictionary_bytes(
     request: &SpellcheckDictionaryRequest,
 ) -> Result<Vec<u8>, String> {
     let mut url = validated_web_resource_url(&request.url, false)?;
+    let target = dictionary_download_diagnostic_target(&request.id);
     let client = apply_network_settings(
         reqwest::Client::builder()
             .redirect(Policy::none())
@@ -151,7 +152,7 @@ async fn download_dictionary_bytes(
             .get(url.clone())
             .send()
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| dictionary_download_request_error("GET", &target, error))?;
         let status = response.status();
 
         if status.is_redirection() {
@@ -166,9 +167,10 @@ async fn download_dictionary_bytes(
         }
 
         if !status.is_success() {
-            return Err(format!(
-                "Spellcheck dictionary download failed: HTTP {}",
-                status.as_u16()
+            return Err(dictionary_download_status_error(
+                "GET",
+                &target,
+                status.as_u16(),
             ));
         }
 
@@ -182,7 +184,10 @@ async fn download_dictionary_bytes(
             }
         }
 
-        let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|error| dictionary_download_request_error("GET", &target, error))?;
         if bytes.len() as u64 > SPELLCHECK_DICTIONARY_MAX_BYTES {
             return Err("Spellcheck dictionary is too large.".to_string());
         }
@@ -191,6 +196,48 @@ async fn download_dictionary_bytes(
     }
 
     Err("Spellcheck dictionary download followed too many redirects.".to_string())
+}
+
+fn dictionary_download_status_error(method: &str, target: &str, status: u16) -> String {
+    format!(
+        "Spellcheck dictionary download failed: {method} {}: HTTP {status}",
+        dictionary_download_diagnostic_path(target)
+    )
+}
+
+fn dictionary_download_request_error(
+    method: &str,
+    target: &str,
+    error: impl std::fmt::Display,
+) -> String {
+    format!(
+        "Spellcheck dictionary download failed: {method} {}: {error}",
+        dictionary_download_diagnostic_path(target)
+    )
+}
+
+fn dictionary_download_diagnostic_target(id: &str) -> String {
+    dictionary_download_diagnostic_path(&format!("dictionary {id}"))
+}
+
+fn dictionary_download_diagnostic_path(value: &str) -> String {
+    let normalized = value
+        .chars()
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
+        })
+        .collect::<String>();
+    let normalized = normalized.trim();
+
+    if normalized.is_empty() {
+        "dictionary".to_string()
+    } else {
+        normalized.to_string()
+    }
 }
 
 fn dictionary_cache_matches_sha256(cache_path: &Path, sha256: &str) -> Result<bool, String> {
@@ -311,6 +358,26 @@ mod tests {
         assert!(!dictionary_cache_matches_sha256(&cache_path, "abc123").unwrap());
 
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn formats_dictionary_download_status_errors_with_request_context() {
+        assert_eq!(
+            dictionary_download_status_error("GET", "dictionary en-US", 404),
+            "Spellcheck dictionary download failed: GET dictionary en-US: HTTP 404"
+        );
+        assert_eq!(
+            dictionary_download_request_error("GET", "dictionary en-US", "timeout"),
+            "Spellcheck dictionary download failed: GET dictionary en-US: timeout"
+        );
+    }
+
+    #[test]
+    fn builds_dictionary_download_diagnostic_targets() {
+        assert_eq!(
+            dictionary_download_diagnostic_target("en-US\nprivate"),
+            "dictionary en-US private"
+        );
     }
 
     #[test]

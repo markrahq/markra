@@ -99,6 +99,51 @@ describe("runtime log", () => {
     expect(formatted).not.toContain("C:\\Users\\example");
   });
 
+  it("captures structured native command diagnostics with redacted details", () => {
+    const uninstall = installRuntimeLogCapture();
+
+    try {
+      window.dispatchEvent(new CustomEvent("markra:runtime-diagnostic", {
+        detail: {
+          area: "storage",
+          details: {
+            args: {
+              request: {
+                endpointUrl: "https://s3.example.test/private",
+                fileName: "pasted-image.png",
+                secretAccessKey: "synthetic-secret",
+                sourcePath: "/Users/example/private-note.md"
+              }
+            },
+            command: "upload_s3_image",
+            error: "S3 image upload failed: PUT pasted-image.png: HTTP 403"
+          },
+          level: "error",
+          message: "Native command failed"
+        }
+      }));
+    } finally {
+      uninstall();
+    }
+
+    const entries = listRuntimeLogEntries();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      area: "storage",
+      level: "error",
+      message: "Native command failed"
+    });
+
+    const formatted = formatRuntimeLogEntries(entries);
+    expect(formatted).toContain("ERROR storage Native command failed");
+    expect(formatted).toContain("command: upload_s3_image");
+    expect(formatted).toContain("S3 image upload failed: PUT pasted-image.png: HTTP 403");
+    expect(formatted).toContain("pasted-image.png");
+    expect(formatted).not.toContain("synthetic-secret");
+    expect(formatted).not.toContain("s3.example.test");
+    expect(formatted).not.toContain("/Users/example");
+  });
+
   it("does not recursively log console errors raised while writing a log entry", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const dispatchSpy = vi.spyOn(window, "dispatchEvent").mockImplementation((event) => {

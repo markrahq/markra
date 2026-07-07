@@ -134,7 +134,7 @@ async fn execute_web_image_download(
             .get(url.clone())
             .send()
             .await
-            .map_err(|error| error.to_string())?;
+            .map_err(|error| web_image_download_request_error("GET", "remote image", error))?;
         let status = response.status();
 
         if status.is_redirection() {
@@ -149,9 +149,10 @@ async fn execute_web_image_download(
         }
 
         if !status.is_success() {
-            return Err(format!(
-                "Web image download failed: HTTP {}",
-                status.as_u16()
+            return Err(web_image_download_status_error(
+                "GET",
+                "remote image",
+                status.as_u16(),
             ));
         }
 
@@ -167,7 +168,10 @@ async fn execute_web_image_download(
 
         let mime_type = web_image_mime_type(response.headers().get(CONTENT_TYPE), &url)?;
         let file_name = web_image_file_name(&url, &mime_type);
-        let bytes = response.bytes().await.map_err(|error| error.to_string())?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|error| web_image_download_request_error("GET", "remote image", error))?;
         if bytes.len() as u64 > WEB_IMAGE_MAX_BYTES {
             return Err("Web image is too large to paste into the document.".to_string());
         }
@@ -287,6 +291,44 @@ fn image_extension_from_mime_type(mime_type: &str) -> &'static str {
         "image/svg+xml" => "svg",
         "image/webp" => "webp",
         _ => "png",
+    }
+}
+
+fn web_image_download_status_error(method: &str, target: &str, status: u16) -> String {
+    format!(
+        "Web image download failed: {method} {}: HTTP {status}",
+        web_image_download_diagnostic_target(target)
+    )
+}
+
+fn web_image_download_request_error(
+    method: &str,
+    target: &str,
+    error: impl std::fmt::Display,
+) -> String {
+    format!(
+        "Web image download failed: {method} {}: {error}",
+        web_image_download_diagnostic_target(target)
+    )
+}
+
+fn web_image_download_diagnostic_target(target: &str) -> String {
+    let normalized = target
+        .chars()
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
+        })
+        .collect::<String>();
+    let normalized = normalized.trim();
+
+    if normalized.is_empty() {
+        "remote image".to_string()
+    } else {
+        normalized.to_string()
     }
 }
 
@@ -425,6 +467,18 @@ mod tests {
             .expect_err("non-image content type should be rejected");
 
         assert!(error.contains("not an image"));
+    }
+
+    #[test]
+    fn formats_web_image_download_status_errors_with_request_context() {
+        assert_eq!(
+            web_image_download_status_error("GET", "remote image", 404),
+            "Web image download failed: GET remote image: HTTP 404"
+        );
+        assert_eq!(
+            web_image_download_request_error("GET", "remote image", "timeout"),
+            "Web image download failed: GET remote image: timeout"
+        );
     }
 
     #[test]

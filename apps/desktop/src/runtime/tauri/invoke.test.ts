@@ -37,11 +37,56 @@ describe("invokeNative", () => {
       error
     );
 
-    expect(consoleError).toHaveBeenCalledWith("[native command failed]", {
+    expect(consoleError).toHaveBeenCalledWith("[native command failed]", expect.objectContaining({
+      args: "{\"serverUrl\":\"[redacted]\"}",
       command: "sync_webdav_markdown_folder",
-      error
+      error: "backend failed"
+    }));
+
+    consoleError.mockRestore();
+  });
+
+  it("emits sanitized runtime diagnostics for every native command failure", async () => {
+    const error = "S3 image upload failed: PUT pasted-image.png: HTTP 403";
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
+    mockedInvoke.mockRejectedValue(error);
+
+    await expect(invokeNative("upload_s3_image", {
+      request: {
+        endpointUrl: "https://s3.example.test/private",
+        fileName: "pasted-image.png",
+        secretAccessKey: "synthetic-secret",
+        sourcePath: "/Users/example/private-note.md"
+      }
+    })).rejects.toBe(error);
+
+    const diagnosticEvent = dispatchEvent.mock.calls
+      .map(([event]) => event)
+      .find((event) => event.type === "markra:runtime-diagnostic") as CustomEvent | undefined;
+    expect(diagnosticEvent?.detail).toMatchObject({
+      area: "storage",
+      details: {
+        args: expect.stringContaining("pasted-image.png"),
+        command: "upload_s3_image",
+        error
+      },
+      level: "error",
+      message: "Native command failed"
     });
 
+    const diagnosticDetails = JSON.stringify(diagnosticEvent?.detail);
+    expect(diagnosticDetails).not.toContain("synthetic-secret");
+    expect(diagnosticDetails).not.toContain("s3.example.test");
+    expect(diagnosticDetails).not.toContain("/Users/example");
+
+    expect(consoleError).toHaveBeenCalledWith("[native command failed]", expect.objectContaining({
+      args: expect.stringContaining("pasted-image.png"),
+      command: "upload_s3_image",
+      error
+    }));
+
+    dispatchEvent.mockRestore();
     consoleError.mockRestore();
   });
 });

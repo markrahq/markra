@@ -67,6 +67,12 @@ pub(crate) struct ImageUploadTargets {
     pub(crate) upload_url: Url,
 }
 
+#[derive(Debug)]
+struct ImageUploadCollectionTarget {
+    diagnostic_path: String,
+    url: Url,
+}
+
 #[tauri::command]
 pub(crate) async fn upload_webdav_image(
     request: WebDavImageUploadRequest,
@@ -100,22 +106,32 @@ async fn execute_webdav_image_upload(
         &request.public_base_url,
         &file_name,
     )?;
+    let upload_target = image_upload_diagnostic_target(&request.upload_path, &file_name);
     let client = image_upload_http_client(request.network.as_ref())?;
 
-    for collection_url in webdav_collection_urls(&request.server_url, &request.upload_path)? {
+    for target in webdav_collection_targets(&request.server_url, &request.upload_path)? {
         let response = apply_basic_auth(
-            client.request(webdav_mkcol_method()?, collection_url),
+            client.request(webdav_mkcol_method()?, target.url),
             &request.username,
             &request.password,
         )
         .send()
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| {
+            image_upload_request_error(
+                "WebDAV image folder creation",
+                "MKCOL",
+                &target.diagnostic_path,
+                error,
+            )
+        })?;
 
         if !(response.status().is_success() || response.status().as_u16() == 405) {
-            return Err(format!(
-                "WebDAV collection could not be created: HTTP {}",
-                response.status().as_u16()
+            return Err(image_upload_status_error(
+                "WebDAV image folder creation",
+                "MKCOL",
+                &target.diagnostic_path,
+                response.status().as_u16(),
             ));
         }
     }
@@ -130,12 +146,16 @@ async fn execute_webdav_image_upload(
     )
     .send()
     .await
-    .map_err(|error| error.to_string())?;
+    .map_err(|error| {
+        image_upload_request_error("WebDAV image upload", "PUT", &upload_target, error)
+    })?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "WebDAV image upload failed: HTTP {}",
-            response.status().as_u16()
+        return Err(image_upload_status_error(
+            "WebDAV image upload",
+            "PUT",
+            &upload_target,
+            response.status().as_u16(),
         ));
     }
 
@@ -151,6 +171,7 @@ async fn execute_picgo_image_upload(
     let extension = uploaded_image_extension(&request.mime_type)?;
     let file_name = uploaded_image_file_name(&request.file_name, extension)?;
     let upload_url = picgo_upload_endpoint_url(&request.server_url, &request.secret)?;
+    let upload_target = "/upload";
     let file_part = multipart::Part::bytes(request.bytes)
         .file_name(file_name)
         .mime_str(&request.mime_type)
@@ -161,16 +182,22 @@ async fn execute_picgo_image_upload(
         .multipart(form)
         .send()
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| {
+            image_upload_request_error("PicGo image upload", "POST", upload_target, error)
+        })?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "PicGo image upload failed: HTTP {}",
-            response.status().as_u16()
+        return Err(image_upload_status_error(
+            "PicGo image upload",
+            "POST",
+            upload_target,
+            response.status().as_u16(),
         ));
     }
 
-    let response_body = response.text().await.map_err(|error| error.to_string())?;
+    let response_body = response.text().await.map_err(|error| {
+        image_upload_request_error("PicGo image upload", "POST", upload_target, error)
+    })?;
 
     parse_picgo_upload_response(&response_body)
 }
@@ -179,6 +206,7 @@ async fn execute_s3_image_upload(request: S3ImageUploadRequest) -> Result<Upload
     validate_image_bytes(&request.bytes)?;
     let extension = uploaded_image_extension(&request.mime_type)?;
     let file_name = uploaded_image_file_name(&request.file_name, extension)?;
+    let upload_target = image_upload_diagnostic_target(&request.upload_path, &file_name);
     let bucket = normalize_s3_bucket(&request.bucket)?;
     let access_key_id = required_trimmed(&request.access_key_id, "S3 access key ID")?;
     let region = required_trimmed(&request.region, "S3 region")?;
@@ -212,12 +240,16 @@ async fn execute_s3_image_upload(request: S3ImageUploadRequest) -> Result<Upload
         .body(request.bytes)
         .send()
         .await
-        .map_err(|error| error.to_string())?;
+        .map_err(|error| {
+            image_upload_request_error("S3 image upload", "PUT", &upload_target, error)
+        })?;
 
     if !response.status().is_success() {
-        return Err(format!(
-            "S3 image upload failed: HTTP {}",
-            response.status().as_u16()
+        return Err(image_upload_status_error(
+            "S3 image upload",
+            "PUT",
+            &upload_target,
+            response.status().as_u16(),
         ));
     }
 
@@ -331,6 +363,56 @@ fn image_upload_http_client(network: Option<&NetworkSettings>) -> Result<Client,
     .map_err(|error| error.to_string())
 }
 
+fn image_upload_status_error(action: &str, method: &str, target: &str, status: u16) -> String {
+    format!(
+        "{action} failed: {method} {}: HTTP {status}",
+        image_upload_diagnostic_path(target)
+    )
+}
+
+fn image_upload_request_error(
+    action: &str,
+    method: &str,
+    target: &str,
+    error: impl std::fmt::Display,
+) -> String {
+    format!(
+        "{action} failed: {method} {}: {error}",
+        image_upload_diagnostic_path(target)
+    )
+}
+
+fn image_upload_diagnostic_target(upload_path: &str, file_name: &str) -> String {
+    let upload_path = upload_path.trim().trim_matches('/').replace('\\', "/");
+    let raw_target = if upload_path.is_empty() {
+        file_name.to_string()
+    } else {
+        format!("{upload_path}/{file_name}")
+    };
+
+    image_upload_diagnostic_path(&raw_target)
+}
+
+fn image_upload_diagnostic_path(value: &str) -> String {
+    let normalized = value
+        .chars()
+        .map(|character| {
+            if character.is_control() {
+                ' '
+            } else {
+                character
+            }
+        })
+        .collect::<String>();
+    let normalized = normalized.trim();
+
+    if normalized.is_empty() {
+        "<root>".to_string()
+    } else {
+        normalized.to_string()
+    }
+}
+
 fn apply_basic_auth(builder: RequestBuilder, username: &str, password: &str) -> RequestBuilder {
     if username.is_empty() && password.is_empty() {
         return builder;
@@ -354,19 +436,21 @@ fn webdav_mkcol_method() -> Result<Method, String> {
     Method::from_bytes(b"MKCOL").map_err(|error| error.to_string())
 }
 
-fn webdav_collection_urls(server_url: &str, upload_path: &str) -> Result<Vec<Url>, String> {
+fn webdav_collection_targets(
+    server_url: &str,
+    upload_path: &str,
+) -> Result<Vec<ImageUploadCollectionTarget>, String> {
     let segments = normalize_upload_path_segments(upload_path)?;
-    let mut urls = Vec::with_capacity(segments.len());
+    let mut targets = Vec::with_capacity(segments.len());
 
     for index in 0..segments.len() {
-        urls.push(remote_url_with_segments(
-            server_url,
-            &segments[..=index],
-            "",
-        )?);
+        targets.push(ImageUploadCollectionTarget {
+            diagnostic_path: image_upload_diagnostic_path(&segments[..=index].join("/")),
+            url: remote_url_with_segments(server_url, &segments[..=index], "")?,
+        });
     }
 
-    Ok(urls)
+    Ok(targets)
 }
 
 fn image_upload_url(base_url: &str, upload_path: &str, file_name: &str) -> Result<Url, String> {
@@ -814,6 +898,51 @@ mod tests {
         assert_eq!(
             targets.public_url,
             "https://blocknews-dev.oss-cn-hangzhou.aliyuncs.com/Notes/pasted-image.png"
+        );
+    }
+
+    #[test]
+    fn formats_image_upload_status_errors_with_request_context() {
+        assert_eq!(
+            image_upload_status_error("WebDAV image folder creation", "MKCOL", "images", 409),
+            "WebDAV image folder creation failed: MKCOL images: HTTP 409"
+        );
+        assert_eq!(
+            image_upload_status_error("WebDAV image upload", "PUT", "notes/pasted-image.png", 507),
+            "WebDAV image upload failed: PUT notes/pasted-image.png: HTTP 507"
+        );
+        assert_eq!(
+            image_upload_status_error("PicGo image upload", "POST", "/upload", 500),
+            "PicGo image upload failed: POST /upload: HTTP 500"
+        );
+        assert_eq!(
+            image_upload_status_error("S3 image upload", "PUT", "notes/pasted-image.png", 403),
+            "S3 image upload failed: PUT notes/pasted-image.png: HTTP 403"
+        );
+    }
+
+    #[test]
+    fn formats_image_upload_request_errors_with_request_context() {
+        assert_eq!(
+            image_upload_request_error(
+                "PicGo image upload",
+                "POST",
+                "notes\nbad/pasted-image.png",
+                "connection reset"
+            ),
+            "PicGo image upload failed: POST notes bad/pasted-image.png: connection reset"
+        );
+    }
+
+    #[test]
+    fn builds_image_upload_diagnostic_targets() {
+        assert_eq!(
+            image_upload_diagnostic_target("", "pasted-image.png"),
+            "pasted-image.png"
+        );
+        assert_eq!(
+            image_upload_diagnostic_target("notes\nbad", "pasted-image.png"),
+            "notes bad/pasted-image.png"
         );
     }
 }

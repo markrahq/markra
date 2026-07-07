@@ -1,3 +1,12 @@
+import {
+  diagnosticErrorMessage,
+  runtimeDiagnosticEvent,
+  sanitizeDiagnosticDetails,
+  sanitizeDiagnosticText,
+  stringifyDiagnosticValue,
+  type DiagnosticDetailValue
+} from "@markra/shared";
+
 type RuntimeLogLevel = "error" | "info" | "warn";
 type RuntimeLogArea =
   | "ai"
@@ -9,7 +18,7 @@ type RuntimeLogArea =
   | "sync"
   | "system"
   | "update";
-type RuntimeLogDetailValue = boolean | number | string | null;
+type RuntimeLogDetailValue = DiagnosticDetailValue;
 export type RuntimeLogEntry = {
   area: RuntimeLogArea;
   details?: Record<string, RuntimeLogDetailValue>;
@@ -20,6 +29,7 @@ export type RuntimeLogEntry = {
 };
 
 type RuntimeLogEntryInput = {
+  area?: RuntimeLogArea;
   details?: Record<string, unknown>;
   level: RuntimeLogLevel;
   message: string;
@@ -34,11 +44,6 @@ type RuntimeLogErrorInput = {
 const runtimeLogStorageKey = "markra.runtimeLog.entries";
 const runtimeLogChangedEvent = "markra:runtime-log-changed";
 const defaultRuntimeLogEntryLimit = 200;
-const runtimeLogDetailTextLimit = 1200;
-const redactedValue = "[redacted]";
-const sensitiveDetailKeyPattern = /(?:authorization|endpoint|host|key|password|path|secret|token|url|user)/iu;
-const urlPattern = /https?:\/\/[^\s]+/giu;
-const absolutePathPattern = /(?:\/Users|\/home|\/private|[A-Za-z]:\\)[^\s]+/gu;
 const runtimeLogAreas = [
   "ai",
   "backup",
@@ -59,11 +64,11 @@ let installedRuntimeLogCaptureCleanup: (() => unknown) | null = null;
 function appendRuntimeLogEntry(input: RuntimeLogEntryInput) {
   const timestamp = new Date();
   const entry: RuntimeLogEntry = {
-    area: "system",
-    details: sanitizeRuntimeLogDetails(input.details),
+    area: input.area ?? "system",
+    details: sanitizeDiagnosticDetails(input.details),
     id: createRuntimeLogEntryId(timestamp),
     level: input.level,
-    message: sanitizeRuntimeLogText(input.message),
+    message: sanitizeDiagnosticText(input.message),
     timestamp: normalizeRuntimeLogTimestamp(timestamp)
   };
   const entries = [...listRuntimeLogEntries(), entry].slice(-defaultRuntimeLogEntryLimit);
@@ -77,7 +82,7 @@ function appendRuntimeLogError(input: RuntimeLogErrorInput) {
   return appendRuntimeLogEntry({
     details: {
       ...input.details,
-      error: runtimeLogErrorMessage(input.error)
+      error: diagnosticErrorMessage(input.error)
     },
     level: "error",
     message: input.message
@@ -112,9 +117,17 @@ export function installRuntimeLogCapture() {
 
   window.addEventListener("error", handleError);
   window.addEventListener("unhandledrejection", handleUnhandledRejection);
+  const handleRuntimeDiagnostic = (event: Event) => {
+    const input = runtimeDiagnosticEntryInput(event);
+    if (!input) return;
+
+    appendRuntimeLogEntry(input);
+  };
+  window.addEventListener(runtimeDiagnosticEvent, handleRuntimeDiagnostic);
   cleanupCallbacks.push(() => {
     window.removeEventListener("error", handleError);
     window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+    window.removeEventListener(runtimeDiagnosticEvent, handleRuntimeDiagnostic);
   });
 
   const originalWarn = console.warn;
@@ -126,7 +139,7 @@ export function installRuntimeLogCapture() {
       try {
         appendRuntimeLogEntry({
           details: {
-            arguments: stringifyRuntimeLogValue(args.length === 1 ? args[0] : args)
+            arguments: stringifyDiagnosticValue(args.length === 1 ? args[0] : args)
           },
           level: "warn",
           message: "Console warning"
@@ -144,7 +157,7 @@ export function installRuntimeLogCapture() {
       try {
         appendRuntimeLogEntry({
           details: {
-            arguments: stringifyRuntimeLogValue(args.length === 1 ? args[0] : args)
+            arguments: stringifyDiagnosticValue(args.length === 1 ? args[0] : args)
           },
           level: "error",
           message: "Console error"
@@ -279,12 +292,37 @@ function normalizeRuntimeLogEntry(value: unknown): RuntimeLogEntry | null {
 
   return {
     area: candidate.area,
-    details: sanitizeRuntimeLogDetails(candidate.details),
+    details: sanitizeDiagnosticDetails(candidate.details),
     id: candidate.id,
     level: candidate.level,
-    message: sanitizeRuntimeLogText(candidate.message),
+    message: sanitizeDiagnosticText(candidate.message),
     timestamp: candidate.timestamp
   };
+}
+
+function runtimeDiagnosticEntryInput(event: Event): RuntimeLogEntryInput | null {
+  const detail = "detail" in event ? (event as CustomEvent<unknown>).detail : null;
+  if (!isRuntimeDiagnosticRecord(detail)) return null;
+
+  const message = typeof detail.message === "string" && detail.message.trim()
+    ? detail.message
+    : "Runtime diagnostic";
+  const details = isRuntimeDiagnosticDetails(detail.details) ? detail.details : undefined;
+
+  return {
+    area: isRuntimeLogArea(detail.area) ? detail.area : "system",
+    details,
+    level: isRuntimeLogLevel(detail.level) ? detail.level : "info",
+    message
+  };
+}
+
+function isRuntimeDiagnosticRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isRuntimeDiagnosticDetails(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isRuntimeLogArea(value: unknown): value is RuntimeLogArea {
@@ -295,92 +333,9 @@ function isRuntimeLogLevel(value: unknown): value is RuntimeLogLevel {
   return value === "error" || value === "info" || value === "warn";
 }
 
-function runtimeLogErrorMessage(error: unknown) {
-  if (error instanceof Error) {
-    const message = error.message.trim() || error.name;
-
-    return sanitizeRuntimeLogText(message);
-  }
-
-  if (typeof error === "string") return sanitizeRuntimeLogText(error);
-
-  return stringifyRuntimeLogValue(error);
-}
-
 function releaseRuntimeLogCapture() {
   runtimeLogCaptureInstallCount = Math.max(0, runtimeLogCaptureInstallCount - 1);
   if (runtimeLogCaptureInstallCount > 0) return;
 
   installedRuntimeLogCaptureCleanup?.();
-}
-
-function sanitizeRuntimeLogDetails(details: RuntimeLogEntryInput["details"]) {
-  if (!details) return undefined;
-
-  const sanitizedDetails: Record<string, RuntimeLogDetailValue> = {};
-  for (const [key, value] of Object.entries(details)) {
-    sanitizedDetails[key] = sensitiveDetailKeyPattern.test(key)
-      ? redactedValue
-      : sanitizeRuntimeLogValue(value);
-  }
-
-  return sanitizedDetails;
-}
-
-function sanitizeRuntimeLogValue(value: unknown): RuntimeLogDetailValue {
-  if (value === null) return null;
-  if (typeof value === "boolean" || typeof value === "number") return value;
-  if (typeof value === "string") return sanitizeRuntimeLogText(value);
-
-  return stringifyRuntimeLogValue(value);
-}
-
-function sanitizeRuntimeLogText(value: string) {
-  return limitRuntimeLogText(value
-    .replace(urlPattern, redactedValue)
-    .replace(absolutePathPattern, redactedValue)
-    .trim());
-}
-
-function stringifyRuntimeLogValue(value: unknown): string {
-  if (typeof value === "string") return sanitizeRuntimeLogText(value);
-  if (typeof value === "number" || typeof value === "boolean" || value === null) return String(value);
-  if (typeof value === "bigint") return value.toString();
-  if (typeof value === "undefined") return "undefined";
-  if (typeof value === "symbol") return value.toString();
-  if (typeof value === "function") return `[function ${value.name || "anonymous"}]`;
-
-  const seen = new WeakSet<object>();
-
-  try {
-    const serialized = JSON.stringify(value, (key, currentValue) => {
-      if (key && sensitiveDetailKeyPattern.test(key)) return redactedValue;
-      if (currentValue instanceof Error) {
-        return {
-          message: runtimeLogErrorMessage(currentValue),
-          name: sanitizeRuntimeLogText(currentValue.name)
-        };
-      }
-      if (typeof currentValue === "string") return sanitizeRuntimeLogText(currentValue);
-      if (typeof currentValue === "bigint") return currentValue.toString();
-      if (typeof currentValue === "function") return `[function ${currentValue.name || "anonymous"}]`;
-      if (typeof currentValue === "symbol") return currentValue.toString();
-      if (typeof currentValue === "object" && currentValue !== null) {
-        if (seen.has(currentValue)) return "[circular]";
-        seen.add(currentValue);
-      }
-
-      return currentValue;
-    });
-
-    return limitRuntimeLogText(serialized ?? String(value));
-  } catch {
-    return sanitizeRuntimeLogText(String(value));
-  }
-}
-
-function limitRuntimeLogText(value: string) {
-  return value.length > runtimeLogDetailTextLimit
-    ? `${value.slice(0, runtimeLogDetailTextLimit)}...[truncated]`
-    : value;
 }

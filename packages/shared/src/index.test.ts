@@ -11,6 +11,9 @@ import {
   normalizedExternalAutolinkUrl,
   parentPathFromPath,
   pathNameFromPath,
+  runtimeDiagnosticEvent,
+  sanitizeDiagnosticDetails,
+  sanitizeDiagnosticText,
   stableTextKey
 } from ".";
 
@@ -109,5 +112,27 @@ describe("utilities", () => {
     expect(normalizedExternalAutolinkUrl("https://example.test first")).toBeNull();
     expect(normalizedExternalAutolinkUrl("javascript:alert(1)")).toBeNull();
     expect(normalizedExternalAutolinkUrl("file:///mock-files/secret.md")).toBeNull();
+  });
+
+  it("redacts diagnostic details without losing useful context", () => {
+    expect(runtimeDiagnosticEvent).toBe("markra:runtime-diagnostic");
+    expect(sanitizeDiagnosticText("failed at https://s3.example.test/private /Users/example/private-note.md")).toBe(
+      "failed at [redacted] [redacted]"
+    );
+    expect(sanitizeDiagnosticDetails({
+      command: "upload_s3_image",
+      endpointUrl: "https://s3.example.test/private",
+      password: "synthetic-secret",
+      payload: {
+        fileName: "pasted-image.png",
+        secretAccessKey: "synthetic-secret",
+        sourcePath: "/Users/example/private-note.md"
+      }
+    })).toEqual({
+      command: "upload_s3_image",
+      endpointUrl: "[redacted]",
+      password: "[redacted]",
+      payload: "{\"fileName\":\"pasted-image.png\",\"secretAccessKey\":\"[redacted]\",\"sourcePath\":\"[redacted]\"}"
+    });
   });
 });

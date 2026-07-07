@@ -1,5 +1,6 @@
 export type { DocumentState } from "./document.ts";
 export * from "./debug.ts";
+export * from "./diagnostics.ts";
 export * from "./i18n/index.ts";
 export * from "./keyboard-shortcuts.ts";
 export * from "./markdown-callout.ts";
