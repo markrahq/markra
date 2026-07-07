@@ -1534,6 +1534,7 @@ function WorkspaceApp() {
     await aiAgentSessions.refresh();
     openAiAgentPanel();
   }, [activeAiAgentSessionId, aiAgentSessions, createInitializedAiAgentSession, openAiAgentPanel, selectWorkspaceSession]);
+  const holdAiSelection = editor.holdAiSelection;
   const handleTextSelectionChange = useCallback((selection: AiSelectionContext | null) => {
     const automaticSelection = automaticAiSelection(selection);
 
@@ -1601,6 +1602,7 @@ function WorkspaceApp() {
     }
 
     if (showSelectionToolbar) {
+      holdAiSelection(automaticSelection);
       syncAiSelectionToolbarFormattingState();
       setAiSelectionToolbarAnchorIfChanged(
         getEditorSelectionAnchor() ?? selectionAnchorFromDomSelection(window.getSelection())
@@ -1625,6 +1627,7 @@ function WorkspaceApp() {
     editorPreferences.preferences.showAiQuickInputOnSelection,
     editorPreferences.preferences.showAiSelectionToolbarOnSelection,
     getEditorSelectionAnchor,
+    holdAiSelection,
     syncAiSelectionToolbarFormattingState,
     clearAiSelectionToolbarCopySuccess,
     readOnlyMode,
@@ -1633,7 +1636,6 @@ function WorkspaceApp() {
     updateActiveAiSelection
   ]);
   const getEditorSelection = editor.getSelection;
-  const holdAiSelection = editor.holdAiSelection;
   const scrollAiSelectionAboveCommand = editor.scrollAiSelectionAboveCommand;
   const interruptAiCommandPrompt = aiCommand.interruptPrompt;
   const openAiCommand = aiCommand.openAiCommand;
