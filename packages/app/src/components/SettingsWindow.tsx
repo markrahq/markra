@@ -152,7 +152,8 @@ export function SettingsWindow() {
     : undefined;
   useDefaultContextMenuBlocker();
   const updater = useAutoUpdater(appLanguage.language, appFeatures.updater && appLanguage.ready, {
-    autoCheck: false
+    autoCheck: false,
+    currentVersion: appVersion
   });
   useEffect(() => {
     if (!settingsStartupReady) return;

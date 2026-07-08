@@ -19,6 +19,7 @@ export type AutoUpdaterOptions = {
   checkIntervalMs?: number;
   confirmInstall?: () => boolean | Promise<boolean>;
   confirmRestart?: () => boolean | Promise<boolean>;
+  currentVersion?: string;
 };
 
 function formatUpdateMessage(message: string, update: NativeAppUpdate, progress?: NativeAppUpdateProgress) {
@@ -67,7 +68,8 @@ function logUpdateCheckFailed(error: unknown, automatic: boolean) {
 
 export function useAutoUpdater(language: AppLanguage, enabled = true, options: AutoUpdaterOptions = {}) {
   const [availableUpdate, setAvailableUpdate] = useState<NativeAppUpdate | null>(null);
-  const discoveredAppUpdateVersion = useDiscoveredAppUpdateVersion();
+  const currentVersion = options.currentVersion;
+  const discoveredAppUpdateVersion = useDiscoveredAppUpdateVersion(currentVersion);
   const checkingRef = useRef(false);
   const downloadingRef = useRef(false);
   const downloadedUpdateRef = useRef<NativeAppUpdate | null>(null);
@@ -170,7 +172,10 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
 
   const showAvailableUpdate = useCallback((update: NativeAppUpdate, options: { notify: boolean }) => {
     setAvailableUpdate(update);
-    setDiscoveredAppUpdateVersion(update.version);
+    setDiscoveredAppUpdateVersion({
+      currentVersion: update.currentVersion,
+      version: update.version
+    });
     if (!options.notify) return;
 
     showAppToast({

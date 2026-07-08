@@ -3,13 +3,32 @@ import { useSyncExternalStore } from "react";
 const discoveredAppUpdateVersionStorageKey = "markra.discoveredAppUpdate.version";
 const discoveredAppUpdateVersionChangedEvent = "markra:discovered-app-update-version-changed";
 
-let fallbackDiscoveredAppUpdateVersion: string | null = null;
+type DiscoveredAppUpdate = {
+  currentVersion: string;
+  version: string;
+};
+
+let fallbackDiscoveredAppUpdate: DiscoveredAppUpdate | null = null;
 
 function normalizeDiscoveredAppUpdateVersion(value: unknown) {
   if (typeof value !== "string") return null;
 
   const version = value.trim();
   return version.length > 0 ? version : null;
+}
+
+function normalizeDiscoveredAppUpdate(value: unknown): DiscoveredAppUpdate | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const candidate = value as Partial<DiscoveredAppUpdate>;
+  const version = normalizeDiscoveredAppUpdateVersion(candidate.version);
+  const currentVersion = normalizeDiscoveredAppUpdateVersion(candidate.currentVersion);
+  if (!version || !currentVersion) return null;
+
+  return {
+    currentVersion,
+    version
+  };
 }
 
 function getStorage() {
@@ -28,26 +47,50 @@ function notifyDiscoveredAppUpdateVersionChanged() {
   window.dispatchEvent(new CustomEvent(discoveredAppUpdateVersionChangedEvent));
 }
 
-export function getDiscoveredAppUpdateVersion() {
+export function getDiscoveredAppUpdateVersion(currentVersion?: string | null) {
+  const update = getDiscoveredAppUpdate(currentVersion);
+
+  return update?.version ?? null;
+}
+
+function getDiscoveredAppUpdate(currentVersion?: string | null) {
   const storage = getStorage();
-  if (!storage) return fallbackDiscoveredAppUpdateVersion;
+  if (!storage) return filterDiscoveredAppUpdate(fallbackDiscoveredAppUpdate, currentVersion);
+
+  let rawUpdate: string | null = null;
+  try {
+    rawUpdate = storage.getItem(discoveredAppUpdateVersionStorageKey);
+  } catch {
+    return filterDiscoveredAppUpdate(fallbackDiscoveredAppUpdate, currentVersion);
+  }
+
+  if (!rawUpdate) return filterDiscoveredAppUpdate(fallbackDiscoveredAppUpdate, currentVersion);
 
   try {
-    return normalizeDiscoveredAppUpdateVersion(storage.getItem(discoveredAppUpdateVersionStorageKey));
+    const update = normalizeDiscoveredAppUpdate(JSON.parse(rawUpdate));
+
+    return filterDiscoveredAppUpdate(update, currentVersion);
   } catch {
-    return fallbackDiscoveredAppUpdateVersion;
+    return null;
   }
 }
 
-export function setDiscoveredAppUpdateVersion(version: string | null) {
-  const normalizedVersion = normalizeDiscoveredAppUpdateVersion(version);
-  fallbackDiscoveredAppUpdateVersion = normalizedVersion;
+function filterDiscoveredAppUpdate(update: DiscoveredAppUpdate | null, currentVersion?: string | null) {
+  const normalizedCurrentVersion = normalizeDiscoveredAppUpdateVersion(currentVersion);
+  if (normalizedCurrentVersion && update?.currentVersion !== normalizedCurrentVersion) return null;
+
+  return update;
+}
+
+export function setDiscoveredAppUpdateVersion(update: DiscoveredAppUpdate | null) {
+  const normalizedUpdate = normalizeDiscoveredAppUpdate(update);
+  fallbackDiscoveredAppUpdate = normalizedUpdate;
 
   const storage = getStorage();
   if (storage) {
     try {
-      if (normalizedVersion) {
-        storage.setItem(discoveredAppUpdateVersionStorageKey, normalizedVersion);
+      if (normalizedUpdate) {
+        storage.setItem(discoveredAppUpdateVersionStorageKey, JSON.stringify(normalizedUpdate));
       } else {
         storage.removeItem(discoveredAppUpdateVersionStorageKey);
       }
@@ -60,8 +103,8 @@ export function setDiscoveredAppUpdateVersion(version: string | null) {
 }
 
 export function clearDiscoveredAppUpdateVersion(version?: string) {
-  const currentVersion = getDiscoveredAppUpdateVersion();
-  if (version && currentVersion && currentVersion !== version) return;
+  const update = getDiscoveredAppUpdate();
+  if (version && update && update.version !== version) return;
 
   setDiscoveredAppUpdateVersion(null);
 }
@@ -82,6 +125,10 @@ function subscribeDiscoveredAppUpdateVersion(listener: () => unknown) {
   };
 }
 
-export function useDiscoveredAppUpdateVersion() {
-  return useSyncExternalStore(subscribeDiscoveredAppUpdateVersion, getDiscoveredAppUpdateVersion, () => null);
+export function useDiscoveredAppUpdateVersion(currentVersion?: string | null) {
+  return useSyncExternalStore(
+    subscribeDiscoveredAppUpdateVersion,
+    () => getDiscoveredAppUpdate(currentVersion)?.version ?? null,
+    () => null
+  );
 }

@@ -27,15 +27,23 @@ function AutoUpdaterHarness({
   beforeRestart,
   checkIntervalMs,
   confirmRestart,
+  currentVersion = "0.0.6",
   language = "en"
 }: {
   autoCheck?: boolean;
   beforeRestart?: () => Promise<unknown>;
   checkIntervalMs?: number;
   confirmRestart?: () => Promise<boolean>;
+  currentVersion?: string;
   language?: "en" | "zh-CN";
 }) {
-  const updater = useAutoUpdater(language, true, { autoCheck, beforeRestart, checkIntervalMs, confirmRestart });
+  const updater = useAutoUpdater(language, true, {
+    autoCheck,
+    beforeRestart,
+    checkIntervalMs,
+    confirmRestart,
+    currentVersion
+  });
 
   return (
     <>
@@ -61,8 +69,8 @@ function DisabledUpdaterHarness() {
   );
 }
 
-function PassiveUpdatePromptHarness() {
-  const updater = useAutoUpdater("en", true, { autoCheck: false });
+function PassiveUpdatePromptHarness({ currentVersion = "0.0.6" }: { currentVersion?: string }) {
+  const updater = useAutoUpdater("en", true, { autoCheck: false, currentVersion });
 
   return updater.availableUpdateVersion ? (
     <p role="status">Available version: {updater.availableUpdateVersion}</p>
@@ -210,6 +218,19 @@ describe("useAutoUpdater", () => {
     render(<PassiveUpdatePromptHarness />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Available version: 0.0.7");
+  });
+
+  it("ignores a discovered update version from a previous app version", async () => {
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate());
+
+    const { unmount } = render(<AutoUpdaterHarness currentVersion="0.0.6" />);
+
+    expect(await screen.findByRole("button", { name: "Install update" })).toBeInTheDocument();
+    unmount();
+
+    render(<PassiveUpdatePromptHarness currentVersion="0.0.7" />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("installs a background-discovered update after the user starts it", async () => {

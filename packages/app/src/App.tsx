@@ -3541,7 +3541,8 @@ function WorkspaceApp() {
   const appUpdater = useAutoUpdater(appLanguage.language, updaterFeatureEnabled && appLanguage.ready && !editorPreferences.loading, {
     autoCheck: updaterFeatureEnabled && editorPreferences.preferences.autoUpdateEnabled,
     beforeRestart: saveDirtyMarkdownFiles,
-    confirmRestart: confirmCanDiscardCurrentDocument
+    confirmRestart: confirmCanDiscardCurrentDocument,
+    currentVersion: appVersion
   });
   const nativeMenuHandlers = useNativeMenuHandlers({
     checkForUpdates: updaterFeatureEnabled ? appUpdater.checkForUpdates : undefined,
