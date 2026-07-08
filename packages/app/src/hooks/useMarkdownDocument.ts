@@ -510,12 +510,14 @@ export function useMarkdownDocument({
     ) {
       return current;
     }
+    if (!current.dirty && editorSyncState.isCleanVisualMarkdownBaseline(currentActiveTabId, content)) return current;
 
     const editorContentEquivalent = isActiveEditorMarkdownEquivalent(current.content);
     const nextDocument =
       !current.dirty && (editorContentEquivalent === true || isEquivalentEditorMarkdown(current.content, content))
         ? { ...current, content, dirty: false }
         : { ...current, content, dirty: true };
+    if (!current.dirty && nextDocument.dirty) editorSyncState.clearCleanVisualMarkdownBaseline(currentActiveTabId);
 
     const nextTabs = currentActiveTabId
       ? tabsRef.current.map((tab) => tab.id === currentActiveTabId ? createDocumentTab(nextDocument, tab.id) : tab)
@@ -566,6 +568,7 @@ export function useMarkdownDocument({
 
       const editorMarkdown = currentMarkdown();
       if (editorSyncState.isSavedVisualEditorStaleContent(activeTabIdRef.current, current.content, editorMarkdown)) return false;
+      if (editorSyncState.isCleanVisualMarkdownBaseline(activeTabIdRef.current, editorMarkdown)) return false;
       if (isEquivalentEditorMarkdown(editorMarkdown, current.content)) return false;
       if (editorContentEquivalent === false && current.path !== null) return true;
 
@@ -591,6 +594,9 @@ export function useMarkdownDocument({
     if (!current.dirty && editorSyncState.isSavedVisualEditorStaleContent(tabId, current.content, content)) {
       return current.content;
     }
+    if (!current.dirty && editorSyncState.isCleanVisualMarkdownBaseline(tabId, content)) {
+      return current.content;
+    }
 
     return content;
   }, [currentMarkdown, editorSyncState]);
@@ -612,6 +618,14 @@ export function useMarkdownDocument({
     if (options.documentRevision !== undefined && options.documentRevision !== current.revision) return;
     if (!current.open || current.content === content) return;
     const currentActiveTabId = activeTabIdRef.current;
+    if (
+      !current.dirty &&
+      options.surface === "visual" &&
+      editorSyncState.isCleanVisualMarkdownBaseline(currentActiveTabId, content)
+    ) {
+      return;
+    }
+    const canKeepEquivalentMarkdownClean = options.surface !== "source";
     const editorContentEquivalent = isActiveEditorMarkdownEquivalent(current.content);
     if (
       !current.dirty &&
@@ -626,9 +640,12 @@ export function useMarkdownDocument({
       editorSyncState.rememberCleanVisualContentBeforeDirty(currentActiveTabId, current.content, content, options.surface);
     }
     const nextDocument =
-      !current.dirty && (editorContentEquivalent === true || isEquivalentEditorMarkdown(current.content, content))
+      !current.dirty &&
+      canKeepEquivalentMarkdownClean &&
+      (editorContentEquivalent === true || isEquivalentEditorMarkdown(current.content, content))
         ? { ...current, content, dirty: false }
         : { ...current, content, dirty: true };
+    if (!current.dirty && nextDocument.dirty) editorSyncState.clearCleanVisualMarkdownBaseline(currentActiveTabId);
 
     const nextTabs = currentActiveTabId
       ? tabsRef.current.map((tab) => tab.id === currentActiveTabId ? createDocumentTab(nextDocument, tab.id) : tab)
@@ -655,17 +672,29 @@ export function useMarkdownDocument({
         if (
           !tab.dirty &&
           options.surface === "visual" &&
+          editorSyncState.isCleanVisualMarkdownBaseline(tab.id, content)
+        ) {
+          return tab;
+        }
+        if (
+          !tab.dirty &&
+          options.surface === "visual" &&
           options.documentRevision !== undefined &&
           !isEquivalentEditorMarkdown(tab.content, content)
         ) {
           return tab;
         }
         if (!tab.dirty) editorSyncState.rememberCleanVisualContentBeforeDirty(tab.id, tab.content, content, options.surface);
+        const canKeepEquivalentMarkdownClean = options.surface !== "source";
+        const contentEquivalent = canKeepEquivalentMarkdownClean && isEquivalentEditorMarkdown(tab.content, content);
+        if (!tab.dirty && !contentEquivalent) {
+          editorSyncState.clearCleanVisualMarkdownBaseline(tab.id);
+        }
 
         return {
           ...tab,
           content,
-          dirty: tab.dirty || !isEquivalentEditorMarkdown(tab.content, content)
+          dirty: tab.dirty || !contentEquivalent
         };
       });
 
@@ -674,6 +703,14 @@ export function useMarkdownDocument({
       return nextTabs;
     });
   }, [editorSyncState, handleMarkdownChange]);
+
+  const rememberMarkdownTabVisualBaseline = useCallback((tabId: string, content: string) => {
+    const tab = tabsRef.current.find((candidate) => candidate.id === tabId);
+    if (!tab || !tab.open || tab.dirty) return false;
+
+    editorSyncState.rememberCleanVisualMarkdownBaseline(tabId, content);
+    return true;
+  }, [editorSyncState]);
 
   const restoreDocumentContent = useCallback((content: string) => {
     const current = documentRef.current;
@@ -856,6 +893,9 @@ export function useMarkdownDocument({
       tab.id === targetTab.id ? createDocumentTab(nextDocument, tab.id) : tab
     );
 
+    // A disk reload moves the clean reference forward; an old visual baseline would hide
+    // undoing back to the previous disk content as a real unsaved edit.
+    editorSyncState.clearCleanVisualMarkdownBaseline(targetTab.id);
     tabsRef.current = nextTabs;
     setTabs(nextTabs);
     if (activeTabChanged) {
@@ -871,7 +911,7 @@ export function useMarkdownDocument({
       tabId: targetTab.id
     }]);
     return true;
-  }, [onActiveDiskFileContentChange]);
+  }, [editorSyncState, onActiveDiskFileContentChange]);
 
   const refreshCleanOpenTabFromDisk = useCallback((path: string, reason: string) => {
     const currentTab = tabsRef.current.find((tab) => tab.path !== null && sameNativePath(tab.path, path));
@@ -2227,6 +2267,7 @@ export function useMarkdownDocument({
     handleMarkdownChange,
     handleMarkdownTabChange,
     handleSaveClick,
+    rememberMarkdownTabVisualBaseline,
     openMarkdownFile,
     openRecentMarkdownFile,
     openTreeMarkdownFileInBackground,

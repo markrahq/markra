@@ -9,18 +9,39 @@ type SavedVisualEditorStaleContent = {
 
 export function createEditorSyncState() {
   const cleanVisualContentBeforeDirty = new Map<string, string>();
+  const cleanVisualMarkdownBaseline = new Map<string, string>();
   const savedVisualEditorStaleContent = new Map<string, SavedVisualEditorStaleContent>();
 
   function clear(tabId: string | null | undefined) {
     if (!tabId) return;
 
     cleanVisualContentBeforeDirty.delete(tabId);
+    cleanVisualMarkdownBaseline.delete(tabId);
     savedVisualEditorStaleContent.delete(tabId);
   }
 
   function clearAll() {
     cleanVisualContentBeforeDirty.clear();
+    cleanVisualMarkdownBaseline.clear();
     savedVisualEditorStaleContent.clear();
+  }
+
+  function clearCleanVisualMarkdownBaseline(tabId: string | null | undefined) {
+    if (!tabId) return;
+
+    cleanVisualMarkdownBaseline.delete(tabId);
+  }
+
+  function isCleanVisualMarkdownBaseline(tabId: string | null | undefined, editorContent: string) {
+    if (!tabId) return false;
+
+    return cleanVisualMarkdownBaseline.get(tabId) === editorContent;
+  }
+
+  function rememberCleanVisualMarkdownBaseline(tabId: string | null | undefined, editorContent: string) {
+    if (!tabId) return;
+
+    cleanVisualMarkdownBaseline.set(tabId, editorContent);
   }
 
   function isSavedVisualEditorStaleContent(
@@ -73,8 +94,11 @@ export function createEditorSyncState() {
   return {
     clear,
     clearAll,
+    clearCleanVisualMarkdownBaseline,
+    isCleanVisualMarkdownBaseline,
     isSavedVisualEditorStaleContent,
     rememberCleanVisualContentBeforeDirty,
+    rememberCleanVisualMarkdownBaseline,
     rememberSavedVisualEditorStaleContent
   };
 }

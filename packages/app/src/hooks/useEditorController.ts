@@ -491,9 +491,9 @@ export function useEditorController() {
   const editorRef = useRef<Editor | null>(null);
   const focusTimerRef = useRef<number | null>(null);
 
-  const getCurrentMarkdown = useCallback((fallbackContent: string) => {
+  const getMarkdownFromEditor = useCallback((editor: Editor, fallbackContent: string) => {
     try {
-      return editorRef.current?.action((ctx) => {
+      return editor.action((ctx) => {
         const view = ctx.get(editorViewCtx);
         return serializeCurrentEditorMarkdown(
           view,
@@ -502,11 +502,16 @@ export function useEditorController() {
           imageSchema.type(ctx),
           markraLiveMarkdownSpecs(ctx)
         );
-      }) ?? fallbackContent;
+      });
     } catch {
       return fallbackContent;
     }
   }, []);
+
+  const getCurrentMarkdown = useCallback((fallbackContent: string) => {
+    const editor = editorRef.current;
+    return editor ? getMarkdownFromEditor(editor, fallbackContent) : fallbackContent;
+  }, [getMarkdownFromEditor]);
 
   const isCurrentMarkdownEquivalent = useCallback((markdown: string) => {
     try {
@@ -1229,6 +1234,7 @@ export function useEditorController() {
     getDocumentEndPosition,
     getHeadingAnchors,
     getCurrentMarkdown,
+    getMarkdownFromEditor,
     isCurrentMarkdownEquivalent,
     getSelection,
     getSelectionAnchor,

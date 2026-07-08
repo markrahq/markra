@@ -471,6 +471,168 @@ describe("useMarkdownDocument", () => {
     });
   });
 
+  it("uses a clean visual baseline when checking close prompts", async () => {
+    let closeRequestHandler: ((event: MockWindowCloseRequestEvent) => unknown | Promise<unknown>) | null = null;
+    let editorMarkdown = "Serialized clean baseline.";
+    const confirmDiscardUnsavedChanges = vi.fn(() => false);
+    mockedListenNativeWindowCloseRequested.mockImplementation(async (handler) => {
+      closeRequestHandler = handler;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "Original clean source.",
+      name: "baseline.md",
+      path: "/mock-files/baseline.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        getCurrentMarkdown: () => editorMarkdown,
+        isCurrentMarkdownEquivalent: () => false,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await waitFor(() => expect(mockedListenNativeWindowCloseRequested).toHaveBeenCalled());
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "baseline.md",
+        path: "/mock-files/baseline.md",
+        relativePath: "baseline.md"
+      });
+    });
+
+    act(() => {
+      result.current.rememberMarkdownTabVisualBaseline(result.current.activeTabId!, editorMarkdown);
+    });
+
+    const preventDefault = vi.fn();
+    await act(async () => {
+      if (!closeRequestHandler) throw new Error("native close request handler was not registered");
+      await closeRequestHandler({ preventDefault });
+    });
+
+    expect(confirmDiscardUnsavedChanges).not.toHaveBeenCalled();
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(mockedDestroyNativeWindow).toHaveBeenCalledTimes(1));
+
+    editorMarkdown = "User edited content.";
+    act(() => {
+      result.current.handleMarkdownChange(editorMarkdown, { surface: "visual" });
+    });
+
+    await act(async () => {
+      const canDiscard = await result.current.confirmCanDiscardCurrentDocument();
+      expect(canDiscard).toBe(false);
+    });
+
+    expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({ name: "baseline.md" }));
+  });
+
+  it("clears a clean visual baseline after an undoable disk reload", async () => {
+    let emitExternalChange: (path: string) => unknown | Promise<unknown> = () => {};
+    mockedWatchNativeMarkdownFile.mockImplementation(async (_path, onChange) => {
+      emitExternalChange = onChange;
+      return () => {};
+    });
+    mockedReadNativeMarkdownFile
+      .mockResolvedValueOnce({
+        content: "Original clean source.",
+        name: "baseline.md",
+        path: "/mock-files/baseline.md"
+      })
+      .mockResolvedValueOnce({
+        content: "Changed on disk.",
+        name: "baseline.md",
+        path: "/mock-files/baseline.md"
+      });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onActiveDiskFileContentChange: () => true,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "baseline.md",
+        path: "/mock-files/baseline.md",
+        relativePath: "baseline.md"
+      });
+    });
+    await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenCalled());
+
+    act(() => {
+      result.current.rememberMarkdownTabVisualBaseline(result.current.activeTabId!, "Original clean source.");
+    });
+    await act(async () => {
+      await emitExternalChange("/mock-files/baseline.md");
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("Original clean source.", { surface: "visual" });
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "Original clean source.",
+      dirty: true,
+      name: "baseline.md"
+    });
+  });
+
+  it("keeps source edits dirty even when markdown renders equivalently", async () => {
+    const confirmDiscardUnsavedChanges = vi.fn(() => false);
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "Source token x_p.",
+      name: "source.md",
+      path: "/mock-files/source.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        confirmDiscardUnsavedChanges,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        isCurrentMarkdownEquivalent: () => false,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "source.md",
+        path: "/mock-files/source.md",
+        relativePath: "source.md"
+      });
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("Source token x\\_p.", { surface: "source" });
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "Source token x\\_p.",
+      dirty: true,
+      name: "source.md"
+    });
+
+    await act(async () => {
+      const canDiscard = await result.current.confirmCanDiscardCurrentDocument();
+      expect(canDiscard).toBe(false);
+    });
+
+    expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({ name: "source.md" }));
+  });
+
   it("does not ask to discard a clean file when the visual editor tightens callout list spacing", async () => {
     let closeRequestHandler: ((event: MockWindowCloseRequestEvent) => unknown | Promise<unknown>) | null = null;
     let editorMarkdown = [

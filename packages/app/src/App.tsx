@@ -578,6 +578,7 @@ function WorkspaceApp() {
   const runEditorShortcut = editor.runEditorShortcut;
   const getEditorSelectionAnchor = editor.getSelectionAnchor;
   const getEditorSelectionFormattingState = editor.getSelectionFormattingState;
+  const getMarkdownFromEditor = editor.getMarkdownFromEditor;
   const setEditorSelectionHeadingLevel = editor.setSelectionHeadingLevel;
   const showEditorSearchMatches = editor.showSearchMatches;
   const toggleEditorSelectionHighlight = editor.toggleSelectionHighlight;
@@ -746,6 +747,7 @@ function WorkspaceApp() {
     replaceOpenDocumentFile,
     replaceMovedOpenDocumentFile,
     recentFiles: recentMarkdownFiles,
+    rememberMarkdownTabVisualBaseline,
     restoreDocumentContent,
     saveCurrentDocumentContent,
     saveCurrentDocument,
@@ -830,10 +832,21 @@ function WorkspaceApp() {
       mainVisualEditorsRef.current.delete(tabId);
     }
 
+    const tab = readyEditor ? documentTabs.find((candidate) => candidate.id === tabId) : null;
+    if (readyEditor && tab && !tab.dirty) {
+      rememberMarkdownTabVisualBaseline(tabId, getMarkdownFromEditor(readyEditor, tab.content));
+    }
+
     if (tabId === activeTabId) {
       handleVisualEditorReady(readyEditor, options);
     }
-  }, [activeTabId, handleVisualEditorReady]);
+  }, [
+    activeTabId,
+    documentTabs,
+    getMarkdownFromEditor,
+    handleVisualEditorReady,
+    rememberMarkdownTabVisualBaseline
+  ]);
   useEffect(() => {
     if (!activeTabId) {
       handleVisualEditorReady(null);
