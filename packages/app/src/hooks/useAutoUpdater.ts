@@ -231,6 +231,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
       if (checkingRef.current || downloadingRef.current) return;
 
       checkingRef.current = true;
+      appLogger.info("update", "Automatic update check started", { automatic: true });
       try {
         const update = await checkNativeAppUpdate();
         if (cancelled) return;

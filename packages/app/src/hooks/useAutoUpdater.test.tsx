@@ -139,6 +139,13 @@ describe("useAutoUpdater", () => {
     expect(mockedShowAppToast).not.toHaveBeenCalled();
     expectUpdateLogEntry({
       details: {
+        automatic: true
+      },
+      level: "info",
+      message: "Automatic update check started"
+    });
+    expectUpdateLogEntry({
+      details: {
         automatic: true,
         result: "current"
       },
