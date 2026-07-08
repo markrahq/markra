@@ -83,6 +83,29 @@ describe("app logger", () => {
     });
   });
 
+  it("continues forwarding logs while an async backend write is pending", async () => {
+    const backendEvents: AppLogEvent[] = [];
+    let resolveFirstWrite!: () => void;
+    setAppLogBackendWriter((event) => {
+      backendEvents.push(event);
+      if (event.message !== "First file log") return undefined;
+
+      return new Promise((resolve) => {
+        resolveFirstWrite = () => resolve(undefined);
+      });
+    });
+
+    appLogger.info("system", "First file log");
+    appLogger.warn("system", "Second file log");
+
+    expect(backendEvents.map((event) => event.message)).toEqual([
+      "First file log",
+      "Second file log"
+    ]);
+    resolveFirstWrite();
+    await Promise.resolve();
+  });
+
   it("does not recursively call the backend when the backend logs again", () => {
     const backendEvents: AppLogEvent[] = [];
     setAppLogBackendWriter((event) => {

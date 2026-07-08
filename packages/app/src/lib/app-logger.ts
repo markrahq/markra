@@ -103,23 +103,18 @@ function dispatchAppLogBackend(event: AppLogEvent) {
   if (!writer) return;
   if (appLogBackendDispatchDepth > 0) return;
 
-  let releaseImmediately = true;
   try {
     appLogBackendDispatchDepth += 1;
     const result = writer(event);
+    // Only guard the synchronous writer call. Holding this across async file writes would
+    // drop unrelated log events that happen while the previous backend write is still pending.
     if (isPromiseLike(result)) {
-      releaseImmediately = false;
-      result
-        .catch(() => undefined)
-        .finally(() => {
-          releaseAppLogBackendDispatch();
-        });
-      return;
+      result.catch(() => undefined);
     }
   } catch {
     // Runtime Log already received the event; backend failures should stay non-fatal.
   } finally {
-    if (releaseImmediately) releaseAppLogBackendDispatch();
+    releaseAppLogBackendDispatch();
   }
 }
 
