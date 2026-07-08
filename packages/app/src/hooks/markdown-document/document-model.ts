@@ -176,8 +176,166 @@ function normalizeComparableMarkdownHeadings(content: string) {
   return normalized.join("\n");
 }
 
+type MarkdownListItemStart = {
+  indent: string;
+  kind: "bullet" | "ordered";
+  quotePrefix: string;
+};
+
+function markdownBlockquotePrefixKey(line: string | undefined) {
+  const match = /^((?:>\s*)+)/u.exec(line ?? "");
+  return match ? ">".repeat(match[1]!.split(">").length - 1) : "";
+}
+
+function markdownListContentStart(line: string | undefined) {
+  const source = line ?? "";
+  const quoteMatch = /^((?:>\s*)+)/u.exec(source);
+  return quoteMatch ? quoteMatch[0].length : 0;
+}
+
+function markdownListItemStart(line: string | undefined): MarkdownListItemStart | null {
+  const source = line ?? "";
+  const contentStart = markdownListContentStart(source);
+  const match = /^([ ]{0,3})(?:[-+*]|\d{1,9}[.)])\s+/u.exec(source.slice(contentStart));
+  if (!match) return null;
+
+  return {
+    indent: match[1] ?? "",
+    kind: /^\s{0,3}\d/u.test(source.slice(contentStart)) ? "ordered" : "bullet",
+    quotePrefix: markdownBlockquotePrefixKey(source)
+  };
+}
+
+function matchingSimpleListItems(
+  previousListItem: MarkdownListItemStart | null,
+  nextListItem: MarkdownListItemStart | null,
+  spacerQuotePrefix: string
+) {
+  return Boolean(
+    previousListItem &&
+    nextListItem &&
+    previousListItem.indent === nextListItem.indent &&
+    previousListItem.kind === nextListItem.kind &&
+    previousListItem.quotePrefix === nextListItem.quotePrefix &&
+    previousListItem.quotePrefix === spacerQuotePrefix
+  );
+}
+
+function isComparableMarkdownListSpacer(line: string, previousLine: string | undefined, nextLine: string | undefined) {
+  const quotePrefix = markdownBlockquotePrefixKey(line);
+  const unquotedContent = quotePrefix ? line.replace(/^((?:>\s*)+)/u, "") : line;
+  if (unquotedContent.trim() !== "") return false;
+
+  return matchingSimpleListItems(
+    markdownListItemStart(previousLine),
+    markdownListItemStart(nextLine),
+    quotePrefix
+  );
+}
+
+function normalizeComparableMarkdownListSpacing(content: string) {
+  const lines = content.split("\n");
+  const normalized: string[] = [];
+  let fencedMarker: "`" | "~" | null = null;
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex] ?? "";
+    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/u);
+    if (fenceMatch) {
+      const marker = fenceMatch[1]!.startsWith("~") ? "~" : "`";
+      if (!fencedMarker) {
+        fencedMarker = marker;
+      } else if (fencedMarker === marker) {
+        fencedMarker = null;
+      }
+
+      normalized.push(line);
+      continue;
+    }
+
+    // Milkdown may serialize adjacent one-line list items without the spacer line;
+    // keep that clean-file rewrite from becoming an unsaved edit.
+    const isSimpleListSpacer =
+      !fencedMarker &&
+      isComparableMarkdownListSpacer(line, normalized[normalized.length - 1], lines[lineIndex + 1]);
+
+    if (!isSimpleListSpacer) normalized.push(line);
+  }
+
+  return normalized.join("\n");
+}
+
+function isMarkdownWordCharacter(character: string | undefined) {
+  return character !== undefined && /[\p{L}\p{N}]/u.test(character);
+}
+
+function normalizeComparableMarkdownLineEscapes(line: string) {
+  let normalized = "";
+
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] === "`") {
+      const runStart = index;
+      while (line[index + 1] === "`") index += 1;
+
+      const marker = line.slice(runStart, index + 1);
+      const closingIndex = line.indexOf(marker, index + 1);
+      if (closingIndex >= 0) {
+        normalized += line.slice(runStart, closingIndex + marker.length);
+        index = closingIndex + marker.length - 1;
+        continue;
+      }
+
+      normalized += line.slice(runStart, index + 1);
+      continue;
+    }
+
+    if (
+      line[index] === "\\" &&
+      line[index + 1] === "_" &&
+      isMarkdownWordCharacter(line[index - 1]) &&
+      isMarkdownWordCharacter(line[index + 2])
+    ) {
+      // Milkdown escapes intraword underscores even though CommonMark treats them as literal text.
+      normalized += "_";
+      index += 1;
+      continue;
+    }
+
+    normalized += line[index];
+  }
+
+  return normalized;
+}
+
+function normalizeComparableMarkdownEscapes(content: string) {
+  const lines = content.split("\n");
+  const normalized: string[] = [];
+  let fencedMarker: "`" | "~" | null = null;
+
+  for (const line of lines) {
+    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/u);
+    if (fenceMatch) {
+      const marker = fenceMatch[1]!.startsWith("~") ? "~" : "`";
+      if (!fencedMarker) {
+        fencedMarker = marker;
+      } else if (fencedMarker === marker) {
+        fencedMarker = null;
+      }
+
+      normalized.push(line);
+      continue;
+    }
+
+    normalized.push(fencedMarker ? line : normalizeComparableMarkdownLineEscapes(line));
+  }
+
+  return normalized.join("\n");
+}
+
 function comparableMarkdown(content: string) {
-  return normalizeComparableMarkdownHeadings(content)
+  return normalizeComparableMarkdownEscapes(
+    normalizeComparableMarkdownListSpacing(normalizeComparableMarkdownHeadings(content))
+  )
     .replace(/[ \t]+$/gmu, "")
     .trim();
 }

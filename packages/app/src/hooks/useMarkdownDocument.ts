@@ -566,9 +566,10 @@ export function useMarkdownDocument({
 
       const editorMarkdown = currentMarkdown();
       if (editorSyncState.isSavedVisualEditorStaleContent(activeTabIdRef.current, current.content, editorMarkdown)) return false;
+      if (isEquivalentEditorMarkdown(editorMarkdown, current.content)) return false;
       if (editorContentEquivalent === false && current.path !== null) return true;
 
-      return !isEquivalentEditorMarkdown(editorMarkdown, current.content) && (current.path !== null || editorMarkdown.trim().length > 0);
+      return current.path !== null || editorMarkdown.trim().length > 0;
     }
     if (current.path) return true;
 
