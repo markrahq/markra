@@ -1,15 +1,28 @@
 import { invoke } from "@tauri-apps/api/core";
+import { appLogger } from "@markra/app/runtime";
 import { invokeNative } from "./invoke";
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn()
 }));
 
+vi.mock("@markra/app/runtime", () => ({
+  appLogger: {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn()
+  }
+}));
+
 const mockedInvoke = vi.mocked(invoke);
+const mockedAppLogger = vi.mocked(appLogger);
 
 describe("invokeNative", () => {
   beforeEach(() => {
     mockedInvoke.mockReset();
+    mockedAppLogger.error.mockReset();
+    mockedAppLogger.info.mockReset();
+    mockedAppLogger.warn.mockReset();
   });
 
   it("forwards command calls to Tauri invoke", async () => {
@@ -18,6 +31,17 @@ describe("invokeNative", () => {
     await expect(invokeNative("mock_command", { value: 1 })).resolves.toEqual({ ok: true });
 
     expect(mockedInvoke).toHaveBeenCalledWith("mock_command", { value: 1 });
+    expect(mockedAppLogger.info).toHaveBeenCalledWith("system", "Native command started", {
+      argumentKeys: "value",
+      command: "mock_command",
+      hasArgs: true
+    });
+    expect(mockedAppLogger.info).toHaveBeenCalledWith("system", "Native command completed", expect.objectContaining({
+      argumentKeys: "value",
+      command: "mock_command",
+      durationMs: expect.any(Number),
+      hasArgs: true
+    }));
   });
 
   it("omits Tauri invoke args when no args are provided", async () => {
@@ -26,30 +50,35 @@ describe("invokeNative", () => {
     await expect(invokeNative("mock_command")).resolves.toBeUndefined();
 
     expect(mockedInvoke).toHaveBeenCalledWith("mock_command");
+    expect(mockedAppLogger.info).toHaveBeenCalledWith("system", "Native command started", {
+      command: "mock_command",
+      hasArgs: false
+    });
+    expect(mockedAppLogger.info).toHaveBeenCalledWith("system", "Native command completed", expect.objectContaining({
+      command: "mock_command",
+      durationMs: expect.any(Number),
+      hasArgs: false
+    }));
   });
 
-  it("logs command failures and rethrows the original error", async () => {
+  it("logs command failures through the app logger and rethrows the original error", async () => {
     const error = new Error("backend failed");
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     mockedInvoke.mockRejectedValue(error);
 
     await expect(invokeNative("sync_webdav_markdown_folder", { serverUrl: "https://dav.example.test" })).rejects.toBe(
       error
     );
 
-    expect(consoleError).toHaveBeenCalledWith("[native command failed]", expect.objectContaining({
-      args: "{\"serverUrl\":\"[redacted]\"}",
+    expect(mockedAppLogger.error).toHaveBeenCalledWith("sync", "Native command failed", {
+      argumentKeys: "serverUrl",
       command: "sync_webdav_markdown_folder",
-      error: "backend failed"
-    }));
-
-    consoleError.mockRestore();
+      error: "backend failed",
+      hasArgs: true
+    });
   });
 
-  it("emits sanitized runtime diagnostics for every native command failure", async () => {
+  it("does not log native command argument values", async () => {
     const error = "S3 image upload failed: PUT pasted-image.png: HTTP 403";
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    const dispatchEvent = vi.spyOn(window, "dispatchEvent");
     mockedInvoke.mockRejectedValue(error);
 
     await expect(invokeNative("upload_s3_image", {
@@ -61,32 +90,18 @@ describe("invokeNative", () => {
       }
     })).rejects.toBe(error);
 
-    const diagnosticEvent = dispatchEvent.mock.calls
-      .map(([event]) => event)
-      .find((event) => event.type === "markra:runtime-diagnostic") as CustomEvent | undefined;
-    expect(diagnosticEvent?.detail).toMatchObject({
-      area: "storage",
-      details: {
-        args: expect.stringContaining("pasted-image.png"),
-        command: "upload_s3_image",
-        error
-      },
-      level: "error",
-      message: "Native command failed"
+    const loggedDetails = mockedAppLogger.error.mock.calls[0]?.[2] ?? {};
+    expect(loggedDetails).toMatchObject({
+      argumentKeys: "request",
+      command: "upload_s3_image",
+      error: "S3 image upload failed: PUT [file]: HTTP 403",
+      hasArgs: true
     });
 
-    const diagnosticDetails = JSON.stringify(diagnosticEvent?.detail);
-    expect(diagnosticDetails).not.toContain("synthetic-secret");
-    expect(diagnosticDetails).not.toContain("s3.example.test");
-    expect(diagnosticDetails).not.toContain("/Users/example");
-
-    expect(consoleError).toHaveBeenCalledWith("[native command failed]", expect.objectContaining({
-      args: expect.stringContaining("pasted-image.png"),
-      command: "upload_s3_image",
-      error
-    }));
-
-    dispatchEvent.mockRestore();
-    consoleError.mockRestore();
+    const serializedDetails = JSON.stringify(loggedDetails);
+    expect(serializedDetails).not.toContain("synthetic-secret");
+    expect(serializedDetails).not.toContain("s3.example.test");
+    expect(serializedDetails).not.toContain("/Users/example");
+    expect(serializedDetails).not.toContain("pasted-image.png");
   });
 });

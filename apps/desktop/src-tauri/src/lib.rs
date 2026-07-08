@@ -1,6 +1,7 @@
 mod acp;
 mod ai_http;
 mod app_exit;
+mod app_logs;
 mod backup;
 mod clipboard;
 mod external_urls;
@@ -26,6 +27,7 @@ use std::{path::Path, time::Duration};
 use acp::{start_acp_agent, stop_acp_agent, write_acp_agent_message, AcpAgentProcessState};
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
 use app_exit::handle_app_exit_requested;
+use app_logs::open_log_folder;
 use backup::backup_markdown_folder;
 use clipboard::read_clipboard_text;
 use external_urls::open_external_url;
@@ -82,6 +84,11 @@ use windows::{
 };
 
 const STARTUP_WINDOW_NATIVE_REVEAL_FALLBACK_MS: u64 = 2400;
+const DESKTOP_LOG_MAX_FILE_SIZE_BYTES: u128 = 2 * 1024 * 1024;
+const DESKTOP_LOG_MAX_FILE_COUNT: usize = 5;
+// tauri-plugin-log's KeepSome count applies only to archived files; the active
+// log file is additional, so keep one fewer archive to cap total files.
+const DESKTOP_LOG_ARCHIVED_FILE_COUNT: usize = DESKTOP_LOG_MAX_FILE_COUNT - 1;
 
 fn window_state_restore_flags() -> StateFlags {
     StateFlags::all() - StateFlags::VISIBLE - StateFlags::DECORATIONS
@@ -197,6 +204,14 @@ pub fn run() {
     builder
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .max_file_size(DESKTOP_LOG_MAX_FILE_SIZE_BYTES)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(
+                    DESKTOP_LOG_ARCHIVED_FILE_COUNT,
+                ))
+                .build(),
+        )
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -308,7 +323,8 @@ pub fn run() {
             list_system_font_families,
             delete_spellcheck_dictionary,
             get_spellcheck_dictionary_status,
-            load_spellcheck_dictionary
+            load_spellcheck_dictionary,
+            open_log_folder
         ])
         .build(tauri::generate_context!())
         .expect("error while building Markra")
@@ -554,6 +570,52 @@ mod tests {
         assert!(
             single_instance_index < store_plugin_index,
             "single instance plugin should be registered before other plugins"
+        );
+    }
+
+    #[test]
+    fn desktop_log_files_have_bounded_rotation() {
+        let lib_source = include_str!("lib.rs");
+        let max_size_constant = [
+            "const DESKTOP_LOG_MAX",
+            "_FILE_SIZE_BYTES: u128 = 2 * 1024 * 1024;",
+        ]
+        .concat();
+        let max_count_constant = ["const DESKTOP_LOG_MAX", "_FILE_COUNT: usize = 5;"].concat();
+        let archive_count_constant = [
+            "const DESKTOP_LOG_ARCHIVED",
+            "_FILE_COUNT: usize = DESKTOP_LOG_MAX_FILE_COUNT - 1;",
+        ]
+        .concat();
+        let max_file_size_call = [".max", "_file_size(DESKTOP_LOG_MAX_FILE_SIZE_BYTES)"].concat();
+        let rotation_strategy_type = ["tauri_plugin_log::RotationStrategy::", "KeepSome"].concat();
+        let archived_count_name = ["DESKTOP_LOG_ARCHIVED", "_FILE_COUNT"].concat();
+
+        assert_eq!(crate::DESKTOP_LOG_MAX_FILE_SIZE_BYTES, 2 * 1024 * 1024);
+        assert_eq!(crate::DESKTOP_LOG_MAX_FILE_COUNT, 5);
+        assert_eq!(crate::DESKTOP_LOG_ARCHIVED_FILE_COUNT, 4);
+        assert!(
+            lib_source.contains(&max_size_constant),
+            "desktop file logs should use a conservative 2MB per-file limit"
+        );
+        assert!(
+            lib_source.contains(&max_count_constant),
+            "desktop file logs should cap total retained log files"
+        );
+        assert!(
+            lib_source.contains(&archive_count_constant),
+            "desktop archived log file count should reserve one slot for the active log file"
+        );
+        assert!(
+            lib_source.contains(&max_file_size_call),
+            "desktop log plugin should use the configured file size limit"
+        );
+        let rotation_strategy_index = lib_source
+            .find(&rotation_strategy_type)
+            .expect("desktop log plugin should use KeepSome rotation");
+        assert!(
+            lib_source[rotation_strategy_index..].contains(&archived_count_name),
+            "desktop log plugin should keep only the configured number of archived files"
         );
     }
 

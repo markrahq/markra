@@ -76,8 +76,11 @@ import type {
 import type { NativeWebResourceRequest, NativeWebResourceResponse } from "../lib/tauri/web-resource";
 import type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../lib/workspace-search";
 import type { AcpJsonRpcMessage } from "@markra/ai";
+import { setAppLogBackendWriter, type AppLogEvent, type AppLogWriter } from "../lib/app-logger";
 
 export type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../lib/workspace-search";
+export type { AppLogArea, AppLogEvent, AppLogLevel, AppLogWriter } from "../lib/app-logger";
+export { appLogger } from "../lib/app-logger";
 
 export type RuntimeCleanup = () => unknown;
 
@@ -288,6 +291,12 @@ export type AppUpdaterRuntime = {
   checkAppUpdate: () => Promise<NativeAppUpdate | null>;
 };
 
+export type AppLogsRuntime = {
+  isAvailable: () => boolean;
+  openLogFolder: () => Promise<unknown>;
+  writeLog: AppLogWriter;
+};
+
 export type AppShellCommandRuntime = {
   getShellCommandStatus: () => Promise<NativeShellCommandStatus>;
   installShellCommand: () => Promise<NativeShellCommandStatus>;
@@ -360,6 +369,7 @@ export type AppRuntime = {
   events: AppEventsRuntime;
   features: AppFeatureRuntime;
   files: AppFileRuntime;
+  logs: AppLogsRuntime;
   menu: AppMenuRuntime;
   platform: AppPlatformRuntime;
   settings: AppSettingsRuntime;
@@ -499,6 +509,11 @@ export function createDefaultAppRuntime(): AppRuntime {
       updater: true
     },
     files: createDefaultFileRuntime(),
+    logs: {
+      isAvailable: () => false,
+      openLogFolder: () => unsupportedFeature("openLogFolder"),
+      writeLog: async (_event: AppLogEvent) => undefined
+    },
     menu: {
       createEditorContextMenuItems: () => [],
       createMarkdownFileTreeContextMenuItems: () => [],
@@ -568,6 +583,7 @@ let appRuntime = createDefaultAppRuntime();
 
 export function configureAppRuntime(runtime: AppRuntime) {
   appRuntime = runtime;
+  setAppLogBackendWriter(runtime.logs.writeLog);
 }
 
 export function getAppRuntime() {
@@ -576,6 +592,7 @@ export function getAppRuntime() {
 
 export function resetAppRuntimeForTests() {
   appRuntime = createDefaultAppRuntime();
+  setAppLogBackendWriter(appRuntime.logs.writeLog);
 }
 
 export type {

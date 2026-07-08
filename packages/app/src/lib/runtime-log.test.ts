@@ -35,10 +35,40 @@ describe("runtime log", () => {
     const formatted = formatRuntimeLogEntries(entries);
     expect(formatted).toContain("WARN system Console warning");
     expect(formatted).toContain("Sync warning 200");
-    expect(formatted).toContain("\"uploadedFiles\":200");
+    expect(formatted).toContain("\\\"uploadedFiles\\\":200");
     expect(formatted).not.toContain("Sync warning 0");
     expect(formatted).not.toContain("secret-token");
     expect(formatted).not.toContain("dav.example.test");
+  });
+
+  it("formats runtime logs with the newest entry first and one entry per line", () => {
+    const entries = [
+      {
+        area: "sync",
+        details: { uploadedFiles: 1 },
+        id: "older",
+        level: "warn",
+        message: "Older warning",
+        timestamp: "2030-01-02T03:04:05.000Z"
+      },
+      {
+        area: "update",
+        details: { result: "available" },
+        id: "newer",
+        level: "info",
+        message: "Newer update",
+        timestamp: "2030-01-02T03:05:05.000Z"
+      }
+    ] as const;
+
+    const formatted = formatRuntimeLogEntries(entries);
+    const lines = formatted.split("\n");
+
+    expect(lines).toHaveLength(2);
+    expect(lines[0]).toContain("INFO update Newer update");
+    expect(lines[0]).toContain('{"result":"available"}');
+    expect(lines[1]).toContain("WARN sync Older warning");
+    expect(lines[1]).toContain('{"uploadedFiles":1}');
   });
 
   it("clears runtime log entries", () => {
@@ -136,7 +166,7 @@ describe("runtime log", () => {
 
     const formatted = formatRuntimeLogEntries(entries);
     expect(formatted).toContain("ERROR storage Native command failed");
-    expect(formatted).toContain("command: upload_s3_image");
+    expect(formatted).toContain('"command":"upload_s3_image"');
     expect(formatted).toContain("S3 image upload failed: PUT pasted-image.png: HTTP 403");
     expect(formatted).toContain("pasted-image.png");
     expect(formatted).not.toContain("synthetic-secret");

@@ -6,18 +6,10 @@ import {
   stringifyDiagnosticValue,
   type DiagnosticDetailValue
 } from "@markra/shared";
+import { appLogger, registerAppLogSink, type AppLogArea, type AppLogEvent, type AppLogLevel } from "./app-logger";
 
-type RuntimeLogLevel = "error" | "info" | "warn";
-type RuntimeLogArea =
-  | "ai"
-  | "backup"
-  | "editor"
-  | "file"
-  | "settings"
-  | "storage"
-  | "sync"
-  | "system"
-  | "update";
+export type RuntimeLogLevel = AppLogLevel;
+export type RuntimeLogArea = AppLogArea;
 type RuntimeLogDetailValue = DiagnosticDetailValue;
 export type RuntimeLogEntry = {
   area: RuntimeLogArea;
@@ -33,6 +25,7 @@ type RuntimeLogEntryInput = {
   details?: Record<string, unknown>;
   level: RuntimeLogLevel;
   message: string;
+  timestamp?: string;
 };
 
 type RuntimeLogErrorInput = {
@@ -61,8 +54,22 @@ let runtimeLogCaptureInstallCount = 0;
 let runtimeLogConsoleCaptureDepth = 0;
 let installedRuntimeLogCaptureCleanup: (() => unknown) | null = null;
 
+registerAppLogSink((event) => {
+  appendRuntimeLogEvent(event);
+});
+
+function appendRuntimeLogEvent(event: AppLogEvent) {
+  return appendRuntimeLogEntry({
+    area: event.area,
+    details: event.details,
+    level: event.level,
+    message: event.message,
+    timestamp: event.timestamp
+  });
+}
+
 function appendRuntimeLogEntry(input: RuntimeLogEntryInput) {
-  const timestamp = new Date();
+  const timestamp = input.timestamp ? new Date(input.timestamp) : new Date();
   const entry: RuntimeLogEntry = {
     area: input.area ?? "system",
     details: sanitizeDiagnosticDetails(input.details),
@@ -79,13 +86,9 @@ function appendRuntimeLogEntry(input: RuntimeLogEntryInput) {
 }
 
 function appendRuntimeLogError(input: RuntimeLogErrorInput) {
-  return appendRuntimeLogEntry({
-    details: {
-      ...input.details,
-      error: diagnosticErrorMessage(input.error)
-    },
-    level: "error",
-    message: input.message
+  return appLogger.error("system", input.message, {
+    ...input.details,
+    error: diagnosticErrorMessage(input.error)
   });
 }
 
@@ -121,7 +124,12 @@ export function installRuntimeLogCapture() {
     const input = runtimeDiagnosticEntryInput(event);
     if (!input) return;
 
-    appendRuntimeLogEntry(input);
+    appLogger.log({
+      area: input.area ?? "system",
+      details: input.details,
+      level: input.level,
+      message: input.message
+    });
   };
   window.addEventListener(runtimeDiagnosticEvent, handleRuntimeDiagnostic);
   cleanupCallbacks.push(() => {
@@ -137,12 +145,8 @@ export function installRuntimeLogCapture() {
     if (runtimeLogConsoleCaptureDepth === 0) {
       runtimeLogConsoleCaptureDepth += 1;
       try {
-        appendRuntimeLogEntry({
-          details: {
-            arguments: stringifyDiagnosticValue(args.length === 1 ? args[0] : args)
-          },
-          level: "warn",
-          message: "Console warning"
+        appLogger.warn("system", "Console warning", {
+          arguments: stringifyDiagnosticValue(args.length === 1 ? args[0] : args)
         });
       } finally {
         runtimeLogConsoleCaptureDepth -= 1;
@@ -155,12 +159,8 @@ export function installRuntimeLogCapture() {
     if (runtimeLogConsoleCaptureDepth === 0) {
       runtimeLogConsoleCaptureDepth += 1;
       try {
-        appendRuntimeLogEntry({
-          details: {
-            arguments: stringifyDiagnosticValue(args.length === 1 ? args[0] : args)
-          },
-          level: "error",
-          message: "Console error"
+        appLogger.error("system", "Console error", {
+          arguments: stringifyDiagnosticValue(args.length === 1 ? args[0] : args)
         });
       } finally {
         runtimeLogConsoleCaptureDepth -= 1;
@@ -218,7 +218,7 @@ export function clearRuntimeLogEntries() {
 export function formatRuntimeLogEntries(entries: readonly RuntimeLogEntry[]) {
   if (entries.length === 0) return "";
 
-  return entries.map(formatRuntimeLogEntry).join("\n\n");
+  return [...entries].reverse().map(formatRuntimeLogEntry).join("\n");
 }
 
 export function listenRuntimeLogEntriesChanged(listener: () => unknown) {
@@ -238,9 +238,11 @@ export function listenRuntimeLogEntriesChanged(listener: () => unknown) {
 
 function formatRuntimeLogEntry(entry: RuntimeLogEntry) {
   const header = `[${entry.timestamp}] ${entry.level.toUpperCase()} ${entry.area} ${entry.message}`;
-  const detailLines = Object.entries(entry.details ?? {}).map(([key, value]) => `${key}: ${String(value)}`);
+  const details = entry.details && Object.keys(entry.details).length > 0
+    ? ` ${JSON.stringify(entry.details)}`
+    : "";
 
-  return [header, ...detailLines].join("\n");
+  return `${header}${details}`;
 }
 
 function writeRuntimeLogEntries(entries: readonly RuntimeLogEntry[]) {

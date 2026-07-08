@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { isValidElement, type ReactElement } from "react";
 import { UpdateProgressToast } from "../components/UpdateProgressToast";
+import { resetAppLogBackendWriterForTests } from "../lib/app-logger";
 import { showAppToast } from "../lib/app-toast";
+import { clearRuntimeLogEntries, listRuntimeLogEntries, type RuntimeLogEntry } from "../lib/runtime-log";
 import { checkNativeAppUpdate, type NativeAppUpdate } from "../lib/tauri/updater";
 import { useAutoUpdater } from "./useAutoUpdater";
 
@@ -106,15 +108,26 @@ function expectProgressToast(progress: number | null) {
   expect(progressCall).toBeTruthy();
 }
 
+function expectUpdateLogEntry(entry: Partial<RuntimeLogEntry>) {
+  expect(listRuntimeLogEntries()).toContainEqual(expect.objectContaining({
+    area: "update",
+    ...entry
+  }));
+}
+
 describe("useAutoUpdater", () => {
   beforeEach(() => {
     vi.useRealTimers();
+    clearRuntimeLogEntries();
+    resetAppLogBackendWriterForTests();
     mockedShowAppToast.mockReset();
     mockedCheckNativeAppUpdate.mockReset();
   });
 
   afterEach(() => {
     vi.useRealTimers();
+    clearRuntimeLogEntries();
+    resetAppLogBackendWriterForTests();
   });
 
   it("checks for updates once on startup and stays quiet when none are available", async () => {
@@ -124,6 +137,14 @@ describe("useAutoUpdater", () => {
 
     await waitFor(() => expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1));
     expect(mockedShowAppToast).not.toHaveBeenCalled();
+    expectUpdateLogEntry({
+      details: {
+        automatic: true,
+        result: "current"
+      },
+      level: "info",
+      message: "Automatic update check completed"
+    });
   });
 
   it("surfaces an available update after background checks without downloading it", async () => {
@@ -135,6 +156,16 @@ describe("useAutoUpdater", () => {
     expect(await screen.findByRole("button", { name: "Install update" })).toBeInTheDocument();
     expect(downloadAndInstall).not.toHaveBeenCalled();
     expect(mockedShowAppToast).not.toHaveBeenCalled();
+    expectUpdateLogEntry({
+      details: {
+        automatic: true,
+        currentVersion: "0.0.6",
+        result: "available",
+        version: "0.0.7"
+      },
+      level: "info",
+      message: "Automatic update check completed"
+    });
   });
 
   it("installs a background-discovered update after the user starts it", async () => {
@@ -202,6 +233,23 @@ describe("useAutoUpdater", () => {
 
     expect(await screen.findByRole("button", { name: "Install update" })).toBeInTheDocument();
     expect(downloadAndInstall).not.toHaveBeenCalled();
+    expectUpdateLogEntry({
+      details: {
+        automatic: false
+      },
+      level: "info",
+      message: "Manual update check started"
+    });
+    expectUpdateLogEntry({
+      details: {
+        automatic: false,
+        currentVersion: "0.0.6",
+        result: "available",
+        version: "0.0.7"
+      },
+      level: "info",
+      message: "Manual update check completed"
+    });
     expect(mockedShowAppToast).toHaveBeenLastCalledWith({
       action: expect.objectContaining({
         label: "Install and restart"
@@ -272,6 +320,14 @@ describe("useAutoUpdater", () => {
 
     await waitFor(() => expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1));
     expect(mockedShowAppToast).not.toHaveBeenCalled();
+    expectUpdateLogEntry({
+      details: {
+        automatic: true,
+        error: "offline"
+      },
+      level: "warn",
+      message: "Automatic update check failed"
+    });
   });
 
   it("keeps checking for updates on a schedule", async () => {
@@ -322,6 +378,51 @@ describe("useAutoUpdater", () => {
       id: "app-update-toast",
       message: "Markra is up to date.",
       status: "success"
+    });
+    expectUpdateLogEntry({
+      details: {
+        automatic: false
+      },
+      level: "info",
+      message: "Manual update check started"
+    });
+    expectUpdateLogEntry({
+      details: {
+        automatic: false,
+        result: "current"
+      },
+      level: "info",
+      message: "Manual update check completed"
+    });
+  });
+
+  it("logs manual check failures while notifying the user", async () => {
+    mockedCheckNativeAppUpdate.mockRejectedValue(new Error("offline"));
+
+    render(<AutoUpdaterHarness autoCheck={false} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Manual check" }));
+
+    await waitFor(() => expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1));
+    expect(mockedShowAppToast).toHaveBeenLastCalledWith({
+      id: "app-update-toast",
+      message: "Markra update failed.",
+      status: "error"
+    });
+    expectUpdateLogEntry({
+      details: {
+        automatic: false
+      },
+      level: "info",
+      message: "Manual update check started"
+    });
+    expectUpdateLogEntry({
+      details: {
+        automatic: false,
+        error: "offline"
+      },
+      level: "warn",
+      message: "Manual update check failed"
     });
   });
 

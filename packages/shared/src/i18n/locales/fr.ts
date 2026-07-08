@@ -631,6 +631,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "Les avertissements, erreurs et exceptions non interceptées sont stockés localement afin de pouvoir être copiés pour le débogage.",
   "settings.logs.copy": "Copier les journaux",
   "settings.logs.clear": "Effacer les journaux",
+  "settings.logs.openFolder": "Ouvrir le dossier des journaux",
+  "settings.logs.openFolderFailed": "Impossible d’ouvrir le dossier des journaux.",
   "settings.logs.entries": "Entrées du journal d’exécution",
   "settings.logs.empty": "Aucun journal pour le moment. Les avertissements, erreurs et exceptions non interceptées apparaîtront ici.",
   "settings.logs.copySucceeded": "Journaux copiés.",

@@ -631,6 +631,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "執行階段警告、錯誤和未捕獲例外會儲存在本機，方便複製給開發者排查問題。",
   "settings.logs.copy": "複製日誌",
   "settings.logs.clear": "清空日誌",
+  "settings.logs.openFolder": "開啟日誌目錄",
+  "settings.logs.openFolderFailed": "無法開啟日誌目錄。",
   "settings.logs.entries": "執行日誌項目",
   "settings.logs.empty": "暫無日誌。出現警告、錯誤或未捕獲例外後，這裡會記錄詳情。",
   "settings.logs.copySucceeded": "日誌已複製。",

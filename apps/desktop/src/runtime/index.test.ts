@@ -1,5 +1,6 @@
 import { listen } from "@tauri-apps/api/event";
 import { desktopRuntime } from "./index";
+import * as logs from "./tauri/logs";
 
 vi.mock("@tauri-apps/api/event", () => ({
   emit: vi.fn(),
@@ -13,6 +14,12 @@ vi.mock("@tauri-apps/plugin-os", () => ({
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn()
+}));
+
+vi.mock("./tauri/logs", () => ({
+  isNativeLoggingAvailable: vi.fn(() => true),
+  openNativeLogFolder: vi.fn(),
+  writeNativeLog: vi.fn()
 }));
 
 vi.mock("@markra/shared", async (importOriginal) => ({
@@ -36,5 +43,13 @@ describe("desktop runtime events", () => {
     await expect(Promise.resolve(stopListening())).resolves.toBeUndefined();
     await expect(Promise.resolve(stopListening())).resolves.toBeUndefined();
     expect(cleanup).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("desktop runtime logs", () => {
+  it("exposes the native log runtime", () => {
+    expect(desktopRuntime.logs.isAvailable()).toBe(true);
+    expect(desktopRuntime.logs.openLogFolder).toBe(logs.openNativeLogFolder);
+    expect(desktopRuntime.logs.writeLog).toBe(logs.writeNativeLog);
   });
 });

@@ -249,6 +249,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "运行时警告、错误和未捕获异常会保存在本机，方便复制给开发者排查问题。",
   "settings.logs.copy": "复制日志",
   "settings.logs.clear": "清空日志",
+  "settings.logs.openFolder": "打开日志目录",
+  "settings.logs.openFolderFailed": "无法打开日志目录。",
   "settings.logs.entries": "运行日志条目",
   "settings.logs.empty": "暂无日志。出现警告、错误或未捕获异常后，这里会记录详情。",
   "settings.logs.copySucceeded": "日志已复制。",

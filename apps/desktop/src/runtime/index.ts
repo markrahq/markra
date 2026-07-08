@@ -8,6 +8,7 @@ import * as ai from "./tauri/native-ai";
 import * as dialog from "./tauri/dialog";
 import * as files from "./tauri/file";
 import * as fonts from "./tauri/fonts";
+import * as logs from "./tauri/logs";
 import * as menu from "./tauri/menu";
 import * as shellCommand from "./tauri/shell-command";
 import * as spellcheck from "./tauri/spellcheck";
@@ -122,6 +123,11 @@ export const desktopRuntime = {
     watchMarkdownFile: files.watchNativeMarkdownFile,
     watchMarkdownTree: files.watchNativeMarkdownTree,
     writeMarkdownTemplateFile: files.writeNativeMarkdownTemplateFile
+  },
+  logs: {
+    isAvailable: logs.isNativeLoggingAvailable,
+    openLogFolder: logs.openNativeLogFolder,
+    writeLog: logs.writeNativeLog
   },
   menu: {
     createEditorContextMenuItems: menu.createNativeEditorContextMenuItems,

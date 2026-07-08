@@ -249,6 +249,8 @@ const messages: BaseLocaleMessages = {
   "settings.logs.summaryDescription": "Runtime warnings, errors, and uncaught exceptions are stored locally so they can be copied for debugging.",
   "settings.logs.copy": "Copy logs",
   "settings.logs.clear": "Clear logs",
+  "settings.logs.openFolder": "Open log folder",
+  "settings.logs.openFolderFailed": "Could not open the log folder.",
   "settings.logs.entries": "Runtime log entries",
   "settings.logs.empty": "No logs yet. Warnings, errors, and uncaught exceptions will appear here.",
   "settings.logs.copySucceeded": "Logs copied.",

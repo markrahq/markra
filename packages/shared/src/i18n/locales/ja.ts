@@ -631,6 +631,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "実行時の警告、エラー、未処理の例外をローカルに保存し、デバッグ用にコピーできます。",
   "settings.logs.copy": "ログをコピー",
   "settings.logs.clear": "ログを消去",
+  "settings.logs.openFolder": "ログフォルダーを開く",
+  "settings.logs.openFolderFailed": "ログフォルダーを開けませんでした。",
   "settings.logs.entries": "実行ログ項目",
   "settings.logs.empty": "まだログはありません。警告、エラー、未処理の例外が発生するとここに表示されます。",
   "settings.logs.copySucceeded": "ログをコピーしました。",

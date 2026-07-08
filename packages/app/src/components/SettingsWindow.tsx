@@ -24,6 +24,7 @@ import { useAutoUpdater } from "../hooks/useAutoUpdater";
 import { useDefaultContextMenuBlocker } from "../hooks/useDefaultContextMenuBlocker";
 import { useRuntimeLogCapture } from "../hooks/useRuntimeLogCapture";
 import { useRuntimeLogEntries } from "../hooks/useRuntimeLogEntries";
+import { appLogger } from "../lib/app-logger";
 import { appVersion } from "../lib/app-version";
 import { showAppToast } from "../lib/app-toast";
 import { resolveDesktopPlatform } from "../lib/platform";
@@ -91,7 +92,9 @@ export function SettingsWindow() {
     webSearchSettings,
     welcomeReset
   } = settingsState;
-  const appFeatures = getAppRuntime().features;
+  const appRuntime = getAppRuntime();
+  const appFeatures = appRuntime.features;
+  const appLogs = appRuntime.logs;
   useRuntimeLogCapture();
   const hiddenCategories: SettingsCategory[] = [
     ...(appFeatures.ai ? [] : (["ai", "providers", "web"] as SettingsCategory[])),
@@ -135,6 +138,18 @@ export function SettingsWindow() {
       });
     });
   };
+  const handleOpenRuntimeLogFolder = appLogs.isAvailable()
+    ? () => {
+        appLogs.openLogFolder().catch((error) => {
+          appLogger.warn("settings", "Open runtime log folder failed", { error });
+          showAppToast({
+            id: "runtime-log-open-folder",
+            message: translate("settings.logs.openFolderFailed"),
+            status: "error"
+          });
+        });
+      }
+    : undefined;
   useDefaultContextMenuBlocker();
   const updater = useAutoUpdater(appLanguage.language, appFeatures.updater && appLanguage.ready, {
     autoCheck: false
@@ -297,6 +312,7 @@ export function SettingsWindow() {
               translate={translate}
               onClearLogs={runtimeLog.clearEntries}
               onCopyLogs={handleCopyRuntimeLogs}
+              onOpenLogFolder={handleOpenRuntimeLogFolder}
             />
           ) : null}
           {activeSettingsCategory === "appearance" ? (

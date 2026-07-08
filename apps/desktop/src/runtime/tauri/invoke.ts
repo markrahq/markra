@@ -1,58 +1,61 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
-import {
-  diagnosticErrorMessage,
-  runtimeDiagnosticEvent,
-  sanitizeDiagnosticDetails
-} from "@markra/shared";
+import { diagnosticErrorMessage } from "@markra/shared";
+import { appLogger, type AppLogArea } from "@markra/app/runtime";
 
 type NativeInvokeArgs = Parameters<typeof tauriInvoke>[1];
-type NativeCommandFailureArea = "ai" | "backup" | "file" | "settings" | "storage" | "sync" | "system" | "update";
+const nativeCommandErrorFileNamePattern = /\b[\w.-]+\.(?:docx?|gif|html|jpe?g|markdown|md|pdf|png|pptx?|svg|txt|webp|xlsx?)\b/giu;
 
 export async function invokeNative<T>(command: string, args?: NativeInvokeArgs): Promise<T> {
+  const startedAt = Date.now();
+  const area = nativeCommandArea(command);
+  const details = nativeCommandDetails(command, args);
+  appLogger.info(area, "Native command started", details);
+
   try {
     // Keep no-arg commands as one-argument calls so the wrapper does not reshape native command boundaries.
-    if (args === undefined) {
-      return await tauriInvoke<T>(command);
-    }
+    const result = args === undefined
+      ? await tauriInvoke<T>(command)
+      : await tauriInvoke<T>(command, args);
 
-    return await tauriInvoke<T>(command, args);
+    appLogger.info(area, "Native command completed", {
+      ...details,
+      durationMs: Math.max(0, Date.now() - startedAt)
+    });
+
+    return result;
   } catch (error) {
-    const details = nativeCommandFailureDetails(command, args, error);
-    dispatchNativeCommandFailureDiagnostic(command, details);
-    console.error("[native command failed]", details);
+    appLogger.error(area, "Native command failed", {
+      ...details,
+      error: nativeCommandErrorMessage(error)
+    });
     throw error;
   }
 }
 
-function nativeCommandFailureDetails(command: string, args: NativeInvokeArgs | undefined, error: unknown) {
-  const rawDetails: Record<string, unknown> = {
+function nativeCommandErrorMessage(error: unknown) {
+  return diagnosticErrorMessage(error).replace(nativeCommandErrorFileNamePattern, "[file]");
+}
+
+function nativeCommandDetails(command: string, args: NativeInvokeArgs | undefined) {
+  const argumentKeys = nativeCommandArgumentKeys(args);
+
+  return {
+    ...(argumentKeys ? { argumentKeys } : {}),
     command,
-    error: diagnosticErrorMessage(error)
+    hasArgs: args !== undefined
   };
-  if (args !== undefined) {
-    rawDetails.args = args;
-  }
-
-  return sanitizeDiagnosticDetails(rawDetails) ?? {};
 }
 
-function dispatchNativeCommandFailureDiagnostic(
-  command: string,
-  details: ReturnType<typeof nativeCommandFailureDetails>
-) {
-  if (typeof window === "undefined" || typeof CustomEvent === "undefined") return;
+function nativeCommandArgumentKeys(args: NativeInvokeArgs | undefined) {
+  if (args === undefined || typeof args !== "object" || args === null || Array.isArray(args)) return null;
 
-  window.dispatchEvent(new CustomEvent(runtimeDiagnosticEvent, {
-    detail: {
-      area: nativeCommandFailureArea(command),
-      details,
-      level: "error",
-      message: "Native command failed"
-    }
-  }));
+  // Native payloads may include document text, credentials, paths, or clipboard data; only log the shape.
+  const keys = Object.keys(args).sort();
+
+  return keys.length > 0 ? keys.join(",") : null;
 }
 
-function nativeCommandFailureArea(command: string): NativeCommandFailureArea {
+function nativeCommandArea(command: string): AppLogArea {
   if (command.includes("sync")) return "sync";
   if (command.includes("backup")) return "backup";
   if (command.includes("update")) return "update";

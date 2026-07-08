@@ -631,6 +631,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "Avvisi, errori ed eccezioni non gestite in fase di esecuzione sono salvati localmente per poterli copiare durante il debug.",
   "settings.logs.copy": "Copia log",
   "settings.logs.clear": "Cancella log",
+  "settings.logs.openFolder": "Apri cartella dei log",
+  "settings.logs.openFolderFailed": "Impossibile aprire la cartella dei log.",
   "settings.logs.entries": "Voci del log di esecuzione",
   "settings.logs.empty": "Ancora nessun log. Avvisi, errori ed eccezioni non gestite appariranno qui.",
   "settings.logs.copySucceeded": "Log copiati.",

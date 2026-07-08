@@ -278,6 +278,8 @@ export type I18nKey =
   | "settings.logs.summaryDescription"
   | "settings.logs.copy"
   | "settings.logs.clear"
+  | "settings.logs.openFolder"
+  | "settings.logs.openFolderFailed"
   | "settings.logs.entries"
   | "settings.logs.empty"
   | "settings.logs.copySucceeded"

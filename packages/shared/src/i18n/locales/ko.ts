@@ -631,6 +631,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "런타임 경고, 오류, 처리되지 않은 예외가 로컬에 저장되어 디버깅을 위해 복사할 수 있습니다.",
   "settings.logs.copy": "로그 복사",
   "settings.logs.clear": "로그 지우기",
+  "settings.logs.openFolder": "로그 폴더 열기",
+  "settings.logs.openFolderFailed": "로그 폴더를 열 수 없습니다.",
   "settings.logs.entries": "실행 로그 항목",
   "settings.logs.empty": "아직 로그가 없습니다. 경고, 오류, 처리되지 않은 예외가 여기에 표시됩니다.",
   "settings.logs.copySucceeded": "로그를 복사했습니다.",

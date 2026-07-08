@@ -631,6 +631,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "Las advertencias, errores y excepciones no controladas en tiempo de ejecución se guardan localmente para copiarlos al depurar.",
   "settings.logs.copy": "Copiar registros",
   "settings.logs.clear": "Borrar registros",
+  "settings.logs.openFolder": "Abrir carpeta de registros",
+  "settings.logs.openFolderFailed": "No se pudo abrir la carpeta de registros.",
   "settings.logs.entries": "Entradas del registro de ejecución",
   "settings.logs.empty": "Aún no hay registros. Las advertencias, errores y excepciones no controladas aparecerán aquí.",
   "settings.logs.copySucceeded": "Registros copiados.",

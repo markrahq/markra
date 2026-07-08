@@ -27,6 +27,7 @@
     "dialog:allow-message",
     "dialog:allow-open",
     "dialog:allow-save",
+    "log:default",
     "os:default",
     "process:allow-restart",
     "store:allow-delete",

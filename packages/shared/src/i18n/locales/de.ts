@@ -631,6 +631,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "Runtime-Warnungen, Fehler und nicht abgefangene Ausnahmen werden lokal gespeichert, damit sie zur Fehleranalyse kopiert werden können.",
   "settings.logs.copy": "Protokolle kopieren",
   "settings.logs.clear": "Protokolle löschen",
+  "settings.logs.openFolder": "Protokollordner öffnen",
+  "settings.logs.openFolderFailed": "Protokollordner konnte nicht geöffnet werden.",
   "settings.logs.entries": "Laufzeitprotokolleinträge",
   "settings.logs.empty": "Noch keine Protokolle. Warnungen, Fehler und nicht abgefangene Ausnahmen werden hier angezeigt.",
   "settings.logs.copySucceeded": "Protokolle kopiert.",

@@ -78,6 +78,6 @@ describe("AppErrorBoundary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Copy diagnostics" }));
 
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(expect.stringContaining("## Markra Crash Report")));
-    expect(screen.getByRole("status")).toHaveTextContent("Diagnostics copied.");
+    expect(await screen.findByRole("status")).toHaveTextContent("Diagnostics copied.");
   });
 });

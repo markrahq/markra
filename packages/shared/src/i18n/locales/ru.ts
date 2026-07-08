@@ -631,6 +631,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "Предупреждения, ошибки и неперехваченные исключения времени выполнения сохраняются локально, чтобы их можно было скопировать для отладки.",
   "settings.logs.copy": "Копировать журналы",
   "settings.logs.clear": "Очистить журналы",
+  "settings.logs.openFolder": "Открыть папку журналов",
+  "settings.logs.openFolderFailed": "Не удалось открыть папку журналов.",
   "settings.logs.entries": "Записи журнала выполнения",
   "settings.logs.empty": "Журналов пока нет. Предупреждения, ошибки и неперехваченные исключения появятся здесь.",
   "settings.logs.copySucceeded": "Журналы скопированы.",

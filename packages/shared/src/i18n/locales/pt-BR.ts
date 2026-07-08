@@ -631,6 +631,8 @@ const messages: LocaleMessages = {
   "settings.logs.summaryDescription": "Avisos, erros e exceções não capturadas em tempo de execução são armazenados localmente para serem copiados na depuração.",
   "settings.logs.copy": "Copiar logs",
   "settings.logs.clear": "Limpar logs",
+  "settings.logs.openFolder": "Abrir pasta de logs",
+  "settings.logs.openFolderFailed": "Não foi possível abrir a pasta de logs.",
   "settings.logs.entries": "Entradas do log de execução",
   "settings.logs.empty": "Ainda não há logs. Avisos, erros e exceções não capturadas aparecerão aqui.",
   "settings.logs.copySucceeded": "Logs copiados.",

@@ -1,6 +1,7 @@
 import { createElement, useCallback, useEffect, useRef, useState } from "react";
-import { t, type AppLanguage } from "@markra/shared";
+import { diagnosticErrorMessage, t, type AppLanguage } from "@markra/shared";
 import { UpdateProgressToast } from "../components/UpdateProgressToast";
+import { appLogger } from "../lib/app-logger";
 import { showAppToast } from "../lib/app-toast";
 import { checkNativeAppUpdate, type NativeAppUpdate, type NativeAppUpdateProgress } from "../lib/tauri/updater";
 
@@ -22,6 +23,41 @@ function formatUpdateMessage(message: string, update: NativeAppUpdate, progress?
     .replace("{version}", update.version)
     .replace("{currentVersion}", update.currentVersion)
     .replace("{progress}", progressText);
+}
+
+function updateCheckCompletedDetails(update: NativeAppUpdate | null, automatic: boolean) {
+  if (!update) {
+    return {
+      automatic,
+      result: "current"
+    };
+  }
+
+  return {
+    automatic,
+    currentVersion: update.currentVersion,
+    result: "available",
+    version: update.version
+  };
+}
+
+function logUpdateCheckCompleted(update: NativeAppUpdate | null, automatic: boolean) {
+  appLogger.info(
+    "update",
+    automatic ? "Automatic update check completed" : "Manual update check completed",
+    updateCheckCompletedDetails(update, automatic)
+  );
+}
+
+function logUpdateCheckFailed(error: unknown, automatic: boolean) {
+  appLogger.warn(
+    "update",
+    automatic ? "Automatic update check failed" : "Manual update check failed",
+    {
+      automatic,
+      error: diagnosticErrorMessage(error)
+    }
+  );
 }
 
 export function useAutoUpdater(language: AppLanguage, enabled = true, options: AutoUpdaterOptions = {}) {
@@ -153,6 +189,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
     if (!enabled || checkingRef.current) return;
 
     checkingRef.current = true;
+    appLogger.info("update", "Manual update check started", { automatic: false });
     showAppToast({
       id: appUpdateToastId,
       message: t(language, "app.updateChecking"),
@@ -162,17 +199,20 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
     try {
       const update = await checkNativeAppUpdate();
       if (update) {
+        logUpdateCheckCompleted(update, false);
         showAvailableUpdate(update, { notify: true });
         return;
       }
 
       setAvailableUpdate(null);
+      logUpdateCheckCompleted(null, false);
       showAppToast({
         id: appUpdateToastId,
         message: t(language, "app.updateCurrent"),
         status: "success"
       });
-    } catch {
+    } catch (error) {
+      logUpdateCheckFailed(error, false);
       showAppToast({
         id: appUpdateToastId,
         message: t(language, "app.updateFailed"),
@@ -196,10 +236,13 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
         if (cancelled) return;
         if (update) {
           showAvailableUpdate(update, { notify: false });
+          logUpdateCheckCompleted(update, true);
         } else {
           setAvailableUpdate(null);
+          logUpdateCheckCompleted(null, true);
         }
-      } catch {
+      } catch (error) {
+        logUpdateCheckFailed(error, true);
         // Background update checks should not interrupt normal app usage.
       } finally {
         checkingRef.current = false;
