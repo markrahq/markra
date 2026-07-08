@@ -27,15 +27,23 @@ function AutoUpdaterHarness({
   beforeRestart,
   checkIntervalMs,
   confirmRestart,
+  currentVersion = "0.0.6",
   language = "en"
 }: {
   autoCheck?: boolean;
   beforeRestart?: () => Promise<unknown>;
   checkIntervalMs?: number;
   confirmRestart?: () => Promise<boolean>;
+  currentVersion?: string;
   language?: "en" | "zh-CN";
 }) {
-  const updater = useAutoUpdater(language, true, { autoCheck, beforeRestart, checkIntervalMs, confirmRestart });
+  const updater = useAutoUpdater(language, true, {
+    autoCheck,
+    beforeRestart,
+    checkIntervalMs,
+    confirmRestart,
+    currentVersion
+  });
 
   return (
     <>
@@ -59,6 +67,14 @@ function DisabledUpdaterHarness() {
       Manual check
     </button>
   );
+}
+
+function PassiveUpdatePromptHarness({ currentVersion = "0.0.6" }: { currentVersion?: string }) {
+  const updater = useAutoUpdater("en", true, { autoCheck: false, currentVersion });
+
+  return updater.availableUpdateVersion ? (
+    <p role="status">Available version: {updater.availableUpdateVersion}</p>
+  ) : null;
 }
 
 function createUpdate(overrides: Partial<NativeAppUpdate> = {}): NativeAppUpdate {
@@ -118,6 +134,7 @@ function expectUpdateLogEntry(entry: Partial<RuntimeLogEntry>) {
 describe("useAutoUpdater", () => {
   beforeEach(() => {
     vi.useRealTimers();
+    window.localStorage.clear();
     clearRuntimeLogEntries();
     resetAppLogBackendWriterForTests();
     mockedShowAppToast.mockReset();
@@ -126,6 +143,7 @@ describe("useAutoUpdater", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    window.localStorage.clear();
     clearRuntimeLogEntries();
     resetAppLogBackendWriterForTests();
   });
@@ -137,6 +155,13 @@ describe("useAutoUpdater", () => {
 
     await waitFor(() => expect(mockedCheckNativeAppUpdate).toHaveBeenCalledTimes(1));
     expect(mockedShowAppToast).not.toHaveBeenCalled();
+    expectUpdateLogEntry({
+      details: {
+        automatic: true
+      },
+      level: "info",
+      message: "Automatic update check started"
+    });
     expectUpdateLogEntry({
       details: {
         automatic: true,
@@ -166,6 +191,46 @@ describe("useAutoUpdater", () => {
       level: "info",
       message: "Automatic update check completed"
     });
+  });
+
+  it("shares a background-discovered update version with passive updater instances", async () => {
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate());
+
+    render(
+      <>
+        <AutoUpdaterHarness />
+        <PassiveUpdatePromptHarness />
+      </>
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Available version: 0.0.7");
+    expect(mockedShowAppToast).not.toHaveBeenCalled();
+  });
+
+  it("keeps a background-discovered update version for settings opened later", async () => {
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate());
+
+    const { unmount } = render(<AutoUpdaterHarness />);
+
+    expect(await screen.findByRole("button", { name: "Install update" })).toBeInTheDocument();
+    unmount();
+
+    render(<PassiveUpdatePromptHarness />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Available version: 0.0.7");
+  });
+
+  it("ignores a discovered update version from a previous app version", async () => {
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate());
+
+    const { unmount } = render(<AutoUpdaterHarness currentVersion="0.0.6" />);
+
+    expect(await screen.findByRole("button", { name: "Install update" })).toBeInTheDocument();
+    unmount();
+
+    render(<PassiveUpdatePromptHarness currentVersion="0.0.7" />);
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("installs a background-discovered update after the user starts it", async () => {

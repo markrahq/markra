@@ -4,6 +4,26 @@ import { defaultEditorPreferences } from "../../lib/settings/app-settings";
 import { GeneralSettings } from "./GeneralSettings";
 
 describe("GeneralSettings", () => {
+  it("shows an available update prompt in the manual update settings", () => {
+    const props = {
+      appVersion: "0.0.7",
+      availableUpdateVersion: "0.0.8",
+      language: "en" as const,
+      preferences: defaultEditorPreferences,
+      translate,
+      welcomeReset: false,
+      onCheckForUpdates: vi.fn(),
+      onResetWelcomeDocument: vi.fn(),
+      onSelectLanguage: vi.fn(),
+      onUpdatePreferences: vi.fn()
+    };
+
+    render(<GeneralSettings {...props} />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Markra 0.0.8 is available.");
+    expect(screen.getByRole("button", { name: "Check for updates" })).toBeInTheDocument();
+  });
+
   it("toggles automatic update checks", () => {
     const onUpdatePreferences = vi.fn();
 

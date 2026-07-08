@@ -124,6 +124,7 @@ function ShellCommandActions({
 
 export function GeneralSettings({
   appVersion,
+  availableUpdateVersion = null,
   language,
   onCheckForUpdates,
   onInstallShellCommand,
@@ -140,6 +141,7 @@ export function GeneralSettings({
   welcomeReset
 }: {
   appVersion: string;
+  availableUpdateVersion?: string | null;
   language: AppLanguage;
   onCheckForUpdates: () => unknown;
   onInstallShellCommand?: () => unknown;
@@ -156,6 +158,9 @@ export function GeneralSettings({
   welcomeReset: boolean;
 }) {
   const shellCommandEnabled = Boolean(onInstallShellCommand && onRefreshShellCommand && onUninstallShellCommand);
+  const availableUpdateMessage = availableUpdateVersion
+    ? translate("app.updateAvailable").replace("{version}", availableUpdateVersion)
+    : null;
 
   return (
     <>
@@ -297,6 +302,11 @@ export function GeneralSettings({
               </SettingsButton>
             }
           />
+          {availableUpdateMessage ? (
+            <p className="m-0 px-0 py-3 text-[12px] leading-5 font-[560] text-(--accent)" role="status">
+              {availableUpdateMessage}
+            </p>
+          ) : null}
         </SettingsSection>
       ) : null}
     </>

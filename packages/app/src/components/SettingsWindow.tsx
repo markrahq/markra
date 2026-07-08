@@ -152,7 +152,8 @@ export function SettingsWindow() {
     : undefined;
   useDefaultContextMenuBlocker();
   const updater = useAutoUpdater(appLanguage.language, appFeatures.updater && appLanguage.ready, {
-    autoCheck: false
+    autoCheck: false,
+    currentVersion: appVersion
   });
   useEffect(() => {
     if (!settingsStartupReady) return;
@@ -220,6 +221,7 @@ export function SettingsWindow() {
           {activeSettingsCategory === "general" ? (
             <GeneralSettings
               appVersion={appVersion}
+              availableUpdateVersion={updater.availableUpdateVersion}
               preferences={editorPreferences}
               language={appLanguage.language}
               translate={translate}
