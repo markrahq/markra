@@ -61,6 +61,14 @@ function DisabledUpdaterHarness() {
   );
 }
 
+function PassiveUpdatePromptHarness() {
+  const updater = useAutoUpdater("en", true, { autoCheck: false });
+
+  return updater.availableUpdateVersion ? (
+    <p role="status">Available version: {updater.availableUpdateVersion}</p>
+  ) : null;
+}
+
 function createUpdate(overrides: Partial<NativeAppUpdate> = {}): NativeAppUpdate {
   return {
     body: "Release notes",
@@ -118,6 +126,7 @@ function expectUpdateLogEntry(entry: Partial<RuntimeLogEntry>) {
 describe("useAutoUpdater", () => {
   beforeEach(() => {
     vi.useRealTimers();
+    window.localStorage.clear();
     clearRuntimeLogEntries();
     resetAppLogBackendWriterForTests();
     mockedShowAppToast.mockReset();
@@ -126,6 +135,7 @@ describe("useAutoUpdater", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    window.localStorage.clear();
     clearRuntimeLogEntries();
     resetAppLogBackendWriterForTests();
   });
@@ -173,6 +183,33 @@ describe("useAutoUpdater", () => {
       level: "info",
       message: "Automatic update check completed"
     });
+  });
+
+  it("shares a background-discovered update version with passive updater instances", async () => {
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate());
+
+    render(
+      <>
+        <AutoUpdaterHarness />
+        <PassiveUpdatePromptHarness />
+      </>
+    );
+
+    expect(await screen.findByRole("status")).toHaveTextContent("Available version: 0.0.7");
+    expect(mockedShowAppToast).not.toHaveBeenCalled();
+  });
+
+  it("keeps a background-discovered update version for settings opened later", async () => {
+    mockedCheckNativeAppUpdate.mockResolvedValue(createUpdate());
+
+    const { unmount } = render(<AutoUpdaterHarness />);
+
+    expect(await screen.findByRole("button", { name: "Install update" })).toBeInTheDocument();
+    unmount();
+
+    render(<PassiveUpdatePromptHarness />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("Available version: 0.0.7");
   });
 
   it("installs a background-discovered update after the user starts it", async () => {

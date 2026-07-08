@@ -1,6 +1,11 @@
 import { createElement, useCallback, useEffect, useRef, useState } from "react";
 import { diagnosticErrorMessage, t, type AppLanguage } from "@markra/shared";
 import { UpdateProgressToast } from "../components/UpdateProgressToast";
+import {
+  clearDiscoveredAppUpdateVersion,
+  setDiscoveredAppUpdateVersion,
+  useDiscoveredAppUpdateVersion
+} from "../lib/app-update-state";
 import { appLogger } from "../lib/app-logger";
 import { showAppToast } from "../lib/app-toast";
 import { checkNativeAppUpdate, type NativeAppUpdate, type NativeAppUpdateProgress } from "../lib/tauri/updater";
@@ -62,6 +67,7 @@ function logUpdateCheckFailed(error: unknown, automatic: boolean) {
 
 export function useAutoUpdater(language: AppLanguage, enabled = true, options: AutoUpdaterOptions = {}) {
   const [availableUpdate, setAvailableUpdate] = useState<NativeAppUpdate | null>(null);
+  const discoveredAppUpdateVersion = useDiscoveredAppUpdateVersion();
   const checkingRef = useRef(false);
   const downloadingRef = useRef(false);
   const downloadedUpdateRef = useRef<NativeAppUpdate | null>(null);
@@ -141,6 +147,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
         onProgress: (progress) => showDownloadProgress(update, progress)
       });
       setAvailableUpdate((currentUpdate) => currentUpdate?.version === update.version ? null : currentUpdate);
+      clearDiscoveredAppUpdateVersion(update.version);
       showReadyToRestart(update);
     } catch {
       if (options.notifyFailure) {
@@ -163,6 +170,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
 
   const showAvailableUpdate = useCallback((update: NativeAppUpdate, options: { notify: boolean }) => {
     setAvailableUpdate(update);
+    setDiscoveredAppUpdateVersion(update.version);
     if (!options.notify) return;
 
     showAppToast({
@@ -205,6 +213,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
       }
 
       setAvailableUpdate(null);
+      clearDiscoveredAppUpdateVersion();
       logUpdateCheckCompleted(null, false);
       showAppToast({
         id: appUpdateToastId,
@@ -240,6 +249,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
           logUpdateCheckCompleted(update, true);
         } else {
           setAvailableUpdate(null);
+          clearDiscoveredAppUpdateVersion();
           logUpdateCheckCompleted(null, true);
         }
       } catch (error) {
@@ -261,6 +271,7 @@ export function useAutoUpdater(language: AppLanguage, enabled = true, options: A
 
   return {
     availableUpdate,
+    availableUpdateVersion: availableUpdate?.version ?? discoveredAppUpdateVersion,
     checkForUpdates,
     installAvailableUpdate
   };

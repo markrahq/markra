@@ -220,7 +220,7 @@ export function SettingsWindow() {
           {activeSettingsCategory === "general" ? (
             <GeneralSettings
               appVersion={appVersion}
-              availableUpdateVersion={updater.availableUpdate?.version ?? null}
+              availableUpdateVersion={updater.availableUpdateVersion}
               preferences={editorPreferences}
               language={appLanguage.language}
               translate={translate}
