@@ -12,7 +12,7 @@ vi.mock("mermaid", () => ({
 import type { Editor } from "@milkdown/kit/core";
 import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/kit/core";
 import { Fragment, Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
-import { NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
+import { AllSelection, NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
 import {
@@ -6267,6 +6267,22 @@ describe("MarkdownPaper editing", () => {
       source: "block",
       text: "First paragraph.",
       to
+    });
+    await settleMarkdownListener();
+  });
+
+  it("marks full-document selections in AI context", async () => {
+    const { view } = await renderEditor("# Title\n\nFirst paragraph.");
+
+    view.dispatch(view.state.tr.setSelection(new AllSelection(view.state.doc)));
+
+    expect(readAiSelectionContextFromView(view)).toEqual({
+      cursor: view.state.doc.content.size,
+      from: 0,
+      fullDocument: true,
+      source: "selection",
+      text: "Title\nFirst paragraph.",
+      to: view.state.doc.content.size
     });
     await settleMarkdownListener();
   });

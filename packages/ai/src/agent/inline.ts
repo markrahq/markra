@@ -26,6 +26,7 @@ export type AiTargetScope = "block" | "selection" | "suggestion";
 
 export type AiSelectionContext = {
   cursor?: number;
+  fullDocument?: boolean;
   from: number;
   source?: "block" | "selection";
   text: string;

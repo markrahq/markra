@@ -312,8 +312,11 @@ export function readAiSelectionContextFromView(view: EditorView): AiSelectionCon
   const { doc, selection } = view.state;
 
   if (!selection.empty) {
+    const fullDocument = selection.from === 0 && selection.to === doc.content.size;
+
     return {
       cursor: selection.to,
+      ...(fullDocument ? { fullDocument: true } : {}),
       from: selection.from,
       source: "selection",
       text: doc.textBetween(selection.from, selection.to, "\n"),

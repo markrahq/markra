@@ -472,6 +472,24 @@ function getVisibleProseMirrorView(
   return visualView;
 }
 
+function findEditorTextPosition(view: ProseMirrorEditorView, text: string, offset = 0) {
+  let result: number | null = null;
+
+  view.state.doc.descendants((node, nodePosition) => {
+    if (result !== null || !node.isText) return true;
+
+    const textOffset = node.text?.indexOf(text) ?? -1;
+    if (textOffset < 0) return true;
+
+    result = nodePosition + textOffset + offset;
+    return false;
+  });
+
+  if (result === null) throw new Error(`Text not found in editor: ${text}`);
+
+  return result;
+}
+
 describe("Markra workspace", () => {
   it("marks macOS 27 windows for the WebKit scrolling workaround", async () => {
     mockedResolveDesktopPlatform.mockReturnValue("macos");
@@ -6270,6 +6288,141 @@ describe("Markra workspace", () => {
           "Welcome to Markra"
         );
       });
+    } finally {
+      makeSpy.mockRestore();
+    }
+  });
+
+  it("keeps macOS full-document selections visible when selection helpers are disabled", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      events: {
+        ...runtime.events,
+        isAvailable: () => true
+      }
+    });
+    mockedResolveDesktopPlatform.mockReturnValue("macos");
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: false
+    }));
+    const createdEditors: Array<ReturnType<typeof MilkdownEditor.make>> = [];
+    const originalMake = MilkdownEditor.make.bind(MilkdownEditor);
+    const makeSpy = vi.spyOn(MilkdownEditor, "make").mockImplementation(() => {
+      const editor = originalMake();
+      createdEditors.push(editor);
+      return editor;
+    });
+    const { container } = renderApp();
+
+    try {
+      await expectVisibleMilkdownText(container, "Welcome to Markra");
+      await settleEditorUpdates();
+      const visualView = getVisibleProseMirrorView(container, createdEditors);
+
+      act(() => {
+        visualView.focus();
+        visualView.dispatch(visualView.state.tr.setSelection(new AllSelection(visualView.state.doc)));
+      });
+
+      await waitFor(() => {
+        expect(container.querySelector(".ProseMirror .markra-ai-selection-hold")).toHaveTextContent(
+          "Welcome to Markra"
+        );
+      });
+    } finally {
+      makeSpy.mockRestore();
+    }
+  });
+
+  it("keeps macOS full-document selections visible when AI features are disabled", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      events: {
+        ...runtime.events,
+        isAvailable: () => true
+      },
+      features: {
+        ...runtime.features,
+        ai: false
+      }
+    });
+    mockedResolveDesktopPlatform.mockReturnValue("macos");
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: false
+    }));
+    const createdEditors: Array<ReturnType<typeof MilkdownEditor.make>> = [];
+    const originalMake = MilkdownEditor.make.bind(MilkdownEditor);
+    const makeSpy = vi.spyOn(MilkdownEditor, "make").mockImplementation(() => {
+      const editor = originalMake();
+      createdEditors.push(editor);
+      return editor;
+    });
+    const { container } = renderApp();
+
+    try {
+      await expectVisibleMilkdownText(container, "Welcome to Markra");
+      await settleEditorUpdates();
+      const visualView = getVisibleProseMirrorView(container, createdEditors);
+
+      act(() => {
+        visualView.focus();
+        visualView.dispatch(visualView.state.tr.setSelection(new AllSelection(visualView.state.doc)));
+      });
+
+      await waitFor(() => {
+        expect(container.querySelector(".ProseMirror .markra-ai-selection-hold")).toHaveTextContent(
+          "Welcome to Markra"
+        );
+      });
+    } finally {
+      makeSpy.mockRestore();
+    }
+  });
+
+  it("does not add a fallback highlight over macOS partial text selections", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      events: {
+        ...runtime.events,
+        isAvailable: () => true
+      }
+    });
+    mockedResolveDesktopPlatform.mockReturnValue("macos");
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      showAiQuickInputOnSelection: false,
+      showAiSelectionToolbarOnSelection: true
+    }));
+    const createdEditors: Array<ReturnType<typeof MilkdownEditor.make>> = [];
+    const originalMake = MilkdownEditor.make.bind(MilkdownEditor);
+    const makeSpy = vi.spyOn(MilkdownEditor, "make").mockImplementation(() => {
+      const editor = originalMake();
+      createdEditors.push(editor);
+      return editor;
+    });
+    const { container } = renderApp();
+
+    try {
+      await expectVisibleMilkdownText(container, "Welcome to Markra");
+      await settleEditorUpdates();
+      const visualView = getVisibleProseMirrorView(container, createdEditors);
+      const from = findEditorTextPosition(visualView, "Welcome");
+
+      act(() => {
+        visualView.focus();
+        visualView.dispatch(visualView.state.tr.setSelection(TextSelection.create(
+          visualView.state.doc,
+          from,
+          from + "Welcome".length
+        )));
+      });
+
+      await settleEditorUpdates();
+      expect(container.querySelector(".ProseMirror .markra-ai-selection-hold")).not.toBeInTheDocument();
     } finally {
       makeSpy.mockRestore();
     }

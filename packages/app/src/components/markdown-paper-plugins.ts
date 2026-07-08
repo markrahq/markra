@@ -503,7 +503,9 @@ export function markraTextSelectionObserverPlugin(
       if (!options.force && signature === lastSignature) return;
 
       lastSignature = signature;
+      const fullDocument = selection.from === 0 && selection.to === view.state.doc.content.size;
       onTextSelectionChange({
+        ...(fullDocument ? { fullDocument: true } : {}),
         from: selection.from,
         source: "selection",
         text,

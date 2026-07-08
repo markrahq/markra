@@ -1538,24 +1538,18 @@ function WorkspaceApp() {
   const holdAiSelection = editor.holdAiSelection;
   const handleTextSelectionChange = useCallback((selection: AiSelectionContext | null) => {
     const automaticSelection = automaticAiSelection(selection);
+    const holdNativeFullSelection = Boolean(
+      automaticSelection?.source === "selection" &&
+      automaticSelection.fullDocument &&
+      desktopPlatform === "macos" &&
+      nativeRuntimeAvailable
+    );
 
     updateSelectedWordCount(selection?.source === "selection" ? selection.text : null);
     updateActiveAiSelection(automaticSelection);
     clearAiSelectionToolbarCopySuccess();
     setAiSelectionToolbarActiveActions([]);
     setAiSelectionToolbarHeadingLevel(null);
-
-    if (!aiFeatureEnabled) {
-      setAiSelectionToolbarAnchor(null);
-      editor.clearAiSelection();
-      return;
-    }
-
-    if (readOnlyMode) {
-      setAiSelectionToolbarAnchor(null);
-      editor.clearAiSelection();
-      return;
-    }
 
     if (!selection?.text.trim()) {
       setAiSelectionToolbarAnchor(null);
@@ -1571,7 +1565,22 @@ function WorkspaceApp() {
       return;
     }
 
-    editor.clearAiSelection();
+    // Windows and browsers already paint native selections; this fallback covers the macOS Tauri full-selection paint gap.
+    if (holdNativeFullSelection) {
+      holdAiSelection(automaticSelection);
+    } else {
+      editor.clearAiSelection();
+    }
+
+    if (!aiFeatureEnabled) {
+      setAiSelectionToolbarAnchor(null);
+      return;
+    }
+
+    if (readOnlyMode) {
+      setAiSelectionToolbarAnchor(null);
+      return;
+    }
 
     const hideInlineAiCommandForAgentPanel = shouldHideAiCommandForAiAgentPanel({
       aiAgentOpen,
@@ -1603,8 +1612,6 @@ function WorkspaceApp() {
     }
 
     if (showSelectionToolbar) {
-      // Windows and browsers already paint native selections; this fallback covers the macOS Tauri paint gap.
-      if (desktopPlatform === "macos" && nativeRuntimeAvailable) holdAiSelection(automaticSelection);
       syncAiSelectionToolbarFormattingState();
       setAiSelectionToolbarAnchorIfChanged(
         getEditorSelectionAnchor() ?? selectionAnchorFromDomSelection(window.getSelection())
