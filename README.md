@@ -57,6 +57,12 @@ No account required. Files stay on disk by default; optional WebDAV sync, remote
 
 Use the web editor at [editor.markra.app](https://editor.markra.app/).
 
+On macOS, install with Homebrew:
+
+```sh
+brew install --cask markrahq/tap/markra
+```
+
 Download the latest desktop builds from [GitHub Releases](https://github.com/markrahq/markra/releases/latest): macOS Apple Silicon/Intel, Windows installer/portable, and Linux AppImage.
 
 ## Demo

@@ -481,6 +481,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
     steps:
       - name: Checkout repository
@@ -560,6 +562,21 @@ jobs:
           export RELEASE_VERSION="${RELEASE_VERSION#v}"
           node .release-scripts/scripts/release/generate-updater-manifest.mjs
 
+      - name: Generate Homebrew cask
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          OUTPUT_PATH: generated/homebrew/Casks/markra.rb
+          RELEASE_ASSETS_ROOT: release-assets
+          RELEASE_VERSION: ${{ env.RELEASE_TAG }}
+        run: node .release-scripts/scripts/release/generate-homebrew-cask.mjs
+
+      - name: Upload Homebrew cask artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_SLUG }}-homebrew-cask
+          path: generated/homebrew/Casks/markra.rb
+          if-no-files-found: error
+
       - name: Collect release files
         id: release_files
         shell: bash
@@ -585,3 +602,31 @@ jobs:
           overwrite_files: true
           fail_on_unmatched_files: true
           files: ${{ steps.release_files.outputs.paths }}
+
+      - name: Checkout Homebrew tap
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        uses: actions/checkout@v4
+        with:
+          repository: markrahq/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Publish Homebrew cask to tap
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p homebrew-tap/Casks
+          cp generated/homebrew/Casks/markra.rb homebrew-tap/Casks/markra.rb
+
+          if [[ -z "$(git -C homebrew-tap status --porcelain -- Casks/markra.rb)" ]]; then
+            echo "Homebrew cask is already up to date."
+            exit 0
+          fi
+
+          git -C homebrew-tap config user.name "github-actions[bot]"
+          git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C homebrew-tap add Casks/markra.rb
+          git -C homebrew-tap commit -m "Update Markra cask to ${RELEASE_TAG}"
+          git -C homebrew-tap push
