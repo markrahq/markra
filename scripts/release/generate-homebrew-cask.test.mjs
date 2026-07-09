@@ -97,8 +97,12 @@ test("release workflow generates and publishes the Homebrew cask separately from
   assert.match(workflow, /OUTPUT_PATH: generated\/homebrew\/Casks\/markra\.rb/);
   assert.match(workflow, /Upload Homebrew cask artifact/);
   assert.match(workflow, /name: \$\{\{ env\.APP_SLUG \}\}-homebrew-cask/);
+  assert.match(workflow, /Prepare Homebrew tap checkout/);
+  assert.match(workflow, /git -c http\.extraheader="AUTHORIZATION: bearer \$\{HOMEBREW_TAP_TOKEN\}" ls-remote --symref "\$\{tap_url\}" HEAD/);
+  assert.match(workflow, /git -C homebrew-tap init -b "\$\{tap_branch\}"/);
   assert.match(workflow, /Publish Homebrew cask to tap/);
   assert.match(workflow, /HOMEBREW_TAP_TOKEN/);
-  assert.match(workflow, /repository: markrahq\/homebrew-tap/);
+  assert.match(workflow, /tap_url="https:\/\/github\.com\/markrahq\/homebrew-tap\.git"/);
+  assert.match(workflow, /git -C homebrew-tap -c http\.extraheader="AUTHORIZATION: bearer \$\{HOMEBREW_TAP_TOKEN\}" push -u origin "HEAD:\$\{tap_branch\}"/);
   assert.match(workflow, /git -C homebrew-tap status --porcelain -- Casks\/markra\.rb/);
 });

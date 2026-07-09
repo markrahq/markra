@@ -603,13 +603,27 @@ jobs:
           fail_on_unmatched_files: true
           files: ${{ steps.release_files.outputs.paths }}
 
-      - name: Checkout Homebrew tap
+      - name: Prepare Homebrew tap checkout
         if: env.HOMEBREW_TAP_TOKEN != ''
-        uses: actions/checkout@v4
-        with:
-          repository: markrahq/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-tap
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tap_url="https://github.com/markrahq/homebrew-tap.git"
+          tap_branch="$(
+            git -c http.extraheader="AUTHORIZATION: bearer ${HOMEBREW_TAP_TOKEN}" ls-remote --symref "${tap_url}" HEAD |
+              awk '/^ref:/ { sub("refs\/heads\//, "", $2); print $2; exit }'
+          )"
+          tap_branch="${tap_branch:-main}"
+          echo "HOMEBREW_TAP_BRANCH=${tap_branch}" >> "${GITHUB_ENV}"
+
+          if git -c http.extraheader="AUTHORIZATION: bearer ${HOMEBREW_TAP_TOKEN}" ls-remote --exit-code --heads "${tap_url}" "${tap_branch}" >/dev/null 2>&1; then
+            git -c http.extraheader="AUTHORIZATION: bearer ${HOMEBREW_TAP_TOKEN}" clone --depth 1 --branch "${tap_branch}" "${tap_url}" homebrew-tap
+          else
+            mkdir homebrew-tap
+            git -C homebrew-tap init -b "${tap_branch}"
+            git -C homebrew-tap remote add origin "${tap_url}"
+          fi
 
       - name: Publish Homebrew cask to tap
         if: env.HOMEBREW_TAP_TOKEN != ''
@@ -617,6 +631,7 @@ jobs:
         run: |
           set -euo pipefail
 
+          tap_branch="${HOMEBREW_TAP_BRANCH:-main}"
           mkdir -p homebrew-tap/Casks
           cp generated/homebrew/Casks/markra.rb homebrew-tap/Casks/markra.rb
 
@@ -629,4 +644,4 @@ jobs:
           git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git -C homebrew-tap add Casks/markra.rb
           git -C homebrew-tap commit -m "Update Markra cask to ${RELEASE_TAG}"
-          git -C homebrew-tap push
+          git -C homebrew-tap -c http.extraheader="AUTHORIZATION: bearer ${HOMEBREW_TAP_TOKEN}" push -u origin "HEAD:${tap_branch}"
