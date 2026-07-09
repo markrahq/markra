@@ -1299,10 +1299,28 @@ mod tests {
                 .pointer("/app/windows/0")
                 .expect("Tauri config should declare a main window");
 
-            assert_eq!(window.pointer("/width").and_then(serde_json::Value::as_i64), Some(1360));
-            assert_eq!(window.pointer("/height").and_then(serde_json::Value::as_i64), Some(800));
-            assert_eq!(window.pointer("/minWidth").and_then(serde_json::Value::as_i64), Some(360));
-            assert_eq!(window.pointer("/minHeight").and_then(serde_json::Value::as_i64), Some(320));
+            assert_eq!(
+                window.pointer("/width").and_then(serde_json::Value::as_i64),
+                Some(1360)
+            );
+            assert_eq!(
+                window
+                    .pointer("/height")
+                    .and_then(serde_json::Value::as_i64),
+                Some(800)
+            );
+            assert_eq!(
+                window
+                    .pointer("/minWidth")
+                    .and_then(serde_json::Value::as_i64),
+                Some(360)
+            );
+            assert_eq!(
+                window
+                    .pointer("/minHeight")
+                    .and_then(serde_json::Value::as_i64),
+                Some(320)
+            );
         }
     }
 
