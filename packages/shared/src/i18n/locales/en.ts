@@ -124,6 +124,8 @@ const messages: BaseLocaleMessages = {
   "settings.editor.autoSaveIntervalUnit": "min",
   "settings.editor.lineHeight": "Line height",
   "settings.editor.lineHeightDescription": "Vertical rhythm for paragraphs and list items.",
+  "settings.editor.paragraphSpacing": "Paragraph spacing",
+  "settings.editor.paragraphSpacingDescription": "Extra space after each paragraph, in pixels.",
   "settings.editor.contentWidth": "Content width",
   "settings.editor.contentWidthDescription": "Width of the central writing column.",
   "settings.editor.contentWidth.narrow": "Narrow",

@@ -99,6 +99,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       toggleSourceMode: "Mod+Alt+S"
     },
     markdownTemplates: [],
+    paragraphSpacingPx: 8,
     restoreWorkspaceOnStartup: true,
     sidebarLayoutMode: "stacked",
     showAiQuickInputOnSelection: true,
@@ -208,6 +209,7 @@ describe("useEditorPreferences", () => {
         toggleSourceMode: "Mod+Alt+S"
       },
       markdownTemplates: [],
+      paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
       sidebarLayoutMode: "stacked",
       showAiQuickInputOnSelection: true,
@@ -317,6 +319,7 @@ describe("useEditorPreferences", () => {
           toggleSourceMode: "Mod+Alt+S"
         },
         markdownTemplates: [],
+        paragraphSpacingPx: 8,
         restoreWorkspaceOnStartup: false,
         sidebarLayoutMode: "stacked",
         showAiQuickInputOnSelection: false,

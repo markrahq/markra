@@ -4003,6 +4003,7 @@ function WorkspaceApp() {
               language={appLanguage.language}
               lineHeight={editorPreferences.preferences.lineHeight}
               markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
+              paragraphSpacingPx={editorPreferences.preferences.paragraphSpacingPx}
               onActiveOutlineIndexChange={tabActive ? handleActiveOutlineIndexChange : undefined}
               onEditorReady={(readyEditor, options) => handleMainVisualEditorReady(tab.id, readyEditor, options)}
               onMarkdownChange={(content) => {
@@ -4462,6 +4463,7 @@ function WorkspaceApp() {
                         language={appLanguage.language}
                         lineHeight={editorPreferences.preferences.lineHeight}
                         markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
+                        paragraphSpacingPx={editorPreferences.preferences.paragraphSpacingPx}
                         mode={sourceMode ? "source" : "visual"}
                         onSaveClipboardAttachment={(attachment) => handleSaveClipboardAttachment(attachment, sideDocumentTab.path)}
                         openLocalAttachment={(src) => handleOpenLocalAttachment(src, sideDocumentTab.path)}

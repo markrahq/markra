@@ -510,6 +510,8 @@ const messages: LocaleMessages = {
   "settings.welcome.status": "ウェルカムドキュメントは次回起動時に表示されます。",
   "settings.editor.lineHeight": "行間",
   "settings.editor.lineHeightDescription": "段落とリストの縦方向の読みやすさを調整します。",
+  "settings.editor.paragraphSpacing": "Paragraph spacing",
+  "settings.editor.paragraphSpacingDescription": "Extra space after each paragraph, in pixels.",
   "settings.editor.contentWidth": "本文幅",
   "settings.editor.contentWidthDescription": "中央の執筆カラムの幅を調整します。",
   "settings.editor.contentWidth.narrow": "狭い",

@@ -372,6 +372,7 @@ export type EditorPreferences = {
   lineHeight: number;
   markdownShortcuts: MarkdownShortcutBindings;
   markdownTemplates: MarkdownTemplateEntry[];
+  paragraphSpacingPx: number;
   restoreWorkspaceOnStartup: boolean;
   sidebarLayoutMode: SidebarLayoutMode;
   showAiQuickInputOnSelection: boolean;
@@ -498,6 +499,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   lineHeight: 1.65,
   markdownShortcuts: defaultMarkdownShortcuts,
   markdownTemplates: [],
+  paragraphSpacingPx: 8,
   restoreWorkspaceOnStartup: true,
   sidebarLayoutMode: "stacked",
   showAiQuickInputOnSelection: true,
@@ -554,6 +556,8 @@ export const defaultAcpAgentSettings: AcpAgentSettings = {
 
 const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
+export const editorParagraphSpacingPxMin = 0;
+export const editorParagraphSpacingPxMax = 32;
 const sidebarLayoutModeOptions: readonly SidebarLayoutMode[] = ["stacked", "tabs"];
 const tableColumnWidthModeOptions: readonly TableColumnWidthModePreference[] = ["even", "auto"];
 
@@ -1617,6 +1621,7 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       : defaultEditorPreferences.lineHeight,
     markdownShortcuts: normalizeMarkdownShortcuts(preferences.markdownShortcuts),
     markdownTemplates: normalizeMarkdownTemplateEntries(preferences.markdownTemplates),
+    paragraphSpacingPx: normalizeEditorParagraphSpacingPx(preferences.paragraphSpacingPx),
     restoreWorkspaceOnStartup:
       typeof preferences.restoreWorkspaceOnStartup === "boolean"
         ? preferences.restoreWorkspaceOnStartup
@@ -1650,6 +1655,12 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     wrapCodeBlocks:
       typeof preferences.wrapCodeBlocks === "boolean" ? preferences.wrapCodeBlocks : defaultEditorPreferences.wrapCodeBlocks
   };
+}
+
+function normalizeEditorParagraphSpacingPx(value: unknown) {
+  if (typeof value !== "number" || !Number.isFinite(value)) return defaultEditorPreferences.paragraphSpacingPx;
+
+  return Math.min(editorParagraphSpacingPxMax, Math.max(editorParagraphSpacingPxMin, Math.round(value)));
 }
 
 export function normalizeSpellcheckIgnoredWords(value: unknown): string[] {

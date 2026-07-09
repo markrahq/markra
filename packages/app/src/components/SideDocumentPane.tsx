@@ -25,6 +25,7 @@ type SideDocumentPaneProps = {
   lineHeight: number;
   markdownShortcuts?: MarkdownShortcutMap;
   mode: "source" | "visual";
+  paragraphSpacingPx?: number;
   openLocalAttachment?: (src: string) => unknown;
   openExternalUrl?: (url: string) => unknown;
   readOnly?: boolean;
@@ -65,6 +66,7 @@ export function SideDocumentPane({
   lineHeight,
   markdownShortcuts,
   mode,
+  paragraphSpacingPx = 8,
   openLocalAttachment,
   openExternalUrl,
   readOnly = false,
@@ -129,6 +131,7 @@ export function SideDocumentPane({
           language={language}
           lineHeight={lineHeight}
           markdownShortcuts={markdownShortcuts}
+          paragraphSpacingPx={paragraphSpacingPx}
           onEditorReady={ignoreSideEditorReady}
           onMarkdownChange={onChange}
           onContentWidthChange={onContentWidthChange}

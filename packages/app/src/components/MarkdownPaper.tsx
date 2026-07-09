@@ -45,6 +45,7 @@ type MarkdownPaperProps = {
   onContentWidthResizeEnd?: () => unknown;
   onContentWidthResizeStart?: () => unknown;
   onScroll?: (event: UIEvent<HTMLElement>) => unknown;
+  paragraphSpacingPx?: number;
   onSaveClipboardAttachment?: MarkdownPaperSurfaceProps["onSaveClipboardAttachment"];
   onSaveClipboardImage?: MarkdownPaperSurfaceProps["onSaveClipboardImage"];
   onSaveRemoteClipboardImage?: MarkdownPaperSurfaceProps["onSaveRemoteClipboardImage"];
@@ -68,6 +69,7 @@ type MarkdownPaperProps = {
 type MarkdownPaperStyle = CSSProperties & {
   "--editor-font-family"?: string;
   "--editor-heading-font-family"?: string;
+  "--editor-paragraph-spacing"?: string;
 };
 
 function editorBottomPadding(bottomOverlayInset: number) {
@@ -110,6 +112,7 @@ export function MarkdownPaper({
   onContentWidthResizeEnd,
   onContentWidthResizeStart,
   onScroll,
+  paragraphSpacingPx = 8,
   onSaveClipboardAttachment,
   onSaveClipboardImage,
   onSaveRemoteClipboardImage,
@@ -141,6 +144,7 @@ export function MarkdownPaper({
     fontSize: `${bodyFontSize}px`,
     lineHeight,
     maxWidth: `${resolvedContentWidth}px`,
+    "--editor-paragraph-spacing": `${paragraphSpacingPx}px`,
     paddingBottom: editorBottomPadding(bottomOverlayInset)
   } satisfies MarkdownPaperStyle;
   const topInsetClassName = topInset === "tabs" ? "pt-24 max-[900px]:pt-20" : "pt-14 max-[900px]:pt-10";

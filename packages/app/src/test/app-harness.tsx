@@ -266,6 +266,8 @@ vi.mock("../lib/settings/app-settings", () => ({
   defaultSplitVisualPanePercent: 50,
   splitVisualPanePercentMin: 25,
   splitVisualPanePercentMax: 75,
+  editorParagraphSpacingPxMin: 0,
+  editorParagraphSpacingPxMax: 32,
   defaultEditorPreferences: {
     aiQuickActionPrompts: testAiQuickActionPrompts,
     aiWorkspaceAnimationEnabled: false,
@@ -318,6 +320,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       quote: "Mod+Shift+B",
       strikethrough: "Mod+Shift+X"
     },
+    paragraphSpacingPx: 8,
     restoreWorkspaceOnStartup: true,
     showAiQuickInputOnSelection: true,
     showAiSelectionToolbarOnSelection: false,
@@ -1384,6 +1387,7 @@ export function installAppTestHarness() {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
       sidebarLayoutMode: "stacked",
       showAiQuickInputOnSelection: true,

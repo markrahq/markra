@@ -71,6 +71,7 @@ describe("editor preferences", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
       sidebarLayoutMode: "stacked",
       showAiQuickInputOnSelection: true,
@@ -221,6 +222,7 @@ describe("editor preferences", () => {
           suggestedName: "{{date}} standup"
         }
       ],
+      paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,
       sidebarLayoutMode: "stacked",
       showAiQuickInputOnSelection: false,
@@ -261,6 +263,14 @@ describe("editor preferences", () => {
       showWordCount: false,
       wrapCodeBlocks: true
     });
+  });
+
+  it("normalizes custom paragraph spacing in pixels", () => {
+    expect((normalizeEditorPreferences({ paragraphSpacingPx: 12 }) as Record<string, unknown>).paragraphSpacingPx).toBe(12);
+    expect((normalizeEditorPreferences({ paragraphSpacingPx: 0 }) as Record<string, unknown>).paragraphSpacingPx).toBe(0);
+    expect((normalizeEditorPreferences({ paragraphSpacingPx: -8 }) as Record<string, unknown>).paragraphSpacingPx).toBe(0);
+    expect((normalizeEditorPreferences({ paragraphSpacingPx: 120 }) as Record<string, unknown>).paragraphSpacingPx).toBe(32);
+    expect((normalizeEditorPreferences({ paragraphSpacingPx: "loose" }) as Record<string, unknown>).paragraphSpacingPx).toBe(8);
   });
 
   it("normalizes view mode preferences", () => {
@@ -730,6 +740,7 @@ describe("editor preferences", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
       sidebarLayoutMode: "stacked",
       showAiQuickInputOnSelection: true,
@@ -830,6 +841,7 @@ describe("editor preferences", () => {
           suggestedName: "{{date}} weekly"
         }
       ],
+      paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,
       sidebarLayoutMode: "tabs",
       showAiQuickInputOnSelection: false,
@@ -928,6 +940,7 @@ describe("editor preferences", () => {
           suggestedName: "{{date}} weekly"
         }
       ],
+      paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,
       sidebarLayoutMode: "tabs",
       showAiQuickInputOnSelection: false,

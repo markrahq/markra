@@ -124,6 +124,8 @@ const messages: LocaleMessages = {
   "settings.editor.autoSaveIntervalUnit": "分钟",
   "settings.editor.lineHeight": "行高",
   "settings.editor.lineHeightDescription": "控制段落和列表的垂直阅读节奏。",
+  "settings.editor.paragraphSpacing": "段距",
+  "settings.editor.paragraphSpacingDescription": "每个段落后的额外间距，单位为像素。",
   "settings.editor.contentWidth": "内容宽度",
   "settings.editor.contentWidthDescription": "调整中间写作区域的宽度。",
   "settings.editor.contentWidth.narrow": "窄",

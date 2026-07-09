@@ -507,7 +507,7 @@ where
         let builder = WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
             .title("")
             .inner_size(1360.0, 800.0)
-            .min_inner_size(960.0, 640.0)
+            .min_inner_size(360.0, 320.0)
             .decorations(editor_window_decorations())
             .transparent(editor_window_transparent())
             .shadow(true)
@@ -1278,6 +1278,47 @@ mod tests {
         assert_eq!(visible, Some(true));
         assert!(window.pointer("/titleBarStyle").is_none());
         assert!(window.pointer("/hiddenTitle").is_none());
+    }
+
+    #[test]
+    fn editor_windows_keep_current_default_size_with_small_resize_floor() {
+        let config_paths = [
+            "tauri.conf.json",
+            "tauri.macos.conf.json",
+            "tauri.windows.conf.json",
+            "tauri.linux.conf.json",
+        ];
+
+        for config_path in config_paths {
+            let config_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(config_path);
+            let config: serde_json::Value = serde_json::from_str(
+                &std::fs::read_to_string(&config_path).expect("Tauri config should exist"),
+            )
+            .expect("Tauri config should be valid JSON");
+            let window = config
+                .pointer("/app/windows/0")
+                .expect("Tauri config should declare a main window");
+
+            assert_eq!(window.pointer("/width").and_then(serde_json::Value::as_i64), Some(1360));
+            assert_eq!(window.pointer("/height").and_then(serde_json::Value::as_i64), Some(800));
+            assert_eq!(window.pointer("/minWidth").and_then(serde_json::Value::as_i64), Some(360));
+            assert_eq!(window.pointer("/minHeight").and_then(serde_json::Value::as_i64), Some(320));
+        }
+    }
+
+    #[test]
+    fn secondary_editor_windows_keep_current_default_size_with_small_resize_floor() {
+        let windows_source = include_str!("windows.rs");
+        let start = windows_source
+            .find("fn spawn_editor_window_with_label")
+            .expect("spawn_editor_window_with_label should exist");
+        let end = windows_source
+            .find("fn editor_window_transparent")
+            .expect("spawn_editor_window_with_label should end before editor_window_transparent");
+        let spawn_editor_window_source = &windows_source[start..end];
+
+        assert!(spawn_editor_window_source.contains(".inner_size(1360.0, 800.0)"));
+        assert!(spawn_editor_window_source.contains(".min_inner_size(360.0, 320.0)"));
     }
 
     #[test]

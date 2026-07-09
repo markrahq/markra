@@ -510,6 +510,8 @@ const messages: LocaleMessages = {
   "settings.welcome.status": "歡迎文件會在下次啟動時顯示。",
   "settings.editor.lineHeight": "行高",
   "settings.editor.lineHeightDescription": "控制段落和列表的垂直閱讀節奏。",
+  "settings.editor.paragraphSpacing": "段距",
+  "settings.editor.paragraphSpacingDescription": "每個段落後的額外間距，單位為像素。",
   "settings.editor.contentWidth": "內容寬度",
   "settings.editor.contentWidthDescription": "調整中間寫作區域的寬度。",
   "settings.editor.contentWidth.narrow": "窄",

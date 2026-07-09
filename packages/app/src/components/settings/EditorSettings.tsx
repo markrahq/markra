@@ -33,6 +33,8 @@ import { IconButton, SegmentedControl, SegmentedControlItem, Tooltip } from "@ma
 import { clampNumber, type I18nKey } from "@markra/shared";
 import {
   defaultTitlebarActions,
+  editorParagraphSpacingPxMax,
+  editorParagraphSpacingPxMin,
   reorderTitlebarActions,
   type EditorPreferences,
   type SidebarLayoutMode,
@@ -53,6 +55,7 @@ import type { AppSystemFontFamily } from "../../runtime";
 import { SortableTitlebarAction } from "../SortableTitlebarAction";
 import {
   SettingsButton,
+  SettingsNumberInput,
   SettingsRow,
   SettingsSection,
   SettingsSelect,
@@ -710,6 +713,27 @@ export function EditorSettings({
                 onUpdatePreferences({
                   ...preferences,
                   lineHeight: Number(value)
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
+          title={translate("settings.editor.paragraphSpacing")}
+          description={translate("settings.editor.paragraphSpacingDescription")}
+          action={
+            <SettingsNumberInput
+              label={translate("settings.editor.paragraphSpacing")}
+              min={editorParagraphSpacingPxMin}
+              max={editorParagraphSpacingPxMax}
+              unit="px"
+              value={preferences.paragraphSpacingPx}
+              onChange={(value) =>
+                onUpdatePreferences({
+                  ...preferences,
+                  paragraphSpacingPx:
+                    clampNumber(value, editorParagraphSpacingPxMin, editorParagraphSpacingPxMax) ??
+                    preferences.paragraphSpacingPx
                 })
               }
             />

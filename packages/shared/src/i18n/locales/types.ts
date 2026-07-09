@@ -153,6 +153,8 @@ export type I18nKey =
   | "settings.editor.bodyFontSizeDescription"
   | "settings.editor.lineHeight"
   | "settings.editor.lineHeightDescription"
+  | "settings.editor.paragraphSpacing"
+  | "settings.editor.paragraphSpacingDescription"
   | "settings.editor.contentWidth"
   | "settings.editor.contentWidthDescription"
   | "settings.editor.contentWidth.narrow"

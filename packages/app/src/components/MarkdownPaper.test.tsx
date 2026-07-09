@@ -1267,6 +1267,13 @@ describe("MarkdownPaper editing", () => {
     expect(paper?.getAttribute("style")).toContain("padding-bottom: 0px");
   });
 
+  it("exposes the default paragraph spacing as a paper style variable", async () => {
+    const { container } = await renderEditor("# Synthetic heading");
+    const paper = container.querySelector<HTMLElement>(".markdown-paper");
+
+    expect(paper?.style.getPropertyValue("--editor-paragraph-spacing")).toBe("8px");
+  });
+
   it("adds only bottom overlay spacing when a floating control is visible", async () => {
     const { container } = await renderEditor("# Synthetic heading", { bottomOverlayInset: 96 });
     const paper = container.querySelector(".markdown-paper");

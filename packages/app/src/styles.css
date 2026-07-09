@@ -1065,6 +1065,7 @@
     --editor-hl-deletion: oklch(45% 0.17 29);
     --editor-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     --editor-heading-font-family: var(--editor-font-family);
+    --editor-paragraph-spacing: 8px;
     color: var(--editor-text-primary);
     font-family: var(--editor-font-family);
     transition:
@@ -1769,7 +1770,7 @@
   }
 
   .markdown-paper p {
-    @apply m-0;
+    margin-block: 0 var(--editor-paragraph-spacing);
     color: var(--editor-text-primary);
   }
 

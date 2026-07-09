@@ -198,6 +198,33 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("edits paragraph spacing as a pixel value", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const spacingInput = screen.getByRole("spinbutton", { name: "Paragraph spacing" });
+
+    expect(spacingInput).toHaveAttribute("inputmode", "numeric");
+    expect(spacingInput).toHaveAttribute("min", "0");
+    expect(spacingInput).toHaveAttribute("max", "32");
+    expect(spacingInput).toHaveValue(8);
+    expect(screen.getByText("px")).toBeInTheDocument();
+
+    fireEvent.change(spacingInput, { target: { value: "14" } });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      paragraphSpacingPx: 14
+    });
+  });
+
   it("keeps spellcheck controls out of the editor tab", () => {
     render(
       <EditorSettings

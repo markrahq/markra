@@ -145,6 +145,18 @@ describe("editor stylesheet", () => {
     expect(headingStyles).toContain("text-[31px]");
   });
 
+  it("uses a paragraph spacing variable for visual editor paragraphs", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const paragraphStart = styles.indexOf(".markdown-paper p {");
+    const paragraphEnd = styles.indexOf(".markdown-paper blockquote", paragraphStart);
+    const paragraphStyles = styles.slice(paragraphStart, paragraphEnd);
+
+    expect(paragraphStart).toBeGreaterThanOrEqual(0);
+    expect(paragraphEnd).toBeGreaterThan(paragraphStart);
+    expect(paragraphStyles).toContain("margin-block: 0 var(--editor-paragraph-spacing);");
+    expect(paragraphStyles).not.toContain("@apply m-0");
+  });
+
   it("adds GitHub heading dividers and sizes in GitHub editor themes", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const githubHeadingStart = styles.indexOf('.markdown-paper[data-editor-theme="github"] h1,');

@@ -510,6 +510,8 @@ const messages: LocaleMessages = {
   "settings.theme.colorTitle": "Farbschema",
   "settings.editor.lineHeight": "Zeilenhöhe",
   "settings.editor.lineHeightDescription": "Vertikaler Leserhythmus für Absätze und Listen.",
+  "settings.editor.paragraphSpacing": "Paragraph spacing",
+  "settings.editor.paragraphSpacingDescription": "Extra space after each paragraph, in pixels.",
   "settings.editor.contentWidth": "Inhaltsbreite",
   "settings.editor.contentWidthDescription": "Breite der zentralen Schreibspalte.",
   "settings.editor.contentWidth.narrow": "Schmal",

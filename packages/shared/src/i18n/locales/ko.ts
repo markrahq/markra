@@ -510,6 +510,8 @@ const messages: LocaleMessages = {
   "settings.theme.colorTitle": "색상 테마",
   "settings.editor.lineHeight": "줄 높이",
   "settings.editor.lineHeightDescription": "문단과 목록의 세로 읽기 리듬을 조정합니다.",
+  "settings.editor.paragraphSpacing": "Paragraph spacing",
+  "settings.editor.paragraphSpacingDescription": "Extra space after each paragraph, in pixels.",
   "settings.editor.contentWidth": "콘텐츠 너비",
   "settings.editor.contentWidthDescription": "가운데 작성 영역의 너비를 조정합니다.",
   "settings.editor.contentWidth.narrow": "좁게",

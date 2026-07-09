@@ -510,6 +510,8 @@ const messages: LocaleMessages = {
   "settings.theme.colorTitle": "Цветовая тема",
   "settings.editor.lineHeight": "Высота строки",
   "settings.editor.lineHeightDescription": "Вертикальный ритм для абзацев и списков.",
+  "settings.editor.paragraphSpacing": "Paragraph spacing",
+  "settings.editor.paragraphSpacingDescription": "Extra space after each paragraph, in pixels.",
   "settings.editor.contentWidth": "Ширина содержимого",
   "settings.editor.contentWidthDescription": "Ширина центральной колонки письма.",
   "settings.editor.contentWidth.narrow": "Узкая",
