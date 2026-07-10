@@ -180,36 +180,38 @@ fn markdown_attachment_src(src: &str) -> Result<MarkdownAttachmentSrc, String> {
 }
 
 fn resolve_markdown_attachment_path(
-    root_path: &Path,
+    root_path: Option<&Path>,
     document_path: Option<&Path>,
     src: &str,
 ) -> Result<PathBuf, String> {
-    let root = markdown_tree_root_for_path(root_path)?
-        .canonicalize()
-        .map_err(|error| error.to_string())?;
-    let base = if let Some(document_path) = document_path {
-        let document_path = document_path
-            .canonicalize()
-            .map_err(|error| error.to_string())?;
-        if !document_path.is_file() || !is_markdown_open_file(&document_path) {
-            return Err("Current document must be a saved Markdown file".to_string());
-        }
-        document_path
-            .strip_prefix(&root)
-            .map_err(|_| "Current document is outside the Markdown folder".to_string())?;
-
-        document_path
-            .parent()
-            .ok_or_else(|| "Current document folder is invalid".to_string())?
-            .to_path_buf()
-    } else {
-        root.clone()
-    };
     let canonical_path = match markdown_attachment_src(src)? {
         MarkdownAttachmentSrc::Absolute(path) => {
             path.canonicalize().map_err(|error| error.to_string())?
         }
         MarkdownAttachmentSrc::Relative(decoded_src) => {
+            let root = markdown_tree_root_for_path(
+                root_path.ok_or_else(|| "Markdown attachment root path is required".to_string())?,
+            )?
+            .canonicalize()
+            .map_err(|error| error.to_string())?;
+            let base = if let Some(document_path) = document_path {
+                let document_path = document_path
+                    .canonicalize()
+                    .map_err(|error| error.to_string())?;
+                if !document_path.is_file() || !is_markdown_open_file(&document_path) {
+                    return Err("Current document must be a saved Markdown file".to_string());
+                }
+                document_path
+                    .strip_prefix(&root)
+                    .map_err(|_| "Current document is outside the Markdown folder".to_string())?;
+
+                document_path
+                    .parent()
+                    .ok_or_else(|| "Current document folder is invalid".to_string())?
+                    .to_path_buf()
+            } else {
+                root.clone()
+            };
             let src_path = Path::new(&decoded_src);
             if src_path.is_absolute() {
                 return Err("Markdown attachment path must be relative".to_string());
@@ -278,12 +280,13 @@ pub(crate) fn open_containing_folder(path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub(crate) fn open_markdown_attachment(
-    root_path: String,
+    root_path: Option<String>,
     document_path: Option<String>,
     src: String,
 ) -> Result<(), String> {
     let document_path = document_path.as_deref().map(Path::new);
-    let target_path = resolve_markdown_attachment_path(Path::new(&root_path), document_path, &src)?;
+    let root_path = root_path.as_deref().map(Path::new);
+    let target_path = resolve_markdown_attachment_path(root_path, document_path, &src)?;
     let command =
         open_default_application_command_for_path(&target_path, current_file_manager_platform());
 
@@ -583,15 +586,19 @@ mod tests {
         fs::write(&external_attachment, [4, 5, 6]).expect("external attachment should be created");
 
         assert_eq!(
-            resolve_markdown_attachment_path(&root, Some(&note), "../assets/reference%20doc.docx")
-                .expect("attachment link should resolve"),
+            resolve_markdown_attachment_path(
+                Some(&root),
+                Some(&note),
+                "../assets/reference%20doc.docx"
+            )
+            .expect("attachment link should resolve"),
             attachment
                 .canonicalize()
                 .expect("attachment should canonicalize")
         );
         assert_eq!(
             resolve_markdown_attachment_path(
-                &root,
+                Some(&root),
                 Some(&note),
                 &file_url_for_test(&external_attachment)
             )
@@ -600,7 +607,18 @@ mod tests {
                 .canonicalize()
                 .expect("external attachment should canonicalize")
         );
-        assert!(resolve_markdown_attachment_path(&root, Some(&note), "../../secret.docx").is_err());
+        assert_eq!(
+            resolve_markdown_attachment_path(None, None, &file_url_for_test(&external_attachment))
+                .expect("rootless absolute attachment link should resolve"),
+            external_attachment
+                .canonicalize()
+                .expect("external attachment should canonicalize")
+        );
+        assert!(resolve_markdown_attachment_path(None, None, "assets/reference.pdf").is_err());
+        assert!(
+            resolve_markdown_attachment_path(Some(&root), Some(&note), "../../secret.docx")
+                .is_err()
+        );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
         fs::remove_dir_all(external_root).expect("external test tree should be removed");

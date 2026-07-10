@@ -55,5 +55,6 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     link: "連結",
     image: "圖片",
     import_local_images: "匯入本機圖片...",
+    import_local_files: "匯入本機檔案...",
     table: "表格",
 };

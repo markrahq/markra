@@ -13,6 +13,7 @@ import type {
   CreateNativeMarkdownTreeFileOptions,
   BackupNativeMarkdownFolderInput,
   DownloadNativeWebImageInput,
+  ImportNativeLocalFileInput,
   LoadNativeMarkdownFilesForPathOptions,
   ListNativeMarkdownFilesOptions,
   NativeMarkdownDroppedTarget,
@@ -28,6 +29,7 @@ import type {
   NativeMarkdownBackupSummary,
   NativeMarkdownSyncSummary,
   NativeMarkdownPickerLabels,
+  NativeLocalFile,
   NativeSettingsFile,
   NativeMarkdownTreeChangeHandler,
   NativePandocExportFormat,
@@ -160,6 +162,7 @@ export type AppFileRuntime = {
   detectPandocPath: () => Promise<string | null>;
   downloadWebImage: (input: DownloadNativeWebImageInput) => Promise<File>;
   installMarkdownFileDrop: (onDrop: NativeMarkdownFileDropHandler) => Promise<RuntimeCleanup>;
+  importLocalFile: (input: ImportNativeLocalFileInput) => Promise<SavedNativeClipboardAttachment>;
   listenOpenedMarkdownPaths: (
     onPaths: (paths: string[]) => unknown | Promise<unknown>
   ) => Promise<RuntimeCleanup>;
@@ -179,6 +182,7 @@ export type AppFileRuntime = {
   ) => Promise<NativeMarkdownFolderFile>;
   openContainingFolder: (path: string) => Promise<unknown>;
   openLocalImages: (labels?: NativeMarkdownPickerLabels) => Promise<File[]>;
+  openLocalFiles: (labels?: NativeMarkdownPickerLabels) => Promise<NativeLocalFile[]>;
   openMarkdownAttachment: (input: OpenNativeMarkdownAttachmentInput) => Promise<unknown>;
   openMarkdownFile: (labels?: NativeMarkdownPickerLabels) => Promise<NativeMarkdownFile | null>;
   openMarkdownFileInNewWindow: (path: string) => Promise<unknown>;
@@ -437,12 +441,14 @@ function createDefaultFileRuntime(): AppFileRuntime {
     detectPandocPath: async () => null,
     downloadWebImage: () => unsupportedFeature("downloadWebImage"),
     installMarkdownFileDrop: async () => () => undefined,
+    importLocalFile: () => unsupportedFeature("importLocalFile"),
     listenOpenedMarkdownPaths: async () => () => undefined,
     listMarkdownFileHistory: async () => [],
     listMarkdownFilesForPath: async () => [],
     moveMarkdownTreeFile: () => unsupportedFeature("moveMarkdownTreeFile"),
     openContainingFolder: () => unsupportedFeature("openContainingFolder"),
     openLocalImages: async () => [],
+    openLocalFiles: async () => [],
     openMarkdownAttachment: () => unsupportedFeature("openMarkdownAttachment"),
     openMarkdownFile: async () => null,
     openMarkdownFileInNewWindow: () => unsupportedFeature("openMarkdownFileInNewWindow"),
@@ -612,6 +618,7 @@ export type {
 export type {
   CreateNativeMarkdownTreeFileOptions,
   DownloadNativeWebImageInput,
+  ImportNativeLocalFileInput,
   ListNativeMarkdownFilesOptions,
   NativeMarkdownDroppedTarget,
   NativeMarkdownFile,
@@ -623,6 +630,7 @@ export type {
   NativeMarkdownOpenTarget,
   NativeMarkdownSyncSummary,
   NativeMarkdownPickerLabels,
+  NativeLocalFile,
   NativeSettingsFile,
   NativeMarkdownTreeChangeHandler,
   NativePandocExportFormat,

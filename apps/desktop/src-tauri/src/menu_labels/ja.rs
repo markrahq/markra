@@ -55,5 +55,6 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     link: "リンク",
     image: "画像",
     import_local_images: "ローカル画像を読み込む...",
+    import_local_files: "ローカルファイルを読み込む...",
     table: "表",
 };

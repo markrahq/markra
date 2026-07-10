@@ -16,20 +16,27 @@ describe("editor context menu entries", () => {
     vi.restoreAllMocks();
   });
 
-  it("offers local image import as a separate editor command", () => {
+  it("offers local image and file import as separate editor commands", () => {
+    const importLocalFiles = vi.fn();
     const importLocalImages = vi.fn();
-    const insertImage = vi.fn();
-    const item = menuItemById(
-      createEditorContextMenuEntries({ importLocalImages, insertImage }, "en"),
+    const entries = createEditorContextMenuEntries({ importLocalFiles, importLocalImages }, "en");
+    const imageItem = menuItemById(
+      entries,
       "markra:context:import-local-images"
     );
+    const fileItem = menuItemById(
+      entries,
+      "markra:context:import-local-files"
+    );
 
-    expect(item.label).toBe("Import Local Images...");
+    expect(imageItem.label).toBe("Import Local Images...");
+    expect(fileItem.label).toBe("Import Local Files...");
 
-    item.onSelect?.();
+    imageItem.onSelect?.();
+    fileItem.onSelect?.();
 
     expect(importLocalImages).toHaveBeenCalledTimes(1);
-    expect(insertImage).not.toHaveBeenCalled();
+    expect(importLocalFiles).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to clipboard text insertion when the browser paste command is unavailable", async () => {

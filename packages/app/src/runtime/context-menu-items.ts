@@ -229,6 +229,7 @@ export function createEditorContextMenuEntries(
     contextMenuItem(editorId("link"), label("menu.link"), shortcutAccelerator(options.markdownShortcuts, "link"), handlers.insertLink),
     contextMenuItem(editorId("image"), label("menu.image"), shortcutAccelerator(options.markdownShortcuts, "image"), handlers.insertImage),
     contextMenuItem(editorId("import-local-images"), label("menu.importLocalImages"), undefined, handlers.importLocalImages),
+    contextMenuItem(editorId("import-local-files"), label("menu.importLocalFiles"), undefined, handlers.importLocalFiles),
     contextMenuItem(editorId("table"), label("menu.table"), shortcutAccelerator(options.markdownShortcuts, "table"), handlers.insertTable)
   ];
 

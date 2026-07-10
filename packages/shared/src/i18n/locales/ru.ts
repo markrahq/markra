@@ -821,6 +821,8 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessStatusError": "Ошибка",
   "app.aiAgentProcessStep": "шаг",
   "app.aiAgentProcessSteps": "шагов",
+  "app.clipboardAttachmentRequiresSavedDocument": "Сохраните документ перед добавлением файловых вложений.",
+  "app.clipboardAttachmentSaveFailed": "Не удалось сохранить файловое вложение.",
   "menu.file": "Файл",
   "menu.edit": "Правка",
   "menu.format": "Формат",
@@ -869,6 +871,7 @@ const messages: LocaleMessages = {
   "menu.link": "Ссылка",
   "menu.image": "Изображение",
   "menu.importLocalImages": "Импорт локальных изображений...",
+  "menu.importLocalFiles": "Импорт локальных файлов...",
   "menu.table": "Таблица"
 };
 

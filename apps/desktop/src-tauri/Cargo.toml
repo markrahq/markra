@@ -16,6 +16,8 @@ tauri-build = { version = "2.6.0", features = [] }
 
 [dependencies]
 arboard = { version = "3.6.1", default-features = false }
+cap-fs-ext = "4.0.2"
+cap-std = "4.0.2"
 notify = "8.2.0"
 dirs = "6.0.0"
 fontdb = "0.23.0"
@@ -41,6 +43,9 @@ dispatch2 = "0.3.0"
 objc2 = "0.6.0"
 objc2-app-kit = { version = "0.3.0", default-features = false, features = ["std", "NSButton", "NSControl", "NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSView", "NSWindow"] }
 objc2-foundation = { version = "0.3.0", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }
+
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1.1.4", features = ["fs"] }
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }

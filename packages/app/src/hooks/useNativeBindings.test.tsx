@@ -4,6 +4,7 @@ import { useApplicationShortcuts, useNativeMenuHandlers, useSettingsWindowShortc
 
 describe("useNativeMenuHandlers", () => {
   const baseOptions = {
+    importLocalFiles: vi.fn(),
     importLocalImages: vi.fn(),
     insertMarkdownImage: vi.fn(),
     insertMarkdownLink: vi.fn(),
@@ -23,6 +24,7 @@ describe("useNativeMenuHandlers", () => {
     const insertMarkdownTable = vi.fn();
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
+        importLocalFiles: vi.fn(),
         importLocalImages: vi.fn(),
         insertMarkdownImage,
         insertMarkdownLink,
@@ -45,13 +47,13 @@ describe("useNativeMenuHandlers", () => {
   });
 
   it("routes the insert image menu command to the editor image insertion", () => {
-    const importLocalImages = vi.fn();
+    const importLocalFiles = vi.fn();
     const insertMarkdownImage = vi.fn();
     const insertMarkdownSnippet = vi.fn();
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
         ...baseOptions,
-        importLocalImages,
+        importLocalFiles,
         insertMarkdownImage,
         insertMarkdownSnippet
       })
@@ -60,16 +62,18 @@ describe("useNativeMenuHandlers", () => {
     result.current.insertImage?.();
 
     expect(insertMarkdownImage).toHaveBeenCalledTimes(1);
-    expect(importLocalImages).not.toHaveBeenCalled();
+    expect(importLocalFiles).not.toHaveBeenCalled();
     expect(insertMarkdownSnippet).not.toHaveBeenCalled();
   });
 
-  it("routes the import local images menu command separately from image insertion", () => {
+  it("routes the import local images menu command separately from file import", () => {
+    const importLocalFiles = vi.fn();
     const importLocalImages = vi.fn();
     const insertMarkdownImage = vi.fn();
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
         ...baseOptions,
+        importLocalFiles,
         importLocalImages,
         insertMarkdownImage
       })
@@ -78,6 +82,27 @@ describe("useNativeMenuHandlers", () => {
     result.current.importLocalImages?.();
 
     expect(importLocalImages).toHaveBeenCalledTimes(1);
+    expect(importLocalFiles).not.toHaveBeenCalled();
+    expect(insertMarkdownImage).not.toHaveBeenCalled();
+  });
+
+  it("routes the import local files menu command separately from image import", () => {
+    const importLocalFiles = vi.fn();
+    const importLocalImages = vi.fn();
+    const insertMarkdownImage = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        importLocalFiles,
+        importLocalImages,
+        insertMarkdownImage
+      })
+    );
+
+    result.current.importLocalFiles?.();
+
+    expect(importLocalFiles).toHaveBeenCalledTimes(1);
+    expect(importLocalImages).not.toHaveBeenCalled();
     expect(insertMarkdownImage).not.toHaveBeenCalled();
   });
 

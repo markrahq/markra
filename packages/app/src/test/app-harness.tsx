@@ -15,9 +15,12 @@ import {
   destroyNativeWindow,
   exitNativeApp,
   hideSettingsWindow,
+  importNativeLocalFile,
   markSettingsWindowReady,
   openNativeContainingFolder,
   openNativeLocalImages,
+  openNativeLocalFiles,
+  openNativeMarkdownAttachment,
   openNativeMarkdownFolder,
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
@@ -34,6 +37,7 @@ import {
   readNativeMarkdownTemplateFile,
   resolveNativeMarkdownPath,
   saveNativeClipboardImage,
+  saveNativeClipboardAttachment,
   saveNativeHtmlFile,
   saveNativeMarkdownFile,
   saveNativePandocFile,
@@ -161,8 +165,11 @@ vi.mock("../lib/tauri", () => ({
   getNativeShellCommandStatus: vi.fn(),
   installNativeShellCommand: vi.fn(),
   installNativeMarkdownFileDrop: vi.fn(),
+  importNativeLocalFile: vi.fn(),
   openNativeContainingFolder: vi.fn(),
   openNativeLocalImages: vi.fn(),
+  openNativeLocalFiles: vi.fn(),
+  openNativeMarkdownAttachment: vi.fn(),
   openNativeMarkdownFolder: vi.fn(),
   openNativeMarkdownFolderInNewWindow: vi.fn(),
   openNativeMarkdownFileInNewWindow: vi.fn(),
@@ -181,6 +188,7 @@ vi.mock("../lib/tauri", () => ({
   resolveNativeMarkdownPath: vi.fn(),
   renameNativeMarkdownTreeFile: vi.fn(),
   saveNativeClipboardImage: vi.fn(),
+  saveNativeClipboardAttachment: vi.fn(),
   saveNativeHtmlFile: vi.fn(),
   saveNativeMarkdownFile: vi.fn(),
   saveNativePandocFile: vi.fn(),
@@ -837,6 +845,9 @@ vi.mock("@markra/providers", async (importOriginal) => {
 export const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
 export const mockedOpenNativeContainingFolder = vi.mocked(openNativeContainingFolder);
 export const mockedOpenNativeLocalImages = vi.mocked(openNativeLocalImages);
+export const mockedOpenNativeLocalFiles = vi.mocked(openNativeLocalFiles);
+export const mockedImportNativeLocalFile = vi.mocked(importNativeLocalFile);
+export const mockedOpenNativeMarkdownAttachment = vi.mocked(openNativeMarkdownAttachment);
 export const mockedOpenNativeMarkdownFolderInNewWindow = vi.mocked(openNativeMarkdownFolderInNewWindow);
 export const mockedConfirmNativeMarkdownFileDelete = vi.mocked(confirmNativeMarkdownFileDelete);
 export const mockedConfirmNativeUnsavedMarkdownDocumentDiscard = vi.mocked(confirmNativeUnsavedMarkdownDocumentDiscard);
@@ -857,6 +868,7 @@ export const mockedReadNativeMarkdownFileHistory = vi.mocked(readNativeMarkdownF
 export const mockedReadNativeMarkdownTemplateFile = vi.mocked(readNativeMarkdownTemplateFile);
 export const mockedResolveNativeMarkdownPath = vi.mocked(resolveNativeMarkdownPath);
 export const mockedSaveNativeClipboardImage = vi.mocked(saveNativeClipboardImage);
+export const mockedSaveNativeClipboardAttachment = vi.mocked(saveNativeClipboardAttachment);
 export const mockedSaveNativeHtmlFile = vi.mocked(saveNativeHtmlFile);
 export const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
 export const mockedSaveNativePandocFile = vi.mocked(saveNativePandocFile);
@@ -1167,7 +1179,11 @@ export function installAppTestHarness() {
     mockedGenerateAiAgentSessionTitle.mockReset();
     mockedDownloadNativeWebImage.mockReset();
     mockedOpenNativeLocalImages.mockReset();
+    mockedOpenNativeLocalFiles.mockReset();
+    mockedImportNativeLocalFile.mockReset();
+    mockedOpenNativeMarkdownAttachment.mockReset();
     mockedSaveNativeClipboardImage.mockReset();
+    mockedSaveNativeClipboardAttachment.mockReset();
     mockedGetNativeShellCommandStatus.mockReset();
     mockedInstallNativeShellCommand.mockReset();
     mockedUninstallNativeShellCommand.mockReset();
@@ -1213,9 +1229,19 @@ export function installAppTestHarness() {
       type: "image/png"
     }));
     mockedOpenNativeLocalImages.mockResolvedValue([]);
+    mockedOpenNativeLocalFiles.mockResolvedValue([]);
+    mockedImportNativeLocalFile.mockResolvedValue({
+      label: "Imported file",
+      src: "assets/imported-file.pdf"
+    });
+    mockedOpenNativeMarkdownAttachment.mockResolvedValue(undefined);
     mockedSaveNativeClipboardImage.mockResolvedValue({
       alt: "Imported image",
       src: "assets/imported-image.png"
+    });
+    mockedSaveNativeClipboardAttachment.mockResolvedValue({
+      label: "Imported file",
+      src: "assets/imported-file.pdf"
     });
     mockedGetNativeShellCommandStatus.mockResolvedValue({
       commandPath: "/mock-bin/markra",

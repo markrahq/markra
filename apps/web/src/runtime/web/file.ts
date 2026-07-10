@@ -954,6 +954,9 @@ export function createWebFileRuntime(
         type: blob.type || "application/octet-stream"
       });
     },
+    async importLocalFile() {
+      throw new Error("Importing local files requires the desktop runtime.");
+    },
     installMarkdownFileDrop: async (onDrop) => {
       if (!dropTarget) return () => undefined;
 
@@ -1044,6 +1047,7 @@ export function createWebFileRuntime(
       throw new Error("Opening containing folders requires the desktop runtime.");
     },
     openLocalImages: async () => [],
+    openLocalFiles: async () => [],
     async openMarkdownAttachment(input) {
       const parsedDocumentPath = input.documentPath ? parseWebHandlePath(input.documentPath) : null;
       if (parsedDocumentPath?.kind !== "folder" || !parsedDocumentPath.relativePath) {

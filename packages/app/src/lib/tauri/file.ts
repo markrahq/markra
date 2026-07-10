@@ -230,6 +230,11 @@ export type NativeMarkdownPickerLabels = {
   title: string;
 };
 
+export type NativeLocalFile = {
+  name: string;
+  path: string;
+};
+
 export type SavedNativeClipboardImage = {
   alt: string;
   src: string;
@@ -238,6 +243,13 @@ export type SavedNativeClipboardImage = {
 export type SavedNativeClipboardAttachment = {
   label: string;
   src: string;
+};
+
+export type ImportNativeLocalFileInput = {
+  copyToStorage: boolean;
+  documentPath: string | null;
+  file: NativeLocalFile;
+  folder: string;
 };
 
 export type ReadNativeMarkdownImageInput = {
@@ -383,6 +395,14 @@ export function openNativeMarkdownFile(labels?: NativeMarkdownPickerLabels) {
 
 export function openNativeLocalImages(labels?: NativeMarkdownPickerLabels) {
   return getAppRuntime().files.openLocalImages(labels);
+}
+
+export function openNativeLocalFiles(labels?: NativeMarkdownPickerLabels) {
+  return getAppRuntime().files.openLocalFiles(labels);
+}
+
+export function importNativeLocalFile(input: ImportNativeLocalFileInput) {
+  return getAppRuntime().files.importLocalFile(input);
 }
 
 export function openNativeMarkdownPath(labels?: NativeMarkdownPickerLabels) {

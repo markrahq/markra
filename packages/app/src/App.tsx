@@ -188,8 +188,10 @@ import {
   confirmNativeMarkdownFileDelete,
   confirmNativeUnsavedMarkdownDocumentDiscard,
   downloadNativeWebImage,
+  importNativeLocalFile,
   openNativeContainingFolder,
   openNativeMarkdownAttachment,
+  openNativeLocalFiles,
   openNativeLocalImages,
   readNativeLocalImageFile,
   readNativeMarkdownImageFile,
@@ -204,6 +206,7 @@ import {
   writeNativeMarkdownTemplateFile,
   type NativeMarkdownDroppedTarget,
   type NativeMarkdownFolderFile,
+  type NativeLocalFile,
   type NativePandocExportFormat
 } from "./lib/tauri";
 import {
@@ -263,6 +266,10 @@ export function clipboardImageSaveFailureDescription(error: unknown) {
 
 export function clipboardImageSaveFailureMessage(message: string, error: unknown) {
   return nativeFileOperationFailureMessage(message, error);
+}
+
+export async function refreshImportedAttachmentTree(refreshTree: () => Promise<unknown>) {
+  await refreshTree().catch(() => {});
 }
 
 type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
@@ -568,6 +575,7 @@ function WorkspaceApp() {
   const insertEditorMarkdownImages = editor.insertMarkdownImages;
   const insertEditorMarkdownImagesAtPoint = editor.insertMarkdownImagesAtPoint;
   const insertEditorMarkdownLink = editor.insertMarkdownLink;
+  const insertEditorMarkdownLinks = editor.insertMarkdownLinks;
   const insertEditorMarkdownSnippet = editor.insertMarkdownSnippet;
   const insertEditorMarkdownTable = editor.insertMarkdownTable;
   const isEditorCurrentMarkdownEquivalent = editor.isCurrentMarkdownEquivalent;
@@ -2011,7 +2019,7 @@ function WorkspaceApp() {
     const copyToStorage = editorPreferences.preferences.copyExternalFilesToStorage;
     if (copyToStorage && !targetDocumentPath) {
       showAppToast({
-        message: translate("app.clipboardImageRequiresSavedDocument"),
+        message: translate("app.clipboardAttachmentRequiresSavedDocument"),
         status: "error"
       });
       return null;
@@ -2025,7 +2033,7 @@ function WorkspaceApp() {
     }).catch(() => null);
     if (!savedAttachment) {
       showAppToast({
-        message: translate("app.clipboardImageSaveFailed"),
+        message: translate("app.clipboardAttachmentSaveFailed"),
         status: "error"
       });
       return null;
@@ -2047,7 +2055,7 @@ function WorkspaceApp() {
 
   const handleOpenLocalAttachment = useCallback(async (src: string, documentPath: string | null | undefined = document.path) => {
     const rootPath = fileTree.sourcePath ?? documentPath ?? null;
-    if (!rootPath) return;
+    if (!rootPath && !src.toLowerCase().startsWith("file://")) return;
 
     await openNativeMarkdownAttachment({
       documentPath: documentPath ?? null,
@@ -2915,7 +2923,8 @@ function WorkspaceApp() {
     });
   }, [document.content, document.revision, getEditorCurrentMarkdown, handleVisualMarkdownChange, readOnlyMode, splitMode]);
   const saveLocalEditorImageFiles = useCallback(async (images: File[]) => {
-    if (!document.path) {
+    const copyToStorage = editorPreferences.preferences.copyExternalFilesToStorage;
+    if (copyToStorage && !document.path) {
       showAppToast({
         message: translate("app.clipboardImageRequiresSavedDocument"),
         status: "error"
@@ -2957,7 +2966,7 @@ function WorkspaceApp() {
     if (savedImages.length === 0) return [];
 
     try {
-      if (refreshTree) {
+      if (refreshTree && document.path) {
         await refreshMarkdownFileTree(document.path);
       }
     } catch {
@@ -2975,10 +2984,51 @@ function WorkspaceApp() {
     refreshMarkdownFileTree,
     translate
   ]);
-  const handleImportLocalImages = useCallback(async () => {
-    if (readOnlyMode) return;
+  const saveLocalEditorAttachmentFiles = useCallback(async (attachments: NativeLocalFile[]) => {
+    if (attachments.length === 0) return [];
 
-    if (!document.path) {
+    const copyToStorage = editorPreferences.preferences.copyExternalFilesToStorage;
+    const savedAttachments: Array<{ href: string; label: string }> = [];
+
+    for (const attachment of attachments) {
+      const savedAttachment = await importNativeLocalFile({
+        copyToStorage,
+        documentPath: document.path,
+        file: attachment,
+        folder: editorPreferences.preferences.clipboardImageFolder
+      }).catch(() => null);
+      if (savedAttachment) {
+        savedAttachments.push({
+          href: savedAttachment.src,
+          label: savedAttachment.label
+        });
+        continue;
+      }
+
+      showAppToast({
+        message: translate("app.clipboardAttachmentSaveFailed"),
+        status: "error"
+      });
+    }
+
+    if (!savedAttachments.length) return [];
+
+    if (copyToStorage && document.path) {
+      await refreshImportedAttachmentTree(() => refreshMarkdownFileTree(document.path));
+    }
+
+    return savedAttachments;
+  }, [
+    document.path,
+    editorPreferences.preferences.clipboardImageFolder,
+    editorPreferences.preferences.copyExternalFilesToStorage,
+    refreshMarkdownFileTree,
+    translate
+  ]);
+  const handleImportLocalImages = useCallback(async () => {
+    if (readOnlyMode || !hasOpenDocument || activeImageFile || sourceMode) return;
+
+    if (editorPreferences.preferences.copyExternalFilesToStorage && !document.path) {
       showAppToast({
         message: translate("app.clipboardImageRequiresSavedDocument"),
         status: "error"
@@ -3004,9 +3054,52 @@ function WorkspaceApp() {
     syncVisualMarkdownAfterEditorCommand();
   }, [
     document.path,
+    activeImageFile,
+    editorPreferences.preferences.copyExternalFilesToStorage,
+    hasOpenDocument,
     insertEditorMarkdownImages,
     readOnlyMode,
     saveLocalEditorImageFiles,
+    sourceMode,
+    syncVisualMarkdownAfterEditorCommand,
+    translate
+  ]);
+  const handleImportLocalFiles = useCallback(async () => {
+    if (readOnlyMode || !hasOpenDocument || activeImageFile || sourceMode) return;
+
+    if (editorPreferences.preferences.copyExternalFilesToStorage && !document.path) {
+      showAppToast({
+        message: translate("app.clipboardAttachmentRequiresSavedDocument"),
+        status: "error"
+      });
+      return;
+    }
+
+    const files = await openNativeLocalFiles({
+      title: translate("menu.importLocalFiles")
+    }).catch(() => null);
+    if (!files) {
+      showAppToast({
+        message: translate("app.clipboardAttachmentSaveFailed"),
+        status: "error"
+      });
+      return;
+    }
+
+    const savedAttachments = await saveLocalEditorAttachmentFiles(files);
+    if (savedAttachments.length === 0) return;
+
+    insertEditorMarkdownLinks(savedAttachments);
+    syncVisualMarkdownAfterEditorCommand();
+  }, [
+    activeImageFile,
+    document.path,
+    editorPreferences.preferences.copyExternalFilesToStorage,
+    hasOpenDocument,
+    insertEditorMarkdownLinks,
+    readOnlyMode,
+    saveLocalEditorAttachmentFiles,
+    sourceMode,
     syncVisualMarkdownAfterEditorCommand,
     translate
   ]);
@@ -3565,6 +3658,7 @@ function WorkspaceApp() {
     exportHtml: exportFeatureEnabled ? exportHtmlDocument : undefined,
     exportLatex: exportFeatureEnabled && pandocFeatureEnabled ? exportLatexDocument : undefined,
     exportPdf: exportFeatureEnabled ? exportPdfDocument : undefined,
+    importLocalFiles: handleImportLocalFiles,
     importLocalImages: handleImportLocalImages,
     insertMarkdownImage: handleInsertMarkdownImage,
     insertMarkdownLink: handleInsertMarkdownLink,

@@ -10092,6 +10092,54 @@ describe("MarkdownPaper editing", () => {
     expect(openExternalUrl).not.toHaveBeenCalled();
   });
 
+  it("opens relative image links with the local attachment opener", async () => {
+    const openExternalUrl = vi.fn();
+    const openLocalAttachment = vi.fn();
+    const { container } = await renderEditor("[Screenshot](assets/screenshot.png)", {
+      openExternalUrl,
+      openLocalAttachment
+    });
+    const link = container.querySelector<HTMLAnchorElement>('.ProseMirror a[href="assets/screenshot.png"]');
+
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
+
+    expect(openLocalAttachment).toHaveBeenCalledWith("assets/screenshot.png");
+    expect(openExternalUrl).not.toHaveBeenCalled();
+  });
+
+  it("opens absolute file image links with the local attachment opener", async () => {
+    const openExternalUrl = vi.fn();
+    const openLocalAttachment = vi.fn();
+    const { container } = await renderEditor("[Screenshot](file:///C:/mock-files/screenshot.png)", {
+      openExternalUrl,
+      openLocalAttachment
+    });
+    const link = container.querySelector<HTMLAnchorElement>(
+      '.ProseMirror a[href="file:///C:/mock-files/screenshot.png"]'
+    );
+
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
+
+    expect(openLocalAttachment).toHaveBeenCalledWith("file:///C:/mock-files/screenshot.png");
+    expect(openExternalUrl).not.toHaveBeenCalled();
+  });
+
+  it("opens case-insensitive local image links with query and fragment suffixes", async () => {
+    const openExternalUrl = vi.fn();
+    const openLocalAttachment = vi.fn();
+    const href = "FILE:///C:/mock-files/Screenshot.PNG?raw=1#preview";
+    const { container } = await renderEditor("[Screenshot](" + href + ")", {
+      openExternalUrl,
+      openLocalAttachment
+    });
+    const link = container.querySelector<HTMLAnchorElement>('a[href="' + href + '"]');
+
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
+
+    expect(openLocalAttachment).toHaveBeenCalledWith(href);
+    expect(openExternalUrl).not.toHaveBeenCalled();
+  });
+
   it("inserts a standard markdown document link from double-bracket completion", async () => {
     const onMarkdownChange = vi.fn();
     const { container, view } = await renderEditor("", {

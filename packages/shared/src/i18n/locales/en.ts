@@ -821,6 +821,8 @@ const messages: BaseLocaleMessages = {
   "app.clipboardImagePicGoUploadNotConfigured": "Configure PicGo/PicList server upload before pasting images.",
   "app.clipboardImageS3UploadNotConfigured": "Configure S3-compatible image upload before pasting images.",
   "app.clipboardImageSaveFailed": "Could not save the pasted image.",
+  "app.clipboardAttachmentRequiresSavedDocument": "Save the document before adding file attachments.",
+  "app.clipboardAttachmentSaveFailed": "Could not save the file attachment.",
   "menu.file": "File",
   "menu.edit": "Edit",
   "menu.format": "Format",
@@ -869,6 +871,7 @@ const messages: BaseLocaleMessages = {
   "menu.link": "Link",
   "menu.image": "Image",
   "menu.importLocalImages": "Import Local Images...",
+  "menu.importLocalFiles": "Import Local Files...",
   "menu.table": "Table"
 };
 

@@ -18,7 +18,9 @@ import {
   loadNativeMarkdownFilesForPath,
   listNativeMarkdownFilesForPath,
   moveNativeMarkdownTreeFile,
+  importNativeLocalFile,
   openNativeLocalImages,
+  openNativeLocalFiles,
   takeNativeOpenedMarkdownPaths,
   openNativeContainingFolder,
   openNativeMarkdownAttachment,
@@ -272,6 +274,87 @@ describe("native file access", () => {
     await expect(openNativeLocalImages()).resolves.toEqual([]);
 
     expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
+  it("preserves native paths for imported local images when linking without copying", async () => {
+    mockedOpen.mockResolvedValue("/mock-files/Local Diagram.png");
+    mockedInvoke.mockResolvedValue({
+      bytes: [1, 2, 3],
+      mimeType: "image/png",
+      path: "/mock-files/Local Diagram.png"
+    });
+
+    const [image] = await openNativeLocalImages();
+
+    await expect(
+      saveNativeClipboardImage({
+        copyToStorage: false,
+        documentPath: null,
+        fileName: "local-diagram.png",
+        folder: "assets",
+        image: image!
+      })
+    ).resolves.toEqual({
+      alt: "Local Diagram",
+      src: "file:///mock-files/Local%20Diagram.png"
+    });
+  });
+
+  it("opens local files as native references without reading their contents", async () => {
+    mockedOpen.mockResolvedValue("/mock-files/Reference Doc.pdf");
+
+    await expect(openNativeLocalFiles({ title: "Import local files" })).resolves.toEqual([{
+      name: "Reference Doc.pdf",
+      path: "/mock-files/Reference Doc.pdf"
+    }]);
+    expect(mockedOpen).toHaveBeenCalledWith({
+      multiple: true,
+      fileAccessMode: "scoped",
+      title: "Import local files"
+    });
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
+  it("imports a local file by linking to its encoded native path without invoking Rust", async () => {
+    await expect(importNativeLocalFile({
+      copyToStorage: false,
+      documentPath: null,
+      file: {
+        name: "Reference Doc.pdf",
+        path: "/mock-files/Reference Doc.pdf"
+      },
+      folder: "assets"
+    })).resolves.toEqual({
+      label: "Reference Doc.pdf",
+      src: "file:///mock-files/Reference%20Doc.pdf"
+    });
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
+  it("imports a local file into document storage through Rust", async () => {
+    mockedInvoke.mockResolvedValue({
+      relativePath: "assets/Reference Doc.pdf"
+    });
+
+    await expect(
+      importNativeLocalFile({
+        copyToStorage: true,
+        documentPath: "/mock-files/notes/Meeting.md",
+        file: {
+          name: "Reference Doc.pdf",
+          path: "/mock-files/Reference Doc.pdf"
+        },
+        folder: "assets"
+      })
+    ).resolves.toEqual({
+      label: "Reference Doc.pdf",
+      src: "assets/Reference%20Doc.pdf"
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("import_local_file", {
+      documentPath: "/mock-files/notes/Meeting.md",
+      folder: "assets",
+      sourcePath: "/mock-files/Reference Doc.pdf"
+    });
   });
 
   it("opens a markdown file or folder through the unified native picker", async () => {
@@ -1736,6 +1819,24 @@ describe("native file access", () => {
       documentPath: "/mock-files/vault/docs/note.md",
       rootPath: mockFolderPath,
       src: "../assets/Reference%20Doc.docx"
+    });
+  });
+
+  it("opens absolute markdown attachments through Tauri without a root", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await expect(
+      openNativeMarkdownAttachment({
+        documentPath: null,
+        rootPath: null,
+        src: "file:///external/Reference%20Doc.docx"
+      })
+    ).resolves.toBeUndefined();
+
+    expect(mockedInvoke).toHaveBeenCalledWith("open_markdown_attachment", {
+      documentPath: null,
+      rootPath: null,
+      src: "file:///external/Reference%20Doc.docx"
     });
   });
 });

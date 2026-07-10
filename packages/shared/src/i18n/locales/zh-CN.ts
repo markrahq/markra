@@ -821,6 +821,8 @@ const messages: LocaleMessages = {
   "app.clipboardImagePicGoUploadNotConfigured": "请先配置 PicGo/PicList 本地服务，再粘贴图片。",
   "app.clipboardImageS3UploadNotConfigured": "请先配置 S3 兼容对象存储，再粘贴图片。",
   "app.clipboardImageSaveFailed": "无法保存粘贴的图片。",
+  "app.clipboardAttachmentRequiresSavedDocument": "请先保存文档，再添加文件附件。",
+  "app.clipboardAttachmentSaveFailed": "无法保存文件附件。",
   "menu.file": "文件",
   "menu.edit": "编辑",
   "menu.format": "格式",
@@ -869,6 +871,7 @@ const messages: LocaleMessages = {
   "menu.link": "链接",
   "menu.image": "图片",
   "menu.importLocalImages": "导入本地图片...",
+  "menu.importLocalFiles": "导入本地文件...",
   "menu.table": "表格"
 };
 

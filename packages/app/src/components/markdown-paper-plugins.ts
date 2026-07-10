@@ -635,7 +635,6 @@ type ExternalLinkClickPluginOptions = {
 };
 
 const markdownDocumentHrefPattern = /\.(md|markdown)(?:[?#].*)?$/iu;
-const markdownImageHrefPattern = /\.(avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#].*)?$/iu;
 const markdownClipboardTableRowNodeNames = new Set(["table_header_row", "table_row"]);
 const markdownClipboardTableCellNodeNames = new Set(["table_cell", "table_header"]);
 
@@ -734,16 +733,16 @@ function isLocalAttachmentHref(href: string) {
   const trimmed = href.trim();
   if (!trimmed || trimmed.startsWith("#")) return false;
 
-  const normalized = trimmed.toLocaleLowerCase();
+  const normalized = trimmed.toLowerCase();
   if (normalized.startsWith("file:")) {
-    return !markdownDocumentHrefPattern.test(trimmed) && !markdownImageHrefPattern.test(trimmed);
+    return !markdownDocumentHrefPattern.test(trimmed);
   }
 
   if (normalized.startsWith("data:") || normalized.startsWith("mailto:") || normalized.includes("://")) {
     return false;
   }
 
-  return !markdownDocumentHrefPattern.test(trimmed) && !markdownImageHrefPattern.test(trimmed);
+  return !markdownDocumentHrefPattern.test(trimmed);
 }
 
 function linkOpenerForHref(href: string, options: ExternalLinkClickPluginOptions) {

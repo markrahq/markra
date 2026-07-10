@@ -85,6 +85,11 @@ type MarkdownImageReference = {
   src: string;
 };
 
+type MarkdownLinkReference = {
+  href: string;
+  label: string;
+};
+
 type EditorInsertionPoint = {
   left: number;
   top: number;
@@ -302,6 +307,34 @@ function insertMarkdownImageReferences(
   );
   const tr = view.state.tr.replaceWith(range.from, range.to, fragment).scrollIntoView();
   const cursor = Math.min(tr.doc.content.size, range.from + fragment.size);
+
+  tr.setSelection(TextSelection.near(tr.doc.resolve(cursor), -1));
+  view.dispatch(tr);
+  view.focus();
+}
+
+function insertMarkdownLinkReferences(
+  view: EditorView,
+  link: MarkType,
+  links: MarkdownLinkReference[],
+  selection: Selection
+) {
+  const nodes: ProseNode[] = [];
+
+  links.forEach((reference, index) => {
+    if (index > 0) nodes.push(view.state.schema.text(" "));
+
+    nodes.push(view.state.schema.text(reference.label || reference.href, [
+      link.create({
+        href: reference.href,
+        title: ""
+      })
+    ]));
+  });
+
+  const fragment = Fragment.fromArray(nodes);
+  const tr = view.state.tr.replaceWith(selection.from, selection.to, fragment).scrollIntoView();
+  const cursor = Math.min(tr.doc.content.size, selection.from + fragment.size);
 
   tr.setSelection(TextSelection.near(tr.doc.resolve(cursor), -1));
   view.dispatch(tr);
@@ -986,6 +1019,17 @@ export function useEditorController() {
     return inserted;
   }, []);
 
+  const insertMarkdownLinks = useCallback((links: MarkdownLinkReference[]) => {
+    const editor = editorRef.current;
+    if (!editor || links.length === 0) return;
+
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const link = linkSchema.type(ctx);
+      insertMarkdownLinkReferences(view, link, links, view.state.selection);
+    });
+  }, []);
+
   const insertMarkdownLink = useCallback(() => {
     const editor = editorRef.current;
     if (!editor) return;
@@ -1248,6 +1292,7 @@ export function useEditorController() {
     insertMarkdownImages,
     insertMarkdownImagesAtPoint,
     insertMarkdownLink,
+    insertMarkdownLinks,
     insertMarkdownSnippet,
     insertMarkdownTable,
     listAiPreviews,

@@ -821,6 +821,8 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessStatusError": "失敗",
   "app.aiAgentProcessStep": "步",
   "app.aiAgentProcessSteps": "步",
+  "app.clipboardAttachmentRequiresSavedDocument": "請先儲存文件，再加入檔案附件。",
+  "app.clipboardAttachmentSaveFailed": "無法儲存檔案附件。",
   "menu.file": "檔案",
   "menu.edit": "編輯",
   "menu.format": "格式",
@@ -869,6 +871,7 @@ const messages: LocaleMessages = {
   "menu.link": "連結",
   "menu.image": "圖片",
   "menu.importLocalImages": "匯入本機圖片...",
+  "menu.importLocalFiles": "匯入本機檔案...",
   "menu.table": "表格"
 };
 

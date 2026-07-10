@@ -821,6 +821,8 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessStatusError": "실패",
   "app.aiAgentProcessStep": "단계",
   "app.aiAgentProcessSteps": "단계",
+  "app.clipboardAttachmentRequiresSavedDocument": "파일 첨부를 추가하기 전에 문서를 저장하세요.",
+  "app.clipboardAttachmentSaveFailed": "파일 첨부를 저장할 수 없습니다.",
   "menu.file": "파일",
   "menu.edit": "편집",
   "menu.format": "서식",
@@ -869,6 +871,7 @@ const messages: LocaleMessages = {
   "menu.link": "링크",
   "menu.image": "이미지",
   "menu.importLocalImages": "로컬 이미지 가져오기...",
+  "menu.importLocalFiles": "로컬 파일 가져오기...",
   "menu.table": "표"
 };
 

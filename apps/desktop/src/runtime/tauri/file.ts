@@ -7,6 +7,7 @@ import { listenNativeEvent } from "./events";
 import type {
   PicGoImageUploadSettings,
   S3ImageUploadSettings,
+  ImportNativeLocalFileInput,
   SyncNativeMarkdownFolderInput,
   WebDavImageUploadSettings,
   NativeMarkdownSyncSummary,
@@ -879,8 +880,6 @@ export async function openNativeMarkdownAttachment({
   rootPath,
   src
 }: OpenNativeMarkdownAttachmentInput) {
-  if (!rootPath) throw new Error("Markdown attachment root path is required.");
-
   await invokeNative("open_markdown_attachment", {
     documentPath,
     rootPath,
@@ -913,6 +912,19 @@ function normalizeSelectedPaths(paths: string | string[] | null) {
   return Array.isArray(paths) ? paths : [paths];
 }
 
+function nativeFileFromBytes(bytes: number[], path: string, mimeType: string) {
+  const file = new File([new Uint8Array(bytes)], fileNameFromPath(path), {
+    type: mimeType
+  });
+
+  Object.defineProperty(file, "path", {
+    configurable: true,
+    value: path
+  });
+
+  return file;
+}
+
 export async function openNativeLocalImages(labels?: NativeMarkdownPickerLabels): Promise<File[]> {
   const selectedPaths = normalizeSelectedPaths(await open({
     multiple: true,
@@ -929,14 +941,25 @@ export async function openNativeLocalImages(labels?: NativeMarkdownPickerLabels)
   return images;
 }
 
+export async function openNativeLocalFiles(labels?: NativeMarkdownPickerLabels) {
+  const selectedPaths = normalizeSelectedPaths(await open({
+    multiple: true,
+    fileAccessMode: "scoped",
+    ...pickerTitleOption(labels)
+  }));
+
+  return selectedPaths.map((path) => ({
+    name: fileNameFromPath(path),
+    path
+  }));
+}
+
 export async function readNativeLocalImageFile(path: string): Promise<File> {
   const image = await invokeNative<MarkdownImageFileResponse>("read_local_image_file", {
     path
   });
 
-  return new File([new Uint8Array(image.bytes)], fileNameFromPath(image.path), {
-    type: image.mimeType
-  });
+  return nativeFileFromBytes(image.bytes, image.path, image.mimeType);
 }
 
 export async function openNativeMarkdownPath(labels?: NativeMarkdownPickerLabels): Promise<NativeMarkdownOpenTarget | null> {
@@ -1417,6 +1440,33 @@ export async function saveNativeClipboardAttachment({
 
   return {
     label: attachment.name.trim() || "attachment",
+    src: encodeMarkdownRelativePath(savedAttachment.relativePath)
+  };
+}
+
+export async function importNativeLocalFile({
+  copyToStorage,
+  documentPath,
+  file,
+  folder
+}: ImportNativeLocalFileInput): Promise<SavedNativeClipboardAttachment> {
+  if (!copyToStorage) {
+    return {
+      label: file.name.trim() || fileNameFromPath(file.path) || "attachment",
+      src: fileUrlFromNativePath(file.path)
+    };
+  }
+
+  if (!documentPath) throw new Error("Current document must be a saved Markdown file.");
+
+  const savedAttachment = await invokeNative<ClipboardImageFileResponse>("import_local_file", {
+    documentPath,
+    folder,
+    sourcePath: file.path
+  });
+
+  return {
+    label: file.name.trim() || "attachment",
     src: encodeMarkdownRelativePath(savedAttachment.relativePath)
   };
 }

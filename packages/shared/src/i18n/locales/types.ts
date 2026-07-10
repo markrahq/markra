@@ -832,6 +832,8 @@ export type I18nKey =
   | "app.clipboardImagePicGoUploadNotConfigured"
   | "app.clipboardImageS3UploadNotConfigured"
   | "app.clipboardImageSaveFailed"
+  | "app.clipboardAttachmentRequiresSavedDocument"
+  | "app.clipboardAttachmentSaveFailed"
   | "menu.file"
   | "menu.edit"
   | "menu.format"
@@ -880,6 +882,7 @@ export type I18nKey =
   | "menu.link"
   | "menu.image"
   | "menu.importLocalImages"
+  | "menu.importLocalFiles"
   | "menu.table";
 
 export type BaseLocaleMessages = Record<I18nKey, string>;

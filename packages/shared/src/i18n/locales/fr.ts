@@ -821,6 +821,8 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessStatusError": "Échec",
   "app.aiAgentProcessStep": "étape",
   "app.aiAgentProcessSteps": "étapes",
+  "app.clipboardAttachmentRequiresSavedDocument": "Enregistrez le document avant d'ajouter des pieces jointes.",
+  "app.clipboardAttachmentSaveFailed": "Impossible d'enregistrer la piece jointe.",
   "menu.file": "Fichier",
   "menu.edit": "Édition",
   "menu.format": "Format",
@@ -869,6 +871,7 @@ const messages: LocaleMessages = {
   "menu.link": "Lien",
   "menu.image": "Image",
   "menu.importLocalImages": "Importer des images locales...",
+  "menu.importLocalFiles": "Importer des fichiers locaux...",
   "menu.table": "Tableau"
 };
 

@@ -25,6 +25,7 @@ import {
   mockedDetectNativePandocPath,
   mockedCheckNativeAppUpdate,
   mockedHideSettingsWindow,
+  mockedImportNativeLocalFile,
   mockedMarkSettingsWindowReady,
   mockedClearStoredRecentMarkdownFiles,
   mockedDeleteNativeMarkdownTreeFile,
@@ -58,6 +59,8 @@ import {
   mockedNotifyAppThemeChanged,
   mockedOpenNativeMarkdownFileInNewWindow,
   mockedOpenNativeLocalImages,
+  mockedOpenNativeLocalFiles,
+  mockedOpenNativeMarkdownAttachment,
   mockedOpenNativeMarkdownFolder,
   mockedOpenNativeMarkdownFolderInNewWindow,
   mockedOpenNativeMarkdownPath,
@@ -73,6 +76,7 @@ import {
   mockedResolveDesktopOsVersion,
   mockedResolveDesktopPlatform,
   mockedSaveNativeClipboardImage,
+  mockedSaveNativeClipboardAttachment,
   mockedSaveNativeHtmlFile,
   mockedSaveNativeMarkdownFile,
   mockedSaveNativePandocFile,
@@ -101,6 +105,7 @@ import {
 import {
   clipboardImageSaveFailureDescription,
   clipboardImageSaveFailureMessage,
+  refreshImportedAttachmentTree,
   runEditorLinkCommand,
   shouldTriggerDevMockRuntimeError
 } from "./App";
@@ -117,6 +122,16 @@ describe("dev mock runtime error preview", () => {
     expect(shouldTriggerDevMockRuntimeError("?mockError=1", true)).toBe(true);
     expect(shouldTriggerDevMockRuntimeError("?mockError=true", true)).toBe(false);
     expect(shouldTriggerDevMockRuntimeError("?mockError=1", false)).toBe(false);
+  });
+});
+
+describe("local attachment tree refresh", () => {
+  it("does not reject successful imports when the file tree refresh fails", async () => {
+    const refreshTree = vi.fn().mockRejectedValue(new Error("Synthetic tree refresh failure"));
+
+    await expect(refreshImportedAttachmentTree(refreshTree)).resolves.toBeUndefined();
+
+    expect(refreshTree).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -577,7 +592,7 @@ describe("Markra workspace", () => {
     expect(shell).toHaveClass("overscroll-none");
   });
 
-  it("imports local images through the native menu without replacing manual image insertion", async () => {
+  it("imports local images through the native file menu without replacing manual image insertion", async () => {
     const localImage = new File([new Uint8Array([1, 2, 3])], "Local Diagram.png", { type: "image/png" });
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockOpenMarkdownFile({
@@ -597,7 +612,9 @@ describe("Markra workspace", () => {
     expect(await screen.findByText("Native")).toBeInTheDocument();
 
     await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
-    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers & {
+      importLocalImages?: () => unknown | Promise<unknown>;
+    };
 
     await act(async () => {
       await menuHandlers.importLocalImages?.();
@@ -609,12 +626,357 @@ describe("Markra workspace", () => {
     expect(mockedOpenNativeLocalImages).toHaveBeenCalledWith({
       title: "Import Local Images..."
     });
+    expect(mockedOpenNativeLocalFiles).not.toHaveBeenCalled();
     expect(mockedSaveNativeClipboardImage).toHaveBeenCalledWith({
       documentPath: mockNativePath,
       fileName: expect.stringMatching(/^pasted-image-\d+\.png$/u),
       folder: "assets",
       image: localImage
     });
+  });
+
+  it("does not open local import pickers while source mode is active", async () => {
+    renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+    await selectEditorViewMode("Source code");
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.importLocalImages?.();
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    expect(mockedOpenNativeLocalImages).not.toHaveBeenCalled();
+    expect(mockedOpenNativeLocalFiles).not.toHaveBeenCalled();
+    expect(mockedImportNativeLocalFile).not.toHaveBeenCalled();
+    expect(mockedSaveNativeClipboardImage).not.toHaveBeenCalled();
+  });
+
+  it("does not open local import pickers while an image preview is active", async () => {
+    const imagePath = "/mock-files/assets/preview.png";
+    mockOpenMarkdownFile({
+      content: "# Native\n\nStart here.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "native.md", path: mockNativePath, relativePath: "native.md" },
+      { kind: "folder", name: "assets", path: "/mock-files/assets", relativePath: "assets" },
+      { kind: "asset", name: "preview.png", path: imagePath, relativePath: "assets/preview.png" }
+    ]);
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Native")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    fireEvent.click(await screen.findByRole("button", { name: "assets" }));
+    fireEvent.click(await screen.findByRole("button", { name: "assets/preview.png" }));
+    expect(await screen.findByRole("img", { name: "preview.png" })).toBeInTheDocument();
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.importLocalImages?.();
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    expect(mockedOpenNativeLocalImages).not.toHaveBeenCalled();
+    expect(mockedOpenNativeLocalFiles).not.toHaveBeenCalled();
+    expect(mockedImportNativeLocalFile).not.toHaveBeenCalled();
+    expect(mockedSaveNativeClipboardImage).not.toHaveBeenCalled();
+  });
+
+  it("imports local attachments through the native menu as markdown links", async () => {
+    const attachment = { name: "Reference Doc.pdf", path: "/mock-files/Reference Doc.pdf" };
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Native\n\nStart here.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedOpenNativeLocalFiles.mockResolvedValue([attachment]);
+    mockedImportNativeLocalFile.mockResolvedValue({
+      label: "Reference Doc.pdf",
+      src: "assets/Reference%20Doc.pdf"
+    });
+
+    const { container } = renderApp();
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuInstallCountBeforeOpen = mockedInstallNativeApplicationMenu.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Native")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(container.querySelector(".ProseMirror")).toHaveTextContent("Native");
+    });
+
+    await waitFor(() => {
+      expect(mockedInstallNativeApplicationMenu.mock.calls.length).toBeGreaterThan(menuInstallCountBeforeOpen);
+    });
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers & {
+      importLocalFiles?: () => unknown | Promise<unknown>;
+    };
+
+    await act(async () => {
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    expect(mockedOpenNativeLocalFiles).toHaveBeenCalledTimes(1);
+    expect(mockedImportNativeLocalFile).toHaveBeenCalledTimes(1);
+    await waitFor(() => {
+      expect(container.querySelector('a[href="assets/Reference%20Doc.pdf"]')).toHaveTextContent("Reference Doc.pdf");
+    });
+    expect(mockedOpenNativeLocalFiles).toHaveBeenCalledWith({
+      title: "Import Local Files..."
+    });
+    expect(mockedImportNativeLocalFile).toHaveBeenCalledWith({
+      copyToStorage: true,
+      documentPath: mockNativePath,
+      file: attachment,
+      folder: "assets"
+    });
+    expect(mockedSaveNativeClipboardAttachment).not.toHaveBeenCalled();
+  });
+
+  it("imports image selections from the local files menu as markdown links", async () => {
+    const imageAttachment = { name: "Screenshot.png", path: "/mock-files/Screenshot.png" };
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Native\n\nStart here.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedOpenNativeLocalFiles.mockResolvedValue([imageAttachment]);
+    mockedImportNativeLocalFile.mockResolvedValue({
+      label: "Screenshot.png",
+      src: "assets/Screenshot.png"
+    });
+
+    const { container } = renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Native")).toBeInTheDocument();
+
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers & {
+      importLocalFiles?: () => unknown | Promise<unknown>;
+      importLocalImages?: () => unknown | Promise<unknown>;
+    };
+
+    await act(async () => {
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector('a[href="assets/Screenshot.png"]')).toHaveTextContent("Screenshot.png");
+    });
+    expect(container.querySelector('img[src="assets/Screenshot.png"]')).not.toBeInTheDocument();
+    expect(mockedOpenNativeLocalFiles).toHaveBeenCalledWith({
+      title: "Import Local Files..."
+    });
+    expect(mockedOpenNativeLocalImages).not.toHaveBeenCalled();
+    expect(mockedImportNativeLocalFile).toHaveBeenCalledWith({
+      copyToStorage: true,
+      documentPath: mockNativePath,
+      file: imageAttachment,
+      folder: "assets"
+    });
+    expect(mockedSaveNativeClipboardAttachment).not.toHaveBeenCalled();
+    expect(mockedSaveNativeClipboardImage).not.toHaveBeenCalled();
+  });
+
+  it("keeps successful local file imports when another selected file fails", async () => {
+    const rejectedAttachment = { name: "Rejected.pdf", path: "/mock-files/Rejected.pdf" };
+    const importedAttachment = { name: "Imported.pdf", path: "/mock-files/Imported.pdf" };
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Native\n\nStart here.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedOpenNativeLocalFiles.mockResolvedValue([rejectedAttachment, importedAttachment]);
+    mockedImportNativeLocalFile
+      .mockRejectedValueOnce(new Error("Synthetic import failure"))
+      .mockResolvedValueOnce({
+        label: "Imported.pdf",
+        src: "assets/Imported.pdf"
+      });
+
+    const { container } = renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Native")).toBeInTheDocument();
+    await waitFor(() => expect(mockedLoadNativeMarkdownFilesForPath).toHaveBeenCalled());
+    mockedLoadNativeMarkdownFilesForPath.mockClear();
+    mockedListNativeMarkdownFilesForPath.mockClear();
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector('a[href="assets/Imported.pdf"]')).toHaveTextContent("Imported.pdf");
+    });
+    expect(container.querySelector('a[href="assets/Rejected.pdf"]')).not.toBeInTheDocument();
+    expect(screen.getAllByText("Could not save the file attachment.")).toHaveLength(1);
+    expect(mockedImportNativeLocalFile).toHaveBeenNthCalledWith(1, {
+      copyToStorage: true,
+      documentPath: mockNativePath,
+      file: rejectedAttachment,
+      folder: "assets"
+    });
+    expect(mockedImportNativeLocalFile).toHaveBeenNthCalledWith(2, {
+      copyToStorage: true,
+      documentPath: mockNativePath,
+      file: importedAttachment,
+      folder: "assets"
+    });
+    expect(mockedLoadNativeMarkdownFilesForPath).toHaveBeenCalledTimes(1);
+    expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not refresh the file tree when every copied local file import fails", async () => {
+    const firstAttachment = { name: "First.pdf", path: "/mock-files/First.pdf" };
+    const secondAttachment = { name: "Second.pdf", path: "/mock-files/Second.pdf" };
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Native\n\nStart here.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedOpenNativeLocalFiles.mockResolvedValue([firstAttachment, secondAttachment]);
+    mockedImportNativeLocalFile.mockRejectedValue(new Error("Synthetic import failure"));
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Native")).toBeInTheDocument();
+    await waitFor(() => expect(mockedLoadNativeMarkdownFilesForPath).toHaveBeenCalled());
+    mockedLoadNativeMarkdownFilesForPath.mockClear();
+    mockedListNativeMarkdownFilesForPath.mockClear();
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    expect(mockedImportNativeLocalFile).toHaveBeenCalledTimes(2);
+    expect(mockedLoadNativeMarkdownFilesForPath).not.toHaveBeenCalled();
+    expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalled();
+  });
+
+  it("imports local attachments into an unsaved document when external files are not copied", async () => {
+    const attachment = { name: "Reference Doc.pdf", path: "/mock-files/Reference Doc.pdf" };
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      copyExternalFilesToStorage: false
+    }));
+    mockedOpenNativeLocalFiles.mockResolvedValue([attachment]);
+    mockedImportNativeLocalFile.mockResolvedValue({
+      label: "Reference Doc.pdf",
+      src: "FILE:///mock-files/Reference%20Doc.pdf"
+    });
+
+    const { container } = renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers & {
+      importLocalFiles?: () => unknown | Promise<unknown>;
+    };
+
+    await act(async () => {
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    await waitFor(() => {
+      expect(container.querySelector('a[href="FILE:///mock-files/Reference%20Doc.pdf"]')).toHaveTextContent("Reference Doc.pdf");
+    });
+    expect(mockedImportNativeLocalFile).toHaveBeenCalledWith({
+      copyToStorage: false,
+      documentPath: null,
+      file: attachment,
+      folder: "assets"
+    });
+    expect(mockedSaveNativeClipboardAttachment).not.toHaveBeenCalled();
+
+    const link = container.querySelector<HTMLAnchorElement>('a[href="FILE:///mock-files/Reference%20Doc.pdf"]');
+    link?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
+
+    await waitFor(() => expect(mockedOpenNativeMarkdownAttachment).toHaveBeenCalledWith({
+      documentPath: null,
+      rootPath: null,
+      src: "FILE:///mock-files/Reference%20Doc.pdf"
+    }));
+  });
+
+  it("does not open a relative attachment when the document has no root path", async () => {
+    const attachment = { name: "Reference Doc.pdf", path: "/mock-files/Reference Doc.pdf" };
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      copyExternalFilesToStorage: false
+    }));
+    mockedOpenNativeLocalFiles.mockResolvedValue([attachment]);
+    mockedImportNativeLocalFile.mockResolvedValue({
+      label: "Reference Doc.pdf",
+      src: "assets/Reference%20Doc.pdf"
+    });
+
+    const { container } = renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+    await act(async () => {
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    const link = await waitFor(() => {
+      const importedLink = container.querySelector<HTMLAnchorElement>('a[href="assets/Reference%20Doc.pdf"]');
+      expect(importedLink).toBeInTheDocument();
+      return importedLink!;
+    });
+    link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, ctrlKey: true }));
+
+    expect(mockedOpenNativeMarkdownAttachment).not.toHaveBeenCalled();
+  });
+
+  it("does not refresh the file tree after a no-copy local file import", async () => {
+    const attachment = { name: "Reference Doc.pdf", path: "/mock-files/Reference Doc.pdf" };
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      copyExternalFilesToStorage: false
+    }));
+    mockOpenMarkdownFile({
+      content: "# Native\n\nStart here.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedOpenNativeLocalFiles.mockResolvedValue([attachment]);
+    mockedImportNativeLocalFile.mockResolvedValue({
+      label: "Reference Doc.pdf",
+      src: "file:///mock-files/Reference%20Doc.pdf"
+    });
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Native")).toBeInTheDocument();
+    await waitFor(() => expect(mockedLoadNativeMarkdownFilesForPath).toHaveBeenCalled());
+    mockedLoadNativeMarkdownFilesForPath.mockClear();
+    mockedListNativeMarkdownFilesForPath.mockClear();
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    expect(mockedImportNativeLocalFile).toHaveBeenCalledTimes(1);
+    expect(mockedLoadNativeMarkdownFilesForPath).not.toHaveBeenCalled();
+    expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalled();
   });
 
   it("replaces an empty paragraph when importing a local image at the blank document cursor", async () => {
@@ -645,7 +1007,9 @@ describe("Markra workspace", () => {
     await waitFor(() => {
       expect(mockedInstallNativeApplicationMenu.mock.calls.length).toBeGreaterThan(menuInstallCountBeforeOpen);
     });
-    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers & {
+      importLocalImages?: () => unknown | Promise<unknown>;
+    };
 
     await act(async () => {
       await menuHandlers.importLocalImages?.();

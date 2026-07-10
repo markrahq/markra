@@ -821,6 +821,8 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessStatusError": "失敗",
   "app.aiAgentProcessStep": "ステップ",
   "app.aiAgentProcessSteps": "ステップ",
+  "app.clipboardAttachmentRequiresSavedDocument": "ファイル添付を追加する前にドキュメントを保存してください。",
+  "app.clipboardAttachmentSaveFailed": "ファイル添付を保存できませんでした。",
   "menu.file": "ファイル",
   "menu.edit": "編集",
   "menu.format": "フォーマット",
@@ -869,6 +871,7 @@ const messages: LocaleMessages = {
   "menu.link": "リンク",
   "menu.image": "画像",
   "menu.importLocalImages": "ローカル画像を読み込む...",
+  "menu.importLocalFiles": "ローカルファイルを読み込む...",
   "menu.table": "表"
 };
 

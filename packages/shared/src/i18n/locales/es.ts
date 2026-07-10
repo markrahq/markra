@@ -821,6 +821,8 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessStatusError": "Falló",
   "app.aiAgentProcessStep": "paso",
   "app.aiAgentProcessSteps": "pasos",
+  "app.clipboardAttachmentRequiresSavedDocument": "Guarda el documento antes de agregar archivos adjuntos.",
+  "app.clipboardAttachmentSaveFailed": "No se pudo guardar el archivo adjunto.",
   "menu.file": "Archivo",
   "menu.edit": "Editar",
   "menu.format": "Formato",
@@ -869,6 +871,7 @@ const messages: LocaleMessages = {
   "menu.link": "Enlace",
   "menu.image": "Imagen",
   "menu.importLocalImages": "Importar imágenes locales...",
+  "menu.importLocalFiles": "Importar archivos locales...",
   "menu.table": "Tabla"
 };
 

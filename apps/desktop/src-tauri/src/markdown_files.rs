@@ -11,7 +11,7 @@ mod template;
 mod tree;
 mod types;
 
-pub(crate) use attachment::save_clipboard_attachment;
+pub(crate) use attachment::{import_local_file, save_clipboard_attachment};
 pub(crate) use document::{read_markdown_file, write_markdown_file};
 pub(crate) use export::{
     check_pandoc_available, detect_pandoc_path, export_pandoc_file, export_pdf_file,
