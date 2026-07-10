@@ -7408,13 +7408,13 @@ describe("Markra workspace", () => {
         path: "/mock-files/external.md"
       }
     });
-    renderApp();
+    const { container } = renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true });
     expect(await screen.findByText("External file")).toBeInTheDocument();
     await settleEditorUpdates();
 
-    const visualScroll = screen.getByLabelText("Writing surface");
+    const visualScroll = getVisibleWritingSurface(container);
     mockScrollMetrics(visualScroll, {
       clientHeight: 200,
       scrollHeight: 1000,
@@ -7423,44 +7423,50 @@ describe("Markra workspace", () => {
     fireEvent.scroll(visualScroll);
 
     const restoreFrames: FrameRequestCallback[] = [];
-    const flushRestoreFrames = () => {
-      const frames = restoreFrames.splice(0);
-      frames.forEach((frame) => frame(0));
+    const flushAppRestoreFrame = (scrollElement: HTMLElement) => {
+      while (restoreFrames.length > 0 && scrollElement.scrollTop === 0) {
+        restoreFrames.shift()!(0);
+      }
+      // CodeMirror schedules its own measurement frames; they are outside this App-level assertion.
+      restoreFrames.length = 0;
     };
     const requestAnimationFrameSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
       restoreFrames.push(callback);
       return restoreFrames.length;
     });
 
-    await selectEditorViewMode("Source code");
-    const sourceScroll = (await screen.findByLabelText("Markdown source")).closest(".paper-scroll")!;
-    mockScrollMetrics(sourceScroll, {
-      clientHeight: 200,
-      scrollHeight: 1200,
-      scrollTop: 0
-    });
+    try {
+      await selectEditorViewMode("Source code");
+      const sourceScroll = (await screen.findByLabelText("Markdown source")).closest<HTMLElement>(".paper-scroll")!;
+      mockScrollMetrics(sourceScroll, {
+        clientHeight: 200,
+        scrollHeight: 1200,
+        scrollTop: 0
+      });
 
-    act(() => {
-      flushRestoreFrames();
-    });
+      act(() => {
+        flushAppRestoreFrame(sourceScroll);
+      });
 
-    expect(sourceScroll.scrollTop).toBe(500);
+      expect(sourceScroll.scrollTop).toBe(500);
 
-    fireEvent.scroll(sourceScroll);
-    await selectEditorViewMode("Preview");
-    const restoredVisualScroll = screen.getByLabelText("Writing surface");
-    mockScrollMetrics(restoredVisualScroll, {
-      clientHeight: 200,
-      scrollHeight: 1000,
-      scrollTop: 0
-    });
+      fireEvent.scroll(sourceScroll);
+      await selectEditorViewMode("Preview");
+      const restoredVisualScroll = getVisibleWritingSurface(container);
+      mockScrollMetrics(restoredVisualScroll, {
+        clientHeight: 200,
+        scrollHeight: 1000,
+        scrollTop: 0
+      });
 
-    act(() => {
-      flushRestoreFrames();
-    });
+      act(() => {
+        flushAppRestoreFrame(restoredVisualScroll);
+      });
 
-    expect(restoredVisualScroll.scrollTop).toBe(400);
-    requestAnimationFrameSpy.mockRestore();
+      expect(restoredVisualScroll.scrollTop).toBe(400);
+    } finally {
+      requestAnimationFrameSpy.mockRestore();
+    }
   });
 
   it("switches source mode from the keyboard shortcut", async () => {
