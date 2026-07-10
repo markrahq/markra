@@ -28,39 +28,55 @@ jobs:
           - label: "@markra/desktop"
             package: "@markra/desktop"
             args: ""
+            shard: ""
           - label: "@markra/web"
             package: "@markra/web"
             args: ""
+            shard: ""
           - label: "@markra/ai"
             package: "@markra/ai"
             args: ""
-          - label: "@markra/app, workspace"
+            shard: ""
+          - label: "@markra/app, workspace 1/2"
             package: "@markra/app"
             args: "src/App.test.tsx"
+            shard: "1/2"
+          - label: "@markra/app, workspace 2/2"
+            package: "@markra/app"
+            args: "src/App.test.tsx"
+            shard: "2/2"
           - label: "@markra/app, remaining 1/2"
             package: "@markra/app"
             args: "--exclude=src/App.test.tsx --shard=1/2"
+            shard: ""
           - label: "@markra/app, remaining 2/2"
             package: "@markra/app"
             args: "--exclude=src/App.test.tsx --shard=2/2"
+            shard: ""
           - label: "@markra/editor"
             package: "@markra/editor"
             args: ""
+            shard: ""
           - label: "@markra/markdown"
             package: "@markra/markdown"
             args: ""
+            shard: ""
           - label: "@markra/providers"
             package: "@markra/providers"
             args: ""
+            shard: ""
           - label: "@markra/scripts"
             package: "@markra/scripts"
             args: ""
+            shard: ""
           - label: "@markra/shared"
             package: "@markra/shared"
             args: ""
+            shard: ""
           - label: "@markra/ui"
             package: "@markra/ui"
             args: ""
+            shard: ""
 
     steps:
       - name: Checkout
@@ -82,6 +98,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Test
+        env:
+          MARKRA_APP_TEST_SHARD: ${{ matrix.shard }}
         run: pnpm --filter "${{ matrix.package }}" test ${{ matrix.args }}
 
   frontend-test-typecheck:
