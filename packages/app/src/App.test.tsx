@@ -421,7 +421,7 @@ function createStoredEditorPreferences(
 
 async function settleEditorUpdates() {
   await new Promise((resolve) => {
-    window.setTimeout(resolve, 300);
+    window.requestAnimationFrame(() => resolve(null));
   });
 }
 

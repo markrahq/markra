@@ -1,5 +1,22 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
+// Integration tests compress Markra's debounce; its production timing remains covered by deferred-markdown-change.test.ts.
+vi.mock("../lib/deferred-markdown-change", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/deferred-markdown-change")>();
+
+  return {
+    ...actual,
+    createDeferredMarkdownChangeEmitter: <T,>(
+      emit: (content: T) => unknown,
+      options: Parameters<typeof actual.createDeferredMarkdownChangeEmitter<T>>[1] = {}
+    ) => actual.createDeferredMarkdownChangeEmitter(emit, {
+      delayMs: 0,
+      maxWaitMs: 0,
+      ...options
+    })
+  };
+});
+
 vi.mock("mermaid", () => ({
   default: {
     initialize: vi.fn(),
@@ -52,8 +69,6 @@ import type {
   ExtendedSyntaxPreferences,
   TableColumnWidthModePreference
 } from "../lib/settings/app-settings";
-import { deferredMarkdownChangeDelayMs } from "../lib/deferred-markdown-change";
-
 const tableColumnWidthModeLabel = "Column width mode";
 
 async function renderEditor(
@@ -135,8 +150,9 @@ async function renderEditor(
 }
 
 async function settleMarkdownListener() {
+  // Callback assertions use waitFor because Milkdown keeps its own external 200 ms debounce.
   await new Promise((resolve) => {
-    window.setTimeout(resolve, 250 + deferredMarkdownChangeDelayMs);
+    window.setTimeout(resolve, 0);
   });
 }
 
@@ -991,13 +1007,6 @@ function expectLiveImagePreview(container: HTMLElement, src: string) {
   return image;
 }
 
-afterAll(async () => {
-  // Milkdown ctx leaves 3s listener cleanup timers pending after editor teardown.
-  await new Promise((resolve) => {
-    window.setTimeout(resolve, 3200);
-  });
-});
-
 describe("MarkdownPaper editing", () => {
   it("marks whether code blocks should wrap long lines", async () => {
     const { container } = await renderEditor("```ts\nconst syntheticValue = 'mock';\n```", { wrapCodeBlocks: false });
@@ -1145,8 +1154,9 @@ describe("MarkdownPaper editing", () => {
     await waitFor(() =>
       expect(view.state.doc.textContent).toBe("This document mentions environment and accommodate word.")
     );
-    await settleMarkdownListener();
-    expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("accommodate"));
+    await waitFor(() =>
+      expect(onMarkdownChange).toHaveBeenCalledWith(expect.stringContaining("accommodate"))
+    );
     await waitFor(() => expect(container.querySelector(".markra-spellcheck-error")).toBeNull());
     expect(screen.queryByRole("menu", { name: "Spelling suggestions" })).not.toBeInTheDocument();
   });
@@ -4950,7 +4960,9 @@ describe("MarkdownPaper editing", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
 
-    await settleMarkdownListener();
+    await waitFor(() =>
+      expect(String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "")).toContain("Second\n\n\n\nThird")
+    );
     const latestMarkdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "");
     expect(latestMarkdown).toContain("Second\n\n\n\nThird");
     expect(latestMarkdown).not.toContain("<br");
@@ -5002,7 +5014,9 @@ describe("MarkdownPaper editing", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Add block below" }));
 
-    await settleMarkdownListener();
+    await waitFor(() =>
+      expect(String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "")).toContain("- First")
+    );
     const latestMarkdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "");
     expect(latestMarkdown).not.toContain("<br");
     expect(latestMarkdown).toContain("- First");
@@ -9402,7 +9416,9 @@ describe("MarkdownPaper editing", () => {
     expect(markdown).not.toContain("> - 1\n>\n> - 21");
     expect(markdown).not.toContain("> - 21\n>\n> - 21");
 
-    await settleMarkdownListener();
+    await waitFor(() =>
+      expect(onMarkdownChange.mock.lastCall?.[0] ?? "").toContain("> Synthetic details")
+    );
     const savedMarkdown = onMarkdownChange.mock.lastCall?.[0] ?? "";
     expect(savedMarkdown).toContain("> - 1\n> - 21\n> - 21\n>\n> Synthetic details");
     expect(savedMarkdown).not.toContain("> - 1\n>\n> - 21");
@@ -10166,7 +10182,11 @@ describe("MarkdownPaper editing", () => {
       "Guide Notes"
     );
 
-    await settleMarkdownListener();
+    await waitFor(() =>
+      expect(String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "")).toContain(
+        "[Guide Notes](./docs/Guide%20Notes.md)"
+      )
+    );
     const changedMarkdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "");
     expect(changedMarkdown).toContain("[Guide Notes](./docs/Guide%20Notes.md)");
     expect(changedMarkdown).not.toContain("[[guide");
@@ -10294,7 +10314,7 @@ describe("MarkdownPaper editing", () => {
 
     moveCursor(view, findTextPosition(view, "Intro", "Intro".length));
     typeText(view, " updated");
-    await settleMarkdownListener();
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenLastCalledWith(expectedMarkdown));
 
     expect(serializeMarkdown(view.state.doc)).toBe(expectedMarkdown);
     expect(onMarkdownChange).toHaveBeenLastCalledWith(expectedMarkdown);
