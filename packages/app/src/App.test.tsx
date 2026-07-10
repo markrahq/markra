@@ -4,7 +4,7 @@ import { Editor as MilkdownEditor, editorViewCtx } from "@milkdown/kit/core";
 import { AllSelection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView as ProseMirrorEditorView } from "@milkdown/kit/prose/view";
 import { defaultMarkdownShortcuts } from "@markra/editor";
-import { it as registerTest, type TestFunction } from "vitest";
+import { it as registerTest } from "vitest";
 import desktopPackage from "../package.json";
 import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
 import {
@@ -113,18 +113,12 @@ import {
 import type { NativeMenuHandlers } from "./test/app-harness";
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests } from "./runtime";
 import { showAppToast } from "./lib/app-toast";
-import { runsInTestShard } from "./test/shard";
+import { createShardedTest } from "./test/shard";
 
 installAppTestHarness();
 
 // Vitest shards files only, so CI needs a local registration boundary to split this monolithic suite by test title.
-function it(name: string, handler: TestFunction) {
-  const test = runsInTestShard(name, process.env.MARKRA_APP_TEST_SHARD)
-    ? registerTest
-    : registerTest.skip;
-
-  return test(name, handler);
-}
+const it = createShardedTest(registerTest, process.env.MARKRA_APP_TEST_SHARD);
 
 const defaultFileTreeListOptions = { managedAttachmentFolder: "assets" };
 

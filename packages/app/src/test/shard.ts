@@ -1,4 +1,16 @@
+import type { TestAPI, TestFunction } from "vitest";
+
 const shardSpecPattern = /^([1-9]\d*)\/([1-9]\d*)$/;
+
+type ShardedCaseArguments<T> = T extends readonly [...infer Arguments] ? Arguments : [T];
+
+export type ShardedTest = {
+  (name: string, handler: TestFunction): void;
+  each<T>(cases: readonly T[]): (
+    name: string,
+    handler: (...args: ShardedCaseArguments<T>) => unknown
+  ) => void;
+};
 
 function titleHash(title: string) {
   let hash = 2_166_136_261;
@@ -24,4 +36,26 @@ export function runsInTestShard(title: string, shardSpec: string | undefined) {
   }
 
   return titleHash(title) % shardCount === shardIndex - 1;
+}
+
+function testCaseShardKey(testCase: unknown, index: number) {
+  return `${index}:${JSON.stringify(testCase)}`;
+}
+
+export function createShardedTest(registerTest: TestAPI, shardSpec: string | undefined) {
+  const shardedTest = ((name: string, handler: TestFunction) => {
+    const test = runsInTestShard(name, shardSpec) ? registerTest : registerTest.skip;
+
+    return test(name, handler);
+  }) as ShardedTest;
+
+  shardedTest.each = (<T>(cases: readonly T[]) => {
+    const selectedCases = cases.filter((testCase, index) =>
+      runsInTestShard(testCaseShardKey(testCase, index), shardSpec)
+    );
+
+    return registerTest.each(selectedCases);
+  }) as ShardedTest["each"];
+
+  return shardedTest;
 }

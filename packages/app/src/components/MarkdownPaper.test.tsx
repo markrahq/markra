@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { it as registerTest } from "vitest";
 
 // Integration tests compress Markra's debounce; its production timing remains covered by deferred-markdown-change.test.ts.
 vi.mock("../lib/deferred-markdown-change", async (importOriginal) => {
@@ -69,7 +70,11 @@ import type {
   ExtendedSyntaxPreferences,
   TableColumnWidthModePreference
 } from "../lib/settings/app-settings";
+import { createShardedTest } from "../test/shard";
 const tableColumnWidthModeLabel = "Column width mode";
+
+// Vitest shards files only, so CI needs a local registration boundary to split this monolithic suite by test title.
+const it = createShardedTest(registerTest, process.env.MARKRA_APP_TEST_SHARD);
 
 async function renderEditor(
   initialContent = "",
