@@ -154,15 +154,10 @@ jobs:
           rustup component add rustfmt
 
       - name: Cache Cargo
-        uses: actions/cache@v4
+        uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/git
-            ~/.cargo/registry
-            apps/desktop/src-tauri/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('apps/desktop/src-tauri/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+          workspaces: |
+            apps/desktop/src-tauri -> target
 
       - name: Check formatting
         run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
