@@ -8061,7 +8061,7 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
-  it("snaps finalized formatting edge clicks to the mark boundary", async () => {
+  it("keeps finalized formatting edge clicks on their visual side", async () => {
     const { container, editor, unmount, view } = await renderEditor("alpha **bold** omega");
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     const strong = container.querySelector<HTMLElement>(".ProseMirror strong");
@@ -8095,8 +8095,8 @@ describe("MarkdownPaper editing", () => {
 
     typeText(view, "!");
 
-    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
-    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("alpha **bold**! omega");
+    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("bold!");
+    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("alpha **bold!** omega");
     unmount();
 
     const before = await renderEditor("alpha **bold** omega");
@@ -8131,8 +8131,227 @@ describe("MarkdownPaper editing", () => {
 
     typeText(before.view, "!");
 
+    expect(before.container.querySelector(".ProseMirror strong")).toHaveTextContent("!bold");
+    expect(beforeSerializer(before.view.state.doc).trimEnd()).toBe("alpha **!bold** omega");
+    await settleMarkdownListener();
+  });
+
+  it("keeps clicks just outside finalized formatting edges outside the mark", async () => {
+    const after = await renderEditor("alpha **bold** omega");
+    const afterSerializer = after.editor.action((ctx) => ctx.get(serializerCtx));
+    const afterParagraph = after.container.querySelector<HTMLElement>(".ProseMirror p");
+    const afterStrong = after.container.querySelector<HTMLElement>(".ProseMirror strong");
+
+    expect(afterParagraph).toBeInTheDocument();
+    expect(afterStrong).toHaveTextContent("bold");
+    mockInlineElementRect(afterStrong!, {
+      bottom: 32,
+      left: 100,
+      right: 148,
+      top: 12
+    });
+
+    const rightOutsideClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 149,
+      clientY: 22
+    });
+    Object.defineProperty(rightOutsideClick, "target", {
+      configurable: true,
+      value: afterParagraph
+    });
+    const rightHandled = after.view.someProp(
+      "handleDOMEvents",
+      (handlers) => handlers.mousedown?.(after.view, rightOutsideClick)
+    );
+
+    expect(rightHandled).toBe(true);
+    typeText(after.view, "!");
+
+    expect(after.container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
+    expect(afterSerializer(after.view.state.doc).trimEnd()).toBe("alpha **bold**! omega");
+    after.unmount();
+
+    const before = await renderEditor("alpha **bold** omega");
+    const beforeSerializer = before.editor.action((ctx) => ctx.get(serializerCtx));
+    const beforeParagraph = before.container.querySelector<HTMLElement>(".ProseMirror p");
+    const beforeStrong = before.container.querySelector<HTMLElement>(".ProseMirror strong");
+
+    expect(beforeParagraph).toBeInTheDocument();
+    expect(beforeStrong).toHaveTextContent("bold");
+    mockInlineElementRect(beforeStrong!, {
+      bottom: 32,
+      left: 100,
+      right: 148,
+      top: 12
+    });
+
+    const leftOutsideClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 99,
+      clientY: 22
+    });
+    Object.defineProperty(leftOutsideClick, "target", {
+      configurable: true,
+      value: beforeParagraph
+    });
+    const leftHandled = before.view.someProp(
+      "handleDOMEvents",
+      (handlers) => handlers.mousedown?.(before.view, leftOutsideClick)
+    );
+
+    expect(leftHandled).toBe(true);
+    typeText(before.view, "!");
+
     expect(before.container.querySelector(".ProseMirror strong")).toHaveTextContent("bold");
     expect(beforeSerializer(before.view.state.doc).trimEnd()).toBe("alpha !**bold** omega");
+    await settleMarkdownListener();
+  });
+
+  it.each([
+    {
+      clientX: 147,
+      expectedMarkText: "boldx",
+      expectedSource: "**boldx** after",
+      label: "strong inside",
+      reportsSurroundingTarget: false,
+      selector: ".markra-live-mark-strong",
+      source: "**bold** after"
+    },
+    {
+      clientX: 149,
+      expectedMarkText: "bold",
+      expectedSource: "**bold**x after",
+      label: "strong outside",
+      reportsSurroundingTarget: false,
+      selector: ".markra-live-mark-strong",
+      source: "**bold** after"
+    },
+    {
+      clientX: 148,
+      expectedMarkText: "bold italicx",
+      expectedSource: "***bold italicx*** after",
+      label: "strong emphasis inside with a surrounding WebView target",
+      reportsSurroundingTarget: true,
+      selector: ".markra-live-mark-strong.markra-live-mark-emphasis",
+      source: "***bold italic*** after"
+    },
+    {
+      clientX: 149,
+      expectedMarkText: "bold italic",
+      expectedSource: "***bold italic***x after",
+      label: "strong emphasis outside with a surrounding WebView target",
+      reportsSurroundingTarget: true,
+      selector: ".markra-live-mark-strong.markra-live-mark-emphasis",
+      source: "***bold italic*** after"
+    }
+  ])("keeps typed $label on the clicked side of live Markdown", async ({
+    clientX,
+    expectedMarkText,
+    expectedSource,
+    reportsSurroundingTarget,
+    selector,
+    source
+  }) => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, source);
+
+    const liveMark = container.querySelector<HTMLElement>(`.ProseMirror ${selector}`);
+    expect(liveMark).toBeInTheDocument();
+    mockInlineElementRect(liveMark!, {
+      bottom: 32,
+      left: 100,
+      right: 148,
+      top: 12
+    });
+
+    const edgeClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX,
+      clientY: 22
+    });
+    Object.defineProperty(edgeClick, "target", {
+      configurable: true,
+      value: reportsSurroundingTarget ? container.querySelector(".ProseMirror p") : liveMark
+    });
+    const handled = view.someProp(
+      "handleDOMEvents",
+      (handlers) => handlers.mousedown?.(view, edgeClick)
+    );
+
+    expect(handled).toBe(true);
+    typeText(view, "x");
+
+    expect(container.querySelector(`.ProseMirror ${selector}`)).toHaveTextContent(expectedMarkText);
+    expect(container.querySelector(".ProseMirror p")?.textContent).toBe(expectedSource);
+    await settleMarkdownListener();
+  });
+
+  it.each([
+    {
+      expected: "**boldx** and ***bold italic*** and ~~strike~~",
+      label: "strong",
+      selector: ".markra-live-mark-strong:not(.markra-live-mark-emphasis)",
+      text: "bold"
+    },
+    {
+      expected: "**bold** and ***bold italicx*** and ~~strike~~",
+      label: "strong emphasis",
+      selector: ".markra-live-mark-strong.markra-live-mark-emphasis",
+      text: "bold italic"
+    },
+    {
+      expected: "**bold** and ***bold italic*** and ~~strikex~~",
+      label: "strikethrough",
+      selector: ".markra-live-mark-strikethrough",
+      text: "strike"
+    }
+  ])("keeps $label inside when the WebView reports its closing delimiter at the content edge", async ({
+    expected,
+    selector,
+    text
+  }) => {
+    const { container, view } = await renderEditor();
+
+    typeText(view, "**bold** and ***bold italic*** and ~~strike~~");
+    moveCursor(view, findTextPosition(view, text, 1));
+
+    const liveMark = container.querySelector<HTMLElement>(`.ProseMirror ${selector}`);
+    const delimiters = Array.from(
+      container.querySelectorAll<HTMLElement>(".ProseMirror .markra-md-delimiter:not(.markra-md-virtual-delimiter)")
+    );
+    expect(liveMark).toBeInTheDocument();
+    expect(delimiters).toHaveLength(2);
+    const closingDelimiter = delimiters[1];
+    mockInlineElementRect(liveMark!, { bottom: 32, left: 100, right: 148, top: 12 });
+    mockInlineElementRect(closingDelimiter!, { bottom: 32, left: 148, right: 164, top: 12 });
+
+    const contentEdgeClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 148,
+      clientY: 22
+    });
+    Object.defineProperty(contentEdgeClick, "target", {
+      configurable: true,
+      value: closingDelimiter
+    });
+    const handled = view.someProp(
+      "handleDOMEvents",
+      (handlers) => handlers.mousedown?.(view, contentEdgeClick)
+    );
+
+    expect(handled).toBe(true);
+    typeText(view, "x");
+    expect(container.querySelector(".ProseMirror p")?.textContent).toBe(expected);
     await settleMarkdownListener();
   });
 
@@ -8167,7 +8386,7 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
-  it("snaps finalized formatting edge clicks when the WebView reports a surrounding target", async () => {
+  it("keeps finalized formatting edge clicks on their visual side when the WebView reports a surrounding target", async () => {
     const { container, editor, view } = await renderEditor("alpha **bold** omega");
     const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
     const paragraph = container.querySelector<HTMLElement>(".ProseMirror p");
@@ -8201,7 +8420,8 @@ describe("MarkdownPaper editing", () => {
 
     typeText(view, "!");
 
-    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("alpha **bold**! omega");
+    expect(container.querySelector(".ProseMirror strong")).toHaveTextContent("bold!");
+    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("alpha **bold!** omega");
     await settleMarkdownListener();
   });
 
@@ -8275,6 +8495,39 @@ describe("MarkdownPaper editing", () => {
     moveCursor(view, 3);
     expect(pressArrowLeft(view)).toBe(true);
     expect(view.state.selection.from).toBe(1);
+    await settleMarkdownListener();
+  });
+
+  it.each([
+    { expected: "**bold input** after", label: "strong", markdown: "**bold** after", text: "bold" },
+    {
+      expected: "***bold italic input*** after",
+      label: "strong emphasis",
+      markdown: "***bold italic*** after",
+      text: "bold italic"
+    },
+    { expected: "~~strike input~~ after", label: "strikethrough", markdown: "~~strike~~ after", text: "strike" }
+  ])("restores explicit stored marks when native keyboard movement lands inside finalized $label", async ({
+    expected,
+    markdown,
+    text
+  }) => {
+    const { editor, view } = await renderEditor(markdown);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    const contentEnd = findTextPosition(view, text, text.length);
+    moveCursor(view, findLastTextBlockEndCursor(view));
+    // ProseMirror receives this selection after the WebView performs an unhandled ArrowLeft movement.
+    moveCursor(view, contentEnd);
+    const insideMarkTypes = (view.state.selection.$from.nodeBefore?.marks ?? []).map((mark) => mark.type.name);
+    expect(insideMarkTypes.length).toBeGreaterThan(0);
+
+    const keyup = new KeyboardEvent("keyup", { bubbles: true, key: "ArrowLeft" });
+    view.someProp("handleDOMEvents", (handlers) => handlers.keyup?.(view, keyup));
+
+    expect(view.state.storedMarks?.map((mark) => mark.type.name)).toEqual(insideMarkTypes);
+    insertTextThroughInputHandler(view, " input");
+    expect(serializeMarkdown(view.state.doc).trimEnd()).toBe(expected);
     await settleMarkdownListener();
   });
 

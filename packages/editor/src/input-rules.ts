@@ -72,16 +72,28 @@ type LiveMarkdownPluginState = {
 
 const liveMarkdownKey = new PluginKey("markra-live-markdown");
 const liveMarkdownDelimiterSelector = ".markra-md-delimiter[data-markra-live-delimiter-position]";
-const formattedMarkEdgeSelector = "strong, em, del, code";
+const liveMarkdownMarkSelector =
+  ".markra-live-mark[data-markra-live-mark-from][data-markra-live-mark-to]" +
+  "[data-markra-live-mark-content-from][data-markra-live-mark-content-to]";
+const formattedMarkEdgeSelector = `${liveMarkdownMarkSelector}, strong, em, del, code`;
 const formattedMarkEdgeSnapPixels = 6;
 const formattedMarkEdgeVerticalTolerancePixels = 4;
 
 type FormattedMarkEdge = "start" | "end";
+type FormattedMarkEdgePlacement = "inside" | "outside";
 
 type FormattedMarkEdgeHit = {
   distance: number;
   edge: FormattedMarkEdge;
   element: HTMLElement;
+  placement: FormattedMarkEdgePlacement;
+};
+
+type LiveMarkdownMarkPositions = {
+  contentFrom: number;
+  contentTo: number;
+  from: number;
+  to: number;
 };
 
 function getLiveMarkdownKinds(spec: LiveMarkdownSpec) {
@@ -446,6 +458,7 @@ function insertMulticharTextWithoutStaleManagedMarks(
 function moveCursorPastFoldedMarkdownDelimiter(
   view: EditorView,
   specs: LiveMarkdownSpec[],
+  markTypes: MarkType[],
   direction: "left" | "right"
 ) {
   const { selection } = view.state;
@@ -460,9 +473,11 @@ function moveCursorPastFoldedMarkdownDelimiter(
     const foldedRange =
       pluginState?.activeFoldedRange ?? getFoldedMarkdownRangeAtCursor(view.state.doc, selection.from, specs);
     if (!foldedRange || selection.from !== foldedRange.to) return false;
+    const outsideMarks = selection.$from.marks().filter((mark) => !markTypes.includes(mark.type));
 
     view.dispatch(
       view.state.tr
+        .setStoredMarks(outsideMarks)
         .setMeta(liveMarkdownKey, { exitedFoldedRange: { ...foldedRange, cursor: selection.from } })
         .scrollIntoView()
     );
@@ -471,13 +486,41 @@ function moveCursorPastFoldedMarkdownDelimiter(
 
   const exitedRange = pluginState?.exitedFoldedRange ?? null;
   if (!exitedRange || selection.from !== exitedRange.cursor) return false;
+  const insideMarks = selection.$from.nodeBefore?.marks ?? [];
 
   view.dispatch(
     view.state.tr
+      .setStoredMarks(insideMarks)
       .setMeta(liveMarkdownKey, { activeFoldedRange: exitedRange, exitedFoldedRange: null })
       .scrollIntoView()
   );
   return true;
+}
+
+function marksAtFormattedEdge(view: EditorView, position: number, edge: FormattedMarkEdge) {
+  const $position = view.state.doc.resolve(position);
+  return edge === "start" ? ($position.nodeAfter?.marks ?? []) : ($position.nodeBefore?.marks ?? []);
+}
+
+function restoreFoldedMarkdownMarksAfterNativeArrow(view: EditorView, event: Event) {
+  if (!(event instanceof KeyboardEvent)) return false;
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return false;
+  if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return false;
+
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+
+  const pluginState = liveMarkdownKey.getState(view.state) as LiveMarkdownPluginState | undefined;
+  const range = pluginState?.activeFoldedRange ?? null;
+  if (!range || pluginState?.exitedFoldedRange) return false;
+
+  const edge = selection.from === range.from ? "start" : selection.from === range.to ? "end" : null;
+  const marks = edge ? marksAtFormattedEdge(view, selection.from, edge) : [];
+  if (marks.length === 0) return false;
+
+  // An unhandled native arrow move can land at a virtual marker without carrying ProseMirror's mark affinity.
+  view.dispatch(view.state.tr.setStoredMarks(marks));
+  return false;
 }
 
 function deleteTextAfterLiveMarkdownRange(
@@ -585,6 +628,23 @@ function liveMarkdownDelimiterAttrs(className: string, position: number | null) 
   };
 }
 
+function liveMarkdownMarkAttrs(
+  className: string,
+  from: number,
+  to: number,
+  contentFrom: number,
+  contentTo: number
+) {
+  // WebViews disagree on DOM hit-testing beside hidden markers, so retain both source and visible-content edges.
+  return {
+    class: className,
+    "data-markra-live-mark-from": String(from),
+    "data-markra-live-mark-to": String(to),
+    "data-markra-live-mark-content-from": String(contentFrom),
+    "data-markra-live-mark-content-to": String(contentTo)
+  };
+}
+
 function liveMarkdownDelimiterTarget(target: EventTarget | null) {
   const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
   return element?.closest<HTMLElement>(liveMarkdownDelimiterSelector) ?? null;
@@ -655,6 +715,15 @@ function horizontalEdgeDistance(event: MouseEvent, rect: DOMRect, edge: "left" |
   return distance <= tolerance ? distance : null;
 }
 
+function formattedMarkEdgePlacement(
+  event: MouseEvent,
+  rect: DOMRect,
+  edge: FormattedMarkEdge
+): FormattedMarkEdgePlacement {
+  if (edge === "start") return event.clientX >= rect.left ? "inside" : "outside";
+  return event.clientX <= rect.right ? "inside" : "outside";
+}
+
 function formattedMarkEdgeHitFromElement(event: MouseEvent, element: HTMLElement): FormattedMarkEdgeHit | null {
   const rects = visibleClientRects(element);
   const firstRect = rects[0];
@@ -664,10 +733,20 @@ function formattedMarkEdgeHitFromElement(event: MouseEvent, element: HTMLElement
 
   if (startDistance === null && endDistance === null) return null;
   if (endDistance !== null && (startDistance === null || endDistance < startDistance)) {
-    return { distance: endDistance, edge: "end", element };
+    return {
+      distance: endDistance,
+      edge: "end",
+      element,
+      placement: formattedMarkEdgePlacement(event, lastRect!, "end")
+    };
   }
 
-  return { distance: startDistance ?? 0, edge: "start", element };
+  return {
+    distance: startDistance ?? 0,
+    edge: "start",
+    element,
+    placement: formattedMarkEdgePlacement(event, firstRect!, "start")
+  };
 }
 
 function directFormattedMarkEdgeHit(view: EditorView, event: MouseEvent) {
@@ -702,6 +781,37 @@ function formattedMarkEdgePosition(view: EditorView, element: HTMLElement, edge:
   }
 }
 
+function liveMarkdownMarkPositions(element: HTMLElement): LiveMarkdownMarkPositions | null {
+  const from = Number(element.dataset.markraLiveMarkFrom);
+  const to = Number(element.dataset.markraLiveMarkTo);
+  const contentFrom = Number(element.dataset.markraLiveMarkContentFrom);
+  const contentTo = Number(element.dataset.markraLiveMarkContentTo);
+
+  if (![from, to, contentFrom, contentTo].every(Number.isInteger)) return null;
+  if (from < 0 || from > contentFrom || contentFrom > contentTo || contentTo > to) return null;
+
+  return { contentFrom, contentTo, from, to };
+}
+
+function liveMarkdownMarkEdgePosition(
+  positions: LiveMarkdownMarkPositions,
+  edge: FormattedMarkEdge,
+  placement: FormattedMarkEdgePlacement
+) {
+  if (placement === "inside") return edge === "start" ? positions.contentFrom : positions.contentTo;
+  return edge === "start" ? positions.from : positions.to;
+}
+
+function formattedMarkEdgeMarks(
+  view: EditorView,
+  position: number,
+  edge: FormattedMarkEdge,
+  placement: FormattedMarkEdgePlacement
+) {
+  if (placement === "outside") return null;
+  return marksAtFormattedEdge(view, position, edge);
+}
+
 function selectFormattedMarkEdge(view: EditorView, event: Event) {
   if (!(event instanceof MouseEvent)) return false;
   if (event.button !== 0) return false;
@@ -709,17 +819,22 @@ function selectFormattedMarkEdge(view: EditorView, event: Event) {
   const hit = directFormattedMarkEdgeHit(view, event) ?? nearbyFormattedMarkEdgeHit(view, event);
   if (!hit) return false;
 
-  const position = formattedMarkEdgePosition(view, hit.element, hit.edge);
+  const livePositions = liveMarkdownMarkPositions(hit.element);
+  const position = livePositions
+    ? liveMarkdownMarkEdgePosition(livePositions, hit.edge, hit.placement)
+    : formattedMarkEdgePosition(view, hit.element, hit.edge);
   if (position === null) return false;
+  if (position > view.state.doc.content.size) return false;
+  const marks = livePositions ? null : formattedMarkEdgeMarks(view, position, hit.edge, hit.placement);
 
   event.preventDefault();
   event.stopPropagation();
-  view.dispatch(
-    view.state.tr
-      .setSelection(TextSelection.create(view.state.doc, position))
-      .scrollIntoView()
-  );
+  // Focusing can restore the previous DOM selection, so apply inside-edge marks only after focus settles.
   view.focus();
+  const transaction = view.state.tr
+    .setSelection(TextSelection.create(view.state.doc, position))
+    .scrollIntoView();
+  view.dispatch(marks ? transaction.setStoredMarks(marks) : transaction);
   return true;
 }
 
@@ -761,10 +876,9 @@ function buildLiveMarkdownDecorations(
       );
 
       if (range.contentFrom < range.contentTo) {
+        const markClass = ["markra-live-mark", ...range.kinds.map((kind) => `markra-live-mark-${kind}`)].join(" ");
         decorations.push(
-          Decoration.inline(contentFrom, contentTo, {
-            class: ["markra-live-mark", ...range.kinds.map((kind) => `markra-live-mark-${kind}`)].join(" ")
-          })
+          Decoration.inline(contentFrom, contentTo, liveMarkdownMarkAttrs(markClass, from, to, contentFrom, contentTo))
         );
       }
     }
@@ -1387,7 +1501,9 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
     props: {
       handleDOMEvents: {
         mousedown: (view, event) =>
-          selectLiveMarkdownDelimiterEdge(view, event) || selectFormattedMarkEdge(view, event)
+          // Resolve the visible content edge before trusting the WebView's unstable wrapper target.
+          selectFormattedMarkEdge(view, event) || selectLiveMarkdownDelimiterEdge(view, event),
+        keyup: restoreFoldedMarkdownMarksAfterNativeArrow
       },
       decorations: (state) => {
         const pluginState = liveMarkdownKey.getState(state) as LiveMarkdownPluginState | undefined;
@@ -1430,7 +1546,12 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           );
           const handledFoldedRange =
             handledLiveRange ||
-            moveCursorPastFoldedMarkdownDelimiter(view, specs, event.key === "ArrowLeft" ? "left" : "right");
+            moveCursorPastFoldedMarkdownDelimiter(
+              view,
+              specs,
+              managedMarkTypes,
+              event.key === "ArrowLeft" ? "left" : "right"
+            );
 
           if (handledFoldedRange) {
             event.preventDefault();
