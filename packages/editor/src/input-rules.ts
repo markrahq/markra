@@ -62,9 +62,22 @@ type ExitedFoldedMarkdownRange = FoldedMarkdownRange & {
   cursor: number;
 };
 
+type FormattedMarkEdge = "start" | "end";
+type FormattedMarkEdgePlacement = "inside" | "outside";
+
+type FormattedBoundaryInputIntent = {
+  edge: FormattedMarkEdge;
+  finalized: boolean;
+  placement: FormattedMarkEdgePlacement;
+  position: number;
+  selectionFrom: number;
+  selectionTo: number;
+};
+
 type LiveMarkdownPluginState = {
   suppressActiveAt: number | null;
   activeFoldedRange: FoldedMarkdownRange | null;
+  boundaryInputIntent: FormattedBoundaryInputIntent | null;
   exitedFoldedRange: ExitedFoldedMarkdownRange | null;
   suppressedLiveRange: SuppressedLiveMarkdownRange | null;
   suppressedLiteralRanges: SuppressedLiteralMarkdownRange[];
@@ -78,9 +91,11 @@ const liveMarkdownMarkSelector =
 const formattedMarkEdgeSelector = `${liveMarkdownMarkSelector}, strong, em, del, code`;
 const formattedMarkEdgeSnapPixels = 6;
 const formattedMarkEdgeVerticalTolerancePixels = 4;
-
-type FormattedMarkEdge = "start" | "end";
-type FormattedMarkEdgePlacement = "inside" | "outside";
+const graphemeSegmenter = typeof Intl.Segmenter === "function"
+  ? new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  : null;
+const bidirectionalTextPattern =
+  /[\u0590-\u08ff\u200e-\u200f\u202a-\u202e\u2066-\u2069\ufb1d-\ufdff\ufe70-\ufeff\u{10800}-\u{10fff}\u{1e800}-\u{1efff}]/u;
 
 type FormattedMarkEdgeHit = {
   distance: number;
@@ -413,6 +428,116 @@ function clearManagedStoredMarks(state: EditorState, markTypes: MarkType[]) {
   return state.tr.setStoredMarks(nextMarks);
 }
 
+function marksForBoundaryInputIntent(
+  view: EditorView,
+  intent: FormattedBoundaryInputIntent,
+  markTypes: MarkType[]
+) {
+  if (intent.finalized && intent.placement === "inside") {
+    return marksAtFormattedEdge(view, intent.position, intent.edge);
+  }
+
+  return view.state.doc.resolve(intent.position).marks().filter((mark) => !markTypes.includes(mark.type));
+}
+
+function boundaryInputIntentAfterInsert(
+  intent: FormattedBoundaryInputIntent,
+  cursor: number,
+  insertedSize: number,
+  doc: ProseNode,
+  specs: LiveMarkdownSpec[]
+) {
+  // End-edge typing recreates the same ambiguous DOM boundary after every character; start-edge typing moves inward.
+  if (intent.edge !== "end" || intent.placement !== "inside") return null;
+
+  if (intent.finalized) {
+    return {
+      ...intent,
+      position: cursor,
+      selectionFrom: cursor,
+      selectionTo: cursor
+    };
+  }
+
+  const nextIntent = {
+    ...intent,
+    position: cursor,
+    selectionFrom: intent.selectionFrom + insertedSize,
+    selectionTo: intent.selectionTo + insertedSize
+  };
+  const $cursor = doc.resolve(cursor);
+  if (!$cursor.parent.isTextblock) return null;
+
+  const blockStart = $cursor.start();
+  const rangeStillExists = getLiveMarkdownRangesInTextblock($cursor.parent, specs).some((range) =>
+    blockStart + range.contentTo === nextIntent.selectionFrom
+    && blockStart + range.to === nextIntent.selectionTo
+  );
+
+  return rangeStillExists ? nextIntent : null;
+}
+
+function insertTextAtFormattedBoundaryIntent(
+  view: EditorView,
+  from: number,
+  to: number,
+  text: string,
+  markTypes: MarkType[],
+  specs: LiveMarkdownSpec[]
+) {
+  if (text.length === 0) return false;
+  if (from !== to) return false;
+
+  const pluginState = liveMarkdownKey.getState(view.state) as LiveMarkdownPluginState | undefined;
+  const intent = pluginState?.boundaryInputIntent ?? null;
+  if (!intent) return false;
+  if (from < intent.selectionFrom || from > intent.selectionTo) return false;
+  if (intent.position < 0 || intent.position > view.state.doc.content.size) return false;
+
+  // WebViews may overwrite the DOM selection after pointer or key events, so honor the captured visual side here.
+  const marks = marksForBoundaryInputIntent(view, intent, markTypes);
+  const insertedText = view.state.schema.text(text, marks);
+  const transaction = view.state.tr.replaceWith(intent.position, intent.position, insertedText);
+  const cursor = intent.position + insertedText.nodeSize;
+  const nextIntent = boundaryInputIntentAfterInsert(
+    intent,
+    cursor,
+    insertedText.nodeSize,
+    transaction.doc,
+    specs
+  );
+
+  view.dispatch(
+    transaction
+      .setSelection(TextSelection.create(transaction.doc, cursor))
+      .setStoredMarks(marks)
+      .setMeta(liveMarkdownKey, { boundaryInputIntent: nextIntent })
+      .scrollIntoView()
+  );
+  return true;
+}
+
+function handleFormattedBoundaryBeforeInput(
+  view: EditorView,
+  event: Event,
+  markTypes: MarkType[],
+  specs: LiveMarkdownSpec[]
+) {
+  if (!(event instanceof InputEvent)) return false;
+  if (!event.cancelable) return false;
+
+  if (!event.isComposing && event.inputType === "insertText" && event.data) {
+    const { from, to } = view.state.selection;
+    if (insertTextAtFormattedBoundaryIntent(view, from, to, event.data, markTypes, specs)) {
+      // A native WebView insertion can ignore ProseMirror's stored-mark affinity at an identical DOM offset.
+      event.preventDefault();
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function insertTextAfterExitedFoldedMarkdown(
   view: EditorView,
   text: string,
@@ -478,7 +603,10 @@ function moveCursorPastFoldedMarkdownDelimiter(
     view.dispatch(
       view.state.tr
         .setStoredMarks(outsideMarks)
-        .setMeta(liveMarkdownKey, { exitedFoldedRange: { ...foldedRange, cursor: selection.from } })
+        .setMeta(liveMarkdownKey, {
+          boundaryInputIntent: formattedBoundaryInputIntent(null, selection.from, "end", "outside"),
+          exitedFoldedRange: { ...foldedRange, cursor: selection.from }
+        })
         .scrollIntoView()
     );
     return true;
@@ -491,7 +619,11 @@ function moveCursorPastFoldedMarkdownDelimiter(
   view.dispatch(
     view.state.tr
       .setStoredMarks(insideMarks)
-      .setMeta(liveMarkdownKey, { activeFoldedRange: exitedRange, exitedFoldedRange: null })
+      .setMeta(liveMarkdownKey, {
+        activeFoldedRange: exitedRange,
+        boundaryInputIntent: formattedBoundaryInputIntent(null, selection.from, "end", "inside"),
+        exitedFoldedRange: null
+      })
       .scrollIntoView()
   );
   return true;
@@ -515,12 +647,80 @@ function restoreFoldedMarkdownMarksAfterNativeArrow(view: EditorView, event: Eve
   if (!range || pluginState?.exitedFoldedRange) return false;
 
   const edge = selection.from === range.from ? "start" : selection.from === range.to ? "end" : null;
-  const marks = edge ? marksAtFormattedEdge(view, selection.from, edge) : [];
+  if (!edge) return false;
+  const marks = marksAtFormattedEdge(view, selection.from, edge);
   if (marks.length === 0) return false;
 
   // An unhandled native arrow move can land at a virtual marker without carrying ProseMirror's mark affinity.
-  view.dispatch(view.state.tr.setStoredMarks(marks));
+  view.dispatch(
+    view.state.tr
+      .setStoredMarks(marks)
+      .setMeta(liveMarkdownKey, {
+        boundaryInputIntent: formattedBoundaryInputIntent(null, selection.from, edge, "inside")
+      })
+  );
   return false;
+}
+
+function singleGraphemeLength(text: string) {
+  const segments = graphemeSegmenter
+    ? graphemeSegmenter.segment(text)[Symbol.iterator]()
+    : text[Symbol.iterator]();
+  const first = segments.next();
+  if (first.done || !segments.next().done) return 0;
+
+  return typeof first.value === "string" ? first.value.length : first.value.segment.length;
+}
+
+function sameMarks(left: readonly Mark[], right: readonly Mark[]) {
+  return left.length === right.length && left.every((mark, index) => mark.eq(right[index]!));
+}
+
+function moveCursorIntoAdjacentFormattedBoundary(
+  view: EditorView,
+  markTypes: MarkType[],
+  direction: "left" | "right"
+) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+  const pluginState = liveMarkdownKey.getState(view.state) as LiveMarkdownPluginState | undefined;
+  if (pluginState?.exitedFoldedRange) return false;
+  const computedDirection = view.dom.ownerDocument.defaultView?.getComputedStyle(view.dom).direction;
+  // Native arrows follow visual order for RTL and mixed-bidi text, which does not map to position +/- one.
+  if (computedDirection === "rtl" || bidirectionalTextPattern.test(selection.$from.parent.textContent)) return false;
+
+  const adjacentText = direction === "left" ? selection.$from.nodeBefore?.text : selection.$from.nodeAfter?.text;
+  if (!adjacentText) return false;
+
+  const distance = singleGraphemeLength(adjacentText);
+  if (distance === 0) return false;
+
+  const position = selection.from + (direction === "left" ? -distance : distance);
+  const $position = view.state.doc.resolve(position);
+  const leftMarks = $position.nodeBefore?.marks ?? [];
+  const rightMarks = $position.nodeAfter?.marks ?? [];
+  const leftManagedMarks = leftMarks.filter((mark) => markTypes.includes(mark.type));
+  const rightManagedMarks = rightMarks.filter((mark) => markTypes.includes(mark.type));
+  if (sameMarks(leftManagedMarks, rightManagedMarks)) return false;
+
+  // Prefer the marks on the character crossed by the arrow; when that side is plain, enter the formatted side.
+  const crossedMarks = direction === "left" ? rightManagedMarks : leftManagedMarks;
+  const crossedEdge = direction === "left" ? "start" : "end";
+  const oppositeEdge = direction === "left" ? "end" : "start";
+  const edge: FormattedMarkEdge = crossedMarks.length > 0 ? crossedEdge : oppositeEdge;
+  const marks = edge === "start" ? rightMarks : leftMarks;
+  if (!hasManagedMark(marks, markTypes)) return false;
+
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, position))
+      .setStoredMarks(marks)
+      .setMeta(liveMarkdownKey, {
+        boundaryInputIntent: formattedBoundaryInputIntent(null, position, edge, "inside")
+      })
+      .scrollIntoView()
+  );
+  return true;
 }
 
 function deleteTextAfterLiveMarkdownRange(
@@ -670,6 +870,7 @@ function selectLiveMarkdownDelimiterEdge(view: EditorView, event: Event) {
   view.dispatch(
     view.state.tr
       .setSelection(TextSelection.create(view.state.doc, position))
+      .setMeta(liveMarkdownKey, { boundaryInputIntent: null })
       .scrollIntoView()
   );
   view.focus();
@@ -802,6 +1003,33 @@ function liveMarkdownMarkEdgePosition(
   return edge === "start" ? positions.from : positions.to;
 }
 
+function formattedBoundaryInputIntent(
+  livePositions: LiveMarkdownMarkPositions | null,
+  position: number,
+  edge: FormattedMarkEdge,
+  placement: FormattedMarkEdgePlacement
+): FormattedBoundaryInputIntent {
+  if (!livePositions) {
+    return {
+      edge,
+      finalized: true,
+      placement,
+      position,
+      selectionFrom: position,
+      selectionTo: position
+    };
+  }
+
+  return {
+    edge,
+    finalized: false,
+    placement,
+    position,
+    selectionFrom: edge === "start" ? livePositions.from : livePositions.contentTo,
+    selectionTo: edge === "start" ? livePositions.contentFrom : livePositions.to
+  };
+}
+
 function formattedMarkEdgeMarks(
   view: EditorView,
   position: number,
@@ -833,6 +1061,9 @@ function selectFormattedMarkEdge(view: EditorView, event: Event) {
   view.focus();
   const transaction = view.state.tr
     .setSelection(TextSelection.create(view.state.doc, position))
+    .setMeta(liveMarkdownKey, {
+      boundaryInputIntent: formattedBoundaryInputIntent(livePositions, position, hit.edge, hit.placement)
+    })
     .scrollIntoView();
   view.dispatch(marks ? transaction.setStoredMarks(marks) : transaction);
   return true;
@@ -1209,6 +1440,20 @@ export function setLiveMarkdownSourceContext(
   } satisfies Partial<LiveMarkdownPluginState>);
 }
 
+function nextBoundaryInputIntent(
+  current: FormattedBoundaryInputIntent | null,
+  meta: Partial<LiveMarkdownPluginState> | undefined,
+  transaction: Transaction,
+  selection: TextSelection | null
+) {
+  if (meta && "boundaryInputIntent" in meta) return meta.boundaryInputIntent ?? null;
+  if (transaction.docChanged) return null;
+  if (!transaction.selectionSet) return current;
+  if (!selection?.empty || !current) return null;
+
+  return selection.from >= current.selectionFrom && selection.from <= current.selectionTo ? current : null;
+}
+
 function moveCursorOverLiveMarkdownDelimiter(
   view: EditorView,
   specs: LiveMarkdownSpec[],
@@ -1277,7 +1522,10 @@ function moveCursorOverLiveMarkdownDelimiter(
   view.dispatch(
     view.state.tr
       .setSelection(TextSelection.create(view.state.doc, target))
-      .setMeta(liveMarkdownKey, suppressedLiveRange ? { suppressedLiveRange } : {})
+      .setMeta(liveMarkdownKey, {
+        boundaryInputIntent: null,
+        ...(suppressedLiveRange ? { suppressedLiveRange } : {})
+      })
       .scrollIntoView()
   );
   return true;
@@ -1425,6 +1673,7 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
       init: (_config, state): LiveMarkdownPluginState => ({
         suppressActiveAt: null,
         activeFoldedRange: null,
+        boundaryInputIntent: null,
         exitedFoldedRange: null,
         suppressedLiveRange: null,
         suppressedLiteralRanges: findSuppressedLiteralRanges(state.doc, specs, options.initialMarkdown)
@@ -1435,10 +1684,13 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           meta && "suppressedLiteralRanges" in meta
             ? meta.suppressedLiteralRanges ?? []
             : mapSuppressedLiteralRanges(value.suppressedLiteralRanges, tr);
+        const textSelection = newState.selection instanceof TextSelection ? newState.selection : null;
+        const boundaryInputIntent = nextBoundaryInputIntent(value.boundaryInputIntent, meta, tr, textSelection);
         if (meta && "exitedFoldedRange" in meta) {
           return {
             suppressActiveAt: null,
             activeFoldedRange: meta.activeFoldedRange ?? null,
+            boundaryInputIntent,
             exitedFoldedRange: meta.exitedFoldedRange ?? null,
             suppressedLiveRange: null,
             suppressedLiteralRanges
@@ -1450,6 +1702,7 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           return {
             suppressActiveAt: null,
             activeFoldedRange: null,
+            boundaryInputIntent,
             exitedFoldedRange: null,
             suppressedLiveRange: meta.suppressedLiveRange,
             suppressedLiteralRanges
@@ -1460,6 +1713,7 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           return {
             suppressActiveAt: meta.suppressActiveAt,
             activeFoldedRange: null,
+            boundaryInputIntent,
             exitedFoldedRange: null,
             suppressedLiveRange: null,
             suppressedLiteralRanges
@@ -1467,20 +1721,20 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
         }
 
         if (tr.selectionSet) {
-          const selection = newState.selection instanceof TextSelection ? newState.selection : null;
           const exitedFoldedRange =
-            selection?.from === value.exitedFoldedRange?.cursor ? value.exitedFoldedRange : null;
+            textSelection?.from === value.exitedFoldedRange?.cursor ? value.exitedFoldedRange : null;
           const activeFoldedRange =
-            selection?.empty && selection.from !== value.suppressActiveAt && !exitedFoldedRange
-              ? getFoldedMarkdownRangeAtCursor(newState.doc, selection.from, specs)
+            textSelection?.empty && textSelection.from !== value.suppressActiveAt && !exitedFoldedRange
+              ? getFoldedMarkdownRangeAtCursor(newState.doc, textSelection.from, specs)
               : null;
 
           return {
-            suppressActiveAt: selection?.from === value.suppressActiveAt ? value.suppressActiveAt : null,
+            suppressActiveAt: textSelection?.from === value.suppressActiveAt ? value.suppressActiveAt : null,
             activeFoldedRange,
+            boundaryInputIntent,
             exitedFoldedRange,
             suppressedLiveRange:
-              selection?.from === value.suppressedLiveRange?.cursor ? value.suppressedLiveRange : null,
+              textSelection?.from === value.suppressedLiveRange?.cursor ? value.suppressedLiveRange : null,
             suppressedLiteralRanges
           };
         }
@@ -1489,17 +1743,27 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           return {
             suppressActiveAt: null,
             activeFoldedRange: null,
+            boundaryInputIntent,
             exitedFoldedRange: null,
             suppressedLiveRange: null,
             suppressedLiteralRanges
           };
         }
 
-        return suppressedLiteralRanges === value.suppressedLiteralRanges ? value : { ...value, suppressedLiteralRanges };
+        return suppressedLiteralRanges === value.suppressedLiteralRanges
+          && boundaryInputIntent === value.boundaryInputIntent
+          ? value
+          : { ...value, boundaryInputIntent, suppressedLiteralRanges };
       }
     },
     props: {
       handleDOMEvents: {
+        beforeinput: (view, event) => handleFormattedBoundaryBeforeInput(
+          view,
+          event,
+          managedMarkTypes,
+          specs
+        ),
         mousedown: (view, event) =>
           // Resolve the visible content edge before trusting the WebView's unstable wrapper target.
           selectFormattedMarkEdge(view, event) || selectLiveMarkdownDelimiterEdge(view, event),
@@ -1524,7 +1788,8 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           pluginState?.suppressedLiteralRanges ?? []
         );
       },
-      handleTextInput: (view, _from, _to, text) =>
+      handleTextInput: (view, from, to, text) =>
+        insertTextAtFormattedBoundaryIntent(view, from, to, text, managedMarkTypes, specs) ||
         insertMulticharTextWithoutStaleManagedMarks(view, text, managedMarkTypes) ||
         insertTextAfterExitedFoldedMarkdown(view, text, managedMarkTypes),
       handleKeyDown: (view, event) => {
@@ -1549,6 +1814,11 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
             moveCursorPastFoldedMarkdownDelimiter(
               view,
               specs,
+              managedMarkTypes,
+              event.key === "ArrowLeft" ? "left" : "right"
+            ) ||
+            moveCursorIntoAdjacentFormattedBoundary(
+              view,
               managedMarkTypes,
               event.key === "ArrowLeft" ? "left" : "right"
             );
