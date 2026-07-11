@@ -1,4 +1,5 @@
 export * from "./ai";
+export * from "./ai-chat-attachments";
 export * from "./browser";
 export * from "./dialog";
 export * from "./events";

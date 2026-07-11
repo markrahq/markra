@@ -4,6 +4,7 @@ import {
 } from "@markra/app/runtime";
 import {
   createBrowserEventsRuntime,
+  createIndexedDbAiChatAttachmentRuntime,
   createIndexedDbSettingsRuntime,
   createWebAiRuntime,
   createWebDialogRuntime,
@@ -23,6 +24,7 @@ export function createWebRuntime(options: WebRuntimeOptions = {}): AppRuntime {
   return {
     ...defaultRuntime,
     ai: createWebAiRuntime(options),
+    aiChatAttachments: createIndexedDbAiChatAttachmentRuntime(options),
     dialog: createWebDialogRuntime(options),
     events: createBrowserEventsRuntime(options.eventTarget),
     features: {

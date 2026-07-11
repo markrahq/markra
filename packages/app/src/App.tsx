@@ -4146,7 +4146,9 @@ function WorkspaceApp() {
         availableModels={aiSettings.availableTextModels}
         context={aiAgentContext}
         documentAvailable={hasOpenDocument && !activeImageFile}
+        attachmentError={aiAgent.attachmentError}
         draft={aiAgent.draft}
+        draftAttachments={aiAgent.draftAttachments}
         language={appLanguage.language}
         messages={aiAgent.messages}
         modelName={aiAgentModelName}
@@ -4161,6 +4163,7 @@ function WorkspaceApp() {
         thinkingEnabled={aiAgent.thinkingEnabled}
         webSearchAvailable={webSearchAvailable}
         webSearchEnabled={aiAgent.webSearchEnabled}
+        visionAvailable={acpAgentSettings.configured || selectedAiAgentModel?.capabilities.includes("vision") === true}
         workspaceAvailable={Boolean(fileTree.sourcePath)}
         workspacePlanApplyError={aiAgent.workspacePlanApplyError}
         workspacePlanApplyStatus={aiAgent.workspacePlanApplyStatus}
@@ -4174,6 +4177,9 @@ function WorkspaceApp() {
         onApplyWorkspacePlan={() => {
           aiAgent.applyWorkspacePlan().catch(() => {});
         }}
+        onAddAttachments={(files) => {
+          aiAgent.addAttachments(files).catch(() => {});
+        }}
         onClose={closeAiAgentPanel}
         onComposerFocus={handleAiAgentComposerFocus}
         onCreateSession={handleCreateAiAgentSession}
@@ -4186,6 +4192,7 @@ function WorkspaceApp() {
         onRenameSession={(sessionId, title) => {
           handleRenameAiAgentSession(sessionId, title).catch(() => {});
         }}
+        onRemoveAttachment={aiAgent.removeAttachment}
         onResize={setAiAgentPanelWidth}
         onResizeEnd={endAiAgentPanelResize}
         onResizeStart={startAiAgentPanelResize}

@@ -82,7 +82,7 @@ describe("Markra AI workspace", () => {
           id: "openai",
           models: [
             {
-              capabilities: ["text", "reasoning", "tools"],
+              capabilities: ["text", "vision", "reasoning", "tools"],
               enabled: true,
               id: "gpt-5.5",
               name: "GPT-5.5"
@@ -104,6 +104,7 @@ describe("Markra AI workspace", () => {
     expect(agentPanel).toBeInTheDocument();
     expect(within(agentPanel).getAllByText("OpenAI · GPT-5.5")[0]).toBeInTheDocument();
     expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveTextContent("OpenAI · GPT-5.5");
+    expect(within(agentPanel).getByRole("button", { name: "Attach images" })).toBeEnabled();
     expect((container.querySelector(".editor-agent-layout") as HTMLElement).style.gridTemplateColumns).toBe(
       "minmax(0,1fr) 384px"
     );

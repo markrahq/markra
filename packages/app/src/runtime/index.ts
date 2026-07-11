@@ -77,7 +77,7 @@ import type {
 } from "../lib/tauri/spellcheck";
 import type { NativeWebResourceRequest, NativeWebResourceResponse } from "../lib/tauri/web-resource";
 import type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../lib/workspace-search";
-import type { AcpJsonRpcMessage } from "@markra/ai";
+import type { AcpJsonRpcMessage, AiAgentSessionAttachment } from "@markra/ai";
 import { setAppLogBackendWriter, type AppLogEvent, type AppLogWriter } from "../lib/app-logger";
 
 export type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../lib/workspace-search";
@@ -267,6 +267,21 @@ export type AppAiRuntime = {
   ) => Promise<NativeAiStreamResponse>;
 };
 
+export type SaveAiChatAttachmentInput = {
+  attachmentId: string;
+  bytes: number[];
+  mimeType: AiAgentSessionAttachment["mimeType"];
+  sessionId: string;
+};
+
+export type ReadAiChatAttachmentInput = Omit<SaveAiChatAttachmentInput, "bytes">;
+
+export type AppAiChatAttachmentRuntime = {
+  deleteSession: (sessionId: string) => Promise<unknown>;
+  read: (input: ReadAiChatAttachmentInput) => Promise<number[]>;
+  save: (input: SaveAiChatAttachmentInput) => Promise<unknown>;
+};
+
 export type AppAcpAgentStartConfig = {
   args?: string[];
   command: string;
@@ -369,6 +384,7 @@ export type AppWindowRuntime = {
 export type AppRuntime = {
   acp: AppAcpRuntime;
   ai: AppAiRuntime;
+  aiChatAttachments: AppAiChatAttachmentRuntime;
   dialog: AppDialogRuntime;
   events: AppEventsRuntime;
   features: AppFeatureRuntime;
@@ -493,6 +509,11 @@ export function createDefaultAppRuntime(): AppRuntime {
       requestAiJson: () => unsupportedFeature("requestAiJson"),
       requestChat: () => unsupportedFeature("requestChat"),
       requestChatStream: () => unsupportedFeature("requestChatStream")
+    },
+    aiChatAttachments: {
+      deleteSession: () => unsupportedFeature("deleteAiChatAttachmentSession"),
+      read: () => unsupportedFeature("readAiChatAttachment"),
+      save: () => unsupportedFeature("saveAiChatAttachment")
     },
     dialog: {
       confirmAiAgentSessionDelete: async () => false,

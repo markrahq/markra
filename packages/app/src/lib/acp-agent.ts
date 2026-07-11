@@ -15,6 +15,7 @@ import {
   type AiDiffResult,
   type AiEditIntent,
   type AiSelectionContext,
+  type DocumentAiChatImage,
   type DocumentAiHistoryMessage,
   type InlineAiAgentTarget,
   isAcpAuthRequiredError,
@@ -29,6 +30,7 @@ export type AcpDocumentAgentRunOptions = {
   documentContent: string;
   documentPath: string | null;
   history: DocumentAiHistoryMessage[];
+  images?: DocumentAiChatImage[];
   onEvent?: (event: AgentEvent) => unknown;
   onModelState?: (state: AcpAgentModelState) => unknown;
   onPermissionRequest?: (
@@ -82,6 +84,7 @@ export async function runAcpDocumentAgent({
   documentContent,
   documentPath,
   history,
+  images = [],
   onEvent,
   onModelState,
   onPermissionRequest,
@@ -232,7 +235,7 @@ export async function runAcpDocumentAgent({
 
     throwIfAcpRunAborted(signal);
     await agentFailure.race(client.prompt({
-      prompt: createAcpPromptBlocks({ documentContent, documentPath, history, prompt, selection }),
+      prompt: createAcpPromptBlocks({ documentContent, documentPath, history, images, prompt, selection }),
       sessionId: session.sessionId
     }));
 
@@ -1082,19 +1085,23 @@ function createAcpPromptBlocks({
   documentContent,
   documentPath,
   history,
+  images = [],
   prompt,
   selection
-}: Pick<AcpDocumentAgentRunOptions, "documentContent" | "documentPath" | "history" | "prompt" | "selection">): AcpContentBlock[] {
+}: Pick<AcpDocumentAgentRunOptions, "documentContent" | "documentPath" | "history" | "images" | "prompt" | "selection">): AcpContentBlock[] {
   const blocks: AcpContentBlock[] = [];
-  const historyText = history
-    .map((message) => `${message.role}: ${message.text}`.trim())
-    .filter(Boolean)
-    .join("\n\n");
 
-  if (historyText) {
+  if (history.length > 0) {
     blocks.push({
-      text: `Conversation so far:\n${historyText}`,
+      text: "Conversation so far:",
       type: "text"
+    });
+    history.forEach((message) => {
+      const text = `${message.role}: ${message.text}`.trim();
+      if (text) {
+        blocks.push({ text, type: "text" });
+      }
+      blocks.push(...(message.images ?? []).map(acpImageResourceBlock));
     });
   }
 
@@ -1114,11 +1121,30 @@ function createAcpPromptBlocks({
     });
   }
   blocks.push({
-    text: `User request:\n${prompt}`,
+    text: `User request:\n${prompt.trim() || (images.length > 0 ? "Attached images" : "")}`,
     type: "text"
   });
+  blocks.push(...images.map(acpImageResourceBlock));
 
   return blocks;
+}
+
+function acpImageResourceBlock(image: DocumentAiChatImage): AcpContentBlock {
+  return {
+    resource: {
+      blob: base64DataFromDataUrl(image.dataUrl),
+      mimeType: image.mimeType,
+      uri: `markra://chat-attachment/${image.id}`
+    },
+    type: "resource"
+  };
+}
+
+function base64DataFromDataUrl(dataUrl: string) {
+  const marker = ";base64,";
+  const markerIndex = dataUrl.indexOf(marker);
+
+  return markerIndex >= 0 ? dataUrl.slice(markerIndex + marker.length) : dataUrl;
 }
 
 function createAcpInlinePromptBlocks({

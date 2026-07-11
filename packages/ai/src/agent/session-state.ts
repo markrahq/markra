@@ -2,8 +2,18 @@ import { cancelAgentProcesses, type AiAgentProcessItem, type AiAgentProcessKind,
 import type { AiDiffTarget } from "./inline";
 import { clampNumber, isRecord } from "@markra/shared";
 
+export type AiAgentSessionAttachment = {
+  height: number;
+  id: string;
+  mimeType: "image/gif" | "image/jpeg" | "image/png" | "image/webp";
+  name: string;
+  size: number;
+  width: number;
+};
+
 export type AiAgentSessionMessage = {
   activities?: AiAgentProcessItem[];
+  attachments?: AiAgentSessionAttachment[];
   id: number;
   isError?: boolean;
   preview?: AiAgentSessionPreview;
@@ -48,6 +58,14 @@ export type StoredAiAgentSessionSummary = {
 const storedPanelWidthMin = 320;
 const storedPanelWidthMax = 760;
 const untitledWorkspaceKey = "__untitled__";
+const maxSessionMessageAttachmentCount = 4;
+const sessionAttachmentIdPattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/u;
+const sessionAttachmentMimeTypes = new Set<AiAgentSessionAttachment["mimeType"]>([
+  "image/gif",
+  "image/jpeg",
+  "image/png",
+  "image/webp"
+]);
 
 export function createDefaultAiAgentSessionState(
   overrides: Partial<
@@ -88,10 +106,13 @@ function normalizeSessionIdentifier(value: unknown) {
 }
 
 export function createAiAgentSessionTitle(session: StoredAiAgentSessionState) {
-  const titleSource =
-    session.messages.find((message) => message.role === "user" && message.text.trim())?.text ??
-    session.messages.find((message) => message.role === "assistant" && message.text.trim())?.text ??
-    session.draft;
+  const firstUserText = session.messages.find((message) => message.role === "user" && message.text.trim())?.text;
+  const titleSource = firstUserText
+    ? firstUserText
+    : session.messages.some((message) => message.role === "user" && message.attachments?.length)
+      ? "Image conversation"
+      : session.messages.find((message) => message.role === "assistant" && message.text.trim())?.text ??
+        session.draft;
 
   return normalizeAiAgentSessionTitle(titleSource);
 }
@@ -163,6 +184,7 @@ function normalizeSessionMessage(value: unknown): AiAgentSessionMessage | null {
 
   return {
     activities: activities && activities.length > 0 ? cancelAgentProcesses(activities) : undefined,
+    attachments: normalizeSessionAttachments(value.attachments),
     id: value.id,
     isError: value.isError === true,
     preview: normalizeSessionPreview(value.preview) ?? previews?.at(-1),
@@ -172,6 +194,47 @@ function normalizeSessionMessage(value: unknown): AiAgentSessionMessage | null {
     thinking: typeof value.thinking === "string" ? value.thinking : undefined,
     thinkingTurns: normalizeThinkingTurns(value.thinkingTurns)
   };
+}
+
+function normalizeSessionAttachments(value: unknown) {
+  if (!Array.isArray(value)) return undefined;
+
+  const attachments = value
+    .map(normalizeSessionAttachment)
+    .filter((attachment): attachment is AiAgentSessionAttachment => attachment !== undefined)
+    .slice(0, maxSessionMessageAttachmentCount);
+
+  return attachments.length > 0 ? attachments : undefined;
+}
+
+function normalizeSessionAttachment(value: unknown): AiAgentSessionAttachment | undefined {
+  if (!isRecord(value)) return undefined;
+  if (typeof value.id !== "string" || !sessionAttachmentIdPattern.test(value.id)) return undefined;
+  if (!isSessionAttachmentMimeType(value.mimeType)) return undefined;
+  if (typeof value.name !== "string" || !value.name.trim()) return undefined;
+  if (!isNonNegativeFiniteNumber(value.size)) return undefined;
+  if (!isPositiveFiniteNumber(value.width) || !isPositiveFiniteNumber(value.height)) return undefined;
+
+  return {
+    height: value.height,
+    id: value.id,
+    mimeType: value.mimeType,
+    name: value.name.trim(),
+    size: value.size,
+    width: value.width
+  };
+}
+
+function isSessionAttachmentMimeType(value: unknown): value is AiAgentSessionAttachment["mimeType"] {
+  return typeof value === "string" && sessionAttachmentMimeTypes.has(value as AiAgentSessionAttachment["mimeType"]);
+}
+
+function isNonNegativeFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
 
 function normalizeThinkingTurns(value: unknown) {

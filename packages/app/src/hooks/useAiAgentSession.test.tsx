@@ -13,6 +13,11 @@ import type { I18nKey } from "@markra/shared";
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests } from "../runtime";
 import { useAiAgentSession } from "./useAiAgentSession";
 import { storedAgentSession, testProvider } from "../test/ai-fixtures";
+import {
+  createDraftAiChatAttachments,
+  revokeDraftAiChatAttachments,
+  type DraftAiChatAttachment
+} from "../lib/ai-chat-attachments";
 
 vi.mock("@markra/ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@markra/ai")>();
@@ -34,6 +39,16 @@ vi.mock("../lib/settings/app-settings", () => ({
   saveStoredAiAgentSessionTitle: vi.fn()
 }));
 
+vi.mock("../lib/ai-chat-attachments", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../lib/ai-chat-attachments")>();
+
+  return {
+    ...actual,
+    createDraftAiChatAttachments: vi.fn(),
+    revokeDraftAiChatAttachments: vi.fn()
+  };
+});
+
 const mockedRunDocumentAiAgent = vi.mocked(runDocumentAiAgent);
 const mockedGenerateAiAgentSessionTitle = vi.mocked(generateAiAgentSessionTitle);
 const mockedGetStoredAcpAgentSettings = vi.mocked(getStoredAcpAgentSettings);
@@ -43,6 +58,8 @@ const mockedGetStoredAiAgentSessionSummary = vi.mocked(getStoredAiAgentSessionSu
 const mockedSaveStoredAiAgentPreferences = vi.mocked(saveStoredAiAgentPreferences);
 const mockedSaveStoredAiAgentSession = vi.mocked(saveStoredAiAgentSession);
 const mockedSaveStoredAiAgentSessionTitle = vi.mocked(saveStoredAiAgentSessionTitle);
+const mockedCreateDraftAiChatAttachments = vi.mocked(createDraftAiChatAttachments);
+const mockedRevokeDraftAiChatAttachments = vi.mocked(revokeDraftAiChatAttachments);
 
 function testTranslate(translations: Partial<Record<I18nKey, string>> = {}) {
   return (key: I18nKey) => translations[key] ?? key;
@@ -77,6 +94,8 @@ describe("useAiAgentSession", () => {
     mockedSaveStoredAiAgentPreferences.mockReset();
     mockedSaveStoredAiAgentSession.mockReset();
     mockedSaveStoredAiAgentSessionTitle.mockReset();
+    mockedCreateDraftAiChatAttachments.mockReset();
+    mockedRevokeDraftAiChatAttachments.mockReset();
     mockedGetStoredAiAgentSession.mockResolvedValue(storedAgentSession());
     mockedGetStoredAiAgentSessionSummary.mockResolvedValue(null);
     mockedGetStoredAcpAgentSettings.mockResolvedValue({ args: "", command: "", cwd: "", enabled: false });
@@ -85,6 +104,293 @@ describe("useAiAgentSession", () => {
     mockedSaveStoredAiAgentPreferences.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentSession.mockResolvedValue(undefined);
     mockedSaveStoredAiAgentSessionTitle.mockResolvedValue(undefined);
+  });
+
+  it("persists draft images before an image-only provider turn and stores attachment metadata", async () => {
+    const draftAttachment: DraftAiChatAttachment = {
+      file: new File([new Uint8Array([1, 2, 3])], "synthetic.png", { type: "image/png" }),
+      metadata: {
+        height: 1,
+        id: "attachment-1",
+        mimeType: "image/png",
+        name: "synthetic.png",
+        size: 3,
+        width: 1
+      },
+      previewUrl: "blob:preview-1"
+    };
+    mockedCreateDraftAiChatAttachments.mockResolvedValue([draftAttachment]);
+    mockedRunDocumentAiAgent.mockResolvedValue({
+      content: "The image contains a synthetic pixel.",
+      finishReason: "stop"
+    });
+    const saved = new Map<string, number[]>();
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      aiChatAttachments: {
+        deleteSession: async () => undefined,
+        read: async (input) => saved.get(input.attachmentId) ?? [],
+        save: async (input) => {
+          saved.set(input.attachmentId, input.bytes);
+        }
+      }
+    });
+    const { result } = renderAiAgentSession({
+      provider: testProvider({
+        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
+      }),
+      sessionId: "session-a",
+      workspaceKey: "/vault"
+    });
+
+    expect(result.current).toHaveProperty("addAttachments", expect.any(Function));
+    const attachmentSession = result.current as typeof result.current & {
+      addAttachments: (files: File[]) => Promise<unknown>;
+      draftAttachments: DraftAiChatAttachment[];
+    };
+
+    await act(async () => {
+      await attachmentSession.addAttachments([draftAttachment.file]);
+    });
+    expect(result.current.draftAttachments).toEqual([draftAttachment]);
+
+    await act(async () => {
+      await result.current.submit();
+    });
+
+    expect(saved.get("attachment-1")).toEqual([1, 2, 3]);
+    expect(mockedRunDocumentAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      images: [{
+        dataUrl: "data:image/png;base64,AQID",
+        id: "attachment-1",
+        mimeType: "image/png"
+      }],
+      prompt: ""
+    }));
+    expect(result.current.messages[0]).toMatchObject({
+      attachments: [draftAttachment.metadata],
+      role: "user",
+      text: ""
+    });
+    expect(result.current.draftAttachments).toEqual([]);
+    expect(mockedRevokeDraftAiChatAttachments).toHaveBeenCalledWith([draftAttachment]);
+  });
+
+  it("hydrates transient thumbnail sources for persisted message attachments", async () => {
+    const attachment = {
+      height: 1,
+      id: "attachment-1",
+      mimeType: "image/png" as const,
+      name: "synthetic.png",
+      size: 3,
+      width: 1
+    };
+    mockedGetStoredAiAgentSession.mockResolvedValue(storedAgentSession({
+      messages: [{ attachments: [attachment], id: 1, role: "user", text: "Describe this" }]
+    }));
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      aiChatAttachments: {
+        deleteSession: async () => undefined,
+        read: async () => [1, 2, 3],
+        save: async () => undefined
+      }
+    });
+
+    const { result } = renderAiAgentSession({
+      provider: testProvider({
+        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
+      }),
+      sessionId: "session-a",
+      workspaceKey: "/vault"
+    });
+
+    await waitFor(() => {
+      expect(result.current.messages[0]).toMatchObject({
+        attachmentSources: {
+          "attachment-1": "data:image/png;base64,AQID"
+        },
+        attachments: [attachment]
+      });
+    });
+  });
+
+  it("retries image-only user turns with their persisted attachments", async () => {
+    const attachment = {
+      height: 1,
+      id: "attachment-1",
+      mimeType: "image/png" as const,
+      name: "synthetic.png",
+      size: 3,
+      width: 1
+    };
+    mockedGetStoredAiAgentSession.mockResolvedValue(storedAgentSession({
+      messages: [
+        { attachments: [attachment], id: 1, role: "user", text: "" },
+        { id: 2, role: "assistant", text: "Initial visual answer." }
+      ]
+    }));
+    mockedRunDocumentAiAgent.mockResolvedValue({
+      content: "Regenerated visual answer.",
+      finishReason: "stop"
+    });
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      aiChatAttachments: {
+        deleteSession: async () => undefined,
+        read: async () => [1, 2, 3],
+        save: async () => undefined
+      }
+    });
+    const { result } = renderAiAgentSession({
+      provider: testProvider({
+        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
+      }),
+      sessionId: "session-a",
+      workspaceKey: "/vault"
+    });
+    await waitFor(() => expect(result.current.messages).toHaveLength(2));
+
+    await act(async () => {
+      await result.current.retryMessage(2);
+    });
+
+    expect(mockedRunDocumentAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      images: [{
+        dataUrl: "data:image/png;base64,AQID",
+        id: "attachment-1",
+        mimeType: "image/png"
+      }],
+      prompt: ""
+    }));
+    expect(result.current.messages[0]).toMatchObject({
+      attachments: [attachment],
+      role: "user",
+      text: ""
+    });
+  });
+
+  it("keeps draft images and blocks provider submission when the selected model lacks vision", async () => {
+    const draftAttachment: DraftAiChatAttachment = {
+      file: new File([new Uint8Array([1, 2, 3])], "synthetic.png", { type: "image/png" }),
+      metadata: {
+        height: 1,
+        id: "attachment-1",
+        mimeType: "image/png",
+        name: "synthetic.png",
+        size: 3,
+        width: 1
+      },
+      previewUrl: "blob:preview-1"
+    };
+    mockedCreateDraftAiChatAttachments.mockResolvedValue([draftAttachment]);
+    const save = vi.fn(async () => undefined);
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      aiChatAttachments: {
+        deleteSession: async () => undefined,
+        read: async () => [1, 2, 3],
+        save
+      }
+    });
+    const { result } = renderAiAgentSession({
+      model: "text-only",
+      provider: testProvider({
+        models: [{ capabilities: ["text"], enabled: true, id: "text-only", name: "Text only" }]
+      }),
+      sessionId: "session-a"
+    });
+    const attachmentSession = result.current as typeof result.current & {
+      addAttachments: (files: File[]) => Promise<unknown>;
+    };
+
+    await act(async () => {
+      await attachmentSession.addAttachments([draftAttachment.file]);
+      await result.current.submit("Describe this image");
+    });
+
+    expect(mockedRunDocumentAiAgent).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+    expect(result.current.attachmentError).toBe("vision_model_required");
+    expect(result.current.draftAttachments).toEqual([draftAttachment]);
+  });
+
+  it("keeps draft images when attachment persistence fails", async () => {
+    const draftAttachment: DraftAiChatAttachment = {
+      file: new File([new Uint8Array([1, 2, 3])], "synthetic.png", { type: "image/png" }),
+      metadata: {
+        height: 1,
+        id: "attachment-1",
+        mimeType: "image/png",
+        name: "synthetic.png",
+        size: 3,
+        width: 1
+      },
+      previewUrl: "blob:preview-1"
+    };
+    mockedCreateDraftAiChatAttachments.mockResolvedValue([draftAttachment]);
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      aiChatAttachments: {
+        deleteSession: async () => undefined,
+        read: async () => [],
+        save: async () => {
+          throw new Error("Synthetic storage failure");
+        }
+      }
+    });
+    const { result } = renderAiAgentSession({
+      provider: testProvider({
+        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
+      }),
+      sessionId: "session-a"
+    });
+
+    await act(async () => {
+      await result.current.addAttachments([draftAttachment.file]);
+      await result.current.submit("Describe this image");
+    });
+
+    expect(mockedRunDocumentAiAgent).not.toHaveBeenCalled();
+    expect(result.current.attachmentError).toBe("attachment_storage_failed");
+    expect(result.current.draftAttachments).toEqual([draftAttachment]);
+    expect(mockedRevokeDraftAiChatAttachments).not.toHaveBeenCalledWith([draftAttachment]);
+  });
+
+  it("revokes and clears draft attachments when switching sessions", async () => {
+    const draftAttachment: DraftAiChatAttachment = {
+      file: new File([new Uint8Array([1])], "synthetic.png", { type: "image/png" }),
+      metadata: {
+        height: 1,
+        id: "attachment-1",
+        mimeType: "image/png",
+        name: "synthetic.png",
+        size: 1,
+        width: 1
+      },
+      previewUrl: "blob:preview-1"
+    };
+    mockedCreateDraftAiChatAttachments.mockResolvedValue([draftAttachment]);
+    const { result, rerender } = renderHook(
+      ({ sessionId }) => useAiAgentSession(aiAgentSessionContext({ sessionId })),
+      { initialProps: { sessionId: "session-a" } }
+    );
+    const attachmentSession = result.current as typeof result.current & {
+      addAttachments: (files: File[]) => Promise<unknown>;
+    };
+    await act(async () => {
+      await attachmentSession.addAttachments([draftAttachment.file]);
+    });
+
+    rerender({ sessionId: "session-b" });
+
+    await waitFor(() => expect(result.current.draftAttachments).toEqual([]));
+    expect(mockedRevokeDraftAiChatAttachments).toHaveBeenCalledWith([draftAttachment]);
   });
 
   afterEach(() => {
@@ -1530,6 +1836,61 @@ describe("useAiAgentSession", () => {
         thinking: ""
       }
     ]);
+  });
+
+  it("reuses persisted image attachments when submitting an edited user turn", async () => {
+    const attachment = {
+      height: 1,
+      id: "attachment-1",
+      mimeType: "image/png" as const,
+      name: "synthetic.png",
+      size: 3,
+      width: 1
+    };
+    mockedGetStoredAiAgentSession.mockResolvedValue(storedAgentSession({
+      messages: [
+        { attachments: [attachment], id: 1, role: "user", text: "Describe this image" },
+        { id: 2, role: "assistant", text: "Initial visual answer." }
+      ]
+    }));
+    mockedRunDocumentAiAgent.mockResolvedValue({
+      content: "Updated visual answer.",
+      finishReason: "stop"
+    });
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      aiChatAttachments: {
+        deleteSession: async () => undefined,
+        read: async () => [1, 2, 3],
+        save: async () => undefined
+      }
+    });
+    const { result } = renderAiAgentSession({
+      provider: testProvider({
+        models: [{ capabilities: ["text", "vision"], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }]
+      }),
+      sessionId: "session-a"
+    });
+    await waitFor(() => expect(result.current.messages).toHaveLength(2));
+
+    await act(async () => {
+      await result.current.submitEditedMessage(1, "Describe this image in detail");
+    });
+
+    expect(mockedRunDocumentAiAgent).toHaveBeenCalledWith(expect.objectContaining({
+      images: [{
+        dataUrl: "data:image/png;base64,AQID",
+        id: "attachment-1",
+        mimeType: "image/png"
+      }],
+      prompt: "Describe this image in detail"
+    }));
+    expect(result.current.messages[0]).toMatchObject({
+      attachments: [attachment],
+      role: "user",
+      text: "Describe this image in detail"
+    });
   });
 
   it("passes the workspace file reader to the document agent runtime", async () => {

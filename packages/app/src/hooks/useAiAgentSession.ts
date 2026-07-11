@@ -19,6 +19,7 @@ import {
   type AcpPermissionRequestOutcome,
   type AiSelectionContext,
   type AiAgentSessionPreview,
+  type AiAgentSessionAttachment,
   type AiAgentSessionMessage,
   type DocumentAiHistoryMessage,
   type DocumentAiImage,
@@ -44,8 +45,18 @@ import {
   workspaceChangePlanFromToolResult,
   workspacePlanEventsFromToolResult
 } from "../lib/workspace-plan-events";
+import {
+  AiChatAttachmentValidationError,
+  createDraftAiChatAttachments,
+  persistDraftAiChatAttachments,
+  resolveAiChatAttachments,
+  revokeDraftAiChatAttachments,
+  type DraftAiChatAttachment
+} from "../lib/ai-chat-attachments";
 
-export type AiAgentPanelMessage = AiAgentSessionMessage;
+export type AiAgentPanelMessage = AiAgentSessionMessage & {
+  attachmentSources?: Record<string, string>;
+};
 
 export type AcpAgentPermissionPrompt = {
   detail?: string;
@@ -115,6 +126,8 @@ type PendingAcpPermissionFilter = {
 
 export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const [draft, setDraft] = useState("");
+  const [draftAttachments, setDraftAttachments] = useState<DraftAiChatAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [messages, setMessages] = useState<AiAgentPanelMessage[]>([]);
   const [thinkingEnabled, setThinkingEnabledState] = useState(false);
   const [webSearchEnabled, setWebSearchEnabledState] = useState(false);
@@ -128,6 +141,8 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   const [workspacePlanApplyError, setWorkspacePlanApplyError] = useState<string | null>(null);
   const [latestWorkspacePlan, setLatestWorkspacePlan] = useState<WorkspaceChangePlanArgs | null>(null);
   const requestIdRef = useRef(0);
+  const draftAttachmentsRef = useRef<DraftAiChatAttachment[]>([]);
+  const draftAttachmentSessionKeyRef = useRef<string | null>(null);
   const hydrationRequestIdRef = useRef(0);
   const activeSessionKeyRef = useRef<string | null>(null);
   const runningRequestsRef = useRef(new Map<string | null, RunningAiAgentRequest>());
@@ -149,6 +164,46 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
   activeSessionKeyRef.current = sessionKey;
   onSessionModelRestoreRef.current = ctx.onSessionModelRestore;
   onSessionRestoreRef.current = ctx.onSessionRestore;
+
+  const replaceDraftAttachments = useCallback((attachments: DraftAiChatAttachment[]) => {
+    draftAttachmentsRef.current = attachments;
+    setDraftAttachments(attachments);
+  }, []);
+
+  const addAttachments = useCallback(async (files: readonly File[]) => {
+    try {
+      const attachments = await createDraftAiChatAttachments(files, draftAttachmentsRef.current);
+      replaceDraftAttachments([...draftAttachmentsRef.current, ...attachments]);
+      setAttachmentError(null);
+    } catch (error) {
+      setAttachmentError(
+        error instanceof AiChatAttachmentValidationError ? error.code : "attachment_failed"
+      );
+    }
+  }, [replaceDraftAttachments]);
+
+  const removeAttachment = useCallback((attachmentId: string) => {
+    const attachment = draftAttachmentsRef.current.find((item) => item.metadata.id === attachmentId);
+    if (!attachment) return;
+
+    revokeDraftAiChatAttachments([attachment]);
+    replaceDraftAttachments(draftAttachmentsRef.current.filter((item) => item.metadata.id !== attachmentId));
+    setAttachmentError(null);
+  }, [replaceDraftAttachments]);
+
+  useEffect(() => {
+    if (draftAttachmentSessionKeyRef.current !== sessionKey) {
+      revokeDraftAiChatAttachments(draftAttachmentsRef.current);
+      replaceDraftAttachments([]);
+      setAttachmentError(null);
+      draftAttachmentSessionKeyRef.current = sessionKey;
+    }
+  }, [replaceDraftAttachments, sessionKey]);
+
+  useEffect(() => () => {
+    revokeDraftAiChatAttachments(draftAttachmentsRef.current);
+    draftAttachmentsRef.current = [];
+  }, []);
 
   const cancelPendingAcpPermission = useCallback((filter: PendingAcpPermissionFilter = {}) => {
     const pending = pendingAcpPermissionRef.current;
@@ -279,7 +334,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     }
 
     Promise.all([getStoredAiAgentSession(sessionKey), getStoredAiAgentSessionSummary(sessionKey)])
-      .then(([storedSession, storedSummary]) => {
+      .then(async ([storedSession, storedSummary]) => {
         if (!active) return;
         if (hydrationRequestIdRef.current !== hydrationRequestId) {
           hydratedSessionKeyRef.current = sessionKey;
@@ -287,8 +342,11 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
         }
 
         const currentRunningRequest = runningRequestsRef.current.get(sessionKey);
+        const hydratedMessages = currentRunningRequest?.messages
+          ?? await hydrateAiAgentPanelMessages(storedSession.messages, sessionKey);
+        if (!active || hydrationRequestIdRef.current !== hydrationRequestId) return;
         setDraft(currentRunningRequest?.draft ?? storedSession.draft);
-        setMessages(currentRunningRequest?.messages ?? storedSession.messages);
+        setMessages(hydratedMessages);
         setThinkingEnabledState(currentRunningRequest?.thinkingEnabled ?? storedSession.thinkingEnabled);
         setWebSearchEnabledState(currentRunningRequest?.webSearchEnabled ?? storedSession.webSearchEnabled);
         setStatus(currentRunningRequest?.status ?? "idle");
@@ -438,10 +496,14 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
 
   const submit = useCallback(async (
     promptOverride?: string,
-    options: { baseMessages?: AiAgentPanelMessage[] } = {}
+    options: {
+      attachments?: AiAgentSessionAttachment[];
+      baseMessages?: AiAgentPanelMessage[];
+    } = {}
   ) => {
     const prompt = (promptOverride ?? draft).trim();
-    if (!prompt) return;
+    const pendingDraftAttachments = options.attachments ? [] : draftAttachmentsRef.current;
+    if (!prompt && pendingDraftAttachments.length === 0 && !options.attachments?.length) return;
     const message = (key: I18nKey) => ctx.translate?.(key) ?? key;
     const requestId = requestIdRef.current + 1;
     const transcriptBaseMessages = options.baseMessages ?? messages;
@@ -495,6 +557,14 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
       ]);
       return;
     }
+    const hasImageAttachments = pendingDraftAttachments.length > 0 || Boolean(options.attachments?.length);
+    const selectedModelSupportsVision = ctx.provider?.models.some(
+      (model) => model.id === ctx.model && model.enabled && model.capabilities.includes("vision")
+    ) === true;
+    if (!runWithAcpAgent && hasImageAttachments && !selectedModelSupportsVision) {
+      setAttachmentError("vision_model_required");
+      return;
+    }
 
     const userMessageId = Date.now();
     const assistantMessageId = userMessageId + 1;
@@ -507,17 +577,39 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     const runWebSearchEnabled = webSearchEnabled;
     const runWorkspaceKey = ctx.workspaceKey ?? null;
     const acpAbortController = runWithAcpAgent ? new AbortController() : null;
-    const history: DocumentAiHistoryMessage[] = transcriptBaseMessages
-      .filter((item) => !item.isError)
-      .map((item) => ({
-        preview: item.preview,
-        previews: item.previews,
-        role: item.role,
-        text: item.text
-      }));
+    const attachmentSessionId = runSessionKey ?? "default";
+    let currentAttachments = options.attachments ?? [];
+    let currentImages: Awaited<ReturnType<typeof resolveAiChatAttachments>>["images"] = [];
+    let history: DocumentAiHistoryMessage[] = [];
+    try {
+      if (pendingDraftAttachments.length > 0) {
+        // Persist before starting the request so a sent transcript never points at unsaved image bytes.
+        currentAttachments = await persistDraftAiChatAttachments(attachmentSessionId, pendingDraftAttachments);
+      }
+      currentImages = currentAttachments.length > 0
+        ? (await resolveAiChatAttachments(attachmentSessionId, currentAttachments)).images
+        : [];
+      history = await resolveDocumentAiHistory(transcriptBaseMessages, attachmentSessionId);
+    } catch {
+      setAttachmentError("attachment_storage_failed");
+      setStatus("error");
+      return;
+    }
+    if (pendingDraftAttachments.length > 0) {
+      revokeDraftAiChatAttachments(pendingDraftAttachments);
+      replaceDraftAttachments([]);
+    }
+    setAttachmentError(null);
+    const attachmentSources = Object.fromEntries(currentImages.map((image) => [image.id, image.dataUrl]));
     const initialMessages: AiAgentPanelMessage[] = [
       ...transcriptBaseMessages,
-      { id: userMessageId, role: "user", text: prompt },
+      {
+        ...(currentAttachments.length ? { attachments: currentAttachments } : {}),
+        ...(currentImages.length ? { attachmentSources } : {}),
+        id: userMessageId,
+        role: "user",
+        text: prompt
+      },
       {
         activities: createInitialAgentProcesses(message),
         id: assistantMessageId,
@@ -601,6 +693,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
             documentContent: ctx.getDocumentContent(),
             documentPath: ctx.documentPath ?? null,
             history,
+            images: currentImages,
             onModelState: (state) => {
               if (!runIsCurrent()) return;
 
@@ -690,6 +783,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
             documentEndPosition: ctx.getDocumentEndPosition?.() ?? 0,
             documentPath: ctx.documentPath ?? null,
             history,
+            images: currentImages,
             model: ctx.model!,
             onPreviewResult: (result, previewId) => {
               if (!runIsCurrent()) return;
@@ -868,7 +962,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     for (let index = assistantMessageIndex - 1; index >= 0; index -= 1) {
       const message = messages[index];
       if (message?.role !== "user") continue;
-      if (!message.text.trim()) continue;
+      if (!message.text.trim() && !message.attachments?.length) continue;
 
       userMessageIndex = index;
       break;
@@ -879,6 +973,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
     if (!userMessage) return;
 
     await submit(userMessage.text, {
+      attachments: userMessage.attachments,
       baseMessages: messages.slice(0, userMessageIndex)
     });
   }, [messages, status, submit]);
@@ -893,6 +988,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
 
     const prompt = promptOverride ?? messages[userMessageIndex]?.text ?? draft;
     await submit(prompt, {
+      attachments: messages[userMessageIndex]?.attachments,
       baseMessages: messages.slice(0, userMessageIndex)
     });
   }, [draft, messages, status, submit]);
@@ -948,11 +1044,15 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
 
   return {
     acpModels,
+    addAttachments,
     applyWorkspacePlan,
+    attachmentError,
     draft,
+    draftAttachments,
     interrupt,
     messages,
     pendingAcpPermission,
+    removeAttachment,
     retryMessage,
     resolveAcpPermission,
     selectAcpModel,
@@ -977,6 +1077,47 @@ function delayWorkspacePlanVisualEvent() {
   return new Promise((resolve) => {
     window.setTimeout(resolve, workspacePlanVisualEventDelayMs);
   });
+}
+
+async function resolveDocumentAiHistory(
+  messages: readonly AiAgentPanelMessage[],
+  attachmentSessionId: string
+): Promise<DocumentAiHistoryMessage[]> {
+  return Promise.all(messages
+    .filter((message) => !message.isError)
+    .map(async (message) => {
+      const resolved = message.attachments?.length
+        ? await resolveAiChatAttachments(attachmentSessionId, message.attachments, { allowMissing: true })
+        : { images: [], missing: [] };
+      const missingImageNote = resolved.missing.length > 0
+        ? "One or more earlier images are unavailable."
+        : "";
+
+      return {
+        ...(resolved.images.length ? { images: resolved.images } : {}),
+        preview: message.preview,
+        previews: message.previews,
+        role: message.role,
+        text: [message.text, missingImageNote].filter(Boolean).join("\n\n")
+      };
+    }));
+}
+
+async function hydrateAiAgentPanelMessages(
+  messages: readonly AiAgentSessionMessage[],
+  attachmentSessionId: string
+): Promise<AiAgentPanelMessage[]> {
+  return Promise.all(messages.map(async (message) => {
+    if (!message.attachments?.length) return message;
+
+    const resolved = await resolveAiChatAttachments(attachmentSessionId, message.attachments, { allowMissing: true });
+    const attachmentSources = Object.fromEntries(resolved.images.map((image) => [image.id, image.dataUrl]));
+
+    return {
+      ...message,
+      ...(resolved.images.length ? { attachmentSources } : {})
+    };
+  }));
 }
 
 function acpPermissionPromptFromRequest(

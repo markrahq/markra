@@ -3,6 +3,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent
 } from "react";
@@ -15,6 +16,8 @@ import {
   Copy,
   FileText,
   Globe2,
+  Image as ImageIcon,
+  Paperclip,
   Pencil,
   PencilLine,
   RefreshCcw,
@@ -32,6 +35,7 @@ import type { AiModelCapability, AiProviderApiStyle, StoredAiAgentSessionSummary
 import type { AcpAgentPermissionPrompt, AiAgentPanelMessage, WorkspacePlanApplyStatus } from "../hooks/useAiAgentSession";
 import type { AcpPermissionRequestOutcome, WorkspacePlanVisualEvent } from "@markra/ai";
 import { IconButton, RoundIconButton, ToggleButton, Tooltip } from "@markra/ui";
+import type { DraftAiChatAttachment } from "../lib/ai-chat-attachments";
 
 type AiAgentModelOption = AiModelPickerOption & { capabilities: AiModelCapability[] };
 type AcpAgentModelOption = {
@@ -59,6 +63,8 @@ type AiAgentPanelProps = {
   context?: AiAgentPanelContext | null;
   documentAvailable?: boolean;
   draft?: string;
+  draftAttachments?: DraftAiChatAttachment[];
+  attachmentError?: string | null;
   language?: AppLanguage;
   messages?: AiAgentPanelMessage[];
   modelName?: string | null;
@@ -72,6 +78,7 @@ type AiAgentPanelProps = {
   thinkingEnabled?: boolean;
   webSearchAvailable?: boolean;
   webSearchEnabled?: boolean;
+  visionAvailable?: boolean;
   workspaceAvailable?: boolean;
   workspacePlanApplyError?: string | null;
   workspacePlanApplyStatus?: WorkspacePlanApplyStatus;
@@ -82,6 +89,7 @@ type AiAgentPanelProps = {
   sessions?: StoredAiAgentSessionSummary[];
   onArchiveSession?: (sessionId: string, archived: boolean) => unknown;
   onApplyWorkspacePlan?: () => unknown;
+  onAddAttachments?: (files: File[]) => unknown;
   onClose: () => unknown;
   onCreateSession?: () => unknown;
   onDeleteSession?: (sessionId: string) => unknown;
@@ -90,6 +98,7 @@ type AiAgentPanelProps = {
   onDraftChange?: (value: string) => unknown;
   onInterrupt?: () => unknown;
   onRenameSession?: (sessionId: string, title: string) => unknown;
+  onRemoveAttachment?: (attachmentId: string) => unknown;
   onResize?: (width: number) => unknown;
   onResizeEnd?: () => unknown;
   onResizeStart?: () => unknown;
@@ -117,6 +126,8 @@ export function AiAgentPanel({
   context = null,
   documentAvailable = true,
   draft = "",
+  draftAttachments = [],
+  attachmentError = null,
   language = "en",
   messages = [],
   modelName = null,
@@ -130,6 +141,7 @@ export function AiAgentPanel({
   thinkingEnabled = false,
   webSearchAvailable = false,
   webSearchEnabled = false,
+  visionAvailable = false,
   workspaceAvailable = false,
   workspacePlanApplyError = null,
   workspacePlanApplyStatus = "idle",
@@ -140,6 +152,7 @@ export function AiAgentPanel({
   width,
   onArchiveSession,
   onApplyWorkspacePlan,
+  onAddAttachments,
   onClose,
   onComposerFocus,
   onCreateSession,
@@ -148,6 +161,7 @@ export function AiAgentPanel({
   onDraftChange,
   onInterrupt,
   onRenameSession,
+  onRemoveAttachment,
   onResize,
   onResizeEnd,
   onResizeStart,
@@ -164,6 +178,7 @@ export function AiAgentPanel({
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const transcriptScrollRef = useRef<HTMLDivElement | null>(null);
   const composerInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const copyResetTimerRef = useRef<number | null>(null);
   const draftBeforeEditRef = useRef<string | null>(null);
   const transcriptShouldFollowRef = useRef(true);
@@ -221,7 +236,17 @@ export function AiAgentPanel({
   ];
   const submitting = status === "thinking" || status === "streaming";
   const agentAvailable = documentAvailable || workspaceAvailable;
-  const canSend = agentAvailable && draft.trim().length > 0 && !submitting;
+  const editingMessage = editingMessageId === null
+    ? null
+    : messages.find((message) => message.id === editingMessageId && message.role === "user") ?? null;
+  const composerHasAttachments = draftAttachments.length > 0 || Boolean(editingMessage?.attachments?.length);
+  const canSend = agentAvailable
+    && (draft.trim().length > 0 || composerHasAttachments)
+    && (!composerHasAttachments || visionAvailable)
+    && !submitting;
+  const attachmentIssueKey = composerHasAttachments && !visionAvailable
+    ? "app.aiAgentVisionRequired" as const
+    : attachmentErrorKey(attachmentError);
   const emptyTitle = agentAvailable ? label("app.aiAgentEmptyTitle") : label("app.aiAgentUnavailableTitle");
   const emptyBody = agentAvailable ? label("app.aiAgentEmptyBody") : label("app.aiAgentUnavailableBody");
   const composerPlaceholder = agentAvailable ? label("app.aiAgentPlaceholder") : label("app.aiAgentUnavailablePlaceholder");
@@ -411,6 +436,19 @@ export function AiAgentPanel({
 
     event.preventDefault();
     submitComposer();
+  };
+
+  const handlePaste = (event: ReactClipboardEvent<HTMLTextAreaElement>) => {
+    if (!agentAvailable || submitting || !visionAvailable || editingMessageId !== null) return;
+
+    const files = Array.from(event.clipboardData.items)
+      .filter((item) => item.kind === "file" && item.type.startsWith("image/"))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => file !== null);
+    if (files.length === 0) return;
+
+    event.preventDefault();
+    onAddAttachments?.(files);
   };
 
   const handleSuggestion = (suggestion: string) => {
@@ -714,6 +752,13 @@ export function AiAgentPanel({
                           editing ? "ring-2 ring-(--accent) ring-offset-1 ring-offset-(--bg-secondary)" : ""
                         }`}
                       >
+                        {message.attachments?.length ? (
+                          <MessageAttachmentGrid
+                            attachments={message.attachments}
+                            sources={message.attachmentSources}
+                            unavailableLabel={label("app.aiAgentAttachmentUnavailable")}
+                          />
+                        ) : null}
                         <AiMarkdownMessage content={message.text} />
                       </div>
                       {renderMessageActions(message, "end")}
@@ -807,6 +852,27 @@ export function AiAgentPanel({
               submitting ? "ai-agent-composer-running" : ""
             }`}
           >
+            <input
+              ref={attachmentInputRef}
+              className="sr-only"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              aria-label={label("app.aiAgentAttachImages")}
+              multiple
+              tabIndex={-1}
+              onChange={(event) => {
+                const files = Array.from(event.currentTarget.files ?? []);
+                event.currentTarget.value = "";
+                if (files.length > 0) onAddAttachments?.(files);
+              }}
+            />
+            {draftAttachments.length > 0 ? (
+              <DraftAttachmentStrip
+                attachments={draftAttachments}
+                removeLabel={label("app.aiAgentRemoveImage")}
+                onRemove={onRemoveAttachment}
+              />
+            ) : null}
             <label className="sr-only" htmlFor="markra-ai-agent-input">
               {label("app.aiAgentMessage")}
             </label>
@@ -828,9 +894,25 @@ export function AiAgentPanel({
               onCompositionStart={handleCompositionStart}
               onFocus={onComposerFocus}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
             />
+            {attachmentIssueKey ? (
+              <p className="mt-1 mb-0 text-[11px] leading-4 font-[540] text-(--danger)" role="alert">
+                {label(attachmentIssueKey)}
+              </p>
+            ) : null}
             <div className="mt-2 flex items-center justify-between gap-3 border-t border-(--border-default) pt-2">
               <div className="flex min-w-0 items-center gap-1.5 overflow-x-auto pb-0.5">
+                <IconButton
+                  className="rounded-md"
+                  disabled={!agentAvailable || submitting || !visionAvailable || editingMessageId !== null}
+                  label={label("app.aiAgentAttachImages")}
+                  size="icon-sm"
+                  tooltip={visionAvailable ? label("app.aiAgentAttachImages") : label("app.aiAgentVisionRequired")}
+                  onClick={() => attachmentInputRef.current?.click()}
+                >
+                  <Paperclip aria-hidden="true" size={14} />
+                </IconButton>
                 {showProviderModeControls ? (
                   <>
                     <ToggleButton
@@ -871,6 +953,96 @@ export function AiAgentPanel({
       </div>
     </aside>
   );
+}
+
+type DraftAttachmentStripProps = {
+  attachments: DraftAiChatAttachment[];
+  onRemove?: (attachmentId: string) => unknown;
+  removeLabel: string;
+};
+
+function DraftAttachmentStrip({ attachments, onRemove, removeLabel }: DraftAttachmentStripProps) {
+  return (
+    <div className="mb-2 flex min-w-0 gap-2 overflow-x-auto pb-0.5">
+      {attachments.map((attachment) => (
+        <div
+          className="relative size-12 shrink-0 rounded-md bg-(--bg-secondary)"
+          key={attachment.metadata.id}
+        >
+          <img
+            alt={attachment.metadata.name}
+            className="size-12 rounded-md object-cover"
+            src={attachment.previewUrl}
+          />
+          <button
+            className="absolute -top-1 -right-1 inline-flex size-5 cursor-pointer items-center justify-center rounded-full border border-(--border-default) bg-(--bg-primary) p-0 text-(--text-secondary) shadow-sm transition-colors duration-150 hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+            type="button"
+            aria-label={`${removeLabel}: ${attachment.metadata.name}`}
+            onClick={() => onRemove?.(attachment.metadata.id)}
+          >
+            <X aria-hidden="true" size={11} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+type MessageAttachmentGridProps = {
+  attachments: NonNullable<AiAgentPanelMessage["attachments"]>;
+  sources?: Record<string, string>;
+  unavailableLabel: string;
+};
+
+function MessageAttachmentGrid({ attachments, sources, unavailableLabel }: MessageAttachmentGridProps) {
+  return (
+    <div className="mb-1.5 flex max-w-full flex-wrap gap-1.5">
+      {attachments.map((attachment) => {
+        const source = sources?.[attachment.id];
+
+        return source ? (
+          <img
+            alt={attachment.name}
+            className="max-h-36 min-h-12 max-w-full rounded-md object-cover"
+            key={attachment.id}
+            src={source}
+          />
+        ) : (
+          <div
+            aria-label={`${attachment.name}: ${unavailableLabel}`}
+            className="inline-flex h-12 min-w-12 items-center justify-center gap-1.5 rounded-md bg-(--bg-secondary) px-2 text-[11px] text-(--text-secondary)"
+            key={attachment.id}
+            role="img"
+          >
+            <ImageIcon aria-hidden="true" size={14} />
+            <span>{unavailableLabel}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function attachmentErrorKey(error: string | null): I18nKey | null {
+  switch (error) {
+    case "unsupported_format":
+      return "app.aiAgentAttachmentUnsupported";
+    case "unreadable_image":
+      return "app.aiAgentAttachmentUnreadable";
+    case "file_too_large":
+      return "app.aiAgentAttachmentTooLarge";
+    case "total_too_large":
+      return "app.aiAgentAttachmentsTooLarge";
+    case "too_many":
+      return "app.aiAgentAttachmentLimit";
+    case "attachment_failed":
+    case "attachment_storage_failed":
+      return "app.aiAgentAttachmentStorageFailed";
+    case "vision_model_required":
+      return "app.aiAgentVisionRequired";
+    default:
+      return null;
+  }
 }
 
 type WorkspacePlanConfirmationBarProps = {

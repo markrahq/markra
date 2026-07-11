@@ -7,10 +7,15 @@ import type { AgentWorkspaceFile } from "../read-only-tools";
 import type { WebSearchSettings, WebSearchTransport } from "../tools/web-search";
 
 export type DocumentAiHistoryMessage = {
+  images?: DocumentAiChatImage[];
   preview?: DocumentAiHistoryPreview;
   previews?: DocumentAiHistoryPreview[];
   role: "assistant" | "user";
   text: string;
+};
+
+export type DocumentAiChatImage = ChatImageAttachment & {
+  id: string;
 };
 
 export type DocumentAiHistoryPreview = {
@@ -29,6 +34,7 @@ export type RunDocumentAiAgentInput = {
   documentPath: string | null;
   headingAnchors?: AiHeadingAnchor[];
   history?: DocumentAiHistoryMessage[];
+  images?: DocumentAiChatImage[];
   model: string;
   onEvent?: (event: AgentEvent) => unknown;
   onPreviewResult?: (result: AiDiffResult, previewId?: string) => unknown;

@@ -1,7 +1,12 @@
 import { runDocumentAiAgent, type DocumentAiHistoryMessage } from "./document-agent";
 import type { AiProviderConfig } from "@markra/providers";
 import type { ChatMessage } from "./chat/types";
-import { buildDocumentAgentMessages, buildDocumentToolCallingSystemPrompt } from "./document/messages";
+import {
+  buildDocumentAgentMessages,
+  buildDocumentToolCallingHistoryMessages,
+  buildDocumentToolCallingSystemPrompt,
+  buildDocumentToolCallingTurnMessages
+} from "./document/messages";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
   return {
@@ -18,6 +23,106 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
 }
 
 describe("document AI agent", () => {
+  it("keeps explicit chat images on their original history and current turns", () => {
+    const historyImage = {
+      dataUrl: "data:image/png;base64,aGlzdG9yeQ==",
+      id: "history-image",
+      mimeType: "image/png"
+    };
+    const currentImage = {
+      dataUrl: "data:image/webp;base64,Y3VycmVudA==",
+      id: "current-image",
+      mimeType: "image/webp"
+    };
+    const documentImage = {
+      dataUrl: "data:image/gif;base64,ZG9jdW1lbnQ=",
+      mimeType: "image/gif"
+    };
+    const messages = buildDocumentAgentMessages({
+      documentContent: "# Synthetic note",
+      documentImages: [documentImage],
+      history: [{ images: [historyImage], role: "user", text: "Earlier image" }],
+      images: [currentImage],
+      prompt: "Compare these images",
+      selection: null,
+      toolResults: [],
+      webSearchMode: "none"
+    } as Parameters<typeof buildDocumentAgentMessages>[0] & { images: typeof currentImage[] });
+
+    expect(messages[1]?.images).toEqual([historyImage]);
+    expect(messages.at(-1)?.images).toEqual([currentImage, documentImage]);
+  });
+
+  it("keeps explicit images in tool-calling history and uses protocol text for image-only turns", () => {
+    const image = {
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      id: "attachment-1",
+      mimeType: "image/png"
+    };
+    const history = buildDocumentToolCallingHistoryMessages({
+      history: [{ images: [image], role: "user", text: "" }],
+      model: "gpt-5.5",
+      providerId: "openai"
+    });
+    const turn = buildDocumentToolCallingTurnMessages({
+      documentContent: "# Synthetic note",
+      documentImages: [],
+      images: [image],
+      prompt: "",
+      selection: null,
+      webSearchMode: "none"
+    } as Parameters<typeof buildDocumentToolCallingTurnMessages>[0] & { images: typeof image[] });
+
+    expect(history[0]?.content).toEqual([
+      { text: "Attached images", type: "text" },
+      { data: image.dataUrl, mimeType: "image/png", type: "image" }
+    ]);
+    expect(turn.at(-1)?.content).toEqual([
+      { text: "User request:\nAttached images", type: "text" },
+      { data: image.dataUrl, mimeType: "image/png", type: "image" }
+    ]);
+  });
+
+  it.each([
+    { capabilities: ["text", "vision"] as const, type: "openai-compatible" as const },
+    { capabilities: ["text", "vision", "tools"] as const, type: "openai" as const }
+  ])("passes explicit current-turn images through the $type agent path", async ({ capabilities, type }) => {
+    const image = {
+      dataUrl: "data:image/png;base64,aGVsbG8=",
+      id: "attachment-1",
+      mimeType: "image/png"
+    };
+    const complete = vi.fn().mockImplementation(async (_provider, _model, messages: ChatMessage[]) => {
+      expect(messages.at(-1)?.images).toEqual([
+        expect.objectContaining({
+          dataUrl: image.dataUrl,
+          mimeType: image.mimeType
+        })
+      ]);
+
+      return {
+        content: "I inspected the attached image.",
+        finishReason: "stop"
+      };
+    });
+
+    const result = await runDocumentAiAgent({
+      complete,
+      documentContent: "# Synthetic note",
+      documentPath: "/vault/note.md",
+      images: [image],
+      model: "gpt-5.5",
+      prompt: "Inspect this image",
+      provider: provider({
+        models: [{ capabilities: [...capabilities], enabled: true, id: "gpt-5.5", name: "GPT-5.5" }],
+        type
+      }),
+      workspaceFiles: []
+    });
+
+    expect(result.content).toBe("I inspected the attached image.");
+  });
+
   it("adds basic runtime context to document system prompts", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2042, 2, 4, 5, 6, 7));

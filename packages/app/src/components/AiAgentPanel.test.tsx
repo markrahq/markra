@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { AiAgentPanel } from "./AiAgentPanel";
 import { confirmNativeAiAgentSessionDelete } from "../lib/tauri";
 import { agentSessionSummary, assistantMessage, processActivity } from "../test/ai-fixtures";
+import type { DraftAiChatAttachment } from "../lib/ai-chat-attachments";
 
 vi.mock("../lib/tauri", () => ({
   confirmNativeAiAgentSessionDelete: vi.fn()
@@ -33,6 +34,88 @@ describe("AiAgentPanel", () => {
         writeText: vi.fn().mockResolvedValue(undefined)
       }
     });
+  });
+
+  it("selects, pastes, previews, removes, and sends chat image attachments", () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "synthetic.png", { type: "image/png" });
+    const draftAttachment: DraftAiChatAttachment = {
+      file,
+      metadata: {
+        height: 1,
+        id: "attachment-1",
+        mimeType: "image/png",
+        name: "synthetic.png",
+        size: 3,
+        width: 1
+      },
+      previewUrl: "data:image/png;base64,AQID"
+    };
+    const addAttachments = vi.fn();
+    const removeAttachment = vi.fn();
+    const submit = vi.fn();
+    const { container } = renderAgentPanel({
+      draftAttachments: [draftAttachment],
+      messages: [{
+        attachmentSources: { "sent-image": "data:image/png;base64,AQID" },
+        attachments: [{ ...draftAttachment.metadata, id: "sent-image", name: "sent.png" }],
+        id: 1,
+        role: "user",
+        text: ""
+      }],
+      onAddAttachments: addAttachments,
+      onRemoveAttachment: removeAttachment,
+      onSubmit: submit,
+      visionAvailable: true
+    } as Partial<AiAgentPanelProps>);
+
+    expect(screen.getByRole("button", { name: "Attach images" })).toBeEnabled();
+    expect(screen.getByRole("img", { name: "synthetic.png" })).toHaveAttribute("src", draftAttachment.previewUrl);
+    expect(screen.getByRole("img", { name: "sent.png" })).toHaveAttribute("src", "data:image/png;base64,AQID");
+    expect(screen.getByRole("button", { name: "Send message" })).toBeEnabled();
+
+    const fileInput = container.querySelector('input[type="file"]');
+    expect(fileInput).toHaveAttribute("accept", "image/png,image/jpeg,image/webp,image/gif");
+    expect(fileInput).toHaveAttribute("multiple");
+    fireEvent.change(fileInput!, { target: { files: [file] } });
+    expect(addAttachments).toHaveBeenCalledWith([file]);
+
+    fireEvent.paste(screen.getByRole("textbox", { name: "Markra AI message" }), {
+      clipboardData: {
+        items: [{ getAsFile: () => file, kind: "file", type: "image/png" }]
+      }
+    });
+    expect(addAttachments).toHaveBeenLastCalledWith([file]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove image: synthetic.png" }));
+    expect(removeAttachment).toHaveBeenCalledWith("attachment-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(submit).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps image drafts visible but blocks send when vision is unavailable", () => {
+    const file = new File([new Uint8Array([1])], "synthetic.png", { type: "image/png" });
+
+    renderAgentPanel({
+      draftAttachments: [{
+        file,
+        metadata: {
+          height: 1,
+          id: "attachment-1",
+          mimeType: "image/png",
+          name: "synthetic.png",
+          size: 1,
+          width: 1
+        },
+        previewUrl: "data:image/png;base64,AQ=="
+      }],
+      visionAvailable: false
+    } as Partial<AiAgentPanelProps>);
+
+    expect(screen.getByRole("img", { name: "synthetic.png" })).toBeInTheDocument();
+    expect(screen.getByText("Choose a model with vision to send images.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Attach images" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
   });
 
   it("renders a focused right-side agent workspace", () => {

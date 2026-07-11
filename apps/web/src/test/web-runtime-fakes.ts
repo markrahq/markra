@@ -1,7 +1,4 @@
-type StoredSettingsRecord = {
-  path: string;
-  values: Record<string, unknown>;
-};
+type StoredIndexedDbRecord = Record<string, unknown>;
 
 type RequestHandler = ((event: Event) => unknown) | null;
 
@@ -130,7 +127,10 @@ class FakeIdbOpenRequest extends FakeIdbRequest<FakeIdbDatabase> {
 }
 
 class FakeIdbObjectStore {
-  constructor(private readonly records: Map<string, StoredSettingsRecord>) {}
+  constructor(
+    private readonly keyPath: string,
+    private readonly records: Map<string, StoredIndexedDbRecord>
+  ) {}
 
   delete(key: IDBValidKey) {
     const request = new FakeIdbRequest<undefined>();
@@ -144,21 +144,22 @@ class FakeIdbObjectStore {
   }
 
   get(key: IDBValidKey) {
-    const request = new FakeIdbRequest<StoredSettingsRecord | undefined>();
+    const request = new FakeIdbRequest<StoredIndexedDbRecord | undefined>();
 
     queueMicrotask(() => {
       request.succeed(cloneValue(this.records.get(String(key))));
     });
 
-    return request as unknown as IDBRequest<StoredSettingsRecord | undefined>;
+    return request as unknown as IDBRequest<StoredIndexedDbRecord | undefined>;
   }
 
-  put(record: StoredSettingsRecord) {
+  put(record: StoredIndexedDbRecord) {
     const request = new FakeIdbRequest<IDBValidKey>();
 
     queueMicrotask(() => {
-      this.records.set(record.path, cloneValue(record));
-      request.succeed(record.path);
+      const key = String(record[this.keyPath]);
+      this.records.set(key, cloneValue(record));
+      request.succeed(key);
     });
 
     return request as unknown as IDBRequest<IDBValidKey>;
@@ -166,27 +167,40 @@ class FakeIdbObjectStore {
 }
 
 class FakeIdbDatabase {
-  private readonly stores = new Map<string, Map<string, StoredSettingsRecord>>();
+  private readonly stores = new Map<string, {
+    keyPath: string;
+    records: Map<string, StoredIndexedDbRecord>;
+  }>();
 
   objectStoreNames = {
     contains: (name: string) => this.stores.has(name)
   };
 
-  createObjectStore(name: string) {
+  createObjectStore(name: string, options: IDBObjectStoreParameters = {}) {
     if (!this.stores.has(name)) {
-      this.stores.set(name, new Map());
+      this.stores.set(name, {
+        keyPath: typeof options.keyPath === "string" ? options.keyPath : "id",
+        records: new Map()
+      });
     }
 
-    return new FakeIdbObjectStore(this.stores.get(name)!);
+    const store = this.stores.get(name)!;
+
+    return new FakeIdbObjectStore(store.keyPath, store.records);
   }
 
   transaction(name: string) {
     if (!this.stores.has(name)) {
-      this.stores.set(name, new Map());
+      this.stores.set(name, {
+        keyPath: "id",
+        records: new Map()
+      });
     }
 
+    const store = this.stores.get(name)!;
+
     return {
-      objectStore: () => new FakeIdbObjectStore(this.stores.get(name)!)
+      objectStore: () => new FakeIdbObjectStore(store.keyPath, store.records)
     };
   }
 }

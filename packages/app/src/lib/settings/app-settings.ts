@@ -1100,6 +1100,7 @@ export async function deleteStoredAiAgentSession(sessionId: string | null) {
 
   await indexStore.set(aiAgentSessionIndexKey, nextEntries);
   await indexStore.save();
+  await getAppRuntime().aiChatAttachments.deleteSession(sessionId);
 }
 
 export async function saveStoredAiSettings(settings: AiProviderSettings) {

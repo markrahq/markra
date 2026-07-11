@@ -42,6 +42,123 @@ describe("ACP agent helpers", () => {
     )).toBe("/mock-workspace/notes");
   });
 
+  it("embeds current and historical chat images as ACP resources in turn order", async () => {
+    let handleAgentMessage: ((event: AppAcpAgentMessageEvent) => unknown) | null = null;
+    let promptBlocks: unknown[] = [];
+    const runtime = createDefaultAppRuntime();
+
+    configureAppRuntime({
+      ...runtime,
+      acp: {
+        listenAgentMessages: vi.fn(async (handler) => {
+          handleAgentMessage = handler;
+
+          return () => {
+            handleAgentMessage = null;
+          };
+        }),
+        startAgent: vi.fn(async () => ({ connectionId: "acp-1" })),
+        stopAgent: vi.fn(async () => undefined),
+        writeAgentMessage: vi.fn(async (_connectionId, message) => {
+          if (!(message && typeof message === "object" && "method" in message)) return;
+
+          if (message.method === "initialize") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: {} }),
+              type: "message"
+            });
+            return;
+          }
+          if (message.method === "session/new") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { sessionId: "session-1" } }),
+              type: "message"
+            });
+            return;
+          }
+          if (message.method === "session/prompt") {
+            const params = "params" in message && message.params && typeof message.params === "object"
+              ? message.params as { prompt?: unknown[] }
+              : {};
+            promptBlocks = params.prompt ?? [];
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { stopReason: "end_turn" } }),
+              type: "message"
+            });
+          }
+        })
+      }
+    });
+    const historyImage = {
+      dataUrl: "data:image/png;base64,aGlzdG9yeQ==",
+      id: "history-image",
+      mimeType: "image/png"
+    };
+    const currentImage = {
+      dataUrl: "data:image/webp;base64,Y3VycmVudA==",
+      id: "current-image",
+      mimeType: "image/webp"
+    };
+
+    await runAcpDocumentAgent({
+      documentContent: "# Synthetic note",
+      documentPath: "/mock-workspace/current.md",
+      history: [{ images: [historyImage], role: "user", text: "Earlier image" }],
+      images: [currentImage],
+      onTextDelta: vi.fn(),
+      prompt: "",
+      settings: {
+        args: "",
+        command: "synthetic-acp-agent",
+        cwd: "",
+        enabled: true
+      },
+      workspaceKey: "/mock-workspace"
+    } as Parameters<typeof runAcpDocumentAgent>[0] & { images: typeof currentImage[] });
+
+    const historyTextIndex = promptBlocks.findIndex((block) => (
+      typeof block === "object" && block !== null && "text" in block && block.text === "user: Earlier image"
+    ));
+    const historyImageIndex = promptBlocks.findIndex((block) => (
+      typeof block === "object" && block !== null && "resource" in block
+      && typeof block.resource === "object" && block.resource !== null
+      && "uri" in block.resource && block.resource.uri === "markra://chat-attachment/history-image"
+    ));
+    const currentTextIndex = promptBlocks.findIndex((block) => (
+      typeof block === "object" && block !== null && "text" in block
+      && block.text === "User request:\nAttached images"
+    ));
+    const currentImageIndex = promptBlocks.findIndex((block) => (
+      typeof block === "object" && block !== null && "resource" in block
+      && typeof block.resource === "object" && block.resource !== null
+      && "uri" in block.resource && block.resource.uri === "markra://chat-attachment/current-image"
+    ));
+
+    expect(promptBlocks[historyImageIndex]).toEqual({
+      resource: {
+        blob: "aGlzdG9yeQ==",
+        mimeType: "image/png",
+        uri: "markra://chat-attachment/history-image"
+      },
+      type: "resource"
+    });
+    expect(promptBlocks[currentImageIndex]).toEqual({
+      resource: {
+        blob: "Y3VycmVudA==",
+        mimeType: "image/webp",
+        uri: "markra://chat-attachment/current-image"
+      },
+      type: "resource"
+    });
+    expect(historyTextIndex).toBeGreaterThanOrEqual(0);
+    expect(historyImageIndex).toBeGreaterThan(historyTextIndex);
+    expect(currentTextIndex).toBeGreaterThan(historyImageIndex);
+    expect(currentImageIndex).toBeGreaterThan(currentTextIndex);
+  });
+
   it("rejects with ACP stderr when the agent exits before responding", async () => {
     let handleAgentMessage: ((event: AppAcpAgentMessageEvent) => unknown) | null = null;
     const runtime = createDefaultAppRuntime();

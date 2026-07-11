@@ -1,4 +1,5 @@
 mod acp;
+mod ai_chat_attachments;
 mod ai_http;
 mod app_exit;
 mod app_logs;
@@ -25,6 +26,9 @@ mod windows;
 use std::{path::Path, time::Duration};
 
 use acp::{start_acp_agent, stop_acp_agent, write_acp_agent_message, AcpAgentProcessState};
+use ai_chat_attachments::{
+    delete_ai_chat_attachment_session, read_ai_chat_attachment, save_ai_chat_attachment,
+};
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
 use app_exit::handle_app_exit_requested;
 use app_logs::open_log_folder;
@@ -296,6 +300,9 @@ pub fn run() {
             request_ai_provider_json,
             request_native_chat,
             request_native_chat_stream,
+            save_ai_chat_attachment,
+            read_ai_chat_attachment,
+            delete_ai_chat_attachment_session,
             request_web_resource,
             backup_markdown_folder,
             sync_webdav_markdown_folder,

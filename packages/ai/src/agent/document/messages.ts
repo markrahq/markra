@@ -3,7 +3,7 @@ import type { ChatImageAttachment, ChatMessage } from "../chat/types";
 import type { AiDiffTarget, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../inline";
 import type { AgentToolResult } from "../read-only-tools";
 import { formatSelectionSourceContext } from "../selection";
-import type { DocumentAiHistoryMessage, DocumentAiHistoryPreview } from "./types";
+import type { DocumentAiChatImage, DocumentAiHistoryMessage, DocumentAiHistoryPreview } from "./types";
 
 export type DocumentToolCallingWebSearchMode = "custom" | "native" | "none";
 
@@ -11,6 +11,7 @@ export function buildDocumentAgentMessages({
   documentContent,
   documentImages,
   history,
+  images = [],
   prompt,
   selection,
   sectionAnchors,
@@ -22,6 +23,7 @@ export function buildDocumentAgentMessages({
   documentImages: ChatImageAttachment[];
   headingAnchors?: AiHeadingAnchor[];
   history: DocumentAiHistoryMessage[];
+  images?: DocumentAiChatImage[];
   prompt: string;
   sectionAnchors?: AiDocumentAnchor[];
   selection: AiSelectionContext | null;
@@ -35,6 +37,7 @@ export function buildDocumentAgentMessages({
     },
     ...history.map((message) => ({
       content: formatHistoryMessageText(message),
+      ...(message.images?.length ? { images: message.images } : {}),
       role: message.role
     })),
     {
@@ -53,8 +56,8 @@ export function buildDocumentAgentMessages({
       role: "user"
     },
     {
-      content: buildCurrentUserRequest(prompt),
-      ...(documentImages.length ? { images: documentImages } : {}),
+      content: buildCurrentUserRequest(prompt, images.length + documentImages.length > 0),
+      ...(images.length || documentImages.length ? { images: [...images, ...documentImages] } : {}),
       role: "user"
     }
   ];
@@ -63,6 +66,7 @@ export function buildDocumentAgentMessages({
 export function buildDocumentToolCallingTurnMessages({
   documentContent,
   documentImages,
+  images = [],
   prompt,
   selection,
   sectionAnchors,
@@ -72,6 +76,7 @@ export function buildDocumentToolCallingTurnMessages({
   documentContent: string;
   documentImages: ChatImageAttachment[];
   headingAnchors?: AiHeadingAnchor[];
+  images?: DocumentAiChatImage[];
   prompt: string;
   sectionAnchors?: AiDocumentAnchor[];
   selection: AiSelectionContext | null;
@@ -88,7 +93,10 @@ export function buildDocumentToolCallingTurnMessages({
         webSearchMode
       })
     ),
-    createAgentUserMessage(buildCurrentUserRequest(prompt), documentImages)
+    createAgentUserMessage(
+      buildCurrentUserRequest(prompt, images.length + documentImages.length > 0),
+      [...images, ...documentImages]
+    )
   ];
 }
 
@@ -107,7 +115,7 @@ export function buildDocumentToolCallingHistoryMessages({
       if (!content.trim()) return null;
 
       if (message.role === "user") {
-        return createAgentUserMessage(content);
+        return createAgentUserMessage(content, message.images);
       }
 
       return {
@@ -215,8 +223,10 @@ function documentToolCallingWebSearchInstructions(webSearchMode: DocumentToolCal
   return [];
 }
 
-function buildCurrentUserRequest(prompt: string) {
-  return `User request:\n${prompt.trim()}`;
+function buildCurrentUserRequest(prompt: string, hasImages = false) {
+  const request = prompt.trim() || (hasImages ? "Attached images" : "");
+
+  return `User request:\n${request}`;
 }
 
 function buildDocumentRuntimeContext({
@@ -303,7 +313,7 @@ function createAgentUserMessage(content: string, images: ChatImageAttachment[] =
 }
 
 function formatHistoryMessageText(message: DocumentAiHistoryMessage) {
-  const parts = [message.text.trim()];
+  const parts = [message.text.trim() || (message.images?.length ? "Attached images" : "")];
   const previews = message.previews?.length ? message.previews : (message.preview ? [message.preview] : []);
   previews.forEach((preview) => {
     const previewSummary = formatHistoryPreviewSummary(preview);

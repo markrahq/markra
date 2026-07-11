@@ -56,6 +56,34 @@ describe("i18n", () => {
     expect(t("ru", "missing.key")).toBe("missing.key");
   });
 
+  it("ships user-facing AI chat image attachment copy", () => {
+    const keys = [
+      "app.aiAgentAttachImages",
+      "app.aiAgentRemoveImage",
+      "app.aiAgentVisionRequired",
+      "app.aiAgentAttachmentUnsupported",
+      "app.aiAgentAttachmentUnreadable",
+      "app.aiAgentAttachmentTooLarge",
+      "app.aiAgentAttachmentsTooLarge",
+      "app.aiAgentAttachmentLimit",
+      "app.aiAgentAttachmentStorageFailed",
+      "app.aiAgentAttachmentUnavailable"
+    ] as I18nKey[];
+
+    expect(keys.map((key) => t("en", key))).toEqual([
+      "Attach images",
+      "Remove image",
+      "Choose a model with vision to send images.",
+      "This image format is not supported.",
+      "This image could not be read.",
+      "Each image must be 10 MB or smaller.",
+      "Images in one message must total 20 MB or less.",
+      "You can attach up to 4 images per message.",
+      "Could not save the attached images.",
+      "Image unavailable"
+    ]);
+  });
+
   it("ships non-empty English labels for every translation key", () => {
     expect(untranslatedKeys(enMessages)).toEqual([]);
   });

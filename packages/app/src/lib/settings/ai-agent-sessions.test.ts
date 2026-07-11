@@ -1,5 +1,5 @@
 import { createSettingsStoreHarness, resetSettingsStoreRuntime, setupSettingsStoreHarness } from "../../test/settings-store";
-import type { RuntimeStore } from "../../runtime";
+import { configureAppRuntime, createDefaultAppRuntime, type RuntimeStore } from "../../runtime";
 import {
   createAiAgentSessionId,
   deleteStoredAiAgentSession,
@@ -685,6 +685,7 @@ describe("AI agent session settings", () => {
   });
 
   it("deletes a stored AI agent session and removes it from the session index", async () => {
+    const deleteAttachmentSession = vi.fn(async () => undefined);
     const sessionStore = {
       delete: vi.fn(),
       get: vi.fn(),
@@ -722,6 +723,17 @@ describe("AI agent session settings", () => {
         workspaceKey: "/mock-files/vault"
       }
     ]);
+    configureAppRuntime({
+      ...createDefaultAppRuntime(),
+      aiChatAttachments: {
+        deleteSession: deleteAttachmentSession,
+        read: async () => [],
+        save: async () => undefined
+      },
+      settings: {
+        loadStore: mockedLoadStore
+      }
+    });
 
     await deleteStoredAiAgentSession("session-a");
 
@@ -733,6 +745,7 @@ describe("AI agent session settings", () => {
         title: "Another session"
       })
     ]);
+    expect(deleteAttachmentSession).toHaveBeenCalledWith("session-a");
   });
 
   it("generates a random AI agent session id from crypto when available", () => {
