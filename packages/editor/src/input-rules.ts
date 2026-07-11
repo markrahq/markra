@@ -487,6 +487,8 @@ function insertTextAtFormattedBoundaryIntent(
 ) {
   if (text.length === 0) return false;
   if (from !== to) return false;
+  // Intermediate IME text must stay in the native composition DOM until the final commit arrives.
+  if (view.composing) return false;
 
   const pluginState = liveMarkdownKey.getState(view.state) as LiveMarkdownPluginState | undefined;
   const intent = pluginState?.boundaryInputIntent ?? null;

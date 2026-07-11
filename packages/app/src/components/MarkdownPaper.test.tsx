@@ -8569,6 +8569,64 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("leaves intermediate IME composition text under native control at a finalized boundary", async () => {
+    const { container, editor, unmount, view } = await renderEditor("**bold** after");
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const strong = container.querySelector<HTMLElement>(".ProseMirror strong");
+    mockInlineElementRect(strong!, { bottom: 32, left: 100, right: 148, top: 12 });
+
+    const edgeClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 147,
+      clientY: 22
+    });
+    Object.defineProperty(edgeClick, "target", { configurable: true, value: strong });
+    expect(
+      view.someProp("handleDOMEvents", (handlers) => handlers.mousedown?.(view, edgeClick))
+    ).toBe(true);
+
+    view.dom.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+
+    try {
+      expect(view.composing).toBe(true);
+      const { from, to } = view.state.selection;
+      const insertText = () => view.state.tr.insertText("s", from, to).scrollIntoView();
+      const handled = view.someProp(
+        "handleTextInput",
+        (handler) => handler(view, from, to, "s", insertText)
+      );
+
+      expect(handled).toBeUndefined();
+      view.dispatch(insertText());
+      expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("**bolds** after");
+
+      const compositionMarks = view.state.doc.resolve(from + 1).nodeBefore?.marks ?? [];
+      const replaceCompositionText = (text: string, to: number) =>
+        view.state.tr.replaceWith(from, to, view.state.schema.text(text, compositionMarks)).scrollIntoView();
+      view.dispatch(replaceCompositionText("sd", from + 1));
+      expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("**boldsd** after");
+
+      view.dom.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true, data: "confirmed" }));
+      expect(view.composing).toBe(false);
+
+      const finalInsert = () => replaceCompositionText("confirmed", from + 2);
+      const finalHandled = view.someProp(
+        "handleTextInput",
+        (handler) => handler(view, from, from + 2, "confirmed", finalInsert)
+      );
+      expect(finalHandled).toBeUndefined();
+      view.dispatch(finalInsert());
+      expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("**boldconfirmed** after");
+    } finally {
+      if (view.composing) {
+        view.dom.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+      }
+      unmount();
+    }
+  });
+
   it("keeps consecutive beforeinput characters inside live Markdown", async () => {
     const { container, view } = await renderEditor();
 
