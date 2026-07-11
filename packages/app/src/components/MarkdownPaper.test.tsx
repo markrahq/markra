@@ -1067,6 +1067,131 @@ describe("MarkdownPaper editing", () => {
     await settleMarkdownListener();
   });
 
+  it("keeps the custom caret aligned with the DOM selection while IME text is composing", async () => {
+    const { view } = await renderEditor("Alpha");
+    const coordsSpy = vi.spyOn(view, "coordsAtPos").mockReturnValue({
+      bottom: 42,
+      left: 24,
+      right: 25,
+      top: 10
+    });
+
+    focusEditor(view);
+    moveCursor(view, findTextPosition(view, "Alpha", 2));
+
+    const caret = view.dom.ownerDocument.querySelector<HTMLElement>(".markra-prosemirror-caret");
+    const textNode = view.dom.querySelector("p")?.firstChild;
+    const nativeSelection = view.dom.ownerDocument.getSelection();
+    const nativeRange = view.dom.ownerDocument.createRange();
+
+    expect(textNode).toBeInstanceOf(Text);
+    expect(nativeSelection).not.toBeNull();
+
+    const originalText = textNode!.textContent ?? "";
+    const rangeRectSpy = vi.spyOn(Range.prototype, "getBoundingClientRect").mockImplementation(function (this: Range) {
+      const preeditOffset = this.startContainer === textNode ? this.startOffset - originalText.length : 0;
+      const left = 48 + preeditOffset * 12;
+      return testRect({ bottom: 48, left, right: left, top: 16 });
+    });
+
+    try {
+      fireEvent.compositionStart(view.dom);
+
+      textNode!.textContent = `${originalText}s'd's`;
+      nativeRange.setStart(textNode!, originalText.length + 1);
+      nativeRange.collapse(true);
+      nativeSelection!.removeAllRanges();
+      nativeSelection!.addRange(nativeRange);
+      fireEvent.input(view.dom);
+
+      expect(caret?.style.display).toBe("block");
+      expect(caret?.style.left).toBe("60px");
+      expect(caret?.style.top).toBe("23px");
+      expect(caret?.style.height).toBe("18px");
+
+      nativeSelection!.collapse(textNode!, originalText.length + 2);
+      view.dom.ownerDocument.dispatchEvent(new Event("selectionchange"));
+
+      expect(caret?.style.left).toBe("72px");
+
+      nativeSelection!.collapse(textNode!, originalText.length + 3);
+      fireEvent.input(view.dom);
+
+      expect(caret?.style.left).toBe("84px");
+
+      textNode!.textContent = originalText;
+      fireEvent.compositionEnd(view.dom);
+
+      expect(caret?.style.display).toBe("block");
+      expect(caret?.style.left).toBe("24px");
+    } finally {
+      textNode!.textContent = originalText;
+      fireEvent.compositionEnd(view.dom);
+      nativeSelection?.removeAllRanges();
+      rangeRectSpy.mockRestore();
+      coordsSpy.mockRestore();
+      await settleMarkdownListener();
+    }
+  });
+
+  it("uses the adjacent text edge when an IME caret range has empty geometry", async () => {
+    const { view } = await renderEditor("Alpha");
+    const coordsSpy = vi.spyOn(view, "coordsAtPos").mockReturnValue({
+      bottom: 42,
+      left: 24,
+      right: 25,
+      top: 10
+    });
+
+    focusEditor(view);
+    moveCursor(view, findTextPosition(view, "Alpha", 2));
+
+    const caret = view.dom.ownerDocument.querySelector<HTMLElement>(".markra-prosemirror-caret");
+    const textNode = view.dom.querySelector("p")?.firstChild;
+    const nativeSelection = view.dom.ownerDocument.getSelection();
+    const nativeRange = view.dom.ownerDocument.createRange();
+    const emptyRect = testRect({ bottom: 0, left: 0, right: 0, top: 0 });
+    const adjacentRect = testRect({ bottom: 48, left: 96, right: 108, top: 16 });
+
+    expect(textNode).toBeInstanceOf(Text);
+    expect(nativeSelection).not.toBeNull();
+
+    const originalText = textNode!.textContent ?? "";
+    const boundingRectSpy = vi.spyOn(Range.prototype, "getBoundingClientRect").mockReturnValue(emptyRect);
+    const clientRectsSpy = vi.spyOn(Range.prototype, "getClientRects").mockImplementation(function (this: Range) {
+      const measuresLastPreeditCharacter =
+        !this.collapsed &&
+        this.startContainer === textNode &&
+        this.startOffset === originalText.length + 4 &&
+        this.endOffset === originalText.length + 5;
+      return (measuresLastPreeditCharacter ? [adjacentRect] : [emptyRect]) as unknown as DOMRectList;
+    });
+
+    try {
+      fireEvent.compositionStart(view.dom);
+
+      textNode!.textContent = `${originalText}s'd's`;
+      nativeRange.setStart(textNode!, originalText.length + 5);
+      nativeRange.collapse(true);
+      nativeSelection!.removeAllRanges();
+      nativeSelection!.addRange(nativeRange);
+      fireEvent.input(view.dom);
+
+      expect(caret?.style.display).toBe("block");
+      expect(caret?.style.left).toBe("108px");
+      expect(caret?.style.top).toBe("23px");
+      expect(caret?.style.height).toBe("18px");
+    } finally {
+      textNode!.textContent = originalText;
+      fireEvent.compositionEnd(view.dom);
+      nativeSelection?.removeAllRanges();
+      clientRectsSpy.mockRestore();
+      boundingRectSpy.mockRestore();
+      coordsSpy.mockRestore();
+      await settleMarkdownListener();
+    }
+  });
+
   it("hides the custom caret for non-collapsed ProseMirror selections", async () => {
     const { view } = await renderEditor("Alpha");
     const coordsSpy = vi.spyOn(view, "coordsAtPos").mockReturnValue({
