@@ -74,7 +74,7 @@ describe("AI chat attachments", () => {
         new Uint8Array(Math.floor(aiChatAttachmentMaxTotalBytes / 3) + 1)
       ))
     }
-  ])("rejects invalid attachment input with $code", async ({ code, files }) => {
+  ] as const)("rejects invalid attachment input with $code", async ({ code, files }) => {
     await expect(createDraftAiChatAttachments(files, [], {
       createId: () => "attachment",
       createPreviewUrl: () => "blob:preview",

@@ -72,12 +72,16 @@ describe("document AI agent", () => {
       selection: null,
       webSearchMode: "none"
     } as Parameters<typeof buildDocumentToolCallingTurnMessages>[0] & { images: typeof image[] });
+    const historyMessage = history[0];
+    const currentMessage = turn.at(-1);
 
-    expect(history[0]?.content).toEqual([
+    expect(historyMessage?.role).toBe("user");
+    expect(historyMessage?.role === "user" ? historyMessage.content : undefined).toEqual([
       { text: "Attached images", type: "text" },
       { data: image.dataUrl, mimeType: "image/png", type: "image" }
     ]);
-    expect(turn.at(-1)?.content).toEqual([
+    expect(currentMessage?.role).toBe("user");
+    expect(currentMessage?.role === "user" ? currentMessage.content : undefined).toEqual([
       { text: "User request:\nAttached images", type: "text" },
       { data: image.dataUrl, mimeType: "image/png", type: "image" }
     ]);
