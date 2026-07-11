@@ -8587,10 +8587,19 @@ describe("MarkdownPaper editing", () => {
       view.someProp("handleDOMEvents", (handlers) => handlers.mousedown?.(view, edgeClick))
     ).toBe(true);
 
+    const contentEnd = findTextPosition(view, "bold", "bold".length);
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.create(view.state.doc, contentEnd))
+        .setStoredMarks(null)
+    );
+    expect(view.state.storedMarks).toBeNull();
+
     view.dom.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
 
     try {
       expect(view.composing).toBe(true);
+      expect(view.state.storedMarks?.map((mark) => mark.type.name)).toContain("strong");
       const { from, to } = view.state.selection;
       const insertText = () => view.state.tr.insertText("s", from, to).scrollIntoView();
       const handled = view.someProp(
@@ -8619,6 +8628,50 @@ describe("MarkdownPaper editing", () => {
       expect(finalHandled).toBeUndefined();
       view.dispatch(finalInsert());
       expect(serializeMarkdown(view.state.doc).trimEnd()).toBe("**boldconfirmed** after");
+    } finally {
+      if (view.composing) {
+        view.dom.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+      }
+      unmount();
+    }
+  });
+
+  it("restores the inside live Markdown position before native IME composition", async () => {
+    const { container, unmount, view } = await renderEditor();
+
+    typeText(view, "**bold** after");
+    const liveMark = container.querySelector<HTMLElement>(".ProseMirror .markra-live-mark-strong");
+    const contentEnd = findTextPosition(view, "bold", "bold".length);
+    const outsidePosition = findTextPosition(view, " after");
+    mockInlineElementRect(liveMark!, { bottom: 32, left: 100, right: 148, top: 12 });
+
+    const edgeClick = new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      clientX: 147,
+      clientY: 22
+    });
+    Object.defineProperty(edgeClick, "target", { configurable: true, value: liveMark });
+    expect(
+      view.someProp("handleDOMEvents", (handlers) => handlers.mousedown?.(view, edgeClick))
+    ).toBe(true);
+
+    view.dispatch(
+      view.state.tr
+        .setSelection(TextSelection.create(view.state.doc, outsidePosition))
+        .setStoredMarks(null)
+    );
+    expect(view.state.selection.from).toBe(outsidePosition);
+
+    view.dom.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+
+    try {
+      expect(view.composing).toBe(true);
+      expect(view.state.selection.from).toBe(contentEnd);
+
+      insertTextDirectly(view, "confirmed");
+      expect(container.querySelector(".ProseMirror p")?.textContent).toBe("**boldconfirmed** after");
     } finally {
       if (view.composing) {
         view.dom.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));

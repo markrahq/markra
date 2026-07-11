@@ -519,6 +519,29 @@ function insertTextAtFormattedBoundaryIntent(
   return true;
 }
 
+function prepareFormattedBoundaryComposition(
+  view: EditorView,
+  markTypes: MarkType[]
+) {
+  const { selection } = view.state;
+  if (!(selection instanceof TextSelection) || !selection.empty) return false;
+
+  const pluginState = liveMarkdownKey.getState(view.state) as LiveMarkdownPluginState | undefined;
+  const intent = pluginState?.boundaryInputIntent ?? null;
+  if (!intent) return false;
+  if (selection.from < intent.selectionFrom || selection.from > intent.selectionTo) return false;
+  if (intent.position < 0 || intent.position > view.state.doc.content.size) return false;
+
+  const marks = marksForBoundaryInputIntent(view, intent, markTypes);
+  // ProseMirror must see the corrected selection and marks before it creates its native IME mark cursor.
+  view.dispatch(
+    view.state.tr
+      .setSelection(TextSelection.create(view.state.doc, intent.position))
+      .setStoredMarks(marks)
+  );
+  return false;
+}
+
 function handleFormattedBoundaryBeforeInput(
   view: EditorView,
   event: Event,
@@ -1766,6 +1789,7 @@ export const markraLiveMarkdownPlugin = (options: MarkraLiveMarkdownOptions = {}
           managedMarkTypes,
           specs
         ),
+        compositionstart: (view) => prepareFormattedBoundaryComposition(view, managedMarkTypes),
         mousedown: (view, event) =>
           // Resolve the visible content edge before trusting the WebView's unstable wrapper target.
           selectFormattedMarkEdge(view, event) || selectLiveMarkdownDelimiterEdge(view, event),
