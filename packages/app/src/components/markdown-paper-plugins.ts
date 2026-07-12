@@ -5,6 +5,7 @@ import {
   hardbreakSchema,
   hrSchema,
   imageSchema,
+  inlineNodesCursorPlugin,
   insertHrInputRule,
   inputRules as commonmarkInputRules,
   keymap as commonmarkKeymap,
@@ -366,6 +367,17 @@ const markraCommonmarkInputRules = commonmarkInputRules.map((plugin) =>
   plugin === insertHrInputRule ? markraInsertHrInputRule : plugin
 );
 
+const browserUsesSafariEngine =
+  typeof navigator !== "undefined" && /Apple Computer/iu.test(navigator.vendor);
+
+const markraCommonmarkPlugins = commonmarkPlugins.filter((plugin) =>
+  plugin !== remarkPreserveEmptyLinePlugin.plugin &&
+  plugin !== remarkPreserveEmptyLinePlugin.options &&
+  // Milkdown's dual editable widgets work around a Chrome 98 cursor bug, but WebKit
+  // directs IME preedit text into those widgets and never updates the document model.
+  (!browserUsesSafariEngine || plugin !== inlineNodesCursorPlugin)
+);
+
 export const markraCommonmark = [
   markraMarkdownStyleRemarkPlugin,
   markraBlankParagraphRemarkPlugin,
@@ -378,10 +390,7 @@ export const markraCommonmark = [
   markraCommonmarkInputRules,
   commonmarkCommands,
   commonmarkKeymap,
-  commonmarkPlugins.filter((plugin) =>
-    plugin !== remarkPreserveEmptyLinePlugin.plugin &&
-    plugin !== remarkPreserveEmptyLinePlugin.options
-  )
+  markraCommonmarkPlugins
 ].flat();
 
 export const markraGfm = [

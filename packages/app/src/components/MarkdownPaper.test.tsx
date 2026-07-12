@@ -3107,6 +3107,31 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).not.toContain("MockBefore\n\nMockAfter");
   });
 
+  it("does not add Chrome inline cursor widgets between consecutive HTML atoms on Safari", async () => {
+    const { container, view } = await renderEditor("MockBefore<br><br>MockAfter");
+    const paragraph = view.state.doc.child(0);
+    let childOffset = 0;
+    let betweenHtmlAtoms: number | null = null;
+
+    for (let index = 0; index < paragraph.childCount; index += 1) {
+      const child = paragraph.child(index);
+      const nextChild = paragraph.maybeChild(index + 1);
+      if (child.type.name === "html" && nextChild?.type.name === "html") {
+        betweenHtmlAtoms = 1 + childOffset + child.nodeSize;
+        break;
+      }
+      childOffset += child.nodeSize;
+    }
+
+    expect(container.querySelectorAll('.ProseMirror .markra-html-node[data-value="<br>"]')).toHaveLength(2);
+    expect(betweenHtmlAtoms).not.toBeNull();
+    view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, betweenHtmlAtoms!)));
+
+    await waitFor(() => {
+      expect(container.querySelectorAll(".ProseMirror p > span.ProseMirror-widget")).toHaveLength(0);
+    });
+  });
+
   it("keeps the native caret anchor when leaving display math source at the closing delimiter", async () => {
     const source = String.raw`$$ E = mc^2 $$`;
     const { container, view } = await renderEditor(source);
