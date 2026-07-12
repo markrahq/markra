@@ -722,6 +722,8 @@ function buildAiSdkAssistantMessage(message: ChatMessage): AssistantModelMessage
 
   return {
     content: [
+      // DeepSeek V4 rejects follow-up tool requests unless the full reasoning content is replayed.
+      ...(message.thinking?.trim() ? [{ text: message.thinking, type: "reasoning" as const }] : []),
       ...(message.content.trim() ? [{ text: message.content, type: "text" as const }] : []),
       ...message.toolCalls.map((toolCall) => ({
         input: toolCall.arguments,

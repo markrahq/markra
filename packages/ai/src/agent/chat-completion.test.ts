@@ -884,6 +884,76 @@ describe("chatCompletion", () => {
     expect(onDelta).toHaveBeenNthCalledWith(2, "answer");
   });
 
+  it("replays DeepSeek V4 reasoning content through the Vercel AI SDK after a tool call", async () => {
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":0,"model":"deepseek-v4-pro","choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+
+    await chatCompletionStream(
+      provider({
+        apiStyle: "openai-compatible",
+        baseUrl: "https://api.deepseek.com",
+        id: "deepseek",
+        name: "DeepSeek",
+        type: "deepseek"
+      }),
+      "deepseek-v4-pro",
+      [
+        { content: "Read the current document.", role: "user" },
+        {
+          content: "",
+          role: "assistant",
+          thinking: "I need to inspect the document before answering.",
+          toolCalls: [
+            {
+              arguments: {},
+              id: "call_read_document",
+              name: "read_document"
+            }
+          ]
+        },
+        {
+          content: "Tool result from read_document:\n# Draft",
+          role: "user",
+          toolResult: {
+            outputText: "# Draft",
+            toolCallId: "call_read_document",
+            toolName: "read_document"
+          }
+        }
+      ],
+      {
+        fallbackTransport: vi.fn(),
+        streamTransport,
+        thinkingEnabled: true,
+        tools: [
+          {
+            description: "Read the current document.",
+            name: "read_document",
+            parameters: {
+              additionalProperties: false,
+              properties: {},
+              type: "object"
+            }
+          }
+        ],
+        useVercelAiSdk: true
+      }
+    );
+
+    const request = streamTransport.mock.calls[0]?.[0];
+    const body = JSON.parse(request?.body ?? "{}") as {
+      messages?: Array<Record<string, unknown>>;
+    };
+    expect(body.messages).toContainEqual(expect.objectContaining({
+      reasoning_content: "I need to inspect the document before answering.",
+      role: "assistant"
+    }));
+  });
+
   it("uses the Azure OpenAI Vercel AI SDK package with deployment URLs", async () => {
     const onDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
