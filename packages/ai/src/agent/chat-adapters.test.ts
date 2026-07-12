@@ -5,6 +5,7 @@ import {
 import { buildInlineAiMessages } from "./inline-prompt";
 import type { AiProviderConfig } from "@markra/providers";
 import type { Tool } from "@earendil-works/pi-ai";
+import { encodeOpenRouterReasoningDetails } from "./reasoning-metadata";
 
 function provider(overrides: Partial<AiProviderConfig>): AiProviderConfig {
   return {
@@ -935,6 +936,52 @@ describe("AI chat adapters", () => {
         choices: [{ delta: { content: "Final answer" }, finish_reason: "stop" }]
       })
     ).toEqual({ contentDelta: "Final answer", finishReason: "stop" });
+  });
+
+  it("parses and replays OpenRouter reasoning_details around tool calls", () => {
+    const adapter = getChatAdapter("openrouter");
+    const reasoningDetails = [
+      { format: "anthropic-claude-v1", index: 0, text: "Inspect first", type: "reasoning.text" },
+      { data: "encrypted", id: "call_read", index: 1, type: "reasoning.encrypted" }
+    ];
+
+    expect(
+      adapter.parseStreamEvent({
+        choices: [{ delta: { reasoning_details: reasoningDetails } }]
+      })
+    ).toEqual({ reasoningDetails });
+
+    const request = adapter.buildRequest(
+      provider({ baseUrl: "https://openrouter.ai/api/v1", id: "openrouter", type: "openrouter" }),
+      "anthropic/claude-sonnet-4.5",
+      [
+        { content: "Inspect.", role: "user" },
+        {
+          content: "",
+          role: "assistant",
+          toolCalls: [{
+            arguments: {},
+            id: "call_read",
+            name: "read_document",
+            thoughtSignature: encodeOpenRouterReasoningDetails(reasoningDetails)
+          }]
+        },
+        {
+          content: "Tool result from read_document:\nDraft",
+          role: "user",
+          toolResult: { outputText: "Draft", toolCallId: "call_read", toolName: "read_document" }
+        }
+      ],
+      { stream: true }
+    );
+
+    expect(request.body).toMatchObject({
+      messages: [
+        { content: "Inspect.", role: "user" },
+        { reasoning_details: reasoningDetails, role: "assistant" },
+        { content: "Draft", role: "tool", tool_call_id: "call_read" }
+      ]
+    });
   });
 
   it("parses OpenAI-compatible stream events that carry final message content", () => {

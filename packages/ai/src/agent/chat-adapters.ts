@@ -26,6 +26,7 @@ import { buildResponsesRequestBody } from "./requests/responses";
 import { mergeRequestBody } from "./requests/shared";
 import { buildAnthropicTools } from "./tool-builders/anthropic";
 import { buildGoogleTools } from "./tool-builders/google";
+import { decodeOpenRouterReasoningDetails, encodeOpenRouterReasoningDetails } from "./reasoning-metadata";
 
 export type * from "./chat/types";
 
@@ -78,7 +79,9 @@ const openAiCompatibleAdapter: ChatAdapter = {
     const requestParts = buildOpenAiCompatibleRequestParts(config, model, options);
     const body = buildChatCompletionsRequestBody({
       extraBody: requestParts.extraBody,
-      messages: messages.map(openAiCompatibleMessage),
+      messages: messages.map((message) =>
+        openAiCompatibleMessage(message, config.type === "openrouter" || config.id === "openrouter")
+      ),
       model,
       nativeTools: requestParts.nativeTools,
       stream: options.stream,
@@ -104,11 +107,20 @@ const openAiCompatibleAdapter: ChatAdapter = {
     const message = isRecord(firstChoice.message) ? firstChoice.message : {};
     const content = readOpenAiCompatibleContentDeltas(message.content).contentDelta ?? "";
     const toolCalls = readOpenAiCompatibleToolCalls(message);
+    const reasoningDetails = readOpenRouterReasoningDetails(message.reasoning_details);
+    const reasoningSignature = encodeOpenRouterReasoningDetails(reasoningDetails);
 
     return {
       content,
       finishReason: normalizeFinishReason(typeof firstChoice.finish_reason === "string" ? firstChoice.finish_reason : undefined),
-      ...(toolCalls.length ? { toolCalls } : {})
+      ...(toolCalls.length
+        ? {
+            toolCalls: toolCalls.map((toolCall, index) => ({
+              ...toolCall,
+              ...(index === 0 && reasoningSignature ? { thoughtSignature: reasoningSignature } : {})
+            }))
+          }
+        : {})
     };
   },
   parseStreamEvent(body) {
@@ -339,7 +351,7 @@ const azureAdapter: ChatAdapter = {
 
     const body = buildChatCompletionsRequestBody({
       extraBody: buildOpenAiCompatibleRequestParts(config, model, options).extraBody,
-      messages: messages.map(openAiCompatibleMessage),
+      messages: messages.map((message) => openAiCompatibleMessage(message)),
       stream: options.stream,
       tools: options.tools
     });
@@ -477,6 +489,8 @@ export function getChatAdapter(apiStyle: AiProviderApiStyle | AiProviderRequestS
 }
 
 export function getChatAdapterForProvider(provider: AiProviderConfig): ChatAdapter {
+  // Catalog entries expose DeepSeek's compatible wire style, but its tool loop still requires provider-specific reasoning replay.
+  if (provider.type === "deepseek") return deepseekAdapter;
   return provider.apiStyle ? getChatAdapter(provider.apiStyle) : getChatAdapter(provider.type);
 }
 
@@ -484,7 +498,7 @@ function isRequestStyleAdapterKey(apiStyle: AiProviderApiStyle | AiProviderReque
   return Object.hasOwn(adapterByRequestStyle, apiStyle);
 }
 
-function openAiCompatibleMessage(message: ChatMessage) {
+function openAiCompatibleMessage(message: ChatMessage, replayOpenRouterReasoning = false) {
   if (message.toolResult && !message.images?.length) {
     return {
       content: message.toolResult.outputText,
@@ -495,8 +509,13 @@ function openAiCompatibleMessage(message: ChatMessage) {
   }
 
   if (message.role === "assistant" && message.toolCalls?.length) {
+    const reasoningDetails = replayOpenRouterReasoning
+      ? message.toolCalls.map((toolCall) => decodeOpenRouterReasoningDetails(toolCall.thoughtSignature)).find(Boolean)
+      : undefined;
+
     return {
       content: message.content,
+      ...(reasoningDetails ? { reasoning_details: reasoningDetails } : {}),
       role: message.role,
       tool_calls: message.toolCalls.map((toolCall) => ({
         function: {
@@ -705,13 +724,21 @@ function parseOpenAiCompatibleStreamEvent(body: unknown): ChatStreamEventResult 
   const contentDeltas = readOpenAiCompatibleContentDeltas(delta.content ?? message.content);
   const thinkingDelta = readOpenAiCompatibleThinkingDelta(delta) ?? contentDeltas.thinkingDelta;
   const toolCallDeltas = readOpenAiCompatibleToolCallDeltas(delta);
+  const reasoningDetails = readOpenRouterReasoningDetails(delta.reasoning_details ?? message.reasoning_details);
 
   if (contentDeltas.contentDelta) result.contentDelta = contentDeltas.contentDelta;
   if (thinkingDelta) result.thinkingDelta = thinkingDelta;
+  if (reasoningDetails.length > 0) result.reasoningDetails = reasoningDetails;
   if (toolCallDeltas.length > 0) result.toolCallDeltas = toolCallDeltas;
   if (typeof firstChoice.finish_reason === "string") result.finishReason = normalizeFinishReason(firstChoice.finish_reason);
 
   return result;
+}
+
+function readOpenRouterReasoningDetails(value: unknown) {
+  if (!Array.isArray(value)) return [];
+
+  return value.filter(isRecord);
 }
 
 function readOpenAiCompatibleThinkingDelta(delta: Record<string, unknown>) {

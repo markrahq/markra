@@ -6,6 +6,7 @@ import type {
   Model,
   StopReason,
   TextContent,
+  ThinkingContent,
   ToolCall
 } from "@earendil-works/pi-ai";
 
@@ -25,19 +26,33 @@ function chatMessageFromPiMessage(message: Message): ChatMessage[] {
   }
 
   if (message.role === "assistant") {
-    const thinking = assistantThinkingContent(message);
+    const thinkingBlocks = message.content.filter((part): part is ThinkingContent => part.type === "thinking");
+    const thinking = thinkingBlocks.map((part) => part.thinking).join("");
+    const thinkingSignature = thinkingBlocks.find((part) => part.thinkingSignature)?.thinkingSignature;
     const toolCalls = message.content
       .filter((part): part is ToolCall => part.type === "toolCall")
       .map((toolCall) => ({
         arguments: structuredClone(toolCall.arguments),
         id: toolCall.id,
-        name: toolCall.name
+        name: toolCall.name,
+        ...(toolCall.thoughtSignature ? { thoughtSignature: toolCall.thoughtSignature } : {})
       }));
 
     return [{
       content: assistantTextContent(message),
       role: "assistant",
       ...(thinking ? { thinking } : {}),
+      ...(thinkingBlocks.length
+        ? {
+            thinkingBlocks: thinkingBlocks.map((part) => ({
+              ...(part.redacted !== undefined ? { redacted: part.redacted } : {}),
+              thinking: part.thinking,
+              ...(part.thinkingSignature ? { thinkingSignature: part.thinkingSignature } : {})
+            }))
+          }
+        : {}),
+      ...(thinkingBlocks.length ? { thinkingRedacted: thinkingBlocks.some((part) => part.redacted === true) } : {}),
+      ...(thinkingSignature ? { thinkingSignature } : {}),
       ...(toolCalls.length ? { toolCalls } : {})
     }];
   }
@@ -92,10 +107,6 @@ function imageDataUrlFromPiImage(image: ImageContent) {
 
 export function assistantTextContent(message: AssistantMessage) {
   return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
-}
-
-function assistantThinkingContent(message: AssistantMessage) {
-  return message.content.map((part) => (part.type === "thinking" ? part.thinking : "")).join("");
 }
 
 export function createAssistantMessage(

@@ -4,7 +4,8 @@ import {
   getChatAdapter,
   getChatAdapterForProvider
 } from "./chat-adapters";
-import type { ChatMessage, ChatResponse, ChatToolCallDelta } from "./chat/types";
+import type { ChatMessage, ChatResponse, ChatThinkingMetadata, ChatToolCallDelta } from "./chat/types";
+import { encodeOpenRouterReasoningDetails, mergeOpenRouterReasoningDetails } from "./reasoning-metadata";
 
 export type NativeAiChatRequest = {
   body: string;
@@ -32,6 +33,7 @@ export type ChatCompletionStreamOptions = {
   fallbackTransport?: ChatCompletionTransport;
   onDelta?: (delta: string) => unknown;
   onThinkingDelta?: (delta: string) => unknown;
+  onThinkingMetadata?: (metadata: ChatThinkingMetadata) => unknown;
   onToolCallDelta?: (delta: ChatToolCallDelta) => unknown;
   streamTransport?: ChatCompletionStreamTransport;
   thinkingEnabled?: boolean;
@@ -73,6 +75,7 @@ export async function chatCompletionStream(
     fallbackTransport,
     onDelta,
     onThinkingDelta,
+    onThinkingMetadata,
     onToolCallDelta,
     streamTransport = missingChatCompletionStreamTransport,
     thinkingEnabled,
@@ -96,7 +99,8 @@ export async function chatCompletionStream(
   };
   let content = "";
   let finishReason: string | undefined;
-  const toolCalls = new Map<number, { argumentsText: string; id: string; name: string }>();
+  const toolCalls = new Map<number, { argumentsText: string; id: string; name: string; thoughtSignature?: string }>();
+  let reasoningDetails: Record<string, unknown>[] = [];
   const parser = createServerSentEventParser();
   const inlineThinkingExtractor = thinkingEnabled ? createInlineThinkingExtractor() : null;
   let streamErrorMessage: string | undefined;
@@ -132,6 +136,9 @@ export async function chatCompletionStream(
     }
 
     if (parsed.thinkingDelta) emitThinkingDelta(parsed.thinkingDelta);
+    if (parsed.reasoningDetails?.length) {
+      reasoningDetails = mergeOpenRouterReasoningDetails(reasoningDetails, parsed.reasoningDetails);
+    }
     if (parsed.toolCallDeltas?.length) {
       for (const delta of parsed.toolCallDeltas) {
         const currentToolCall = toolCalls.get(delta.index) ?? { argumentsText: "", id: "", name: "" };
@@ -158,23 +165,34 @@ export async function chatCompletionStream(
       toolCalls.set(index, {
         argumentsText: JSON.stringify(toolCall.arguments),
         id: toolCall.id,
-        name: toolCall.name
+        name: toolCall.name,
+        ...(toolCall.thoughtSignature ? { thoughtSignature: toolCall.thoughtSignature } : {})
       });
     }
   };
-  const buildResponse = (): ChatResponse => ({
-    content,
-    finishReason,
-    ...(toolCalls.size > 0
-      ? {
-          toolCalls: [...toolCalls.entries()].map(([, toolCall]) => ({
-            arguments: parseToolArguments(toolCall.argumentsText),
-            id: toolCall.id,
-            name: toolCall.name
-          }))
-        }
-      : {})
-  });
+  const buildResponse = (): ChatResponse => {
+    // OpenRouter details belong to the assistant turn; the first tool call is pi-ai's opaque transport field for them.
+    const reasoningSignature = encodeOpenRouterReasoningDetails(reasoningDetails);
+
+    return {
+      content,
+      finishReason,
+      ...(toolCalls.size > 0
+        ? {
+            toolCalls: [...toolCalls.entries()].map(([, toolCall], index) => ({
+              arguments: parseToolArguments(toolCall.argumentsText),
+              id: toolCall.id,
+              name: toolCall.name,
+              ...(toolCall.thoughtSignature
+                ? { thoughtSignature: toolCall.thoughtSignature }
+                : index === 0 && reasoningSignature
+                  ? { thoughtSignature: reasoningSignature }
+                  : {})
+            }))
+          }
+        : {})
+    };
+  };
   const flushInlineThinking = () => {
     const finalInlineThinkingDelta = inlineThinkingExtractor?.finish();
     if (finalInlineThinkingDelta?.thinkingDelta) emitThinkingDelta(finalInlineThinkingDelta.thinkingDelta);
@@ -246,18 +264,28 @@ export async function chatCompletionStream(
       useVercelAiSdk,
       webSearchEnabled
     })) {
-      let sdkContentEmitted = false;
+      let sdkOutputEmitted = false;
       try {
         return await chatCompletionStreamWithVercelAiSdk({
           fallbackTransport,
           messages,
           model,
           onDelta: (delta) => {
-            sdkContentEmitted = true;
+            sdkOutputEmitted = true;
             onDelta?.(delta);
           },
-          onThinkingDelta,
-          onToolCallDelta,
+          onThinkingDelta: (delta) => {
+            sdkOutputEmitted = true;
+            onThinkingDelta?.(delta);
+          },
+          onThinkingMetadata: (metadata) => {
+            sdkOutputEmitted = true;
+            onThinkingMetadata?.(metadata);
+          },
+          onToolCallDelta: (delta) => {
+            sdkOutputEmitted = true;
+            onToolCallDelta?.(delta);
+          },
           provider,
           streamTransport,
           thinkingEnabled,
@@ -265,7 +293,7 @@ export async function chatCompletionStream(
           webSearchEnabled
         });
       } catch (error) {
-        if (sdkContentEmitted) throw error;
+        if (sdkOutputEmitted) throw error;
         if (canFallbackToNonStream()) return runNonStreamFallback();
       }
     }

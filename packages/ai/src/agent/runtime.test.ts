@@ -1,6 +1,7 @@
 import { runInlineAiAgent } from "./runtime";
 import { messagesFromPiContext } from "./runtime/messages";
 import type { AiProviderConfig } from "@markra/providers";
+import type { ThinkingContent } from "@earendil-works/pi-ai";
 import type { ChatMessage } from "./chat/types";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
@@ -183,13 +184,119 @@ describe("inline AI agent runtime", () => {
     expect(deltas).toEqual(["Better ", "body"]);
   });
 
+  it("preserves metadata-only redacted thinking blocks from streaming completions", async () => {
+    let finalThinkingBlock: ThinkingContent | undefined;
+    const complete = vi.fn(async (_provider, _model, _messages, options) => {
+      options?.onThinkingMetadata?.({
+        redacted: true,
+        signature: "provider-metadata-envelope"
+      });
+      options?.onDelta?.("Better body");
+
+      return { content: "Better body", finishReason: "stop" };
+    });
+
+    await runInlineAiAgent({
+      complete,
+      documentContent: "# Draft\n\nOriginal body",
+      documentPath: "/vault/README.md",
+      model: "gpt-5.5",
+      onEvent: (event) => {
+        if (event.type !== "message_end" || event.message.role !== "assistant") return;
+        finalThinkingBlock = event.message.content.find((part) => part.type === "thinking");
+      },
+      prompt: "make it clearer",
+      provider: provider(),
+      target: {
+        from: 9,
+        original: "Original body",
+        promptText: "Original body",
+        to: 22,
+        type: "replace"
+      }
+    });
+
+    expect(finalThinkingBlock).toEqual({
+      redacted: true,
+      thinking: "",
+      thinkingSignature: "provider-metadata-envelope",
+      type: "thinking"
+    });
+  });
+
+  it("preserves ordered signed and redacted thinking blocks from streaming completions", async () => {
+    let finalThinkingBlocks: ThinkingContent[] = [];
+    const complete = vi.fn(async (_provider, _model, _messages, options) => {
+      options?.onThinkingMetadata?.({ blockId: "thinking-0", phase: "start" });
+      options?.onThinkingDelta?.("Inspect first");
+      options?.onThinkingMetadata?.({
+        blockId: "thinking-0",
+        phase: "update",
+        signature: "thinking-envelope"
+      });
+      options?.onThinkingMetadata?.({ blockId: "thinking-0", phase: "end" });
+      options?.onThinkingMetadata?.({
+        blockId: "thinking-1",
+        phase: "start",
+        redacted: true,
+        signature: "redacted-envelope"
+      });
+      options?.onThinkingMetadata?.({ blockId: "thinking-1", phase: "end" });
+      options?.onDelta?.("Better body");
+
+      return { content: "Better body", finishReason: "stop" };
+    });
+
+    await runInlineAiAgent({
+      complete,
+      documentContent: "# Draft\n\nOriginal body",
+      documentPath: "/vault/README.md",
+      model: "gpt-5.5",
+      onEvent: (event) => {
+        if (event.type !== "message_end" || event.message.role !== "assistant") return;
+        finalThinkingBlocks = event.message.content.filter((part): part is ThinkingContent => part.type === "thinking");
+      },
+      prompt: "make it clearer",
+      provider: provider(),
+      target: {
+        from: 9,
+        original: "Original body",
+        promptText: "Original body",
+        to: 22,
+        type: "replace"
+      }
+    });
+
+    expect(finalThinkingBlocks).toEqual([
+      { thinking: "Inspect first", thinkingSignature: "thinking-envelope", type: "thinking" },
+      { redacted: true, thinking: "", thinkingSignature: "redacted-envelope", type: "thinking" }
+    ]);
+  });
+
   it("preserves assistant thinking blocks when replaying tool-calling context", () => {
     expect(messagesFromPiContext({
       messages: [
         {
           content: [
-            { thinking: "Need to inspect the document first.", type: "thinking" },
-            { arguments: {}, id: "call_read_document", name: "read_document", type: "toolCall" }
+            {
+              redacted: false,
+              thinking: "Need to inspect the document first.",
+              thinkingSignature: "thinking-envelope",
+              type: "thinking"
+            },
+            {
+              redacted: true,
+              thinking: "",
+              thinkingSignature: "redacted-envelope",
+              type: "thinking"
+            },
+            {
+              arguments: {},
+              id: "call_read_document",
+              name: "read_document",
+              thoughtSignature: "tool-envelope",
+              type: "toolCall"
+            }
           ],
           role: "assistant"
         }
@@ -200,11 +307,26 @@ describe("inline AI agent runtime", () => {
         content: "",
         role: "assistant",
         thinking: "Need to inspect the document first.",
+        thinkingBlocks: [
+          {
+            redacted: false,
+            thinking: "Need to inspect the document first.",
+            thinkingSignature: "thinking-envelope"
+          },
+          {
+            redacted: true,
+            thinking: "",
+            thinkingSignature: "redacted-envelope"
+          }
+        ],
+        thinkingRedacted: true,
+        thinkingSignature: "thinking-envelope",
         toolCalls: [
           {
             arguments: {},
             id: "call_read_document",
-            name: "read_document"
+            name: "read_document",
+            thoughtSignature: "tool-envelope"
           }
         ]
       }

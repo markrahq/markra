@@ -28,6 +28,7 @@ import {
   type JSONValue,
   type LanguageModel,
   type ModelMessage,
+  type ProviderMetadata,
   type ToolModelMessage,
   type ToolSet,
   type UserModelMessage
@@ -36,7 +37,14 @@ import type {
   ChatCompletionStreamTransport,
   ChatCompletionTransport
 } from "../chat-completion";
-import type { ChatImageAttachment, ChatMessage, ChatResponse, ChatToolCallDelta } from "../chat/types";
+import type {
+  ChatImageAttachment,
+  ChatMessage,
+  ChatResponse,
+  ChatThinkingMetadata,
+  ChatToolCallDelta
+} from "../chat/types";
+import { decodeProviderMetadata, encodeProviderMetadata } from "../reasoning-metadata";
 import { createNativeAiSdkFetch, type AiSdkFetch } from "./native-fetch";
 
 type AiSdkChatCompletionOptions = {
@@ -45,6 +53,7 @@ type AiSdkChatCompletionOptions = {
   model: string;
   onDelta?: (delta: string) => unknown;
   onThinkingDelta?: (delta: string) => unknown;
+  onThinkingMetadata?: (metadata: ChatThinkingMetadata) => unknown;
   onToolCallDelta?: (delta: ChatToolCallDelta) => unknown;
   provider: AiProviderConfig;
   streamTransport?: ChatCompletionStreamTransport;
@@ -60,6 +69,7 @@ type SdkToolCallState = {
   id: string;
   index: number;
   name: string;
+  thoughtSignature?: string;
 };
 
 type AiSdkProviderOptions = Record<string, Record<string, JSONValue>>;
@@ -125,6 +135,9 @@ export function canUseVercelAiSdkChatCompletion({
 
   return (
     useVercelAiSdk === true &&
+    // The generic compatible SDK drops reasoning_details, so OpenRouter tool loops stay on the native adapter.
+    provider.type !== "openrouter" &&
+    provider.id !== "openrouter" &&
     providerKind !== null &&
     streamTransport !== undefined &&
     fallbackTransport !== undefined &&
@@ -140,6 +153,7 @@ export async function chatCompletionStreamWithVercelAiSdk({
   model,
   onDelta,
   onThinkingDelta,
+  onThinkingMetadata,
   onToolCallDelta,
   provider,
   streamTransport,
@@ -149,9 +163,11 @@ export async function chatCompletionStreamWithVercelAiSdk({
 }: AiSdkChatCompletionOptions): Promise<ChatResponse> {
   if (!streamTransport) throw new Error("AI chat stream transport is not configured.");
   const nativeFetch = createNativeAiSdkFetch({ streamTransport, transport: fallbackTransport });
+  const providerKind = resolveAiSdkProviderKind(provider);
+  if (!providerKind) throw new Error("AI SDK does not support this provider API style.");
   const result = streamText({
     maxRetries: 0,
-    messages: buildAiSdkMessages(messages),
+    messages: buildAiSdkMessages(messages, providerKind),
     model: createAiSdkLanguageModel(provider, model, nativeFetch),
     providerOptions: buildAiSdkProviderOptions(provider, model, { thinkingEnabled, tools, webSearchEnabled }),
     tools: buildAiSdkTools(provider, model, { tools, webSearchEnabled })
@@ -162,17 +178,32 @@ export async function chatCompletionStreamWithVercelAiSdk({
   const toolCallsByIndex = new Map<number, SdkToolCallState>();
   const toolCallIndexById = new Map<string, number>();
 
-  const ensureToolCall = (id: string, name = "") => {
+  const emitThinkingMetadata = (
+    providerMetadata: ProviderMetadata | undefined,
+    blockId: string,
+    phase: ChatThinkingMetadata["phase"]
+  ) => {
+    onThinkingMetadata?.({
+      blockId,
+      ...(hasAnthropicRedactedThinking(providerMetadata) ? { redacted: true } : {}),
+      phase,
+      ...(providerMetadata ? { signature: encodeProviderMetadata(providerMetadata) } : {})
+    });
+  };
+
+  const ensureToolCall = (id: string, name = "", providerMetadata?: ProviderMetadata) => {
+    const thoughtSignature = providerMetadata ? encodeProviderMetadata(providerMetadata) : undefined;
     const existingIndex = toolCallIndexById.get(id);
     if (existingIndex !== undefined) {
       const existingToolCall = toolCallsByIndex.get(existingIndex);
       if (existingToolCall && name && !existingToolCall.name) existingToolCall.name = name;
+      if (existingToolCall && thoughtSignature) existingToolCall.thoughtSignature = thoughtSignature;
 
       return existingToolCall;
     }
 
     const index = toolCallsByIndex.size;
-    const toolCall = { arguments: {}, argumentsText: "", id, index, name };
+    const toolCall = { arguments: {}, argumentsText: "", id, index, name, ...(thoughtSignature ? { thoughtSignature } : {}) };
     toolCallIndexById.set(id, index);
     toolCallsByIndex.set(index, toolCall);
 
@@ -186,13 +217,19 @@ export async function chatCompletionStreamWithVercelAiSdk({
       continue;
     }
 
+    if (part.type === "reasoning-start" || part.type === "reasoning-end") {
+      emitThinkingMetadata(part.providerMetadata, part.id, part.type === "reasoning-start" ? "start" : "end");
+      continue;
+    }
+
     if (part.type === "reasoning-delta") {
       onThinkingDelta?.(part.text);
+      if (part.providerMetadata) emitThinkingMetadata(part.providerMetadata, part.id, "update");
       continue;
     }
 
     if (part.type === "tool-input-start") {
-      const toolCall = ensureToolCall(part.id, part.toolName);
+      const toolCall = ensureToolCall(part.id, part.toolName, part.providerMetadata);
       if (!toolCall) continue;
 
       onToolCallDelta?.({
@@ -217,7 +254,7 @@ export async function chatCompletionStreamWithVercelAiSdk({
     }
 
     if (part.type === "tool-call") {
-      const toolCall = ensureToolCall(part.toolCallId, part.toolName);
+      const toolCall = ensureToolCall(part.toolCallId, part.toolName, part.providerMetadata);
       if (!toolCall) continue;
 
       toolCall.arguments = isRecord(part.input) ? part.input : {};
@@ -252,7 +289,8 @@ export async function chatCompletionStreamWithVercelAiSdk({
           toolCalls: [...toolCallsByIndex.values()].map((toolCall) => ({
             arguments: toolCall.argumentsText ? parseToolArguments(toolCall.argumentsText) : toolCall.arguments,
             id: toolCall.id,
-            name: toolCall.name
+            name: toolCall.name,
+            ...(toolCall.thoughtSignature ? { thoughtSignature: toolCall.thoughtSignature } : {})
           }))
         }
       : {})
@@ -697,10 +735,10 @@ function mergeAiSdkProviderOptions(
   return Object.keys(merged).length > 0 ? merged : undefined;
 }
 
-function buildAiSdkMessages(messages: ChatMessage[]): ModelMessage[] {
+function buildAiSdkMessages(messages: ChatMessage[], providerKind: AiSdkProviderKind): ModelMessage[] {
   return messages.map((message) => {
     if (message.toolResult) return buildAiSdkToolMessage(message);
-    if (message.role === "assistant") return buildAiSdkAssistantMessage(message);
+    if (message.role === "assistant") return buildAiSdkAssistantMessage(message, providerKind);
     if (message.role === "system") {
       return {
         content: message.content,
@@ -712,7 +750,7 @@ function buildAiSdkMessages(messages: ChatMessage[]): ModelMessage[] {
   });
 }
 
-function buildAiSdkAssistantMessage(message: ChatMessage): AssistantModelMessage {
+function buildAiSdkAssistantMessage(message: ChatMessage, providerKind: AiSdkProviderKind): AssistantModelMessage {
   if (!message.toolCalls?.length) {
     return {
       content: message.content,
@@ -720,20 +758,76 @@ function buildAiSdkAssistantMessage(message: ChatMessage): AssistantModelMessage
     };
   }
 
+  const reasoningBlocks = message.thinkingBlocks?.length
+    ? message.thinkingBlocks
+    : [{
+        ...(message.thinkingRedacted !== undefined ? { redacted: message.thinkingRedacted } : {}),
+        thinking: message.thinking ?? "",
+        ...(message.thinkingSignature ? { thinkingSignature: message.thinkingSignature } : {})
+      }];
+
   return {
     content: [
-      // DeepSeek V4 rejects follow-up tool requests unless the full reasoning content is replayed.
-      ...(message.thinking?.trim() ? [{ text: message.thinking, type: "reasoning" as const }] : []),
+      // Signatures authenticate one exact reasoning block, so never flatten adjacent signed or redacted blocks here.
+      ...reasoningBlocks.flatMap((reasoningBlock) => {
+        const providerOptions = decodeProviderMetadata(reasoningBlock.thinkingSignature);
+        if (
+          !shouldReplayAiSdkReasoning(providerKind, providerOptions) ||
+          (!reasoningBlock.thinking.trim() && reasoningBlock.redacted !== true && !providerOptions)
+        ) {
+          return [];
+        }
+
+        return [{
+          ...(providerOptions ? { providerOptions } : {}),
+          text: reasoningBlock.thinking,
+          type: "reasoning" as const
+        }];
+      }),
       ...(message.content.trim() ? [{ text: message.content, type: "text" as const }] : []),
-      ...message.toolCalls.map((toolCall) => ({
-        input: toolCall.arguments,
-        toolCallId: toolCall.id,
-        toolName: toolCall.name,
-        type: "tool-call" as const
-      }))
+      ...message.toolCalls.map((toolCall) => {
+        const providerOptions = decodeProviderMetadata(toolCall.thoughtSignature);
+
+        return {
+          input: toolCall.arguments,
+          ...(providerOptions && hasAiSdkProviderMetadata(providerKind, providerOptions) ? { providerOptions } : {}),
+          toolCallId: toolCall.id,
+          toolName: toolCall.name,
+          type: "tool-call" as const
+        };
+      })
     ],
     role: "assistant"
   };
+}
+
+function shouldReplayAiSdkReasoning(
+  providerKind: AiSdkProviderKind,
+  providerMetadata: ProviderMetadata | undefined
+) {
+  // Signed providers need original metadata; these compatible families replay the plain reasoning text they emitted.
+  if (
+    providerKind === "deepseek" ||
+    providerKind === "groq" ||
+    providerKind === "openai-compatible" ||
+    providerKind === "together"
+  ) {
+    return true;
+  }
+
+  return providerMetadata !== undefined && hasAiSdkProviderMetadata(providerKind, providerMetadata);
+}
+
+function hasAiSdkProviderMetadata(providerKind: AiSdkProviderKind, providerMetadata: ProviderMetadata) {
+  if (providerKind === "anthropic") return providerMetadata.anthropic !== undefined;
+  if (providerKind === "google") return providerMetadata.google !== undefined;
+  if (providerKind === "openai-responses") return providerMetadata.openai !== undefined;
+
+  return false;
+}
+
+function hasAnthropicRedactedThinking(providerMetadata: ProviderMetadata | undefined) {
+  return typeof providerMetadata?.anthropic?.redactedData === "string";
 }
 
 function buildAiSdkUserMessage(message: ChatMessage): UserModelMessage {

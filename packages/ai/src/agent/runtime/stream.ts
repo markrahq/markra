@@ -66,6 +66,7 @@ async function streamNativeChatCompletion({
   }
 
   const contentBlocks: AssistantContentBlock[] = [];
+  const thinkingBlocksById = new Map<string, ThinkingContent>();
   const toolCallBlocks = new Map<number, ToolCall>();
   const toolCallArgumentBuffers = new Map<number, string>();
   const ignoredToolCallIndexes = new Set<number>();
@@ -116,13 +117,23 @@ async function streamNativeChatCompletion({
 
     return block;
   };
-  const ensureThinkingBlock = () => {
-    if (currentBlock?.type === "thinking") return currentBlock;
+  const ensureThinkingBlock = (blockId?: string) => {
+    const existingBlock = blockId ? thinkingBlocksById.get(blockId) : undefined;
+    if (existingBlock) {
+      if (currentBlock !== existingBlock) {
+        finishCurrentBlock();
+        currentBlock = existingBlock;
+      }
+
+      return existingBlock;
+    }
+    if (!blockId && currentBlock?.type === "thinking") return currentBlock;
 
     finishCurrentBlock();
     const block: ThinkingContent = { thinking: "", type: "thinking" };
     currentBlock = block;
     contentBlocks.push(block);
+    if (blockId) thinkingBlocksById.set(blockId, block);
     stream.push({
       contentIndex: contentBlocks.length - 1,
       partial: createAssistantMessage(model, contentBlocks),
@@ -204,6 +215,12 @@ async function streamNativeChatCompletion({
         type: "thinking_delta"
       });
     },
+    onThinkingMetadata: (metadata) => {
+      const thinkingBlock = ensureThinkingBlock(metadata.blockId);
+      if (metadata.signature) thinkingBlock.thinkingSignature = metadata.signature;
+      if (metadata.redacted !== undefined) thinkingBlock.redacted = metadata.redacted;
+      if (metadata.phase === "end" && currentBlock === thinkingBlock) finishCurrentBlock();
+    },
     onToolCallDelta: (delta) => {
       if (ignoredToolCallIndexes.has(delta.index)) return;
 
@@ -256,6 +273,7 @@ async function streamNativeChatCompletion({
       block.id = combineToolCallIds(toolCall.id, localToolCallIdFromCombined(block.id));
       block.name = toolCall.name;
       block.arguments = structuredClone(toolCall.arguments);
+      if (toolCall.thoughtSignature) block.thoughtSignature = toolCall.thoughtSignature;
       toolCallArgumentBuffers.set(index, JSON.stringify(toolCall.arguments));
     }
   }

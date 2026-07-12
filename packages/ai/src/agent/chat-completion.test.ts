@@ -1,5 +1,6 @@
 import { chatCompletion, chatCompletionStream } from "./chat-completion";
 import type { AiProviderConfig } from "@markra/providers";
+import { decodeOpenRouterReasoningDetails, decodeProviderMetadata } from "./reasoning-metadata";
 
 function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
   return {
@@ -386,44 +387,47 @@ describe("chatCompletion", () => {
       return { status: 200 };
     });
 
-    await expect(
-      chatCompletionStream(
-        provider({
-          apiStyle: "openai-responses"
-        }),
-        "gpt-5.5",
-        [{ content: "Read the document.", role: "user" }],
-        {
-          fallbackTransport: vi.fn(),
-          onToolCallDelta,
-          streamTransport,
-          tools: [
-            {
-              description: "Read the current document.",
-              name: "read_document",
-              parameters: {
-                additionalProperties: false,
-                properties: {
-                  path: { type: "string" }
-                },
-                required: ["path"],
-                type: "object"
-              }
+    const response = await chatCompletionStream(
+      provider({
+        apiStyle: "openai-responses"
+      }),
+      "gpt-5.5",
+      [{ content: "Read the document.", role: "user" }],
+      {
+        fallbackTransport: vi.fn(),
+        onToolCallDelta,
+        streamTransport,
+        tools: [
+          {
+            description: "Read the current document.",
+            name: "read_document",
+            parameters: {
+              additionalProperties: false,
+              properties: {
+                path: { type: "string" }
+              },
+              required: ["path"],
+              type: "object"
             }
-          ],
-          useVercelAiSdk: true
-        }
-      )
-    ).resolves.toEqual({
+          }
+        ],
+        useVercelAiSdk: true
+      }
+    );
+    expect(response).toEqual({
       content: "",
       finishReason: "tool-calls",
       toolCalls: [
         {
           arguments: { path: "README.md" },
           id: "call_read",
-          name: "read_document"
+          name: "read_document",
+          thoughtSignature: expect.any(String)
         }
       ]
+    });
+    expect(decodeProviderMetadata(response.toolCalls?.[0]?.thoughtSignature)).toEqual({
+      openai: { itemId: "fc_1" }
     });
 
     expect(onToolCallDelta).toHaveBeenCalledWith({
@@ -441,7 +445,75 @@ describe("chatCompletion", () => {
     });
   });
 
-  it("falls back when the Vercel AI SDK Responses stream hits malformed JSON before text", async () => {
+  it("captures and replays OpenAI Responses reasoning items", async () => {
+    const onThinkingMetadata = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"type":"response.created","response":{"id":"resp_reasoning","created_at":0,"model":"gpt-5.5","object":"response","status":"in_progress"}}\n\n');
+      onChunk('data: {"type":"response.output_item.added","output_index":0,"item":{"id":"rs_1","type":"reasoning","status":"in_progress","summary":[],"encrypted_content":"encrypted-reasoning"}}\n\n');
+      onChunk('data: {"type":"response.output_item.done","output_index":0,"item":{"id":"rs_1","type":"reasoning","status":"completed","summary":[],"encrypted_content":"encrypted-reasoning"}}\n\n');
+      onChunk('data: {"type":"response.completed","response":{"id":"resp_reasoning","created_at":0,"model":"gpt-5.5","object":"response","status":"completed","output":[{"id":"rs_1","type":"reasoning","status":"completed","summary":[],"encrypted_content":"encrypted-reasoning"}],"usage":{"input_tokens":1,"output_tokens":2,"total_tokens":3,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":1}}}}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+    const openAiResponsesProvider = provider({ apiStyle: "openai-responses" });
+
+    await chatCompletionStream(openAiResponsesProvider, "gpt-5.5", [{ content: "Inspect.", role: "user" }], {
+      fallbackTransport: vi.fn(),
+      onThinkingMetadata,
+      streamTransport,
+      thinkingEnabled: true,
+      useVercelAiSdk: true
+    });
+
+    const signature = onThinkingMetadata.mock.calls
+      .map(([metadata]) => metadata.signature as string | undefined)
+      .find((value) => decodeProviderMetadata(value)?.openai !== undefined);
+    expect(decodeProviderMetadata(signature)).toEqual({
+      openai: { itemId: "rs_1", reasoningEncryptedContent: "encrypted-reasoning" }
+    });
+
+    const replayStreamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"type":"response.created","response":{"id":"resp_done","created_at":0,"model":"gpt-5.5","object":"response","status":"in_progress"}}\n\n');
+      onChunk('data: {"type":"response.completed","response":{"id":"resp_done","created_at":0,"model":"gpt-5.5","object":"response","status":"completed","output":[{"id":"msg_1","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"Done","annotations":[]}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":0}}}}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+    await chatCompletionStream(
+      openAiResponsesProvider,
+      "gpt-5.5",
+      [
+        { content: "Inspect.", role: "user" },
+        {
+          content: "",
+          role: "assistant",
+          thinking: "",
+          thinkingSignature: signature,
+          toolCalls: [{ arguments: {}, id: "call_read", name: "read_document" }]
+        },
+        {
+          content: "Tool result from read_document:\nDraft",
+          role: "user",
+          toolResult: { outputText: "Draft", toolCallId: "call_read", toolName: "read_document" }
+        }
+      ],
+      {
+        fallbackTransport: vi.fn(),
+        streamTransport: replayStreamTransport,
+        thinkingEnabled: true,
+        tools: [{ description: "Read.", name: "read_document", parameters: { properties: {}, type: "object" } }],
+        useVercelAiSdk: true
+      }
+    );
+
+    const replayBody = JSON.parse(replayStreamTransport.mock.calls[0]?.[0].body ?? "{}") as {
+      input?: Array<Record<string, unknown>>;
+    };
+    expect(replayBody.input).toContainEqual({ id: "rs_1", type: "item_reference" });
+  });
+
+  it("does not fall back after the Vercel AI SDK has emitted tool-call state", async () => {
     const onToolCallDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
       onChunk('data: {"type":"response.created","response":{"id":"resp_tool","created_at":0,"model":"gpt-5.5","object":"response","status":"in_progress"}}\n\n');
@@ -495,24 +567,14 @@ describe("chatCompletion", () => {
           useVercelAiSdk: true
         }
       )
-    ).resolves.toEqual({
-      content: "",
-      finishReason: "completed",
-      toolCalls: [
-        {
-          arguments: { path: "README.md" },
-          id: "call_read",
-          name: "read_document"
-        }
-      ]
-    });
+    ).rejects.toThrow();
 
     expect(onToolCallDelta).toHaveBeenCalledWith({
       id: "call_read",
       index: 0,
       nameDelta: "read_document"
     });
-    expect(fallbackTransport).toHaveBeenCalledOnce();
+    expect(fallbackTransport).not.toHaveBeenCalled();
   });
 
   it("uses the Vercel AI SDK stream path for Anthropic when enabled", async () => {
@@ -689,6 +751,106 @@ describe("chatCompletion", () => {
     });
   });
 
+  it("captures and replays Anthropic thinking signatures through the Vercel AI SDK", async () => {
+    const onThinkingMetadata = vi.fn();
+    const signatureStreamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}\n\n');
+      onChunk('data: {"type":"content_block_start","index":0,"content_block":{"type":"thinking","thinking":""}}\n\n');
+      onChunk('data: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Inspect first"}}\n\n');
+      onChunk('data: {"type":"content_block_delta","index":0,"delta":{"type":"signature_delta","signature":"anthropic-signature"}}\n\n');
+      onChunk('data: {"type":"content_block_stop","index":0}\n\n');
+      onChunk('data: {"type":"content_block_start","index":1,"content_block":{"type":"redacted_thinking","data":"anthropic-redacted-data"}}\n\n');
+      onChunk('data: {"type":"content_block_stop","index":1}\n\n');
+      onChunk('data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":2}}\n\n');
+      onChunk('data: {"type":"message_stop"}\n\n');
+
+      return { status: 200 };
+    });
+    const anthropicProvider = provider({
+      apiStyle: "anthropic",
+      baseUrl: "https://api.anthropic.com/v1",
+      id: "anthropic",
+      name: "Anthropic",
+      type: "anthropic"
+    });
+
+    await chatCompletionStream(anthropicProvider, "claude-sonnet-4-5", [{ content: "Inspect.", role: "user" }], {
+      fallbackTransport: vi.fn(),
+      onThinkingMetadata,
+      streamTransport: signatureStreamTransport,
+      thinkingEnabled: true,
+      useVercelAiSdk: true
+    });
+
+    const signature = onThinkingMetadata.mock.calls
+      .map(([metadata]) => metadata.signature as string | undefined)
+      .find((value) => decodeProviderMetadata(value)?.anthropic !== undefined);
+    expect(decodeProviderMetadata(signature)).toEqual({
+      anthropic: { signature: "anthropic-signature" }
+    });
+    const redactedSignature = onThinkingMetadata.mock.calls
+      .map(([metadata]) => metadata.signature as string | undefined)
+      .find((value) => decodeProviderMetadata(value)?.anthropic?.redactedData !== undefined);
+    expect(decodeProviderMetadata(redactedSignature)).toEqual({
+      anthropic: { redactedData: "anthropic-redacted-data" }
+    });
+
+    const replayStreamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"type":"message_start","message":{"id":"msg_2","type":"message","role":"assistant","model":"claude-sonnet-4-5","content":[],"stop_reason":null,"usage":{"input_tokens":1,"output_tokens":0}}}\n\n');
+      onChunk('data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n');
+      onChunk('data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Done"}}\n\n');
+      onChunk('data: {"type":"content_block_stop","index":0}\n\n');
+      onChunk('data: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"output_tokens":1}}\n\n');
+      onChunk('data: {"type":"message_stop"}\n\n');
+
+      return { status: 200 };
+    });
+
+    await chatCompletionStream(
+      anthropicProvider,
+      "claude-sonnet-4-5",
+      [
+        { content: "Inspect.", role: "user" },
+        {
+          content: "",
+          role: "assistant",
+          thinking: "Inspect first",
+          thinkingBlocks: [
+            { thinking: "Inspect first", thinkingSignature: signature },
+            { redacted: true, thinking: "", thinkingSignature: redactedSignature }
+          ],
+          thinkingSignature: signature,
+          toolCalls: [{ arguments: {}, id: "call_read", name: "read_document" }]
+        },
+        {
+          content: "Tool result from read_document:\nDraft",
+          role: "user",
+          toolResult: { outputText: "Draft", toolCallId: "call_read", toolName: "read_document" }
+        }
+      ],
+      {
+        fallbackTransport: vi.fn(),
+        streamTransport: replayStreamTransport,
+        thinkingEnabled: true,
+        tools: [{ description: "Read.", name: "read_document", parameters: { properties: {}, type: "object" } }],
+        useVercelAiSdk: true
+      }
+    );
+
+    const replayBody = JSON.parse(replayStreamTransport.mock.calls[0]?.[0].body ?? "{}") as {
+      messages?: Array<{ content?: Array<Record<string, unknown>>; role?: string }>;
+    };
+    expect(replayBody.messages?.find((message) => message.role === "assistant")?.content).toContainEqual({
+      signature: "anthropic-signature",
+      thinking: "Inspect first",
+      type: "thinking"
+    });
+    expect(replayBody.messages?.find((message) => message.role === "assistant")?.content).toContainEqual({
+      data: "anthropic-redacted-data",
+      type: "redacted_thinking"
+    });
+  });
+
   it("uses the Vercel AI SDK stream path for Google when enabled", async () => {
     const onDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
@@ -780,6 +942,75 @@ describe("chatCompletion", () => {
     }));
     expect(body.tools).toContainEqual({ googleSearch: {} });
     expect(onThinkingDelta).toHaveBeenCalledWith("Grounding ");
+  });
+
+  it("captures and replays Gemini thought signatures on tool calls", async () => {
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"candidates":[{"content":{"role":"model","parts":[{"functionCall":{"name":"read_document","args":{}},"thoughtSignature":"gemini-signature"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}\n\n');
+
+      return { status: 200 };
+    });
+    const googleProvider = provider({
+      apiStyle: "google",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta",
+      id: "google",
+      name: "Google",
+      type: "google"
+    });
+    const firstResponse = await chatCompletionStream(
+      googleProvider,
+      "gemini-3.1-pro-preview",
+      [{ content: "Read.", role: "user" }],
+      {
+        fallbackTransport: vi.fn(),
+        streamTransport,
+        thinkingEnabled: true,
+        tools: [{ description: "Read.", name: "read_document", parameters: { properties: {}, type: "object" } }],
+        useVercelAiSdk: true
+      }
+    );
+    const thoughtSignature = firstResponse.toolCalls?.[0]?.thoughtSignature;
+    expect(decodeProviderMetadata(thoughtSignature)).toEqual({
+      google: { thoughtSignature: "gemini-signature" }
+    });
+
+    const replayStreamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Done"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":1,"totalTokenCount":2}}\n\n');
+
+      return { status: 200 };
+    });
+    await chatCompletionStream(
+      googleProvider,
+      "gemini-3.1-pro-preview",
+      [
+        { content: "Read.", role: "user" },
+        {
+          content: "",
+          role: "assistant",
+          toolCalls: [{ arguments: {}, id: "call_read", name: "read_document", thoughtSignature }]
+        },
+        {
+          content: "Tool result from read_document:\nDraft",
+          role: "user",
+          toolResult: { outputText: "Draft", toolCallId: "call_read", toolName: "read_document" }
+        }
+      ],
+      {
+        fallbackTransport: vi.fn(),
+        streamTransport: replayStreamTransport,
+        thinkingEnabled: true,
+        tools: [{ description: "Read.", name: "read_document", parameters: { properties: {}, type: "object" } }],
+        useVercelAiSdk: true
+      }
+    );
+
+    const replayBody = JSON.parse(replayStreamTransport.mock.calls[0]?.[0].body ?? "{}") as {
+      contents?: Array<{ parts?: Array<Record<string, unknown>>; role?: string }>;
+    };
+    expect(replayBody.contents?.find((message) => message.role === "model")?.parts).toContainEqual(expect.objectContaining({
+      functionCall: { args: {}, id: "call_read", name: "read_document" },
+      thoughtSignature: "gemini-signature"
+    }));
   });
 
   it.each([
@@ -952,6 +1183,88 @@ describe("chatCompletion", () => {
       reasoning_content: "I need to inspect the document before answering.",
       role: "assistant"
     }));
+  });
+
+  it("replays DeepSeek V4 reasoning content on the native fallback path", async () => {
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"choices":[{"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+      return { status: 200 };
+    });
+
+    await chatCompletionStream(
+      provider({
+        apiStyle: "openai-compatible",
+        baseUrl: "https://api.deepseek.com",
+        id: "deepseek",
+        name: "DeepSeek",
+        type: "deepseek"
+      }),
+      "deepseek-v4-pro",
+      [
+        { content: "Inspect.", role: "user" },
+        {
+          content: "",
+          role: "assistant",
+          thinking: "Need the document first.",
+          toolCalls: [{ arguments: {}, id: "call_read", name: "read_document" }]
+        },
+        {
+          content: "Tool result from read_document:\nDraft",
+          role: "user",
+          toolResult: { outputText: "Draft", toolCallId: "call_read", toolName: "read_document" }
+        }
+      ],
+      { streamTransport, thinkingEnabled: true }
+    );
+
+    const body = JSON.parse(streamTransport.mock.calls[0]?.[0].body ?? "{}") as {
+      messages?: Array<Record<string, unknown>>;
+    };
+    expect(body.messages).toContainEqual(expect.objectContaining({
+      reasoning_content: "Need the document first.",
+      role: "assistant"
+    }));
+  });
+
+  it.each([
+    { baseUrl: "https://api.mistral.ai/v1", id: "mistral", model: "mistral-large-latest", name: "Mistral", type: "mistral" },
+    { baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1", id: "aliyun-bailian", model: "qwen3.6-plus", name: "Qwen", type: "openai-compatible" }
+  ] as const)("does not replay unsigned reasoning content through the $name SDK", async ({ baseUrl, id, model, name, type }) => {
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":0,"model":"test","choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+
+    await chatCompletionStream(
+      provider({ apiStyle: "openai-compatible", baseUrl, id, name, type }),
+      model,
+      [
+        { content: "Inspect.", role: "user" },
+        {
+          content: "",
+          role: "assistant",
+          thinking: "Unsigned private reasoning",
+          toolCalls: [{ arguments: {}, id: "call_read", name: "read_document" }]
+        },
+        {
+          content: "Tool result from read_document:\nDraft",
+          role: "user",
+          toolResult: { outputText: "Draft", toolCallId: "call_read", toolName: "read_document" }
+        }
+      ],
+      {
+        fallbackTransport: vi.fn(),
+        streamTransport,
+        thinkingEnabled: true,
+        tools: [{ description: "Read.", name: "read_document", parameters: { properties: {}, type: "object" } }],
+        useVercelAiSdk: true
+      }
+    );
+
+    expect(streamTransport.mock.calls[0]?.[0].body).not.toContain("Unsigned private reasoning");
   });
 
   it("uses the Azure OpenAI Vercel AI SDK package with deployment URLs", async () => {
@@ -1207,6 +1520,43 @@ describe("chatCompletion", () => {
     expect(onThinkingDelta).toHaveBeenCalledWith("Thinking");
     expect(onDelta).toHaveBeenNthCalledWith(1, "Better ");
     expect(onDelta).toHaveBeenNthCalledWith(2, "text");
+  });
+
+  it("merges OpenRouter reasoning_details and replays them after a streamed tool call", async () => {
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"choices":[{"delta":{"reasoning_details":[{"type":"reasoning.text","index":0,"text":"Inspect "}]}}]}\n\n');
+      onChunk('data: {"choices":[{"delta":{"reasoning_details":[{"type":"reasoning.text","index":0,"text":"first"},{"type":"reasoning.encrypted","index":1,"id":"call_read","data":"encrypted"}],"tool_calls":[{"index":0,"id":"call_read","function":{"name":"read_document","arguments":"{}"}}]},"finish_reason":"tool_calls"}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+
+    const response = await chatCompletionStream(
+      provider({
+        baseUrl: "https://openrouter.ai/api/v1",
+        id: "openrouter",
+        name: "OpenRouter",
+        type: "openrouter"
+      }),
+      "anthropic/claude-sonnet-4.5",
+      [{ content: "Inspect.", role: "user" }],
+      {
+        fallbackTransport: vi.fn(),
+        streamTransport,
+        tools: [{ description: "Read.", name: "read_document", parameters: { properties: {}, type: "object" } }],
+        useVercelAiSdk: true
+      }
+    );
+
+    expect(response).toMatchObject({
+      finishReason: "toolUse",
+      toolCalls: [{ arguments: {}, id: "call_read", name: "read_document", thoughtSignature: expect.any(String) }]
+    });
+    expect(decodeOpenRouterReasoningDetails(response.toolCalls?.[0]?.thoughtSignature)).toEqual([
+      { index: 0, text: "Inspect first", type: "reasoning.text" },
+      { data: "encrypted", id: "call_read", index: 1, type: "reasoning.encrypted" }
+    ]);
+    expect(streamTransport.mock.calls[0]?.[0].headers["user-agent"]).toBeUndefined();
   });
 
   it("falls back to a final provider body when streaming chunks contain no text", async () => {
