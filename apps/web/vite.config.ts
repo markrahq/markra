@@ -27,7 +27,7 @@ export default createMarkraAppViteConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: false,
         globPatterns: ["**/*.{css,html,ico,jpg,js,png,svg,webp,woff,woff2}"],
-        // The lazy Mermaid/diagram chunk is ~2.84 MiB; keep diagrams offline with a hard 3 MiB guard.
+        // The lazy Mermaid/diagram chunk is ~2.71 MiB (~2.84 MB); keep it offline with a hard 3 MiB guard.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallback: "index.html",
         skipWaiting: false

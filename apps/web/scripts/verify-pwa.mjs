@@ -87,15 +87,20 @@ assert.equal(
 
 const precacheUrls = precacheUrlMatches.map(([, encodedUrl]) => JSON.parse(`"${encodedUrl}"`));
 assert.ok(precacheUrls.length > 0, "Precache URL list is empty");
-assert.equal(new Set(precacheUrls).size, precacheUrls.length, "Precache URLs must be unique");
+const precacheUrlSet = new Set(precacheUrls);
+assert.equal(precacheUrlSet.size, precacheUrls.length, "Precache URLs must be unique");
 
-const allowedRootFiles = new Set([
+const requiredShellUrls = new Set([
   "icon-192.png",
   "icon-512.png",
   "index.html",
   "manifest.webmanifest",
   "registerSW.js"
 ]);
+for (const requiredUrl of requiredShellUrls) {
+  assert.ok(precacheUrlSet.has(requiredUrl), `Required shell URL is missing from precache: ${requiredUrl}`);
+}
+
 const staticAssetPath = /^assets\/[A-Za-z0-9._~!$&'()*+,;=:@/-]+$/;
 const forbiddenPath =
   /(?:^|[/_.-])(?:api|auth|authorization|documents?|uploads?|user[-_]?data|user[-_]?(?:docs?|documents?|files?)|webdav)(?:$|[/_.-])/iu;
@@ -109,7 +114,7 @@ for (const url of precacheUrls) {
     `Precache URL must not traverse: ${url}`
   );
   assert.doesNotMatch(url, forbiddenPath, `Precache URL must not target sensitive or user-document paths: ${url}`);
-  assert.ok(allowedRootFiles.has(url) || staticAssetPath.test(url), `Unexpected precache URL: ${url}`);
+  assert.ok(requiredShellUrls.has(url) || staticAssetPath.test(url), `Unexpected precache URL: ${url}`);
 }
 
 assert.equal(
@@ -122,8 +127,29 @@ assert.match(
   serviceWorker,
   /([A-Za-z_$][\w$]*)\.registerRoute\(new \1\.NavigationRoute\(\1\.createHandlerBoundToURL\("index\.html"\)\)\)/
 );
-assert.doesNotMatch(serviceWorker, /addEventListener\(["']fetch["']/u);
-assert.doesNotMatch(serviceWorker, /\.(?:setCatchHandler|setDefaultHandler)\(/u);
+assert.doesNotMatch(serviceWorker, /addEventListener\(["']fetch["']/u, "Custom fetch event listeners are not allowed");
+assert.doesNotMatch(
+  serviceWorker,
+  /(?<![\w$])(?:self\.)?onfetch\s*=/u,
+  "Custom onfetch assignments are not allowed"
+);
+assert.doesNotMatch(
+  serviceWorker,
+  /\.(?:setCatchHandler|setDefaultHandler)\(/u,
+  "Custom default or catch handlers are not allowed"
+);
+
+const importScriptsCalls = [...serviceWorker.matchAll(/(?<![\w$])importScripts\(([^()]*)\)/g)];
+assert.equal(importScriptsCalls.length, 1, "Expected exactly one dynamic Workbox importScripts call");
+assert.match(importScriptsCalls[0][1].trim(), /^[A-Za-z_$][\w$]*$/, "Workbox importScripts argument must be a variable");
+const workboxModuleDefinitions = [
+  ...serviceWorker.matchAll(/define\(\["\.\/workbox-[\w-]+"\],function\([A-Za-z_$][\w$]*\)\{/g)
+];
+assert.equal(
+  workboxModuleDefinitions.length,
+  1,
+  "Expected exactly one Workbox-only module dependency"
+);
 
 const indexHtml = await readFile(new URL("index.html", distUrl), "utf8");
 assert.match(indexHtml, /manifest\.webmanifest/);
