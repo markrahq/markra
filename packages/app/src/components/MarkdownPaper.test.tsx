@@ -5348,6 +5348,7 @@ describe("MarkdownPaper editing", () => {
 
     const mergeButton = screen.getByRole("button", { name: "Merge into table above" });
     expect(mergeButton).toHaveClass("markra-table-fragment-merge-button");
+    expect(mergeButton).not.toHaveAttribute("title");
     expect(mergeButton.querySelector(".markra-table-fragment-merge-label")).toHaveTextContent(
       "Merge into table above"
     );

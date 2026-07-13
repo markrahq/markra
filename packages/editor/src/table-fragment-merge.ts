@@ -185,17 +185,9 @@ function mergeIcon(document: Document) {
   icon.setAttribute("stroke-width", "2");
   icon.setAttribute("viewBox", "0 0 24 24");
 
-  for (const pathData of [
-    "M5 3.5h14v7H5z",
-    "M5 7h14",
-    "M5 20h14",
-    "M12 20v-7",
-    "m9 16 3-3 3 3"
-  ]) {
-    const path = document.createElementNS(svgNamespace, "path");
-    path.setAttribute("d", pathData);
-    icon.append(path);
-  }
+  const path = document.createElementNS(svgNamespace, "path");
+  path.setAttribute("d", "M5 4h14M12 20V8m-5 5 5-5 5 5");
+  icon.append(path);
 
   return icon;
 }
@@ -228,7 +220,6 @@ function createMergeWidget(
   button.type = "button";
   button.className = "markra-table-fragment-merge-button";
   button.ariaLabel = label;
-  button.title = label;
   button.contentEditable = "false";
   button.draggable = false;
 
