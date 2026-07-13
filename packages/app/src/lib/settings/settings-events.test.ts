@@ -7,6 +7,7 @@ import {
   listenAppAcpAgentSettingsChanged,
   listenAppEditorPreferencesChanged,
   listenAppExportSettingsChanged,
+  listenAppFileIgnoreSettingsChanged,
   listenAppLanguageChanged,
   listenAppThemeChanged,
   listenAppSyncSettingsChanged,
@@ -15,6 +16,7 @@ import {
   notifyAppAcpAgentSettingsChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
+  notifyAppFileIgnoreSettingsChanged,
   notifyAppLanguageChanged,
   notifyAppSyncSettingsChanged,
   notifyAppThemeChanged
@@ -332,6 +334,29 @@ describe("settings events", () => {
       settings
     });
     expect(onSettingsChanged).toHaveBeenCalledWith(settings);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits and listens for normalized file ignore setting changes", async () => {
+    const unlisten = vi.fn();
+    const onSettingsChanged = vi.fn();
+    eventsAvailable = true;
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppFileIgnoreSettingsChanged(onSettingsChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await notifyAppFileIgnoreSettingsChanged({ rules: "generated/\r\n*.tmp" });
+    listener?.({
+      payload: { settings: { rules: "drafts/\r" } }
+    } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://file-ignore-settings-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://file-ignore-settings-changed", {
+      settings: { rules: "generated/\n*.tmp" }
+    });
+    expect(onSettingsChanged).toHaveBeenCalledWith({ rules: "drafts/\n" });
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 

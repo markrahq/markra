@@ -130,6 +130,55 @@ describe("settings window import and export", () => {
       status: "success"
     });
   });
+
+  it("persists and broadcasts applied global ignore rules", async () => {
+    const defaultRuntime = createDefaultAppRuntime();
+    const values = new Map<string, unknown>([["fileIgnoreSettings", { rules: "saved/" }]]);
+    const set = vi.fn(async (key: string, value: unknown) => {
+      values.set(key, value);
+    });
+    const emit = vi.fn(async () => undefined);
+    configureAppRuntime({
+      ...defaultRuntime,
+      events: {
+        emit,
+        isAvailable: () => true,
+        listen: vi.fn(async () => () => {})
+      },
+      settings: {
+        async loadStore() {
+          return {
+            async delete(key: string) {
+              values.delete(key);
+            },
+            async get<T>(key: string) {
+              return values.get(key) as T | undefined;
+            },
+            async save() {
+              return undefined;
+            },
+            set
+          };
+        }
+      }
+    });
+    const { result } = renderHook(() => useSettingsWindowState());
+
+    await waitFor(() => {
+      expect(result.current.fileIgnoreSettings).toEqual({ rules: "saved/" });
+    });
+
+    act(() => {
+      result.current.handleApplyFileIgnoreSettings({ rules: "generated/\r" });
+    });
+
+    await waitFor(() => {
+      expect(set).toHaveBeenCalledWith("fileIgnoreSettings", { rules: "generated/\n" });
+      expect(emit).toHaveBeenCalledWith("markra://file-ignore-settings-changed", {
+        settings: { rules: "generated/\n" }
+      });
+    });
+  });
 });
 
 describe("settings window storage connection tests", () => {

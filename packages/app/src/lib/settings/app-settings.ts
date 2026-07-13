@@ -54,6 +54,11 @@ import {
   type PdfPageSize
 } from "./export-settings";
 import {
+  defaultFileIgnoreSettings,
+  normalizeFileIgnoreSettings,
+  type FileIgnoreSettings
+} from "./file-ignore-settings";
+import {
   defaultNetworkSettings,
   normalizeNetworkSettings,
   type NetworkSettings
@@ -102,6 +107,12 @@ export {
   normalizeExportSettings
 } from "./export-settings";
 export {
+  defaultFileIgnoreSettings,
+  fileIgnoreRulesMaxLength,
+  normalizeFileIgnoreRules,
+  normalizeFileIgnoreSettings
+} from "./file-ignore-settings";
+export {
   defaultNetworkSettings,
   normalizeNetworkSettings
 } from "./network-settings";
@@ -134,6 +145,9 @@ export type {
   PdfMarginPreset,
   PdfPageSize
 } from "./export-settings";
+export type {
+  FileIgnoreSettings
+} from "./file-ignore-settings";
 export type {
   NetworkSettings
 } from "./network-settings";
@@ -178,6 +192,7 @@ const acpAgentSettingsKey = "acpAgentSettings";
 const aiProvidersKey = "aiProviders";
 const aiAgentPreferencesKey = "aiAgentPreferences";
 const editorPreferencesKey = "editorPreferences";
+const fileIgnoreSettingsKey = "fileIgnoreSettings";
 const exportSettingsKey = "exportSettings";
 const webSearchKey = "webSearch";
 const networkKey = "network";
@@ -335,6 +350,7 @@ export type PortableStoredAppSettings = {
   darkTheme: DarkEditorTheme;
   editorPreferences: EditorPreferences;
   exportSettings: ExportSettings;
+  fileIgnoreSettings: FileIgnoreSettings;
   language: AppLanguage;
   lightTheme: LightEditorTheme;
   network: NetworkSettings;
@@ -610,6 +626,7 @@ function normalizePortableStoredAppSettings(value: Record<string, unknown>): Por
     darkTheme: themePreferences.darkTheme,
     editorPreferences: normalizeEditorPreferences(value.editorPreferences),
     exportSettings: normalizeExportSettings(value.exportSettings),
+    fileIgnoreSettings: normalizeFileIgnoreSettings(value.fileIgnoreSettings),
     language: isAppLanguage(value.language) ? value.language : "en",
     lightTheme: themePreferences.lightTheme,
     network: normalizeNetworkSettings(value.network),
@@ -640,6 +657,7 @@ async function readPortableStoredAppSettings(): Promise<PortableStoredAppSetting
   const aiAgentPreferences = await store.get<Partial<AiAgentPreferences>>(aiAgentPreferencesKey);
   const editorPreferences = await store.get<Partial<EditorPreferences>>(editorPreferencesKey);
   const exportSettings = await store.get<Partial<ExportSettings>>(exportSettingsKey);
+  const fileIgnoreSettings = await store.get<Partial<FileIgnoreSettings>>(fileIgnoreSettingsKey);
   const webSearch = await store.get<Partial<WebSearchSettings>>(webSearchKey);
   const network = await store.get<Partial<NetworkSettings>>(networkKey);
   const backupSettings = await store.get<Partial<BackupSettings>>(backupSettingsKey);
@@ -655,6 +673,7 @@ async function readPortableStoredAppSettings(): Promise<PortableStoredAppSetting
     darkTheme: themePreferences.darkTheme,
     editorPreferences: normalizeEditorPreferences(editorPreferences),
     exportSettings: normalizeExportSettings(exportSettings),
+    fileIgnoreSettings: normalizeFileIgnoreSettings(fileIgnoreSettings),
     language: isAppLanguage(language) ? language : "en",
     lightTheme: themePreferences.lightTheme,
     network: normalizeNetworkSettings(network),
@@ -675,6 +694,7 @@ async function writePortableStoredAppSettings(settings: PortableStoredAppSetting
   await store.set(darkThemeKey, settings.darkTheme);
   await store.set(editorPreferencesKey, settings.editorPreferences);
   await store.set(exportSettingsKey, settings.exportSettings);
+  await store.set(fileIgnoreSettingsKey, settings.fileIgnoreSettings);
   await store.set(languageKey, settings.language);
   await store.set(lightCustomThemeCssKey, settings.customThemeCss.light);
   await store.set(lightThemeKey, settings.lightTheme);
@@ -1136,6 +1156,20 @@ export async function saveStoredEditorPreferences(preferences: EditorPreferences
   const store = await loadSettingsStore();
 
   await store.set(editorPreferencesKey, normalizeEditorPreferences(preferences));
+  await store.save();
+}
+
+export async function getStoredFileIgnoreSettings(): Promise<FileIgnoreSettings> {
+  const store = await loadSettingsStore();
+  const settings = await store.get<Partial<FileIgnoreSettings>>(fileIgnoreSettingsKey);
+
+  return normalizeFileIgnoreSettings(settings ?? defaultFileIgnoreSettings);
+}
+
+export async function saveStoredFileIgnoreSettings(settings: FileIgnoreSettings) {
+  const store = await loadSettingsStore();
+
+  await store.set(fileIgnoreSettingsKey, normalizeFileIgnoreSettings(settings));
   await store.save();
 }
 

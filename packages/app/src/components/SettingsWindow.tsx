@@ -48,12 +48,14 @@ export function SettingsWindow() {
     backupSettings,
     editorPreferences,
     exportSettings,
+    fileIgnoreSettings,
     handleAddAiProvider,
     handleFetchAiProviderModels,
     handleCreateMarkdownTemplate,
     handleDeleteMarkdownTemplate,
     handleResetWelcomeDocument,
     handleExportSettings,
+    handleApplyFileIgnoreSettings,
     handleImportSettings,
     handleRunBackup,
     handleRunSync,
@@ -222,12 +224,14 @@ export function SettingsWindow() {
             <GeneralSettings
               appVersion={appVersion}
               availableUpdateVersion={updater.availableUpdateVersion}
+              fileIgnoreSettings={fileIgnoreSettings}
               preferences={editorPreferences}
               language={appLanguage.language}
               translate={translate}
               updatesEnabled={appFeatures.updater}
               welcomeReset={welcomeReset}
               onCheckForUpdates={updater.checkForUpdates}
+              onApplyFileIgnoreSettings={handleApplyFileIgnoreSettings}
               onInstallShellCommand={handleInstallShellCommand}
               onRefreshShellCommand={handleRefreshShellCommandStatus}
               onResetWelcomeDocument={handleResetWelcomeDocument}
