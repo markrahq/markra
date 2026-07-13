@@ -431,6 +431,7 @@ const messages: LocaleMessages = {
   "editor.table.deleteColumn": "Elimina colonna",
   "editor.table.deleteRow": "Elimina riga",
   "editor.table.deleteTable": "Elimina tabella",
+  "editor.table.mergeFragment": "Unisci alla tabella sopra",
   "editor.table.adjustTable": "Regola tabella",
   "editor.table.resizeTableTo": "Ridimensiona tabella a {columns} colonne x {rows} righe",
   "editor.table.columns": "Colonne tabella",

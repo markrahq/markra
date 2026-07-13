@@ -363,6 +363,9 @@ importers:
       '@markra/ai':
         specifier: workspace:*
         version: link:../ai
+      '@markra/markdown':
+        specifier: workspace:*
+        version: link:../markdown
       '@markra/shared':
         specifier: workspace:*
         version: link:../shared

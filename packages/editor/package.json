@@ -19,6 +19,7 @@
   "dependencies": {
     "@cspell/cspell-types": "10.0.1",
     "@markra/ai": "workspace:*",
+    "@markra/markdown": "workspace:*",
     "@markra/shared": "workspace:*",
     "@milkdown/kit": "^7.20.0",
     "cspell-trie-lib": "10.0.1",

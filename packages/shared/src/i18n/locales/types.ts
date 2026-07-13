@@ -738,6 +738,7 @@ export type I18nKey =
   | "editor.table.deleteColumn"
   | "editor.table.deleteRow"
   | "editor.table.deleteTable"
+  | "editor.table.mergeFragment"
   | "editor.table.adjustTable"
   | "editor.table.resizeTableTo"
   | "editor.table.columns"

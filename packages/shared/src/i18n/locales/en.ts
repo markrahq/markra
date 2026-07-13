@@ -727,6 +727,7 @@ const messages: BaseLocaleMessages = {
   "editor.table.deleteColumn": "Delete column",
   "editor.table.deleteRow": "Delete row",
   "editor.table.deleteTable": "Delete table",
+  "editor.table.mergeFragment": "Merge into table above",
   "editor.table.adjustTable": "Adjust table",
   "editor.table.resizeTableTo": "Resize table to {columns} columns by {rows} rows",
   "editor.table.columns": "Table columns",

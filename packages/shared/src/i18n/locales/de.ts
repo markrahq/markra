@@ -431,6 +431,7 @@ const messages: LocaleMessages = {
   "editor.table.deleteColumn": "Spalte löschen",
   "editor.table.deleteRow": "Zeile löschen",
   "editor.table.deleteTable": "Tabelle löschen",
+  "editor.table.mergeFragment": "Mit der obigen Tabelle zusammenführen",
   "editor.table.adjustTable": "Tabelle anpassen",
   "editor.table.resizeTableTo": "Tabelle auf {columns} Spalten x {rows} Zeilen anpassen",
   "editor.table.columns": "Tabellenspalten",

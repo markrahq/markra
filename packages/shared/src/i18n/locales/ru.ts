@@ -431,6 +431,7 @@ const messages: LocaleMessages = {
   "editor.table.deleteColumn": "Удалить столбец",
   "editor.table.deleteRow": "Удалить строку",
   "editor.table.deleteTable": "Удалить таблицу",
+  "editor.table.mergeFragment": "Объединить с таблицей выше",
   "editor.table.adjustTable": "Настроить таблицу",
   "editor.table.resizeTableTo": "Изменить таблицу до {columns} столбцов x {rows} строк",
   "editor.table.columns": "Столбцы таблицы",

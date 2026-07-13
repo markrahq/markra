@@ -439,6 +439,7 @@ const messages: LocaleMessages = {
   "editor.table.deleteColumn": "列を削除",
   "editor.table.deleteRow": "行を削除",
   "editor.table.deleteTable": "表を削除",
+  "editor.table.mergeFragment": "上の表に結合",
   "editor.table.adjustTable": "表を調整",
   "editor.table.resizeTableTo": "{columns} 列 x {rows} 行に変更",
   "editor.table.columns": "表の列数",
