@@ -93,7 +93,14 @@ export class FakeDirectoryHandle {
 
 function cloneValue<T>(value: T): T {
   if (value === undefined || value === null) return value;
+  if (value instanceof Blob) return value.slice(0, value.size, value.type) as T;
   if (containsFakeFileSystemHandle(value)) return value;
+  if (Array.isArray(value)) return value.map(cloneValue) as T;
+  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, cloneValue(nestedValue)])
+    ) as T;
+  }
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(value);
 
   return JSON.parse(JSON.stringify(value)) as T;
@@ -207,32 +214,65 @@ export class FakeIdbTransaction {
   onerror: RequestHandler = null;
   private completionQueued = false;
   private pendingRequests = 0;
+  private readonly snapshots = new Map<string, Map<string, StoredIndexedDbRecord>>();
   private state: "pending" | "complete" | "failed" | "aborted" = "pending";
 
-  constructor(private readonly stores = new Map<string, FakeIdbStore>()) {}
+  constructor(
+    private readonly stores = new Map<string, FakeIdbStore>(),
+    private readonly completionError?: DOMException,
+    rollbackOnFailure = false
+  ) {
+    if (rollbackOnFailure) {
+      for (const [name, store] of stores) {
+        this.snapshots.set(name, new Map(
+          Array.from(store.records, ([key, record]) => [key, cloneValue(record)])
+        ));
+      }
+    }
+  }
+
+  private rollback() {
+    for (const [name, snapshot] of this.snapshots) {
+      const records = this.stores.get(name)?.records;
+      if (!records) continue;
+      records.clear();
+      for (const [key, record] of snapshot) records.set(key, cloneValue(record));
+    }
+  }
 
   abort(error = new DOMException("Transaction aborted", "AbortError")) {
     if (this.state !== "pending") return;
     this.error = error;
     this.state = "aborted";
+    this.rollback();
     queueMicrotask(() => this.onabort?.(new Event("abort")));
   }
 
   complete() {
     if (this.state !== "pending" || this.completionQueued) return;
     this.completionQueued = true;
-    queueMicrotask(() => {
+    // IndexedDB stays active through request-created promise microtasks, so dependent writes
+    // must be allowed to enqueue before the transaction auto-commits at the end of the task.
+    setTimeout(() => {
       this.completionQueued = false;
       if (this.state !== "pending" || this.pendingRequests > 0) return;
+      if (this.completionError) {
+        this.error = this.completionError;
+        this.state = "failed";
+        this.rollback();
+        this.onerror?.(new Event("error"));
+        return;
+      }
       this.state = "complete";
       this.oncomplete?.(new Event("complete"));
-    });
+    }, 0);
   }
 
   fail(error: DOMException) {
     if (this.state !== "pending") return;
     this.error = error;
     this.state = "failed";
+    this.rollback();
     queueMicrotask(() => this.onerror?.(new Event("error")));
   }
 
@@ -259,6 +299,8 @@ class FakeIdbDatabase {
   private readonly stores = new Map<string, FakeIdbStore>();
   version = 0;
 
+  constructor(private readonly takeTransactionFailure: () => DOMException | undefined) {}
+
   objectStoreNames = {
     contains: (name: string) => this.stores.has(name)
   };
@@ -278,7 +320,7 @@ class FakeIdbDatabase {
     return new FakeIdbObjectStore(store.keyPath, store.records);
   }
 
-  transaction(names: string | string[]) {
+  transaction(names: string | string[], mode: IDBTransactionMode = "readonly") {
     const requestedNames = typeof names === "string" ? [names] : names;
     const stores = new Map<string, FakeIdbStore>();
 
@@ -292,7 +334,8 @@ class FakeIdbDatabase {
       stores.set(name, this.stores.get(name)!);
     }
 
-    const transaction = new FakeIdbTransaction(stores);
+    const completionError = mode === "readwrite" ? this.takeTransactionFailure() : undefined;
+    const transaction = new FakeIdbTransaction(stores, completionError, mode === "readwrite");
     transaction.complete();
 
     return transaction;
@@ -301,12 +344,24 @@ class FakeIdbDatabase {
 
 export class FakeIndexedDbFactory {
   private readonly databases = new Map<string, FakeIdbDatabase>();
+  private nextTransactionError: DOMException | undefined;
   readonly openedNames: string[] = [];
+
+  failNextTransaction(error: DOMException) {
+    this.nextTransactionError = error;
+  }
+
+  private takeTransactionFailure() {
+    const error = this.nextTransactionError;
+    this.nextTransactionError = undefined;
+
+    return error;
+  }
 
   open(name: string, version?: number) {
     const request = new FakeIdbOpenRequest();
     const existingDatabase = this.databases.get(name);
-    const database = existingDatabase ?? new FakeIdbDatabase();
+    const database = existingDatabase ?? new FakeIdbDatabase(() => this.takeTransactionFailure());
     const requestedVersion = version ?? (existingDatabase?.version ?? 1);
 
     this.openedNames.push(name);
