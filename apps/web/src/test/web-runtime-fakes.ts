@@ -249,9 +249,9 @@ class FakeIdbObjectStore {
         const key = typeof this.keyPath === "string"
           ? record[this.keyPath] as IDBValidKey
           : this.keyPath.map((part) => record[part]) as IDBValidKey;
-        if (typeof query === "object" && "includes" in query) return query.includes(key);
+        if (query instanceof FakeIdbKeyRange) return query.includes(key);
 
-        return serializeKey(query) === serializeKey(key);
+        return serializeKey(query as IDBValidKey) === serializeKey(key);
       });
       request.succeed(records.map(cloneValue));
     });
