@@ -3465,28 +3465,26 @@ function WorkspaceApp() {
   }, [handleEditorModeSelect, splitMode]);
   const handleOpenMarkdownFolder = useCallback(async () => {
     captureActiveDocumentViewState();
-    await openMarkdownFolder({
-      beforeOpenFolder: () => {
-        const canDiscard = confirmCanDiscardCurrentDocument();
-        if (typeof canDiscard !== "boolean") {
-          return canDiscard.then((confirmed) => {
-            if (!confirmed) return false;
+    try {
+      const opened = await openMarkdownFolder({
+        beforeOpenFolder: confirmCanDiscardCurrentDocument,
+        pickerTitle: translate("app.openFolder")
+      });
+      if (!opened) return;
 
-            setActiveImageFile(null);
-            clearOpenDocument({ persistWorkspace: false });
+      // Keep the current document intact if the picker is cancelled or the import fails.
+      setActiveImageFile(null);
+      clearOpenDocument({ persistWorkspace: false });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") return;
 
-            return true;
-          });
-        }
-        if (!canDiscard) return false;
-
-        setActiveImageFile(null);
-        clearOpenDocument({ persistWorkspace: false });
-
-        return true;
-      },
-      pickerTitle: translate("app.openFolder")
-    });
+      const detail = error instanceof Error ? error.message : String(error);
+      showAppToast({
+        id: "markdown-folder-open-error",
+        message: `${translate("app.openFolderFailed")} ${detail}`,
+        status: "error"
+      });
+    }
   }, [captureActiveDocumentViewState, clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder, translate]);
   const handleOpenRecentMarkdownFolder = useCallback(async (folder: RecentMarkdownFolder) => {
     captureActiveDocumentViewState();

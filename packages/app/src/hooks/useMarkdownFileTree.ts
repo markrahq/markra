@@ -589,13 +589,20 @@ export function useMarkdownFileTree({
   }, [abortCurrentFileTreeLoad, cancelPendingFileTreeBatchFlush]);
 
   const openMarkdownFolder = useCallback(async (options: OpenMarkdownFolderOptions = {}) => {
-    const folder = await openNativeMarkdownFolder(
-      options.pickerTitle ? { title: options.pickerTitle } : undefined
-    );
-    if (!folder) return null;
+    const pickerOptions = options.pickerTitle ? { title: options.pickerTitle } : undefined;
+    const beforeOpenResult = options.beforeOpenFolder?.();
+    let folderPromise: ReturnType<typeof openNativeMarkdownFolder>;
+    if (typeof beforeOpenResult === "boolean" || beforeOpenResult === undefined) {
+      if (beforeOpenResult === false) return null;
+      // Synchronous confirmation keeps native pickers in the original user-activation turn.
+      folderPromise = openNativeMarkdownFolder(pickerOptions);
+    } else {
+      if (!await beforeOpenResult) return null;
+      folderPromise = openNativeMarkdownFolder(pickerOptions);
+    }
 
-    const beforeOpenResult = await options.beforeOpenFolder?.();
-    if (beforeOpenResult === false) return null;
+    const folder = await folderPromise;
+    if (!folder) return null;
 
     return openFolderPath(folder.path, folder.name, undefined, true, true, { coalesce: true });
   }, [openFolderPath]);

@@ -7,6 +7,9 @@ import { strFromU8, unzipSync } from "fflate";
 import { createWebRuntime } from "..";
 import type { NativeMarkdownDroppedTarget } from "@markra/app/runtime";
 import type { WebDownloadFile } from "./types";
+import { createWebFileRuntime } from "./file";
+import { createIndexedDbSettingsRuntime } from "./settings";
+import { createWorkspaceRepository } from "./workspace";
 
 function createDirectoryUploadFile(relativePath: string, contents: BlobPart, type = "text/markdown") {
   const file = new File([contents], relativePath.split("/").pop() ?? relativePath, { type });
@@ -440,6 +443,24 @@ describe("web file runtime", () => {
     expect(archive["assets/pixel.png"]).toEqual(new Uint8Array([1, 2, 3]));
   });
 
+  it("preserves empty workspace directories in ZIP exports", async () => {
+    const downloads: WebDownloadFile[] = [];
+    const runtime = createWebRuntime({
+      downloadFile: async (download) => downloads.push(download),
+      indexedDB: new FakeIndexedDbFactory().indexedDB
+    });
+    const folder = await runtime.files.getDefaultMarkdownFolder();
+    await runtime.files.createMarkdownTreeFolder(folder!.path, "empty");
+
+    await runtime.files.exportMarkdownFolder(folder!.path);
+
+    const archive = unzipSync(new Uint8Array(
+      await (downloads[0].contents as Blob).arrayBuffer()
+    ));
+    expect(archive).toHaveProperty("empty/");
+    expect(archive["empty/"]).toEqual(new Uint8Array());
+  });
+
   it("saves an untitled document into the current virtual workspace instead of downloading it", async () => {
     const downloadFile = vi.fn();
     const runtime = createWebRuntime({
@@ -456,6 +477,70 @@ describe("web file runtime", () => {
     await expect(runtime.files.readMarkdownFile("web-workspace://default/new.md"))
       .resolves.toMatchObject({ content: "# New" });
     expect(downloadFile).not.toHaveBeenCalled();
+  });
+
+  it("chooses a unique workspace name instead of overwriting an existing pathless save", async () => {
+    const runtime = createWebRuntime({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    await runtime.files.saveMarkdownFile({
+      contents: "# Original",
+      defaultDirectory: "web-workspace://default",
+      path: null,
+      suggestedName: "Untitled.md"
+    });
+
+    await expect(runtime.files.saveMarkdownFile({
+      contents: "# New",
+      defaultDirectory: "web-workspace://default",
+      path: null,
+      suggestedName: "Untitled.md"
+    })).resolves.toEqual({
+      name: "Untitled-2.md",
+      path: "web-workspace://default/Untitled-2.md"
+    });
+    await expect(runtime.files.readMarkdownFile("web-workspace://default/Untitled.md"))
+      .resolves.toMatchObject({ content: "# Original" });
+    await expect(runtime.files.readMarkdownFile("web-workspace://default/Untitled-2.md"))
+      .resolves.toMatchObject({ content: "# New" });
+  });
+
+  it("rejects duplicate tree-file creation without changing the existing file", async () => {
+    const runtime = createWebRuntime({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    const folder = await runtime.files.getDefaultMarkdownFolder();
+    await runtime.files.createMarkdownTreeFile(folder!.path, "note.md", { contents: "# Original" });
+
+    await expect(
+      runtime.files.createMarkdownTreeFile(folder!.path, "note.md", { contents: "# Replacement" })
+    ).rejects.toThrow("already exists");
+    await expect(runtime.files.readMarkdownFile("web-workspace://default/note.md"))
+      .resolves.toMatchObject({ content: "# Original" });
+  });
+
+  it("rejects duplicate tree-folder creation instead of reopening the existing folder", async () => {
+    const runtime = createWebRuntime({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    const folder = await runtime.files.getDefaultMarkdownFolder();
+    await runtime.files.createMarkdownTreeFolder(folder!.path, "notes");
+
+    await expect(runtime.files.createMarkdownTreeFolder(folder!.path, "notes"))
+      .rejects.toThrow("already exists");
+    await expect(runtime.files.listMarkdownFilesForPath(folder!.path)).resolves.toEqual([
+      expect.objectContaining({ kind: "folder", relativePath: "notes" })
+    ]);
+  });
+
+  it("rejects saving through a stale workspace file path", async () => {
+    const runtime = createWebRuntime({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    const folder = await runtime.files.getDefaultMarkdownFolder();
+    const created = await runtime.files.createMarkdownTreeFile(folder!.path, "note.md", {
+      contents: "# Saved"
+    });
+    await runtime.files.deleteMarkdownTreeFile(folder!.path, created.path);
+
+    await expect(runtime.files.saveMarkdownFile({
+      contents: "# Stale",
+      path: created.path,
+      suggestedName: created.name
+    })).rejects.toThrow("not found");
+    await expect(runtime.files.listMarkdownFilesForPath(folder!.path)).resolves.toEqual([]);
   });
 
   it("supports tree CRUD across restored virtual workspace paths", async () => {
@@ -484,6 +569,29 @@ describe("web file runtime", () => {
       expect.objectContaining({ relativePath: "guide.md" }),
       expect.objectContaining({ relativePath: "renamed.md" })
     ]);
+  });
+
+  it("routes workspace renames and moves through the repository transaction", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const repository = createWorkspaceRepository({ indexedDB });
+    const move = vi.spyOn(repository, "move");
+    const files = createWebFileRuntime(
+      createIndexedDbSettingsRuntime({ indexedDB }),
+      repository,
+      { indexedDB }
+    );
+    const folder = await files.getDefaultMarkdownFolder();
+    const drafts = await files.createMarkdownTreeFolder(folder!.path, "drafts");
+    const note = await files.createMarkdownTreeFile(folder!.path, "note.md", {
+      contents: "# Draft",
+      parentPath: drafts.path
+    });
+
+    const renamed = await files.renameMarkdownTreeFile(folder!.path, note.path, "ready.md");
+    await files.moveMarkdownTreeFile(folder!.path, renamed.path);
+
+    expect(move).toHaveBeenNthCalledWith(1, "default", "drafts/note.md", "drafts/ready.md");
+    expect(move).toHaveBeenNthCalledWith(2, "default", "drafts/ready.md", "ready.md");
   });
 
   it("stores images and attachments beside a restored virtual workspace document", async () => {

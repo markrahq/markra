@@ -2495,7 +2495,7 @@ describe("useMarkdownDocument", () => {
       open: true,
       path: null
     });
-    expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+    expect(mockedConsumeWelcomeDocumentState).toHaveBeenCalledTimes(1);
   });
 
   it("opens the runtime default folder after startup restoration finds no target", async () => {
@@ -2612,6 +2612,46 @@ describe("useMarkdownDocument", () => {
       open: true,
       path: null
     });
+  });
+
+  it("falls back to the runtime default when a stored folder and all of its files are gone", async () => {
+    const missingPath = "/mock-files/deleted-notes/guide.md";
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-deleted-folder-default",
+      filePath: missingPath,
+      fileTreeOpen: true,
+      folderName: "deleted-notes",
+      folderPath: "/mock-files/deleted-notes",
+      openFilePaths: [missingPath]
+    });
+    mockedReadNativeMarkdownFile.mockRejectedValue(new Error("Markdown file no longer exists"));
+    mockedGetNativeDefaultMarkdownFolder.mockResolvedValue({
+      name: "Markra",
+      path: "web-workspace://default"
+    });
+    const onTreeRootFromFolderPath = vi.fn(async (path: string) => path === "web-workspace://default"
+      ? { name: "Markra", path }
+      : null);
+
+    renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath,
+        preferencesReady: true,
+        restoreWorkspaceOnStartup: true
+      })
+    );
+
+    await waitFor(() => expect(onTreeRootFromFolderPath).toHaveBeenCalledWith(
+      "web-workspace://default",
+      "Markra",
+      expect.any(String),
+      true,
+      true
+    ));
+    expect(mockedGetNativeDefaultMarkdownFolder).toHaveBeenCalledTimes(1);
   });
 
   it("restores saved files when the saved folder root no longer opens", async () => {

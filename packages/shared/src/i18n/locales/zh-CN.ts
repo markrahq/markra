@@ -507,6 +507,7 @@ const messages: LocaleMessages = {
   "app.openMarkdownFile": "打开 Markdown 文件",
   "app.openFolder": "打开文件夹",
   "app.openFolderDialog": "打开文件夹...",
+  "app.openFolderFailed": "无法打开文件夹。",
   "app.exportWorkspace": "导出工作区",
   "app.exportWorkspaceFailed": "无法导出工作区。",
   "app.autoSaveFailed": "无法自动保存更改，文档仍处于未保存状态。",

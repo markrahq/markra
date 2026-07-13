@@ -1986,7 +1986,7 @@ describe("Markra workspace", () => {
     expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalledWith(betaPath);
   });
 
-  it("falls back to an empty document when the restored markdown folder is gone", async () => {
+  it("falls back to the welcome document when the restored markdown folder is gone", async () => {
     mockedGetStoredWorkspaceState.mockResolvedValue({
       aiAgentSessionId: "session-app",
       filePath: null,
@@ -2007,8 +2007,8 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "false");
     expect(screen.queryByRole("complementary", { name: "Markdown file tree" })).not.toBeInTheDocument();
     expect(screen.queryByText("No folder")).not.toBeInTheDocument();
-    expect(screen.queryByText("Welcome to Markra")).not.toBeInTheDocument();
-    expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+    expect(screen.getAllByText("Welcome to Markra").length).toBeGreaterThan(0);
+    expect(mockedConsumeWelcomeDocumentState).toHaveBeenCalledTimes(1);
   });
 
   it("keeps the saved folder root when restoring a nested file from that workspace", async () => {
@@ -3452,6 +3452,22 @@ describe("Markra workspace", () => {
         path: mockFolderPath
       });
     });
+  });
+
+  it("reports folder import conflicts without hiding the conflicting path", async () => {
+    mockedResolveDesktopPlatform.mockReturnValue("windows");
+    mockedOpenNativeMarkdownFolder.mockRejectedValue(
+      new Error("Workspace entry conflicts with notes/existing.md.")
+    );
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle workspace sidebar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open Folder" }));
+
+    expect(await screen.findByText(
+      "Could not open the folder. Workspace entry conflicts with notes/existing.md."
+    )).toBeInTheDocument();
   });
 
   it("opens a remembered markdown folder from the sidebar recent folders area", async () => {

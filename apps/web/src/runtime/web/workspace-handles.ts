@@ -126,7 +126,7 @@ async function getEntry(
     try {
       entry = kind === "directory"
         ? await state.repository.createDirectory(state.workspaceId, path)
-        : await state.repository.writeFile(state.workspaceId, path, new Blob([]));
+        : await state.repository.writeFile(state.workspaceId, path, new Blob([]), { mode: "create" });
     } catch (creationError) {
       if (!(creationError instanceof WorkspaceNamespaceConflictError)) throw creationError;
       throw typeMismatch(path, kind);
@@ -214,7 +214,17 @@ export function createWorkspaceFileHandle(
           // Buffer until close so an incomplete save never replaces the durable entry.
           // A copied File is a single chunk, whose media type must survive for image rendering.
           const type = chunks.length === 1 && chunks[0] instanceof Blob ? chunks[0].type : "";
-          await state.repository.writeFile(state.workspaceId, state.path, new Blob(chunks, { type }));
+          try {
+            await state.repository.writeFile(
+              state.workspaceId,
+              state.path,
+              new Blob(chunks, { type }),
+              { mode: "update" }
+            );
+          } catch (error) {
+            if (!(error instanceof WorkspaceEntryNotFoundError)) throw error;
+            throw notFound(state.path);
+          }
         },
         async write(chunk) {
           if (closed) throw new TypeError("Cannot write to a closed workspace file stream.");

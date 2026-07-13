@@ -2007,10 +2007,13 @@ export function useMarkdownDocument({
 
           assignWorkspaceSessionId(sessionId);
 
+          let handleRestoredFolderResult: ((folderResult: unknown) => unknown) | null = null;
+          let pendingFolderRestore: Promise<unknown> | null = null;
+
           if (workspace.folderPath) {
             const folderPath = workspace.folderPath;
             const folderName = workspace.folderName ?? folderPath;
-            const handleRestoredFolderResult = (folderResult: unknown) => {
+            handleRestoredFolderResult = (folderResult: unknown) => {
               if (folderResult === null || folderResult === false) {
                 persistWorkspaceState({
                   fileTreeOpen: false,
@@ -2032,22 +2035,16 @@ export function useMarkdownDocument({
 
             // Some saved roots, such as metadata folders, can make tree loading stall. Restoring
             // files independently prevents the app from staying on Untitled.md while the tree waits.
-            restoredWorkspace = true;
+            pendingFolderRestore = Promise.resolve()
+              .then(restoreFolderRoot)
+              .catch(() => null);
 
-            if (restoreFilePaths.length > 0) {
-              // File restoration should not wait for potentially slow or skipped tree roots.
-              Promise.resolve()
-                .then(restoreFolderRoot)
-                .then((folderResult) => {
-                  if (active) handleRestoredFolderResult(folderResult);
-                })
-                .catch(() => {
-                  if (active) handleRestoredFolderResult(null);
-                });
-            } else {
-              const folderResult = await Promise.resolve().then(restoreFolderRoot);
+            if (restoreFilePaths.length === 0) {
+              const folderResult = await pendingFolderRestore;
               if (!active) return;
               handleRestoredFolderResult(folderResult);
+              if (folderResult !== null && folderResult !== false) restoredWorkspace = true;
+              pendingFolderRestore = null;
             }
           }
 
@@ -2076,6 +2073,22 @@ export function useMarkdownDocument({
             await openNativeMarkdownFileInNewWindow(path);
             if (!active) return;
             restoredWorkspace = true;
+          }
+
+          if (pendingFolderRestore && handleRestoredFolderResult) {
+            if (restoredWorkspace) {
+              // A restored file or draft is already usable, so a slow tree root must not block startup.
+              pendingFolderRestore.then((folderResult) => {
+                if (active) handleRestoredFolderResult?.(folderResult);
+              });
+            } else {
+              // Without any usable file or draft, wait long enough to distinguish a restored root
+              // from a lost permission before falling back to the browser-local workspace.
+              const folderResult = await pendingFolderRestore;
+              if (!active) return;
+              handleRestoredFolderResult(folderResult);
+              if (folderResult !== null && folderResult !== false) restoredWorkspace = true;
+            }
           }
 
           if (restoreWindows.length > 0) {

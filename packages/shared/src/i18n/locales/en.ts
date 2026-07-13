@@ -507,6 +507,7 @@ const messages: BaseLocaleMessages = {
   "app.openMarkdownFile": "Open Markdown File",
   "app.openFolder": "Open Folder",
   "app.openFolderDialog": "Open Folder...",
+  "app.openFolderFailed": "Could not open the folder.",
   "app.exportWorkspace": "Export workspace",
   "app.exportWorkspaceFailed": "Could not export the workspace.",
   "app.autoSaveFailed": "Could not auto-save changes. Your document is still unsaved.",

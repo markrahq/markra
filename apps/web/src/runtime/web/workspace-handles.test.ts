@@ -61,6 +61,19 @@ describe("IndexedDB-backed workspace handles", () => {
     await expect((await file.getFile()).text()).resolves.toBe("draft");
   });
 
+  it("rejects closing a stale file handle after its entry was removed", async () => {
+    const repository = await createWorkspace();
+    await repository.writeFile("default", "note.md", new Blob(["saved"]));
+    const root = createWorkspaceDirectoryHandle(repository, "default", "", "Markra");
+    const file = await root.getFileHandle!("note.md");
+    const writable = await file.createWritable!();
+    await writable.write("stale replacement");
+    await root.removeEntry!("note.md");
+
+    await expect(writable.close()).rejects.toMatchObject({ name: "NotFoundError" });
+    await expect(repository.read("default", "note.md")).rejects.toThrow("not found");
+  });
+
   it("propagates storage read failures without truncating an existing file", async () => {
     const storedRepository = await createWorkspace();
     await storedRepository.writeFile("default", "note.md", new Blob(["preserved"]));

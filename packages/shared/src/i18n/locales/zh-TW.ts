@@ -219,6 +219,7 @@ const messages: LocaleMessages = {
   "app.openMarkdownFile": "開啟 Markdown 檔案",
   "app.openFolder": "開啟資料夾",
   "app.openFolderDialog": "開啟資料夾...",
+  "app.openFolderFailed": "無法開啟資料夾。",
   "app.exportWorkspace": "匯出工作區",
   "app.exportWorkspaceFailed": "無法匯出工作區。",
   "app.autoSaveFailed": "無法自動儲存變更，文件仍處於未儲存狀態。",

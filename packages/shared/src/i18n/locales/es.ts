@@ -211,6 +211,7 @@ const messages: LocaleMessages = {
   "app.openMarkdownFile": "Abrir archivo Markdown",
   "app.openFolder": "Abrir carpeta",
   "app.openFolderDialog": "Abrir carpeta...",
+  "app.openFolderFailed": "No se pudo abrir la carpeta.",
   "app.exportWorkspace": "Exportar espacio de trabajo",
   "app.exportWorkspaceFailed": "No se pudo exportar el espacio de trabajo.",
   "app.autoSaveFailed": "No se pudieron guardar automáticamente los cambios. El documento sigue sin guardar.",

@@ -518,6 +518,7 @@ export type I18nKey =
   | "app.openMarkdownFile"
   | "app.openFolder"
   | "app.openFolderDialog"
+  | "app.openFolderFailed"
   | "app.exportWorkspace"
   | "app.exportWorkspaceFailed"
   | "app.autoSaveFailed"

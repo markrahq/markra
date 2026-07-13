@@ -211,6 +211,7 @@ const messages: LocaleMessages = {
   "app.openMarkdownFile": "Markdown 파일 열기",
   "app.openFolder": "폴더 열기",
   "app.openFolderDialog": "폴더 열기...",
+  "app.openFolderFailed": "폴더를 열 수 없습니다.",
   "app.exportWorkspace": "작업 공간 내보내기",
   "app.exportWorkspaceFailed": "작업 공간을 내보낼 수 없습니다.",
   "app.autoSaveFailed": "변경 사항을 자동 저장할 수 없습니다. 문서가 아직 저장되지 않았습니다.",

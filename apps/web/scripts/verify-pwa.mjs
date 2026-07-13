@@ -38,6 +38,18 @@ function extractArrayArgument(source, callName) {
   assert.fail(`${callName} array argument is not closed`);
 }
 
+async function listBuildFiles(directoryUrl, prefix = "") {
+  const entries = await readdir(directoryUrl, { withFileTypes: true });
+  const files = await Promise.all(entries.map(async (entry) => {
+    const path = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (!entry.isDirectory()) return [path];
+
+    return listBuildFiles(new URL(`${entry.name}/`, directoryUrl), path);
+  }));
+
+  return files.flat();
+}
+
 const distUrl = new URL("../dist/", import.meta.url);
 const manifest = JSON.parse(await readFile(new URL("manifest.webmanifest", distUrl), "utf8"));
 
@@ -155,7 +167,23 @@ const indexHtml = await readFile(new URL("index.html", distUrl), "utf8");
 assert.match(indexHtml, /manifest\.webmanifest/);
 assert.match(indexHtml, /registerSW\.js/);
 
-const buildFiles = await readdir(distUrl);
+const buildFiles = await listBuildFiles(distUrl);
 assert.ok(buildFiles.some((fileName) => /^workbox-[\w-]+\.js$/.test(fileName)), "Workbox runtime is missing");
+
+const eligibleStaticAsset = /\.(?:css|html|ico|jpg|js|png|svg|ttf|webp|woff|woff2)$/u;
+const expectedPrecacheUrls = buildFiles.filter((fileName) =>
+  fileName === "manifest.webmanifest"
+  || (
+    eligibleStaticAsset.test(fileName)
+    && fileName !== "sw.js"
+    && !/^workbox-[\w-]+\.js$/u.test(fileName)
+  )
+);
+for (const fileName of expectedPrecacheUrls) {
+  assert.ok(precacheUrlSet.has(fileName), `Eligible build asset is missing from precache: ${fileName}`);
+}
+for (const url of precacheUrls) {
+  assert.ok(buildFiles.includes(url), `Precache URL has no emitted build file: ${url}`);
+}
 
 console.log(`PWA artifacts verified: ${precacheUrls.length} unique shell/static precache URLs and one navigation fallback`);

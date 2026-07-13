@@ -640,7 +640,7 @@ describe("useMarkdownFileTree", () => {
     expect(screen.queryByText("assets/reference.docx")).not.toBeInTheDocument();
   });
 
-  it("does not switch the tree root when the pre-open hook rejects the selected folder", async () => {
+  it("runs the pre-open hook before invoking a potentially mutating folder picker", async () => {
     mockedOpenNativeMarkdownFolder.mockResolvedValue({
       path: "/vault",
       name: "vault"
@@ -650,7 +650,7 @@ describe("useMarkdownFileTree", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel folder" }));
 
-    await waitFor(() => expect(mockedOpenNativeMarkdownFolder).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockedOpenNativeMarkdownFolder).not.toHaveBeenCalled());
     expect(screen.getByTestId("root-name")).toHaveTextContent("No folder");
     expect(screen.getByTestId("open-state")).toHaveTextContent("closed");
     expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalled();

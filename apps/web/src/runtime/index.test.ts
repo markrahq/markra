@@ -32,7 +32,7 @@ describe("web runtime", () => {
     expect(runtime.features.updater).toBe(false);
     expect(runtime.platform.resolveDesktopPlatform()).toBe("windows");
     await expect(runtime.files.getDefaultMarkdownFolder()).resolves.toEqual({
-      name: "Workspace",
+      name: "Markra",
       path: "web-workspace://default"
     });
     expect(runtime.files.canExportMarkdownFolder("web-workspace://default")).toBe(true);

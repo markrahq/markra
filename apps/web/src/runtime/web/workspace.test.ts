@@ -28,12 +28,43 @@ describe("Browser workspace repository", () => {
 
     await expect(repository.ensureDefaultWorkspace()).resolves.toEqual({
       id: defaultWorkspaceId,
-      name: "Workspace"
+      name: "Markra"
     });
     await expect(repository.ensureDefaultWorkspace()).resolves.toEqual({
       id: defaultWorkspaceId,
-      name: "Workspace"
+      name: "Markra"
     });
+  });
+
+  it("enforces file create and update modes without recreating stale paths", async () => {
+    const repository = createWorkspaceRepository({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    await repository.ensureDefaultWorkspace();
+    await repository.writeFile("default", "note.md", new Blob(["preserved"]), { mode: "create" });
+
+    await expect(
+      repository.writeFile("default", "note.md", new Blob(["replacement"]), { mode: "create" })
+    ).rejects.toBeInstanceOf(WorkspaceNamespaceConflictError);
+    await expect((await repository.read("default", "note.md")).body?.text()).resolves.toBe("preserved");
+
+    await repository.remove("default", "note.md");
+    await expect(
+      repository.writeFile("default", "note.md", new Blob(["stale"]), { mode: "update" })
+    ).rejects.toBeInstanceOf(WorkspaceEntryNotFoundError);
+    await expect(repository.read("default", "note.md")).rejects.toBeInstanceOf(
+      WorkspaceEntryNotFoundError
+    );
+  });
+
+  it("rejects files and directories whose parent directory does not exist", async () => {
+    const repository = createWorkspaceRepository({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    await repository.ensureDefaultWorkspace();
+
+    await expect(
+      repository.writeFile("default", "missing/note.md", new Blob(["orphan"]), { mode: "create" })
+    ).rejects.toBeInstanceOf(WorkspaceEntryNotFoundError);
+    await expect(repository.createDirectory("default", "missing/nested"))
+      .rejects.toBeInstanceOf(WorkspaceEntryNotFoundError);
+    await expect(repository.exportEntries("default")).resolves.toEqual([]);
   });
 
   it("persists nested text and binary files across repository instances", async () => {
@@ -113,11 +144,14 @@ describe("Browser workspace repository", () => {
   it("rejects writing a file above an existing descendant", async () => {
     const repository = createWorkspaceRepository({ indexedDB: new FakeIndexedDbFactory().indexedDB });
     await repository.ensureDefaultWorkspace();
+    await repository.createDirectory("default", "notes");
     await repository.writeFile("default", "notes/existing.md", new Blob(["stable"]));
 
     await expect(repository.writeFile("default", "notes", new Blob(["replacement"]))).rejects.toThrow("notes");
     await expect((await repository.read("default", "notes/existing.md")).body?.text()).resolves.toBe("stable");
-    await expect(repository.read("default", "notes")).rejects.toThrow("not found");
+    await expect(repository.read("default", "notes")).resolves.toEqual(
+      expect.objectContaining({ kind: "directory" })
+    );
   });
 
   it.each(["file", "directory"] as const)(
@@ -125,6 +159,7 @@ describe("Browser workspace repository", () => {
     async (kind) => {
       const repository = createWorkspaceRepository({ indexedDB: new FakeIndexedDbFactory().indexedDB });
       await repository.ensureDefaultWorkspace();
+      await repository.createDirectory("default", "target");
       await repository.writeFile("default", "target/existing.md", new Blob(["stable"]));
       if (kind === "file") {
         await repository.writeFile("default", "source", new Blob(["source"]));
@@ -168,21 +203,92 @@ describe("Browser workspace repository", () => {
       transaction.objectStore(webRuntimeWorkspaceStoreName).getAll()
     );
     await transactionToPromise(transaction);
-    expect(workspaces).toEqual([{ id: "default", lifecycle: "active", name: "Workspace" }]);
+    expect(workspaces).toEqual([{ id: "default", lifecycle: "active", name: "Markra" }]);
+  });
+
+  it("removes staging workspaces left by an interrupted earlier import", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const database = await openWebRuntimeDatabase({ indexedDB });
+    const seed = database.transaction(
+      [webRuntimeWorkspaceStoreName, webRuntimeWorkspaceEntryStoreName],
+      "readwrite"
+    );
+    const timestamp = Date.now();
+    await Promise.all([
+      requestToPromise(seed.objectStore(webRuntimeWorkspaceStoreName).put({
+        id: "staging-interrupted",
+        lifecycle: "staging",
+        name: "interrupted"
+      })),
+      requestToPromise(seed.objectStore(webRuntimeWorkspaceEntryStoreName).put({
+        body: new Blob(["orphaned upload"]),
+        createdAt: timestamp,
+        kind: "file",
+        mediaType: "text/markdown",
+        modifiedAt: timestamp,
+        path: "interrupted/note.md",
+        workspaceId: "staging-interrupted"
+      }))
+    ]);
+    await transactionToPromise(seed);
+
+    const repository = createWorkspaceRepository({ indexedDB });
+    await repository.ensureDefaultWorkspace();
+
+    const inspect = database.transaction(
+      [webRuntimeWorkspaceStoreName, webRuntimeWorkspaceEntryStoreName],
+      "readonly"
+    );
+    const [workspaces, entries] = await Promise.all([
+      requestToPromise<Record<string, unknown>[]>(
+        inspect.objectStore(webRuntimeWorkspaceStoreName).getAll()
+      ),
+      requestToPromise<Record<string, unknown>[]>(
+        inspect.objectStore(webRuntimeWorkspaceEntryStoreName).getAll()
+      )
+    ]);
+    await transactionToPromise(inspect);
+    expect(workspaces).toEqual([{ id: "default", lifecycle: "active", name: "Markra" }]);
+    expect(entries).toEqual([]);
+  });
+
+  it("does not collect a recent staging workspace that another tab may still be importing", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const database = await openWebRuntimeDatabase({ indexedDB });
+    const seed = database.transaction(webRuntimeWorkspaceStoreName, "readwrite");
+    await requestToPromise(seed.objectStore(webRuntimeWorkspaceStoreName).put({
+      createdAt: Date.now(),
+      id: "staging-active-tab",
+      lifecycle: "staging",
+      name: "active-tab"
+    }));
+    await transactionToPromise(seed);
+
+    const repository = createWorkspaceRepository({ indexedDB });
+    await repository.ensureDefaultWorkspace();
+
+    const inspect = database.transaction(webRuntimeWorkspaceStoreName, "readonly");
+    const workspaces = await requestToPromise<Record<string, unknown>[]>(
+      inspect.objectStore(webRuntimeWorkspaceStoreName).getAll()
+    );
+    await transactionToPromise(inspect);
+    expect(workspaces).toContainEqual(expect.objectContaining({ id: "staging-active-tab" }));
   });
 
   it("keeps the active workspace unchanged when a staged import conflicts", async () => {
     const indexedDB = new FakeIndexedDbFactory().indexedDB;
     const repository = createWorkspaceRepository({ indexedDB });
     await repository.ensureDefaultWorkspace();
+    await repository.createDirectory("default", "notes");
     await repository.writeFile("default", "notes/existing.md", new Blob(["existing"]));
 
     await expect(
       repository.importDirectory("default", "notes", [upload("notes/existing.md", "replacement")])
-    ).rejects.toThrow("notes/existing.md");
+    ).rejects.toThrow("notes");
 
     await expect((await repository.read("default", "notes/existing.md")).body?.text()).resolves.toBe("existing");
     await expect(repository.exportEntries("default")).resolves.toEqual([
+      expect.objectContaining({ kind: "directory", path: "notes" }),
       expect.objectContaining({ path: "notes/existing.md" })
     ]);
   });
@@ -191,16 +297,20 @@ describe("Browser workspace repository", () => {
     const indexedDB = new FakeIndexedDbFactory().indexedDB;
     const repository = createWorkspaceRepository({ indexedDB });
     await repository.ensureDefaultWorkspace();
+    await repository.createDirectory("default", "archive");
+    await repository.createDirectory("default", "archive/folder");
     await repository.writeFile("default", "archive/folder/existing.md", new Blob(["existing"]));
 
     await expect(
       repository.importDirectory("default", "archive", [upload("archive/folder", "replacement")])
-    ).rejects.toThrow("archive/folder");
+    ).rejects.toThrow("archive");
 
     await expect((await repository.read("default", "archive/folder/existing.md")).body?.text()).resolves.toBe(
       "existing"
     );
-    await expect(repository.read("default", "archive/folder")).rejects.toThrow("not found");
+    await expect(repository.read("default", "archive/folder")).resolves.toEqual(
+      expect.objectContaining({ kind: "directory" })
+    );
   });
 
   it("rejects duplicate canonical import paths before publishing", async () => {

@@ -902,6 +902,45 @@ export function createWebFileRuntime(
     }
   }
 
+  async function listWorkspaceMarkdownEntries(
+    location: RuntimeFolderPath,
+    managedAttachmentFolder: string | null
+  ) {
+    const storedEntries = await workspaceRepository.list(
+      location.id,
+      location.relativePath || undefined
+    );
+    const entries: NativeMarkdownFolderFile[] = [];
+    for (const entry of storedEntries) {
+      const relativePath = pathRelativeToRoot(entry.path, location.relativePath);
+      if (!relativePath) continue;
+
+      const segments = relativePath.split("/");
+      const directorySegments = entry.kind === "directory" ? segments : segments.slice(0, -1);
+      if (directorySegments.some((segment) => skippedDirectoryNames.has(segment))) continue;
+
+      const name = segments.at(-1) ?? relativePath;
+      const file = entry.kind === "directory"
+        ? {
+            kind: "folder" as const,
+            name,
+            path: createRuntimeFolderPath(location, entry.path),
+            relativePath
+          }
+        : {
+            ...folderFileKindFromName(name),
+            name,
+            path: createRuntimeFolderPath(location, entry.path),
+            relativePath
+          };
+      if (entry.kind === "directory" || shouldIncludeFolderFile(file, managedAttachmentFolder)) {
+        entries.push(file);
+      }
+    }
+
+    return entries;
+  }
+
   async function templateStore() {
     return settings.loadStore(markdownTemplateStorePath, { autoSave: false, defaults: {} });
   }
@@ -1023,6 +1062,7 @@ export function createWebFileRuntime(
       }
       const parent = parentPath.directory;
       if (!parent.getFileHandle) throw new Error("Browser directory handle cannot create files.");
+      await assertTargetEntryAvailable(parent, fileName);
       const handle = await parent.getFileHandle(fileName, { create: true });
       await writeFileHandle(handle, options.contents ?? "");
       const path = joinRelativePath(parentPath.relativePath, fileName);
@@ -1045,6 +1085,7 @@ export function createWebFileRuntime(
       }
       const parent = resolvedParent.directory;
       if (!parent.getDirectoryHandle) throw new Error("Browser directory handle cannot create folders.");
+      await assertTargetEntryAvailable(parent, folderName);
       await parent.getDirectoryHandle(folderName, { create: true });
       const path = joinRelativePath(resolvedParent.relativePath, folderName);
       const relativePath = pathRelativeToRoot(path, root.relativePath);
@@ -1087,16 +1128,20 @@ export function createWebFileRuntime(
         workspacePath.workspaceId,
         workspacePath.path || undefined
       );
-      const archiveEntries = await Promise.all(entries
-        .filter((entry) => entry.kind === "file")
-        .map(async (entry) => {
-          const relativePath = pathRelativeToRoot(entry.path, workspacePath.path);
+      const archiveEntries: Array<readonly [string, Uint8Array]> = [];
+      for (const entry of entries) {
+        const relativePath = pathRelativeToRoot(entry.path, workspacePath.path);
+        if (!relativePath) continue;
+        if (entry.kind === "directory") {
+          archiveEntries.push([`${relativePath}/`, new Uint8Array()]);
+          continue;
+        }
 
-          return [
-            relativePath,
-            new Uint8Array(await (entry.body ?? new Blob([])).arrayBuffer())
-          ] as const;
-        }));
+        archiveEntries.push([
+          relativePath,
+          new Uint8Array(await (entry.body ?? new Blob([])).arrayBuffer())
+        ]);
+      }
       const name = `${baseNameFromPath(workspacePath.path) || "Markra"}.zip`;
       const contents = new Blob([zipSync(Object.fromEntries(archiveEntries))], {
         type: "application/zip"
@@ -1164,9 +1209,18 @@ export function createWebFileRuntime(
     async listMarkdownFilesForPath(path, options: ListNativeMarkdownFilesOptions = {}) {
       const parsedPath = parseRuntimeFolderPath(path);
       if (!parsedPath) return [];
+      const managedAttachmentFolder = normalizeManagedAttachmentFolder(options.managedAttachmentFolder);
+      if (parsedPath.workspace) {
+        // A flat repository scan prevents recursive handles from re-reading the same subtree at every depth.
+        const entries = await listWorkspaceMarkdownEntries(parsedPath, managedAttachmentFolder);
+
+        return entries.sort((left, right) =>
+          left.relativePath.toLowerCase().localeCompare(right.relativePath.toLowerCase())
+        );
+      }
+
       const resolved = await directoryForPath(path);
       const entries: NativeMarkdownFolderFile[] = [];
-      const managedAttachmentFolder = normalizeManagedAttachmentFolder(options.managedAttachmentFolder);
 
       await collectMarkdownEntries(
         resolved.directory,
@@ -1193,12 +1247,15 @@ export function createWebFileRuntime(
       }
 
       await assertTargetEntryAvailable(target.directory, source.name);
-      if (source.kind === "folder") {
+      if (source.location.workspace) {
+        if (!source.handle.move) throw new Error("Workspace entry cannot be moved atomically.");
+        await source.handle.move(target.directory);
+      } else if (source.kind === "folder") {
         await copyDirectoryHandle(source.handle, target.directory, source.name);
       } else {
         await copyFileHandle(source.handle, target.directory, source.name);
       }
-      await removeTreeEntry(source.parent, source.name);
+      if (!source.location.workspace) await removeTreeEntry(source.parent, source.name);
 
       const relativePath = joinRelativePath(target.relativePath, source.name);
 
@@ -1347,12 +1404,15 @@ export function createWebFileRuntime(
       }
 
       await assertTargetEntryAvailable(source.parent, normalizedFileName);
-      if (source.kind === "folder") {
+      if (source.location.workspace) {
+        if (!source.handle.move) throw new Error("Workspace entry cannot be renamed atomically.");
+        await source.handle.move(normalizedFileName);
+      } else if (source.kind === "folder") {
         await copyDirectoryHandle(source.handle, source.parent, normalizedFileName);
       } else {
         await copyFileHandle(source.handle, source.parent, normalizedFileName);
       }
-      await removeTreeEntry(source.parent, source.name);
+      if (!source.location.workspace) await removeTreeEntry(source.parent, source.name);
 
       const relativePath = joinRelativePath(source.parentRelativePath, normalizedFileName);
 
@@ -1505,20 +1565,21 @@ export function createWebFileRuntime(
 
       const defaultWorkspace = parseWorkspaceUrl(input.defaultDirectory ?? "");
       if (defaultWorkspace) {
-        await workspaceRepository.ensureDefaultWorkspace();
+        const workspace = await workspaceRepository.ensureDefaultWorkspace();
         const directory = createWorkspaceDirectoryHandle(
           workspaceRepository,
           defaultWorkspace.workspaceId,
           defaultWorkspace.path,
-          baseNameFromPath(defaultWorkspace.path) || "Workspace"
+          baseNameFromPath(defaultWorkspace.path) || workspace.name
         );
-        const handle = await directory.getFileHandle?.(input.suggestedName, { create: true });
+        const fileName = await uniqueFileName(directory, input.suggestedName);
+        const handle = await directory.getFileHandle?.(fileName, { create: true });
         if (!handle) throw new Error("Workspace directory cannot create files.");
         await writeFileHandle(handle, input.contents);
-        const path = joinRelativePath(defaultWorkspace.path, input.suggestedName);
+        const path = joinRelativePath(defaultWorkspace.path, fileName);
 
         return {
-          name: input.suggestedName,
+          name: fileName,
           path: createWorkspaceUrl(defaultWorkspace.workspaceId, path)
         };
       }
