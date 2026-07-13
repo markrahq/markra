@@ -450,6 +450,47 @@ describe("web file runtime", () => {
       .resolves.toMatchObject({ content: "# Updated" });
   });
 
+  it("resolves parent-relative images from persistent uploaded workspaces", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("vault/assets/pixel.png", "png", "image/png"),
+        createDirectoryUploadFile("vault/notes/guide.md", "# Guide")
+      ]
+    });
+    await runtime.files.openMarkdownFolder();
+
+    await expect(runtime.files.resolveMarkdownImageSrc?.({
+      documentPath: "web-workspace://default/vault/notes/guide.md",
+      src: "../assets/pixel.png"
+    })).resolves.toBe("data:image/png;base64,cG5n");
+  });
+
+  it("resolves parent-relative images from retained browser directory handles", async () => {
+    const external = new FakeDirectoryHandle("external", {
+      assets: new FakeDirectoryHandle("assets", {
+        "pixel.png": new FakeFileHandle("pixel.png", "png", "image/png")
+      }),
+      notes: new FakeDirectoryHandle("notes", {
+        "guide.md": new FakeFileHandle("guide.md", "# Guide")
+      })
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => external
+    });
+    const folder = await runtime.files.openMarkdownFolder();
+
+    await expect(runtime.files.resolveMarkdownImageSrc?.({
+      documentPath: `${folder!.path}/notes/guide.md`,
+      src: "../assets/pixel.png"
+    })).resolves.toBe("data:image/png;base64,cG5n");
+    await expect(runtime.files.resolveMarkdownImageSrc?.({
+      documentPath: `${folder!.path}/notes/guide.md`,
+      src: "../../outside.png"
+    })).rejects.toThrow("outside the web folder root");
+  });
+
   it("keeps direct directory access when showDirectoryPicker is available", async () => {
     const external = new FakeDirectoryHandle("external", {});
     const runtime = createWebRuntime({
@@ -724,6 +765,18 @@ describe("web file runtime", () => {
       mimeType: "image/png",
       path: "web-workspace://default/notes/assets/%E7%B2%98%E8%B4%B4%20%E5%9B%BE.png"
     });
+    await expect(runtime.files.resolveMarkdownImageSrc?.({
+      documentPath,
+      src: savedImage.src
+    })).resolves.toBe("data:image/png;base64,AQID");
+    const localImage = await runtime.files.readLocalImageFile(
+      "web-workspace://default/notes/assets/%E7%B2%98%E8%B4%B4%20%E5%9B%BE.png"
+    );
+    expect(localImage).toMatchObject({
+      name: "粘贴 图.png",
+      type: "image/png"
+    });
+    await expect(localImage.arrayBuffer()).resolves.toEqual(new Uint8Array([1, 2, 3]).buffer);
     await expect(runtime.files.listMarkdownFilesForPath("web-workspace://default/notes"))
       .resolves.toEqual(expect.arrayContaining([
         expect.objectContaining({ kind: "asset", relativePath: "assets/粘贴 图.png" }),

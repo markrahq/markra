@@ -3884,6 +3884,39 @@ describe("Markra workspace", () => {
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(guidePath);
   });
 
+  it("renders local image assets from a web workspace runtime", async () => {
+    const documentPath = "web-workspace://default/notes/guide.md";
+    const dataUrl = "data:image/png;base64,AQID";
+    const runtime = createDefaultAppRuntime();
+    const resolveMarkdownImageSrc = vi.fn(async () => dataUrl);
+    configureAppRuntime({
+      ...runtime,
+      files: {
+        ...runtime.files,
+        resolveMarkdownImageSrc
+      }
+    });
+    mockOpenMarkdownFile({
+      content: "![Screenshot](assets/pasted-image.png)",
+      name: "guide.md",
+      path: documentPath
+    });
+
+    const { container } = renderApp();
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+
+    const image = await waitFor(() => {
+      const target = container.querySelector<HTMLImageElement>(".ProseMirror .markra-image-node img");
+      expect(target).toBeInTheDocument();
+      return target!;
+    });
+    await waitFor(() => expect(image).toHaveAttribute("src", dataUrl));
+    expect(resolveMarkdownImageSrc).toHaveBeenCalledWith({
+      documentPath,
+      src: "assets/pasted-image.png"
+    });
+  });
+
   it("closes the current markdown file from Cmd+W without closing the window", async () => {
     mockOpenMarkdownFile({
       content: "# Native file\n\nOpened from disk.",

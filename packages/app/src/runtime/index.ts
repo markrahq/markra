@@ -198,6 +198,7 @@ export type AppFileRuntime = {
   readMarkdownFile: (path: string) => Promise<NativeMarkdownFile>;
   readMarkdownFileHistory: (path: string, id: string) => Promise<NativeMarkdownFileHistoryFile>;
   readMarkdownImageFile: (input: ReadNativeMarkdownImageInput) => Promise<NativeMarkdownImageFile>;
+  resolveMarkdownImageSrc?: (input: ReadNativeMarkdownImageInput) => string | Promise<string> | null;
   readMarkdownTemplateFile: (fileName: string) => Promise<string>;
   renameMarkdownTreeFile: (
     rootPath: string,

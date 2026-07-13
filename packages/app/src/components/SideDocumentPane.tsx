@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { t, type AppLanguage } from "@markra/shared";
-import type { MarkdownShortcutMap, Spellchecker } from "@markra/editor";
+import type { MarkdownShortcutMap, ResolveMarkdownImageSrc, Spellchecker } from "@markra/editor";
 import type { EditorContentWidth } from "../lib/editor-width";
 import type { EditorFontFamilyPreference } from "../lib/editor-font";
 import type { EditorTheme, ExtendedSyntaxPreferences, TableColumnWidthModePreference } from "../lib/settings/app-settings";
@@ -29,7 +29,7 @@ type SideDocumentPaneProps = {
   openLocalAttachment?: (src: string) => unknown;
   openExternalUrl?: (url: string) => unknown;
   readOnly?: boolean;
-  resolveImageSrc?: (src: string) => string;
+  resolveImageSrc?: ResolveMarkdownImageSrc;
   revision: number;
   sizeBytes?: number;
   spellcheckEnabled?: boolean;

@@ -9,6 +9,7 @@ import type {
   NativeMarkdownOpenTarget,
   NativeSettingsFile,
   ListNativeMarkdownFilesOptions,
+  ReadNativeMarkdownImageInput,
   SavedNativeClipboardAttachment,
   SavedNativeClipboardImage,
   SavedNativeHtmlFile,
@@ -163,6 +164,25 @@ function joinRelativePath(parent: string, name: string) {
 
 function normalizeWebRelativePath(path: string) {
   return path.replace(/\/+/gu, "/").replace(/^\/|\/$/gu, "");
+}
+
+function resolveWebRelativePath(parentPath: string, localSrc: string) {
+  // Markdown may climb parent folders, but browser handles cannot escape their selected root.
+  const segments = localSrc.startsWith("/")
+    ? []
+    : parentPath.split("/").filter(Boolean);
+
+  for (const segment of localSrc.replace(/\\/gu, "/").split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      if (!segments.length) throw new Error("Image path is outside the web folder root.");
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+
+  return normalizeWebRelativePath(segments.join("/"));
 }
 
 function baseNameFromPath(path: string) {
@@ -1079,6 +1099,24 @@ export function createWebFileRuntime(
     return droppedTargetFromUploadFiles(dropFiles(dataTransfer));
   }
 
+  async function readMarkdownImageFile(input: ReadNativeMarkdownImageInput) {
+    const documentPath = parseRuntimeFolderPath(input.documentPath);
+    if (!documentPath) throw new Error("Current document is not a web folder file.");
+    const documentSegments = documentPath.relativePath.split("/").filter(Boolean);
+    documentSegments.pop();
+    const localSrc = decodeMarkdownRelativePath(input.src);
+    const imagePath = resolveWebRelativePath(documentSegments.join("/"), localSrc);
+    const handle = await resolveFileFromFolderPath(createRuntimeFolderPath(documentPath, imagePath));
+    const file = await handle.getFile();
+
+    return {
+      dataUrl: await fileToDataUrl(file),
+      mimeType: file.type || "application/octet-stream",
+      path: createRuntimeFolderPath(documentPath, imagePath),
+      src: input.src
+    } satisfies NativeMarkdownImageFile;
+  }
+
   return {
     backupMarkdownFolder: async () => {
       throw new Error("Local folder backups require the desktop runtime.");
@@ -1402,8 +1440,11 @@ export function createWebFileRuntime(
         path: await registerFileHandle(handle)
       };
     },
-    async readLocalImageFile() {
-      throw new Error("Local image file reading requires the desktop runtime.");
+    async readLocalImageFile(path) {
+      const { file } = await readFileFromPath(path);
+      if (!isAssetFileName(file.name)) throw new Error("Selected file is not a supported image file.");
+
+      return file;
     },
     async readMarkdownFile(path) {
       const { file } = await readFileFromPath(path);
@@ -1417,23 +1458,8 @@ export function createWebFileRuntime(
       };
     },
     readMarkdownFileHistory: () => Promise.reject(new Error("Markdown history is unavailable in the web runtime.")),
-    async readMarkdownImageFile(input) {
-      const documentPath = parseRuntimeFolderPath(input.documentPath);
-      if (!documentPath) throw new Error("Current document is not a web folder file.");
-      const documentSegments = documentPath.relativePath.split("/").filter(Boolean);
-      documentSegments.pop();
-      const localSrc = decodeMarkdownRelativePath(input.src);
-      const imagePath = normalizeWebRelativePath(joinRelativePath(documentSegments.join("/"), localSrc));
-      const handle = await resolveFileFromFolderPath(createRuntimeFolderPath(documentPath, imagePath));
-      const file = await handle.getFile();
-
-      return {
-        dataUrl: await fileToDataUrl(file),
-        mimeType: file.type || "application/octet-stream",
-        path: createRuntimeFolderPath(documentPath, imagePath),
-        src: input.src
-      } satisfies NativeMarkdownImageFile;
-    },
+    readMarkdownImageFile,
+    resolveMarkdownImageSrc: async (input) => (await readMarkdownImageFile(input)).dataUrl,
     async readMarkdownTemplateFile(fileName) {
       const store = await templateStore();
 

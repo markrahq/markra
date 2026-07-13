@@ -30,11 +30,39 @@ describe("local markdown image paths", () => {
   });
 
   it("leaves remote and data image URLs unchanged", () => {
+    const resolveLocalSrc = vi.fn(async () => "data:image/png;base64,AQID");
     const resolveImageSrc = createMarkdownImageSrcResolver("/Users/me/notes/today.md", {
-      convertFileSrc: (path) => `asset://${path}`
+      convertFileSrc: (path) => `asset://${path}`,
+      resolveLocalSrc
     });
 
     expect(resolveImageSrc("https://example.com/logo.png")).toBe("https://example.com/logo.png");
     expect(resolveImageSrc("data:image/png;base64,abc")).toBe("data:image/png;base64,abc");
+    expect(resolveLocalSrc).not.toHaveBeenCalled();
+  });
+
+  it("leaves scheme-relative remote image URLs unchanged", () => {
+    const resolveLocalSrc = vi.fn(async () => "data:image/png;base64,AQID");
+    const resolveImageSrc = createMarkdownImageSrcResolver("web-workspace://default/notes/today.md", {
+      resolveLocalSrc
+    });
+
+    expect(resolveImageSrc("//cdn.example.test/images/diagram.png"))
+      .toBe("//cdn.example.test/images/diagram.png");
+    expect(resolveLocalSrc).not.toHaveBeenCalled();
+  });
+
+  it("delegates local browser image paths to an async runtime resolver", async () => {
+    const dataUrl = "data:image/png;base64,AQID";
+    const resolveLocalSrc = vi.fn(async () => dataUrl);
+    const resolveImageSrc = createMarkdownImageSrcResolver("web-workspace://default/notes/today.md", {
+      resolveLocalSrc
+    });
+
+    await expect(resolveImageSrc("assets/pasted-image.png")).resolves.toBe(dataUrl);
+    expect(resolveLocalSrc).toHaveBeenCalledWith({
+      documentPath: "web-workspace://default/notes/today.md",
+      src: "assets/pasted-image.png"
+    });
   });
 });

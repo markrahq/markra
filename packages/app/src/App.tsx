@@ -240,6 +240,12 @@ const sideDocumentMainPanePercentMax = 70;
 const defaultSideDocumentMainPanePercent = 50;
 const quietStatusOverlayInset = 56;
 
+function createAppMarkdownImageSrcResolver(documentPath: string | null | undefined) {
+  return createMarkdownImageSrcResolver(documentPath, {
+    resolveLocalSrc: (input) => getAppRuntime().files.resolveMarkdownImageSrc?.(input) ?? null
+  });
+}
+
 function persistSideDocumentGroup(group: StoredWorkspaceSideBySideGroup | null) {
   saveStoredWorkspaceState({ sideBySideGroup: group }).catch(() => {});
 }
@@ -2793,7 +2799,7 @@ function WorkspaceApp() {
   const handleSaveDocument = useCallback(() => saveDocument(false), [saveDocument]);
   const saveDocumentAs = useCallback(() => saveDocument(true), [saveDocument]);
   const resolveSideDocumentImageSrc = useMemo(
-    () => createMarkdownImageSrcResolver(sideDocumentTab?.path ?? null),
+    () => createAppMarkdownImageSrcResolver(sideDocumentTab?.path ?? null),
     [sideDocumentTab?.path]
   );
   const sideDocumentWordCount = useMemo(
@@ -4139,7 +4145,7 @@ function WorkspaceApp() {
               openExternalUrl={handleOpenEditorLink}
               readOnly={readOnlyMode}
               onTextSelectionChange={tabActive ? handleTextSelectionChange : undefined}
-              resolveImageSrc={createMarkdownImageSrcResolver(tab.path)}
+              resolveImageSrc={createAppMarkdownImageSrcResolver(tab.path)}
               revision={tab.revision}
               onScroll={tabActive ? handleVisualPaneScroll : undefined}
               scrollRef={tabActive ? visualScrollRef : undefined}

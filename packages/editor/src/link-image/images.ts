@@ -2,8 +2,35 @@ import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import { NodeSelection, Selection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView, ViewMutationRecord } from "@milkdown/kit/prose/view";
 import type { RawImageRange, ResolveMarkdownImageSrc } from "./types.ts";
+import { resolvedImageSourcesRefreshEvent } from "./resolve.ts";
 
 const clearFinalizedImageSourceEditingEvent = "markra-clear-finalized-image-source-editing";
+const imageSourceVersions = new WeakMap<HTMLImageElement, number>();
+
+function applyResolvedImageSrc(
+  image: HTMLImageElement,
+  src: string,
+  resolveImageSrc: ResolveMarkdownImageSrc | undefined
+) {
+  const version = (imageSourceVersions.get(image) ?? 0) + 1;
+  imageSourceVersions.set(image, version);
+  const resolvedSrc = resolveImageSrc?.(src) ?? src;
+
+  if (typeof resolvedSrc === "string") {
+    image.src = resolvedSrc;
+    return;
+  }
+
+  image.removeAttribute("src");
+  resolvedSrc
+    .then((nextSrc) => {
+      // A slower read for an old Markdown source must not replace a newer image.
+      if (imageSourceVersions.get(image) === version) image.src = nextSrc;
+    })
+    .catch(() => {
+      if (imageSourceVersions.get(image) === version) image.src = src;
+    });
+}
 
 export function clearFinalizedImageSourceEditing(view: EditorView) {
   view.dom.dispatchEvent(new Event(clearFinalizedImageSourceEditingEvent));
@@ -12,7 +39,7 @@ export function clearFinalizedImageSourceEditing(view: EditorView) {
 export function createImagePreview(range: RawImageRange, resolveImageSrc: ResolveMarkdownImageSrc | undefined) {
   const image = document.createElement("img");
   image.className = "markra-live-image-preview";
-  image.src = resolveImageSrc?.(range.src) ?? range.src;
+  applyResolvedImageSrc(image, range.src, resolveImageSrc);
   image.alt = range.alt;
   image.draggable = false;
 
@@ -27,7 +54,7 @@ function updateImageNodeDom(dom: HTMLImageElement, node: ProseNode, resolveImage
   const src = String(node.attrs.src ?? "");
   const title = String(node.attrs.title ?? "");
 
-  dom.src = resolveImageSrc?.(src) ?? src;
+  applyResolvedImageSrc(dom, src, resolveImageSrc);
   dom.alt = String(node.attrs.alt ?? "");
   dom.draggable = false;
 
@@ -348,6 +375,9 @@ export function createFinalizedImageNodeView(
     view.focus();
   };
   const hideSourceOnClear = () => hideSource({ force: true });
+  const refreshResolvedSource = () => {
+    updateImageNodeDom(image, currentNode, resolveImageSrc);
+  };
   const hideSourceOnBlur = () => {
     window.setTimeout(() => {
       if (document.activeElement === source) return;
@@ -362,6 +392,7 @@ export function createFinalizedImageNodeView(
   image.addEventListener("mousedown", selectImage);
   image.addEventListener("click", selectImage);
   view.dom.addEventListener(clearFinalizedImageSourceEditingEvent, hideSourceOnClear);
+  view.dom.addEventListener(resolvedImageSourcesRefreshEvent, refreshResolvedSource);
   view.dom.addEventListener("keydown", deleteSelectedImageOnKeyDown, true);
   sourceRow.addEventListener("mousedown", selectSourceInput);
   sourceRow.addEventListener("click", selectSourceInput);
@@ -404,7 +435,11 @@ export function createFinalizedImageNodeView(
       return event.target === source;
     },
     ignoreMutation(mutation: ViewMutationRecord) {
-      return mutation.target === source;
+      return mutation.target === source || (
+        mutation.type === "attributes"
+        && mutation.target === image
+        && mutation.attributeName === "src"
+      );
     },
     destroy() {
       hideSource({ force: true });
@@ -413,6 +448,7 @@ export function createFinalizedImageNodeView(
       image.removeEventListener("mousedown", selectImage);
       image.removeEventListener("click", selectImage);
       view.dom.removeEventListener(clearFinalizedImageSourceEditingEvent, hideSourceOnClear);
+      view.dom.removeEventListener(resolvedImageSourcesRefreshEvent, refreshResolvedSource);
       view.dom.removeEventListener("keydown", deleteSelectedImageOnKeyDown, true);
       sourceRow.removeEventListener("mousedown", selectSourceInput);
       sourceRow.removeEventListener("click", selectSourceInput);

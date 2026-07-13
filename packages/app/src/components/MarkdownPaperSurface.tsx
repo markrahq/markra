@@ -55,10 +55,12 @@ import {
   getActiveSpellcheckMatch,
   normalizeMarkdownShortcuts,
   replaceSpellcheckMatch,
+  refreshResolvedImageSources,
   restoreEscapedLiveMarkdownSource,
   serializeLinkImageLiveMarkdown,
   updateSpellcheckOptions,
   type MarkdownShortcutMap,
+  type ResolveMarkdownImageSrc,
   type SaveClipboardAttachment,
   type SaveClipboardImage,
   type SaveRemoteClipboardImage,
@@ -97,7 +99,7 @@ export type MarkdownPaperSurfaceProps = {
   openExternalUrl?: (url: string) => unknown;
   readOnly?: boolean;
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
-  resolveImageSrc?: (src: string) => string;
+  resolveImageSrc?: ResolveMarkdownImageSrc;
   spellcheckEnabled?: boolean;
   spellcheckIgnoredWords?: readonly string[];
   spellchecker?: Spellchecker;
@@ -154,6 +156,34 @@ function MilkdownReadOnlyBridge({ readOnly = false }: Pick<MarkdownPaperSurfaceP
       view.dom.setAttribute("aria-readonly", readOnly ? "true" : "false");
     });
   }, [getEditor, loading, readOnly]);
+
+  return null;
+}
+
+function MilkdownImageResolverBridge({
+  documentPath
+}: Pick<MarkdownPaperSurfaceProps, "documentPath">) {
+  const [loading, getEditor] = useInstance();
+  const activeEditorRef = useRef<Editor | null>(null);
+  const activeDocumentPathRef = useRef(documentPath);
+
+  useEffect(() => {
+    if (loading) return;
+
+    const editor = getEditor();
+    if (!editor) return;
+    if (activeEditorRef.current !== editor) {
+      activeEditorRef.current = editor;
+      activeDocumentPathRef.current = documentPath;
+      return;
+    }
+    if (activeDocumentPathRef.current === documentPath) return;
+
+    activeDocumentPathRef.current = documentPath;
+    editor.action((ctx) => {
+      refreshResolvedImageSources(ctx.get(editorViewCtx));
+    });
+  }, [documentPath, getEditor, loading]);
 
   return null;
 }
@@ -357,9 +387,7 @@ function MilkdownEditorSurface({
     readOnlyRef.current = readOnly;
   }, [readOnly]);
 
-  useEffect(() => {
-    resolveImageSrcRef.current = resolveImageSrc;
-  }, [resolveImageSrc]);
+  resolveImageSrcRef.current = resolveImageSrc;
 
   spellcheckEnabledRef.current = spellcheckEnabled;
 
@@ -619,6 +647,7 @@ function MilkdownEditorSurface({
   return (
     <>
       <Milkdown />
+      <MilkdownImageResolverBridge documentPath={documentPath} />
       <MilkdownReadOnlyBridge readOnly={readOnly} />
       <MilkdownSpellcheckBridge spellcheckEnabled={spellcheckEnabled} spellcheckIgnoredWords={spellcheckIgnoredWords} />
       <MilkdownInstanceBridge autoFocus={autoFocus} onEditorReady={onEditorReady} />

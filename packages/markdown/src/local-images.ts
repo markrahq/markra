@@ -3,10 +3,12 @@ import { hasTauriRuntime } from "@markra/shared";
 
 type MarkdownImageSrcResolverOptions = {
   convertFileSrc?: (path: string) => string;
+  resolveLocalSrc?: (input: { documentPath: string; src: string }) => string | Promise<string> | null;
 };
 
 function isRemoteOrEmbeddedImageSrc(src: string) {
-  return /^[a-zA-Z][a-zA-Z\d+.-]*:/u.test(src) && !/^[a-zA-Z]:[\\/]/u.test(src);
+  return src.startsWith("//")
+    || (/^[a-zA-Z][a-zA-Z\d+.-]*:/u.test(src) && !/^[a-zA-Z]:[\\/]/u.test(src));
 }
 
 function documentDirectory(path: string) {
@@ -114,12 +116,22 @@ function resolveLocalPath(src: string, documentPath: string) {
 
 export function createMarkdownImageSrcResolver(
   documentPath: string | null | undefined,
+  options: MarkdownImageSrcResolverOptions & Required<Pick<MarkdownImageSrcResolverOptions, "resolveLocalSrc">>
+): (src: string) => string | Promise<string>;
+export function createMarkdownImageSrcResolver(
+  documentPath: string | null | undefined,
+  options?: Omit<MarkdownImageSrcResolverOptions, "resolveLocalSrc">
+): (src: string) => string;
+export function createMarkdownImageSrcResolver(
+  documentPath: string | null | undefined,
   options: MarkdownImageSrcResolverOptions = {}
 ) {
   const toFileSrc = options.convertFileSrc ?? convertFileSrc;
 
   return (src: string) => {
     if (!documentPath || isRemoteOrEmbeddedImageSrc(src)) return src;
+    const runtimeSrc = options.resolveLocalSrc?.({ documentPath, src });
+    if (runtimeSrc !== null && runtimeSrc !== undefined) return runtimeSrc;
     if (!options.convertFileSrc && !hasTauriRuntime()) return src;
 
     return toFileSrc(resolveLocalPath(src, documentPath));
