@@ -6,7 +6,7 @@ export default createMarkraAppViteConfig({
   packageJsonUrl: new URL("./package.json", import.meta.url),
   plugins: [
     VitePWA({
-      includeAssets: ["icon-192.png", "icon-512.png"],
+      includeManifestIcons: false,
       injectRegister: "auto",
       manifest: {
         name: "Markra",
@@ -19,8 +19,7 @@ export default createMarkraAppViteConfig({
         theme_color: "#ffffff",
         icons: [
           { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" }
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png" }
         ]
       },
       registerType: "prompt",
@@ -28,6 +27,7 @@ export default createMarkraAppViteConfig({
         cleanupOutdatedCaches: true,
         clientsClaim: false,
         globPatterns: ["**/*.{css,html,ico,jpg,js,png,svg,webp,woff,woff2}"],
+        // The lazy Mermaid/diagram chunk is ~2.84 MiB; keep diagrams offline with a hard 3 MiB guard.
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallback: "index.html",
         skipWaiting: false
