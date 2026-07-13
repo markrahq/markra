@@ -84,7 +84,7 @@ The desktop app can access native file paths, watch files, open folders, run loc
 
 The web editor can be installed as a PWA. After its first successful online load, its application shell can open offline and read browser-local workspace files and attachments from IndexedDB.
 
-When a browser cannot provide writable directory handles, opening a folder imports it as a persistent writable copy in the browser-local workspace. Browser-local workspaces can be exported as ZIP archives.
+When direct directory picking is unavailable, opening a folder imports it as a persistent writable copy in the browser-local workspace. Browser-local workspaces can be exported as ZIP archives.
 
 The Service Worker caches the application shell and generated same-origin assets, not user documents or network-backed operations. AI providers, WebDAV, web search, remote images, credentialed requests, and other remote features still require a connection and are not Service Worker cached.
 

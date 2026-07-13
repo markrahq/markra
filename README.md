@@ -89,7 +89,7 @@ Download the latest desktop builds from [GitHub Releases](https://github.com/mar
 | Installation and offline use | Installed desktop app; local editing works offline | Installable PWA; after the first successful online load, the app shell and browser-local workspace can open offline |
 | Open local files and folders | Native dialogs, file paths, and watchers | Browser file picker, folder picker, and file handles |
 | Browser-local workspace | Not applicable; files stay on disk | Markdown files and attachments are stored in IndexedDB |
-| Folder fallback | Opens folders in place | Without writable directory handles, opening a folder imports a persistent writable copy into the browser-local workspace |
+| Folder fallback | Opens folders in place | When direct directory picking is unavailable, opening a folder imports a persistent writable copy into the browser-local workspace |
 | File tree operations | Create, rename, move, delete, sort, reveal, and multi-select | Create, rename, move, and delete where browser permissions allow |
 | Auto-save and restore | Existing files, tabs, drafts, workspace windows | Browser file handles and IndexedDB state where available |
 | AI providers | Native runtime requests with app proxy settings | Browser requests subject to provider CORS support |
