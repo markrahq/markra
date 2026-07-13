@@ -128,7 +128,7 @@ class FakeIdbOpenRequest extends FakeIdbRequest<FakeIdbDatabase> {
 
 class FakeIdbObjectStore {
   constructor(
-    private readonly keyPath: string,
+    private readonly keyPath: string | string[],
     private readonly records: Map<string, StoredIndexedDbRecord>
   ) {}
 
@@ -136,7 +136,7 @@ class FakeIdbObjectStore {
     const request = new FakeIdbRequest<undefined>();
 
     queueMicrotask(() => {
-      this.records.delete(String(key));
+      this.records.delete(serializeKey(key));
       request.succeed(undefined);
     });
 
@@ -147,18 +147,30 @@ class FakeIdbObjectStore {
     const request = new FakeIdbRequest<StoredIndexedDbRecord | undefined>();
 
     queueMicrotask(() => {
-      request.succeed(cloneValue(this.records.get(String(key))));
+      request.succeed(cloneValue(this.records.get(serializeKey(key))));
     });
 
     return request as unknown as IDBRequest<StoredIndexedDbRecord | undefined>;
+  }
+
+  getAll() {
+    const request = new FakeIdbRequest<StoredIndexedDbRecord[]>();
+
+    queueMicrotask(() => {
+      request.succeed(Array.from(this.records.values(), cloneValue));
+    });
+
+    return request as unknown as IDBRequest<StoredIndexedDbRecord[]>;
   }
 
   put(record: StoredIndexedDbRecord) {
     const request = new FakeIdbRequest<IDBValidKey>();
 
     queueMicrotask(() => {
-      const key = String(record[this.keyPath]);
-      this.records.set(key, cloneValue(record));
+      const key = typeof this.keyPath === "string"
+        ? record[this.keyPath] as IDBValidKey
+        : this.keyPath.map((part) => record[part]) as IDBValidKey;
+      this.records.set(serializeKey(key), cloneValue(record));
       request.succeed(key);
     });
 
@@ -166,11 +178,58 @@ class FakeIdbObjectStore {
   }
 }
 
+function serializeKey(key: IDBValidKey) {
+  return Array.isArray(key) ? JSON.stringify(key) : String(key);
+}
+
+type FakeIdbStore = {
+  keyPath: string | string[];
+  records: Map<string, StoredIndexedDbRecord>;
+};
+
+export class FakeIdbTransaction {
+  error: DOMException | null = null;
+  onabort: RequestHandler = null;
+  oncomplete: RequestHandler = null;
+  onerror: RequestHandler = null;
+  private state: "pending" | "complete" | "failed" | "aborted" = "pending";
+
+  constructor(private readonly stores = new Map<string, FakeIdbStore>()) {}
+
+  abort(error = new DOMException("Transaction aborted", "AbortError")) {
+    if (this.state !== "pending") return;
+    this.error = error;
+    this.state = "aborted";
+    queueMicrotask(() => this.onabort?.(new Event("abort")));
+  }
+
+  complete() {
+    if (this.state !== "pending") return;
+    queueMicrotask(() => {
+      if (this.state !== "pending") return;
+      this.state = "complete";
+      this.oncomplete?.(new Event("complete"));
+    });
+  }
+
+  fail(error: DOMException) {
+    if (this.state !== "pending") return;
+    this.error = error;
+    this.state = "failed";
+    queueMicrotask(() => this.onerror?.(new Event("error")));
+  }
+
+  objectStore(name: string) {
+    const store = this.stores.get(name);
+    if (!store) throw new DOMException(`Object store ${name} was not found.`, "NotFoundError");
+
+    return new FakeIdbObjectStore(store.keyPath, store.records);
+  }
+}
+
 class FakeIdbDatabase {
-  private readonly stores = new Map<string, {
-    keyPath: string;
-    records: Map<string, StoredIndexedDbRecord>;
-  }>();
+  private readonly stores = new Map<string, FakeIdbStore>();
+  version = 0;
 
   objectStoreNames = {
     contains: (name: string) => this.stores.has(name)
@@ -179,7 +238,9 @@ class FakeIdbDatabase {
   createObjectStore(name: string, options: IDBObjectStoreParameters = {}) {
     if (!this.stores.has(name)) {
       this.stores.set(name, {
-        keyPath: typeof options.keyPath === "string" ? options.keyPath : "id",
+        keyPath: typeof options.keyPath === "string" || Array.isArray(options.keyPath)
+          ? options.keyPath
+          : "id",
         records: new Map()
       });
     }
@@ -189,19 +250,24 @@ class FakeIdbDatabase {
     return new FakeIdbObjectStore(store.keyPath, store.records);
   }
 
-  transaction(name: string) {
-    if (!this.stores.has(name)) {
-      this.stores.set(name, {
-        keyPath: "id",
-        records: new Map()
-      });
+  transaction(names: string | string[]) {
+    const requestedNames = typeof names === "string" ? [names] : names;
+    const stores = new Map<string, FakeIdbStore>();
+
+    for (const name of requestedNames) {
+      if (!this.stores.has(name)) {
+        this.stores.set(name, {
+          keyPath: "id",
+          records: new Map()
+        });
+      }
+      stores.set(name, this.stores.get(name)!);
     }
 
-    const store = this.stores.get(name)!;
+    const transaction = new FakeIdbTransaction(stores);
+    transaction.complete();
 
-    return {
-      objectStore: () => new FakeIdbObjectStore(store.keyPath, store.records)
-    };
+    return transaction;
   }
 }
 
@@ -209,16 +275,18 @@ export class FakeIndexedDbFactory {
   private readonly databases = new Map<string, FakeIdbDatabase>();
   readonly openedNames: string[] = [];
 
-  open(name: string) {
+  open(name: string, version?: number) {
     const request = new FakeIdbOpenRequest();
     const existingDatabase = this.databases.get(name);
     const database = existingDatabase ?? new FakeIdbDatabase();
+    const requestedVersion = version ?? (existingDatabase?.version ?? 1);
 
     this.openedNames.push(name);
     queueMicrotask(() => {
       request.result = database;
-      if (!existingDatabase) {
+      if (requestedVersion > database.version) {
         this.databases.set(name, database);
+        database.version = requestedVersion;
         request.onupgradeneeded?.(new Event("upgradeneeded"));
       }
       request.succeed(database);

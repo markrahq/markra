@@ -1,8 +1,10 @@
 import type { IndexedDbSettingsRuntimeOptions } from "./types";
 
-export const webRuntimeDatabaseVersion = 2;
+export const webRuntimeDatabaseVersion = 3;
 export const webRuntimeSettingsStoreName = "stores";
 export const webRuntimeAiChatAttachmentStoreName = "ai-chat-attachments";
+export const webRuntimeWorkspaceStoreName = "workspaces";
+export const webRuntimeWorkspaceEntryStoreName = "workspace-entries";
 
 export function resolveIndexedDbFactory(indexedDb?: IDBFactory | null) {
   if (indexedDb) return indexedDb;
@@ -22,6 +24,14 @@ export function requestToPromise<TResult>(request: IDBRequest<TResult>) {
   });
 }
 
+export function transactionToPromise(transaction: IDBTransaction) {
+  return new Promise<unknown>((resolve, reject) => {
+    transaction.oncomplete = () => resolve(undefined);
+    transaction.onerror = () => reject(transaction.error ?? new Error("IndexedDB transaction failed."));
+    transaction.onabort = () => reject(transaction.error ?? new Error("IndexedDB transaction aborted."));
+  });
+}
+
 export function openWebRuntimeDatabase(
   options: IndexedDbSettingsRuntimeOptions,
   settingsStoreName = webRuntimeSettingsStoreName
@@ -37,6 +47,12 @@ export function openWebRuntimeDatabase(
       }
       if (!database.objectStoreNames.contains(webRuntimeAiChatAttachmentStoreName)) {
         database.createObjectStore(webRuntimeAiChatAttachmentStoreName, { keyPath: "key" });
+      }
+      if (!database.objectStoreNames.contains(webRuntimeWorkspaceStoreName)) {
+        database.createObjectStore(webRuntimeWorkspaceStoreName, { keyPath: "id" });
+      }
+      if (!database.objectStoreNames.contains(webRuntimeWorkspaceEntryStoreName)) {
+        database.createObjectStore(webRuntimeWorkspaceEntryStoreName, { keyPath: ["workspaceId", "path"] });
       }
     };
     request.onsuccess = () => {
