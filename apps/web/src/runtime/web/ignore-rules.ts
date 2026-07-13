@@ -31,13 +31,21 @@ async function readMarkraIgnore(root: WebDirectoryHandle) {
   }
 }
 
-export async function loadMarkdownIgnoreRules(root: WebDirectoryHandle): Promise<MarkdownIgnoreRules> {
-  let matcher = ignore();
+export async function loadMarkdownIgnoreRules(
+  root: WebDirectoryHandle,
+  globalIgnoreRules = ""
+): Promise<MarkdownIgnoreRules> {
+  const matcher = ignore();
   try {
+    matcher.add(globalIgnoreRules);
+  } catch {
+    // Keep any valid rules already parsed and continue with workspace rules.
+  }
+  try {
+    // Workspace rules are appended later so they can override global defaults.
     matcher.add(await readMarkraIgnore(root));
   } catch {
-    // Invalid rules fail open so users can still access and repair the workspace.
-    matcher = ignore();
+    // Invalid workspace rules fail open so users can still access and repair them.
   }
 
   return {

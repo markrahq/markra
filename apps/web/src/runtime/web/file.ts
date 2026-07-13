@@ -1001,7 +1001,7 @@ export function createWebFileRuntime(
       if (!root) throw new Error("Web folder handle is no longer available.");
       const entries: NativeMarkdownFolderFile[] = [];
       const managedAttachmentFolder = normalizeManagedAttachmentFolder(options.managedAttachmentFolder);
-      const ignoreRules = await loadMarkdownIgnoreRules(root);
+      const ignoreRules = await loadMarkdownIgnoreRules(root, options.globalIgnoreRules ?? "");
 
       await collectMarkdownEntries(parsedPath.id, root, "", entries, managedAttachmentFolder, ignoreRules);
 

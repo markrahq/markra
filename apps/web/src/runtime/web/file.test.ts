@@ -382,6 +382,38 @@ describe("web file runtime", () => {
     expect(entries.map((entry) => entry.relativePath)).toEqual(["keep.md"]);
   });
 
+  it("merges global ignore rules before root markraignore rules", async () => {
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      ".markraignore": new FakeFileHandle(
+        ".markraignore",
+        "!drafts/\n!drafts/restored.md\n!keep.md\n"
+      ),
+      "drop.md": new FakeFileHandle("drop.md", "# Drop"),
+      "drafts": new FakeDirectoryHandle("drafts", {
+        "restored.md": new FakeFileHandle("restored.md", "# Restored")
+      }),
+      "keep.md": new FakeFileHandle("keep.md", "# Keep"),
+      "node_modules": new FakeDirectoryHandle("node_modules", {
+        "readme.md": new FakeFileHandle("readme.md", "# Dependency")
+      })
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => directory
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path, {
+      globalIgnoreRules: "*.md\ndrafts/\n!node_modules/readme.md\n"
+    });
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual([
+      "drafts",
+      "drafts/restored.md",
+      "keep.md"
+    ]);
+  });
+
   it("falls back to directory upload when the browser file system picker is unavailable", async () => {
     const runtime = createWebRuntime({
       indexedDB: new FakeIndexedDbFactory().indexedDB,
