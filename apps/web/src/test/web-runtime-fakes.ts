@@ -133,6 +133,73 @@ class FakeIdbOpenRequest extends FakeIdbRequest<FakeIdbDatabase> {
   onupgradeneeded: RequestHandler = null;
 }
 
+function fakeKeyTypeRank(key: IDBValidKey) {
+  if (typeof key === "number") return 0;
+  if (key instanceof Date) return 1;
+  if (typeof key === "string") return 2;
+  if (ArrayBuffer.isView(key) || key instanceof ArrayBuffer) return 3;
+
+  return 4;
+}
+
+function compareFakeKeys(left: IDBValidKey, right: IDBValidKey): number {
+  const leftRank = fakeKeyTypeRank(left);
+  const rightRank = fakeKeyTypeRank(right);
+  if (leftRank !== rightRank) return leftRank - rightRank;
+  if (Array.isArray(left) && Array.isArray(right)) {
+    const length = Math.min(left.length, right.length);
+    for (let index = 0; index < length; index += 1) {
+      const comparison = compareFakeKeys(left[index], right[index]);
+      if (comparison !== 0) return comparison;
+    }
+
+    return left.length - right.length;
+  }
+  if (typeof left === "string" && typeof right === "string") {
+    return left < right ? -1 : left > right ? 1 : 0;
+  }
+  if (typeof left === "number" && typeof right === "number") return left - right;
+  if (left instanceof Date && right instanceof Date) return left.getTime() - right.getTime();
+
+  return serializeKey(left).localeCompare(serializeKey(right));
+}
+
+class FakeIdbKeyRange {
+  readonly lower: IDBValidKey;
+  readonly lowerOpen: boolean;
+  readonly upper: IDBValidKey;
+  readonly upperOpen: boolean;
+
+  private constructor(
+    lower: IDBValidKey,
+    upper: IDBValidKey,
+    lowerOpen: boolean,
+    upperOpen: boolean
+  ) {
+    this.lower = lower;
+    this.upper = upper;
+    this.lowerOpen = lowerOpen;
+    this.upperOpen = upperOpen;
+  }
+
+  static bound(
+    lower: IDBValidKey,
+    upper: IDBValidKey,
+    lowerOpen = false,
+    upperOpen = false
+  ) {
+    return new FakeIdbKeyRange(lower, upper, lowerOpen, upperOpen);
+  }
+
+  includes(key: IDBValidKey) {
+    const lowerComparison = compareFakeKeys(key, this.lower);
+    const upperComparison = compareFakeKeys(key, this.upper);
+
+    return (this.lowerOpen ? lowerComparison > 0 : lowerComparison >= 0)
+      && (this.upperOpen ? upperComparison < 0 : upperComparison <= 0);
+  }
+}
+
 class FakeIdbObjectStore {
   constructor(
     private readonly keyPath: string | string[],
@@ -173,11 +240,20 @@ class FakeIdbObjectStore {
     return request as unknown as IDBRequest<StoredIndexedDbRecord | undefined>;
   }
 
-  getAll() {
+  getAll(query?: IDBValidKey | IDBKeyRange | null) {
     const request = new FakeIdbRequest<StoredIndexedDbRecord[]>();
 
     this.queueOperation(() => {
-      request.succeed(Array.from(this.records.values(), cloneValue));
+      const records = Array.from(this.records.values()).filter((record) => {
+        if (query === undefined || query === null) return true;
+        const key = typeof this.keyPath === "string"
+          ? record[this.keyPath] as IDBValidKey
+          : this.keyPath.map((part) => record[part]) as IDBValidKey;
+        if (typeof query === "object" && "includes" in query) return query.includes(key);
+
+        return serializeKey(query) === serializeKey(key);
+      });
+      request.succeed(records.map(cloneValue));
     });
 
     return request as unknown as IDBRequest<StoredIndexedDbRecord[]>;
@@ -346,6 +422,15 @@ export class FakeIndexedDbFactory {
   private readonly databases = new Map<string, FakeIdbDatabase>();
   private nextTransactionError: DOMException | undefined;
   readonly openedNames: string[] = [];
+
+  constructor() {
+    if (typeof globalThis.IDBKeyRange === "undefined") {
+      Object.defineProperty(globalThis, "IDBKeyRange", {
+        configurable: true,
+        value: FakeIdbKeyRange
+      });
+    }
+  }
 
   failNextTransaction(error: DOMException) {
     this.nextTransactionError = error;

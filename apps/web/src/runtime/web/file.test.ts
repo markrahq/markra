@@ -9,7 +9,11 @@ import type { NativeMarkdownDroppedTarget } from "@markra/app/runtime";
 import type { WebDownloadFile } from "./types";
 import { createWebFileRuntime } from "./file";
 import { createIndexedDbSettingsRuntime } from "./settings";
-import { createWorkspaceRepository } from "./workspace";
+import {
+  createWorkspaceRepository,
+  WorkspaceNamespaceConflictError,
+  type WorkspaceRepository
+} from "./workspace";
 
 function createDirectoryUploadFile(relativePath: string, contents: BlobPart, type = "text/markdown") {
   const file = new File([contents], relativePath.split("/").pop() ?? relativePath, { type });
@@ -27,6 +31,49 @@ async function seedWorkspace(runtime: ReturnType<typeof createWebRuntime>) {
   expect(folder).not.toBeNull();
 
   return folder!;
+}
+
+function withCompetingFileCreate(
+  repository: WorkspaceRepository,
+  targetPath: string,
+  competingContents: string
+): WorkspaceRepository {
+  let competed = false;
+  let targetReads = 0;
+
+  return {
+    ...repository,
+    async read(workspaceId, path) {
+      if (!competed && path === targetPath) {
+        targetReads += 1;
+        if (targetReads === 3) {
+          competed = true;
+          await repository.writeFile(
+            workspaceId,
+            path,
+            new Blob([competingContents]),
+            { mode: "create" }
+          );
+        }
+      }
+
+      return repository.read(workspaceId, path);
+    },
+    async writeFile(workspaceId, path, body, options) {
+      if (!competed && path === targetPath && options?.mode === "create") {
+        competed = true;
+        await repository.writeFile(
+          workspaceId,
+          path,
+          new Blob([competingContents]),
+          { mode: "create" }
+        );
+        throw new WorkspaceNamespaceConflictError(path);
+      }
+
+      return repository.writeFile(workspaceId, path, body, options);
+    }
+  };
 }
 
 function createDropEvent(dataTransfer: Partial<DataTransfer>) {
@@ -503,6 +550,35 @@ describe("web file runtime", () => {
       .resolves.toMatchObject({ content: "# New" });
   });
 
+  it("retries a pathless save when another tab wins the exclusive create race", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const storedRepository = createWorkspaceRepository({ indexedDB });
+    const repository = withCompetingFileCreate(
+      storedRepository,
+      "Untitled.md",
+      "# Other tab"
+    );
+    const files = createWebFileRuntime(
+      createIndexedDbSettingsRuntime({ indexedDB }),
+      repository,
+      { indexedDB }
+    );
+
+    await expect(files.saveMarkdownFile({
+      contents: "# This tab",
+      defaultDirectory: "web-workspace://default",
+      path: null,
+      suggestedName: "Untitled.md"
+    })).resolves.toEqual({
+      name: "Untitled-2.md",
+      path: "web-workspace://default/Untitled-2.md"
+    });
+    await expect(files.readMarkdownFile("web-workspace://default/Untitled.md"))
+      .resolves.toMatchObject({ content: "# Other tab" });
+    await expect(files.readMarkdownFile("web-workspace://default/Untitled-2.md"))
+      .resolves.toMatchObject({ content: "# This tab" });
+  });
+
   it("rejects duplicate tree-file creation without changing the existing file", async () => {
     const runtime = createWebRuntime({ indexedDB: new FakeIndexedDbFactory().indexedDB });
     const folder = await runtime.files.getDefaultMarkdownFolder();
@@ -513,6 +589,24 @@ describe("web file runtime", () => {
     ).rejects.toThrow("already exists");
     await expect(runtime.files.readMarkdownFile("web-workspace://default/note.md"))
       .resolves.toMatchObject({ content: "# Original" });
+  });
+
+  it("does not overwrite a tree file created concurrently by another tab", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const storedRepository = createWorkspaceRepository({ indexedDB });
+    const repository = withCompetingFileCreate(storedRepository, "note.md", "# Other tab");
+    const files = createWebFileRuntime(
+      createIndexedDbSettingsRuntime({ indexedDB }),
+      repository,
+      { indexedDB }
+    );
+    const folder = await files.getDefaultMarkdownFolder();
+
+    await expect(files.createMarkdownTreeFile(folder!.path, "note.md", {
+      contents: "# This tab"
+    })).rejects.toThrow("already exists");
+    await expect(files.readMarkdownFile("web-workspace://default/note.md"))
+      .resolves.toMatchObject({ content: "# Other tab" });
   });
 
   it("rejects duplicate tree-folder creation instead of reopening the existing folder", async () => {

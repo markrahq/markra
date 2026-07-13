@@ -23,7 +23,11 @@ export type WorkspaceRepository = {
   ensureDefaultWorkspace: () => Promise<{ id: string; name: string }>;
   list: (workspaceId: string, rootPath?: string) => Promise<WorkspaceEntry[]>;
   read: (workspaceId: string, path: string) => Promise<WorkspaceEntry>;
-  createDirectory: (workspaceId: string, path: string) => Promise<WorkspaceEntry>;
+  createDirectory: (
+    workspaceId: string,
+    path: string,
+    options?: { exclusive?: boolean }
+  ) => Promise<WorkspaceEntry>;
   writeFile: (
     workspaceId: string,
     path: string,
@@ -158,6 +162,48 @@ function getWorkspaceEntries(
   rootPath?: string
 ) {
   return store.getAll(workspaceEntryRange(workspaceId, rootPath));
+}
+
+function ancestorPaths(path: string) {
+  const segments = path.split("/");
+
+  return segments.slice(0, -1).map((_, index) => segments.slice(0, index + 1).join("/"));
+}
+
+async function requestWorkspacePathContext(
+  store: IDBObjectStore,
+  workspaceId: string,
+  path: string,
+  includeSubtree = true
+) {
+  const ancestors = ancestorPaths(path);
+  const [exact, storedAncestors, storedSubtree] = await Promise.all([
+    requestToPromise<WorkspaceEntry | undefined>(store.get([workspaceId, path])),
+    Promise.all(ancestors.map((ancestor) =>
+      requestToPromise<WorkspaceEntry | undefined>(store.get([workspaceId, ancestor]))
+    )),
+    includeSubtree
+      ? requestToPromise<WorkspaceEntry[]>(getWorkspaceEntries(store, workspaceId, path))
+      : Promise.resolve([] as WorkspaceEntry[])
+  ]);
+  const ancestorEntries = storedAncestors.filter((entry): entry is WorkspaceEntry =>
+    entry?.workspaceId === workspaceId
+  );
+  const subtree = storedSubtree.filter((entry) =>
+    entry.workspaceId === workspaceId && isAtOrBelow(entry.path, path)
+  );
+  if (exact?.workspaceId === workspaceId && !subtree.some((entry) => entry.path === exact.path)) {
+    subtree.push(exact);
+  }
+  const entriesByPath = new Map<string, WorkspaceEntry>();
+  for (const entry of [...ancestorEntries, ...subtree]) entriesByPath.set(entry.path, entry);
+  if (exact?.workspaceId === workspaceId) entriesByPath.set(exact.path, exact);
+
+  return {
+    entries: Array.from(entriesByPath.values()),
+    exact: exact?.workspaceId === workspaceId ? exact : undefined,
+    subtree
+  };
 }
 
 function importedPath(rootPath: string, file: File) {
@@ -407,7 +453,7 @@ export function createWorkspaceRepository(
 
       return entry;
     },
-    async createDirectory(workspaceId, path) {
+    async createDirectory(workspaceId, path, options = {}) {
       const normalizedPath = normalizeWorkspacePath(path);
       const database = await getDatabase();
       const transaction = database.transaction(
@@ -417,24 +463,27 @@ export function createWorkspaceRepository(
       const completion = transactionToPromise(transaction);
       const workspaceStore = transaction.objectStore(webRuntimeWorkspaceStoreName);
       const entryStore = transaction.objectStore(webRuntimeWorkspaceEntryStoreName);
-      const [workspace, storedEntries] = await Promise.all([
+      const [workspace, context] = await Promise.all([
         requestToPromise<StoredWorkspace | undefined>(workspaceStore.get(workspaceId)),
-        requestToPromise<WorkspaceEntry[]>(getWorkspaceEntries(entryStore, workspaceId))
+        requestWorkspacePathContext(entryStore, workspaceId, normalizedPath)
       ]);
       requireActiveWorkspace(workspace, workspaceId);
-      const entries = storedEntries.filter((entry) => entry.workspaceId === workspaceId);
       try {
-        requireParentDirectory(entries, normalizedPath);
+        requireParentDirectory(context.entries, normalizedPath);
       } catch (error) {
         await completion;
         throw error;
       }
-      const existing = findEntry(entries, normalizedPath);
+      const existing = context.exact;
       if (existing?.kind === "directory") {
         await completion;
+        if (options.exclusive) throw conflictError(normalizedPath);
         return existing;
       }
-      if (existing || findNamespaceConflict(entries, { kind: "directory", path: normalizedPath })) {
+      if (
+        existing
+        || findNamespaceConflict(context.entries, { kind: "directory", path: normalizedPath })
+      ) {
         await completion;
         throw conflictError(normalizedPath);
       }
@@ -463,15 +512,14 @@ export function createWorkspaceRepository(
       const completion = transactionToPromise(transaction);
       const workspaceStore = transaction.objectStore(webRuntimeWorkspaceStoreName);
       const entryStore = transaction.objectStore(webRuntimeWorkspaceEntryStoreName);
-      const [workspace, storedEntries] = await Promise.all([
+      const [workspace, context] = await Promise.all([
         requestToPromise<StoredWorkspace | undefined>(workspaceStore.get(workspaceId)),
-        requestToPromise<WorkspaceEntry[]>(getWorkspaceEntries(entryStore, workspaceId))
+        requestWorkspacePathContext(entryStore, workspaceId, normalizedPath, mode !== "update")
       ]);
       requireActiveWorkspace(workspace, workspaceId);
-      const entries = storedEntries.filter((entry) => entry.workspaceId === workspaceId);
-      const existing = findEntry(entries, normalizedPath);
+      const existing = context.exact;
       try {
-        requireParentDirectory(entries, normalizedPath);
+        requireParentDirectory(context.entries, normalizedPath);
       } catch (error) {
         await completion;
         throw error;
@@ -486,7 +534,7 @@ export function createWorkspaceRepository(
       }
       if (
         existing?.kind === "directory"
-        || findNamespaceConflict(entries, { kind: "file", path: normalizedPath }, {
+        || findNamespaceConflict(context.entries, { kind: "file", path: normalizedPath }, {
           allowExactPath: existing?.kind === "file"
         })
       ) {
@@ -520,18 +568,18 @@ export function createWorkspaceRepository(
       const completion = transactionToPromise(transaction);
       const workspaceStore = transaction.objectStore(webRuntimeWorkspaceStoreName);
       const entryStore = transaction.objectStore(webRuntimeWorkspaceEntryStoreName);
-      const [workspace, storedEntries] = await Promise.all([
+      const [workspace, sourceContext, targetContext] = await Promise.all([
         requestToPromise<StoredWorkspace | undefined>(workspaceStore.get(workspaceId)),
-        requestToPromise<WorkspaceEntry[]>(getWorkspaceEntries(entryStore, workspaceId))
+        requestWorkspacePathContext(entryStore, workspaceId, normalizedSource),
+        requestWorkspacePathContext(entryStore, workspaceId, normalizedTarget)
       ]);
       requireActiveWorkspace(workspace, workspaceId);
-      const entries = storedEntries.filter((entry) => entry.workspaceId === workspaceId);
-      const source = findEntry(entries, normalizedSource);
+      const source = sourceContext.exact;
       if (!source) {
         await completion;
         throw notFoundError(normalizedSource);
       }
-      const affected = entries.filter((entry) => isAtOrBelow(entry.path, normalizedSource));
+      const affected = sourceContext.subtree;
       if (normalizedTarget.startsWith(`${normalizedSource}/`)) {
         await completion;
         throw conflictError(normalizedTarget);
@@ -542,14 +590,14 @@ export function createWorkspaceRepository(
       }
 
       try {
-        requireParentDirectory(entries, normalizedTarget);
+        requireParentDirectory(targetContext.entries, normalizedTarget);
       } catch (error) {
         await completion;
         throw error;
       }
 
       const affectedPaths = new Set(affected.map((entry) => entry.path));
-      const unaffected = entries.filter((entry) => !affectedPaths.has(entry.path));
+      const unaffected = targetContext.entries.filter((entry) => !affectedPaths.has(entry.path));
       const timestamp = Date.now();
       const moved = affected.map((entry) => ({
         ...entry,
@@ -584,20 +632,19 @@ export function createWorkspaceRepository(
       const completion = transactionToPromise(transaction);
       const workspaceStore = transaction.objectStore(webRuntimeWorkspaceStoreName);
       const entryStore = transaction.objectStore(webRuntimeWorkspaceEntryStoreName);
-      const [workspace, storedEntries] = await Promise.all([
+      const [workspace, context] = await Promise.all([
         requestToPromise<StoredWorkspace | undefined>(workspaceStore.get(workspaceId)),
-        requestToPromise<WorkspaceEntry[]>(getWorkspaceEntries(entryStore, workspaceId))
+        requestWorkspacePathContext(entryStore, workspaceId, normalizedPath)
       ]);
       requireActiveWorkspace(workspace, workspaceId);
-      const entries = storedEntries.filter((entry) => entry.workspaceId === workspaceId);
-      const entry = findEntry(entries, normalizedPath);
+      const entry = context.exact;
       if (!entry) {
         await completion;
         throw notFoundError(normalizedPath);
       }
       const affected = entry.kind === "file"
         ? [entry]
-        : entries.filter((candidate) => isAtOrBelow(candidate.path, normalizedPath));
+        : context.subtree;
       if (entry.kind === "directory" && affected.length > 1 && !recursive) {
         await completion;
         throw new Error(`Workspace directory is not empty: ${normalizedPath}.`);

@@ -264,6 +264,42 @@ export function createWorkspaceDirectoryHandle(
     workspaceId
   };
   const handle: WebDirectoryHandle = {
+    async createDirectoryExclusive(childName) {
+      validateWorkspaceName(childName);
+      await requireReceivingDirectory(state);
+      const path = workspaceChildPath(state.path, childName);
+      try {
+        await state.repository.createDirectory(state.workspaceId, path, { exclusive: true });
+      } catch (error) {
+        if (!(error instanceof WorkspaceNamespaceConflictError)) throw error;
+        throw invalidModification(path);
+      }
+
+      return createWorkspaceDirectoryHandle(
+        state.repository,
+        state.workspaceId,
+        path,
+        childName
+      );
+    },
+    async createFileExclusive(childName) {
+      validateWorkspaceName(childName);
+      await requireReceivingDirectory(state);
+      const path = workspaceChildPath(state.path, childName);
+      try {
+        await state.repository.writeFile(
+          state.workspaceId,
+          path,
+          new Blob([]),
+          { mode: "create" }
+        );
+      } catch (error) {
+        if (!(error instanceof WorkspaceNamespaceConflictError)) throw error;
+        throw invalidModification(path);
+      }
+
+      return createWorkspaceFileHandle(state.repository, state.workspaceId, path);
+    },
     async *entries() {
       const prefix = state.path ? `${state.path}/` : "";
       const entries = await state.repository.list(

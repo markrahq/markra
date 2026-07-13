@@ -708,6 +708,47 @@ export function createWebFileRuntime(
     }
   }
 
+  function isExclusiveCreateConflict(error: unknown) {
+    return typeof error === "object"
+      && error !== null
+      && "name" in error
+      && error.name === "InvalidModificationError";
+  }
+
+  async function createFileExclusive(directory: WebDirectoryHandle, name: string) {
+    if (directory.createFileExclusive) return directory.createFileExclusive(name);
+
+    await assertTargetEntryAvailable(directory, name);
+    if (!directory.getFileHandle) throw new Error("Browser directory handle cannot create files.");
+
+    return directory.getFileHandle(name, { create: true });
+  }
+
+  async function createDirectoryExclusive(directory: WebDirectoryHandle, name: string) {
+    if (directory.createDirectoryExclusive) return directory.createDirectoryExclusive(name);
+
+    await assertTargetEntryAvailable(directory, name);
+    if (!directory.getDirectoryHandle) throw new Error("Browser directory handle cannot create folders.");
+
+    return directory.getDirectoryHandle(name, { create: true });
+  }
+
+  async function createUniqueWorkspaceFile(directory: WebDirectoryHandle, fileName: string) {
+    for (let attempt = 0; attempt < 1000; attempt += 1) {
+      const candidate = uniqueFileNameCandidate(fileName, attempt);
+      try {
+        return {
+          handle: await createFileExclusive(directory, candidate),
+          name: candidate
+        };
+      } catch (error) {
+        if (!isExclusiveCreateConflict(error)) throw error;
+      }
+    }
+
+    throw new Error("Could not create a unique workspace file.");
+  }
+
   async function ensureDirectory(directory: WebDirectoryHandle, relativePath: string) {
     let current = directory;
     for (const segment of relativePath.split("/").filter(Boolean)) {
@@ -1062,8 +1103,13 @@ export function createWebFileRuntime(
       }
       const parent = parentPath.directory;
       if (!parent.getFileHandle) throw new Error("Browser directory handle cannot create files.");
-      await assertTargetEntryAvailable(parent, fileName);
-      const handle = await parent.getFileHandle(fileName, { create: true });
+      let handle: WebFileHandle;
+      try {
+        handle = await createFileExclusive(parent, fileName);
+      } catch (error) {
+        if (!isExclusiveCreateConflict(error)) throw error;
+        throw new Error("Target entry already exists.");
+      }
       await writeFileHandle(handle, options.contents ?? "");
       const path = joinRelativePath(parentPath.relativePath, fileName);
       const relativePath = pathRelativeToRoot(path, root.relativePath);
@@ -1085,8 +1131,12 @@ export function createWebFileRuntime(
       }
       const parent = resolvedParent.directory;
       if (!parent.getDirectoryHandle) throw new Error("Browser directory handle cannot create folders.");
-      await assertTargetEntryAvailable(parent, folderName);
-      await parent.getDirectoryHandle(folderName, { create: true });
+      try {
+        await createDirectoryExclusive(parent, folderName);
+      } catch (error) {
+        if (!isExclusiveCreateConflict(error)) throw error;
+        throw new Error("Target entry already exists.");
+      }
       const path = joinRelativePath(resolvedParent.relativePath, folderName);
       const relativePath = pathRelativeToRoot(path, root.relativePath);
 
@@ -1572,9 +1622,8 @@ export function createWebFileRuntime(
           defaultWorkspace.path,
           baseNameFromPath(defaultWorkspace.path) || workspace.name
         );
-        const fileName = await uniqueFileName(directory, input.suggestedName);
-        const handle = await directory.getFileHandle?.(fileName, { create: true });
-        if (!handle) throw new Error("Workspace directory cannot create files.");
+        const created = await createUniqueWorkspaceFile(directory, input.suggestedName);
+        const { fileName, handle } = { fileName: created.name, handle: created.handle };
         await writeFileHandle(handle, input.contents);
         const path = joinRelativePath(defaultWorkspace.path, fileName);
 

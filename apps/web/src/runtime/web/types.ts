@@ -24,6 +24,8 @@ export type WebFileHandle = {
 };
 
 export type WebDirectoryHandle = {
+  createDirectoryExclusive?: (name: string) => Promise<WebDirectoryHandle>;
+  createFileExclusive?: (name: string) => Promise<WebFileHandle>;
   entries?: () => AsyncIterable<[string, WebFileHandle | WebDirectoryHandle]>;
   getDirectoryHandle?: (name: string, options?: { create?: boolean }) => Promise<WebDirectoryHandle>;
   getFileHandle?: (name: string, options?: { create?: boolean }) => Promise<WebFileHandle>;
