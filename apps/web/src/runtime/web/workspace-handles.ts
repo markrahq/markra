@@ -89,12 +89,29 @@ function invalidModification(path: string) {
   return workspaceDomException("InvalidModificationError", `Workspace entry cannot be modified: ${path}.`);
 }
 
+function isRepositoryNotFound(error: unknown, path: string) {
+  return error instanceof DOMException && error.name === "NotFoundError"
+    || error instanceof Error && error.message === `Workspace entry was not found: ${path}.`;
+}
+
+function isRepositoryConflict(error: unknown, path: string) {
+  return error instanceof Error && error.message === `Workspace entry conflicts with ${path}.`;
+}
+
 async function readEntry(state: WorkspaceHandleState, path: string) {
   try {
     return await state.repository.read(state.workspaceId, path);
-  } catch {
+  } catch (error) {
+    if (!isRepositoryNotFound(error, path)) throw error;
     throw notFound(path);
   }
+}
+
+async function requireReceivingDirectory(state: WorkspaceHandleState) {
+  if (!state.path) return;
+
+  const entry = await readEntry(state, state.path);
+  if (entry.kind !== "directory") throw typeMismatch(state.path, "directory");
 }
 
 async function getEntry(
@@ -106,14 +123,16 @@ async function getEntry(
   let entry: WorkspaceEntry;
   try {
     entry = await state.repository.read(state.workspaceId, path);
-  } catch {
+  } catch (error) {
+    if (!isRepositoryNotFound(error, path)) throw error;
     if (!create) throw notFound(path);
 
     try {
       entry = kind === "directory"
         ? await state.repository.createDirectory(state.workspaceId, path)
         : await state.repository.writeFile(state.workspaceId, path, new Blob([]));
-    } catch {
+    } catch (creationError) {
+      if (!isRepositoryConflict(creationError, path)) throw creationError;
       throw typeMismatch(path, kind);
     }
   }
@@ -123,14 +142,20 @@ async function getEntry(
   return entry;
 }
 
-function targetMovePath(
+async function targetMovePath(
   state: WorkspaceHandleState,
   directoryOrName: WebDirectoryHandle | string,
   newName?: string
 ) {
   if (typeof directoryOrName === "string") {
     validateWorkspaceName(directoryOrName);
-    return workspaceChildPath(workspaceParentPath(state.path), directoryOrName);
+    const parentPath = workspaceParentPath(state.path);
+    if (parentPath) {
+      const parent = await readEntry(state, parentPath);
+      if (parent.kind !== "directory") throw typeMismatch(parentPath, "directory");
+    }
+
+    return workspaceChildPath(parentPath, directoryOrName);
   }
 
   const target = directoryStates.get(directoryOrName);
@@ -141,6 +166,7 @@ function targetMovePath(
   ) {
     throw invalidModification(state.path);
   }
+  await requireReceivingDirectory(target);
 
   const targetName = newName ?? workspacePathName(state.path);
   validateWorkspaceName(targetName);
@@ -152,7 +178,7 @@ function createMove(state: WorkspaceHandleState): WebHandleMove {
   return async (directoryOrName: WebDirectoryHandle | string, newName?: string) => {
     if (!state.path) throw invalidModification(state.path);
 
-    const targetPath = targetMovePath(state, directoryOrName, newName);
+    const targetPath = await targetMovePath(state, directoryOrName, newName);
     try {
       await state.repository.move(state.workspaceId, state.path, targetPath);
     } catch {
@@ -170,6 +196,8 @@ export function createWorkspaceFileHandle(
   workspaceId: string,
   path: string
 ): WebFileHandle {
+  validateWorkspaceId(workspaceId);
+  validateWorkspacePath(path);
   const state: WorkspaceHandleState = {
     name: workspacePathName(path),
     path,
@@ -252,6 +280,7 @@ export function createWorkspaceDirectoryHandle(
     },
     async getDirectoryHandle(childName, options) {
       validateWorkspaceName(childName);
+      if (options?.create) await requireReceivingDirectory(state);
       const path = workspaceChildPath(state.path, childName);
       await getEntry(state, path, "directory", options?.create ?? false);
 
@@ -264,6 +293,7 @@ export function createWorkspaceDirectoryHandle(
     },
     async getFileHandle(childName, options) {
       validateWorkspaceName(childName);
+      if (options?.create) await requireReceivingDirectory(state);
       const path = workspaceChildPath(state.path, childName);
       await getEntry(state, path, "file", options?.create ?? false);
 
@@ -301,8 +331,10 @@ export function createWorkspaceDirectoryHandle(
 export function createWorkspaceUrl(workspaceId: string, path: string) {
   validateWorkspaceId(workspaceId);
   validateWorkspacePath(path);
+  const workspaceUrl = `${workspaceUrlPrefix}${encodeURIComponent(workspaceId)}`;
+  if (!path) return workspaceUrl;
 
-  return `${workspaceUrlPrefix}${encodeURIComponent(workspaceId)}/${encodeURIComponent(path)}`;
+  return `${workspaceUrl}/${path.split("/").map(encodeURIComponent).join("/")}`;
 }
 
 export function parseWorkspaceUrl(value: string): WebWorkspaceLocation | null {
@@ -311,7 +343,8 @@ export function parseWorkspaceUrl(value: string): WebWorkspaceLocation | null {
   const encodedLocation = value.slice(workspaceUrlPrefix.length);
   const separatorIndex = encodedLocation.indexOf("/");
   if (
-    separatorIndex <= 0
+    !encodedLocation
+    || separatorIndex === 0
     || encodedLocation.includes("?")
     || encodedLocation.includes("#")
   ) {
@@ -319,8 +352,21 @@ export function parseWorkspaceUrl(value: string): WebWorkspaceLocation | null {
   }
 
   try {
-    const workspaceId = decodeURIComponent(encodedLocation.slice(0, separatorIndex));
-    const path = decodeURIComponent(encodedLocation.slice(separatorIndex + 1));
+    const encodedWorkspaceId = separatorIndex < 0
+      ? encodedLocation
+      : encodedLocation.slice(0, separatorIndex);
+    const encodedPath = separatorIndex < 0 ? "" : encodedLocation.slice(separatorIndex + 1);
+    if (separatorIndex >= 0 && !encodedPath) return null;
+
+    const decodedSegments = encodedPath
+      ? encodedPath.split("/").map((segment) => decodeURIComponent(segment))
+      : [];
+    if (decodedSegments.some((segment) => segment.includes("/") || segment.includes("\\"))) {
+      return null;
+    }
+
+    const workspaceId = decodeURIComponent(encodedWorkspaceId);
+    const path = decodedSegments.join("/");
     validateWorkspaceId(workspaceId);
     validateWorkspacePath(path);
 

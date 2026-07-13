@@ -2,10 +2,11 @@ import { FakeIndexedDbFactory } from "../../test/web-runtime-fakes";
 import type { WebDirectoryHandle } from "./types";
 import {
   createWorkspaceDirectoryHandle,
+  createWorkspaceFileHandle,
   createWorkspaceUrl,
   parseWorkspaceUrl
 } from "./workspace-handles";
-import { createWorkspaceRepository } from "./workspace";
+import { createWorkspaceRepository, type WorkspaceRepository } from "./workspace";
 
 async function collectEntryNames(directory: WebDirectoryHandle) {
   const names: string[] = [];
@@ -60,6 +61,31 @@ describe("IndexedDB-backed workspace handles", () => {
     await expect((await file.getFile()).text()).resolves.toBe("draft");
   });
 
+  it("propagates storage read failures without truncating an existing file", async () => {
+    const storedRepository = await createWorkspace();
+    await storedRepository.writeFile("default", "note.md", new Blob(["preserved"]));
+    const readFailure = new Error("Synthetic transaction failure");
+    const repository: WorkspaceRepository = {
+      ...storedRepository,
+      async read() {
+        throw readFailure;
+      }
+    };
+    const root = createWorkspaceDirectoryHandle(repository, "default", "", "Markra");
+
+    await expect(root.getFileHandle!("note.md", { create: true })).rejects.toBe(readFailure);
+    await expect((await storedRepository.read("default", "note.md")).body?.text()).resolves.toBe(
+      "preserved"
+    );
+  });
+
+  it("validates file handle workspace ids and paths immediately", async () => {
+    const repository = await createWorkspace();
+
+    expect(() => createWorkspaceFileHandle(repository, "invalid/id", "note.md")).toThrow(TypeError);
+    expect(() => createWorkspaceFileHandle(repository, "default", "../secret.md")).toThrow(TypeError);
+  });
+
   it("moves a handle within its repository-backed workspace", async () => {
     const repository = await createWorkspace();
     const root = createWorkspaceDirectoryHandle(repository, "default", "", "Markra");
@@ -78,6 +104,35 @@ describe("IndexedDB-backed workspace handles", () => {
     await expect(collectEntryNames(published)).resolves.toEqual(["release.md"]);
   });
 
+  it("rejects creating children through a removed directory handle", async () => {
+    const repository = await createWorkspace();
+    const root = createWorkspaceDirectoryHandle(repository, "default", "", "Markra");
+    const staleDocs = await root.getDirectoryHandle!("docs", { create: true });
+    await root.removeEntry!("docs", { recursive: true });
+
+    await expect(staleDocs.getFileHandle!("orphan.md", { create: true })).rejects.toMatchObject({
+      name: "NotFoundError"
+    });
+    await expect(repository.exportEntries("default")).resolves.toEqual([]);
+  });
+
+  it("rejects moving into a removed directory handle", async () => {
+    const repository = await createWorkspace();
+    const root = createWorkspaceDirectoryHandle(repository, "default", "", "Markra");
+    const staleTarget = await root.getDirectoryHandle!("archive", { create: true });
+    const note = await root.getFileHandle!("note.md", { create: true });
+    const writable = await note.createWritable!();
+    await writable.write("preserved");
+    await writable.close();
+    await root.removeEntry!("archive", { recursive: true });
+
+    await expect(note.move!(staleTarget, "note.md")).rejects.toMatchObject({
+      name: "NotFoundError"
+    });
+    await expect((await note.getFile()).text()).resolves.toBe("preserved");
+    await expect(repository.read("default", "archive/note.md")).rejects.toThrow("not found");
+  });
+
   it("uses browser-compatible exceptions for missing, mismatched, and non-empty entries", async () => {
     const repository = await createWorkspace();
     const root = createWorkspaceDirectoryHandle(repository, "default", "", "Markra");
@@ -92,19 +147,31 @@ describe("IndexedDB-backed workspace handles", () => {
     await expect(root.getDirectoryHandle!("docs")).rejects.toMatchObject({ name: "NotFoundError" });
   });
 
-  it("round-trips encoded durable workspace URLs", () => {
+  it("round-trips canonical hierarchical workspace URLs", () => {
     const url = createWorkspaceUrl("default", "notes/你好 world.md");
 
-    expect(url).toBe("web-workspace://default/notes%2F%E4%BD%A0%E5%A5%BD%20world.md");
+    expect(createWorkspaceUrl("default", "")).toBe("web-workspace://default");
+    expect(parseWorkspaceUrl("web-workspace://default")).toEqual({
+      path: "",
+      workspaceId: "default"
+    });
+    expect(url).toBe("web-workspace://default/notes/%E4%BD%A0%E5%A5%BD%20world.md");
     expect(parseWorkspaceUrl(url)).toEqual({
       path: "notes/你好 world.md",
       workspaceId: "default"
     });
   });
 
+  it("resolves relative URLs within the current workspace directory", () => {
+    const baseUrl = createWorkspaceUrl("default", "notes/guide.md");
+
+    expect(new URL("image.png", baseUrl).href).toBe("web-workspace://default/notes/image.png");
+  });
+
   it("rejects foreign and malformed workspace URLs", () => {
     expect(parseWorkspaceUrl("https://example.test/note.md")).toBeNull();
     expect(parseWorkspaceUrl("web-workspace://default?view=1/note.md")).toBeNull();
     expect(parseWorkspaceUrl("web-workspace://default/%2E%2E%2Fsecret.md")).toBeNull();
+    expect(parseWorkspaceUrl("web-workspace://default/notes%2Fguide.md")).toBeNull();
   });
 });
