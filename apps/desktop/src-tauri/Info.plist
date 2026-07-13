@@ -6,6 +6,8 @@
   <true/>
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
+  <key>CFBundleIconName</key>
+  <string>Markra</string>
   <key>CFBundleLocalizations</key>
   <array>
     <string>en</string>

@@ -40,7 +40,7 @@ jobs:
         include:
           - name: macOS (Apple Silicon)
             artifact_name: macOS-apple-silicon
-            os: macos-15
+            os: macos-26
             target: aarch64-apple-darwin
             asset_platform: macos
             asset_arch: arm64
@@ -48,7 +48,7 @@ jobs:
             args: --target aarch64-apple-darwin
           - name: macOS (Intel)
             artifact_name: macOS-intel
-            os: macos-15-intel
+            os: macos-26-intel
             target: x86_64-apple-darwin
             asset_platform: macos
             asset_arch: x64

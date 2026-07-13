@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json && vite build && pnpm verify:chunks",
+    "build:icon": "node scripts/icon.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",

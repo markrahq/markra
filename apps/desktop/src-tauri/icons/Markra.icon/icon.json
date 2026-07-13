@@ -1,0 +1,72 @@
+{
+  "color-space-for-untagged-svg-colors": "display-p3",
+  "fill": "system-light",
+  "groups": [
+    {
+      "layers": [
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.35686,0.50196,0.55294,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.49412,0.65882,0.71373,1.00000"
+              }
+            }
+          ],
+          "image-name": "underline.svg",
+          "name": "underline",
+          "position": {
+            "scale": 2,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "fill-specializations": [
+            {
+              "value": {
+                "solid": "srgb:0.20000,0.20000,0.20000,1.00000"
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "solid": "srgb:0.94118,0.95294,0.96078,1.00000"
+              }
+            }
+          ],
+          "image-name": "mark.svg",
+          "name": "mark",
+          "position": {
+            "scale": 2,
+            "translation-in-points": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.25
+      },
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

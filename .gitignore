@@ -12,6 +12,7 @@ coverage/
 
 # Tauri and Rust
 apps/*/src-tauri/target/
+apps/desktop/src-tauri/icons/generated/
 target/
 **/*.rs.bk
 
