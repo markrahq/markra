@@ -147,9 +147,11 @@ function decodePathSegments(path: string) {
   return path.split("/").filter(Boolean).map(decodeURIComponent).join("/");
 }
 
-function decodeMarkdownLocalPath(path: string) {
+function decodeMarkdownRelativePath(src: string) {
+  const path = src.split(/[?#]/u)[0] ?? "";
+
   try {
-    return decodeURI(path);
+    return path.split("/").map((segment) => decodeURIComponent(segment)).join("/");
   } catch {
     return path;
   }
@@ -1238,7 +1240,7 @@ export function createWebFileRuntime(
 
       const documentSegments = parsedDocumentPath.relativePath.split("/").filter(Boolean);
       documentSegments.pop();
-      const localSrc = decodeMarkdownLocalPath(input.src.split(/[?#]/u)[0] ?? "");
+      const localSrc = decodeMarkdownRelativePath(input.src);
       const attachmentPath = normalizeWebRelativePath(joinRelativePath(documentSegments.join("/"), localSrc));
       const handle = await resolveFileFromFolderPath(createRuntimeFolderPath(parsedDocumentPath, attachmentPath));
       const file = await handle.getFile();
@@ -1313,7 +1315,7 @@ export function createWebFileRuntime(
       if (!documentPath) throw new Error("Current document is not a web folder file.");
       const documentSegments = documentPath.relativePath.split("/").filter(Boolean);
       documentSegments.pop();
-      const localSrc = decodeMarkdownLocalPath(input.src.split(/[?#]/u)[0] ?? "");
+      const localSrc = decodeMarkdownRelativePath(input.src);
       const imagePath = normalizeWebRelativePath(joinRelativePath(documentSegments.join("/"), localSrc));
       const handle = await resolveFileFromFolderPath(createRuntimeFolderPath(documentPath, imagePath));
       const file = await handle.getFile();

@@ -529,6 +529,85 @@ describe("web file runtime", () => {
       ]));
   });
 
+  it("reads a saved virtual workspace image whose name contains a reserved URL character", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("notes/guide.md", "# Guide")
+      ]
+    });
+    await seedWorkspace(runtime);
+    const documentPath = "web-workspace://default/notes/guide.md";
+
+    const saved = await runtime.files.saveClipboardImage({
+      documentPath,
+      fileName: "chart#1.png",
+      folder: "assets",
+      image: new File([new Uint8Array([1, 2, 3])], "chart#1.png", { type: "image/png" })
+    });
+
+    expect(saved.src).toBe("assets/chart%231.png");
+    await expect(runtime.files.readMarkdownImageFile({
+      documentPath,
+      src: saved.src
+    })).resolves.toMatchObject({
+      mimeType: "image/png",
+      path: "web-workspace://default/notes/assets/chart%231.png"
+    });
+  });
+
+  it("opens a saved virtual workspace attachment whose name contains a reserved URL character", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("notes/guide.md", "# Guide")
+      ]
+    });
+    await seedWorkspace(runtime);
+    const documentPath = "web-workspace://default/notes/guide.md";
+    const saved = await runtime.files.saveClipboardAttachment({
+      attachment: new File(["synthetic reference"], "chart#1.png", { type: "image/png" }),
+      documentPath,
+      folder: "downloads"
+    });
+    const originalCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
+    let openedFile: File | null = null;
+    const createObjectUrl = vi.fn((file: Blob) => {
+      openedFile = file as File;
+      return "blob:synthetic-attachment";
+    });
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    const openWindow = vi.spyOn(window, "open").mockReturnValue(null);
+
+    try {
+      expect(saved.src).toBe("downloads/chart%231.png");
+      await runtime.files.openMarkdownAttachment({
+        documentPath,
+        rootPath: "web-workspace://default/notes",
+        src: saved.src
+      });
+
+      expect(createObjectUrl).toHaveBeenCalledOnce();
+      expect(openedFile).toMatchObject({ name: "chart#1.png", type: "image/png" });
+      await expect(openedFile!.text()).resolves.toBe("synthetic reference");
+      expect(openWindow).toHaveBeenCalledWith(
+        "blob:synthetic-attachment",
+        "_blank",
+        "noopener,noreferrer"
+      );
+    } finally {
+      openWindow.mockRestore();
+      if (originalCreateObjectUrl) {
+        Object.defineProperty(URL, "createObjectURL", originalCreateObjectUrl);
+      } else {
+        Reflect.deleteProperty(URL, "createObjectURL");
+      }
+    }
+  });
+
   it("rejects stale web folder paths instead of returning an empty tree", async () => {
     const runtime = createWebRuntime({
       indexedDB: new FakeIndexedDbFactory().indexedDB
