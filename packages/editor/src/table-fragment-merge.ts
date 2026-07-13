@@ -185,7 +185,13 @@ function mergeIcon(document: Document) {
   icon.setAttribute("stroke-width", "2");
   icon.setAttribute("viewBox", "0 0 24 24");
 
-  for (const pathData of ["M7 6l5 5 5-5", "M7 18l5-5 5 5"]) {
+  for (const pathData of [
+    "M5 3.5h14v7H5z",
+    "M5 7h14",
+    "M5 20h14",
+    "M12 20v-7",
+    "m9 16 3-3 3 3"
+  ]) {
     const path = document.createElementNS(svgNamespace, "path");
     path.setAttribute("d", pathData);
     icon.append(path);
