@@ -17,6 +17,7 @@ import {
   mockSystemColorScheme,
   mockUntitledPath,
   mockedCloseNativeWindow,
+  mockedCanExportNativeMarkdownFolder,
   mockedConfirmNativeMarkdownFileDelete,
   mockedConfirmNativeUnsavedMarkdownDocumentDiscard,
   mockedConsumeWelcomeDocumentState,
@@ -24,6 +25,7 @@ import {
   mockedCreateNativeMarkdownTreeFile,
   mockedCreateNativeMarkdownTreeFolder,
   mockedDetectNativePandocPath,
+  mockedExportNativeMarkdownFolder,
   mockedCheckNativeAppUpdate,
   mockedHideSettingsWindow,
   mockedImportNativeLocalFile,
@@ -32,6 +34,7 @@ import {
   mockedDeleteNativeMarkdownTreeFile,
   mockedFetchAiProviderModels,
   mockedGetStoredCustomThemeCss,
+  mockedGetNativeDefaultMarkdownFolder,
   mockedGetStoredExportSettings,
   mockedGetStoredEditorPreferences,
   mockedGetStoredLanguage,
@@ -512,6 +515,26 @@ function findEditorTextPosition(view: ProseMirrorEditorView, text: string, offse
 }
 
 describe("Markra workspace", () => {
+  it("shows an error toast when workspace export fails", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockedGetNativeDefaultMarkdownFolder.mockResolvedValue({
+      name: "Markra",
+      path: "web-workspace://default"
+    });
+    mockedCanExportNativeMarkdownFolder.mockReturnValue(true);
+    mockedExportNativeMarkdownFolder.mockRejectedValue(
+      new DOMException("Synthetic export failure", "InvalidStateError")
+    );
+
+    renderApp();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Export workspace" }));
+
+    await waitFor(() =>
+      expect(document.querySelector(".app-toast")).toHaveTextContent("Could not export the workspace.")
+    );
+  });
+
   it("marks macOS 27 windows for the WebKit scrolling workaround", async () => {
     mockedResolveDesktopPlatform.mockReturnValue("macos");
     mockedResolveDesktopOsVersion.mockReturnValue("27.0");

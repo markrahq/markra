@@ -133,7 +133,9 @@ import type {
   SelectionFormattingToolbarAction
 } from "./lib/selection-formatting";
 import {
+  canExportNativeMarkdownFolder,
   closeNativeWindow,
+  exportNativeMarkdownFolder,
   hideSettingsWindow,
   openNativeExternalUrl,
   openSettingsWindow,
@@ -696,6 +698,26 @@ function WorkspaceApp() {
     () => defaultSaveDirectoryFromFileTree(fileTreeSourcePath),
     [fileTreeSourcePath]
   );
+  const exportWorkspace = useCallback(async (rootPath: string) => {
+    try {
+      await exportNativeMarkdownFolder(rootPath);
+    } catch {
+      showAppToast({
+        message: translate("app.exportWorkspaceFailed"),
+        status: "error"
+      });
+    }
+  }, [translate]);
+  const exportFolder = fileTreeSourcePath && canExportNativeMarkdownFolder(fileTreeSourcePath)
+    ? exportWorkspace
+    : undefined;
+  const handleAutoSaveError = useCallback(() => {
+    showAppToast({
+      id: "markdown-auto-save-error",
+      message: translate("app.autoSaveFailed"),
+      status: "error"
+    });
+  }, [translate]);
   const confirmDiscardUnsavedChanges = useCallback((currentDocument: { name: string }) => {
     return confirmNativeUnsavedMarkdownDocumentDiscard(currentDocument.name, {
       cancelLabel: translate("app.cancelDiscardUnsavedMarkdownDocument"),
@@ -726,6 +748,7 @@ function WorkspaceApp() {
     getCurrentMarkdown: readCurrentMarkdownForDocument,
     isCurrentMarkdownEquivalent: isCurrentMarkdownEquivalentForDocument,
     onActiveDiskFileContentChange: handleActiveDiskFileContentChange,
+    onAutoSaveError: handleAutoSaveError,
     onMarkdownTreeChange: refreshMarkdownFileTree,
     onTreeRootFromFolderPath: openFolderPath,
     onTreeRootFromFilePath: setRootFromMarkdownFilePath,
@@ -4335,6 +4358,7 @@ function WorkspaceApp() {
             onCreateFile: handleCreateMarkdownTreeFile,
             onCreateFolder: handleCreateMarkdownTreeFolder,
             onDeleteFile: handleDeleteMarkdownTreeFile,
+            onExportFolder: exportFolder,
             onDocumentLinksOpenChange: handleDocumentLinksOpenChange,
             onFileTreeAssetsVisibleChange: setFileTreeAssetsVisible,
             onFileTreeSortChange: setFileTreeSort,

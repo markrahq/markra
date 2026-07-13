@@ -19,6 +19,7 @@ import { getMarkdownOutline, getWordCount, type MarkdownOutlineItem } from "@mar
 import {
   destroyNativeWindow,
   exitNativeApp,
+  getNativeDefaultMarkdownFolder,
   listNativeEditorWindowRestoreStates,
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
@@ -154,6 +155,7 @@ type UseMarkdownDocumentOptions = {
   getCurrentMarkdown: (fallbackContent: string) => string;
   isCurrentMarkdownEquivalent?: (markdown: string) => boolean | undefined;
   onActiveDiskFileContentChange?: (change: ActiveDiskFileContentChange) => boolean | undefined;
+  onAutoSaveError?: (error: unknown) => unknown;
   onMarkdownTreeChange?: (path: string) => unknown | Promise<unknown>;
   onTreeRootFromFolderPath: (
     path: string,
@@ -255,6 +257,7 @@ export function useMarkdownDocument({
   getCurrentMarkdown,
   isCurrentMarkdownEquivalent,
   onActiveDiskFileContentChange,
+  onAutoSaveError,
   onMarkdownTreeChange,
   onTreeRootFromFolderPath,
   onTreeRootFromFilePath,
@@ -1652,8 +1655,10 @@ export function useMarkdownDocument({
       debug(() => ["[markra-autosave] save failed", {
         error: error instanceof Error ? error.message : String(error)
       }]);
+      // A failed persistence attempt must stay dirty so a later save can retry the same content.
+      onAutoSaveError?.(error);
     }
-  }, [saveDirtyMarkdownFiles]);
+  }, [onAutoSaveError, saveDirtyMarkdownFiles]);
 
   const selectMarkdownTab = useCallback((tabId: string) => {
     syncActiveDocumentFromEditor();
@@ -2086,6 +2091,22 @@ export function useMarkdownDocument({
       }
 
       if (!active || restoredWorkspace) return;
+
+      // Explicit launch targets and restored workspaces take precedence over the runtime default.
+      const defaultFolder = await getNativeDefaultMarkdownFolder();
+      if (!active) return;
+      if (defaultFolder) {
+        const sessionId = resolveWorkspaceSessionId();
+        const opened = await onTreeRootFromFolderPath(
+          defaultFolder.path,
+          defaultFolder.name,
+          sessionId,
+          true,
+          true
+        );
+        if (!active) return;
+        if (opened) return;
+      }
 
       const sessionId = resolveWorkspaceSessionId();
       persistWorkspaceState({ aiAgentSessionId: sessionId });

@@ -9,6 +9,9 @@ import {
   deleteNativeMarkdownTreeFile,
   detectNativePandocPath,
   downloadNativeWebImage,
+  canExportNativeMarkdownFolder,
+  exportNativeMarkdownFolder,
+  getNativeDefaultMarkdownFolder,
   getNativeShellCommandStatus,
   installNativeShellCommand,
   closeNativeWindow,
@@ -155,6 +158,7 @@ const testAiQuickActionPrompts = vi.hoisted(() => ({
 }));
 
 vi.mock("../lib/tauri", () => ({
+  canExportNativeMarkdownFolder: vi.fn(),
   confirmNativeMarkdownFileDelete: vi.fn(),
   confirmNativeUnsavedMarkdownDocumentDiscard: vi.fn(),
   createNativeMarkdownTreeFile: vi.fn(),
@@ -162,6 +166,8 @@ vi.mock("../lib/tauri", () => ({
   deleteNativeMarkdownTreeFile: vi.fn(),
   detectNativePandocPath: vi.fn(),
   downloadNativeWebImage: vi.fn(),
+  exportNativeMarkdownFolder: vi.fn(),
+  getNativeDefaultMarkdownFolder: vi.fn(),
   getNativeShellCommandStatus: vi.fn(),
   installNativeShellCommand: vi.fn(),
   installNativeMarkdownFileDrop: vi.fn(),
@@ -843,6 +849,9 @@ vi.mock("@markra/providers", async (importOriginal) => {
 });
 
 export const mockedOpenNativeMarkdownFolder = vi.mocked(openNativeMarkdownFolder);
+export const mockedCanExportNativeMarkdownFolder = vi.mocked(canExportNativeMarkdownFolder);
+export const mockedExportNativeMarkdownFolder = vi.mocked(exportNativeMarkdownFolder);
+export const mockedGetNativeDefaultMarkdownFolder = vi.mocked(getNativeDefaultMarkdownFolder);
 export const mockedOpenNativeContainingFolder = vi.mocked(openNativeContainingFolder);
 export const mockedOpenNativeLocalImages = vi.mocked(openNativeLocalImages);
 export const mockedOpenNativeLocalFiles = vi.mocked(openNativeLocalFiles);
@@ -1178,6 +1187,9 @@ export function installAppTestHarness() {
     mockedChatCompletion.mockReset();
     mockedGenerateAiAgentSessionTitle.mockReset();
     mockedDownloadNativeWebImage.mockReset();
+    mockedCanExportNativeMarkdownFolder.mockReset();
+    mockedExportNativeMarkdownFolder.mockReset();
+    mockedGetNativeDefaultMarkdownFolder.mockReset();
     mockedOpenNativeLocalImages.mockReset();
     mockedOpenNativeLocalFiles.mockReset();
     mockedImportNativeLocalFile.mockReset();
@@ -1195,6 +1207,9 @@ export function installAppTestHarness() {
     document.documentElement.style.removeProperty("background-color");
     document.documentElement.style.removeProperty("color-scheme");
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
+    mockedCanExportNativeMarkdownFolder.mockReturnValue(false);
+    mockedExportNativeMarkdownFolder.mockResolvedValue(null);
+    mockedGetNativeDefaultMarkdownFolder.mockResolvedValue(null);
     mockedWatchNativeMarkdownTree.mockResolvedValue(() => {});
     mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
     mockedReadNativeMarkdownFileHistory.mockRejectedValue(new Error("markdown history file is not mocked"));

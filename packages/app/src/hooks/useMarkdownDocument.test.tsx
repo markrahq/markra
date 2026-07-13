@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { useMarkdownDocument } from "./useMarkdownDocument";
 import {
   destroyNativeWindow,
+  getNativeDefaultMarkdownFolder,
   listNativeEditorWindowRestoreStates,
   openNativeMarkdownFileInNewWindow,
   openNativeMarkdownPath,
@@ -48,6 +49,7 @@ vi.mock("../lib/settings/app-settings", () => ({
 vi.mock("../lib/tauri", () => ({
   openNativeMarkdownFolderInNewWindow: vi.fn(),
   destroyNativeWindow: vi.fn(),
+  getNativeDefaultMarkdownFolder: vi.fn(),
   listNativeEditorWindowRestoreStates: vi.fn(),
   openNativeMarkdownFileInNewWindow: vi.fn(),
   openNativeMarkdownPath: vi.fn(),
@@ -67,6 +69,7 @@ type MockWindowCloseRequestEvent = {
 
 const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFileInNewWindow);
 const mockedDestroyNativeWindow = vi.mocked(destroyNativeWindow);
+const mockedGetNativeDefaultMarkdownFolder = vi.mocked(getNativeDefaultMarkdownFolder);
 const mockedListNativeEditorWindowRestoreStates = vi.mocked(listNativeEditorWindowRestoreStates);
 const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
 const mockedReadNativeMarkdownFile = vi.mocked(readNativeMarkdownFile);
@@ -101,6 +104,7 @@ describe("useMarkdownDocument", () => {
   beforeEach(() => {
     window.history.pushState({}, "", "/");
     mockedDestroyNativeWindow.mockReset();
+    mockedGetNativeDefaultMarkdownFolder.mockReset();
     mockedListNativeEditorWindowRestoreStates.mockReset();
     mockedOpenNativeMarkdownPath.mockReset();
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
@@ -123,6 +127,7 @@ describe("useMarkdownDocument", () => {
     markdownHelperMocks.getWordCount.mockReset();
     markdownHelperMocks.getWordCount.mockReturnValue(0);
     mockedWatchNativeMarkdownFile.mockResolvedValue(() => {});
+    mockedGetNativeDefaultMarkdownFolder.mockResolvedValue(null);
     mockedClearStoredRecentMarkdownFiles.mockResolvedValue(undefined);
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockedGetStoredRecentMarkdownFiles.mockResolvedValue([]);
@@ -2493,6 +2498,74 @@ describe("useMarkdownDocument", () => {
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
 
+  it("opens the runtime default folder after startup restoration finds no target", async () => {
+    mockedGetNativeDefaultMarkdownFolder.mockResolvedValue({
+      name: "Markra",
+      path: "web-workspace://default"
+    });
+    const onTreeRootFromFolderPath = vi.fn(async () => ({
+      name: "Markra",
+      path: "web-workspace://default"
+    }));
+
+    renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (markdown) => markdown,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath,
+        preferencesReady: true,
+        restoreWorkspaceOnStartup: true
+      })
+    );
+
+    await waitFor(() =>
+      expect(onTreeRootFromFolderPath).toHaveBeenCalledWith(
+        "web-workspace://default",
+        "Markra",
+        expect.any(String),
+        true,
+        true
+      )
+    );
+    expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
+  });
+
+  it("does not query the runtime default folder after restoring an explicit workspace", async () => {
+    const onTreeRootFromFolderPath = vi.fn(async () => ({
+      name: "notes",
+      path: "/mock-files/notes"
+    }));
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-notes",
+      filePath: null,
+      fileTreeOpen: true,
+      folderName: "notes",
+      folderPath: "/mock-files/notes",
+      openFilePaths: []
+    });
+
+    renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (markdown) => markdown,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath,
+        preferencesReady: true,
+        restoreWorkspaceOnStartup: true
+      })
+    );
+
+    await waitFor(() =>
+      expect(onTreeRootFromFolderPath).toHaveBeenCalledWith(
+        "/mock-files/notes",
+        "notes",
+        "session-notes",
+        true,
+        true
+      )
+    );
+    expect(mockedGetNativeDefaultMarkdownFolder).not.toHaveBeenCalled();
+  });
+
   it("keeps a blank document when the restored folder and files no longer open", async () => {
     const guidePath = "/mock-files/deleted-notes/guide.md";
     const notesPath = "/mock-files/deleted-notes/notes.md";
@@ -3396,6 +3469,54 @@ describe("useMarkdownDocument", () => {
         name: "guide.md",
         path: guidePath
       });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a failed auto-save dirty and reports the storage error", async () => {
+    vi.useFakeTimers();
+
+    try {
+      const guidePath = "/mock-files/vault/guide.md";
+      const onAutoSaveError = vi.fn();
+      mockedReadNativeMarkdownFile.mockResolvedValue({
+        content: "# Guide\n\nOriginal",
+        name: "guide.md",
+        path: guidePath
+      });
+      const { result } = renderHook(() =>
+        useMarkdownDocument({
+          autoSaveEnabled: true,
+          autoSaveIntervalMinutes: 1,
+          getCurrentMarkdown: (markdown) => markdown,
+          onAutoSaveError,
+          onTreeRootFromFilePath: vi.fn(),
+          onTreeRootFromFolderPath: vi.fn(),
+          preferencesReady: false,
+          restoreWorkspaceOnStartup: false
+        })
+      );
+
+      await act(async () => {
+        await result.current.openTreeMarkdownFile({
+          name: "guide.md",
+          path: guidePath,
+          relativePath: "guide.md"
+        });
+      });
+      const storageError = new DOMException("Storage full", "QuotaExceededError");
+      mockedSaveNativeMarkdownFile.mockRejectedValue(storageError);
+
+      act(() => {
+        result.current.handleMarkdownChange("# Guide\n\nUnsaved edit.");
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+
+      expect(result.current.document.dirty).toBe(true);
+      expect(onAutoSaveError).toHaveBeenCalledWith(storageError);
     } finally {
       vi.useRealTimers();
     }

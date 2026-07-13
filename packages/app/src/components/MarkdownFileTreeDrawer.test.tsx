@@ -158,6 +158,44 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(onInstallAvailableUpdate).toHaveBeenCalledTimes(1);
   });
 
+  it("shows workspace export for an exportable root and invokes it with the root path", () => {
+    const exportWorkspace = vi.fn();
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath={null}
+        files={[]}
+        open
+        outlineItems={[]}
+        rootName="Markra"
+        rootPath="web-workspace://default"
+        onExportFolder={exportWorkspace}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Export workspace" }));
+
+    expect(exportWorkspace).toHaveBeenCalledWith("web-workspace://default");
+  });
+
+  it("hides workspace export when the current root is external", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath={null}
+        files={[]}
+        open
+        outlineItems={[]}
+        rootName="External"
+        rootPath="web-folder://external"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    expect(screen.queryByRole("button", { name: "Export workspace" })).not.toBeInTheDocument();
+  });
+
   it("collapses its own width so the drawer contents clip with the workspace animation", () => {
     const { container, rerender } = render(
       <MarkdownFileTreeDrawer

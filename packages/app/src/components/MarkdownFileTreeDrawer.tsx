@@ -169,6 +169,7 @@ type MarkdownFileTreeDrawerProps = {
     file: NativeMarkdownFolderFile,
     context?: { files: readonly NativeMarkdownFolderFile[] }
   ) => unknown | Promise<unknown>;
+  onExportFolder?: (rootPath: string) => unknown | Promise<unknown>;
   onFileTreeSortChange?: (sort: FileTreeSort) => unknown;
   onFileTreeAssetsVisibleChange?: (visible: boolean) => unknown;
   onDocumentLinksOpenChange?: (open: boolean) => unknown;
@@ -483,6 +484,7 @@ export function MarkdownFileTreeDrawer({
   onCreateFile,
   onCreateFolder,
   onDeleteFile,
+  onExportFolder,
   onDocumentLinksOpenChange,
   onFileTreeAssetsVisibleChange,
   onFileTreeSortChange,
@@ -2780,6 +2782,15 @@ export function MarkdownFileTreeDrawer({
                       onClick={toggleFileSearch}
                     >
                       <Search aria-hidden="true" size={14} />
+                    </IconButton>
+                  ) : null}
+                  {onExportFolder && rootPath ? (
+                    <IconButton
+                      className="rounded-md"
+                      label={label("app.exportWorkspace")}
+                      onClick={() => onExportFolder(rootPath)}
+                    >
+                      <Download aria-hidden="true" size={14} />
                     </IconButton>
                   ) : null}
                   <div className="relative" ref={fileTreeSortMenuRef}>
