@@ -212,7 +212,9 @@ export function createWorkspaceFileHandle(
           closed = true;
 
           // Buffer until close so an incomplete save never replaces the durable entry.
-          await state.repository.writeFile(state.workspaceId, state.path, new Blob(chunks));
+          // A copied File is a single chunk, whose media type must survive for image rendering.
+          const type = chunks.length === 1 && chunks[0] instanceof Blob ? chunks[0].type : "";
+          await state.repository.writeFile(state.workspaceId, state.path, new Blob(chunks, { type }));
         },
         async write(chunk) {
           if (closed) throw new TypeError("Cannot write to a closed workspace file stream.");

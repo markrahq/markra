@@ -12,6 +12,7 @@ import {
   createWebMenuRuntime,
   createWebResourceRuntime,
   createWebWindowRuntime,
+  createWorkspaceRepository,
   type WebRuntimeOptions
 } from "./web";
 
@@ -20,6 +21,7 @@ export * from "./web";
 export function createWebRuntime(options: WebRuntimeOptions = {}): AppRuntime {
   const defaultRuntime = createDefaultAppRuntime();
   const settings = createIndexedDbSettingsRuntime(options);
+  const workspaceRepository = createWorkspaceRepository(options);
 
   return {
     ...defaultRuntime,
@@ -37,7 +39,7 @@ export function createWebRuntime(options: WebRuntimeOptions = {}): AppRuntime {
       spellcheck: false,
       updater: false
     },
-    files: createWebFileRuntime(settings, options),
+    files: createWebFileRuntime(settings, workspaceRepository, options),
     menu: createWebMenuRuntime(defaultRuntime.menu, options),
     platform: {
       resolveDesktopOsVersion: () => null,
