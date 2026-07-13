@@ -31,6 +31,26 @@ export type WorkspaceRepository = {
   exportEntries: (workspaceId: string, rootPath?: string) => Promise<WorkspaceEntry[]>;
 };
 
+export class WorkspaceEntryNotFoundError extends Error {
+  readonly path: string;
+
+  constructor(path: string) {
+    super(`Workspace entry was not found: ${path}.`);
+    this.name = "WorkspaceEntryNotFoundError";
+    this.path = path;
+  }
+}
+
+export class WorkspaceNamespaceConflictError extends Error {
+  readonly path: string;
+
+  constructor(path: string) {
+    super(`Workspace entry conflicts with ${path}.`);
+    this.name = "WorkspaceNamespaceConflictError";
+    this.path = path;
+  }
+}
+
 type StoredWorkspace = {
   id: string;
   lifecycle: "active" | "staging";
@@ -85,11 +105,11 @@ function findNamespaceConflict(
 }
 
 function conflictError(path: string) {
-  return new Error(`Workspace entry conflicts with ${path}.`);
+  return new WorkspaceNamespaceConflictError(path);
 }
 
 function notFoundError(path: string) {
-  return new Error(`Workspace entry was not found: ${path}.`);
+  return new WorkspaceEntryNotFoundError(path);
 }
 
 function requireActiveWorkspace(workspace: StoredWorkspace | undefined, workspaceId: string) {

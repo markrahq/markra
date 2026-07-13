@@ -4,7 +4,12 @@ import type {
   WebHandleMove,
   WebWorkspaceLocation
 } from "./types";
-import type { WorkspaceEntry, WorkspaceRepository } from "./workspace";
+import {
+  WorkspaceEntryNotFoundError,
+  WorkspaceNamespaceConflictError,
+  type WorkspaceEntry,
+  type WorkspaceRepository
+} from "./workspace";
 
 const workspaceUrlPrefix = "web-workspace://";
 
@@ -89,20 +94,11 @@ function invalidModification(path: string) {
   return workspaceDomException("InvalidModificationError", `Workspace entry cannot be modified: ${path}.`);
 }
 
-function isRepositoryNotFound(error: unknown, path: string) {
-  return error instanceof DOMException && error.name === "NotFoundError"
-    || error instanceof Error && error.message === `Workspace entry was not found: ${path}.`;
-}
-
-function isRepositoryConflict(error: unknown, path: string) {
-  return error instanceof Error && error.message === `Workspace entry conflicts with ${path}.`;
-}
-
 async function readEntry(state: WorkspaceHandleState, path: string) {
   try {
     return await state.repository.read(state.workspaceId, path);
   } catch (error) {
-    if (!isRepositoryNotFound(error, path)) throw error;
+    if (!(error instanceof WorkspaceEntryNotFoundError)) throw error;
     throw notFound(path);
   }
 }
@@ -124,7 +120,7 @@ async function getEntry(
   try {
     entry = await state.repository.read(state.workspaceId, path);
   } catch (error) {
-    if (!isRepositoryNotFound(error, path)) throw error;
+    if (!(error instanceof WorkspaceEntryNotFoundError)) throw error;
     if (!create) throw notFound(path);
 
     try {
@@ -132,7 +128,7 @@ async function getEntry(
         ? await state.repository.createDirectory(state.workspaceId, path)
         : await state.repository.writeFile(state.workspaceId, path, new Blob([]));
     } catch (creationError) {
-      if (!isRepositoryConflict(creationError, path)) throw creationError;
+      if (!(creationError instanceof WorkspaceNamespaceConflictError)) throw creationError;
       throw typeMismatch(path, kind);
     }
   }

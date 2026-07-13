@@ -6,7 +6,12 @@ import {
   webRuntimeWorkspaceEntryStoreName,
   webRuntimeWorkspaceStoreName
 } from "./database";
-import { createWorkspaceRepository, defaultWorkspaceId } from "./workspace";
+import {
+  createWorkspaceRepository,
+  defaultWorkspaceId,
+  WorkspaceEntryNotFoundError,
+  WorkspaceNamespaceConflictError
+} from "./workspace";
 
 function upload(path: string, contents: BlobPart, type = "text/plain") {
   const name = path.split("/").at(-1) ?? path;
@@ -69,7 +74,9 @@ describe("Browser workspace repository", () => {
       expect.objectContaining({ path: "published/assets/chart.bin" }),
       expect.objectContaining({ path: "published/note.md" })
     ]);
-    await expect(repository.read("default", "drafts/note.md")).rejects.toThrow("not found");
+    await expect(repository.read("default", "drafts/note.md")).rejects.toBeInstanceOf(
+      WorkspaceEntryNotFoundError
+    );
     await expect(repository.remove("default", "published")).rejects.toThrow("not empty");
 
     await repository.remove("default", "published", true);
@@ -93,8 +100,12 @@ describe("Browser workspace repository", () => {
     await repository.createDirectory("default", "docs");
     await repository.writeFile("default", "note.md", new Blob(["stable"]));
 
-    await expect(repository.writeFile("default", "docs", new Blob(["replacement"]))).rejects.toThrow("docs");
-    await expect(repository.move("default", "note.md", "docs")).rejects.toThrow("docs");
+    await expect(
+      repository.writeFile("default", "docs", new Blob(["replacement"]))
+    ).rejects.toBeInstanceOf(WorkspaceNamespaceConflictError);
+    await expect(repository.move("default", "note.md", "docs")).rejects.toBeInstanceOf(
+      WorkspaceNamespaceConflictError
+    );
     await expect((await repository.read("default", "note.md")).body?.text()).resolves.toBe("stable");
     await expect(repository.read("default", "docs")).resolves.toEqual(expect.objectContaining({ kind: "directory" }));
   });

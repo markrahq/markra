@@ -64,7 +64,7 @@ describe("IndexedDB-backed workspace handles", () => {
   it("propagates storage read failures without truncating an existing file", async () => {
     const storedRepository = await createWorkspace();
     await storedRepository.writeFile("default", "note.md", new Blob(["preserved"]));
-    const readFailure = new Error("Synthetic transaction failure");
+    const readFailure = new DOMException("Synthetic transaction failure", "NotFoundError");
     const repository: WorkspaceRepository = {
       ...storedRepository,
       async read() {
