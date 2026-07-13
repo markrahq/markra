@@ -86,14 +86,18 @@ Download the latest desktop builds from [GitHub Releases](https://github.com/mar
 | Capability | Desktop app | Web editor |
 | --- | --- | --- |
 | WYSIWYG and source editing | Full editor experience | Full editor experience |
+| Installation and offline use | Installed desktop app; local editing works offline | Installable PWA; after the first successful online load, the app shell and browser-local workspace can open offline |
 | Open local files and folders | Native dialogs, file paths, and watchers | Browser file picker, folder picker, and file handles |
+| Browser-local workspace | Not applicable; files stay on disk | Markdown files and attachments are stored in IndexedDB |
+| Folder fallback | Opens folders in place | Without writable directory handles, opening a folder imports a persistent writable copy into the browser-local workspace |
 | File tree operations | Create, rename, move, delete, sort, reveal, and multi-select | Create, rename, move, and delete where browser permissions allow |
 | Auto-save and restore | Existing files, tabs, drafts, workspace windows | Browser file handles and IndexedDB state where available |
 | AI providers | Native runtime requests with app proxy settings | Browser requests subject to provider CORS support |
+| Offline limits | Local editing works offline; network-backed features require a connection | AI, WebDAV, Web search, remote images, and other network-backed features require a connection and are not Service Worker cached |
 | Spellcheck | Markra-managed local spellcheck with on-demand language packs and a personal dictionary | Not available yet |
 | Image storage | Local folders, WebDAV, PicGo/PicList, and S3-compatible storage | Local/browser handles and WebDAV where CORS permits |
 | Backup and sync | Local backups and WebDAV sync | Not available in the web runtime |
-| Export | HTML, PDF, and Pandoc formats when configured | HTML download and browser print/PDF |
+| Export | HTML, PDF, and Pandoc formats when configured | HTML download, browser print/PDF, and ZIP for browser-local workspaces |
 
 ## Comparison
 
