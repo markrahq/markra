@@ -115,7 +115,7 @@ import {
 } from "./App";
 import type { NativeMenuHandlers } from "./test/app-harness";
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests } from "./runtime";
-import { showAppToast } from "./lib/app-toast";
+import * as appToast from "./lib/app-toast";
 import { createShardedTest } from "./test/shard";
 
 installAppTestHarness();
@@ -515,6 +515,25 @@ function findEditorTextPosition(view: ProseMirrorEditorView, text: string, offse
 }
 
 describe("Markra workspace", () => {
+  it("hides workspace export for an external root that lacks export capability", async () => {
+    const externalRootPath = "/mock-files/external";
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      name: "external",
+      path: externalRootPath
+    });
+    mockedCanExportNativeMarkdownFolder.mockReturnValue(false);
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("heading", { name: "external" })).toBeInTheDocument();
+
+    expect(screen.queryByRole("button", { name: "Export workspace" })).not.toBeInTheDocument();
+    expect(mockedCanExportNativeMarkdownFolder).toHaveBeenCalledWith(externalRootPath);
+    expect(mockedExportNativeMarkdownFolder).not.toHaveBeenCalled();
+  });
+
   it("shows an error toast when workspace export fails", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockedGetNativeDefaultMarkdownFolder.mockResolvedValue({
@@ -533,6 +552,64 @@ describe("Markra workspace", () => {
     await waitFor(() =>
       expect(document.querySelector(".app-toast")).toHaveTextContent("Could not export the workspace.")
     );
+  });
+
+  it("reuses one error toast when automatic saves repeatedly fail", async () => {
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const showAppToast = vi.spyOn(appToast, "showAppToast");
+
+    try {
+      const file = {
+        content: "# Synthetic note\n\nOriginal content.",
+        name: "synthetic.md",
+        path: "/mock-files/synthetic.md"
+      };
+      mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+      mockedGetStoredEditorPreferences.mockResolvedValue(
+        createStoredEditorPreferences({ autoSaveIntervalMinutes: 1 })
+      );
+      mockOpenMarkdownFile(file);
+      mockedSaveNativeMarkdownFile.mockRejectedValue(
+        new DOMException("Synthetic storage full", "QuotaExceededError")
+      );
+
+      renderApp();
+
+      fireEvent.keyDown(window, { key: "o", metaKey: true });
+      expect(await screen.findByRole("heading", { name: "Synthetic note" })).toBeInTheDocument();
+      await selectEditorViewMode("Source code");
+      replaceMarkdownSource(
+        await screen.findByRole("textbox", { name: "Markdown source" }),
+        "# Synthetic note\n\nUnsaved content."
+      );
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+
+      const autoSaveToastCalls = showAppToast.mock.calls.filter(
+        ([toast]) => toast.id === "markdown-auto-save-error"
+      );
+      expect(autoSaveToastCalls).toHaveLength(2);
+      expect(autoSaveToastCalls.map(([toast]) => toast)).toEqual([
+        {
+          id: "markdown-auto-save-error",
+          message: "Could not auto-save changes. Your document is still unsaved.",
+          status: "error"
+        },
+        {
+          id: "markdown-auto-save-error",
+          message: "Could not auto-save changes. Your document is still unsaved.",
+          status: "error"
+        }
+      ]);
+    } finally {
+      showAppToast.mockRestore();
+      vi.useRealTimers();
+    }
   });
 
   it("marks macOS 27 windows for the WebKit scrolling workaround", async () => {
@@ -2846,7 +2923,7 @@ describe("Markra workspace", () => {
     renderApp();
 
     act(() => {
-      showAppToast({
+      appToast.showAppToast({
         description: "S3 image upload failed: HTTP 403",
         message: "Could not save the pasted image.",
         status: "error"
