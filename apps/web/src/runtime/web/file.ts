@@ -29,6 +29,7 @@ import {
   pickBrowserDirectoryFiles,
   resolveBrowserPicker
 } from "./browser";
+import { loadMarkdownIgnoreRules, type MarkdownIgnoreRules } from "./ignore-rules";
 import type {
   WebDirectoryHandle,
   WebFileHandle,
@@ -67,7 +68,6 @@ const jsonFileType = "application/json;charset=utf-8";
 const markdownExtensions = new Set(["md", "markdown"]);
 const markdownOpenExtensions = new Set(["md", "markdown", "txt"]);
 const assetExtensions = new Set(["avif", "bmp", "gif", "jpg", "jpeg", "png", "svg", "webp"]);
-const skippedDirectoryNames = new Set([".git", "node_modules"]);
 const fileHandleStorePath = "web-file-handles.json";
 const directoryHandleStorePath = "web-directory-handles.json";
 const settingsFilePickerTypes = [{
@@ -758,7 +758,8 @@ export function createWebFileRuntime(
     directory: WebDirectoryHandle,
     parentRelativePath: string,
     entries: NativeMarkdownFolderFile[],
-    managedAttachmentFolder: string | null
+    managedAttachmentFolder: string | null,
+    ignoreRules: MarkdownIgnoreRules
   ) {
     const iterator = directory.entries?.() ?? fallbackDirectoryEntries(directory);
     if (!iterator) throw new Error("Browser directory handle cannot list files.");
@@ -766,17 +767,19 @@ export function createWebFileRuntime(
     for await (const [name, handle] of iterator) {
       const relativePath = joinRelativePath(parentRelativePath, name);
       if (isDirectoryHandle(handle)) {
-        if (!skippedDirectoryNames.has(name)) {
+        if (!ignoreRules.ignores(relativePath, true)) {
           entries.push({
             kind: "folder",
             name,
             path: createFolderPath(id, relativePath),
             relativePath
           });
-          await collectMarkdownEntries(id, handle, relativePath, entries, managedAttachmentFolder);
+          await collectMarkdownEntries(id, handle, relativePath, entries, managedAttachmentFolder, ignoreRules);
         }
         continue;
       }
+
+      if (ignoreRules.ignores(relativePath, false)) continue;
 
       const file = {
         ...folderFileKindFromName(name),
@@ -998,8 +1001,9 @@ export function createWebFileRuntime(
       if (!root) throw new Error("Web folder handle is no longer available.");
       const entries: NativeMarkdownFolderFile[] = [];
       const managedAttachmentFolder = normalizeManagedAttachmentFolder(options.managedAttachmentFolder);
+      const ignoreRules = await loadMarkdownIgnoreRules(root);
 
-      await collectMarkdownEntries(parsedPath.id, root, "", entries, managedAttachmentFolder);
+      await collectMarkdownEntries(parsedPath.id, root, "", entries, managedAttachmentFolder, ignoreRules);
 
       return entries.sort((left, right) => left.relativePath.toLowerCase().localeCompare(right.relativePath.toLowerCase()));
     },

@@ -7,10 +7,11 @@ use std::sync::{
 };
 
 use super::asset::allow_asset_directory;
+use super::ignore_rules::MarkdownIgnoreRules;
 use super::path::{
     is_markdown_tree_asset_file, is_markdown_tree_attachment_file, is_markdown_tree_file,
     markdown_folder_file, markdown_tree_file_kind, markdown_tree_root_for_path,
-    normalize_markdown_tree_single_file_name, should_skip_markdown_tree_directory,
+    normalize_markdown_tree_single_file_name,
 };
 use super::types::{MarkdownFolderEntryKind, MarkdownFolderFile};
 use tauri::Emitter;
@@ -83,6 +84,7 @@ impl MarkdownTreeLoadState {
 fn collect_markdown_tree_files(
     root: &Path,
     directory: &Path,
+    ignore_rules: &MarkdownIgnoreRules,
     files: &mut Vec<MarkdownFolderFile>,
 ) -> Result<(), String> {
     let mut entries = fs::read_dir(directory)
@@ -102,18 +104,22 @@ fn collect_markdown_tree_files(
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
 
         if file_type.is_dir() {
-            if !should_skip_markdown_tree_directory(&path) {
+            if !ignore_rules.ignores(&path, true) {
                 files.push(markdown_folder_file(
                     root,
                     &path,
                     MarkdownFolderEntryKind::Folder,
                 )?);
-                collect_markdown_tree_files(root, &path, files)?;
+                collect_markdown_tree_files(root, &path, ignore_rules, files)?;
             }
             continue;
         }
 
         if file_type.is_file() {
+            if ignore_rules.ignores(&path, false) {
+                continue;
+            }
+
             if is_markdown_tree_file(&path) {
                 files.push(markdown_folder_file(
                     root,
@@ -193,6 +199,7 @@ fn collect_markdown_tree_files_incrementally(
     cancel: &AtomicBool,
     root: &Path,
     directory: &Path,
+    ignore_rules: &MarkdownIgnoreRules,
     managed_attachment_folder: Option<&str>,
     batch: &mut Vec<MarkdownFolderFile>,
     first_batch_sent: &mut bool,
@@ -222,7 +229,7 @@ fn collect_markdown_tree_files_incrementally(
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
 
         if file_type.is_dir() {
-            if !should_skip_markdown_tree_directory(&path) {
+            if !ignore_rules.ignores(&path, true) {
                 push_markdown_tree_load_file(
                     app,
                     request_id,
@@ -236,6 +243,7 @@ fn collect_markdown_tree_files_incrementally(
                     cancel,
                     root,
                     &path,
+                    ignore_rules,
                     managed_attachment_folder,
                     batch,
                     first_batch_sent,
@@ -245,6 +253,10 @@ fn collect_markdown_tree_files_incrementally(
         }
 
         if file_type.is_file() {
+            if ignore_rules.ignores(&path, false) {
+                continue;
+            }
+
             let kind = markdown_tree_file_kind(&path)?;
             let file = markdown_folder_file(root, &path, kind)?;
             if should_include_markdown_tree_file(&file, managed_attachment_folder) {
@@ -504,9 +516,10 @@ fn list_markdown_files_for_path_with_asset_scope(
     let mut files = Vec::new();
     let normalized_managed_attachment_folder =
         normalize_managed_attachment_folder(managed_attachment_folder);
+    let ignore_rules = MarkdownIgnoreRules::for_root(&root);
 
     allow_root_assets(&root)?;
-    collect_markdown_tree_files(&root, &root, &mut files)?;
+    collect_markdown_tree_files(&root, &root, &ignore_rules, &mut files)?;
     files.retain(|file| {
         should_include_markdown_tree_file(file, normalized_managed_attachment_folder.as_deref())
     });
@@ -583,6 +596,7 @@ fn load_markdown_files_for_path_in_background(
     let root = markdown_tree_root_for_path(&source_path)?;
     let normalized_managed_attachment_folder =
         normalize_managed_attachment_folder(managed_attachment_folder.as_deref());
+    let ignore_rules = MarkdownIgnoreRules::for_root(&root);
     let mut batch = Vec::new();
     let mut first_batch_sent = false;
 
@@ -593,6 +607,7 @@ fn load_markdown_files_for_path_in_background(
         &cancel,
         &root,
         &root,
+        &ignore_rules,
         normalized_managed_attachment_folder.as_deref(),
         &mut batch,
         &mut first_batch_sent,
@@ -1021,6 +1036,51 @@ mod tests {
         assert!(!relative_paths.iter().any(|path| path
             .split('/')
             .any(|part| matches!(part, "build" | "dist" | "target"))));
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn uses_root_markraignore_when_listing_files() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-ignore-tree-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let generated = root.join("generated");
+        let git = root.join(".git");
+
+        fs::create_dir_all(&generated).expect("generated folder should be created");
+        fs::create_dir_all(&git).expect("git folder should be created");
+        fs::write(
+            root.join(".markraignore"),
+            "generated/\n*.tmp\n*.md\n!keep.md\n!.git/\n",
+        )
+        .expect("ignore rules should be created");
+        fs::write(root.join("keep.md"), "# Keep").expect("kept markdown should be created");
+        fs::write(root.join("drop.md"), "# Drop").expect("ignored markdown should be created");
+        fs::write(root.join("draft.tmp"), "temporary")
+            .expect("ignored attachment should be created");
+        fs::write(generated.join("page.md"), "# Generated")
+            .expect("generated markdown should be created");
+        fs::write(git.join("readme.md"), "# Git metadata").expect("git markdown should be created");
+
+        let files = list_markdown_files_for_path_with_asset_scope(
+            root.to_string_lossy().to_string(),
+            None,
+            |_| Ok(()),
+        )
+        .expect("markdown tree should be listed");
+
+        assert_eq!(
+            files
+                .iter()
+                .map(|file| file.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["keep.md"]
+        );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
     }

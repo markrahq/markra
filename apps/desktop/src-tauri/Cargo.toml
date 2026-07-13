@@ -22,6 +22,7 @@ notify = "8.2.0"
 dirs = "6.0.0"
 fontdb = "0.23.0"
 hmac = "0.12.1"
+ignore = "0.4.28"
 quick-xml = "0.39.2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "socks"] }
 serde = { version = "1", features = ["derive"] }

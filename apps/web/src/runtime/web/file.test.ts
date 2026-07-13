@@ -306,16 +306,10 @@ describe("web file runtime", () => {
     expect(entries.map((entry) => ({ kind: entry.kind, relativePath: entry.relativePath }))).toEqual([
       { kind: "folder", relativePath: "assets" },
       { kind: "asset", relativePath: "assets/image.png" },
-      { kind: "folder", relativePath: "build" },
-      { kind: undefined, relativePath: "build/output.md" },
-      { kind: "folder", relativePath: "dist" },
-      { kind: undefined, relativePath: "dist/bundle.md" },
       { kind: "folder", relativePath: "downloads" },
       { kind: "attachment", relativePath: "downloads/export.docx" },
       { kind: "folder", relativePath: "notes" },
       { kind: undefined, relativePath: "notes/daily.md" },
-      { kind: "folder", relativePath: "target" },
-      { kind: undefined, relativePath: "target/cache.md" },
       { kind: "attachment", relativePath: "todo.txt" }
     ]);
 
@@ -330,6 +324,62 @@ describe("web file runtime", () => {
     })).resolves.toEqual(entries.filter((entry) =>
       entry.kind !== "attachment" || entry.relativePath.startsWith("assets/")
     ));
+  });
+
+  it("uses desktop ignore defaults when listing browser directories", async () => {
+    const ignoredDirectoryNames = [
+      ".codex",
+      ".git",
+      ".markra-sync",
+      ".obsidian",
+      "build",
+      "dist",
+      "node_modules",
+      "target"
+    ];
+    const ignoredEntries = Object.fromEntries(ignoredDirectoryNames.map((name) => [
+      name,
+      new FakeDirectoryHandle(name, {
+        "hidden.md": new FakeFileHandle("hidden.md", "# Hidden")
+      })
+    ]));
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      ...ignoredEntries,
+      "visible.md": new FakeFileHandle("visible.md", "# Visible")
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => directory
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path);
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual(["visible.md"]);
+  });
+
+  it("uses root markraignore when listing browser directories", async () => {
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      ".markraignore": new FakeFileHandle(
+        ".markraignore",
+        "generated/\n*.tmp\n*.md\n!keep.md\n"
+      ),
+      "draft.tmp": new FakeFileHandle("draft.tmp", "temporary"),
+      "drop.md": new FakeFileHandle("drop.md", "# Drop"),
+      "generated": new FakeDirectoryHandle("generated", {
+        "page.md": new FakeFileHandle("page.md", "# Generated")
+      }),
+      "keep.md": new FakeFileHandle("keep.md", "# Keep")
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => directory
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path);
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual(["keep.md"]);
   });
 
   it("falls back to directory upload when the browser file system picker is unavailable", async () => {

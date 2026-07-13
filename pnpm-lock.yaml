@@ -108,6 +108,9 @@ importers:
       '@markra/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      ignore:
+        specifier: 7.0.5
+        version: 7.0.5
       react:
         specifier: 19.2.5
         version: 19.2.5

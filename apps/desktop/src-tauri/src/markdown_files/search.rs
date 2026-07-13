@@ -5,10 +5,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::UNIX_EPOCH;
 
-use super::path::{
-    is_markdown_open_file, markdown_folder_file, markdown_tree_root_for_path,
-    should_skip_markdown_tree_directory,
-};
+use super::ignore_rules::MarkdownIgnoreRules;
+use super::path::{is_markdown_open_file, markdown_folder_file, markdown_tree_root_for_path};
 use super::types::{MarkdownFolderEntryKind, MarkdownFolderFile};
 
 const WORKSPACE_SEARCH_MAX_WORKERS: usize = 8;
@@ -88,8 +86,9 @@ struct WorkspaceSearchIndexCache {
 
 fn collect_markdown_workspace_files(root: &Path) -> Result<Vec<MarkdownFolderFile>, String> {
     let mut files = Vec::new();
+    let ignore_rules = MarkdownIgnoreRules::for_root(root);
 
-    collect_markdown_workspace_files_in(root, root, &mut files)?;
+    collect_markdown_workspace_files_in(root, root, &ignore_rules, &mut files)?;
     files.sort_by(|a, b| {
         a.relative_path
             .to_lowercase()
@@ -102,6 +101,7 @@ fn collect_markdown_workspace_files(root: &Path) -> Result<Vec<MarkdownFolderFil
 fn collect_markdown_workspace_files_in(
     root: &Path,
     directory: &Path,
+    ignore_rules: &MarkdownIgnoreRules,
     files: &mut Vec<MarkdownFolderFile>,
 ) -> Result<(), String> {
     let mut entries = fs::read_dir(directory)
@@ -121,13 +121,16 @@ fn collect_markdown_workspace_files_in(
         let file_type = entry.file_type().map_err(|error| error.to_string())?;
 
         if file_type.is_dir() {
-            if !should_skip_markdown_tree_directory(&path) {
-                collect_markdown_workspace_files_in(root, &path, files)?;
+            if !ignore_rules.ignores(&path, true) {
+                collect_markdown_workspace_files_in(root, &path, ignore_rules, files)?;
             }
             continue;
         }
 
-        if file_type.is_file() && is_markdown_open_file(&path) {
+        if file_type.is_file()
+            && !ignore_rules.ignores(&path, false)
+            && is_markdown_open_file(&path)
+        {
             files.push(markdown_folder_file(
                 root,
                 &path,
@@ -731,6 +734,49 @@ mod tests {
                 ("guide.md", 1, 3, "# Alpha guide", 0),
                 ("guide.md", 3, 9, "another alpha marker", 1),
             ]
+        );
+
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn uses_root_markraignore_when_searching_workspace_files() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-ignore-search-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let generated = root.join("generated");
+
+        fs::create_dir_all(&generated).expect("generated folder should be created");
+        fs::write(root.join(".markraignore"), "generated/\n")
+            .expect("ignore rules should be created");
+        fs::write(root.join("visible.md"), "shared search marker")
+            .expect("visible markdown should be created");
+        fs::write(generated.join("hidden.md"), "shared search marker")
+            .expect("ignored markdown should be created");
+
+        let search = search_markdown_files_for_path_blocking(
+            root.to_string_lossy().to_string(),
+            "search marker".to_string(),
+            false,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("workspace search should complete");
+
+        assert_eq!(search.searched_file_count, 1);
+        assert_eq!(
+            search
+                .results
+                .iter()
+                .map(|result| result.file.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["visible.md"]
         );
 
         fs::remove_dir_all(root).expect("test tree should be removed");

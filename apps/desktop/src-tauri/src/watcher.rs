@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::Emitter;
 
-use crate::markdown_files::should_skip_markdown_tree_component;
+use crate::markdown_files::MarkdownIgnoreRules;
 
 const MARKDOWN_FILE_CHANGED_EVENT: &str = "markra://file-changed";
 const MARKDOWN_TREE_CHANGED_EVENT: &str = "markra://tree-changed";
@@ -56,7 +56,25 @@ fn is_markdown_tree_path(_path: &Path) -> bool {
     true
 }
 
-fn markdown_tree_event_path<'a>(event: &'a Event, root: &Path) -> Option<&'a Path> {
+fn reload_markdown_ignore_rules_for_event(
+    event: &Event,
+    root: &Path,
+    ignore_rules: &mut MarkdownIgnoreRules,
+) {
+    if event
+        .paths
+        .iter()
+        .any(|event_path| ignore_rules.is_control_file(event_path))
+    {
+        *ignore_rules = MarkdownIgnoreRules::for_root(root);
+    }
+}
+
+fn markdown_tree_event_path<'a>(
+    event: &'a Event,
+    root: &Path,
+    ignore_rules: &MarkdownIgnoreRules,
+) -> Option<&'a Path> {
     if !matches!(
         event.kind,
         EventKind::Any | EventKind::Create(_) | EventKind::Modify(_) | EventKind::Remove(_)
@@ -69,11 +87,15 @@ fn markdown_tree_event_path<'a>(event: &'a Event, root: &Path) -> Option<&'a Pat
             return false;
         };
 
-        let has_ignored_component = relative_path
-            .components()
-            .any(|component| should_skip_markdown_tree_component(component.as_os_str()));
+        if relative_path.as_os_str().is_empty() {
+            return false;
+        }
 
-        !has_ignored_component && is_markdown_tree_path(event_path)
+        // The control file stays hidden from the tree, but its event must trigger
+        // a refresh so subsequent traversal uses the updated rules.
+        ignore_rules.is_control_file(event_path)
+            || (!ignore_rules.ignores(event_path, event_path.is_dir())
+                && is_markdown_tree_path(event_path))
     })
 }
 
@@ -168,6 +190,7 @@ pub(crate) fn watch_markdown_file(
     let emitted_root = watch_root.to_string_lossy().to_string();
     let callback_path = watched_path.clone();
     let callback_root = watch_root.clone();
+    let mut ignore_rules = MarkdownIgnoreRules::for_root(&callback_root);
 
     // Watch the parent tree so atomic saves and adjacent pasted assets are still visible.
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
@@ -184,7 +207,8 @@ pub(crate) fn watch_markdown_file(
             );
         }
 
-        if let Some(event_path) = markdown_tree_event_path(&event, &callback_root) {
+        reload_markdown_ignore_rules_for_event(&event, &callback_root, &mut ignore_rules);
+        if let Some(event_path) = markdown_tree_event_path(&event, &callback_root, &ignore_rules) {
             let _ = app.emit(
                 MARKDOWN_TREE_CHANGED_EVENT,
                 MarkdownTreeChanged {
@@ -233,13 +257,15 @@ pub(crate) fn watch_markdown_tree(
     };
     let emitted_root = watch_root.to_string_lossy().to_string();
     let callback_root = watch_root.clone();
+    let mut ignore_rules = MarkdownIgnoreRules::for_root(&callback_root);
 
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
         let Ok(event) = result else {
             return;
         };
 
-        if let Some(event_path) = markdown_tree_event_path(&event, &callback_root) {
+        reload_markdown_ignore_rules_for_event(&event, &callback_root, &mut ignore_rules);
+        if let Some(event_path) = markdown_tree_event_path(&event, &callback_root, &ignore_rules) {
             let _ = app.emit(
                 MARKDOWN_TREE_CHANGED_EVENT,
                 MarkdownTreeChanged {
@@ -272,6 +298,11 @@ mod tests {
     use super::*;
     use notify::event::{CreateKind, DataChange, ModifyKind};
     use std::collections::HashMap;
+
+    fn test_markdown_tree_event_path<'a>(event: &'a Event, root: &Path) -> Option<&'a Path> {
+        let ignore_rules = MarkdownIgnoreRules::for_root(root);
+        markdown_tree_event_path(event, root, &ignore_rules)
+    }
 
     #[test]
     fn matches_target_file_modifications_in_the_watched_directory() {
@@ -306,7 +337,7 @@ mod tests {
         let event = Event::new(EventKind::Create(CreateKind::File))
             .add_path(PathBuf::from("/mock-files/assets/pasted-image.png"));
 
-        assert!(markdown_tree_event_path(&event, &root).is_some());
+        assert!(test_markdown_tree_event_path(&event, &root).is_some());
     }
 
     #[test]
@@ -315,7 +346,7 @@ mod tests {
         let event = Event::new(EventKind::Create(CreateKind::File))
             .add_path(PathBuf::from("/mock-files/node_modules/pkg/readme.md"));
 
-        assert!(markdown_tree_event_path(&event, &root).is_none());
+        assert!(test_markdown_tree_event_path(&event, &root).is_none());
     }
 
     #[test]
@@ -325,7 +356,45 @@ mod tests {
             PathBuf::from("/mock-files/.obsidian/plugins/mock-plugin/data.json"),
         );
 
-        assert!(markdown_tree_event_path(&event, &root).is_none());
+        assert!(test_markdown_tree_event_path(&event, &root).is_none());
+    }
+
+    #[test]
+    fn uses_root_markraignore_for_tree_events() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-ignore-watcher-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let generated = root.join("generated");
+
+        std::fs::create_dir_all(&generated).expect("generated folder should be created");
+        let mut ignore_rules = MarkdownIgnoreRules::for_root(&root);
+        std::fs::write(root.join(".markraignore"), "generated/\n")
+            .expect("ignore rules should be created");
+        let control_event =
+            Event::new(EventKind::Create(CreateKind::File)).add_path(root.join(".markraignore"));
+        reload_markdown_ignore_rules_for_event(&control_event, &root, &mut ignore_rules);
+        let event =
+            Event::new(EventKind::Create(CreateKind::File)).add_path(generated.join("hidden.md"));
+
+        assert!(markdown_tree_event_path(&event, &root, &ignore_rules).is_none());
+
+        std::fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn emits_root_markraignore_tree_events() {
+        let root = PathBuf::from("/mock-files");
+        let event = Event::new(EventKind::Modify(ModifyKind::Data(DataChange::Content)))
+            .add_path(root.join(".markraignore"));
+
+        assert_eq!(
+            test_markdown_tree_event_path(&event, &root),
+            Some(root.join(".markraignore").as_path())
+        );
     }
 
     #[test]

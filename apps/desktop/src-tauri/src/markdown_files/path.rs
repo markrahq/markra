@@ -1,4 +1,3 @@
-use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -103,27 +102,6 @@ pub(crate) fn markdown_open_path_for_path(path: &Path) -> Result<MarkdownOpenPat
     }
 
     Err("Selected path is not a supported Markdown file or folder".to_string())
-}
-
-pub(crate) fn should_skip_markdown_tree_component(component: &OsStr) -> bool {
-    component.to_str().is_some_and(|name| {
-        matches!(
-            name,
-            ".codex"
-                | ".git"
-                | ".markra-sync"
-                | ".obsidian"
-                | "build"
-                | "dist"
-                | "node_modules"
-                | "target"
-        )
-    })
-}
-
-pub(super) fn should_skip_markdown_tree_directory(path: &Path) -> bool {
-    path.file_name()
-        .is_some_and(should_skip_markdown_tree_component)
 }
 
 pub(super) fn markdown_tree_relative_path(root: &Path, path: &Path) -> Result<String, String> {
