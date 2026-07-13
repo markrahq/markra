@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use tauri::Emitter;
@@ -11,6 +11,7 @@ const MARKDOWN_FILE_CHANGED_EVENT: &str = "markra://file-changed";
 const MARKDOWN_TREE_CHANGED_EVENT: &str = "markra://tree-changed";
 
 struct ActiveMarkdownWatcher {
+    ignore_rules: Arc<Mutex<MarkdownIgnoreRules>>,
     subscriber_count: usize,
     _watcher: RecommendedWatcher,
 }
@@ -56,17 +57,13 @@ fn is_markdown_tree_path(_path: &Path) -> bool {
     true
 }
 
-fn reload_markdown_ignore_rules_for_event(
-    event: &Event,
-    root: &Path,
-    ignore_rules: &mut MarkdownIgnoreRules,
-) {
+fn reload_markdown_ignore_rules_for_event(event: &Event, ignore_rules: &mut MarkdownIgnoreRules) {
     if event
         .paths
         .iter()
         .any(|event_path| ignore_rules.is_control_file(event_path))
     {
-        *ignore_rules = MarkdownIgnoreRules::for_root(root);
+        ignore_rules.reload();
     }
 }
 
@@ -115,12 +112,21 @@ fn release_active_watcher_subscription(subscriber_count: &mut usize) -> bool {
 fn has_active_watcher_subscription(
     watcher_state: &Mutex<HashMap<PathBuf, ActiveMarkdownWatcher>>,
     path: &Path,
+    ignore_root: &Path,
+    global_ignore_rules: Option<&str>,
 ) -> Result<bool, String> {
     let mut active_watchers = watcher_state
         .lock()
         .map_err(|_| "markdown watcher state lock is poisoned".to_string())?;
 
     if let Some(watcher) = active_watchers.get_mut(path) {
+        let mut ignore_rules = watcher
+            .ignore_rules
+            .lock()
+            .map_err(|_| "markdown ignore rules lock is poisoned".to_string())?;
+        // React may subscribe with new settings before the previous async unwatch
+        // reaches Rust, so refresh a shared watcher's matcher during subscription.
+        *ignore_rules = MarkdownIgnoreRules::for_root(ignore_root, global_ignore_rules);
         watcher.subscriber_count += 1;
         return Ok(true);
     }
@@ -132,12 +138,21 @@ fn remember_active_watcher(
     watcher_state: &Mutex<HashMap<PathBuf, ActiveMarkdownWatcher>>,
     path: PathBuf,
     watcher: RecommendedWatcher,
+    ignore_rules: Arc<Mutex<MarkdownIgnoreRules>>,
 ) -> Result<(), String> {
     let mut active_watchers = watcher_state
         .lock()
         .map_err(|_| "markdown watcher state lock is poisoned".to_string())?;
 
     if let Some(existing_watcher) = active_watchers.get_mut(&path) {
+        let mut existing_ignore_rules = existing_watcher
+            .ignore_rules
+            .lock()
+            .map_err(|_| "markdown ignore rules lock is poisoned".to_string())?;
+        let mut next_ignore_rules = ignore_rules
+            .lock()
+            .map_err(|_| "markdown ignore rules lock is poisoned".to_string())?;
+        std::mem::swap(&mut *existing_ignore_rules, &mut *next_ignore_rules);
         existing_watcher.subscriber_count += 1;
         return Ok(());
     }
@@ -145,6 +160,7 @@ fn remember_active_watcher(
     active_watchers.insert(
         path.clone(),
         ActiveMarkdownWatcher {
+            ignore_rules,
             subscriber_count: 1,
             _watcher: watcher,
         },
@@ -176,21 +192,30 @@ pub(crate) fn watch_markdown_file(
     app: tauri::AppHandle,
     watcher_state: tauri::State<'_, MarkdownFileWatcherState>,
     path: String,
+    global_ignore_rules: Option<String>,
 ) -> Result<(), String> {
     let watched_path = PathBuf::from(&path);
-    if has_active_watcher_subscription(&watcher_state.0, &watched_path)? {
-        return Ok(());
-    }
-
     let watch_root = watched_path
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
+    if has_active_watcher_subscription(
+        &watcher_state.0,
+        &watched_path,
+        &watch_root,
+        global_ignore_rules.as_deref(),
+    )? {
+        return Ok(());
+    }
     let emitted_path = watched_path.to_string_lossy().to_string();
     let emitted_root = watch_root.to_string_lossy().to_string();
     let callback_path = watched_path.clone();
     let callback_root = watch_root.clone();
-    let mut ignore_rules = MarkdownIgnoreRules::for_root(&callback_root);
+    let ignore_rules = Arc::new(Mutex::new(MarkdownIgnoreRules::for_root(
+        &callback_root,
+        global_ignore_rules.as_deref(),
+    )));
+    let callback_ignore_rules = Arc::clone(&ignore_rules);
 
     // Watch the parent tree so atomic saves and adjacent pasted assets are still visible.
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
@@ -207,7 +232,10 @@ pub(crate) fn watch_markdown_file(
             );
         }
 
-        reload_markdown_ignore_rules_for_event(&event, &callback_root, &mut ignore_rules);
+        let Ok(mut ignore_rules) = callback_ignore_rules.lock() else {
+            return;
+        };
+        reload_markdown_ignore_rules_for_event(&event, &mut ignore_rules);
         if let Some(event_path) = markdown_tree_event_path(&event, &callback_root, &ignore_rules) {
             let _ = app.emit(
                 MARKDOWN_TREE_CHANGED_EVENT,
@@ -224,7 +252,7 @@ pub(crate) fn watch_markdown_file(
         .watch(&watch_root, RecursiveMode::Recursive)
         .map_err(|error| error.to_string())?;
 
-    remember_active_watcher(&watcher_state.0, watched_path, watcher)
+    remember_active_watcher(&watcher_state.0, watched_path, watcher, ignore_rules)
 }
 
 #[tauri::command]
@@ -241,12 +269,9 @@ pub(crate) fn watch_markdown_tree(
     app: tauri::AppHandle,
     watcher_state: tauri::State<'_, MarkdownTreeWatcherState>,
     root_path: String,
+    global_ignore_rules: Option<String>,
 ) -> Result<(), String> {
     let source_path = PathBuf::from(&root_path);
-    if has_active_watcher_subscription(&watcher_state.0, &source_path)? {
-        return Ok(());
-    }
-
     let watch_root = if source_path.is_dir() {
         source_path.clone()
     } else {
@@ -255,16 +280,31 @@ pub(crate) fn watch_markdown_tree(
             .map(Path::to_path_buf)
             .unwrap_or_else(|| PathBuf::from("."))
     };
+    if has_active_watcher_subscription(
+        &watcher_state.0,
+        &source_path,
+        &watch_root,
+        global_ignore_rules.as_deref(),
+    )? {
+        return Ok(());
+    }
     let emitted_root = watch_root.to_string_lossy().to_string();
     let callback_root = watch_root.clone();
-    let mut ignore_rules = MarkdownIgnoreRules::for_root(&callback_root);
+    let ignore_rules = Arc::new(Mutex::new(MarkdownIgnoreRules::for_root(
+        &callback_root,
+        global_ignore_rules.as_deref(),
+    )));
+    let callback_ignore_rules = Arc::clone(&ignore_rules);
 
     let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
         let Ok(event) = result else {
             return;
         };
 
-        reload_markdown_ignore_rules_for_event(&event, &callback_root, &mut ignore_rules);
+        let Ok(mut ignore_rules) = callback_ignore_rules.lock() else {
+            return;
+        };
+        reload_markdown_ignore_rules_for_event(&event, &mut ignore_rules);
         if let Some(event_path) = markdown_tree_event_path(&event, &callback_root, &ignore_rules) {
             let _ = app.emit(
                 MARKDOWN_TREE_CHANGED_EVENT,
@@ -281,7 +321,7 @@ pub(crate) fn watch_markdown_tree(
         .watch(&watch_root, RecursiveMode::Recursive)
         .map_err(|error| error.to_string())?;
 
-    remember_active_watcher(&watcher_state.0, source_path, watcher)
+    remember_active_watcher(&watcher_state.0, source_path, watcher, ignore_rules)
 }
 
 #[tauri::command]
@@ -300,7 +340,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn test_markdown_tree_event_path<'a>(event: &'a Event, root: &Path) -> Option<&'a Path> {
-        let ignore_rules = MarkdownIgnoreRules::for_root(root);
+        let ignore_rules = MarkdownIgnoreRules::for_root(root, None);
         markdown_tree_event_path(event, root, &ignore_rules)
     }
 
@@ -371,12 +411,37 @@ mod tests {
         let generated = root.join("generated");
 
         std::fs::create_dir_all(&generated).expect("generated folder should be created");
-        let mut ignore_rules = MarkdownIgnoreRules::for_root(&root);
+        let mut ignore_rules = MarkdownIgnoreRules::for_root(&root, None);
         std::fs::write(root.join(".markraignore"), "generated/\n")
             .expect("ignore rules should be created");
         let control_event =
             Event::new(EventKind::Create(CreateKind::File)).add_path(root.join(".markraignore"));
-        reload_markdown_ignore_rules_for_event(&control_event, &root, &mut ignore_rules);
+        reload_markdown_ignore_rules_for_event(&control_event, &mut ignore_rules);
+        let event =
+            Event::new(EventKind::Create(CreateKind::File)).add_path(generated.join("hidden.md"));
+
+        assert!(markdown_tree_event_path(&event, &root, &ignore_rules).is_none());
+
+        std::fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn preserves_global_rules_when_root_markraignore_reloads() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-global-ignore-watcher-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let generated = root.join("generated");
+
+        std::fs::create_dir_all(&generated).expect("generated folder should be created");
+        let mut ignore_rules = MarkdownIgnoreRules::for_root(&root, Some("generated/\n"));
+        std::fs::write(root.join(".markraignore"), "").expect("workspace rules should be created");
+        let control_event = Event::new(EventKind::Modify(ModifyKind::Data(DataChange::Content)))
+            .add_path(root.join(".markraignore"));
+        reload_markdown_ignore_rules_for_event(&control_event, &mut ignore_rules);
         let event =
             Event::new(EventKind::Create(CreateKind::File)).add_path(generated.join("hidden.md"));
 

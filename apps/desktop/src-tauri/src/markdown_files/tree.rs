@@ -509,6 +509,7 @@ fn markdown_tree_target_parent(
 fn list_markdown_files_for_path_with_asset_scope(
     path: String,
     managed_attachment_folder: Option<&str>,
+    global_ignore_rules: Option<&str>,
     allow_root_assets: impl FnOnce(&Path) -> Result<(), String>,
 ) -> Result<Vec<MarkdownFolderFile>, String> {
     let source_path = PathBuf::from(path);
@@ -516,7 +517,7 @@ fn list_markdown_files_for_path_with_asset_scope(
     let mut files = Vec::new();
     let normalized_managed_attachment_folder =
         normalize_managed_attachment_folder(managed_attachment_folder);
-    let ignore_rules = MarkdownIgnoreRules::for_root(&root);
+    let ignore_rules = MarkdownIgnoreRules::for_root(&root, global_ignore_rules);
 
     allow_root_assets(&root)?;
     collect_markdown_tree_files(&root, &root, &ignore_rules, &mut files)?;
@@ -537,10 +538,12 @@ pub(crate) fn list_markdown_files_for_path(
     app: tauri::AppHandle,
     path: String,
     managed_attachment_folder: Option<String>,
+    global_ignore_rules: Option<String>,
 ) -> Result<Vec<MarkdownFolderFile>, String> {
     list_markdown_files_for_path_with_asset_scope(
         path,
         managed_attachment_folder.as_deref(),
+        global_ignore_rules.as_deref(),
         |root| allow_asset_directory(&app, root),
     )
 }
@@ -551,6 +554,7 @@ pub(crate) fn load_markdown_files_for_path(
     load_state: tauri::State<'_, MarkdownTreeLoadState>,
     path: String,
     managed_attachment_folder: Option<String>,
+    global_ignore_rules: Option<String>,
     request_id: String,
 ) -> Result<(), String> {
     let trimmed_request_id = request_id.trim().to_string();
@@ -567,6 +571,7 @@ pub(crate) fn load_markdown_files_for_path(
             &app,
             path,
             managed_attachment_folder,
+            global_ignore_rules,
             trimmed_request_id.clone(),
             cancel,
         );
@@ -589,6 +594,7 @@ fn load_markdown_files_for_path_in_background(
     app: &tauri::AppHandle,
     path: String,
     managed_attachment_folder: Option<String>,
+    global_ignore_rules: Option<String>,
     request_id: String,
     cancel: Arc<AtomicBool>,
 ) -> Result<(), String> {
@@ -596,7 +602,7 @@ fn load_markdown_files_for_path_in_background(
     let root = markdown_tree_root_for_path(&source_path)?;
     let normalized_managed_attachment_folder =
         normalize_managed_attachment_folder(managed_attachment_folder.as_deref());
-    let ignore_rules = MarkdownIgnoreRules::for_root(&root);
+    let ignore_rules = MarkdownIgnoreRules::for_root(&root, global_ignore_rules.as_deref());
     let mut batch = Vec::new();
     let mut first_batch_sent = false;
 
@@ -815,6 +821,7 @@ mod tests {
         let files = list_markdown_files_for_path_with_asset_scope(
             root.join("Untitled.md").to_string_lossy().to_string(),
             None,
+            None,
             |_| Ok(()),
         )
         .expect("markdown tree should be listed");
@@ -878,6 +885,7 @@ mod tests {
         let files = list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
             None,
+            None,
             |_| Ok(()),
         )
         .expect("selected folder tree should be listed");
@@ -922,6 +930,7 @@ mod tests {
         let files = list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
             Some("assets"),
+            None,
             |_| Ok(()),
         )
         .expect("markdown tree should be listed");
@@ -974,6 +983,7 @@ mod tests {
         let files = list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
             Some("assets"),
+            None,
             |_| Ok(()),
         )
         .expect("markdown tree should be listed");
@@ -1020,6 +1030,7 @@ mod tests {
         let files = list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
             Some("assets"),
+            None,
             |_| Ok(()),
         )
         .expect("markdown tree should be listed");
@@ -1049,20 +1060,24 @@ mod tests {
                 .expect("system clock should be after epoch")
                 .as_nanos()
         ));
+        let drafts = root.join("drafts");
         let generated = root.join("generated");
         let git = root.join(".git");
 
+        fs::create_dir_all(&drafts).expect("drafts folder should be created");
         fs::create_dir_all(&generated).expect("generated folder should be created");
         fs::create_dir_all(&git).expect("git folder should be created");
         fs::write(
             root.join(".markraignore"),
-            "generated/\n*.tmp\n*.md\n!keep.md\n!.git/\n",
+            "generated/\n*.tmp\n!drafts/\n!drafts/restored.md\n!keep.md\n!.git/\n",
         )
         .expect("ignore rules should be created");
         fs::write(root.join("keep.md"), "# Keep").expect("kept markdown should be created");
         fs::write(root.join("drop.md"), "# Drop").expect("ignored markdown should be created");
         fs::write(root.join("draft.tmp"), "temporary")
             .expect("ignored attachment should be created");
+        fs::write(drafts.join("restored.md"), "# Restored")
+            .expect("restored markdown should be created");
         fs::write(generated.join("page.md"), "# Generated")
             .expect("generated markdown should be created");
         fs::write(git.join("readme.md"), "# Git metadata").expect("git markdown should be created");
@@ -1070,6 +1085,7 @@ mod tests {
         let files = list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
             None,
+            Some("*.md\ndrafts/\n"),
             |_| Ok(()),
         )
         .expect("markdown tree should be listed");
@@ -1079,7 +1095,7 @@ mod tests {
                 .iter()
                 .map(|file| file.relative_path.as_str())
                 .collect::<Vec<_>>(),
-            vec!["keep.md"]
+            vec!["drafts", "drafts/restored.md", "keep.md"]
         );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
@@ -1110,6 +1126,7 @@ mod tests {
         assert!(list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
             None,
+            None,
             |_| Ok(()),
         )
         .is_err());
@@ -1139,6 +1156,7 @@ mod tests {
         let mut allowed_paths = Vec::new();
         list_markdown_files_for_path_with_asset_scope(
             root.to_string_lossy().to_string(),
+            None,
             None,
             |path: &Path| {
                 allowed_paths.push(path.to_path_buf());

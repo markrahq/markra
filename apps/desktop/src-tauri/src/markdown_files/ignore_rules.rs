@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 
-use ignore::gitignore::Gitignore;
+use ignore::gitignore::{Gitignore, GitignoreBuilder};
 
 pub(crate) const MARKRA_IGNORE_FILE_NAME: &str = ".markraignore";
 
@@ -22,20 +22,36 @@ fn is_builtin_ignored_directory_name(name: &OsStr) -> bool {
 }
 
 pub(crate) struct MarkdownIgnoreRules {
+    global_rules: String,
     root: PathBuf,
     matcher: Gitignore,
 }
 
 impl MarkdownIgnoreRules {
-    pub(crate) fn for_root(root: &Path) -> Self {
-        // Gitignore::new keeps valid rules after partial parse errors and returns
-        // an empty matcher on read errors, so a bad control file cannot block a workspace.
-        let (matcher, _load_error) = Gitignore::new(root.join(MARKRA_IGNORE_FILE_NAME));
+    pub(crate) fn for_root(root: &Path, global_rules: Option<&str>) -> Self {
+        let global_rules = global_rules.unwrap_or_default().to_string();
+        let mut builder = GitignoreBuilder::new(root);
+
+        // Parse line-by-line so one invalid global pattern cannot discard valid rules.
+        for line in global_rules.lines() {
+            let _ = builder.add_line(None, line);
+        }
+        // Workspace rules are added last so their negations can override global defaults.
+        // Partial file errors are intentionally ignored to keep the workspace repairable.
+        let _ = builder.add(root.join(MARKRA_IGNORE_FILE_NAME));
+        let matcher = builder.build().unwrap_or_else(|_| Gitignore::empty());
 
         Self {
+            global_rules,
             root: root.to_path_buf(),
             matcher,
         }
+    }
+
+    pub(crate) fn reload(&mut self) {
+        let root = self.root.clone();
+        let global_rules = self.global_rules.clone();
+        *self = Self::for_root(&root, Some(&global_rules));
     }
 
     pub(crate) fn ignores(&self, path: &Path, is_directory: bool) -> bool {
@@ -70,5 +86,45 @@ impl MarkdownIgnoreRules {
     pub(crate) fn is_control_file(&self, path: &Path) -> bool {
         path.parent() == Some(self.root.as_path())
             && path.file_name() == Some(OsStr::new(MARKRA_IGNORE_FILE_NAME))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn test_root(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!(
+            "markra-ignore-rules-{name}-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ))
+    }
+
+    #[test]
+    fn applies_global_rules_before_workspace_rules() {
+        let root = test_root("precedence");
+        fs::create_dir_all(&root).expect("test root should be created");
+        fs::write(root.join(MARKRA_IGNORE_FILE_NAME), "!keep.md\n")
+            .expect("workspace rules should be written");
+
+        let rules = MarkdownIgnoreRules::for_root(&root, Some("*.md\n"));
+
+        assert!(!rules.ignores(&root.join("keep.md"), false));
+        assert!(rules.ignores(&root.join("drop.md"), false));
+
+        fs::remove_dir_all(root).expect("test root should be removed");
+    }
+
+    #[test]
+    fn built_in_directories_remain_authoritative() {
+        let root = test_root("builtins");
+        let rules =
+            MarkdownIgnoreRules::for_root(&root, Some("!node_modules/\n!node_modules/readme.md\n"));
+
+        assert!(rules.ignores(&root.join("node_modules/readme.md"), false));
     }
 }

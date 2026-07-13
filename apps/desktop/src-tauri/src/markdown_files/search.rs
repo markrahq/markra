@@ -84,9 +84,12 @@ struct WorkspaceSearchIndexCache {
     indexes: HashMap<PathBuf, WorkspaceSearchIndex>,
 }
 
-fn collect_markdown_workspace_files(root: &Path) -> Result<Vec<MarkdownFolderFile>, String> {
+fn collect_markdown_workspace_files(
+    root: &Path,
+    global_ignore_rules: Option<&str>,
+) -> Result<Vec<MarkdownFolderFile>, String> {
     let mut files = Vec::new();
-    let ignore_rules = MarkdownIgnoreRules::for_root(root);
+    let ignore_rules = MarkdownIgnoreRules::for_root(root, global_ignore_rules);
 
     collect_markdown_workspace_files_in(root, root, &ignore_rules, &mut files)?;
     files.sort_by(|a, b| {
@@ -583,13 +586,14 @@ fn search_markdown_files_for_path_blocking(
     current_document_content: Option<String>,
     max_matches: Option<usize>,
     max_matches_per_file: Option<usize>,
+    global_ignore_rules: Option<String>,
 ) -> Result<MarkdownWorkspaceSearchResponse, String> {
     let normalized_query = query.trim();
     let source_path = PathBuf::from(path);
     let root = markdown_tree_root_for_path(&source_path)?
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let files = collect_markdown_workspace_files(&root)?;
+    let files = collect_markdown_workspace_files(&root, global_ignore_rules.as_deref())?;
     if normalized_query.is_empty() || max_matches == Some(0) || max_matches_per_file == Some(0) {
         return Ok(MarkdownWorkspaceSearchResponse {
             results: Vec::new(),
@@ -656,6 +660,7 @@ pub(crate) async fn search_markdown_files_for_path(
     current_document_content: Option<String>,
     max_matches: Option<usize>,
     max_matches_per_file: Option<usize>,
+    global_ignore_rules: Option<String>,
 ) -> Result<MarkdownWorkspaceSearchResponse, String> {
     tauri::async_runtime::spawn_blocking(move || {
         search_markdown_files_for_path_blocking(
@@ -666,6 +671,7 @@ pub(crate) async fn search_markdown_files_for_path(
             current_document_content,
             max_matches,
             max_matches_per_file,
+            global_ignore_rules,
         )
     })
     .await
@@ -711,6 +717,7 @@ mod tests {
             None,
             Some(10),
             Some(5),
+            None,
         )
         .expect("workspace search should complete");
 
@@ -748,11 +755,15 @@ mod tests {
                 .expect("system clock should be after epoch")
                 .as_nanos()
         ));
+        let drafts = root.join("drafts");
         let generated = root.join("generated");
 
+        fs::create_dir_all(&drafts).expect("drafts folder should be created");
         fs::create_dir_all(&generated).expect("generated folder should be created");
-        fs::write(root.join(".markraignore"), "generated/\n")
+        fs::write(root.join(".markraignore"), "generated/\n!drafts/\n")
             .expect("ignore rules should be created");
+        fs::write(drafts.join("restored.md"), "shared search marker")
+            .expect("restored markdown should be created");
         fs::write(root.join("visible.md"), "shared search marker")
             .expect("visible markdown should be created");
         fs::write(generated.join("hidden.md"), "shared search marker")
@@ -766,17 +777,18 @@ mod tests {
             None,
             None,
             None,
+            Some("drafts/\n".to_string()),
         )
         .expect("workspace search should complete");
 
-        assert_eq!(search.searched_file_count, 1);
+        assert_eq!(search.searched_file_count, 2);
         assert_eq!(
             search
                 .results
                 .iter()
                 .map(|result| result.file.relative_path.as_str())
                 .collect::<Vec<_>>(),
-            vec!["visible.md"]
+            vec!["drafts/restored.md", "visible.md"]
         );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
@@ -805,6 +817,7 @@ mod tests {
             None,
             Some(10),
             Some(5),
+            None,
         )
         .expect("workspace search should complete");
 
@@ -949,6 +962,7 @@ mod tests {
             None,
             Some(2),
             Some(1),
+            None,
         )
         .expect("workspace search should complete");
 
@@ -995,6 +1009,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         )
         .expect("workspace search should complete");
 
@@ -1027,6 +1042,7 @@ mod tests {
             None,
             Some(10),
             Some(5),
+            None,
         )
         .expect("first workspace search should complete");
         assert_eq!(first_search.results[0].line_text, "alpha from disk");
@@ -1040,6 +1056,7 @@ mod tests {
             None,
             Some(10),
             Some(5),
+            None,
         )
         .expect("second workspace search should complete");
 
@@ -1074,6 +1091,7 @@ mod tests {
             None,
             Some(10),
             Some(5),
+            None,
         )
         .expect("workspace search should complete");
 
