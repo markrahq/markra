@@ -3,6 +3,7 @@ import {
   openWebRuntimeDatabase,
   requestToPromise,
   transactionToPromise,
+  webRuntimeWorkspaceEntryStoreName,
   webRuntimeWorkspaceStoreName
 } from "./database";
 import { createWorkspaceRepository, defaultWorkspaceId } from "./workspace";
@@ -98,6 +99,47 @@ describe("Browser workspace repository", () => {
     await expect(repository.read("default", "docs")).resolves.toEqual(expect.objectContaining({ kind: "directory" }));
   });
 
+  it("rejects writing a file above an existing descendant", async () => {
+    const repository = createWorkspaceRepository({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    await repository.ensureDefaultWorkspace();
+    await repository.writeFile("default", "notes/existing.md", new Blob(["stable"]));
+
+    await expect(repository.writeFile("default", "notes", new Blob(["replacement"]))).rejects.toThrow("notes");
+    await expect((await repository.read("default", "notes/existing.md")).body?.text()).resolves.toBe("stable");
+    await expect(repository.read("default", "notes")).rejects.toThrow("not found");
+  });
+
+  it.each(["file", "directory"] as const)(
+    "rejects moving a %s onto an occupied descendant namespace",
+    async (kind) => {
+      const repository = createWorkspaceRepository({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+      await repository.ensureDefaultWorkspace();
+      await repository.writeFile("default", "target/existing.md", new Blob(["stable"]));
+      if (kind === "file") {
+        await repository.writeFile("default", "source", new Blob(["source"]));
+      } else {
+        await repository.createDirectory("default", "source");
+        await repository.writeFile("default", "source/note.md", new Blob(["source"]));
+      }
+
+      await expect(repository.move("default", "source", "target")).rejects.toThrow("target");
+      await expect((await repository.read("default", "target/existing.md")).body?.text()).resolves.toBe("stable");
+      await expect(repository.read("default", "source")).resolves.toEqual(expect.objectContaining({ kind }));
+    }
+  );
+
+  it("preserves an empty Blob media type", async () => {
+    const repository = createWorkspaceRepository({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    await repository.ensureDefaultWorkspace();
+
+    await expect(repository.writeFile("default", "unknown.bin", new Blob(["data"]))).resolves.toEqual(
+      expect.objectContaining({ mediaType: "" })
+    );
+    await expect(repository.read("default", "unknown.bin")).resolves.toEqual(
+      expect.objectContaining({ mediaType: "" })
+    );
+  });
+
   it("imports a directory and removes its staging workspace", async () => {
     const indexedDB = new FakeIndexedDbFactory().indexedDB;
     const repository = createWorkspaceRepository({ indexedDB });
@@ -134,6 +176,33 @@ describe("Browser workspace repository", () => {
     ]);
   });
 
+  it("rejects a staged file that would become an ancestor of an active descendant", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const repository = createWorkspaceRepository({ indexedDB });
+    await repository.ensureDefaultWorkspace();
+    await repository.writeFile("default", "archive/folder/existing.md", new Blob(["existing"]));
+
+    await expect(
+      repository.importDirectory("default", "archive", [upload("archive/folder", "replacement")])
+    ).rejects.toThrow("archive/folder");
+
+    await expect((await repository.read("default", "archive/folder/existing.md")).body?.text()).resolves.toBe(
+      "existing"
+    );
+    await expect(repository.read("default", "archive/folder")).rejects.toThrow("not found");
+  });
+
+  it("rejects duplicate canonical import paths before publishing", async () => {
+    const repository = createWorkspaceRepository({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    await repository.ensureDefaultWorkspace();
+
+    await expect(repository.importDirectory("default", "archive", [
+      upload("archive/note.md", "first"),
+      upload("archive/note.md", "second")
+    ])).rejects.toThrow("archive/note.md");
+    await expect(repository.exportEntries("default")).resolves.toEqual([]);
+  });
+
   it("rejects a failed mutation without committing partial records", async () => {
     const factory = new FakeIndexedDbFactory();
     const repository = createWorkspaceRepository({ indexedDB: factory.indexedDB });
@@ -144,5 +213,60 @@ describe("Browser workspace repository", () => {
       name: "QuotaExceededError"
     });
     await expect(repository.exportEntries("default")).resolves.toEqual([]);
+  });
+
+  it("rolls back every record in a failed directory move", async () => {
+    const factory = new FakeIndexedDbFactory();
+    const repository = createWorkspaceRepository({ indexedDB: factory.indexedDB });
+    await repository.ensureDefaultWorkspace();
+    await repository.createDirectory("default", "drafts");
+    await repository.writeFile("default", "drafts/one.md", new Blob(["one"]));
+    await repository.writeFile("default", "drafts/two.md", new Blob(["two"]));
+    factory.failNextTransaction(new DOMException("quota", "QuotaExceededError"));
+
+    await expect(repository.move("default", "drafts", "published")).rejects.toMatchObject({
+      name: "QuotaExceededError"
+    });
+    await expect(repository.exportEntries("default")).resolves.toEqual([
+      expect.objectContaining({ path: "drafts" }),
+      expect.objectContaining({ path: "drafts/one.md" }),
+      expect.objectContaining({ path: "drafts/two.md" })
+    ]);
+  });
+
+  it("removing a file never removes legacy descendant records", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const repository = createWorkspaceRepository({ indexedDB });
+    await repository.ensureDefaultWorkspace();
+    const database = await openWebRuntimeDatabase({ indexedDB });
+    const transaction = database.transaction(webRuntimeWorkspaceEntryStoreName, "readwrite");
+    const store = transaction.objectStore(webRuntimeWorkspaceEntryStoreName);
+    const timestamp = Date.now();
+    await Promise.all([
+      requestToPromise(store.put({
+        body: new Blob(["parent"]),
+        createdAt: timestamp,
+        kind: "file",
+        mediaType: "",
+        modifiedAt: timestamp,
+        path: "legacy",
+        workspaceId: "default"
+      })),
+      requestToPromise(store.put({
+        body: new Blob(["child"]),
+        createdAt: timestamp,
+        kind: "file",
+        mediaType: "",
+        modifiedAt: timestamp,
+        path: "legacy/child.md",
+        workspaceId: "default"
+      }))
+    ]);
+    await transactionToPromise(transaction);
+
+    await repository.remove("default", "legacy", true);
+
+    await expect(repository.read("default", "legacy")).rejects.toThrow("not found");
+    await expect((await repository.read("default", "legacy/child.md")).body?.text()).resolves.toBe("child");
   });
 });

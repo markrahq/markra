@@ -67,14 +67,21 @@ function findEntry(entries: readonly WorkspaceEntry[], path: string) {
   return entries.find((entry) => entry.path === path);
 }
 
-function findFileAncestor(entries: readonly WorkspaceEntry[], path: string) {
-  const parts = path.split("/");
-  for (let index = 1; index < parts.length; index += 1) {
-    const ancestor = findEntry(entries, parts.slice(0, index).join("/"));
-    if (ancestor?.kind === "file") return ancestor;
-  }
+function findNamespaceConflict(
+  entries: readonly WorkspaceEntry[],
+  candidate: Pick<WorkspaceEntry, "kind" | "path">,
+  options: { allowExactPath?: boolean; claimDescendants?: boolean } = {}
+) {
+  const claimDescendants = options.claimDescendants ?? candidate.kind === "file";
 
-  return undefined;
+  return entries.find((entry) => {
+    if (entry.path === candidate.path) return !options.allowExactPath;
+    if (candidate.path.startsWith(`${entry.path}/`)) return entry.kind === "file";
+
+    // A file can never own a path that already has descendants. Moves additionally claim
+    // their whole target subtree so directory moves cannot silently merge namespaces.
+    return claimDescendants && entry.path.startsWith(`${candidate.path}/`);
+  });
 }
 
 function conflictError(path: string) {
@@ -130,7 +137,7 @@ function buildImportedEntries(workspaceId: string, rootPath: string, files: read
       body: file,
       createdAt: timestamp,
       kind: "file",
-      mediaType: file.type || "application/octet-stream",
+      mediaType: file.type,
       modifiedAt: timestamp,
       path,
       workspaceId
@@ -218,9 +225,8 @@ export function createWorkspaceRepository(
 
     const targetEntries = storedEntries.filter((entry) => entry.workspaceId === workspaceId);
     const stagedEntries = storedEntries.filter((entry) => entry.workspaceId === stagedId);
-    const targetPaths = new Set(targetEntries.map((entry) => entry.path));
     for (const entry of stagedEntries) {
-      if (targetPaths.has(entry.path) || findFileAncestor(targetEntries, entry.path)) {
+      if (findNamespaceConflict(targetEntries, entry)) {
         await completion;
         throw conflictError(entry.path);
       }
@@ -305,7 +311,7 @@ export function createWorkspaceRepository(
         await completion;
         return existing;
       }
-      if (existing || findFileAncestor(entries, normalizedPath)) {
+      if (existing || findNamespaceConflict(entries, { kind: "directory", path: normalizedPath })) {
         await completion;
         throw conflictError(normalizedPath);
       }
@@ -340,7 +346,12 @@ export function createWorkspaceRepository(
       requireActiveWorkspace(workspace, workspaceId);
       const entries = storedEntries.filter((entry) => entry.workspaceId === workspaceId);
       const existing = findEntry(entries, normalizedPath);
-      if (existing?.kind === "directory" || findFileAncestor(entries, normalizedPath)) {
+      if (
+        existing?.kind === "directory"
+        || findNamespaceConflict(entries, { kind: "file", path: normalizedPath }, {
+          allowExactPath: existing?.kind === "file"
+        })
+      ) {
         await completion;
         throw conflictError(normalizedPath);
       }
@@ -350,7 +361,7 @@ export function createWorkspaceRepository(
         body,
         createdAt: existing?.createdAt ?? timestamp,
         kind: "file",
-        mediaType: body.type || "application/octet-stream",
+        mediaType: body.type,
         modifiedAt: timestamp,
         path: normalizedPath,
         workspaceId
@@ -401,7 +412,9 @@ export function createWorkspaceRepository(
         path: `${normalizedTarget}${entry.path.slice(normalizedSource.length)}`
       }));
       for (const entry of moved) {
-        if (findEntry(unaffected, entry.path) || findFileAncestor(unaffected, entry.path)) {
+        if (findNamespaceConflict(unaffected, entry, {
+          claimDescendants: entry.path === normalizedTarget || entry.kind === "file"
+        })) {
           await completion;
           throw conflictError(entry.path);
         }
@@ -437,7 +450,9 @@ export function createWorkspaceRepository(
         await completion;
         throw notFoundError(normalizedPath);
       }
-      const affected = entries.filter((candidate) => isAtOrBelow(candidate.path, normalizedPath));
+      const affected = entry.kind === "file"
+        ? [entry]
+        : entries.filter((candidate) => isAtOrBelow(candidate.path, normalizedPath));
       if (entry.kind === "directory" && affected.length > 1 && !recursive) {
         await completion;
         throw new Error(`Workspace directory is not empty: ${normalizedPath}.`);
