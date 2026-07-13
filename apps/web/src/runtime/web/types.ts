@@ -9,10 +9,17 @@ export type WebWritableFileStream = {
   write: (data: BlobPart) => Promise<unknown>;
 };
 
+export type WebHandleMove = {
+  (name: string): Promise<unknown>;
+  (directory: WebDirectoryHandle): Promise<unknown>;
+  (directory: WebDirectoryHandle, name: string): Promise<unknown>;
+};
+
 export type WebFileHandle = {
   createWritable?: () => Promise<WebWritableFileStream>;
   getFile: () => Promise<File>;
   kind?: "file";
+  move?: WebHandleMove;
   name: string;
 };
 
@@ -21,9 +28,15 @@ export type WebDirectoryHandle = {
   getDirectoryHandle?: (name: string, options?: { create?: boolean }) => Promise<WebDirectoryHandle>;
   getFileHandle?: (name: string, options?: { create?: boolean }) => Promise<WebFileHandle>;
   kind?: "directory";
+  move?: WebHandleMove;
   name: string;
   removeEntry?: (name: string, options?: { recursive?: boolean }) => Promise<unknown>;
   values?: () => AsyncIterable<WebFileHandle | WebDirectoryHandle>;
+};
+
+export type WebWorkspaceLocation = {
+  path: string;
+  workspaceId: string;
 };
 
 export type WebDownloadFile = {

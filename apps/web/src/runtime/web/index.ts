@@ -10,3 +10,4 @@ export * from "./types";
 export * from "./web-resource";
 export * from "./window";
 export * from "./workspace";
+export * from "./workspace-handles";
