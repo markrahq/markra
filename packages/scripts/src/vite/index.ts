@@ -4,11 +4,12 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import { stripDebugPlugin } from "./strip-debug.ts";
-import type { UserConfig } from "vite";
+import type { PluginOption, UserConfig } from "vite";
 
 export type MarkraAppViteConfigOptions = {
   browserNodeStubUrl: string | URL;
   packageJsonUrl: string | URL;
+  plugins?: PluginOption[];
   server?: UserConfig["server"];
   stripDebug?: boolean;
   test?: {
@@ -132,6 +133,7 @@ export function createMarkraAppViteConfig(options: MarkraAppViteConfigOptions) {
     plugins: [
       react(),
       tailwindcss(),
+      ...(options.plugins ?? []),
       ...(options.stripDebug !== false && mode === "production" ? [stripDebugPlugin()] : [])
     ],
     build: {
