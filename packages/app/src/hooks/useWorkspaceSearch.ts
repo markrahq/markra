@@ -21,6 +21,7 @@ type WorkspaceSearchInput = {
   documentPath: string | null;
   fileTreeFiles: NativeMarkdownFolderFile[];
   fileTreeSourcePath: string | null;
+  globalIgnoreRules?: string;
 };
 
 export function useWorkspaceSearch({
@@ -28,7 +29,8 @@ export function useWorkspaceSearch({
   documentContent,
   documentPath,
   fileTreeFiles,
-  fileTreeSourcePath
+  fileTreeSourcePath,
+  globalIgnoreRules = ""
 }: WorkspaceSearchInput) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -86,6 +88,7 @@ export function useWorkspaceSearch({
         return searchNativeMarkdownFilesForPath({
           caseSensitive,
           currentDocument: null,
+          globalIgnoreRules,
           path: fileTreeSourcePath,
           query: ""
         }).catch(() => null);
@@ -121,6 +124,7 @@ export function useWorkspaceSearch({
                   path: documentPath
                 }
               : null,
+            globalIgnoreRules,
             path: fileTreeSourcePath,
             query: trimmedQuery
           }).catch(() => null)
@@ -168,6 +172,7 @@ export function useWorkspaceSearch({
     documentPath,
     fileTreeFiles,
     fileTreeSourcePath,
+    globalIgnoreRules,
     open,
     query
   ]);

@@ -104,14 +104,16 @@ function mockWorkspaceState(
 
 function FileTreeProbe({
   currentPath = null,
+  globalIgnoreRules,
   managedAttachmentFolder,
   onFilesChange
 }: {
   currentPath?: string | null;
+  globalIgnoreRules?: string;
   managedAttachmentFolder?: string;
   onFilesChange?: (files: ReturnType<typeof useMarkdownFileTree>["files"]) => unknown;
 }) {
-  const tree = useMarkdownFileTree({ managedAttachmentFolder });
+  const tree = useMarkdownFileTree({ globalIgnoreRules, managedAttachmentFolder });
 
   useEffect(() => {
     onFilesChange?.(tree.files);
@@ -299,6 +301,7 @@ describe("useMarkdownFileTree", () => {
     mockedWatchNativeMarkdownTree.mockResolvedValue(() => {});
     mockedLoadNativeMarkdownFilesForPath.mockImplementation((path, options = {}) => {
       return mockedListNativeMarkdownFilesForPath(path, {
+        ...(options.globalIgnoreRules ? { globalIgnoreRules: options.globalIgnoreRules } : {}),
         managedAttachmentFolder: options.managedAttachmentFolder
       });
     });
@@ -640,6 +643,40 @@ describe("useMarkdownFileTree", () => {
     expect(screen.queryByText("assets/reference.docx")).not.toBeInTheDocument();
   });
 
+  it("reloads the tree and watcher when global ignore rules change", async () => {
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      path: "/vault",
+      name: "vault"
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
+
+    const { rerender } = render(<FileTreeProbe globalIgnoreRules="generated/" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith("/vault", {
+      globalIgnoreRules: "generated/",
+      managedAttachmentFolder: "assets"
+    }));
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenLastCalledWith(
+      "/vault",
+      expect.any(Function),
+      { globalIgnoreRules: "generated/" }
+    ));
+
+    rerender(<FileTreeProbe globalIgnoreRules="drafts/" />);
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith("/vault", {
+      globalIgnoreRules: "drafts/",
+      managedAttachmentFolder: "assets"
+    }));
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenLastCalledWith(
+      "/vault",
+      expect.any(Function),
+      { globalIgnoreRules: "drafts/" }
+    ));
+  });
+
   it("does not switch the tree root when the pre-open hook rejects the selected folder", async () => {
     mockedOpenNativeMarkdownFolder.mockResolvedValue({
       path: "/vault",
@@ -683,7 +720,11 @@ describe("useMarkdownFileTree", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
 
     expect(await screen.findByText("index.md")).toBeInTheDocument();
-    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function)));
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith(
+      "/vault",
+      expect.any(Function),
+      { globalIgnoreRules: "" }
+    ));
 
     const callsBeforeTreeChange = mockedListNativeMarkdownFilesForPath.mock.calls.length;
     await emitTreeChange("/vault/docs/added.md");
@@ -723,7 +764,11 @@ describe("useMarkdownFileTree", () => {
 
     expect(await screen.findByText("index.md")).toBeInTheDocument();
     expect(screen.getByText("docs/guide.md")).toBeInTheDocument();
-    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function)));
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith(
+      "/vault",
+      expect.any(Function),
+      { globalIgnoreRules: "" }
+    ));
 
     await act(async () => {
       await emitTreeChange("/vault/docs/partial.md");
@@ -762,7 +807,11 @@ describe("useMarkdownFileTree", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
 
     expect(await screen.findByText("index.md")).toBeInTheDocument();
-    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function)));
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith(
+      "/vault",
+      expect.any(Function),
+      { globalIgnoreRules: "" }
+    ));
 
     await act(async () => {
       emitTreeChange("/vault/docs/first.md");
@@ -816,7 +865,11 @@ describe("useMarkdownFileTree", () => {
     fireEvent.click(screen.getByRole("button", { name: "Restore collapsed folder" }));
 
     expect(await screen.findByText("index.md")).toBeInTheDocument();
-    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function)));
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith(
+      "/vault",
+      expect.any(Function),
+      { globalIgnoreRules: "" }
+    ));
 
     const staleRefreshPromise = emitTreeChange("/vault/index.md");
     await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenLastCalledWith("/vault", {
@@ -871,7 +924,11 @@ describe("useMarkdownFileTree", () => {
     fireEvent.click(screen.getByRole("button", { name: "Restore collapsed folder" }));
 
     expect(await screen.findByText("index.md")).toBeInTheDocument();
-    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith("/vault", expect.any(Function)));
+    await waitFor(() => expect(mockedWatchNativeMarkdownTree).toHaveBeenCalledWith(
+      "/vault",
+      expect.any(Function),
+      { globalIgnoreRules: "" }
+    ));
 
     fireEvent.click(screen.getByRole("button", { name: "Open second docs folder" }));
     const staleRefreshPromise = emitTreeChange("/vault/index.md");

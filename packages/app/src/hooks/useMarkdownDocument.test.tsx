@@ -2172,6 +2172,52 @@ describe("useMarkdownDocument", () => {
     expect(onMarkdownTreeChange).toHaveBeenCalledWith("/mock-files/assets/pasted-image.png");
   });
 
+  it("restarts file watchers when global ignore rules change", async () => {
+    mockedOpenNativeMarkdownPath.mockResolvedValueOnce({
+      kind: "file",
+      file: {
+        content: "# First file",
+        name: "first.md",
+        path: "/mock-files/first.md"
+      }
+    });
+    const stopWatching = vi.fn();
+    mockedWatchNativeMarkdownFile.mockResolvedValue(stopWatching);
+
+    const { result, rerender } = renderHook(
+      ({ globalIgnoreRules }: { globalIgnoreRules: string }) => useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        globalIgnoreRules,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      }),
+      { initialProps: { globalIgnoreRules: "generated/" } }
+    );
+
+    await act(async () => {
+      await result.current.openMarkdownFile();
+    });
+
+    await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenLastCalledWith(
+      "/mock-files/first.md",
+      expect.any(Function),
+      expect.any(Function),
+      { globalIgnoreRules: "generated/" }
+    ));
+
+    rerender({ globalIgnoreRules: "drafts/" });
+
+    await waitFor(() => expect(stopWatching).toHaveBeenCalled());
+    await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenLastCalledWith(
+      "/mock-files/first.md",
+      expect.any(Function),
+      expect.any(Function),
+      { globalIgnoreRules: "drafts/" }
+    ));
+  });
+
   it("clears a deleted active tree file without turning its content into an unsaved draft", async () => {
     let editorMarkdown = "";
     const confirmDiscardUnsavedChanges = vi.fn(() => true);

@@ -152,6 +152,7 @@ type UseMarkdownDocumentOptions = {
   documentTabsEnabled?: boolean;
   editorReady?: boolean | (() => boolean);
   getCurrentMarkdown: (fallbackContent: string) => string;
+  globalIgnoreRules?: string;
   isCurrentMarkdownEquivalent?: (markdown: string) => boolean | undefined;
   onActiveDiskFileContentChange?: (change: ActiveDiskFileContentChange) => boolean | undefined;
   onMarkdownTreeChange?: (path: string) => unknown | Promise<unknown>;
@@ -253,6 +254,7 @@ export function useMarkdownDocument({
   documentTabsEnabled = false,
   editorReady = true,
   getCurrentMarkdown,
+  globalIgnoreRules = "",
   isCurrentMarkdownEquivalent,
   onActiveDiskFileContentChange,
   onMarkdownTreeChange,
@@ -2216,7 +2218,7 @@ export function useMarkdownDocument({
         if (!active) return;
 
         await requestWatchedFileRead(changedPath, watchedPath);
-      }, treeChangeHandler).then((stopWatching) => {
+      }, treeChangeHandler, { globalIgnoreRules }).then((stopWatching) => {
         if (!active) {
           stopWatching();
           return;
@@ -2246,6 +2248,7 @@ export function useMarkdownDocument({
   }, [
     applyDiskFileToCleanOpenTab,
     document.path,
+    globalIgnoreRules,
     markExternallyDeletedDocumentFile,
     onMarkdownTreeChange,
     readMarkdownFileWithPerformance,

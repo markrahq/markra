@@ -32,6 +32,7 @@ import type {
   NativeLocalFile,
   NativeSettingsFile,
   NativeMarkdownTreeChangeHandler,
+  WatchNativeMarkdownOptions,
   NativePandocExportFormat,
   OpenNativeMarkdownAttachmentInput,
   ReadNativeMarkdownImageInput,
@@ -217,11 +218,13 @@ export type AppFileRuntime = {
   watchMarkdownFile: (
     path: string,
     onChange: NativeMarkdownFileChangeHandler,
-    onTreeChange?: NativeMarkdownTreeChangeHandler
+    onTreeChange?: NativeMarkdownTreeChangeHandler,
+    options?: WatchNativeMarkdownOptions
   ) => Promise<RuntimeCleanup>;
   watchMarkdownTree: (
     path: string,
-    onTreeChange: NativeMarkdownTreeChangeHandler
+    onTreeChange: NativeMarkdownTreeChangeHandler,
+    options?: WatchNativeMarkdownOptions
   ) => Promise<RuntimeCleanup>;
   writeMarkdownTemplateFile: (fileName: string, contents: string) => Promise<unknown>;
 };

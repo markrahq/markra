@@ -60,6 +60,7 @@ import { useEditorContentWidthState } from "./hooks/useEditorContentWidthState";
 import { useEditorPreferences } from "./hooks/useEditorPreferences";
 import { useDeferredAiSelectionReveal } from "./hooks/ai-selection-reveal";
 import { useExportSettings } from "./hooks/useExportSettings";
+import { useFileIgnoreSettings } from "./hooks/useFileIgnoreSettings";
 import { shouldFocusEditorOnReady, useEditorController } from "./hooks/useEditorController";
 import { useMarkdownDocument, type ActiveDiskFileContentChange } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
@@ -423,6 +424,7 @@ function WorkspaceApp() {
   const backupSettings = useBackupSettings();
   const syncSettings = useSyncSettings();
   const editorPreferences = useEditorPreferences();
+  const fileIgnoreSettings = useFileIgnoreSettings();
   const appSpellchecker = useMemo(
     () =>
       spellcheckFeatureEnabled
@@ -644,6 +646,7 @@ function WorkspaceApp() {
   useDefaultContextMenuBlocker();
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
   const fileTree = useMarkdownFileTree({
+    globalIgnoreRules: fileIgnoreSettings.settings.rules,
     managedAttachmentFolder: editorPreferences.preferences.clipboardImageFolder,
     onWorkspaceSessionChange: setAiAgentSessionId
   });
@@ -724,6 +727,7 @@ function WorkspaceApp() {
     documentTabsEnabled: editorPreferences.preferences.showDocumentTabs,
     editorReady: isDocumentEditorReady,
     getCurrentMarkdown: readCurrentMarkdownForDocument,
+    globalIgnoreRules: fileIgnoreSettings.settings.rules,
     isCurrentMarkdownEquivalent: isCurrentMarkdownEquivalentForDocument,
     onActiveDiskFileContentChange: handleActiveDiskFileContentChange,
     onMarkdownTreeChange: refreshMarkdownFileTree,
@@ -876,7 +880,8 @@ function WorkspaceApp() {
     documentContent: document.content,
     documentPath: document.path,
     fileTreeFiles,
-    fileTreeSourcePath
+    fileTreeSourcePath,
+    globalIgnoreRules: fileIgnoreSettings.settings.rules
   });
   const {
     caseSensitive: globalSearchCaseSensitive,
@@ -898,7 +903,11 @@ function WorkspaceApp() {
       sizeBytes: document.sizeBytes
     });
   largeMarkdownVisualBlockedRef.current = largeMarkdownVisualBlocked;
-  const startupSettingsReady = appLanguage.ready && appTheme.ready && !editorPreferences.loading;
+  const startupSettingsReady =
+    appLanguage.ready &&
+    appTheme.ready &&
+    !editorPreferences.loading &&
+    !fileIgnoreSettings.loading;
   const startupWindowReady =
     startupSettingsReady &&
     (

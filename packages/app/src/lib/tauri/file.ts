@@ -41,9 +41,15 @@ export type NativeMarkdownFolderFile = {
   sizeBytes?: number;
 };
 
-export type ListNativeMarkdownFilesOptions = {
+export type MarkdownIgnoreOptions = {
+  globalIgnoreRules?: string | null;
+};
+
+export type ListNativeMarkdownFilesOptions = MarkdownIgnoreOptions & {
   managedAttachmentFolder?: string | null;
 };
+
+export type WatchNativeMarkdownOptions = MarkdownIgnoreOptions;
 
 export type LoadNativeMarkdownFilesForPathOptions = ListNativeMarkdownFilesOptions & {
   onBatch?: (files: NativeMarkdownFolderFile[]) => unknown;
@@ -329,6 +335,7 @@ export async function loadNativeMarkdownFilesForPath(
   if (loadMarkdownFilesForPath) return loadMarkdownFilesForPath(path, options);
 
   const files = await listNativeMarkdownFilesForPath(path, {
+    globalIgnoreRules: options.globalIgnoreRules,
     managedAttachmentFolder: options.managedAttachmentFolder
   });
   if (!options.signal?.aborted) options.onBatch?.(files);
@@ -480,13 +487,18 @@ export function syncNativeMarkdownFolder(input: SyncNativeMarkdownFolderInput) {
 export function watchNativeMarkdownFile(
   path: string,
   onChange: NativeMarkdownFileChangeHandler,
-  onTreeChange?: NativeMarkdownTreeChangeHandler
+  onTreeChange?: NativeMarkdownTreeChangeHandler,
+  options: WatchNativeMarkdownOptions = {}
 ) {
-  return getAppRuntime().files.watchMarkdownFile(path, onChange, onTreeChange);
+  return getAppRuntime().files.watchMarkdownFile(path, onChange, onTreeChange, options);
 }
 
-export function watchNativeMarkdownTree(path: string, onTreeChange: NativeMarkdownTreeChangeHandler) {
-  return getAppRuntime().files.watchMarkdownTree(path, onTreeChange);
+export function watchNativeMarkdownTree(
+  path: string,
+  onTreeChange: NativeMarkdownTreeChangeHandler,
+  options: WatchNativeMarkdownOptions = {}
+) {
+  return getAppRuntime().files.watchMarkdownTree(path, onTreeChange, options);
 }
 
 export function installNativeMarkdownFileDrop(onDrop: NativeMarkdownFileDropHandler) {
