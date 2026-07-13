@@ -129,13 +129,26 @@ class FakeIdbOpenRequest extends FakeIdbRequest<FakeIdbDatabase> {
 class FakeIdbObjectStore {
   constructor(
     private readonly keyPath: string | string[],
-    private readonly records: Map<string, StoredIndexedDbRecord>
+    private readonly records: Map<string, StoredIndexedDbRecord>,
+    private readonly transaction?: FakeIdbTransaction
   ) {}
+
+  private queueOperation(operation: () => unknown) {
+    this.transaction?.requestStarted();
+    queueMicrotask(() => {
+      try {
+        operation();
+      } finally {
+        // Let request awaiters attach transaction handlers before completion is queued.
+        this.transaction?.requestFinished();
+      }
+    });
+  }
 
   delete(key: IDBValidKey) {
     const request = new FakeIdbRequest<undefined>();
 
-    queueMicrotask(() => {
+    this.queueOperation(() => {
       this.records.delete(serializeKey(key));
       request.succeed(undefined);
     });
@@ -146,7 +159,7 @@ class FakeIdbObjectStore {
   get(key: IDBValidKey) {
     const request = new FakeIdbRequest<StoredIndexedDbRecord | undefined>();
 
-    queueMicrotask(() => {
+    this.queueOperation(() => {
       request.succeed(cloneValue(this.records.get(serializeKey(key))));
     });
 
@@ -156,7 +169,7 @@ class FakeIdbObjectStore {
   getAll() {
     const request = new FakeIdbRequest<StoredIndexedDbRecord[]>();
 
-    queueMicrotask(() => {
+    this.queueOperation(() => {
       request.succeed(Array.from(this.records.values(), cloneValue));
     });
 
@@ -166,7 +179,7 @@ class FakeIdbObjectStore {
   put(record: StoredIndexedDbRecord) {
     const request = new FakeIdbRequest<IDBValidKey>();
 
-    queueMicrotask(() => {
+    this.queueOperation(() => {
       const key = typeof this.keyPath === "string"
         ? record[this.keyPath] as IDBValidKey
         : this.keyPath.map((part) => record[part]) as IDBValidKey;
@@ -192,6 +205,8 @@ export class FakeIdbTransaction {
   onabort: RequestHandler = null;
   oncomplete: RequestHandler = null;
   onerror: RequestHandler = null;
+  private completionQueued = false;
+  private pendingRequests = 0;
   private state: "pending" | "complete" | "failed" | "aborted" = "pending";
 
   constructor(private readonly stores = new Map<string, FakeIdbStore>()) {}
@@ -204,9 +219,11 @@ export class FakeIdbTransaction {
   }
 
   complete() {
-    if (this.state !== "pending") return;
+    if (this.state !== "pending" || this.completionQueued) return;
+    this.completionQueued = true;
     queueMicrotask(() => {
-      if (this.state !== "pending") return;
+      this.completionQueued = false;
+      if (this.state !== "pending" || this.pendingRequests > 0) return;
       this.state = "complete";
       this.oncomplete?.(new Event("complete"));
     });
@@ -219,11 +236,22 @@ export class FakeIdbTransaction {
     queueMicrotask(() => this.onerror?.(new Event("error")));
   }
 
+  requestFinished() {
+    if (this.state !== "pending" || this.pendingRequests === 0) return;
+    this.pendingRequests -= 1;
+    if (this.pendingRequests === 0) this.complete();
+  }
+
+  requestStarted() {
+    if (this.state !== "pending") return;
+    this.pendingRequests += 1;
+  }
+
   objectStore(name: string) {
     const store = this.stores.get(name);
     if (!store) throw new DOMException(`Object store ${name} was not found.`, "NotFoundError");
 
-    return new FakeIdbObjectStore(store.keyPath, store.records);
+    return new FakeIdbObjectStore(store.keyPath, store.records, this);
   }
 }
 

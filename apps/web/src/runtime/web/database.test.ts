@@ -1,6 +1,7 @@
 import { FakeIdbTransaction, FakeIndexedDbFactory } from "../../test/web-runtime-fakes";
 import {
   openWebRuntimeDatabase,
+  requestToPromise,
   transactionToPromise,
   webRuntimeAiChatAttachmentStoreName,
   webRuntimeSettingsStoreName,
@@ -26,4 +27,20 @@ describe("Web runtime database", () => {
 
     await expect(completion).rejects.toMatchObject({ name: "QuotaExceededError" });
   });
+
+  it("completes successful transactions after queued requests settle", async () => {
+    const factory = new FakeIndexedDbFactory();
+    const database = await openWebRuntimeDatabase({ indexedDB: factory.indexedDB });
+    const transaction = database.transaction(webRuntimeWorkspaceStoreName, "readonly");
+    const store = transaction.objectStore(webRuntimeWorkspaceStoreName);
+    const events: string[] = [];
+
+    const record = await requestToPromise(store.get("workspace-1"));
+    events.push("request");
+    await transactionToPromise(transaction);
+    events.push("transaction");
+
+    expect(record).toBeUndefined();
+    expect(events).toEqual(["request", "transaction"]);
+  }, 100);
 });
