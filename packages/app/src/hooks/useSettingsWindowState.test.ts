@@ -177,7 +177,56 @@ describe("settings window import and export", () => {
       expect(emit).toHaveBeenCalledWith("markra://file-ignore-settings-changed", {
         settings: { rules: "generated/\n" }
       });
+      expect(result.current.fileIgnoreSettings).toEqual({ rules: "generated/\n" });
     });
+  });
+
+  it("keeps saved global ignore rules when persistence fails", async () => {
+    const defaultRuntime = createDefaultAppRuntime();
+    const values = new Map<string, unknown>([["fileIgnoreSettings", { rules: "saved/" }]]);
+    const emit = vi.fn(async () => undefined);
+    const save = vi.fn(async () => {
+      throw new Error("synthetic save failure");
+    });
+    configureAppRuntime({
+      ...defaultRuntime,
+      events: {
+        emit,
+        isAvailable: () => true,
+        listen: vi.fn(async () => () => {})
+      },
+      settings: {
+        async loadStore() {
+          return {
+            async delete(key: string) {
+              values.delete(key);
+            },
+            async get<T>(key: string) {
+              return values.get(key) as T | undefined;
+            },
+            save,
+            async set(key: string, value: unknown) {
+              values.set(key, value);
+            }
+          };
+        }
+      }
+    });
+    const { result } = renderHook(() => useSettingsWindowState());
+
+    await waitFor(() => {
+      expect(result.current.fileIgnoreSettings).toEqual({ rules: "saved/" });
+    });
+
+    act(() => {
+      result.current.handleApplyFileIgnoreSettings({ rules: "generated/" });
+    });
+
+    await waitFor(() => {
+      expect(save).toHaveBeenCalledTimes(1);
+    });
+    expect(result.current.fileIgnoreSettings).toEqual({ rules: "saved/" });
+    expect(emit).not.toHaveBeenCalled();
   });
 });
 

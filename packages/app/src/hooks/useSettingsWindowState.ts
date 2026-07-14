@@ -520,9 +520,11 @@ export function useSettingsWindowState() {
 
   const handleApplyFileIgnoreSettings = useCallback((settings: FileIgnoreSettings) => {
     const normalizedSettings = normalizeFileIgnoreSettings(settings);
-    setFileIgnoreSettings(normalizedSettings);
     saveStoredFileIgnoreSettings(normalizedSettings)
-      .then(() => notifyAppFileIgnoreSettingsChanged(normalizedSettings))
+      .then(() => {
+        setFileIgnoreSettings(normalizedSettings);
+        return notifyAppFileIgnoreSettingsChanged(normalizedSettings);
+      })
       .catch(() => {});
   }, []);
 
