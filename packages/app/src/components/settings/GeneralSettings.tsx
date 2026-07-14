@@ -1,6 +1,10 @@
 import { Languages, RefreshCw, RotateCcw, Terminal, Trash2, Wrench } from "lucide-react";
 import { supportedLanguages, type AppLanguage } from "@markra/shared";
-import type { EditorPreferences } from "../../lib/settings/app-settings";
+import {
+  defaultFileIgnoreSettings,
+  type EditorPreferences,
+  type FileIgnoreSettings
+} from "../../lib/settings/app-settings";
 import type { NativeShellCommandStatus } from "../../lib/tauri/shell-command";
 import {
   SettingsButton,
@@ -10,6 +14,7 @@ import {
   SettingsSwitch
 } from "./SettingsControls";
 import type { SettingsTranslate } from "./translate";
+import { FileScanningSettings } from "./FileScanningSettings";
 
 function LanguageSelect({
   language,
@@ -125,8 +130,10 @@ function ShellCommandActions({
 export function GeneralSettings({
   appVersion,
   availableUpdateVersion = null,
+  fileIgnoreSettings = defaultFileIgnoreSettings,
   language,
   onCheckForUpdates,
+  onApplyFileIgnoreSettings = () => undefined,
   onInstallShellCommand,
   onRefreshShellCommand,
   onResetWelcomeDocument,
@@ -142,8 +149,10 @@ export function GeneralSettings({
 }: {
   appVersion: string;
   availableUpdateVersion?: string | null;
+  fileIgnoreSettings?: FileIgnoreSettings;
   language: AppLanguage;
   onCheckForUpdates: () => unknown;
+  onApplyFileIgnoreSettings?: (settings: FileIgnoreSettings) => unknown;
   onInstallShellCommand?: () => unknown;
   onRefreshShellCommand?: () => unknown;
   onResetWelcomeDocument: () => unknown;
@@ -250,6 +259,12 @@ export function GeneralSettings({
           }
         />
       </SettingsSection>
+
+      <FileScanningSettings
+        settings={fileIgnoreSettings}
+        translate={translate}
+        onApply={onApplyFileIgnoreSettings}
+      />
 
       {shellCommandEnabled ? (
         <SettingsSection label={translate("settings.sections.commandLine")}>

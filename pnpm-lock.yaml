@@ -111,6 +111,9 @@ importers:
       fflate:
         specifier: 0.8.3
         version: 0.8.3
+      ignore:
+        specifier: 7.0.5
+        version: 7.0.5
       react:
         specifier: 19.2.5
         version: 19.2.5
@@ -369,6 +372,9 @@ importers:
       '@markra/ai':
         specifier: workspace:*
         version: link:../ai
+      '@markra/markdown':
+        specifier: workspace:*
+        version: link:../markdown
       '@markra/shared':
         specifier: workspace:*
         version: link:../shared

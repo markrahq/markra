@@ -13,6 +13,7 @@ import {
   getStoredSyncSettings,
   getStoredEditorPreferences,
   getStoredExportSettings,
+  getStoredFileIgnoreSettings,
   getStoredNetworkSettings,
   getStoredWebSearchSettings,
   getStoredWorkspaceState,
@@ -21,6 +22,7 @@ import {
   defaultSyncSettings,
   defaultEditorPreferences,
   defaultExportSettings,
+  defaultFileIgnoreSettings,
   defaultNetworkSettings,
   defaultWebSearchSettings,
   resetWelcomeDocumentState,
@@ -32,12 +34,14 @@ import {
   saveStoredSyncSettings,
   saveStoredEditorPreferences,
   saveStoredExportSettings,
+  saveStoredFileIgnoreSettings,
   saveStoredNetworkSettings,
   saveStoredWebSearchSettings,
   normalizeAcpAgentSettings,
   normalizeBackupSettings,
   normalizeSyncSettings,
   normalizeExportSettings,
+  normalizeFileIgnoreSettings,
   normalizeWebSearchSettings,
   type AcpAgentSettings,
   type AiProviderConfig,
@@ -46,6 +50,7 @@ import {
   type BackupSettings,
   type EditorPreferences,
   type ExportSettings,
+  type FileIgnoreSettings,
   type ImageUploadProvider,
   type NetworkSettings,
   type PortableStoredAppSettings,
@@ -54,12 +59,14 @@ import {
 } from "../lib/settings/app-settings";
 import {
   listenAppEditorPreferencesChanged,
+  listenAppFileIgnoreSettingsChanged,
   notifyAppAiSettingsChanged,
   notifyAppAcpAgentSettingsChanged,
   notifyAppBackupSettingsChanged,
   notifyAppCustomThemeCssChanged,
   notifyAppEditorPreferencesChanged,
   notifyAppExportSettingsChanged,
+  notifyAppFileIgnoreSettingsChanged,
   notifyAppLanguageChanged,
   notifyAppThemeChanged,
   notifyAppWebSearchSettingsChanged,
@@ -204,6 +211,7 @@ export function useSettingsWindowState() {
   const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
   const [markdownTemplates, setMarkdownTemplates] = useState<MarkdownTemplate[]>([]);
   const [exportSettings, setExportSettings] = useState<ExportSettings>(defaultExportSettings);
+  const [fileIgnoreSettings, setFileIgnoreSettings] = useState<FileIgnoreSettings>(defaultFileIgnoreSettings);
   const [networkSettings, setNetworkSettings] = useState<NetworkSettings>(defaultNetworkSettings);
   const [webSearchSettings, setWebSearchSettings] = useState<WebSearchSettings>(defaultWebSearchSettings);
   const [shellCommandStatus, setShellCommandStatus] = useState<NativeShellCommandStatus | null>(null);
@@ -274,6 +282,31 @@ export function useSettingsWindowState() {
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let stopListening: (() => unknown) | null = null;
+
+    getStoredFileIgnoreSettings().then((settings) => {
+      if (!cancelled) setFileIgnoreSettings(settings);
+    }).catch(() => {});
+
+    listenAppFileIgnoreSettingsChanged((settings) => {
+      if (!cancelled) setFileIgnoreSettings(settings);
+    }).then((cleanup) => {
+      if (cancelled) {
+        cleanup();
+        return;
+      }
+
+      stopListening = cleanup;
+    }).catch(() => {});
+
+    return () => {
+      cancelled = true;
+      stopListening?.();
     };
   }, []);
 
@@ -485,6 +518,16 @@ export function useSettingsWindowState() {
       .catch(() => {});
   }, []);
 
+  const handleApplyFileIgnoreSettings = useCallback((settings: FileIgnoreSettings) => {
+    const normalizedSettings = normalizeFileIgnoreSettings(settings);
+    saveStoredFileIgnoreSettings(normalizedSettings)
+      .then(() => {
+        setFileIgnoreSettings(normalizedSettings);
+        return notifyAppFileIgnoreSettingsChanged(normalizedSettings);
+      })
+      .catch(() => {});
+  }, []);
+
   const handleUpdateAcpAgentSettings = useCallback((settings: AcpAgentSettings) => {
     const normalizedSettings = normalizeAcpAgentSettings(settings);
     setAcpAgentSettings(normalizedSettings);
@@ -663,6 +706,7 @@ export function useSettingsWindowState() {
     setSyncSettings(settings.syncSettings);
     setEditorPreferences(settings.editorPreferences);
     setExportSettings(settings.exportSettings);
+    setFileIgnoreSettings(settings.fileIgnoreSettings);
     setNetworkSettings(settings.network);
     setWebSearchSettings(settings.webSearch);
     loadMarkdownTemplatesFromEntries(settings.editorPreferences.markdownTemplates, readNativeMarkdownTemplateFile)
@@ -675,6 +719,7 @@ export function useSettingsWindowState() {
     notifyAppSyncSettingsChanged(settings.syncSettings).catch(() => {});
     notifyAppEditorPreferencesChanged(settings.editorPreferences).catch(() => {});
     notifyAppExportSettingsChanged(settings.exportSettings).catch(() => {});
+    notifyAppFileIgnoreSettingsChanged(settings.fileIgnoreSettings).catch(() => {});
     notifyAppWebSearchSettingsChanged(settings.webSearch).catch(() => {});
     notifyAppLanguageChanged(settings.language).catch(() => {});
     notifyAppThemeChanged({
@@ -874,9 +919,11 @@ export function useSettingsWindowState() {
     backupSettings,
     editorPreferences,
     exportSettings,
+    fileIgnoreSettings,
     handleAddAiProvider,
     handleFetchAiProviderModels,
     handleExportSettings,
+    handleApplyFileIgnoreSettings,
     handleImportSettings,
     handleResetWelcomeDocument,
     handleSaveAiSettings,

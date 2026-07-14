@@ -581,8 +581,16 @@ export async function readNativeMarkdownImageFile({
   };
 }
 
-export type ListNativeMarkdownFilesOptions = {
+export type MarkdownIgnoreOptions = {
+  globalIgnoreRules?: string | null;
+};
+
+export type ListNativeMarkdownFilesOptions = MarkdownIgnoreOptions & {
   managedAttachmentFolder?: string | null;
+};
+
+export type WatchNativeMarkdownOptions = MarkdownIgnoreOptions & {
+  ignoreRootPath?: string | null;
 };
 
 export type LoadNativeMarkdownFilesForPathOptions = ListNativeMarkdownFilesOptions & {
@@ -595,9 +603,13 @@ export async function listNativeMarkdownFilesForPath(
   options: ListNativeMarkdownFilesOptions = {}
 ): Promise<NativeMarkdownFolderFile[]> {
   const args: {
+    globalIgnoreRules?: string | null;
     managedAttachmentFolder?: string | null;
     path: string;
   } = { path };
+  if (options.globalIgnoreRules !== undefined) {
+    args.globalIgnoreRules = options.globalIgnoreRules;
+  }
   if (options.managedAttachmentFolder !== undefined) {
     args.managedAttachmentFolder = options.managedAttachmentFolder;
   }
@@ -692,10 +704,14 @@ export async function loadNativeMarkdownFilesForPath(
 
       removeListener = listenerCleanup;
       const args: {
+        globalIgnoreRules?: string | null;
         managedAttachmentFolder?: string | null;
         path: string;
         requestId: string;
       } = { path, requestId };
+      if (options.globalIgnoreRules !== undefined) {
+        args.globalIgnoreRules = options.globalIgnoreRules;
+      }
       if (options.managedAttachmentFolder !== undefined) {
         args.managedAttachmentFolder = options.managedAttachmentFolder;
       }
@@ -712,6 +728,7 @@ export async function loadNativeMarkdownFilesForPath(
 export async function searchNativeMarkdownFilesForPath({
   caseSensitive,
   currentDocument,
+  globalIgnoreRules,
   maxMatches,
   maxMatchesPerFile,
   path,
@@ -721,6 +738,7 @@ export async function searchNativeMarkdownFilesForPath({
     caseSensitive: caseSensitive === true,
     currentDocumentContent: currentDocument?.content,
     currentDocumentPath: currentDocument?.path,
+    globalIgnoreRules,
     maxMatches,
     maxMatchesPerFile,
     path,
@@ -1590,7 +1608,8 @@ export async function syncNativeMarkdownFolder({
 export async function watchNativeMarkdownFile(
   path: string,
   onChange: NativeMarkdownFileChangeHandler,
-  onTreeChange?: NativeMarkdownTreeChangeHandler
+  onTreeChange?: NativeMarkdownTreeChangeHandler,
+  options: WatchNativeMarkdownOptions = {}
 ) {
   debug(() => ["[markra-history] native watch subscribe", {
     path
@@ -1617,7 +1636,15 @@ export async function watchNativeMarkdownFile(
       });
     }
 
-    await invokeNative("watch_markdown_file", { path });
+    await invokeNative("watch_markdown_file", {
+      ...(options.globalIgnoreRules !== undefined
+        ? { globalIgnoreRules: options.globalIgnoreRules }
+        : {}),
+      ...(options.ignoreRootPath !== undefined
+        ? { ignoreRootPath: options.ignoreRootPath }
+        : {}),
+      path
+    });
     debug(() => ["[markra-history] native watch ready", {
       path
     }]);
@@ -1643,7 +1670,8 @@ export async function watchNativeMarkdownFile(
 
 export async function watchNativeMarkdownTree(
   path: string,
-  onTreeChange: NativeMarkdownTreeChangeHandler
+  onTreeChange: NativeMarkdownTreeChangeHandler,
+  options: WatchNativeMarkdownOptions = {}
 ) {
   const rootPath = treeRootPathFromPath(path);
   const unlistenTree = await listenNativeEvent<MarkdownTreeChangedPayload>(markdownTreeChangedEvent, (event) => {
@@ -1652,7 +1680,12 @@ export async function watchNativeMarkdownTree(
   });
 
   try {
-    await invokeNative("watch_markdown_tree", { rootPath: path });
+    await invokeNative("watch_markdown_tree", {
+      ...(options.globalIgnoreRules !== undefined
+        ? { globalIgnoreRules: options.globalIgnoreRules }
+        : {}),
+      rootPath: path
+    });
   } catch (error) {
     unlistenTree();
     throw error;

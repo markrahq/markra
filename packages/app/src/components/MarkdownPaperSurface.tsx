@@ -49,6 +49,7 @@ import {
   markraSlashCommands,
   markraSpellcheckPlugin,
   markraTableControlsPlugin,
+  markraTableFragmentMergePlugin,
   markraTaskListPlugin,
   markraTrailingParagraphPlugin,
   markraTaskListSchema,
@@ -311,6 +312,7 @@ function MilkdownEditorSurface({
     tableColumns: t(language, "editor.table.columns"),
     tableRows: t(language, "editor.table.rows")
   };
+  const tableFragmentMergeLabel = t(language, "editor.table.mergeFragment");
   const blockDragLabels = {
     addBlock: t(language, "editor.blockAdd"),
     dragBlock: t(language, "editor.blockDrag")
@@ -584,6 +586,7 @@ function MilkdownEditorSurface({
             }
           )
         )
+        .use(markraTableFragmentMergePlugin(tableFragmentMergeLabel))
         .use(markraTableControlsPlugin(tableControlLabels, {
           getDefaultWidthMode: () => tableColumnWidthModeRef.current,
           getDocumentKey: () => documentPathRef.current

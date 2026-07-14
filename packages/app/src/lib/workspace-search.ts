@@ -27,6 +27,7 @@ export type WorkspaceSearchRequest = {
     content: string;
     path: string;
   } | null;
+  globalIgnoreRules?: string | null;
   maxMatches?: number;
   maxMatchesPerFile?: number;
   path: string;

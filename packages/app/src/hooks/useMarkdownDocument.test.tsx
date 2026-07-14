@@ -2177,6 +2177,59 @@ describe("useMarkdownDocument", () => {
     expect(onMarkdownTreeChange).toHaveBeenCalledWith("/mock-files/assets/pasted-image.png");
   });
 
+  it("restarts file watchers when global ignore rules change", async () => {
+    mockedOpenNativeMarkdownPath.mockResolvedValueOnce({
+      kind: "file",
+      file: {
+        content: "# First file",
+        name: "first.md",
+        path: "/mock-workspace/docs/first.md"
+      }
+    });
+    const stopWatching = vi.fn();
+    mockedWatchNativeMarkdownFile.mockResolvedValue(stopWatching);
+
+    const { result, rerender } = renderHook(
+      ({ globalIgnoreRules }: { globalIgnoreRules: string }) => useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        globalIgnoreRules,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false,
+        workspaceSourcePath: "/mock-workspace"
+      }),
+      { initialProps: { globalIgnoreRules: "generated/" } }
+    );
+
+    await act(async () => {
+      await result.current.openMarkdownFile();
+    });
+
+    await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenLastCalledWith(
+      "/mock-workspace/docs/first.md",
+      expect.any(Function),
+      expect.any(Function),
+      {
+        globalIgnoreRules: "generated/",
+        ignoreRootPath: "/mock-workspace"
+      }
+    ));
+
+    rerender({ globalIgnoreRules: "drafts/" });
+
+    await waitFor(() => expect(stopWatching).toHaveBeenCalled());
+    await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenLastCalledWith(
+      "/mock-workspace/docs/first.md",
+      expect.any(Function),
+      expect.any(Function),
+      {
+        globalIgnoreRules: "drafts/",
+        ignoreRootPath: "/mock-workspace"
+      }
+    ));
+  });
+
   it("clears a deleted active tree file without turning its content into an unsaved draft", async () => {
     let editorMarkdown = "";
     const confirmDiscardUnsavedChanges = vi.fn(() => true);

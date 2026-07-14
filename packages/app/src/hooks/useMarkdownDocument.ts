@@ -153,6 +153,7 @@ type UseMarkdownDocumentOptions = {
   documentTabsEnabled?: boolean;
   editorReady?: boolean | (() => boolean);
   getCurrentMarkdown: (fallbackContent: string) => string;
+  globalIgnoreRules?: string;
   isCurrentMarkdownEquivalent?: (markdown: string) => boolean | undefined;
   onActiveDiskFileContentChange?: (change: ActiveDiskFileContentChange) => boolean | undefined;
   onAutoSaveError?: (error: unknown) => unknown;
@@ -255,6 +256,7 @@ export function useMarkdownDocument({
   documentTabsEnabled = false,
   editorReady = true,
   getCurrentMarkdown,
+  globalIgnoreRules = "",
   isCurrentMarkdownEquivalent,
   onActiveDiskFileContentChange,
   onAutoSaveError,
@@ -2156,6 +2158,7 @@ export function useMarkdownDocument({
   useEffect(() => {
     const watchedPaths = watchedMarkdownFilePathsKey.split("\n").filter((path) => path.trim().length > 0);
     if (watchedPaths.length === 0) return;
+    const ignoreRootPath = workspaceRootForSource(workspaceSourcePath, document.path);
 
     let active = true;
     const stopWatchers: Array<() => unknown> = [];
@@ -2250,7 +2253,7 @@ export function useMarkdownDocument({
         if (!active) return;
 
         await requestWatchedFileRead(changedPath, watchedPath);
-      }, treeChangeHandler).then((stopWatching) => {
+      }, treeChangeHandler, { globalIgnoreRules, ignoreRootPath }).then((stopWatching) => {
         if (!active) {
           stopWatching();
           return;
@@ -2280,9 +2283,11 @@ export function useMarkdownDocument({
   }, [
     applyDiskFileToCleanOpenTab,
     document.path,
+    globalIgnoreRules,
     markExternallyDeletedDocumentFile,
     onMarkdownTreeChange,
     readMarkdownFileWithPerformance,
+    workspaceSourcePath,
     watchedMarkdownFilePathsKey
   ]);
 

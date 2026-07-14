@@ -2122,6 +2122,97 @@
       0 0 0 3px color-mix(in srgb, var(--text-secondary) 14%, transparent);
   }
 
+  .markdown-paper .markra-table-fragment-merge {
+    @apply relative z-20 h-0 w-full overflow-visible;
+    color: var(--editor-text-secondary);
+    pointer-events: none;
+  }
+
+  .markdown-paper .markra-table-fragment-merge-button {
+    @apply absolute top-0 left-0 inline-flex size-6 cursor-pointer items-center justify-center overflow-visible rounded-[7px] border p-0 text-xs font-semibold whitespace-nowrap focus-visible:outline-none;
+    border-color: color-mix(in srgb, var(--editor-border-strong) 78%, transparent);
+    background: color-mix(in srgb, var(--editor-paper-bg) 94%, var(--editor-bg-secondary));
+    box-shadow: 0 2px 7px rgba(0, 0, 0, 0.08);
+    color: var(--editor-text-secondary);
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-1.5rem, 0.125rem) scale(0.92);
+    transition:
+      color 120ms ease-out,
+      background-color 120ms ease-out,
+      border-color 120ms ease-out,
+      box-shadow 120ms ease-out,
+      opacity 120ms ease-out,
+      transform 120ms ease-out;
+  }
+
+  .markdown-paper .markra-table-fragment-merge-button::before {
+    position: absolute;
+    inset: -0.25rem 0 -0.25rem -0.25rem;
+    content: "";
+  }
+
+  .markdown-paper .markra-table-fragment-merge:has(+ p:hover) .markra-table-fragment-merge-button,
+  .markdown-paper .markra-table-fragment-merge:focus-within .markra-table-fragment-merge-button,
+  .markdown-paper .markra-table-fragment-merge-button:hover,
+  .markdown-paper .markra-table-fragment-merge-button:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translate(-1.5rem, 0.125rem) scale(1);
+  }
+
+  .markdown-paper .markra-table-fragment-merge-button:hover,
+  .markdown-paper .markra-table-fragment-merge-button:focus-visible {
+    border-color: var(--editor-border-strong);
+    background: var(--editor-bg-secondary);
+    box-shadow:
+      0 3px 9px rgba(0, 0, 0, 0.09),
+      0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
+    color: var(--editor-text-heading);
+  }
+
+  .markdown-paper .markra-table-fragment-merge-icon {
+    @apply size-3.5 shrink-0;
+    pointer-events: none;
+  }
+
+  .markdown-paper .markra-table-fragment-merge-label {
+    @apply absolute left-1 rounded-[7px] px-2 py-1 text-[11px] leading-tight font-medium;
+    bottom: calc(100% + 0.5rem);
+    background: var(--editor-text-heading);
+    box-shadow: 0 5px 14px rgba(0, 0, 0, 0.16);
+    color: var(--editor-paper-bg);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(0.125rem);
+    transition:
+      opacity 120ms ease-out,
+      transform 120ms ease-out,
+      visibility 0ms linear 120ms;
+    visibility: hidden;
+  }
+
+  .markdown-paper .markra-table-fragment-merge-label::after {
+    position: absolute;
+    top: 100%;
+    left: 0.625rem;
+    border: 0.25rem solid transparent;
+    border-top-color: var(--editor-text-heading);
+    content: "";
+  }
+
+  .markdown-paper .markra-table-fragment-merge-button:hover .markra-table-fragment-merge-label,
+  .markdown-paper .markra-table-fragment-merge-button:focus-visible .markra-table-fragment-merge-label {
+    opacity: 1;
+    transform: translateY(0);
+    transition-delay: 0ms;
+    visibility: visible;
+  }
+
+  .markdown-paper .ProseMirror[contenteditable="false"] .markra-table-fragment-merge {
+    display: none;
+  }
+
   .markdown-paper .markra-table-delete-control {
     @apply hover:border-red-400/70 hover:bg-red-500/10 hover:text-red-600 focus-visible:border-red-400/70 focus-visible:bg-red-500/10 focus-visible:text-red-600;
     transform: translate(-50%, -50%);

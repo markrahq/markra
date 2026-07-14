@@ -1106,7 +1106,11 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenCalledWith(
       mockNativePath,
       expect.any(Function),
-      expect.any(Function)
+      expect.any(Function),
+      {
+        globalIgnoreRules: "",
+        ignoreRootPath: "/mock-files"
+      }
     ));
 
     await waitFor(() => {
@@ -8930,7 +8934,11 @@ describe("Markra workspace", () => {
       expect(mockedWatchNativeMarkdownFile).toHaveBeenCalledWith(
         mockNativePath,
         expect.any(Function),
-        expect.any(Function)
+        expect.any(Function),
+        {
+          globalIgnoreRules: "",
+          ignoreRootPath: "/mock-files"
+        }
       )
     );
     await act(async () => {

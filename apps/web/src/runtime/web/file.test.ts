@@ -364,16 +364,10 @@ describe("web file runtime", () => {
     expect(entries.map((entry) => ({ kind: entry.kind, relativePath: entry.relativePath }))).toEqual([
       { kind: "folder", relativePath: "assets" },
       { kind: "asset", relativePath: "assets/image.png" },
-      { kind: "folder", relativePath: "build" },
-      { kind: undefined, relativePath: "build/output.md" },
-      { kind: "folder", relativePath: "dist" },
-      { kind: undefined, relativePath: "dist/bundle.md" },
       { kind: "folder", relativePath: "downloads" },
       { kind: "attachment", relativePath: "downloads/export.docx" },
       { kind: "folder", relativePath: "notes" },
       { kind: undefined, relativePath: "notes/daily.md" },
-      { kind: "folder", relativePath: "target" },
-      { kind: undefined, relativePath: "target/cache.md" },
       { kind: "attachment", relativePath: "todo.txt" }
     ]);
 
@@ -388,6 +382,119 @@ describe("web file runtime", () => {
     })).resolves.toEqual(entries.filter((entry) =>
       entry.kind !== "attachment" || entry.relativePath.startsWith("assets/")
     ));
+  });
+
+  it("uses desktop ignore defaults when listing browser directories", async () => {
+    const ignoredDirectoryNames = [
+      ".codex",
+      ".git",
+      ".markra-sync",
+      ".obsidian",
+      "build",
+      "dist",
+      "node_modules",
+      "target"
+    ];
+    const ignoredEntries = Object.fromEntries(ignoredDirectoryNames.map((name) => [
+      name,
+      new FakeDirectoryHandle(name, {
+        "hidden.md": new FakeFileHandle("hidden.md", "# Hidden")
+      })
+    ]));
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      ...ignoredEntries,
+      "visible.md": new FakeFileHandle("visible.md", "# Visible")
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => directory
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path);
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual(["visible.md"]);
+  });
+
+  it("uses root markraignore when listing browser directories", async () => {
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      ".markraignore": new FakeFileHandle(
+        ".markraignore",
+        "generated/\n*.tmp\n*.md\n!keep.md\n"
+      ),
+      "draft.tmp": new FakeFileHandle("draft.tmp", "temporary"),
+      "drop.md": new FakeFileHandle("drop.md", "# Drop"),
+      "generated": new FakeDirectoryHandle("generated", {
+        "page.md": new FakeFileHandle("page.md", "# Generated")
+      }),
+      "keep.md": new FakeFileHandle("keep.md", "# Keep")
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => directory
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path);
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual(["keep.md"]);
+  });
+
+  it("merges global ignore rules before root markraignore rules", async () => {
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      ".markraignore": new FakeFileHandle(
+        ".markraignore",
+        "!drafts/\n!drafts/restored.md\n!keep.md\n"
+      ),
+      "drop.md": new FakeFileHandle("drop.md", "# Drop"),
+      "drafts": new FakeDirectoryHandle("drafts", {
+        "restored.md": new FakeFileHandle("restored.md", "# Restored")
+      }),
+      "keep.md": new FakeFileHandle("keep.md", "# Keep"),
+      "node_modules": new FakeDirectoryHandle("node_modules", {
+        "readme.md": new FakeFileHandle("readme.md", "# Dependency")
+      })
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => directory
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path, {
+      globalIgnoreRules: "*.md\ndrafts/\n!node_modules/readme.md\n"
+    });
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual([
+      "drafts",
+      "drafts/restored.md",
+      "keep.md"
+    ]);
+  });
+
+  it("matches ignore rules case-sensitively", async () => {
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      Drafts: new FakeDirectoryHandle("Drafts", {
+        "visible.md": new FakeFileHandle("visible.md", "# Visible")
+      }),
+      drafts: new FakeDirectoryHandle("drafts", {
+        "hidden.md": new FakeFileHandle("hidden.md", "# Hidden")
+      })
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => directory
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path, {
+      globalIgnoreRules: "drafts/\n"
+    });
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual([
+      "Drafts",
+      "Drafts/visible.md"
+    ]);
   });
 
   it("falls back to directory upload when the browser file system picker is unavailable", async () => {
@@ -448,6 +555,23 @@ describe("web file runtime", () => {
     });
     await expect(reloaded.files.readMarkdownFile("web-workspace://default/notes/guide.md"))
       .resolves.toMatchObject({ content: "# Updated" });
+  });
+
+  it("applies workspace ignore rules to persistent uploaded workspaces", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("vault/.markraignore", "generated/\n*.tmp\n", "text/plain"),
+        createDirectoryUploadFile("vault/draft.tmp", "temporary", "text/plain"),
+        createDirectoryUploadFile("vault/generated/hidden.md", "# Hidden"),
+        createDirectoryUploadFile("vault/visible.md", "# Visible")
+      ]
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path);
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual(["visible.md"]);
   });
 
   it("resolves parent-relative images from persistent uploaded workspaces", async () => {

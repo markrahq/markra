@@ -31,6 +31,7 @@ import {
   pickBrowserDirectoryFiles,
   resolveBrowserPicker
 } from "./browser";
+import { loadMarkdownIgnoreRules, type MarkdownIgnoreRules } from "./ignore-rules";
 import type {
   WebDirectoryHandle,
   WebFileHandle,
@@ -82,7 +83,6 @@ const jsonFileType = "application/json;charset=utf-8";
 const markdownExtensions = new Set(["md", "markdown"]);
 const markdownOpenExtensions = new Set(["md", "markdown", "txt"]);
 const assetExtensions = new Set(["avif", "bmp", "gif", "jpg", "jpeg", "png", "svg", "webp"]);
-const skippedDirectoryNames = new Set([".git", "node_modules"]);
 const fileHandleStorePath = "web-file-handles.json";
 const directoryHandleStorePath = "web-directory-handles.json";
 const settingsFilePickerTypes = [{
@@ -933,7 +933,8 @@ export function createWebFileRuntime(
     parentRelativePath: string,
     entries: NativeMarkdownFolderFile[],
     managedAttachmentFolder: string | null,
-    createPath: (relativePath: string) => string
+    createPath: (relativePath: string) => string,
+    ignoreRules: MarkdownIgnoreRules
   ) {
     const iterator = directory.entries?.() ?? fallbackDirectoryEntries(directory);
     if (!iterator) throw new Error("Browser directory handle cannot list files.");
@@ -941,17 +942,26 @@ export function createWebFileRuntime(
     for await (const [name, handle] of iterator) {
       const relativePath = joinRelativePath(parentRelativePath, name);
       if (isDirectoryHandle(handle)) {
-        if (!skippedDirectoryNames.has(name)) {
+        if (!ignoreRules.ignores(relativePath, true)) {
           entries.push({
             kind: "folder",
             name,
             path: createPath(relativePath),
             relativePath
           });
-          await collectMarkdownEntries(handle, relativePath, entries, managedAttachmentFolder, createPath);
+          await collectMarkdownEntries(
+            handle,
+            relativePath,
+            entries,
+            managedAttachmentFolder,
+            createPath,
+            ignoreRules
+          );
         }
         continue;
       }
+
+      if (ignoreRules.ignores(relativePath, false)) continue;
 
       const file = {
         ...folderFileKindFromName(name),
@@ -965,7 +975,8 @@ export function createWebFileRuntime(
 
   async function listWorkspaceMarkdownEntries(
     location: RuntimeFolderPath,
-    managedAttachmentFolder: string | null
+    managedAttachmentFolder: string | null,
+    ignoreRules: MarkdownIgnoreRules
   ) {
     const storedEntries = await workspaceRepository.list(
       location.id,
@@ -976,10 +987,9 @@ export function createWebFileRuntime(
       const relativePath = pathRelativeToRoot(entry.path, location.relativePath);
       if (!relativePath) continue;
 
-      const segments = relativePath.split("/");
-      const directorySegments = entry.kind === "directory" ? segments : segments.slice(0, -1);
-      if (directorySegments.some((segment) => skippedDirectoryNames.has(segment))) continue;
+      if (ignoreRules.ignores(relativePath, entry.kind === "directory")) continue;
 
+      const segments = relativePath.split("/");
       const name = segments.at(-1) ?? relativePath;
       const file = entry.kind === "directory"
         ? {
@@ -1298,16 +1308,20 @@ export function createWebFileRuntime(
       const parsedPath = parseRuntimeFolderPath(path);
       if (!parsedPath) return [];
       const managedAttachmentFolder = normalizeManagedAttachmentFolder(options.managedAttachmentFolder);
+      const resolved = await directoryForPath(path);
+      const ignoreRules = await loadMarkdownIgnoreRules(
+        resolved.directory,
+        options.globalIgnoreRules ?? ""
+      );
       if (parsedPath.workspace) {
         // A flat repository scan prevents recursive handles from re-reading the same subtree at every depth.
-        const entries = await listWorkspaceMarkdownEntries(parsedPath, managedAttachmentFolder);
+        const entries = await listWorkspaceMarkdownEntries(parsedPath, managedAttachmentFolder, ignoreRules);
 
         return entries.sort((left, right) =>
           left.relativePath.toLowerCase().localeCompare(right.relativePath.toLowerCase())
         );
       }
 
-      const resolved = await directoryForPath(path);
       const entries: NativeMarkdownFolderFile[] = [];
 
       await collectMarkdownEntries(
@@ -1318,7 +1332,8 @@ export function createWebFileRuntime(
         (relativePath) => createRuntimeFolderPath(
           parsedPath,
           joinRelativePath(parsedPath.relativePath, relativePath)
-        )
+        ),
+        ignoreRules
       );
 
       return entries.sort((left, right) => left.relativePath.toLowerCase().localeCompare(right.relativePath.toLowerCase()));

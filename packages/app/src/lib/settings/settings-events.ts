@@ -8,6 +8,7 @@ import {
   normalizeCustomThemeCssValues,
   normalizeEditorPreferences,
   normalizeExportSettings,
+  normalizeFileIgnoreSettings,
   normalizeSyncSettings,
   normalizeWebSearchSettings,
   type AiProviderSettings,
@@ -18,6 +19,7 @@ import {
   type CustomThemeCssValues,
   type EditorPreferences,
   type ExportSettings,
+  type FileIgnoreSettings,
   type SyncSettings,
   type WebSearchSettings
 } from "./app-settings";
@@ -29,6 +31,7 @@ const customThemeCssChangedEvent = "markra://custom-theme-css-changed";
 const languageChangedEvent = "markra://language-changed";
 const editorPreferencesChangedEvent = "markra://editor-preferences-changed";
 const exportSettingsChangedEvent = "markra://export-settings-changed";
+const fileIgnoreSettingsChangedEvent = "markra://file-ignore-settings-changed";
 const webSearchSettingsChangedEvent = "markra://web-search-settings-changed";
 const backupSettingsChangedEvent = "markra://backup-settings-changed";
 const syncSettingsChangedEvent = "markra://sync-settings-changed";
@@ -58,6 +61,10 @@ type EditorPreferencesChangedPayload = {
 
 type ExportSettingsChangedPayload = {
   settings: ExportSettings;
+};
+
+type FileIgnoreSettingsChangedPayload = {
+  settings: FileIgnoreSettings;
 };
 
 type WebSearchSettingsChangedPayload = {
@@ -192,6 +199,27 @@ export async function listenAppExportSettingsChanged(
   return getAppRuntime().events.listen<ExportSettingsChangedPayload>(exportSettingsChangedEvent, (event) => {
     onSettingsChanged(normalizeExportSettings(event.payload.settings));
   });
+}
+
+export async function notifyAppFileIgnoreSettingsChanged(settings: FileIgnoreSettings) {
+  if (!getAppRuntime().events.isAvailable()) return;
+
+  await getAppRuntime().events.emit(fileIgnoreSettingsChangedEvent, {
+    settings: normalizeFileIgnoreSettings(settings)
+  });
+}
+
+export async function listenAppFileIgnoreSettingsChanged(
+  onSettingsChanged: (settings: FileIgnoreSettings) => unknown
+) {
+  if (!getAppRuntime().events.isAvailable()) return () => {};
+
+  return getAppRuntime().events.listen<FileIgnoreSettingsChangedPayload>(
+    fileIgnoreSettingsChangedEvent,
+    (event) => {
+      onSettingsChanged(normalizeFileIgnoreSettings(event.payload.settings));
+    }
+  );
 }
 
 export async function notifyAppWebSearchSettingsChanged(settings: WebSearchSettings) {

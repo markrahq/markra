@@ -30,6 +30,7 @@ vi.mock("mermaid", () => ({
 import type { Editor } from "@milkdown/kit/core";
 import { editorViewCtx, parserCtx, serializerCtx } from "@milkdown/kit/core";
 import { Fragment, Slice, type Node as ProseNode } from "@milkdown/kit/prose/model";
+import { undo } from "@milkdown/kit/prose/history";
 import { AllSelection, NodeSelection, TextSelection } from "@milkdown/kit/prose/state";
 import type { EditorView } from "@milkdown/kit/prose/view";
 import { MarkdownPaper } from "./MarkdownPaper";
@@ -5330,6 +5331,131 @@ describe("MarkdownPaper editing", () => {
     expect(view.state.doc.child(0).type.name).toBe("bullet_list");
     expect(view.state.doc.child(2).type.name).toBe("bullet_list");
     restoreLayout();
+  });
+
+  it("merges a compatible table fragment from the contextual control", async () => {
+    const initialMarkdown = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "",
+      "| Beta | 2 |"
+    ].join("\n");
+    const onMarkdownChange = vi.fn();
+    const { container, editor, view } = await renderEditor(initialMarkdown, { onMarkdownChange });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdownBeforeMerge = serializeMarkdown(view.state.doc);
+
+    const mergeButton = screen.getByRole("button", { name: "Merge into table above" });
+    expect(mergeButton).toHaveClass("markra-table-fragment-merge-button");
+    expect(mergeButton).not.toHaveAttribute("title");
+    expect(mergeButton.querySelector(".markra-table-fragment-merge-label")).toHaveTextContent(
+      "Merge into table above"
+    );
+
+    fireEvent.click(mergeButton);
+
+    const mergedMarkdown = serializeMarkdown(view.state.doc);
+    expect(container.querySelectorAll(".ProseMirror table tr")).toHaveLength(3);
+    expect(view.state.doc.childCount).toBe(1);
+    expect(mergedMarkdown).not.toContain("\n\n| Beta");
+    expect(view.state.selection.$from.parent.textContent).toBe("Beta");
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenLastCalledWith(mergedMarkdown));
+
+    expect(undo(view.state, (transaction) => view.dispatch(transaction))).toBe(true);
+    expect(serializeMarkdown(view.state.doc)).toBe(markdownBeforeMerge);
+  });
+
+  it("merges every row in a compatible multi-line table fragment", async () => {
+    const initialMarkdown = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "",
+      "| Beta | 2 |",
+      "| Gamma | 3 |"
+    ].join("\n");
+    const { container } = await renderEditor(initialMarkdown);
+
+    fireEvent.click(screen.getByRole("button", { name: "Merge into table above" }));
+
+    expect(container.querySelectorAll(".ProseMirror table tr")).toHaveLength(4);
+    expect(screen.getByRole("cell", { name: "Beta" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Gamma" })).toBeInTheDocument();
+  });
+
+  it("activates table fragment merging with Enter and Space", async () => {
+    const initialMarkdown = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "",
+      "| Beta | 2 |"
+    ].join("\n");
+    const { container, view } = await renderEditor(initialMarkdown);
+
+    fireEvent.keyDown(screen.getByRole("button", { name: "Merge into table above" }), { key: "Enter" });
+    expect(container.querySelectorAll(".ProseMirror table tr")).toHaveLength(3);
+
+    expect(undo(view.state, (transaction) => view.dispatch(transaction))).toBe(true);
+    fireEvent.keyDown(screen.getByRole("button", { name: "Merge into table above" }), { key: " " });
+    expect(container.querySelectorAll(".ProseMirror table tr")).toHaveLength(3);
+  });
+
+  it("ignores context-style clicks on the table fragment control", async () => {
+    const initialMarkdown = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "",
+      "| Beta | 2 |"
+    ].join("\n");
+    const { editor, view } = await renderEditor(initialMarkdown);
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const markdownBeforeClick = serializeMarkdown(view.state.doc);
+    const mergeButton = screen.getByRole("button", { name: "Merge into table above" });
+
+    fireEvent.mouseDown(mergeButton, { button: 2 });
+    fireEvent.click(mergeButton, { button: 2 });
+    expect(serializeMarkdown(view.state.doc)).toBe(markdownBeforeClick);
+
+    fireEvent.mouseDown(mergeButton, { button: 0, ctrlKey: true });
+    fireEvent.click(mergeButton, { button: 0, ctrlKey: true });
+    expect(serializeMarkdown(view.state.doc)).toBe(markdownBeforeClick);
+  });
+
+  it("hides table fragment merging while read-only", async () => {
+    const initialMarkdown = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "",
+      "| Beta | 2 |"
+    ].join("\n");
+
+    await renderEditor(initialMarkdown, { readOnly: true });
+
+    expect(screen.queryByRole("button", { name: "Merge into table above" })).not.toBeInTheDocument();
+  });
+
+  it("hides table fragment merging for incompatible content and complete tables", async () => {
+    const table = ["| Name | Value |", "| --- | --- |", "| Alpha | 1 |"].join("\n");
+
+    const mismatch = await renderEditor(`${table}\n\n| Beta |`);
+    expect(screen.queryByRole("button", { name: "Merge into table above" })).not.toBeInTheDocument();
+    mismatch.unmount();
+
+    const partial = await renderEditor(`${table}\n\n| Beta | 2 |\n| Gamma |`);
+    expect(screen.queryByRole("button", { name: "Merge into table above" })).not.toBeInTheDocument();
+    partial.unmount();
+
+    const prose = await renderEditor(`${table}\n\nordinary | prose`);
+    expect(screen.queryByRole("button", { name: "Merge into table above" })).not.toBeInTheDocument();
+    prose.unmount();
+
+    const secondTable = await renderEditor(`${table}\n\n${table}`);
+    expect(screen.queryByRole("button", { name: "Merge into table above" })).not.toBeInTheDocument();
+    secondTable.unmount();
   });
 
   it("adds table rows and columns from the hover controls", async () => {

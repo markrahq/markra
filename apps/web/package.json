@@ -17,6 +17,7 @@
     "@markra/editor": "workspace:*",
     "@markra/shared": "workspace:*",
     "fflate": "0.8.3",
+    "ignore": "7.0.5",
     "react": "19.2.5",
     "react-dom": "19.2.5"
   },

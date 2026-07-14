@@ -3,6 +3,7 @@ export { AppearanceSettings } from "./settings/AppearanceSettings";
 export { BackupSettings } from "./settings/BackupSettings";
 export { EditorSettings } from "./settings/EditorSettings";
 export { ExportSettings } from "./settings/ExportSettings";
+export { FileScanningSettings } from "./settings/FileScanningSettings";
 export { GeneralSettings } from "./settings/GeneralSettings";
 export { KeyboardShortcutsSettings } from "./settings/KeyboardShortcutsSettings";
 export { NetworkSettings } from "./settings/NetworkSettings";

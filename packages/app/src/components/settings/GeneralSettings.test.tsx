@@ -4,6 +4,33 @@ import { defaultEditorPreferences } from "../../lib/settings/app-settings";
 import { GeneralSettings } from "./GeneralSettings";
 
 describe("GeneralSettings", () => {
+  it("applies global file ignore rules from general settings", () => {
+    const onApplyFileIgnoreSettings = vi.fn();
+
+    render(
+      <GeneralSettings
+        appVersion="0.0.7"
+        fileIgnoreSettings={{ rules: "" }}
+        language="en"
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        welcomeReset={false}
+        onApplyFileIgnoreSettings={onApplyFileIgnoreSettings}
+        onCheckForUpdates={vi.fn()}
+        onResetWelcomeDocument={vi.fn()}
+        onSelectLanguage={vi.fn()}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Global ignore rules" }), {
+      target: { value: "generated/" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Apply global ignore rules" }));
+
+    expect(onApplyFileIgnoreSettings).toHaveBeenCalledWith({ rules: "generated/" });
+  });
+
   it("shows an available update prompt in the manual update settings", () => {
     const props = {
       appVersion: "0.0.7",

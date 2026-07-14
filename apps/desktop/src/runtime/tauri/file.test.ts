@@ -45,6 +45,7 @@ import {
   renameNativeMarkdownTreeFile,
   saveNativeSettingsFile,
   saveNativeMarkdownFile,
+  searchNativeMarkdownFilesForPath,
   writeNativeMarkdownTemplateFile,
   uploadNativePicGoImage,
   uploadNativeS3Image,
@@ -588,9 +589,11 @@ describe("native file access", () => {
     mockedInvoke.mockResolvedValueOnce([]);
 
     await expect(listNativeMarkdownFilesForPath(mockReadmePath, {
+      globalIgnoreRules: "generated/",
       managedAttachmentFolder: "media/files"
     })).resolves.toEqual([]);
     expect(mockedInvoke).toHaveBeenLastCalledWith("list_markdown_files_for_path", {
+      globalIgnoreRules: "generated/",
       managedAttachmentFolder: "media/files",
       path: mockReadmePath
     });
@@ -630,6 +633,7 @@ describe("native file access", () => {
     });
 
     await expect(loadNativeMarkdownFilesForPath(mockFolderPath, {
+      globalIgnoreRules: "generated/",
       managedAttachmentFolder: "assets",
       onBatch: (files) => {
         batches.push(files);
@@ -646,6 +650,7 @@ describe("native file access", () => {
 
     expect(mockedListen).toHaveBeenCalledWith("markra://markdown-tree-load", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("load_markdown_files_for_path", {
+      globalIgnoreRules: "generated/",
       managedAttachmentFolder: "assets",
       path: mockFolderPath,
       requestId: expect.any(String)
@@ -660,6 +665,27 @@ describe("native file access", () => {
       }]
     ]);
     expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards global ignore rules to native workspace search", async () => {
+    mockedInvoke.mockResolvedValue({
+      results: [],
+      searchedFileCount: 0,
+      truncated: false,
+      unreadableFileCount: 0
+    });
+
+    await expect(searchNativeMarkdownFilesForPath({
+      globalIgnoreRules: "generated/",
+      path: mockFolderPath,
+      query: "needle"
+    })).resolves.toMatchObject({ searchedFileCount: 0 });
+
+    expect(mockedInvoke).toHaveBeenCalledWith("search_markdown_files_for_path", expect.objectContaining({
+      globalIgnoreRules: "generated/",
+      path: mockFolderPath,
+      query: "needle"
+    }));
   });
 
   it("creates folders, creates files, moves files, renames files, and deletes files through Tauri commands", async () => {
@@ -1520,11 +1546,21 @@ describe("native file access", () => {
     });
     mockedInvoke.mockResolvedValue(undefined);
 
-    const unwatch = await watchNativeMarkdownFile(mockReadmePath, onChange, onTreeChange);
+    const unwatch = await watchNativeMarkdownFile(
+      mockReadmePath,
+      onChange,
+      onTreeChange,
+      {
+        globalIgnoreRules: "generated/",
+        ignoreRootPath: mockFolderPath
+      }
+    );
 
     expect(mockedListen).toHaveBeenCalledWith("markra://file-changed", expect.any(Function));
     expect(mockedListen).toHaveBeenCalledWith("markra://tree-changed", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("watch_markdown_file", {
+      globalIgnoreRules: "generated/",
+      ignoreRootPath: mockFolderPath,
       path: mockReadmePath
     });
 
@@ -1560,10 +1596,15 @@ describe("native file access", () => {
     });
     mockedInvoke.mockResolvedValue(undefined);
 
-    const unwatch = await watchNativeMarkdownTree(mockFolderPath, onTreeChange);
+    const unwatch = await watchNativeMarkdownTree(
+      mockFolderPath,
+      onTreeChange,
+      { globalIgnoreRules: "generated/" }
+    );
 
     expect(mockedListen).toHaveBeenCalledWith("markra://tree-changed", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("watch_markdown_tree", {
+      globalIgnoreRules: "generated/",
       rootPath: mockFolderPath
     });
 
