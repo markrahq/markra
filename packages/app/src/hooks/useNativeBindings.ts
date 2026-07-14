@@ -50,6 +50,7 @@ type NativeMenuHandlerOptions = {
   runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey">) => unknown;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
+  syncNow?: () => unknown | Promise<unknown>;
   toggleAiAgent?: () => unknown | Promise<unknown>;
   toggleAiCommand?: () => unknown | Promise<unknown>;
   toggleDocumentHistory?: () => unknown | Promise<unknown>;
@@ -74,6 +75,7 @@ type ApplicationShortcutOptions = {
   platform?: DesktopPlatform;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
+  syncNow?: () => unknown | Promise<unknown>;
   toggleAiAgent?: () => unknown | Promise<unknown>;
   toggleAiCommand?: () => unknown | Promise<unknown>;
   toggleDocumentHistory?: () => unknown | Promise<unknown>;
@@ -142,6 +144,7 @@ export function useNativeMenuHandlers({
   runEditorShortcut,
   saveDocument,
   saveDocumentAs,
+  syncNow,
   toggleAiAgent,
   toggleAiCommand,
   toggleDocumentHistory,
@@ -179,6 +182,7 @@ export function useNativeMenuHandlers({
     runEditorShortcut,
     saveDocument,
     saveDocumentAs,
+    syncNow,
     toggleAiAgent,
     toggleAiCommand,
     toggleDocumentHistory,
@@ -212,6 +216,7 @@ export function useNativeMenuHandlers({
     runEditorShortcut,
     saveDocument,
     saveDocumentAs,
+    syncNow,
     toggleAiAgent,
     toggleAiCommand,
     toggleDocumentHistory,
@@ -275,6 +280,7 @@ export function useNativeMenuHandlers({
       }
       if (openRecentFile) handlers.openRecentFile = (file) => latestOptionsRef.current.openRecentFile?.(file);
       if (openQuickOpen) handlers.openQuickOpen = () => latestOptionsRef.current.openQuickOpen?.();
+      if (syncNow) handlers.syncNow = () => latestOptionsRef.current.syncNow?.();
       if (toggleAiAgent) handlers.toggleAiAgent = () => latestOptionsRef.current.toggleAiAgent?.();
       if (toggleAiCommand) handlers.toggleAiCommand = () => latestOptionsRef.current.toggleAiCommand?.();
       if (toggleDocumentHistory) {
@@ -432,6 +438,7 @@ export function useApplicationShortcuts({
   platform = resolveDesktopPlatform(),
   saveDocument,
   saveDocumentAs,
+  syncNow,
   toggleAiAgent,
   toggleAiCommand,
   toggleDocumentHistory,
@@ -453,6 +460,7 @@ export function useApplicationShortcuts({
 
       const configurableActions: Array<[string, (() => unknown | Promise<unknown>) | undefined]> = [
         [normalizedMarkdownShortcuts.openQuickOpen, openQuickOpen],
+        [normalizedMarkdownShortcuts.syncNow, syncNow],
         [normalizedMarkdownShortcuts.toggleMarkdownFiles, toggleMarkdownFiles],
         [normalizedMarkdownShortcuts.toggleDocumentHistory, toggleDocumentHistory],
         [normalizedMarkdownShortcuts.toggleAiAgent, toggleAiAgent],
@@ -540,6 +548,7 @@ export function useApplicationShortcuts({
     platform,
     saveDocument,
     saveDocumentAs,
+    syncNow,
     toggleAiAgent,
     toggleAiCommand,
     toggleDocumentHistory,

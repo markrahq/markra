@@ -274,11 +274,13 @@ describe("useNativeMenuHandlers", () => {
     const toggleMarkdownFiles = vi.fn();
     const toggleReadOnlyMode = vi.fn();
     const toggleSourceMode = vi.fn();
+    const syncNow = vi.fn();
     const { result } = renderHook(() =>
       useNativeMenuHandlers({
         ...baseOptions,
         checkForUpdates,
         closeDocument,
+        syncNow,
         toggleAiAgent,
         toggleAiCommand,
         toggleDocumentHistory,
@@ -298,6 +300,7 @@ describe("useNativeMenuHandlers", () => {
     result.current.toggleAiCommand?.();
     result.current.toggleSourceMode?.();
     result.current.toggleReadOnlyMode?.();
+    result.current.syncNow?.();
 
     expect(closeDocument).toHaveBeenCalledTimes(1);
     expect(checkForUpdates).toHaveBeenCalledTimes(1);
@@ -308,6 +311,7 @@ describe("useNativeMenuHandlers", () => {
     expect(toggleAiCommand).toHaveBeenCalledTimes(1);
     expect(toggleReadOnlyMode).toHaveBeenCalledTimes(1);
     expect(toggleSourceMode).toHaveBeenCalledTimes(1);
+    expect(syncNow).toHaveBeenCalledTimes(1);
   });
 
   it("routes the native open folder menu command to the folder opener", () => {
@@ -371,6 +375,26 @@ describe("useApplicationShortcuts", () => {
     });
 
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs manual sync from the default shortcut", () => {
+    const syncNow = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        syncNow
+      })
+    );
+
+    const handled = fireEvent.keyDown(window, {
+      code: "KeyR",
+      key: "r",
+      metaKey: true,
+      shiftKey: true
+    });
+
+    expect(handled).toBe(false);
+    expect(syncNow).toHaveBeenCalledTimes(1);
   });
 
   it("routes the configurable document history shortcut", () => {

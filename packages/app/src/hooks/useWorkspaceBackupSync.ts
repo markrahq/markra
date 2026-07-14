@@ -102,7 +102,15 @@ export function useWorkspaceBackupSync({
   } = {}) => {
     if (syncRunningRef.current || syncSettings.loading || editorPreferences.loading) return null;
 
+    // Acquire the guard first so repeated manual shortcuts cannot replace the active sync toast.
     syncRunningRef.current = true;
+    if (!silent) {
+      showAppToast({
+        id: "sync",
+        message: translate("settings.sync.running"),
+        status: "loading"
+      });
+    }
     try {
       const result = await runMarkdownSync({
         settings: syncSettings.settings,

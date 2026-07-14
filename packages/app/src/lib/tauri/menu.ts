@@ -50,6 +50,7 @@ export type NativeStaticMenuCommand =
   | "closeDocument"
   | "saveDocument"
   | "saveDocumentAs"
+  | "syncNow"
   | "exportPdf"
   | "exportHtml"
   | "exportDocx"

@@ -8085,6 +8085,64 @@ describe("Markra workspace", () => {
     }));
   });
 
+  it("runs manual remote sync from the native menu", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      files: {
+        ...runtime.files,
+        syncMarkdownFolder: mockedSyncNativeMarkdownFolder
+      }
+    });
+    mockedGetStoredSyncSettings.mockResolvedValue({
+      autoSyncOnSave: false,
+      enabled: true,
+      intervalMinutes: 0,
+      lastSyncAt: null,
+      provider: "webdav",
+      remotePath: "markra"
+    });
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      imageUpload: {
+        ...defaultImageUpload,
+        provider: "webdav",
+        webdav: {
+          ...defaultImageUpload.webdav,
+          password: "synthetic-secret",
+          serverUrl: "https://webdav.example.test/dav",
+          username: "synthetic-user"
+        }
+      }
+    }));
+    mockOpenMarkdownFile({
+      content: "# Manual sync\n\nSynthetic note.",
+      name: "manual-sync.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Manual sync")).toBeInTheDocument();
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.syncNow?.();
+    });
+
+    expect(mockedSyncNativeMarkdownFolder).toHaveBeenCalledWith({
+      provider: "webdav",
+      sourcePath: mockNativePath,
+      webdav: {
+        password: "synthetic-secret",
+        remotePath: "markra",
+        serverUrl: "https://webdav.example.test/dav",
+        username: "synthetic-user"
+      }
+    });
+  });
+
   it("schedules automatic remote sync when an interval is configured", async () => {
     const runtime = createDefaultAppRuntime();
     configureAppRuntime({
