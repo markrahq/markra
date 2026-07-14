@@ -51,6 +51,7 @@ const nativeMarkdownShortcutCommands: Partial<Record<MarkdownShortcutAction, Nat
   orderedList: "formatOrderedList",
   paragraph: "formatParagraph",
   quote: "formatQuote",
+  syncNow: "syncNow",
   strikethrough: "formatStrikethrough",
   table: "insertTable",
   toggleAiAgent: "toggleAiAgent",

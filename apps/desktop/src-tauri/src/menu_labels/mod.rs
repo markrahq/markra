@@ -28,6 +28,7 @@ pub(crate) struct MenuLabels {
     pub(crate) close_document: &'static str,
     pub(crate) save_document: &'static str,
     pub(crate) save_document_as: &'static str,
+    pub(crate) sync_now: &'static str,
     pub(crate) export: &'static str,
     pub(crate) export_pdf: &'static str,
     pub(crate) export_html: &'static str,

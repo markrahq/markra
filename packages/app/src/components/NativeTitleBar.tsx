@@ -68,6 +68,7 @@ type NativeTitleBarProps = {
   markdownFilesResizing?: boolean;
   markdownFilesWidth?: number;
   menuHandlers?: NativeMenuHandlers;
+  syncNowShortcut?: string;
   markdownFilesButtonVisible?: boolean;
   nativeWindowChrome?: boolean;
   openMarkdownButtonVisible?: boolean;
@@ -123,6 +124,7 @@ export function NativeTitleBar({
   markdownFilesResizing = false,
   markdownFilesWidth = 288,
   menuHandlers,
+  syncNowShortcut,
   markdownFilesButtonVisible = true,
   nativeWindowChrome = true,
   openMarkdownButtonVisible = true,
@@ -648,6 +650,7 @@ export function NativeTitleBar({
         markdownFilesResizing={markdownFilesResizing}
         markdownFilesWidth={markdownFilesWidth}
         menuHandlers={menuHandlers}
+        syncNowShortcut={syncNowShortcut}
         nativeWindowChrome={nativeWindowChrome}
         markdownFilesButtonVisible={markdownFilesButtonVisible}
         saveDisabled={saveDisabled}

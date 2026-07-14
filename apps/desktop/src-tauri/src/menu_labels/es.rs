@@ -15,6 +15,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     close_document: "Cerrar archivo",
     save_document: "Guardar",
     save_document_as: "Guardar como...",
+    sync_now: "Sincronizar ahora",
     export: "Exportar",
     export_pdf: "Exportar PDF",
     export_html: "Exportar HTML",

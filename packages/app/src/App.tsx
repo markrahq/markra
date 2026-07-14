@@ -4261,6 +4261,7 @@ function WorkspaceApp() {
           markdownFilesResizing={fileTreeResizing}
           markdownFilesWidth={fileTreeWidth}
           menuHandlers={nativeMenuHandlers}
+          syncNowShortcut={editorPreferences.preferences.markdownShortcuts.syncNow}
           nativeWindowChrome={nativeWindowChromeEnabled}
           openMarkdownButtonVisible={viewModeChrome.openButton}
           quickCreateMarkdownFileVisible={viewModeChrome.quickCreateButton && !visibleFileTreeOpen}

@@ -1,4 +1,8 @@
 import { FileText, FolderOpen, ImageIcon, PanelLeft, PanelRight } from "lucide-react";
+import {
+  defaultMarkdownShortcuts,
+  markdownShortcutToNativeAccelerator
+} from "@markra/editor";
 import type { t } from "@markra/shared";
 import type {
   CSSProperties,
@@ -37,6 +41,7 @@ type WindowsNativeTitleBarProps = {
   markdownFilesResizing: boolean;
   markdownFilesWidth: number;
   menuHandlers?: NativeMenuHandlers;
+  syncNowShortcut?: string;
   nativeWindowChrome: boolean;
   saveDisabled: boolean;
   sourceMode: boolean;
@@ -106,6 +111,7 @@ export function WindowsNativeTitleBar({
   markdownFilesResizing,
   markdownFilesWidth,
   menuHandlers,
+  syncNowShortcut,
   nativeWindowChrome,
   saveDisabled,
   sourceMode,
@@ -151,6 +157,10 @@ export function WindowsNativeTitleBar({
   const windowsWorkspaceName = (workspaceName ?? (documentKind === "folder" ? documentName : "")).trim();
   const showWindowsFolderContext = windowsWorkspaceName.length > 0;
   const showWindowsDocumentTitle = !(documentKind === "folder" && showWindowsFolderContext);
+  const syncNowAccelerator = (
+    markdownShortcutToNativeAccelerator(syncNowShortcut ?? defaultMarkdownShortcuts.syncNow)
+      ?? "CmdOrCtrl+Shift+R"
+  ).replace("CmdOrCtrl", "Ctrl");
   const windowsChromeToolButtonClassName =
     "windows-app-chrome-tool inline-flex size-7 shrink-0 cursor-default items-center justify-center rounded-sm border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-100 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) disabled:pointer-events-none disabled:text-(--text-tertiary) disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)";
   const stopWindowsChromeToolMouseDown = (event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -196,6 +206,13 @@ export function WindowsNativeTitleBar({
           "Ctrl+Shift+S",
           menuHandlers?.saveDocumentAs,
           saveDisabled || !menuHandlers?.saveDocumentAs
+        ),
+        contextMenuItem(
+          "syncNow",
+          label("settings.sync.run"),
+          syncNowAccelerator,
+          menuHandlers?.syncNow,
+          !menuHandlers?.syncNow
         ),
         contextMenuSeparator(),
         contextMenuSubmenu("export", label("menu.export"), [

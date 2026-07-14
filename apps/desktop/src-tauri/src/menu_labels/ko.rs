@@ -15,6 +15,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     close_document: "파일 닫기",
     save_document: "저장",
     save_document_as: "다른 이름으로 저장...",
+    sync_now: "지금 동기화",
     export: "내보내기",
     export_pdf: "PDF 내보내기",
     export_html: "HTML 내보내기",

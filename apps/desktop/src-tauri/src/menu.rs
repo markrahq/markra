@@ -727,6 +727,12 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         labels.save_document_as,
         "CmdOrCtrl+Shift+S",
     )?;
+    let sync_now = app_menu_item(
+        app,
+        "syncNow",
+        labels.sync_now,
+        &menu_accelerator(accelerators, "syncNow", "CmdOrCtrl+Shift+R"),
+    )?;
     let export_pdf = app_menu_item(app, "exportPdf", labels.export_pdf, "CmdOrCtrl+Alt+P")?;
     let export_html = app_menu_item(app, "exportHtml", labels.export_html, "CmdOrCtrl+Shift+E")?;
     let export_docx = app_menu_item_without_accelerator(app, "exportDocx", labels.export_docx)?;
@@ -887,7 +893,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
             &close,
         ])
         .separator()
-        .items(&[&save, &save_as])
+        .items(&[&save, &save_as, &sync_now])
         .separator()
         .items(&[&export_menu])
         .build()?;
@@ -1047,6 +1053,7 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
             | "closeDocument"
             | "saveDocument"
             | "saveDocumentAs"
+            | "syncNow"
             | "exportPdf"
             | "exportHtml"
             | "exportDocx"
@@ -1106,6 +1113,7 @@ mod tests {
         assert!(is_frontend_menu_command("openQuickOpen"));
         assert!(is_frontend_menu_command("closeDocument"));
         assert!(is_frontend_menu_command("saveDocument"));
+        assert!(is_frontend_menu_command("syncNow"));
         assert!(is_frontend_menu_command("exportPdf"));
         assert!(is_frontend_menu_command("exportHtml"));
         assert!(is_frontend_menu_command("exportDocx"));

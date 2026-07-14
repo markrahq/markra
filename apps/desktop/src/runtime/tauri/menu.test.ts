@@ -133,7 +133,8 @@ describe("native menu", () => {
       openDocument: vi.fn(),
       openRecentFile: vi.fn(),
       clearRecentFiles: vi.fn(),
-      saveDocument: vi.fn()
+      saveDocument: vi.fn(),
+      syncNow: vi.fn()
     };
     const recentFile = {
       name: "recent.md",
@@ -149,6 +150,7 @@ describe("native menu", () => {
     await listener?.({ payload: { command: "openRecentFile", recentFile } } as Parameters<NonNullable<typeof listener>>[0]);
     await listener?.({ payload: { command: "clearRecentFiles" } } as Parameters<NonNullable<typeof listener>>[0]);
     await listener?.({ payload: { command: "saveDocument" } } as Parameters<NonNullable<typeof listener>>[0]);
+    await listener?.({ payload: { command: "syncNow" } } as Parameters<NonNullable<typeof listener>>[0]);
     await listener?.({ payload: { command: "unknown" } } as Parameters<NonNullable<typeof listener>>[0]);
     await listener?.({ payload: { command: "openFolder" } } as unknown as Parameters<NonNullable<typeof listener>>[0]);
 
@@ -156,6 +158,7 @@ describe("native menu", () => {
     expect(handlers.openRecentFile).toHaveBeenCalledWith(recentFile);
     expect(handlers.clearRecentFiles).toHaveBeenCalledTimes(1);
     expect(handlers.saveDocument).toHaveBeenCalledTimes(1);
+    expect(handlers.syncNow).toHaveBeenCalledTimes(1);
 
     stopListening();
 
@@ -171,13 +174,15 @@ describe("native menu", () => {
     ];
 
     await installNativeApplicationMenu(handlers, "fr", {
-      bold: "Mod+Alt+B"
+      bold: "Mod+Alt+B",
+      syncNow: "Mod+Alt+R"
     }, recentFiles);
 
     expect(mockedListen).toHaveBeenCalledWith("markra://menu-command", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
       accelerators: {
-        formatBold: "CmdOrCtrl+Alt+B"
+        formatBold: "CmdOrCtrl+Alt+B",
+        syncNow: "CmdOrCtrl+Alt+R"
       },
       language: "fr",
       recentFiles

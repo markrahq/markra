@@ -15,6 +15,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     close_document: "关闭文件",
     save_document: "保存",
     save_document_as: "另存为...",
+    sync_now: "立即同步",
     export: "导出",
     export_pdf: "导出 PDF",
     export_html: "导出 HTML",
