@@ -127,4 +127,13 @@ mod tests {
 
         assert!(rules.ignores(&root.join("node_modules/readme.md"), false));
     }
+
+    #[test]
+    fn matches_ignore_rules_case_sensitively() {
+        let root = test_root("case-sensitive");
+        let rules = MarkdownIgnoreRules::for_root(&root, Some("drafts/\n"));
+
+        assert!(rules.ignores(&root.join("drafts/note.md"), false));
+        assert!(!rules.ignores(&root.join("Drafts/note.md"), false));
+    }
 }

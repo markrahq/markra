@@ -2,10 +2,14 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
-use notify::{Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Event, EventKind};
 use tauri::Emitter;
 
 use crate::markdown_files::MarkdownIgnoreRules;
+
+mod directory;
+
+use directory::DirectoryWatcher;
 
 const MARKDOWN_FILE_CHANGED_EVENT: &str = "markra://file-changed";
 const MARKDOWN_TREE_CHANGED_EVENT: &str = "markra://tree-changed";
@@ -13,7 +17,7 @@ const MARKDOWN_TREE_CHANGED_EVENT: &str = "markra://tree-changed";
 struct ActiveMarkdownWatcher {
     ignore_rules: Arc<Mutex<MarkdownIgnoreRules>>,
     subscriber_count: usize,
-    _watcher: RecommendedWatcher,
+    watcher: DirectoryWatcher,
 }
 
 #[derive(Default)]
@@ -139,6 +143,8 @@ fn has_active_watcher_subscription(
         // React may subscribe with new settings before the previous async unwatch
         // reaches Rust, so refresh a shared watcher's matcher during subscription.
         *ignore_rules = MarkdownIgnoreRules::for_root(ignore_root, global_ignore_rules);
+        drop(ignore_rules);
+        watcher.watcher.reconcile()?;
         watcher.subscriber_count += 1;
         return Ok(true);
     }
@@ -149,7 +155,7 @@ fn has_active_watcher_subscription(
 fn remember_active_watcher(
     watcher_state: &Mutex<HashMap<PathBuf, ActiveMarkdownWatcher>>,
     path: PathBuf,
-    watcher: RecommendedWatcher,
+    watcher: DirectoryWatcher,
     ignore_rules: Arc<Mutex<MarkdownIgnoreRules>>,
 ) -> Result<(), String> {
     let mut active_watchers = watcher_state
@@ -165,6 +171,9 @@ fn remember_active_watcher(
             .lock()
             .map_err(|_| "markdown ignore rules lock is poisoned".to_string())?;
         std::mem::swap(&mut *existing_ignore_rules, &mut *next_ignore_rules);
+        drop(existing_ignore_rules);
+        drop(next_ignore_rules);
+        existing_watcher.watcher.reconcile()?;
         existing_watcher.subscriber_count += 1;
         return Ok(());
     }
@@ -174,7 +183,7 @@ fn remember_active_watcher(
         ActiveMarkdownWatcher {
             ignore_rules,
             subscriber_count: 1,
-            _watcher: watcher,
+            watcher,
         },
     );
 
@@ -214,10 +223,8 @@ pub(crate) fn watch_markdown_file(
         .unwrap_or_else(|| PathBuf::from("."));
     // The OS subscription stays scoped to the file's parent, while ignore matching
     // may need workspace-relative paths. Reject unrelated roots before using them.
-    let ignore_root = markdown_ignore_root(
-        &watched_path,
-        ignore_root_path.as_deref().map(Path::new),
-    );
+    let ignore_root =
+        markdown_ignore_root(&watched_path, ignore_root_path.as_deref().map(Path::new));
     if has_active_watcher_subscription(
         &watcher_state.0,
         &watched_path,
@@ -237,39 +244,40 @@ pub(crate) fn watch_markdown_file(
     let callback_ignore_rules = Arc::clone(&ignore_rules);
 
     // Watch the parent tree so atomic saves and adjacent pasted assets are still visible.
-    let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
-        let Ok(event) = result else {
-            return;
-        };
+    let watcher = DirectoryWatcher::new(
+        &watch_root,
+        Arc::clone(&ignore_rules),
+        move |result: notify::Result<Event>| {
+            let Ok(event) = result else {
+                return;
+            };
 
-        if is_target_file_event(&event, &callback_path) {
-            let _ = app.emit(
-                MARKDOWN_FILE_CHANGED_EVENT,
-                MarkdownFileChanged {
-                    path: emitted_path.clone(),
-                },
-            );
-        }
+            if is_target_file_event(&event, &callback_path) {
+                let _ = app.emit(
+                    MARKDOWN_FILE_CHANGED_EVENT,
+                    MarkdownFileChanged {
+                        path: emitted_path.clone(),
+                    },
+                );
+            }
 
-        let Ok(mut ignore_rules) = callback_ignore_rules.lock() else {
-            return;
-        };
-        reload_markdown_ignore_rules_for_event(&event, &mut ignore_rules);
-        if let Some(event_path) = markdown_tree_event_path(&event, &callback_root, &ignore_rules) {
-            let _ = app.emit(
-                MARKDOWN_TREE_CHANGED_EVENT,
-                MarkdownTreeChanged {
-                    path: event_path.to_string_lossy().to_string(),
-                    root_path: emitted_root.clone(),
-                },
-            );
-        }
-    })
-    .map_err(|error| error.to_string())?;
-
-    watcher
-        .watch(&watch_root, RecursiveMode::Recursive)
-        .map_err(|error| error.to_string())?;
+            let Ok(mut ignore_rules) = callback_ignore_rules.lock() else {
+                return;
+            };
+            reload_markdown_ignore_rules_for_event(&event, &mut ignore_rules);
+            if let Some(event_path) =
+                markdown_tree_event_path(&event, &callback_root, &ignore_rules)
+            {
+                let _ = app.emit(
+                    MARKDOWN_TREE_CHANGED_EVENT,
+                    MarkdownTreeChanged {
+                        path: event_path.to_string_lossy().to_string(),
+                        root_path: emitted_root.clone(),
+                    },
+                );
+            }
+        },
+    )?;
 
     remember_active_watcher(&watcher_state.0, watched_path, watcher, ignore_rules)
 }
@@ -315,30 +323,31 @@ pub(crate) fn watch_markdown_tree(
     )));
     let callback_ignore_rules = Arc::clone(&ignore_rules);
 
-    let mut watcher = notify::recommended_watcher(move |result: notify::Result<Event>| {
-        let Ok(event) = result else {
-            return;
-        };
+    let watcher = DirectoryWatcher::new(
+        &watch_root,
+        Arc::clone(&ignore_rules),
+        move |result: notify::Result<Event>| {
+            let Ok(event) = result else {
+                return;
+            };
 
-        let Ok(mut ignore_rules) = callback_ignore_rules.lock() else {
-            return;
-        };
-        reload_markdown_ignore_rules_for_event(&event, &mut ignore_rules);
-        if let Some(event_path) = markdown_tree_event_path(&event, &callback_root, &ignore_rules) {
-            let _ = app.emit(
-                MARKDOWN_TREE_CHANGED_EVENT,
-                MarkdownTreeChanged {
-                    path: event_path.to_string_lossy().to_string(),
-                    root_path: emitted_root.clone(),
-                },
-            );
-        }
-    })
-    .map_err(|error| error.to_string())?;
-
-    watcher
-        .watch(&watch_root, RecursiveMode::Recursive)
-        .map_err(|error| error.to_string())?;
+            let Ok(mut ignore_rules) = callback_ignore_rules.lock() else {
+                return;
+            };
+            reload_markdown_ignore_rules_for_event(&event, &mut ignore_rules);
+            if let Some(event_path) =
+                markdown_tree_event_path(&event, &callback_root, &ignore_rules)
+            {
+                let _ = app.emit(
+                    MARKDOWN_TREE_CHANGED_EVENT,
+                    MarkdownTreeChanged {
+                        path: event_path.to_string_lossy().to_string(),
+                        root_path: emitted_root.clone(),
+                    },
+                );
+            }
+        },
+    )?;
 
     remember_active_watcher(&watcher_state.0, source_path, watcher, ignore_rules)
 }
