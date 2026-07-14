@@ -159,7 +159,7 @@ export function WindowsNativeTitleBar({
   const showWindowsDocumentTitle = !(documentKind === "folder" && showWindowsFolderContext);
   const syncNowAccelerator = (
     markdownShortcutToNativeAccelerator(syncNowShortcut ?? defaultMarkdownShortcuts.syncNow)
-      ?? "CmdOrCtrl+Shift+R"
+      ?? "CmdOrCtrl+Alt+R"
   ).replace("CmdOrCtrl", "Ctrl");
   const windowsChromeToolButtonClassName =
     "windows-app-chrome-tool inline-flex size-7 shrink-0 cursor-default items-center justify-center rounded-sm border-0 bg-transparent p-0 text-(--text-secondary) transition-[background-color,color] duration-100 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) disabled:pointer-events-none disabled:text-(--text-tertiary) disabled:opacity-45 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)";

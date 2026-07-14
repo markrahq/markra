@@ -564,7 +564,6 @@ describe("NativeTitleBar", () => {
         documentName="Draft.md"
         markdownFilesOpen={false}
         platform="windows"
-        syncNowShortcut="Mod+Alt+R"
         theme="light"
         titleContent={(
           <div role="tablist" aria-label="Open documents">

@@ -9,20 +9,26 @@ import {
 } from "./keyboard-shortcuts";
 
 describe("keyboard shortcuts", () => {
+  it("keeps default application and editor shortcuts unique", () => {
+    const shortcuts = Object.values(defaultKeyboardShortcuts);
+
+    expect(new Set(shortcuts).size).toBe(shortcuts.length);
+  });
+
   it("includes manual sync as a configurable application shortcut", () => {
     expect(keyboardShortcutActions).toContain("syncNow");
-    expect(defaultKeyboardShortcuts.syncNow).toBe("Mod+Shift+R");
+    expect(defaultKeyboardShortcuts.syncNow).toBe("Mod+Alt+R");
     expect(normalizeKeyboardShortcuts({
-      syncNow: "Mod+Alt+R"
-    }).syncNow).toBe("Mod+Alt+R");
+      syncNow: "Mod+Shift+Y"
+    }).syncNow).toBe("Mod+Shift+Y");
   });
 
   it("includes read-only mode as a configurable application shortcut", () => {
     expect(keyboardShortcutActions).toContain("toggleReadOnlyMode");
     expect(defaultKeyboardShortcuts.toggleReadOnlyMode).toBe("Mod+Alt+L");
     expect(normalizeKeyboardShortcuts({
-      toggleReadOnlyMode: "Mod+Alt+R"
-    }).toggleReadOnlyMode).toBe("Mod+Alt+R");
+      toggleReadOnlyMode: "Mod+Alt+Y"
+    }).toggleReadOnlyMode).toBe("Mod+Alt+Y");
   });
 
   it("includes document history as a configurable application shortcut", () => {

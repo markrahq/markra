@@ -389,8 +389,9 @@ describe("useApplicationShortcuts", () => {
     const handled = fireEvent.keyDown(window, {
       code: "KeyR",
       key: "r",
+      altKey: true,
       metaKey: true,
-      shiftKey: true
+      shiftKey: false
     });
 
     expect(handled).toBe(false);
@@ -481,14 +482,14 @@ describe("useApplicationShortcuts", () => {
       useApplicationShortcuts({
         ...baseOptions,
         markdownShortcuts: {
-          toggleReadOnlyMode: "Mod+Alt+R"
+          toggleReadOnlyMode: "Mod+Alt+Y"
         },
         toggleReadOnlyMode
       })
     );
 
     fireEvent.keyDown(window, {
-      key: "r",
+      key: "y",
       altKey: true,
       metaKey: true
     });

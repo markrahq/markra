@@ -175,14 +175,14 @@ describe("native menu", () => {
 
     await installNativeApplicationMenu(handlers, "fr", {
       bold: "Mod+Alt+B",
-      syncNow: "Mod+Alt+R"
+      syncNow: "Mod+Shift+Y"
     }, recentFiles);
 
     expect(mockedListen).toHaveBeenCalledWith("markra://menu-command", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
       accelerators: {
         formatBold: "CmdOrCtrl+Alt+B",
-        syncNow: "CmdOrCtrl+Alt+R"
+        syncNow: "CmdOrCtrl+Shift+Y"
       },
       language: "fr",
       recentFiles
@@ -422,7 +422,7 @@ describe("native menu", () => {
       toggleAiCommand: "Mod+Alt+J",
       toggleAllFolds: "Mod+Shift+Alt+F",
       toggleMarkdownFiles: "Mod+Alt+M",
-      toggleReadOnlyMode: "Mod+Alt+R",
+      toggleReadOnlyMode: "Mod+Alt+Y",
       toggleSourceMode: "Mod+Alt+U"
     });
 
@@ -433,7 +433,7 @@ describe("native menu", () => {
         toggleAiCommand: "CmdOrCtrl+Alt+J",
         toggleAllFolds: "CmdOrCtrl+Shift+Alt+F",
         toggleMarkdownFiles: "CmdOrCtrl+Alt+M",
-        toggleReadOnlyMode: "CmdOrCtrl+Alt+R",
+        toggleReadOnlyMode: "CmdOrCtrl+Alt+Y",
         toggleSourceMode: "CmdOrCtrl+Alt+U"
       },
       language: "en",

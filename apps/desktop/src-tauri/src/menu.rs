@@ -17,6 +17,7 @@ const OPEN_RECENT_FILE_COMMAND_PREFIX: &str = "openRecentFile:";
 const CLEAR_RECENT_FILES_COMMAND: &str = "clearRecentFiles";
 const SETTINGS_WINDOW_COMMAND: &str = "openSettings";
 const SETTINGS_WINDOW_ACCELERATOR: &str = "CmdOrCtrl+Comma";
+const SYNC_NOW_DEFAULT_ACCELERATOR: &str = "CmdOrCtrl+Alt+R";
 const CHECK_FOR_UPDATES_COMMAND: &str = "checkForUpdates";
 const EDIT_UNDO_COMMAND: &str = "editUndo";
 const EDIT_REDO_COMMAND: &str = "editRedo";
@@ -731,7 +732,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         app,
         "syncNow",
         labels.sync_now,
-        &menu_accelerator(accelerators, "syncNow", "CmdOrCtrl+Shift+R"),
+        &menu_accelerator(accelerators, "syncNow", SYNC_NOW_DEFAULT_ACCELERATOR),
     )?;
     let export_pdf = app_menu_item(app, "exportPdf", labels.export_pdf, "CmdOrCtrl+Alt+P")?;
     let export_html = app_menu_item(app, "exportHtml", labels.export_html, "CmdOrCtrl+Shift+E")?;
@@ -1098,6 +1099,11 @@ mod tests {
 
         assert_ne!(simplified_chinese.file, english.file);
         assert_ne!(simplified_chinese.new_document, english.new_document);
+    }
+
+    #[test]
+    fn manual_sync_uses_the_cross_platform_default_accelerator() {
+        assert_eq!(SYNC_NOW_DEFAULT_ACCELERATOR, "CmdOrCtrl+Alt+R");
     }
 
     #[test]
