@@ -414,6 +414,31 @@ describe("web file runtime", () => {
     ]);
   });
 
+  it("matches ignore rules case-sensitively", async () => {
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      Drafts: new FakeDirectoryHandle("Drafts", {
+        "visible.md": new FakeFileHandle("visible.md", "# Visible")
+      }),
+      drafts: new FakeDirectoryHandle("drafts", {
+        "hidden.md": new FakeFileHandle("hidden.md", "# Hidden")
+      })
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => directory
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path, {
+      globalIgnoreRules: "drafts/\n"
+    });
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual([
+      "Drafts",
+      "Drafts/visible.md"
+    ]);
+  });
+
   it("falls back to directory upload when the browser file system picker is unavailable", async () => {
     const runtime = createWebRuntime({
       indexedDB: new FakeIndexedDbFactory().indexedDB,

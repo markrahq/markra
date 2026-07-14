@@ -35,7 +35,7 @@ export async function loadMarkdownIgnoreRules(
   root: WebDirectoryHandle,
   globalIgnoreRules = ""
 ): Promise<MarkdownIgnoreRules> {
-  const matcher = ignore();
+  const matcher = ignore({ ignorecase: false });
   try {
     matcher.add(globalIgnoreRules);
   } catch {
