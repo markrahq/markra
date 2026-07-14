@@ -34,6 +34,7 @@ const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
   orderedList: "menu.orderedList",
   paragraph: "menu.paragraph",
   quote: "menu.quote",
+  syncNow: "settings.sync.run",
   strikethrough: "menu.strikethrough",
   table: "menu.table",
   toggleAiAgent: "app.toggleAiAgent",
@@ -53,6 +54,7 @@ const keyboardShortcutSections: Array<{
     labelKey: "settings.editor.shortcutsGroupApp",
     actions: [
       "openQuickOpen",
+      "syncNow",
       "toggleMarkdownFiles",
       "toggleDocumentHistory",
       "toggleAiAgent",

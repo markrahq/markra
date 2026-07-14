@@ -25,6 +25,7 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.getByRole("heading", { name: "Editor" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Formatting" })).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Insert" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sync now shortcut" })).toHaveTextContent("⌘+⇧+R");
     expect(screen.getByRole("button", { name: "Toggle Markra AI shortcut" })).toHaveTextContent("⌘+⌥+J");
     expect(screen.getByRole("button", { name: "AI writing command shortcut" })).toHaveTextContent("⌘+⇧+J");
     expect(screen.getByRole("button", { name: "History versions shortcut" })).toHaveTextContent("⌘+⇧+H");
@@ -182,6 +183,7 @@ describe("KeyboardShortcutsSettings", () => {
     );
 
     expect(screen.getByRole("button", { name: "Bold shortcut" })).toHaveTextContent("Ctrl+B");
+    expect(screen.getByRole("button", { name: "Sync now shortcut" })).toHaveTextContent("Ctrl+Shift+R");
     expect(screen.getByRole("button", { name: "Toggle Markra AI shortcut" })).toHaveTextContent("Ctrl+Alt+J");
     expect(screen.getByRole("button", { name: "AI writing command shortcut" })).toHaveTextContent("Ctrl+Shift+J");
     expect(screen.getByRole("button", { name: "History versions shortcut" })).toHaveTextContent("Ctrl+Shift+H");

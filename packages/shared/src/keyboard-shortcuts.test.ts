@@ -9,6 +9,14 @@ import {
 } from "./keyboard-shortcuts";
 
 describe("keyboard shortcuts", () => {
+  it("includes manual sync as a configurable application shortcut", () => {
+    expect(keyboardShortcutActions).toContain("syncNow");
+    expect(defaultKeyboardShortcuts.syncNow).toBe("Mod+Shift+R");
+    expect(normalizeKeyboardShortcuts({
+      syncNow: "Mod+Alt+R"
+    }).syncNow).toBe("Mod+Alt+R");
+  });
+
   it("includes read-only mode as a configurable application shortcut", () => {
     expect(keyboardShortcutActions).toContain("toggleReadOnlyMode");
     expect(defaultKeyboardShortcuts.toggleReadOnlyMode).toBe("Mod+Alt+L");
