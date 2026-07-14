@@ -53,6 +53,18 @@ fn is_target_file_event(event: &Event, watched_path: &Path) -> bool {
     })
 }
 
+fn markdown_ignore_root(watched_path: &Path, candidate_root: Option<&Path>) -> PathBuf {
+    let watched_parent = watched_path
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| PathBuf::from("."));
+
+    candidate_root
+        .filter(|root| watched_path.starts_with(root))
+        .map(Path::to_path_buf)
+        .unwrap_or(watched_parent)
+}
+
 fn is_markdown_tree_path(_path: &Path) -> bool {
     true
 }
@@ -193,16 +205,23 @@ pub(crate) fn watch_markdown_file(
     watcher_state: tauri::State<'_, MarkdownFileWatcherState>,
     path: String,
     global_ignore_rules: Option<String>,
+    ignore_root_path: Option<String>,
 ) -> Result<(), String> {
     let watched_path = PathBuf::from(&path);
     let watch_root = watched_path
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| PathBuf::from("."));
+    // The OS subscription stays scoped to the file's parent, while ignore matching
+    // may need workspace-relative paths. Reject unrelated roots before using them.
+    let ignore_root = markdown_ignore_root(
+        &watched_path,
+        ignore_root_path.as_deref().map(Path::new),
+    );
     if has_active_watcher_subscription(
         &watcher_state.0,
         &watched_path,
-        &watch_root,
+        &ignore_root,
         global_ignore_rules.as_deref(),
     )? {
         return Ok(());
@@ -212,7 +231,7 @@ pub(crate) fn watch_markdown_file(
     let callback_path = watched_path.clone();
     let callback_root = watch_root.clone();
     let ignore_rules = Arc::new(Mutex::new(MarkdownIgnoreRules::for_root(
-        &callback_root,
+        &ignore_root,
         global_ignore_rules.as_deref(),
     )));
     let callback_ignore_rules = Arc::clone(&ignore_rules);
@@ -342,6 +361,26 @@ mod tests {
     fn test_markdown_tree_event_path<'a>(event: &'a Event, root: &Path) -> Option<&'a Path> {
         let ignore_rules = MarkdownIgnoreRules::for_root(root, None);
         markdown_tree_event_path(event, root, &ignore_rules)
+    }
+
+    #[test]
+    fn uses_workspace_root_for_nested_watched_files() {
+        let watched_path = Path::new("/mock-workspace/docs/note.md");
+
+        assert_eq!(
+            markdown_ignore_root(watched_path, Some(Path::new("/mock-workspace"))),
+            PathBuf::from("/mock-workspace")
+        );
+    }
+
+    #[test]
+    fn rejects_ignore_roots_that_do_not_contain_the_watched_file() {
+        let watched_path = Path::new("/mock-workspace/docs/note.md");
+
+        assert_eq!(
+            markdown_ignore_root(watched_path, Some(Path::new("/other-workspace"))),
+            PathBuf::from("/mock-workspace/docs")
+        );
     }
 
     #[test]

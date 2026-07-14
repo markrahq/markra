@@ -589,7 +589,9 @@ export type ListNativeMarkdownFilesOptions = MarkdownIgnoreOptions & {
   managedAttachmentFolder?: string | null;
 };
 
-export type WatchNativeMarkdownOptions = MarkdownIgnoreOptions;
+export type WatchNativeMarkdownOptions = MarkdownIgnoreOptions & {
+  ignoreRootPath?: string | null;
+};
 
 export type LoadNativeMarkdownFilesForPathOptions = ListNativeMarkdownFilesOptions & {
   onBatch?: (files: NativeMarkdownFolderFile[]) => unknown;
@@ -1637,6 +1639,9 @@ export async function watchNativeMarkdownFile(
     await invokeNative("watch_markdown_file", {
       ...(options.globalIgnoreRules !== undefined
         ? { globalIgnoreRules: options.globalIgnoreRules }
+        : {}),
+      ...(options.ignoreRootPath !== undefined
+        ? { ignoreRootPath: options.ignoreRootPath }
         : {}),
       path
     });

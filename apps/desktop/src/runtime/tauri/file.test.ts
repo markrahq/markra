@@ -1550,13 +1550,17 @@ describe("native file access", () => {
       mockReadmePath,
       onChange,
       onTreeChange,
-      { globalIgnoreRules: "generated/" }
+      {
+        globalIgnoreRules: "generated/",
+        ignoreRootPath: mockFolderPath
+      }
     );
 
     expect(mockedListen).toHaveBeenCalledWith("markra://file-changed", expect.any(Function));
     expect(mockedListen).toHaveBeenCalledWith("markra://tree-changed", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("watch_markdown_file", {
       globalIgnoreRules: "generated/",
+      ignoreRootPath: mockFolderPath,
       path: mockReadmePath
     });
 

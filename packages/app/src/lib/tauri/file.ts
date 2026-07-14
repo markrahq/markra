@@ -49,7 +49,9 @@ export type ListNativeMarkdownFilesOptions = MarkdownIgnoreOptions & {
   managedAttachmentFolder?: string | null;
 };
 
-export type WatchNativeMarkdownOptions = MarkdownIgnoreOptions;
+export type WatchNativeMarkdownOptions = MarkdownIgnoreOptions & {
+  ignoreRootPath?: string | null;
+};
 
 export type LoadNativeMarkdownFilesForPathOptions = ListNativeMarkdownFilesOptions & {
   onBatch?: (files: NativeMarkdownFolderFile[]) => unknown;

@@ -2124,6 +2124,7 @@ export function useMarkdownDocument({
   useEffect(() => {
     const watchedPaths = watchedMarkdownFilePathsKey.split("\n").filter((path) => path.trim().length > 0);
     if (watchedPaths.length === 0) return;
+    const ignoreRootPath = workspaceRootForSource(workspaceSourcePath, document.path);
 
     let active = true;
     const stopWatchers: Array<() => unknown> = [];
@@ -2218,7 +2219,7 @@ export function useMarkdownDocument({
         if (!active) return;
 
         await requestWatchedFileRead(changedPath, watchedPath);
-      }, treeChangeHandler, { globalIgnoreRules }).then((stopWatching) => {
+      }, treeChangeHandler, { globalIgnoreRules, ignoreRootPath }).then((stopWatching) => {
         if (!active) {
           stopWatching();
           return;
@@ -2252,6 +2253,7 @@ export function useMarkdownDocument({
     markExternallyDeletedDocumentFile,
     onMarkdownTreeChange,
     readMarkdownFileWithPerformance,
+    workspaceSourcePath,
     watchedMarkdownFilePathsKey
   ]);
 

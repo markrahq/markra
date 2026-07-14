@@ -2178,7 +2178,7 @@ describe("useMarkdownDocument", () => {
       file: {
         content: "# First file",
         name: "first.md",
-        path: "/mock-files/first.md"
+        path: "/mock-workspace/docs/first.md"
       }
     });
     const stopWatching = vi.fn();
@@ -2191,7 +2191,8 @@ describe("useMarkdownDocument", () => {
         onTreeRootFromFilePath: vi.fn(),
         onTreeRootFromFolderPath: vi.fn(),
         preferencesReady: false,
-        restoreWorkspaceOnStartup: false
+        restoreWorkspaceOnStartup: false,
+        workspaceSourcePath: "/mock-workspace"
       }),
       { initialProps: { globalIgnoreRules: "generated/" } }
     );
@@ -2201,20 +2202,26 @@ describe("useMarkdownDocument", () => {
     });
 
     await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenLastCalledWith(
-      "/mock-files/first.md",
+      "/mock-workspace/docs/first.md",
       expect.any(Function),
       expect.any(Function),
-      { globalIgnoreRules: "generated/" }
+      {
+        globalIgnoreRules: "generated/",
+        ignoreRootPath: "/mock-workspace"
+      }
     ));
 
     rerender({ globalIgnoreRules: "drafts/" });
 
     await waitFor(() => expect(stopWatching).toHaveBeenCalled());
     await waitFor(() => expect(mockedWatchNativeMarkdownFile).toHaveBeenLastCalledWith(
-      "/mock-files/first.md",
+      "/mock-workspace/docs/first.md",
       expect.any(Function),
       expect.any(Function),
-      { globalIgnoreRules: "drafts/" }
+      {
+        globalIgnoreRules: "drafts/",
+        ignoreRootPath: "/mock-workspace"
+      }
     ));
   });
 
