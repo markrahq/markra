@@ -143,6 +143,7 @@ fn has_active_watcher_subscription(
         // React may subscribe with new settings before the previous async unwatch
         // reaches Rust, so refresh a shared watcher's matcher during subscription.
         *ignore_rules = MarkdownIgnoreRules::for_root(ignore_root, global_ignore_rules);
+        // Linux reconciliation reads this matcher on its coordinator thread.
         drop(ignore_rules);
         watcher.watcher.reconcile()?;
         watcher.subscriber_count += 1;
@@ -171,6 +172,7 @@ fn remember_active_watcher(
             .lock()
             .map_err(|_| "markdown ignore rules lock is poisoned".to_string())?;
         std::mem::swap(&mut *existing_ignore_rules, &mut *next_ignore_rules);
+        // Release both matcher locks before waiting for Linux reconciliation.
         drop(existing_ignore_rules);
         drop(next_ignore_rules);
         existing_watcher.watcher.reconcile()?;

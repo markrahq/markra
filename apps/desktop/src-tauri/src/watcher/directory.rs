@@ -300,6 +300,8 @@ fn reconcile_linux_directories(
     additions.sort();
     let mut added: Vec<PathBuf> = Vec::new();
 
+    // Add the full desired set before pruning stale watches. A failed addition
+    // rolls back only this attempt, preserving the last known-good coverage.
     // notify invokes callbacks on its backend thread. All watch mutations stay on
     // this coordinator thread to avoid re-entering inotify and deadlocking it.
     for directory in additions {
