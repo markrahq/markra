@@ -6,8 +6,17 @@ type MarkdownImageSrcResolverOptions = {
   resolveLocalSrc?: (input: { documentPath: string; src: string }) => string | Promise<string> | null;
 };
 
-function isRemoteOrEmbeddedImageSrc(src: string) {
-  return src.startsWith("//")
+function isWindowsDocumentPath(path: string) {
+  return path.startsWith("\\\\") || path.startsWith("//") || /^[a-zA-Z]:[\\/]/u.test(path);
+}
+
+function isRemoteOrEmbeddedImageSrc(src: string, documentPath: string) {
+  // `//host/share/...` is URL-shaped, so only give it UNC semantics for native Windows documents.
+  const isForwardSlashUncPath = src.startsWith("//")
+    && hasTauriRuntime()
+    && isWindowsDocumentPath(documentPath);
+
+  return (src.startsWith("//") && !isForwardSlashUncPath)
     || (/^[a-zA-Z][a-zA-Z\d+.-]*:/u.test(src) && !/^[a-zA-Z]:[\\/]/u.test(src));
 }
 
@@ -129,7 +138,7 @@ export function createMarkdownImageSrcResolver(
   const toFileSrc = options.convertFileSrc ?? convertFileSrc;
 
   return (src: string) => {
-    if (!documentPath || isRemoteOrEmbeddedImageSrc(src)) return src;
+    if (!documentPath || isRemoteOrEmbeddedImageSrc(src, documentPath)) return src;
     const runtimeSrc = options.resolveLocalSrc?.({ documentPath, src });
     if (runtimeSrc !== null && runtimeSrc !== undefined) return runtimeSrc;
     if (!options.convertFileSrc && !hasTauriRuntime()) return src;

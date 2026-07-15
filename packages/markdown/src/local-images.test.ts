@@ -1,6 +1,10 @@
 import { createMarkdownImageSrcResolver } from "./local-images";
 
 describe("local markdown image paths", () => {
+  afterEach(() => {
+    delete (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__;
+  });
+
   it("converts relative markdown image paths to local asset URLs beside the current document", () => {
     const resolveImageSrc = createMarkdownImageSrcResolver("/Users/me/notes/today.md", {
       convertFileSrc: (path) => `asset://${path}`
@@ -50,6 +54,29 @@ describe("local markdown image paths", () => {
     expect(resolveImageSrc("//cdn.example.test/images/diagram.png"))
       .toBe("//cdn.example.test/images/diagram.png");
     expect(resolveLocalSrc).not.toHaveBeenCalled();
+  });
+
+  it("converts absolute forward-slash UNC image paths in the Windows desktop runtime", () => {
+    (window as Window & { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__ = {};
+    const convertFileSrc = vi.fn(() => "asset://mock-local-image");
+    const resolveImageSrc = createMarkdownImageSrcResolver(String.raw`C:\mock-vault\notes\today.md`, {
+      convertFileSrc
+    });
+    const uncImagePath = "//mock-server/mock-share/assets/diagram.png";
+
+    expect(resolveImageSrc(uncImagePath)).toBe("asset://mock-local-image");
+    expect(convertFileSrc).toHaveBeenCalledWith(uncImagePath);
+  });
+
+  it("preserves absolute backslash UNC image paths", () => {
+    const convertFileSrc = vi.fn(() => "asset://mock-local-image");
+    const resolveImageSrc = createMarkdownImageSrcResolver(String.raw`C:\mock-vault\notes\today.md`, {
+      convertFileSrc
+    });
+    const uncImagePath = String.raw`\\mock-server\mock-share\assets\diagram.png`;
+
+    expect(resolveImageSrc(uncImagePath)).toBe("asset://mock-local-image");
+    expect(convertFileSrc).toHaveBeenCalledWith(uncImagePath);
   });
 
   it("delegates local browser image paths to an async runtime resolver", async () => {
