@@ -768,6 +768,7 @@ function WorkspaceApp() {
     workspaceSourcePath: fileTreeSourcePath
   });
   const {
+    captureDocumentDiscardSnapshot,
     clearRecentMarkdownFiles,
     clearOpenDocument,
     createBlankDocument,
@@ -3478,7 +3479,26 @@ function WorkspaceApp() {
   const handleEditorSplitToggle = useCallback(() => {
     handleEditorModeSelect(splitMode ? "visual" : "split");
   }, [handleEditorModeSelect, splitMode]);
+  const clearDocumentAfterFolderOpen = useCallback(async (confirmedSnapshot: string) => {
+    let latestConfirmedSnapshot = confirmedSnapshot;
+
+    // Folder selection and loading can outlive the discard confirmation. Reconfirm a
+    // stable content snapshot because document.revision does not advance on ordinary typing.
+    while (true) {
+      const currentSnapshot = captureDocumentDiscardSnapshot();
+      if (currentSnapshot === latestConfirmedSnapshot) break;
+
+      latestConfirmedSnapshot = currentSnapshot;
+      const canDiscard = await confirmCanDiscardCurrentDocument();
+      if (!canDiscard) return false;
+    }
+
+    setActiveImageFile(null);
+    clearOpenDocument({ persistWorkspace: false });
+    return true;
+  }, [captureDocumentDiscardSnapshot, clearOpenDocument, confirmCanDiscardCurrentDocument]);
   const handleOpenMarkdownFolder = useCallback(async () => {
+    const confirmedSnapshot = captureDocumentDiscardSnapshot();
     captureActiveDocumentViewState();
     try {
       const opened = await openMarkdownFolder({
@@ -3488,8 +3508,7 @@ function WorkspaceApp() {
       if (!opened) return;
 
       // Keep the current document intact if the picker is cancelled or the import fails.
-      setActiveImageFile(null);
-      clearOpenDocument({ persistWorkspace: false });
+      await clearDocumentAfterFolderOpen(confirmedSnapshot);
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
 
@@ -3500,8 +3519,16 @@ function WorkspaceApp() {
         status: "error"
       });
     }
-  }, [captureActiveDocumentViewState, clearOpenDocument, confirmCanDiscardCurrentDocument, openMarkdownFolder, translate]);
+  }, [
+    captureActiveDocumentViewState,
+    captureDocumentDiscardSnapshot,
+    clearDocumentAfterFolderOpen,
+    confirmCanDiscardCurrentDocument,
+    openMarkdownFolder,
+    translate
+  ]);
   const handleOpenRecentMarkdownFolder = useCallback(async (folder: RecentMarkdownFolder) => {
+    const confirmedSnapshot = captureDocumentDiscardSnapshot();
     captureActiveDocumentViewState();
     const canDiscard = await confirmCanDiscardCurrentDocument();
     if (!canDiscard) return;
@@ -3509,9 +3536,14 @@ function WorkspaceApp() {
     const openedFolder = await openRecentFolder(folder);
     if (!openedFolder) return;
 
-    setActiveImageFile(null);
-    clearOpenDocument({ persistWorkspace: false });
-  }, [captureActiveDocumentViewState, clearOpenDocument, confirmCanDiscardCurrentDocument, openRecentFolder]);
+    await clearDocumentAfterFolderOpen(confirmedSnapshot);
+  }, [
+    captureActiveDocumentViewState,
+    captureDocumentDiscardSnapshot,
+    clearDocumentAfterFolderOpen,
+    confirmCanDiscardCurrentDocument,
+    openRecentFolder
+  ]);
   const handleOpenContainingFolder = useCallback((path: string) => {
     openNativeContainingFolder(path).catch(() => {});
   }, []);

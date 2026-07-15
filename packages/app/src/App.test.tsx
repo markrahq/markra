@@ -3458,6 +3458,69 @@ describe("Markra workspace", () => {
     });
   });
 
+  it("reconfirms until edits made while a folder is opening are stable", async () => {
+    let resolveFolder: ((folder: { name: string; path: string }) => unknown) | null = null;
+    let resolveFiles: (() => unknown) | null = null;
+    let resolveReconfirmation: ((confirmed: boolean) => unknown) | null = null;
+    mockOpenMarkdownFile({
+      content: "# Initial synthetic draft",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedOpenNativeMarkdownFolder.mockReturnValue(new Promise((resolve) => {
+      resolveFolder = resolve;
+    }));
+    mockedListNativeMarkdownFilesForPath.mockReturnValue(new Promise((resolve) => {
+      resolveFiles = () => resolve([
+        { name: "index.md", path: `${mockFolderPath}/index.md`, relativePath: "index.md" }
+      ]);
+    }));
+    mockedConfirmNativeUnsavedMarkdownDocumentDiscard
+      .mockResolvedValueOnce(true)
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveReconfirmation = resolve;
+      }))
+      .mockResolvedValueOnce(false);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Initial synthetic draft")).toBeInTheDocument();
+    await selectEditorViewMode("Source code");
+
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    replaceMarkdownSource(sourceEditor, "# Approved synthetic draft");
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+
+    await waitFor(() => expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockedOpenNativeMarkdownFolder).toHaveBeenCalledTimes(1));
+
+    await act(async () => {
+      resolveFolder?.({
+        name: "vault",
+        path: mockFolderPath
+      });
+    });
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledTimes(1));
+
+    replaceMarkdownSource(sourceEditor, "# Newer synthetic draft");
+    await act(async () => {
+      resolveFiles?.();
+    });
+
+    await waitFor(() => expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).toHaveBeenCalledTimes(2));
+    replaceMarkdownSource(sourceEditor, "# Latest synthetic draft");
+    await act(async () => {
+      resolveReconfirmation?.(true);
+    });
+
+    await waitFor(() => expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).toHaveBeenCalledTimes(3));
+    expect(readMarkdownSource(screen.getByRole("textbox", { name: "Markdown source" }))).toBe(
+      "# Latest synthetic draft"
+    );
+    expect(screen.getByRole("tab", { name: /native\.md/ })).toBeInTheDocument();
+  });
+
   it("reports folder import conflicts without hiding the conflicting path", async () => {
     mockedResolveDesktopPlatform.mockReturnValue("windows");
     mockedOpenNativeMarkdownFolder.mockRejectedValue(
@@ -3506,6 +3569,60 @@ describe("Markra workspace", () => {
       folderPath: "/mock-files/notes",
       openFilePaths: []
     });
+  });
+
+  it("reconfirms before discarding edits made while opening a remembered folder", async () => {
+    const recentFolderPath = "/mock-files/notes";
+    let resolveFiles: (() => unknown) | null = null;
+    mockOpenMarkdownFile({
+      content: "# Initial synthetic draft",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedGetStoredRecentMarkdownFolders.mockResolvedValue([
+      { name: "notes", path: recentFolderPath }
+    ]);
+    mockedListNativeMarkdownFilesForPath.mockImplementation((path) => {
+      if (path === recentFolderPath) {
+        return new Promise((resolve) => {
+          resolveFiles = () => resolve([
+            { name: "index.md", path: `${recentFolderPath}/index.md`, relativePath: "index.md" }
+          ]);
+        });
+      }
+
+      return Promise.resolve([]);
+    });
+    mockedConfirmNativeUnsavedMarkdownDocumentDiscard
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(false);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Initial synthetic draft")).toBeInTheDocument();
+    await selectEditorViewMode("Source code");
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    replaceMarkdownSource(sourceEditor, "# Approved synthetic draft");
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    const recentSection = await screen.findByRole("region", { name: "Recently used directories" });
+    fireEvent.click(within(recentSection).getByRole("button", { name: "notes" }));
+
+    await waitFor(() => expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(
+      recentFolderPath,
+      defaultFileTreeListOptions
+    ));
+    replaceMarkdownSource(sourceEditor, "# Newer synthetic draft");
+    await act(async () => {
+      resolveFiles?.();
+    });
+
+    await waitFor(() => expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).toHaveBeenCalledTimes(2));
+    expect(readMarkdownSource(screen.getByRole("textbox", { name: "Markdown source" }))).toBe(
+      "# Newer synthetic draft"
+    );
   });
 
   it("removes a remembered markdown folder from the sidebar recent folders area", async () => {

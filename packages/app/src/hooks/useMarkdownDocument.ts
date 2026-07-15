@@ -446,6 +446,20 @@ export function useMarkdownDocument({
     return isCurrentMarkdownEquivalent?.(markdown);
   }, [editorReady, isCurrentMarkdownEquivalent]);
 
+  const captureDocumentDiscardSnapshot = useCallback(() => {
+    const activeDocument = documentRef.current;
+    const activeTabId = activeTabIdRef.current;
+
+    return JSON.stringify({
+      activeDocument: {
+        ...activeDocument,
+        content: currentMarkdown()
+      },
+      activeTabId,
+      inactiveTabs: tabsRef.current.filter((tab) => tab.id !== activeTabId)
+    });
+  }, [currentMarkdown]);
+
   const registerWindowRestoreState = useCallback((filePath: string | null, openFilePaths: string[]) => {
     setNativeEditorWindowRestoreState({ filePath, openFilePaths }).catch(() => {});
   }, []);
@@ -2292,6 +2306,7 @@ export function useMarkdownDocument({
   ]);
 
   return {
+    captureDocumentDiscardSnapshot,
     clearRecentMarkdownFiles,
     clearOpenDocument,
     closeMarkdownTab,
