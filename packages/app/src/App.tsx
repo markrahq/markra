@@ -3479,7 +3479,7 @@ function WorkspaceApp() {
   const handleEditorSplitToggle = useCallback(() => {
     handleEditorModeSelect(splitMode ? "visual" : "split");
   }, [handleEditorModeSelect, splitMode]);
-  const clearDocumentAfterFolderOpen = useCallback(async (confirmedSnapshot: string) => {
+  const confirmFolderOpenCommit = useCallback(async (confirmedSnapshot: string) => {
     let latestConfirmedSnapshot = confirmedSnapshot;
 
     // Folder selection and loading can outlive the discard confirmation. Reconfirm a
@@ -3493,22 +3493,22 @@ function WorkspaceApp() {
       if (!canDiscard) return false;
     }
 
-    setActiveImageFile(null);
-    clearOpenDocument({ persistWorkspace: false });
     return true;
-  }, [captureDocumentDiscardSnapshot, clearOpenDocument, confirmCanDiscardCurrentDocument]);
+  }, [captureDocumentDiscardSnapshot, confirmCanDiscardCurrentDocument]);
   const handleOpenMarkdownFolder = useCallback(async () => {
     const confirmedSnapshot = captureDocumentDiscardSnapshot();
     captureActiveDocumentViewState();
     try {
       const opened = await openMarkdownFolder({
+        beforeCommit: () => confirmFolderOpenCommit(confirmedSnapshot),
         beforeOpenFolder: confirmCanDiscardCurrentDocument,
         pickerTitle: translate("app.openFolder")
       });
       if (!opened) return;
 
-      // Keep the current document intact if the picker is cancelled or the import fails.
-      await clearDocumentAfterFolderOpen(confirmedSnapshot);
+      // The tree commits only after beforeCommit accepts a stable document snapshot.
+      setActiveImageFile(null);
+      clearOpenDocument({ persistWorkspace: false });
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") return;
 
@@ -3522,26 +3522,29 @@ function WorkspaceApp() {
   }, [
     captureActiveDocumentViewState,
     captureDocumentDiscardSnapshot,
-    clearDocumentAfterFolderOpen,
+    clearOpenDocument,
     confirmCanDiscardCurrentDocument,
+    confirmFolderOpenCommit,
     openMarkdownFolder,
     translate
   ]);
   const handleOpenRecentMarkdownFolder = useCallback(async (folder: RecentMarkdownFolder) => {
     const confirmedSnapshot = captureDocumentDiscardSnapshot();
     captureActiveDocumentViewState();
-    const canDiscard = await confirmCanDiscardCurrentDocument();
-    if (!canDiscard) return;
-
-    const openedFolder = await openRecentFolder(folder);
+    const openedFolder = await openRecentFolder(folder, {
+      beforeCommit: () => confirmFolderOpenCommit(confirmedSnapshot),
+      beforeOpenFolder: confirmCanDiscardCurrentDocument
+    });
     if (!openedFolder) return;
 
-    await clearDocumentAfterFolderOpen(confirmedSnapshot);
+    setActiveImageFile(null);
+    clearOpenDocument({ persistWorkspace: false });
   }, [
     captureActiveDocumentViewState,
     captureDocumentDiscardSnapshot,
-    clearDocumentAfterFolderOpen,
+    clearOpenDocument,
     confirmCanDiscardCurrentDocument,
+    confirmFolderOpenCommit,
     openRecentFolder
   ]);
   const handleOpenContainingFolder = useCallback((path: string) => {

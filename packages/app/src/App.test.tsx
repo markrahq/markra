@@ -3427,7 +3427,9 @@ describe("Markra workspace", () => {
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath, defaultFileTreeListOptions);
     expect(mockedOpenNativeMarkdownPath).not.toHaveBeenCalled();
     expect(mockedSaveStoredWorkspaceState.mock.calls.at(-1)?.[0]).toEqual({
+      activeDraftId: null,
       aiAgentSessionId: "session-app",
+      draftTabs: [],
       filePath: null,
       fileTreeOpen: true,
       folderName: "vault",
@@ -3519,6 +3521,13 @@ describe("Markra workspace", () => {
       "# Latest synthetic draft"
     );
     expect(screen.getByRole("tab", { name: /native\.md/ })).toBeInTheDocument();
+    expect(mockedSaveStoredRecentMarkdownFolder).not.toHaveBeenCalledWith({
+      name: "vault",
+      path: mockFolderPath
+    });
+    expect(mockedSaveStoredWorkspaceState).not.toHaveBeenCalledWith(expect.objectContaining({
+      folderPath: mockFolderPath
+    }));
   });
 
   it("reports folder import conflicts without hiding the conflicting path", async () => {
@@ -3562,7 +3571,9 @@ describe("Markra workspace", () => {
       path: "/mock-files/notes"
     });
     expect(mockedSaveStoredWorkspaceState.mock.calls.at(-1)?.[0]).toEqual({
+      activeDraftId: null,
       aiAgentSessionId: "session-app",
+      draftTabs: [],
       filePath: null,
       fileTreeOpen: true,
       folderName: "notes",
@@ -3591,7 +3602,9 @@ describe("Markra workspace", () => {
         });
       }
 
-      return Promise.resolve([]);
+      return Promise.resolve([
+        { name: "native.md", path: mockNativePath, relativePath: "native.md" }
+      ]);
     });
     mockedConfirmNativeUnsavedMarkdownDocumentDiscard
       .mockResolvedValueOnce(true)
@@ -3606,6 +3619,7 @@ describe("Markra workspace", () => {
     replaceMarkdownSource(sourceEditor, "# Approved synthetic draft");
 
     fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    expect(await screen.findByRole("button", { name: "native.md" })).toBeInTheDocument();
     const recentSection = await screen.findByRole("region", { name: "Recently used directories" });
     fireEvent.click(within(recentSection).getByRole("button", { name: "notes" }));
 
@@ -3623,6 +3637,85 @@ describe("Markra workspace", () => {
     expect(readMarkdownSource(screen.getByRole("textbox", { name: "Markdown source" }))).toBe(
       "# Newer synthetic draft"
     );
+    expect(screen.getByRole("button", { name: "native.md" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "index.md" })).not.toBeInTheDocument();
+    expect(mockedSaveStoredRecentMarkdownFolder).not.toHaveBeenCalledWith({
+      name: "notes",
+      path: recentFolderPath
+    });
+    expect(mockedSaveStoredWorkspaceState).not.toHaveBeenCalledWith(expect.objectContaining({
+      folderPath: recentFolderPath
+    }));
+  });
+
+  it("ignores an older recent-folder confirmation after a newer folder commits", async () => {
+    const olderFolderPath = "/mock-files/older";
+    const newerFolderPath = "/mock-files/newer";
+    let resolveOlderConfirmation: ((confirmed: boolean) => unknown) | null = null;
+    mockOpenMarkdownFile({
+      content: "# Initial synthetic draft",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedGetStoredRecentMarkdownFolders.mockResolvedValue([
+      { name: "older", path: olderFolderPath },
+      { name: "newer", path: newerFolderPath }
+    ]);
+    mockedListNativeMarkdownFilesForPath.mockImplementation((path) => {
+      if (path === olderFolderPath) {
+        return Promise.resolve([
+          { name: "older.md", path: `${olderFolderPath}/older.md`, relativePath: "older.md" }
+        ]);
+      }
+      if (path === newerFolderPath) {
+        return Promise.resolve([
+          { name: "newer.md", path: `${newerFolderPath}/newer.md`, relativePath: "newer.md" }
+        ]);
+      }
+
+      return Promise.resolve([
+        { name: "native.md", path: mockNativePath, relativePath: "native.md" }
+      ]);
+    });
+    mockedConfirmNativeUnsavedMarkdownDocumentDiscard
+      .mockReturnValueOnce(new Promise((resolve) => {
+        resolveOlderConfirmation = resolve;
+      }))
+      .mockResolvedValueOnce(true)
+      .mockResolvedValueOnce(true);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Initial synthetic draft")).toBeInTheDocument();
+    await selectEditorViewMode("Source code");
+    replaceMarkdownSource(
+      await screen.findByRole("textbox", { name: "Markdown source" }),
+      "# Edited synthetic draft"
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    const recentSection = await screen.findByRole("region", { name: "Recently used directories" });
+    fireEvent.click(within(recentSection).getByRole("button", { name: "older" }));
+    await waitFor(() => expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).toHaveBeenCalledTimes(1));
+
+    fireEvent.click(within(recentSection).getByRole("button", { name: "newer" }));
+    expect(await screen.findByRole("button", { name: "newer.md" })).toBeInTheDocument();
+
+    await act(async () => {
+      resolveOlderConfirmation?.(true);
+      await new Promise((resolve) => window.setTimeout(resolve, 200));
+    });
+
+    expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalledWith(
+      olderFolderPath,
+      defaultFileTreeListOptions
+    );
+    expect(screen.getByRole("button", { name: "newer.md" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "older.md" })).not.toBeInTheDocument();
+    expect(mockedSaveStoredWorkspaceState.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
+      folderPath: newerFolderPath
+    }));
   });
 
   it("removes a remembered markdown folder from the sidebar recent folders area", async () => {

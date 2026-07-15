@@ -179,6 +179,79 @@ describe("workspace state settings", () => {
     expect(store.save).toHaveBeenCalledTimes(1);
   });
 
+  it("serializes workspace patches so a delayed draft save cannot overwrite a folder switch", async () => {
+    const initialWorkspace = {
+      openWindows: [],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-a",
+          filePath: null,
+          fileTreeOpen: false,
+          folderName: null,
+          folderPath: null,
+          openFilePaths: []
+        }
+      }
+    };
+    let persistedWorkspace: unknown = initialWorkspace;
+    let resolveFirstRead!: (workspace: unknown) => undefined;
+    let readCount = 0;
+    const firstRead = new Promise<unknown>((resolve) => {
+      resolveFirstRead = (workspace) => {
+        resolve(workspace);
+        return undefined;
+      };
+    });
+    store.get.mockImplementation(() => {
+      readCount += 1;
+      if (readCount === 1) return firstRead;
+      return Promise.resolve(structuredClone(persistedWorkspace));
+    });
+    store.set.mockImplementation((_key, workspace) => {
+      persistedWorkspace = structuredClone(workspace);
+      return Promise.resolve();
+    });
+
+    const draftSave = saveStoredWorkspaceState({
+      activeDraftId: "untitled:1",
+      draftTabs: [{
+        content: "# Synthetic draft",
+        id: "untitled:1",
+        name: "Draft.md",
+        path: null
+      }]
+    });
+    await vi.waitFor(() => expect(store.get).toHaveBeenCalledTimes(1));
+
+    const folderSave = saveStoredWorkspaceState({
+      activeDraftId: null,
+      aiAgentSessionId: "session-b",
+      draftTabs: [],
+      filePath: null,
+      fileTreeOpen: true,
+      folderName: "vault",
+      folderPath: "/mock-files/vault",
+      openFilePaths: []
+    });
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    resolveFirstRead(structuredClone(initialWorkspace));
+    await Promise.all([draftSave, folderSave]);
+
+    expect(persistedWorkspace).toEqual({
+      openWindows: [],
+      windowStates: {
+        main: {
+          aiAgentSessionId: "session-b",
+          filePath: null,
+          fileTreeOpen: true,
+          folderName: "vault",
+          folderPath: "/mock-files/vault",
+          openFilePaths: []
+        }
+      }
+    });
+  });
+
   it("clears a transient open window snapshot when persisting current window state", async () => {
     store.get.mockResolvedValue({
       openWindows: [

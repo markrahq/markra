@@ -186,18 +186,19 @@ type OpenMarkdownFileOptions = {
   pickerTitle?: string;
 };
 
-let pendingWorkspaceStateSave: Promise<unknown> | null = null;
+let pendingDocumentWorkspaceStateSave: Promise<unknown> | null = null;
 
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
-  // Workspace writes are read-modify-write operations; keep draft snapshots ordered.
+  // Keep the document lifecycle chained to its latest draft write so close and
+  // restart preparation cannot finish before mocked or runtime persistence settles.
   const save = () => saveStoredWorkspaceState(patch).catch(() => {});
-  const savePromise = pendingWorkspaceStateSave
-    ? pendingWorkspaceStateSave.then(save, save)
+  const savePromise = pendingDocumentWorkspaceStateSave
+    ? pendingDocumentWorkspaceStateSave.then(save, save)
     : save();
   const queuedPromise = savePromise.finally(() => {
-    if (pendingWorkspaceStateSave === queuedPromise) pendingWorkspaceStateSave = null;
+    if (pendingDocumentWorkspaceStateSave === queuedPromise) pendingDocumentWorkspaceStateSave = null;
   });
-  pendingWorkspaceStateSave = queuedPromise;
+  pendingDocumentWorkspaceStateSave = queuedPromise;
   return queuedPromise;
 }
 

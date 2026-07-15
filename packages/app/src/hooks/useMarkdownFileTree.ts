@@ -45,11 +45,18 @@ type UseMarkdownFileTreeOptions = {
 };
 
 type OpenMarkdownFolderOptions = {
+  beforeCommit?: () => boolean | Promise<boolean>;
   beforeOpenFolder?: () => unknown | Promise<unknown>;
   pickerTitle?: string;
 };
 type OpenFolderPathOptions = {
+  beforeCommit?: () => boolean | Promise<boolean>;
   coalesce?: boolean;
+  intentId?: number;
+};
+type OpenRecentFolderOptions = Pick<OpenFolderPathOptions, "beforeCommit"> &
+Pick<OpenMarkdownFolderOptions, "beforeOpenFolder"> & {
+  preferredSessionId?: string | null;
 };
 
 function normalizeTreeParentPath(path: string | null | undefined) {
@@ -170,11 +177,13 @@ export function useMarkdownFileTree({
   const [width, setWidth] = useState(markdownFileTreeDefaultWidth);
   const [resizing, setResizing] = useState(false);
   const loadedFileTreeRequestRef = useRef<LoadedFileTreeRequest | null>(null);
+  const folderOpenIntentIdRef = useRef(0);
   const openFolderRequestIdRef = useRef(0);
   const openingFolderPathRef = useRef<string | null>(null);
   const pendingOpenFolderLoadRef = useRef<PendingOpenFolderLoad | null>(null);
   const fileTreeRefreshStateRef = useRef<FileTreeRefreshState | null>(null);
   const fileTreeLoadAbortControllerRef = useRef<AbortController | null>(null);
+  const stagedFileTreeLoadAbortControllerRef = useRef<AbortController | null>(null);
   const fileTreeFilesRef = useRef<NativeMarkdownFolderFile[]>([]);
   const fileTreeFilePathSetRef = useRef<Set<string>>(new Set());
   const pendingFileTreeBatchRef = useRef<NativeMarkdownFolderFile[]>([]);
@@ -231,11 +240,18 @@ export function useMarkdownFileTree({
     if (fileTreeLoadAbortControllerRef.current === controller) {
       fileTreeLoadAbortControllerRef.current = null;
     }
+    if (stagedFileTreeLoadAbortControllerRef.current === controller) {
+      stagedFileTreeLoadAbortControllerRef.current = null;
+    }
     controller.abort();
   }, []);
 
   const abortCurrentFileTreeLoad = useCallback(() => {
     abortFileTreeLoad(fileTreeLoadAbortControllerRef.current);
+  }, [abortFileTreeLoad]);
+
+  const abortStagedFileTreeLoad = useCallback(() => {
+    abortFileTreeLoad(stagedFileTreeLoadAbortControllerRef.current);
   }, [abortFileTreeLoad]);
 
   const loadFileTreeFilesForPath = useCallback((
@@ -256,6 +272,25 @@ export function useMarkdownFileTree({
       }
     });
   }, [abortCurrentFileTreeLoad]);
+
+  const loadStagedFileTreeFilesForPath = useCallback((
+    path: string,
+    options: Parameters<typeof loadNativeMarkdownFilesForPath>[1] = {}
+  ) => {
+    abortStagedFileTreeLoad();
+
+    const controller = new AbortController();
+    stagedFileTreeLoadAbortControllerRef.current = controller;
+
+    return loadNativeMarkdownFilesForPath(path, {
+      ...options,
+      signal: controller.signal
+    }).finally(() => {
+      if (stagedFileTreeLoadAbortControllerRef.current === controller) {
+        stagedFileTreeLoadAbortControllerRef.current = null;
+      }
+    });
+  }, [abortStagedFileTreeLoad]);
 
   const replaceFileTreeFiles = useCallback((
     nextFiles: readonly NativeMarkdownFolderFile[],
@@ -440,17 +475,27 @@ export function useMarkdownFileTree({
   );
 
   const setRootFromMarkdownFilePath = useCallback((path: string) => {
+    folderOpenIntentIdRef.current += 1;
     openFolderRequestIdRef.current += 1;
     openingFolderPathRef.current = null;
+    abortStagedFileTreeLoad();
     abortCurrentFileTreeLoad();
     pendingOpenFolderLoadRef.current?.cancel();
     pendingOpenFolderLoadRef.current = null;
     cancelPendingFileTreeBatchFlush();
     setSourcePath(path);
     setRootName(folderNameFromDocumentPath(path));
-  }, [abortCurrentFileTreeLoad, cancelPendingFileTreeBatchFlush]);
+  }, [abortCurrentFileTreeLoad, abortStagedFileTreeLoad, cancelPendingFileTreeBatchFlush]);
 
-  const waitForLatestOpenFolderLoad = useCallback((requestId: number) => {
+  const beginFolderOpenIntent = useCallback(() => {
+    folderOpenIntentIdRef.current += 1;
+    abortStagedFileTreeLoad();
+    pendingOpenFolderLoadRef.current?.cancel();
+    pendingOpenFolderLoadRef.current = null;
+    return folderOpenIntentIdRef.current;
+  }, [abortStagedFileTreeLoad]);
+
+  const waitForLatestOpenFolderLoad = useCallback((isLatest: () => boolean) => {
     pendingOpenFolderLoadRef.current?.cancel();
 
     return new Promise<boolean>((resolve) => {
@@ -459,7 +504,7 @@ export function useMarkdownFileTree({
           pendingOpenFolderLoadRef.current = null;
         }
 
-        resolve(openFolderRequestIdRef.current === requestId);
+        resolve(isLatest());
       }, openFolderLoadCoalesceMs);
 
       pendingOpenFolderLoadRef.current = {
@@ -493,20 +538,37 @@ export function useMarkdownFileTree({
   ) => {
     const folderName = name || pathNameFromPath(path);
     const sessionId = preferredSessionId?.trim() ? preferredSessionId : createAiAgentSessionId();
-    const requestId = openFolderRequestIdRef.current + 1;
+    const deferWorkspaceCommit = options.beforeCommit !== undefined;
+    const intentId = deferWorkspaceCommit
+      ? options.intentId ?? beginFolderOpenIntent()
+      : null;
+    let requestId = openFolderRequestIdRef.current;
     let nextFiles: NativeMarkdownFolderFile[];
 
-    openFolderRequestIdRef.current = requestId;
-    openingFolderPathRef.current = path;
-    abortCurrentFileTreeLoad();
+    if (intentId !== null && folderOpenIntentIdRef.current !== intentId) return null;
+
+    if (!deferWorkspaceCommit) {
+      folderOpenIntentIdRef.current += 1;
+      abortStagedFileTreeLoad();
+      requestId += 1;
+      openFolderRequestIdRef.current = requestId;
+      openingFolderPathRef.current = path;
+      abortCurrentFileTreeLoad();
+    }
 
     if (options.coalesce) {
-      setRootName(folderName);
-      openChangedBeforeWorkspaceRestoreRef.current = true;
+      if (!deferWorkspaceCommit) {
+        setRootName(folderName);
+        openChangedBeforeWorkspaceRestoreRef.current = true;
+      }
 
-      const latestRequestStillActive = await waitForLatestOpenFolderLoad(requestId);
+      const latestRequestStillActive = await waitForLatestOpenFolderLoad(() => deferWorkspaceCommit
+        ? folderOpenIntentIdRef.current === intentId
+        : openFolderRequestIdRef.current === requestId);
       if (!latestRequestStillActive) {
-        if (openingFolderPathRef.current === path) openingFolderPathRef.current = null;
+        if (!deferWorkspaceCommit && openingFolderPathRef.current === path) {
+          openingFolderPathRef.current = null;
+        }
         return null;
       }
     } else {
@@ -514,31 +576,43 @@ export function useMarkdownFileTree({
       pendingOpenFolderLoadRef.current = null;
     }
 
-    loadedFileTreeRequestRef.current = {
-      globalIgnoreRules: normalizedGlobalIgnoreRules,
-      managedAttachmentFolder: normalizedManagedAttachmentFolder,
-      path
-    };
-    cancelPendingFileTreeBatchFlush();
-    replaceFileTreeFiles([], { transition: false });
-    setSourcePath(path);
-    setRootName(folderName);
-    openChangedBeforeWorkspaceRestoreRef.current = true;
-    setOpen(openTree);
+    if (!deferWorkspaceCommit) {
+      loadedFileTreeRequestRef.current = {
+        globalIgnoreRules: normalizedGlobalIgnoreRules,
+        managedAttachmentFolder: normalizedManagedAttachmentFolder,
+        path
+      };
+      cancelPendingFileTreeBatchFlush();
+      replaceFileTreeFiles([], { transition: false });
+      setSourcePath(path);
+      setRootName(folderName);
+      openChangedBeforeWorkspaceRestoreRef.current = true;
+      setOpen(openTree);
+    }
 
     try {
       let firstBatch = true;
-      nextFiles = await loadFileTreeFilesForPath(path, {
+      const loadFiles = deferWorkspaceCommit
+        ? loadStagedFileTreeFilesForPath
+        : loadFileTreeFilesForPath;
+      nextFiles = await loadFiles(path, {
         globalIgnoreRules: normalizedGlobalIgnoreRules,
         managedAttachmentFolder: normalizedManagedAttachmentFolder,
         onBatch: (batchFiles) => {
+          if (deferWorkspaceCommit) return;
+
           const immediate = firstBatch;
           firstBatch = false;
           applyLoadedFileTreeBatch(batchFiles, requestId, path, immediate);
         }
       });
     } catch {
-      if (openFolderRequestIdRef.current !== requestId) return null;
+      const loadIsCurrent = deferWorkspaceCommit
+        ? folderOpenIntentIdRef.current === intentId
+        : openFolderRequestIdRef.current === requestId;
+      if (!loadIsCurrent) return null;
+
+      if (deferWorkspaceCommit) return null;
 
       cancelPendingFileTreeBatchFlush();
       openingFolderPathRef.current = null;
@@ -559,7 +633,35 @@ export function useMarkdownFileTree({
       return null;
     }
 
-    if (openFolderRequestIdRef.current !== requestId) return null;
+    const loadIsCurrent = deferWorkspaceCommit
+      ? folderOpenIntentIdRef.current === intentId
+      : openFolderRequestIdRef.current === requestId;
+    if (!loadIsCurrent) return null;
+
+    if (options.beforeCommit) {
+      const shouldCommit = await options.beforeCommit();
+      if (folderOpenIntentIdRef.current !== intentId) return null;
+      if (!shouldCommit) {
+        return null;
+      }
+
+      // Keep the previous workspace authoritative while a slow load and its final
+      // confirmation are pending; partial UI/session/persistence updates cannot be rolled back safely.
+      requestId = openFolderRequestIdRef.current + 1;
+      openFolderRequestIdRef.current = requestId;
+      openingFolderPathRef.current = path;
+      abortCurrentFileTreeLoad();
+      loadedFileTreeRequestRef.current = {
+        globalIgnoreRules: normalizedGlobalIgnoreRules,
+        managedAttachmentFolder: normalizedManagedAttachmentFolder,
+        path
+      };
+      cancelPendingFileTreeBatchFlush();
+      setSourcePath(path);
+      setRootName(folderName);
+      openChangedBeforeWorkspaceRestoreRef.current = true;
+      setOpen(openTree);
+    }
 
     openingFolderPathRef.current = null;
     cancelPendingFileTreeBatchFlush();
@@ -574,7 +676,12 @@ export function useMarkdownFileTree({
     // Opening a folder replaces the startup workspace, so clear the previous file path in the same write.
     persistWorkspaceState({
       aiAgentSessionId: sessionId,
-      ...(clearFilePath ? { filePath: null, openFilePaths: [] } : {}),
+      ...(clearFilePath ? {
+        activeDraftId: null,
+        draftTabs: [],
+        filePath: null,
+        openFilePaths: []
+      } : {}),
       fileTreeOpen: openTree,
       folderName,
       folderPath: path
@@ -583,10 +690,13 @@ export function useMarkdownFileTree({
   }, [
     applyLoadedFileTreeBatch,
     abortCurrentFileTreeLoad,
+    abortStagedFileTreeLoad,
+    beginFolderOpenIntent,
     cancelPendingFileTreeBatchFlush,
     forgetRecentFolder,
     fileTreeLoadIsCurrent,
     loadFileTreeFilesForPath,
+    loadStagedFileTreeFilesForPath,
     normalizedGlobalIgnoreRules,
     normalizedManagedAttachmentFolder,
     onWorkspaceSessionChange,
@@ -602,13 +712,15 @@ export function useMarkdownFileTree({
     return () => {
       openingFolderPathRef.current = null;
       abortCurrentFileTreeLoad();
+      abortStagedFileTreeLoad();
       pendingOpenFolderLoadRef.current?.cancel();
       pendingOpenFolderLoadRef.current = null;
       cancelPendingFileTreeBatchFlush();
     };
-  }, [abortCurrentFileTreeLoad, cancelPendingFileTreeBatchFlush]);
+  }, [abortCurrentFileTreeLoad, abortStagedFileTreeLoad, cancelPendingFileTreeBatchFlush]);
 
   const openMarkdownFolder = useCallback(async (options: OpenMarkdownFolderOptions = {}) => {
+    const intentId = beginFolderOpenIntent();
     const pickerOptions = options.pickerTitle ? { title: options.pickerTitle } : undefined;
     const beforeOpenResult = options.beforeOpenFolder?.();
     let folderPromise: ReturnType<typeof openNativeMarkdownFolder>;
@@ -618,18 +730,40 @@ export function useMarkdownFileTree({
       folderPromise = openNativeMarkdownFolder(pickerOptions);
     } else {
       if (!await beforeOpenResult) return null;
+      if (folderOpenIntentIdRef.current !== intentId) return null;
       folderPromise = openNativeMarkdownFolder(pickerOptions);
     }
 
     const folder = await folderPromise;
     if (!folder) return null;
+    if (folderOpenIntentIdRef.current !== intentId) return null;
 
-    return openFolderPath(folder.path, folder.name, undefined, true, true, { coalesce: true });
-  }, [openFolderPath]);
+    return openFolderPath(folder.path, folder.name, undefined, true, true, {
+      beforeCommit: options.beforeCommit,
+      coalesce: true,
+      intentId
+    });
+  }, [beginFolderOpenIntent, openFolderPath]);
 
-  const openRecentFolder = useCallback(async (folder: RecentMarkdownFolder, preferredSessionId?: string | null) => {
-    return openFolderPath(folder.path, folder.name, preferredSessionId, true, true, { coalesce: true });
-  }, [openFolderPath]);
+  const openRecentFolder = useCallback(async (
+    folder: RecentMarkdownFolder,
+    options: OpenRecentFolderOptions = {}
+  ) => {
+    const intentId = beginFolderOpenIntent();
+    const beforeOpenResult = options.beforeOpenFolder?.();
+    if (typeof beforeOpenResult === "boolean" || beforeOpenResult === undefined) {
+      if (beforeOpenResult === false) return null;
+    } else if (!await beforeOpenResult) {
+      return null;
+    }
+    if (folderOpenIntentIdRef.current !== intentId) return null;
+
+    return openFolderPath(folder.path, folder.name, options.preferredSessionId, true, true, {
+      beforeCommit: options.beforeCommit,
+      coalesce: true,
+      intentId
+    });
+  }, [beginFolderOpenIntent, openFolderPath]);
 
   const removeRecentFolder = useCallback((folder: RecentMarkdownFolder) => {
     forgetRecentFolder(folder.path);
@@ -826,12 +960,12 @@ export function useMarkdownFileTree({
     const loadController = fileTreeLoadAbortControllerRef.current;
 
     loadPromise.then((nextFiles) => {
-      if (active) {
+      if (active && openFolderRequestIdRef.current === requestId) {
         cancelPendingFileTreeBatchFlush();
         replaceFileTreeFiles(nextFiles);
       }
     }).catch(() => {
-      if (active) {
+      if (active && openFolderRequestIdRef.current === requestId) {
         cancelPendingFileTreeBatchFlush();
         loadedFileTreeRequestRef.current = null;
         replaceFileTreeFiles([], { transition: false });
