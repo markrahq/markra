@@ -1988,6 +1988,9 @@
   }
 
   .markdown-paper .markra-table-controls-wrapper {
+    /* Center add controls against the table viewport, excluding the asymmetric control gutters. */
+    --markra-table-control-inline-center-offset: -1.125rem;
+    --markra-table-control-block-center-offset: -0.25rem;
     @apply relative overflow-visible pt-7 pr-9 pb-9;
   }
 
@@ -2029,6 +2032,8 @@
 
   .markdown-paper[data-editor-theme="github"] .markra-table-controls-wrapper,
   .markdown-paper[data-editor-theme="github-dark"] .markra-table-controls-wrapper {
+    --markra-table-control-inline-center-offset: 0rem;
+    --markra-table-control-block-center-offset: 0rem;
     padding: 0;
   }
 
@@ -2399,10 +2404,6 @@
     color: oklch(57.7% 0.245 27.325);
   }
 
-  .markdown-paper .markra-table-delete-table-icon {
-    @apply size-3.5;
-  }
-
   .markdown-paper .markra-table-align-icon {
     @apply flex w-3.5 flex-col gap-0.75;
   }
@@ -2436,11 +2437,21 @@
   }
 
   .markdown-paper .markra-table-add-column {
-    @apply right-1.5 top-1/2 -translate-y-1/2;
+    @apply right-1.5 -translate-y-1/2;
+    top: calc(50% + var(--markra-table-control-block-center-offset));
   }
 
   .markdown-paper .markra-table-add-row {
-    @apply bottom-1.5 left-1/2 -translate-x-1/2;
+    @apply bottom-1.5 -translate-x-1/2;
+    left: calc(50% + var(--markra-table-control-inline-center-offset));
+  }
+
+  .markdown-paper .markra-lucide-icon {
+    pointer-events: none;
+  }
+
+  .markdown-paper .markra-table-control-icon {
+    @apply size-3.5 shrink-0;
   }
 
   .markdown-paper a {

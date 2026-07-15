@@ -20,6 +20,9 @@
     "test": "vitest run --environment jsdom --globals",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit"
   },
+  "dependencies": {
+    "lucide": "1.14.0"
+  },
   "devDependencies": {
     "@testing-library/jest-dom": "6.9.1",
     "@types/node": "24.10.0",

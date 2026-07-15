@@ -384,6 +384,9 @@ importers:
       lowlight:
         specifier: 3.3.0
         version: 3.3.0
+      lucide:
+        specifier: 1.14.0
+        version: 1.14.0
       mermaid:
         specifier: 11.15.0
         version: 11.15.0
@@ -486,6 +489,10 @@ importers:
         version: 24.10.0
 
   packages/shared:
+    dependencies:
+      lucide:
+        specifier: 1.14.0
+        version: 1.14.0
     devDependencies:
       '@testing-library/jest-dom':
         specifier: 6.9.1
@@ -2542,6 +2549,9 @@ packages:
     resolution: {integrity: sha512-+1mdWcfSJVUsaTIjN9zoezmUhfXo5l0vP7ekBMPo3jcS/aIkxHnXqAPsByszMZx/Y8oQBRJxJx5xg+RH3urzxA==}
     peerDependencies:
       react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  lucide@1.14.0:
+    resolution: {integrity: sha512-IoRC3lHwemJWvsXKcHK90hkgY4h1HGztBL63w2XwFtIu8gFDPp4/kiuqVtlN3vaM9bxsLQ4ZUBJfGsbKFaB2IA==}
 
   lz-string@1.5.0:
     resolution: {integrity: sha512-h5bgJWpxJNswbU7qCrV0tIKQCaS3blPDrqKWx+QxzuzL1zGUzij9XCWLrSLsJPu5t+eWA/ycetzYAO5IOMcWAQ==}
@@ -5857,6 +5867,8 @@ snapshots:
   lucide-react@1.14.0(react@19.2.5):
     dependencies:
       react: 19.2.5
+
+  lucide@1.14.0: {}
 
   lz-string@1.5.0: {}
 

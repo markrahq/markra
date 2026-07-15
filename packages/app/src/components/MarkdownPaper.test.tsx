@@ -5475,14 +5475,22 @@ describe("MarkdownPaper editing", () => {
     expect(cellCountInFirstRow()).toBe(2);
     expect(rowCount()).toBe(2);
 
-    fireEvent.mouseDown(screen.getByRole("button", { name: "Add column to the right" }));
+    const addColumnButton = screen.getByRole("button", { name: "Add column to the right" });
+    const addRowButton = screen.getByRole("button", { name: "Add row below" });
+
+    expect(addColumnButton.querySelector("svg.markra-lucide-icon.markra-table-control-icon")).toBeInTheDocument();
+    expect(addColumnButton).not.toHaveTextContent("+");
+    expect(addRowButton.querySelector("svg.markra-lucide-icon.markra-table-control-icon")).toBeInTheDocument();
+    expect(addRowButton).not.toHaveTextContent("+");
+
+    fireEvent.mouseDown(addColumnButton);
 
     await waitFor(() => expect(cellCountInFirstRow()).toBe(3));
     expect(container.querySelector(".ProseMirror .selectedCell")).not.toBeInTheDocument();
     typeText(view, "New column");
     await waitFor(() => expect(firstRowCells()).toEqual(["Field", "Value", "New column"]));
 
-    fireEvent.mouseDown(screen.getByRole("button", { name: "Add row below" }));
+    fireEvent.mouseDown(addRowButton);
 
     await waitFor(() => expect(rowCount()).toBe(3));
     expect(container.querySelector(".ProseMirror .selectedCell")).not.toBeInTheDocument();
@@ -5501,14 +5509,18 @@ describe("MarkdownPaper editing", () => {
     fireEvent.mouseMove(screen.getByRole("cell", { name: "5" }));
 
     expect(screen.queryByRole("button", { name: "Delete column" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete row" })).toBeInTheDocument();
+    const firstDeleteRowButton = screen.getByRole("button", { name: "Delete row" });
+    expect(firstDeleteRowButton.querySelector("svg.markra-lucide-icon.markra-table-control-icon")).toBeInTheDocument();
+    expect(firstDeleteRowButton).not.toHaveTextContent("-");
 
     fireEvent.mouseMove(screen.getByRole("columnheader", { name: "B" }));
 
-    expect(screen.getByRole("button", { name: "Delete column" })).toBeInTheDocument();
+    const deleteColumnButton = screen.getByRole("button", { name: "Delete column" });
+    expect(deleteColumnButton.querySelector("svg.markra-lucide-icon.markra-table-control-icon")).toBeInTheDocument();
+    expect(deleteColumnButton).not.toHaveTextContent("-");
     expect(screen.queryByRole("button", { name: "Delete row" })).not.toBeInTheDocument();
 
-    fireEvent.mouseDown(screen.getByRole("button", { name: "Delete column" }));
+    fireEvent.mouseDown(deleteColumnButton);
 
     await waitFor(() =>
       expect(tableRows()).toEqual([
@@ -5522,9 +5534,11 @@ describe("MarkdownPaper editing", () => {
     fireEvent.mouseMove(screen.getByRole("cell", { name: "4" }));
 
     expect(screen.queryByRole("button", { name: "Delete column" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete row" })).toBeInTheDocument();
+    const deleteRowButton = screen.getByRole("button", { name: "Delete row" });
+    expect(deleteRowButton.querySelector("svg.markra-lucide-icon.markra-table-control-icon")).toBeInTheDocument();
+    expect(deleteRowButton).not.toHaveTextContent("-");
 
-    fireEvent.mouseDown(screen.getByRole("button", { name: "Delete row" }));
+    fireEvent.mouseDown(deleteRowButton);
 
     await waitFor(() =>
       expect(tableRows()).toEqual([
@@ -5538,10 +5552,12 @@ describe("MarkdownPaper editing", () => {
   it("deletes a whole table from the visual controls", async () => {
     const initialTable = ["| Field | Value |", "| --- | --- |", "| Name | Markra |"].join("\n");
     const { container, editor, view } = await renderEditor(initialTable);
+    const deleteTableButton = screen.getByRole("button", { name: "Delete table" });
 
     expect(container.querySelector(".ProseMirror table")).toBeInTheDocument();
+    expect(deleteTableButton.querySelector("svg.markra-lucide-icon.markra-table-control-icon")).toBeInTheDocument();
 
-    fireEvent.mouseDown(screen.getByRole("button", { name: "Delete table" }));
+    fireEvent.mouseDown(deleteTableButton);
 
     await waitFor(() => expect(container.querySelector(".ProseMirror table")).not.toBeInTheDocument());
     typeText(view, "After table");

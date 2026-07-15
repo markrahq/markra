@@ -3,6 +3,7 @@ export * from "./debug.ts";
 export * from "./diagnostics.ts";
 export * from "./i18n/index.ts";
 export * from "./keyboard-shortcuts.ts";
+export * from "./lucide.ts";
 export * from "./markdown-callout.ts";
 export * from "./markdown-image-drag.ts";
 export * from "./number.ts";

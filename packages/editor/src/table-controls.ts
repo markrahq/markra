@@ -2,7 +2,8 @@ import { $prose } from "@milkdown/kit/utils";
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import { Plugin, TextSelection, type Transaction } from "@milkdown/kit/prose/state";
 import type { EditorView, ViewMutationRecord } from "@milkdown/kit/prose/view";
-import { popoverPosition } from "@markra/shared";
+import { createLucideIcon, popoverPosition } from "@markra/shared";
+import { Minus, Plus, Trash2 } from "lucide";
 import { addColumnAfter, addRowAfter, deleteColumn, deleteRow, TableMap } from "prosemirror-tables";
 
 type TableControlLabels = {
@@ -124,13 +125,11 @@ function createTableControlButton(
   ownerDocument: Document,
   className: string,
   label: string,
-  text: string,
   onMouseDown: (event: MouseEvent) => unknown
 ) {
   const button = ownerDocument.createElement("button");
   button.type = "button";
   button.className = `markra-table-control ${className}`;
-  button.textContent = text;
   button.title = label;
   button.ariaLabel = label;
   button.contentEditable = "false";
@@ -187,26 +186,6 @@ function createTableWidthIcon(ownerDocument: Document) {
     part.className = className;
     if (className === "markra-table-width-letter") part.textContent = "A";
     icon.append(part);
-  }
-
-  return icon;
-}
-
-function createDeleteTableIcon(ownerDocument: Document) {
-  const icon = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "svg");
-  icon.setAttribute("class", "markra-table-delete-table-icon");
-  icon.setAttribute("aria-hidden", "true");
-  icon.setAttribute("viewBox", "0 0 24 24");
-  icon.setAttribute("fill", "none");
-  icon.setAttribute("stroke", "currentColor");
-  icon.setAttribute("stroke-width", "2");
-  icon.setAttribute("stroke-linecap", "round");
-  icon.setAttribute("stroke-linejoin", "round");
-
-  for (const pathData of ["M3 6h18", "M8 6V4h8v2", "M19 6l-1 14H6L5 6", "M10 11v6", "M14 11v6"]) {
-    const path = ownerDocument.createElementNS("http://www.w3.org/2000/svg", "path");
-    path.setAttribute("d", pathData);
-    icon.append(path);
   }
 
   return icon;
@@ -272,7 +251,6 @@ class MarkraTableNodeView {
       view.dom.ownerDocument,
       "markra-table-size-button",
       labels.adjustTable,
-      "",
       this.handleSizeButtonMouseDown
     );
     this.sizeButton.ariaExpanded = "false";
@@ -287,7 +265,6 @@ class MarkraTableNodeView {
         view.dom.ownerDocument,
         `markra-table-align-button markra-table-align-${alignment}`,
         label,
-        "",
         this.handleAlignMouseDown
       );
       button.dataset.alignment = alignment;
@@ -298,7 +275,6 @@ class MarkraTableNodeView {
       view.dom.ownerDocument,
       "markra-table-width-button",
       labels.autoWidth,
-      "",
       this.handleWidthModeMouseDown
     );
     this.widthModeButton.addEventListener("keydown", this.handleWidthModeKeyDown);
@@ -307,38 +283,37 @@ class MarkraTableNodeView {
       view.dom.ownerDocument,
       "markra-table-add-column",
       labels.addColumnRight,
-      "+",
       this.handleAddColumnMouseDown
     );
+    this.addColumnButton.append(createLucideIcon(view.dom.ownerDocument, Plus, "markra-table-control-icon"));
     this.addRowButton = createTableControlButton(
       view.dom.ownerDocument,
       "markra-table-add-row",
       labels.addRowBelow,
-      "+",
       this.handleAddRowMouseDown
     );
+    this.addRowButton.append(createLucideIcon(view.dom.ownerDocument, Plus, "markra-table-control-icon"));
     this.deleteColumnButton = createTableControlButton(
       view.dom.ownerDocument,
       "markra-table-delete-control markra-table-delete-column",
       labels.deleteColumn,
-      "-",
       this.handleDeleteColumnMouseDown
     );
+    this.deleteColumnButton.append(createLucideIcon(view.dom.ownerDocument, Minus, "markra-table-control-icon"));
     this.deleteRowButton = createTableControlButton(
       view.dom.ownerDocument,
       "markra-table-delete-control markra-table-delete-row",
       labels.deleteRow,
-      "-",
       this.handleDeleteRowMouseDown
     );
+    this.deleteRowButton.append(createLucideIcon(view.dom.ownerDocument, Minus, "markra-table-control-icon"));
     this.deleteTableButton = createTableControlButton(
       view.dom.ownerDocument,
       "markra-table-delete-table",
       labels.deleteTable,
-      "",
       this.handleDeleteTableMouseDown
     );
-    this.deleteTableButton.append(createDeleteTableIcon(view.dom.ownerDocument));
+    this.deleteTableButton.append(createLucideIcon(view.dom.ownerDocument, Trash2, "markra-table-control-icon"));
 
     this.dom.className = "tableWrapper markra-table-controls-wrapper";
     this.tableScroll.className = "markra-table-scroll";
