@@ -3,11 +3,19 @@ import {
   FakeFileHandle,
   FakeIndexedDbFactory
 } from "../../test/web-runtime-fakes";
+import { strFromU8, unzipSync } from "fflate";
 import { createWebRuntime } from "..";
 import type { NativeMarkdownDroppedTarget } from "@markra/app/runtime";
 import type { WebDownloadFile } from "./types";
+import { createWebFileRuntime } from "./file";
+import { createIndexedDbSettingsRuntime } from "./settings";
+import {
+  createWorkspaceRepository,
+  WorkspaceNamespaceConflictError,
+  type WorkspaceRepository
+} from "./workspace";
 
-function createDirectoryUploadFile(relativePath: string, contents: string, type = "text/markdown") {
+function createDirectoryUploadFile(relativePath: string, contents: BlobPart, type = "text/markdown") {
   const file = new File([contents], relativePath.split("/").pop() ?? relativePath, { type });
 
   Object.defineProperty(file, "webkitRelativePath", {
@@ -16,6 +24,56 @@ function createDirectoryUploadFile(relativePath: string, contents: string, type 
   });
 
   return file;
+}
+
+async function seedWorkspace(runtime: ReturnType<typeof createWebRuntime>) {
+  const folder = await runtime.files.openMarkdownFolder();
+  expect(folder).not.toBeNull();
+
+  return folder!;
+}
+
+function withCompetingFileCreate(
+  repository: WorkspaceRepository,
+  targetPath: string,
+  competingContents: string
+): WorkspaceRepository {
+  let competed = false;
+  let targetReads = 0;
+
+  return {
+    ...repository,
+    async read(workspaceId, path) {
+      if (!competed && path === targetPath) {
+        targetReads += 1;
+        if (targetReads === 3) {
+          competed = true;
+          await repository.writeFile(
+            workspaceId,
+            path,
+            new Blob([competingContents]),
+            { mode: "create" }
+          );
+        }
+      }
+
+      return repository.read(workspaceId, path);
+    },
+    async writeFile(workspaceId, path, body, options) {
+      if (!competed && path === targetPath && options?.mode === "create") {
+        competed = true;
+        await repository.writeFile(
+          workspaceId,
+          path,
+          new Blob([competingContents]),
+          { mode: "create" }
+        );
+        throw new WorkspaceNamespaceConflictError(path);
+      }
+
+      return repository.writeFile(workspaceId, path, body, options);
+    }
+  };
 }
 
 function createDropEvent(dataTransfer: Partial<DataTransfer>) {
@@ -466,6 +524,467 @@ describe("web file runtime", () => {
       content: "# Daily",
       name: "daily.md"
     });
+  });
+
+  it("imports an uploaded directory into a persistent writable workspace when directory handles are unavailable", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const runtime = createWebRuntime({
+      indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("notes/guide.md", "# Guide"),
+        createDirectoryUploadFile("notes/assets/pixel.png", "png", "image/png")
+      ]
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+
+    expect(folder).toEqual({ name: "notes", path: "web-workspace://default/notes" });
+    const files = await runtime.files.listMarkdownFilesForPath(folder!.path);
+    expect(files.filter((file) => file.kind !== "folder").map((file) => file.relativePath))
+      .toEqual(["assets/pixel.png", "guide.md"]);
+    expect(files).toContainEqual(expect.objectContaining({
+      kind: "folder",
+      relativePath: "assets"
+    }));
+
+    const reloaded = createWebRuntime({ indexedDB });
+    await reloaded.files.saveMarkdownFile({
+      contents: "# Updated",
+      path: "web-workspace://default/notes/guide.md",
+      suggestedName: "guide.md"
+    });
+    await expect(reloaded.files.readMarkdownFile("web-workspace://default/notes/guide.md"))
+      .resolves.toMatchObject({ content: "# Updated" });
+  });
+
+  it("applies workspace ignore rules to persistent uploaded workspaces", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("vault/.markraignore", "generated/\n*.tmp\n", "text/plain"),
+        createDirectoryUploadFile("vault/draft.tmp", "temporary", "text/plain"),
+        createDirectoryUploadFile("vault/generated/hidden.md", "# Hidden"),
+        createDirectoryUploadFile("vault/visible.md", "# Visible")
+      ]
+    });
+
+    const folder = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(folder!.path);
+
+    expect(entries.map((entry) => entry.relativePath)).toEqual(["visible.md"]);
+  });
+
+  it("resolves parent-relative images from persistent uploaded workspaces", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("vault/assets/pixel.png", "png", "image/png"),
+        createDirectoryUploadFile("vault/notes/guide.md", "# Guide")
+      ]
+    });
+    await runtime.files.openMarkdownFolder();
+
+    await expect(runtime.files.resolveMarkdownImageSrc?.({
+      documentPath: "web-workspace://default/vault/notes/guide.md",
+      src: "../assets/pixel.png"
+    })).resolves.toBe("data:image/png;base64,cG5n");
+  });
+
+  it("resolves parent-relative images from retained browser directory handles", async () => {
+    const external = new FakeDirectoryHandle("external", {
+      assets: new FakeDirectoryHandle("assets", {
+        "pixel.png": new FakeFileHandle("pixel.png", "png", "image/png")
+      }),
+      notes: new FakeDirectoryHandle("notes", {
+        "guide.md": new FakeFileHandle("guide.md", "# Guide")
+      })
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => external
+    });
+    const folder = await runtime.files.openMarkdownFolder();
+
+    await expect(runtime.files.resolveMarkdownImageSrc?.({
+      documentPath: `${folder!.path}/notes/guide.md`,
+      src: "../assets/pixel.png"
+    })).resolves.toBe("data:image/png;base64,cG5n");
+    await expect(runtime.files.resolveMarkdownImageSrc?.({
+      documentPath: `${folder!.path}/notes/guide.md`,
+      src: "../../outside.png"
+    })).rejects.toThrow("outside the web folder root");
+  });
+
+  it("keeps direct directory access when showDirectoryPicker is available", async () => {
+    const external = new FakeDirectoryHandle("external", {});
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => external
+    });
+
+    await expect(runtime.files.openMarkdownFolder()).resolves.toMatchObject({
+      name: "external",
+      path: expect.stringMatching(/^web-folder:\/\//u)
+    });
+  });
+
+  it("exports the current virtual root as a ZIP and preserves binary bytes", async () => {
+    const downloads: WebDownloadFile[] = [];
+    const runtime = createWebRuntime({
+      downloadFile: async (download) => downloads.push(download),
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("notes/guide.md", "# Guide"),
+        createDirectoryUploadFile(
+          "notes/assets/pixel.png",
+          new Uint8Array([1, 2, 3]),
+          "image/png"
+        )
+      ]
+    });
+    const folder = await seedWorkspace(runtime);
+
+    await runtime.files.exportMarkdownFolder(folder.path);
+
+    expect(downloads).toHaveLength(1);
+    expect(downloads[0]).toMatchObject({ name: "notes.zip", type: "application/zip" });
+    const archive = unzipSync(new Uint8Array(
+      await (downloads[0].contents as Blob).arrayBuffer()
+    ));
+    expect(strFromU8(archive["guide.md"])).toBe("# Guide");
+    expect(archive["assets/pixel.png"]).toEqual(new Uint8Array([1, 2, 3]));
+  });
+
+  it("preserves empty workspace directories in ZIP exports", async () => {
+    const downloads: WebDownloadFile[] = [];
+    const runtime = createWebRuntime({
+      downloadFile: async (download) => downloads.push(download),
+      indexedDB: new FakeIndexedDbFactory().indexedDB
+    });
+    const folder = await runtime.files.getDefaultMarkdownFolder();
+    await runtime.files.createMarkdownTreeFolder(folder!.path, "empty");
+
+    await runtime.files.exportMarkdownFolder(folder!.path);
+
+    const archive = unzipSync(new Uint8Array(
+      await (downloads[0].contents as Blob).arrayBuffer()
+    ));
+    expect(archive).toHaveProperty("empty/");
+    expect(archive["empty/"]).toEqual(new Uint8Array());
+  });
+
+  it("saves an untitled document into the current virtual workspace instead of downloading it", async () => {
+    const downloadFile = vi.fn();
+    const runtime = createWebRuntime({
+      downloadFile,
+      indexedDB: new FakeIndexedDbFactory().indexedDB
+    });
+
+    await expect(runtime.files.saveMarkdownFile({
+      contents: "# New",
+      defaultDirectory: "web-workspace://default",
+      path: null,
+      suggestedName: "new.md"
+    })).resolves.toEqual({ name: "new.md", path: "web-workspace://default/new.md" });
+    await expect(runtime.files.readMarkdownFile("web-workspace://default/new.md"))
+      .resolves.toMatchObject({ content: "# New" });
+    expect(downloadFile).not.toHaveBeenCalled();
+  });
+
+  it("chooses a unique workspace name instead of overwriting an existing pathless save", async () => {
+    const runtime = createWebRuntime({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    await runtime.files.saveMarkdownFile({
+      contents: "# Original",
+      defaultDirectory: "web-workspace://default",
+      path: null,
+      suggestedName: "Untitled.md"
+    });
+
+    await expect(runtime.files.saveMarkdownFile({
+      contents: "# New",
+      defaultDirectory: "web-workspace://default",
+      path: null,
+      suggestedName: "Untitled.md"
+    })).resolves.toEqual({
+      name: "Untitled-2.md",
+      path: "web-workspace://default/Untitled-2.md"
+    });
+    await expect(runtime.files.readMarkdownFile("web-workspace://default/Untitled.md"))
+      .resolves.toMatchObject({ content: "# Original" });
+    await expect(runtime.files.readMarkdownFile("web-workspace://default/Untitled-2.md"))
+      .resolves.toMatchObject({ content: "# New" });
+  });
+
+  it("retries a pathless save when another tab wins the exclusive create race", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const storedRepository = createWorkspaceRepository({ indexedDB });
+    const repository = withCompetingFileCreate(
+      storedRepository,
+      "Untitled.md",
+      "# Other tab"
+    );
+    const files = createWebFileRuntime(
+      createIndexedDbSettingsRuntime({ indexedDB }),
+      repository,
+      { indexedDB }
+    );
+
+    await expect(files.saveMarkdownFile({
+      contents: "# This tab",
+      defaultDirectory: "web-workspace://default",
+      path: null,
+      suggestedName: "Untitled.md"
+    })).resolves.toEqual({
+      name: "Untitled-2.md",
+      path: "web-workspace://default/Untitled-2.md"
+    });
+    await expect(files.readMarkdownFile("web-workspace://default/Untitled.md"))
+      .resolves.toMatchObject({ content: "# Other tab" });
+    await expect(files.readMarkdownFile("web-workspace://default/Untitled-2.md"))
+      .resolves.toMatchObject({ content: "# This tab" });
+  });
+
+  it("rejects duplicate tree-file creation without changing the existing file", async () => {
+    const runtime = createWebRuntime({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    const folder = await runtime.files.getDefaultMarkdownFolder();
+    await runtime.files.createMarkdownTreeFile(folder!.path, "note.md", { contents: "# Original" });
+
+    await expect(
+      runtime.files.createMarkdownTreeFile(folder!.path, "note.md", { contents: "# Replacement" })
+    ).rejects.toThrow("already exists");
+    await expect(runtime.files.readMarkdownFile("web-workspace://default/note.md"))
+      .resolves.toMatchObject({ content: "# Original" });
+  });
+
+  it("does not overwrite a tree file created concurrently by another tab", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const storedRepository = createWorkspaceRepository({ indexedDB });
+    const repository = withCompetingFileCreate(storedRepository, "note.md", "# Other tab");
+    const files = createWebFileRuntime(
+      createIndexedDbSettingsRuntime({ indexedDB }),
+      repository,
+      { indexedDB }
+    );
+    const folder = await files.getDefaultMarkdownFolder();
+
+    await expect(files.createMarkdownTreeFile(folder!.path, "note.md", {
+      contents: "# This tab"
+    })).rejects.toThrow("already exists");
+    await expect(files.readMarkdownFile("web-workspace://default/note.md"))
+      .resolves.toMatchObject({ content: "# Other tab" });
+  });
+
+  it("rejects duplicate tree-folder creation instead of reopening the existing folder", async () => {
+    const runtime = createWebRuntime({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    const folder = await runtime.files.getDefaultMarkdownFolder();
+    await runtime.files.createMarkdownTreeFolder(folder!.path, "notes");
+
+    await expect(runtime.files.createMarkdownTreeFolder(folder!.path, "notes"))
+      .rejects.toThrow("already exists");
+    await expect(runtime.files.listMarkdownFilesForPath(folder!.path)).resolves.toEqual([
+      expect.objectContaining({ kind: "folder", relativePath: "notes" })
+    ]);
+  });
+
+  it("rejects saving through a stale workspace file path", async () => {
+    const runtime = createWebRuntime({ indexedDB: new FakeIndexedDbFactory().indexedDB });
+    const folder = await runtime.files.getDefaultMarkdownFolder();
+    const created = await runtime.files.createMarkdownTreeFile(folder!.path, "note.md", {
+      contents: "# Saved"
+    });
+    await runtime.files.deleteMarkdownTreeFile(folder!.path, created.path);
+
+    await expect(runtime.files.saveMarkdownFile({
+      contents: "# Stale",
+      path: created.path,
+      suggestedName: created.name
+    })).rejects.toThrow("not found");
+    await expect(runtime.files.listMarkdownFilesForPath(folder!.path)).resolves.toEqual([]);
+  });
+
+  it("supports tree CRUD across restored virtual workspace paths", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("notes/guide.md", "# Guide")
+      ]
+    });
+    const folder = await seedWorkspace(runtime);
+    const drafts = await runtime.files.createMarkdownTreeFolder(folder.path, "drafts");
+    const draft = await runtime.files.createMarkdownTreeFile(folder.path, "draft.md", {
+      contents: "# Draft",
+      parentPath: drafts.path
+    });
+
+    const renamed = await runtime.files.renameMarkdownTreeFile(folder.path, draft.path, "renamed.md");
+    const moved = await runtime.files.moveMarkdownTreeFile(folder.path, renamed.path);
+
+    await expect(runtime.files.readMarkdownFile(moved.path)).resolves.toMatchObject({
+      content: "# Draft",
+      name: "renamed.md"
+    });
+    await runtime.files.deleteMarkdownTreeFile(folder.path, drafts.path);
+    await expect(runtime.files.listMarkdownFilesForPath(folder.path)).resolves.toEqual([
+      expect.objectContaining({ relativePath: "guide.md" }),
+      expect.objectContaining({ relativePath: "renamed.md" })
+    ]);
+  });
+
+  it("routes workspace renames and moves through the repository transaction", async () => {
+    const indexedDB = new FakeIndexedDbFactory().indexedDB;
+    const repository = createWorkspaceRepository({ indexedDB });
+    const move = vi.spyOn(repository, "move");
+    const files = createWebFileRuntime(
+      createIndexedDbSettingsRuntime({ indexedDB }),
+      repository,
+      { indexedDB }
+    );
+    const folder = await files.getDefaultMarkdownFolder();
+    const drafts = await files.createMarkdownTreeFolder(folder!.path, "drafts");
+    const note = await files.createMarkdownTreeFile(folder!.path, "note.md", {
+      contents: "# Draft",
+      parentPath: drafts.path
+    });
+
+    const renamed = await files.renameMarkdownTreeFile(folder!.path, note.path, "ready.md");
+    await files.moveMarkdownTreeFile(folder!.path, renamed.path);
+
+    expect(move).toHaveBeenNthCalledWith(1, "default", "drafts/note.md", "drafts/ready.md");
+    expect(move).toHaveBeenNthCalledWith(2, "default", "drafts/ready.md", "ready.md");
+  });
+
+  it("stores images and attachments beside a restored virtual workspace document", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("notes/guide.md", "# Guide")
+      ]
+    });
+    await seedWorkspace(runtime);
+    const documentPath = "web-workspace://default/notes/guide.md";
+    const image = new File([new Uint8Array([1, 2, 3])], "Screenshot.png", { type: "image/png" });
+    const attachment = new File(["reference"], "reference.txt", { type: "text/plain" });
+
+    const savedImage = await runtime.files.saveClipboardImage({
+      documentPath,
+      fileName: "粘贴 图.png",
+      folder: "assets",
+      image
+    });
+    const savedAttachment = await runtime.files.saveClipboardAttachment({
+      attachment,
+      documentPath,
+      folder: "downloads"
+    });
+
+    expect(savedImage).toEqual({
+      alt: "Screenshot",
+      src: "assets/%E7%B2%98%E8%B4%B4%20%E5%9B%BE.png"
+    });
+    expect(savedAttachment).toEqual({ label: "reference.txt", src: "downloads/reference.txt" });
+    await expect(runtime.files.readMarkdownImageFile({
+      documentPath,
+      src: savedImage.src
+    })).resolves.toMatchObject({
+      mimeType: "image/png",
+      path: "web-workspace://default/notes/assets/%E7%B2%98%E8%B4%B4%20%E5%9B%BE.png"
+    });
+    await expect(runtime.files.resolveMarkdownImageSrc?.({
+      documentPath,
+      src: savedImage.src
+    })).resolves.toBe("data:image/png;base64,AQID");
+    const localImage = await runtime.files.readLocalImageFile(
+      "web-workspace://default/notes/assets/%E7%B2%98%E8%B4%B4%20%E5%9B%BE.png"
+    );
+    expect(localImage).toMatchObject({
+      name: "粘贴 图.png",
+      type: "image/png"
+    });
+    await expect(localImage.arrayBuffer()).resolves.toEqual(new Uint8Array([1, 2, 3]).buffer);
+    await expect(runtime.files.listMarkdownFilesForPath("web-workspace://default/notes"))
+      .resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({ kind: "asset", relativePath: "assets/粘贴 图.png" }),
+        expect.objectContaining({ kind: "attachment", relativePath: "downloads/reference.txt" })
+      ]));
+  });
+
+  it("reads a saved virtual workspace image whose name contains a reserved URL character", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("notes/guide.md", "# Guide")
+      ]
+    });
+    await seedWorkspace(runtime);
+    const documentPath = "web-workspace://default/notes/guide.md";
+
+    const saved = await runtime.files.saveClipboardImage({
+      documentPath,
+      fileName: "chart#1.png",
+      folder: "assets",
+      image: new File([new Uint8Array([1, 2, 3])], "chart#1.png", { type: "image/png" })
+    });
+
+    expect(saved.src).toBe("assets/chart%231.png");
+    await expect(runtime.files.readMarkdownImageFile({
+      documentPath,
+      src: saved.src
+    })).resolves.toMatchObject({
+      mimeType: "image/png",
+      path: "web-workspace://default/notes/assets/chart%231.png"
+    });
+  });
+
+  it("opens a saved virtual workspace attachment whose name contains a reserved URL character", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles: async () => [
+        createDirectoryUploadFile("notes/guide.md", "# Guide")
+      ]
+    });
+    await seedWorkspace(runtime);
+    const documentPath = "web-workspace://default/notes/guide.md";
+    const saved = await runtime.files.saveClipboardAttachment({
+      attachment: new File(["synthetic reference"], "chart#1.png", { type: "image/png" }),
+      documentPath,
+      folder: "downloads"
+    });
+    const originalCreateObjectUrl = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
+    let openedFile: File | null = null;
+    const createObjectUrl = vi.fn((file: Blob) => {
+      openedFile = file as File;
+      return "blob:synthetic-attachment";
+    });
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectUrl
+    });
+    const openWindow = vi.spyOn(window, "open").mockReturnValue(null);
+
+    try {
+      expect(saved.src).toBe("downloads/chart%231.png");
+      await runtime.files.openMarkdownAttachment({
+        documentPath,
+        rootPath: "web-workspace://default/notes",
+        src: saved.src
+      });
+
+      expect(createObjectUrl).toHaveBeenCalledOnce();
+      expect(openedFile).toMatchObject({ name: "chart#1.png", type: "image/png" });
+      await expect(openedFile!.text()).resolves.toBe("synthetic reference");
+      expect(openWindow).toHaveBeenCalledWith(
+        "blob:synthetic-attachment",
+        "_blank",
+        "noopener,noreferrer"
+      );
+    } finally {
+      openWindow.mockRestore();
+      if (originalCreateObjectUrl) {
+        Object.defineProperty(URL, "createObjectURL", originalCreateObjectUrl);
+      } else {
+        Reflect.deleteProperty(URL, "createObjectURL");
+      }
+    }
   });
 
   it("rejects stale web folder paths instead of returning an empty tree", async () => {

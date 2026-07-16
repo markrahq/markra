@@ -144,6 +144,30 @@ function FileTreeProbe({
       </button>
       <button
         type="button"
+        onClick={() => tree.openRecentFolder?.(
+          { name: "notes", path: "/recent/notes" },
+          { beforeCommit: () => true }
+        )}
+      >
+        Open staged recent folder
+      </button>
+      <button
+        type="button"
+        onClick={() => tree.openRecentFolder?.(
+          { name: "notes", path: "/recent/notes" },
+          { beforeCommit: () => false }
+        )}
+      >
+        Cancel staged recent folder
+      </button>
+      <button
+        type="button"
+        onClick={() => tree.openMarkdownFolder({ beforeCommit: () => true })}
+      >
+        Open staged folder
+      </button>
+      <button
+        type="button"
         onClick={() => tree.openRecentFolder?.({ name: "docs", path: "/mock-workspaces/beta/docs" })}
       >
         Open second docs folder
@@ -327,7 +351,9 @@ describe("useMarkdownFileTree", () => {
       managedAttachmentFolder: "assets"
     });
     expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+      activeDraftId: null,
       aiAgentSessionId: "session-folder",
+      draftTabs: [],
       filePath: null,
       fileTreeOpen: true,
       folderName: "vault",
@@ -677,7 +703,7 @@ describe("useMarkdownFileTree", () => {
     ));
   });
 
-  it("does not switch the tree root when the pre-open hook rejects the selected folder", async () => {
+  it("runs the pre-open hook before invoking a potentially mutating folder picker", async () => {
     mockedOpenNativeMarkdownFolder.mockResolvedValue({
       path: "/vault",
       name: "vault"
@@ -687,7 +713,7 @@ describe("useMarkdownFileTree", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cancel folder" }));
 
-    await waitFor(() => expect(mockedOpenNativeMarkdownFolder).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockedOpenNativeMarkdownFolder).not.toHaveBeenCalled());
     expect(screen.getByTestId("root-name")).toHaveTextContent("No folder");
     expect(screen.getByTestId("open-state")).toHaveTextContent("closed");
     expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalled();
@@ -1100,6 +1126,120 @@ describe("useMarkdownFileTree", () => {
       name: "notes",
       path: "/recent/notes"
     });
+  });
+
+  it("keeps the current tree load intact when a staged folder switch is cancelled", async () => {
+    mockedLoadNativeMarkdownFilesForPath.mockImplementation((path, options = {}) => {
+      if (path === "/mock-workspaces/notes/daily.md") {
+        options.onBatch?.([
+          {
+            path: "/mock-workspaces/notes/daily.md",
+            name: "daily.md",
+            relativePath: "daily.md"
+          }
+        ]);
+
+        return new Promise((_resolve, reject) => {
+          options.signal?.addEventListener("abort", () => {
+            reject(new DOMException("Tree load aborted", "AbortError"));
+          }, { once: true });
+        });
+      }
+
+      return Promise.resolve([
+        { path: "/recent/notes/index.md", name: "index.md", relativePath: "index.md" }
+      ]);
+    });
+
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Use file root" }));
+    expect(await screen.findByText("daily.md")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel staged recent folder" }));
+
+    await waitFor(() => expect(mockedLoadNativeMarkdownFilesForPath).toHaveBeenCalledWith(
+      "/recent/notes",
+      expect.objectContaining({ managedAttachmentFolder: "assets" })
+    ));
+    expect(screen.getByText("daily.md")).toBeInTheDocument();
+    expect(screen.queryByText("index.md")).not.toBeInTheDocument();
+  });
+
+  it("keeps a recent folder when its staged load fails", async () => {
+    mockedGetStoredRecentMarkdownFolders.mockResolvedValue([
+      { name: "notes", path: "/recent/notes" }
+    ]);
+    mockedListNativeMarkdownFilesForPath.mockRejectedValue(new Error("Synthetic folder load failure"));
+
+    render(<FileTreeProbe />);
+
+    const recentList = await screen.findByRole("list", { name: "Recent folders" });
+    expect(within(recentList).getByText("/recent/notes")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open staged recent folder" }));
+
+    await waitFor(() => expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(
+      "/recent/notes",
+      { managedAttachmentFolder: "assets" }
+    ));
+    expect(within(recentList).getByText("/recent/notes")).toBeInTheDocument();
+    expect(mockedRemoveStoredRecentMarkdownFolder).not.toHaveBeenCalled();
+  });
+
+  it("ignores a stale folder picker after a newer staged folder switch commits", async () => {
+    vi.useFakeTimers();
+    let resolveFolder: ((folder: { name: string; path: string }) => undefined) | null = null;
+
+    try {
+      mockedOpenNativeMarkdownFolder.mockReturnValue(new Promise((resolve) => {
+        resolveFolder = (folder) => {
+          resolve(folder);
+          return undefined;
+        };
+      }));
+      mockedListNativeMarkdownFilesForPath.mockImplementation((path) => Promise.resolve([
+        {
+          path: `${path}/index.md`,
+          name: "index.md",
+          relativePath: "index.md"
+        }
+      ]));
+
+      render(<FileTreeProbe />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Open staged folder" }));
+      expect(mockedOpenNativeMarkdownFolder).toHaveBeenCalledTimes(1);
+
+      fireEvent.click(screen.getByRole("button", { name: "Open staged recent folder" }));
+      await act(async () => {
+        vi.advanceTimersByTime(150);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(screen.getByText("index.md")).toBeInTheDocument();
+      expect(screen.getByTestId("root-name")).toHaveTextContent("notes");
+
+      await act(async () => {
+        resolveFolder?.({ name: "vault", path: "/vault" });
+        await Promise.resolve();
+        vi.advanceTimersByTime(150);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(mockedListNativeMarkdownFilesForPath).not.toHaveBeenCalledWith(
+        "/vault",
+        expect.anything()
+      );
+      expect(screen.getByTestId("root-name")).toHaveTextContent("notes");
+      expect(mockedSaveStoredWorkspaceState).not.toHaveBeenCalledWith(expect.objectContaining({
+        folderPath: "/vault"
+      }));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("moves an opened recent folder to the top of the recent list", async () => {

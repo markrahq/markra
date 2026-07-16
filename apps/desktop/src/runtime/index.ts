@@ -83,6 +83,7 @@ export const desktopRuntime = {
   },
   files: {
     backupMarkdownFolder: files.backupNativeMarkdownFolder,
+    canExportMarkdownFolder: (_path: string) => false,
     confirmMarkdownFileDelete: files.confirmNativeMarkdownFileDelete,
     confirmUnsavedMarkdownDocumentDiscard: files.confirmNativeUnsavedMarkdownDocumentDiscard,
     createMarkdownTreeFile: files.createNativeMarkdownTreeFile,
@@ -91,6 +92,8 @@ export const desktopRuntime = {
     deleteMarkdownTreeFile: files.deleteNativeMarkdownTreeFile,
     detectPandocPath: files.detectNativePandocPath,
     downloadWebImage: files.downloadNativeWebImage,
+    exportMarkdownFolder: async (_path: string) => null,
+    getDefaultMarkdownFolder: async () => null,
     installMarkdownFileDrop: files.installNativeMarkdownFileDrop,
     importLocalFile: files.importNativeLocalFile,
     listenOpenedMarkdownPaths: files.listenNativeOpenedMarkdownPaths,

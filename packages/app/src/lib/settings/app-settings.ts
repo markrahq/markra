@@ -1382,7 +1382,9 @@ export async function getStoredWorkspaceState(options: StoredWorkspaceStateOptio
   return workspaceStateForWindowLabel(workspace, windowLabel);
 }
 
-export async function saveStoredWorkspaceState(
+let pendingStoredWorkspaceStateSave: Promise<unknown> | null = null;
+
+async function applyStoredWorkspaceStatePatch(
   patch: Partial<StoredWorkspaceState>,
   options: StoredWorkspaceStateOptions = {}
 ) {
@@ -1416,6 +1418,23 @@ export async function saveStoredWorkspaceState(
 
   await store.set(workspaceKey, serializedWorkspaceStore(current));
   await store.save();
+}
+
+export function saveStoredWorkspaceState(
+  patch: Partial<StoredWorkspaceState>,
+  options: StoredWorkspaceStateOptions = {}
+) {
+  // Every workspace patch is a read-modify-write operation. Serialize all callers so
+  // a delayed document draft cannot overwrite a newer folder/session commit.
+  const save = () => applyStoredWorkspaceStatePatch(patch, options);
+  const savePromise = pendingStoredWorkspaceStateSave
+    ? pendingStoredWorkspaceStateSave.then(save, save)
+    : save();
+  const queuedPromise = savePromise.finally(() => {
+    if (pendingStoredWorkspaceStateSave === queuedPromise) pendingStoredWorkspaceStateSave = null;
+  });
+  pendingStoredWorkspaceStateSave = queuedPromise;
+  return queuedPromise;
 }
 
 export async function getStoredRecentMarkdownFiles(): Promise<RecentMarkdownFile[]> {

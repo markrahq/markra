@@ -53,3 +53,11 @@ describe("desktop runtime logs", () => {
     expect(desktopRuntime.logs.writeLog).toBe(logs.writeNativeLog);
   });
 });
+
+describe("desktop file runtime workspace export contract", () => {
+  it("keeps virtual workspace export unavailable", async () => {
+    expect(desktopRuntime.files.canExportMarkdownFolder("web-workspace://default")).toBe(false);
+    await expect(desktopRuntime.files.exportMarkdownFolder("web-workspace://default")).resolves.toBeNull();
+    await expect(desktopRuntime.files.getDefaultMarkdownFolder()).resolves.toBeNull();
+  });
+});

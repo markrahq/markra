@@ -93,7 +93,14 @@ export class FakeDirectoryHandle {
 
 function cloneValue<T>(value: T): T {
   if (value === undefined || value === null) return value;
+  if (value instanceof Blob) return value.slice(0, value.size, value.type) as T;
   if (containsFakeFileSystemHandle(value)) return value;
+  if (Array.isArray(value)) return value.map(cloneValue) as T;
+  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, cloneValue(nestedValue)])
+    ) as T;
+  }
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(value);
 
   return JSON.parse(JSON.stringify(value)) as T;
@@ -126,17 +133,97 @@ class FakeIdbOpenRequest extends FakeIdbRequest<FakeIdbDatabase> {
   onupgradeneeded: RequestHandler = null;
 }
 
+function fakeKeyTypeRank(key: IDBValidKey) {
+  if (typeof key === "number") return 0;
+  if (key instanceof Date) return 1;
+  if (typeof key === "string") return 2;
+  if (ArrayBuffer.isView(key) || key instanceof ArrayBuffer) return 3;
+
+  return 4;
+}
+
+function compareFakeKeys(left: IDBValidKey, right: IDBValidKey): number {
+  const leftRank = fakeKeyTypeRank(left);
+  const rightRank = fakeKeyTypeRank(right);
+  if (leftRank !== rightRank) return leftRank - rightRank;
+  if (Array.isArray(left) && Array.isArray(right)) {
+    const length = Math.min(left.length, right.length);
+    for (let index = 0; index < length; index += 1) {
+      const comparison = compareFakeKeys(left[index], right[index]);
+      if (comparison !== 0) return comparison;
+    }
+
+    return left.length - right.length;
+  }
+  if (typeof left === "string" && typeof right === "string") {
+    return left < right ? -1 : left > right ? 1 : 0;
+  }
+  if (typeof left === "number" && typeof right === "number") return left - right;
+  if (left instanceof Date && right instanceof Date) return left.getTime() - right.getTime();
+
+  return serializeKey(left).localeCompare(serializeKey(right));
+}
+
+class FakeIdbKeyRange {
+  readonly lower: IDBValidKey;
+  readonly lowerOpen: boolean;
+  readonly upper: IDBValidKey;
+  readonly upperOpen: boolean;
+
+  private constructor(
+    lower: IDBValidKey,
+    upper: IDBValidKey,
+    lowerOpen: boolean,
+    upperOpen: boolean
+  ) {
+    this.lower = lower;
+    this.upper = upper;
+    this.lowerOpen = lowerOpen;
+    this.upperOpen = upperOpen;
+  }
+
+  static bound(
+    lower: IDBValidKey,
+    upper: IDBValidKey,
+    lowerOpen = false,
+    upperOpen = false
+  ) {
+    return new FakeIdbKeyRange(lower, upper, lowerOpen, upperOpen);
+  }
+
+  includes(key: IDBValidKey) {
+    const lowerComparison = compareFakeKeys(key, this.lower);
+    const upperComparison = compareFakeKeys(key, this.upper);
+
+    return (this.lowerOpen ? lowerComparison > 0 : lowerComparison >= 0)
+      && (this.upperOpen ? upperComparison < 0 : upperComparison <= 0);
+  }
+}
+
 class FakeIdbObjectStore {
   constructor(
-    private readonly keyPath: string,
-    private readonly records: Map<string, StoredIndexedDbRecord>
+    private readonly keyPath: string | string[],
+    private readonly records: Map<string, StoredIndexedDbRecord>,
+    private readonly transaction?: FakeIdbTransaction
   ) {}
+
+  private queueOperation(operation: () => unknown) {
+    this.transaction?.requestStarted();
+    queueMicrotask(() => {
+      try {
+        operation();
+      } finally {
+        // Let request awaiters attach transaction handlers before completion is queued.
+        this.transaction?.requestFinished();
+      }
+    });
+  }
 
   delete(key: IDBValidKey) {
     const request = new FakeIdbRequest<undefined>();
 
-    queueMicrotask(() => {
-      this.records.delete(String(key));
+    this.queueOperation(() => {
+      this.records.delete(serializeKey(key));
       request.succeed(undefined);
     });
 
@@ -146,19 +233,40 @@ class FakeIdbObjectStore {
   get(key: IDBValidKey) {
     const request = new FakeIdbRequest<StoredIndexedDbRecord | undefined>();
 
-    queueMicrotask(() => {
-      request.succeed(cloneValue(this.records.get(String(key))));
+    this.queueOperation(() => {
+      request.succeed(cloneValue(this.records.get(serializeKey(key))));
     });
 
     return request as unknown as IDBRequest<StoredIndexedDbRecord | undefined>;
   }
 
+  getAll(query?: IDBValidKey | IDBKeyRange | null) {
+    const request = new FakeIdbRequest<StoredIndexedDbRecord[]>();
+
+    this.queueOperation(() => {
+      const records = Array.from(this.records.values()).filter((record) => {
+        if (query === undefined || query === null) return true;
+        const key = typeof this.keyPath === "string"
+          ? record[this.keyPath] as IDBValidKey
+          : this.keyPath.map((part) => record[part]) as IDBValidKey;
+        if (query instanceof FakeIdbKeyRange) return query.includes(key);
+
+        return serializeKey(query as IDBValidKey) === serializeKey(key);
+      });
+      request.succeed(records.map(cloneValue));
+    });
+
+    return request as unknown as IDBRequest<StoredIndexedDbRecord[]>;
+  }
+
   put(record: StoredIndexedDbRecord) {
     const request = new FakeIdbRequest<IDBValidKey>();
 
-    queueMicrotask(() => {
-      const key = String(record[this.keyPath]);
-      this.records.set(key, cloneValue(record));
+    this.queueOperation(() => {
+      const key = typeof this.keyPath === "string"
+        ? record[this.keyPath] as IDBValidKey
+        : this.keyPath.map((part) => record[part]) as IDBValidKey;
+      this.records.set(serializeKey(key), cloneValue(record));
       request.succeed(key);
     });
 
@@ -166,11 +274,108 @@ class FakeIdbObjectStore {
   }
 }
 
+function serializeKey(key: IDBValidKey) {
+  return Array.isArray(key) ? JSON.stringify(key) : String(key);
+}
+
+type FakeIdbStore = {
+  keyPath: string | string[];
+  records: Map<string, StoredIndexedDbRecord>;
+};
+
+export class FakeIdbTransaction {
+  error: DOMException | null = null;
+  onabort: RequestHandler = null;
+  oncomplete: RequestHandler = null;
+  onerror: RequestHandler = null;
+  private completionQueued = false;
+  private pendingRequests = 0;
+  private readonly snapshots = new Map<string, Map<string, StoredIndexedDbRecord>>();
+  private state: "pending" | "complete" | "failed" | "aborted" = "pending";
+
+  constructor(
+    private readonly stores = new Map<string, FakeIdbStore>(),
+    private readonly completionError?: DOMException,
+    rollbackOnFailure = false
+  ) {
+    if (rollbackOnFailure) {
+      for (const [name, store] of stores) {
+        this.snapshots.set(name, new Map(
+          Array.from(store.records, ([key, record]) => [key, cloneValue(record)])
+        ));
+      }
+    }
+  }
+
+  private rollback() {
+    for (const [name, snapshot] of this.snapshots) {
+      const records = this.stores.get(name)?.records;
+      if (!records) continue;
+      records.clear();
+      for (const [key, record] of snapshot) records.set(key, cloneValue(record));
+    }
+  }
+
+  abort(error = new DOMException("Transaction aborted", "AbortError")) {
+    if (this.state !== "pending") return;
+    this.error = error;
+    this.state = "aborted";
+    this.rollback();
+    queueMicrotask(() => this.onabort?.(new Event("abort")));
+  }
+
+  complete() {
+    if (this.state !== "pending" || this.completionQueued) return;
+    this.completionQueued = true;
+    // IndexedDB stays active through request-created promise microtasks, so dependent writes
+    // must be allowed to enqueue before the transaction auto-commits at the end of the task.
+    setTimeout(() => {
+      this.completionQueued = false;
+      if (this.state !== "pending" || this.pendingRequests > 0) return;
+      if (this.completionError) {
+        this.error = this.completionError;
+        this.state = "failed";
+        this.rollback();
+        this.onerror?.(new Event("error"));
+        return;
+      }
+      this.state = "complete";
+      this.oncomplete?.(new Event("complete"));
+    }, 0);
+  }
+
+  fail(error: DOMException) {
+    if (this.state !== "pending") return;
+    this.error = error;
+    this.state = "failed";
+    this.rollback();
+    queueMicrotask(() => this.onerror?.(new Event("error")));
+  }
+
+  requestFinished() {
+    if (this.state !== "pending" || this.pendingRequests === 0) return;
+    this.pendingRequests -= 1;
+    if (this.pendingRequests === 0) this.complete();
+  }
+
+  requestStarted() {
+    if (this.state !== "pending") return;
+    this.pendingRequests += 1;
+  }
+
+  objectStore(name: string) {
+    const store = this.stores.get(name);
+    if (!store) throw new DOMException(`Object store ${name} was not found.`, "NotFoundError");
+
+    return new FakeIdbObjectStore(store.keyPath, store.records, this);
+  }
+}
+
 class FakeIdbDatabase {
-  private readonly stores = new Map<string, {
-    keyPath: string;
-    records: Map<string, StoredIndexedDbRecord>;
-  }>();
+  private readonly stores = new Map<string, FakeIdbStore>();
+  version = 0;
+
+  constructor(private readonly takeTransactionFailure: () => DOMException | undefined) {}
 
   objectStoreNames = {
     contains: (name: string) => this.stores.has(name)
@@ -179,7 +384,9 @@ class FakeIdbDatabase {
   createObjectStore(name: string, options: IDBObjectStoreParameters = {}) {
     if (!this.stores.has(name)) {
       this.stores.set(name, {
-        keyPath: typeof options.keyPath === "string" ? options.keyPath : "id",
+        keyPath: typeof options.keyPath === "string" || Array.isArray(options.keyPath)
+          ? options.keyPath
+          : "id",
         records: new Map()
       });
     }
@@ -189,36 +396,65 @@ class FakeIdbDatabase {
     return new FakeIdbObjectStore(store.keyPath, store.records);
   }
 
-  transaction(name: string) {
-    if (!this.stores.has(name)) {
-      this.stores.set(name, {
-        keyPath: "id",
-        records: new Map()
-      });
+  transaction(names: string | string[], mode: IDBTransactionMode = "readonly") {
+    const requestedNames = typeof names === "string" ? [names] : names;
+    const stores = new Map<string, FakeIdbStore>();
+
+    for (const name of requestedNames) {
+      if (!this.stores.has(name)) {
+        this.stores.set(name, {
+          keyPath: "id",
+          records: new Map()
+        });
+      }
+      stores.set(name, this.stores.get(name)!);
     }
 
-    const store = this.stores.get(name)!;
+    const completionError = mode === "readwrite" ? this.takeTransactionFailure() : undefined;
+    const transaction = new FakeIdbTransaction(stores, completionError, mode === "readwrite");
+    transaction.complete();
 
-    return {
-      objectStore: () => new FakeIdbObjectStore(store.keyPath, store.records)
-    };
+    return transaction;
   }
 }
 
 export class FakeIndexedDbFactory {
   private readonly databases = new Map<string, FakeIdbDatabase>();
+  private nextTransactionError: DOMException | undefined;
   readonly openedNames: string[] = [];
 
-  open(name: string) {
+  constructor() {
+    if (typeof globalThis.IDBKeyRange === "undefined") {
+      Object.defineProperty(globalThis, "IDBKeyRange", {
+        configurable: true,
+        value: FakeIdbKeyRange
+      });
+    }
+  }
+
+  failNextTransaction(error: DOMException) {
+    this.nextTransactionError = error;
+  }
+
+  private takeTransactionFailure() {
+    const error = this.nextTransactionError;
+    this.nextTransactionError = undefined;
+
+    return error;
+  }
+
+  open(name: string, version?: number) {
     const request = new FakeIdbOpenRequest();
     const existingDatabase = this.databases.get(name);
-    const database = existingDatabase ?? new FakeIdbDatabase();
+    const database = existingDatabase ?? new FakeIdbDatabase(() => this.takeTransactionFailure());
+    const requestedVersion = version ?? (existingDatabase?.version ?? 1);
 
     this.openedNames.push(name);
     queueMicrotask(() => {
       request.result = database;
-      if (!existingDatabase) {
+      if (requestedVersion > database.version) {
         this.databases.set(name, database);
+        database.version = requestedVersion;
         request.onupgradeneeded?.(new Event("upgradeneeded"));
       }
       request.succeed(database);

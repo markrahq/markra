@@ -31,6 +31,12 @@ describe("web runtime", () => {
     expect(runtime.features.spellcheck).toBe(false);
     expect(runtime.features.updater).toBe(false);
     expect(runtime.platform.resolveDesktopPlatform()).toBe("windows");
+    await expect(runtime.files.getDefaultMarkdownFolder()).resolves.toEqual({
+      name: "Markra",
+      path: "web-workspace://default"
+    });
+    expect(runtime.files.canExportMarkdownFolder("web-workspace://default")).toBe(true);
+    expect(runtime.files.canExportMarkdownFolder("web-folder://external")).toBe(false);
     await expect(runtime.updater.checkAppUpdate()).resolves.toBeNull();
   });
 });

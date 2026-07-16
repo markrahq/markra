@@ -2,8 +2,9 @@ import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import { Plugin } from "@milkdown/kit/prose/state";
 import type { EditorView, NodeView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
+import { resolvedImageSourcesRefreshEvent } from "./link-image/resolve.ts";
 
-export type ResolveRawHtmlSrc = (src: string) => string;
+export type ResolveRawHtmlSrc = (src: string) => string | Promise<string>;
 
 type RawHtmlRenderOptions = {
   htmlSourceApplyLabel?: string;
@@ -184,7 +185,13 @@ function sanitizeRawHtmlAttribute(
     if (!isSafeRawHtmlUrl(attributeValue, "src")) return;
 
     const resolvedSrc = tagName === "img" ? options.resolveImageSrc?.(attributeValue) ?? attributeValue : attributeValue;
-    element.setAttribute("src", resolvedSrc);
+    if (typeof resolvedSrc === "string") {
+      element.setAttribute("src", resolvedSrc);
+    } else {
+      resolvedSrc
+        .then((nextSrc) => element.setAttribute("src", nextSrc))
+        .catch(() => element.setAttribute("src", attributeValue));
+    }
     return;
   }
 
@@ -494,6 +501,7 @@ class MarkraRawHtmlNodeView implements NodeView {
   ) {
     this.dom = createRawHtmlRoot(rawHtmlValueFromNode(node), view.dom.ownerDocument);
     this.renderPreview();
+    this.view.dom.addEventListener(resolvedImageSourcesRefreshEvent, this.refreshResolvedSources);
     this.dom.ownerDocument.addEventListener("pointerdown", this.handleDocumentPointerDown, true);
     this.dom.addEventListener("click", (event) => {
       if (this.editing) return;
@@ -513,6 +521,7 @@ class MarkraRawHtmlNodeView implements NodeView {
   }
 
   destroy() {
+    this.view.dom.removeEventListener(resolvedImageSourcesRefreshEvent, this.refreshResolvedSources);
     this.dom.ownerDocument.removeEventListener("pointerdown", this.handleDocumentPointerDown, true);
   }
 
@@ -580,6 +589,10 @@ class MarkraRawHtmlNodeView implements NodeView {
     if (event.target instanceof Node && this.dom.contains(event.target)) return;
 
     this.commitSource(this.sourceInput?.value ?? rawHtmlValueFromNode(this.node));
+  };
+
+  private readonly refreshResolvedSources = () => {
+    if (!this.editing) this.renderPreview();
   };
 
   private commitSource(value: string) {

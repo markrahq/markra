@@ -6,7 +6,7 @@ This document explains what stays local and what can leave the device when optio
 
 ## By Default
 
-- Markdown files are ordinary files on disk or browser-selected file handles.
+- Markdown files are ordinary files on disk, browser-selected file handles, or browser-local workspace entries in IndexedDB.
 - Desktop settings are stored locally by the Tauri app.
 - Web settings are stored in the browser through IndexedDB.
 - AI providers, web search, remote image upload, backup, and sync only run when configured or triggered.
@@ -19,6 +19,7 @@ Markra may store these items locally:
 - editor preferences, theme choices, keyboard shortcuts, and export settings
 - recent files and folders
 - workspace state, open tabs, draft state, and file tree sort settings
+- browser-local workspace Markdown files and attachments in IndexedDB
 - AI provider configuration and selected models
 - AI agent session summaries and session history
 - backup and sync settings
@@ -80,6 +81,12 @@ Sync can upload, download, delete, and preserve conflict copies. Sync metadata i
 ## Desktop And Web Differences
 
 The desktop app can access native file paths, watch files, open folders, run local backups, and sync through WebDAV. The web editor runs inside browser permission and CORS limits, so it uses browser file handles, downloads, print-to-PDF, IndexedDB settings, and direct browser network requests where supported.
+
+The web editor can be installed as a PWA. After its first successful online load, its application shell can open offline and read browser-local workspace files and attachments from IndexedDB.
+
+When direct directory picking is unavailable, opening a folder imports it as a persistent writable copy in the browser-local workspace. Browser-local workspaces can be exported as ZIP archives.
+
+The Service Worker caches the application shell and generated same-origin assets, not user documents or network-backed operations. AI providers, WebDAV, web search, remote images, credentialed requests, and other remote features still require a connection and are not Service Worker cached.
 
 ## Network Settings
 

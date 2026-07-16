@@ -9,6 +9,7 @@ import type {
   NativeMarkdownOpenTarget,
   NativeSettingsFile,
   ListNativeMarkdownFilesOptions,
+  ReadNativeMarkdownImageInput,
   SavedNativeClipboardAttachment,
   SavedNativeClipboardImage,
   SavedNativeHtmlFile,
@@ -22,6 +23,7 @@ import type {
   SaveNativePdfFileInput,
   SaveNativeSettingsFileInput
 } from "@markra/app/runtime";
+import { zipSync } from "fflate";
 import {
   confirmWithBrowser,
   createBrowserDownload,
@@ -35,6 +37,13 @@ import type {
   WebFileHandle,
   WebRuntimeOptions
 } from "./types";
+import {
+  createWorkspaceDirectoryHandle,
+  createWorkspaceFileHandle,
+  createWorkspaceUrl,
+  parseWorkspaceUrl
+} from "./workspace-handles";
+import type { WorkspaceRepository } from "./workspace";
 
 type WebHandlePath =
   | {
@@ -47,6 +56,12 @@ type WebHandlePath =
       kind: "folder";
       relativePath: string;
     };
+
+type RuntimeFolderPath = {
+  id: string;
+  relativePath: string;
+  workspace: boolean;
+};
 
 type DirectoryUploadFile = File & {
   webkitRelativePath?: string;
@@ -133,9 +148,11 @@ function decodePathSegments(path: string) {
   return path.split("/").filter(Boolean).map(decodeURIComponent).join("/");
 }
 
-function decodeMarkdownLocalPath(path: string) {
+function decodeMarkdownRelativePath(src: string) {
+  const path = src.split(/[?#]/u)[0] ?? "";
+
   try {
-    return decodeURI(path);
+    return path.split("/").map((segment) => decodeURIComponent(segment)).join("/");
   } catch {
     return path;
   }
@@ -147,6 +164,25 @@ function joinRelativePath(parent: string, name: string) {
 
 function normalizeWebRelativePath(path: string) {
   return path.replace(/\/+/gu, "/").replace(/^\/|\/$/gu, "");
+}
+
+function resolveWebRelativePath(parentPath: string, localSrc: string) {
+  // Markdown may climb parent folders, but browser handles cannot escape their selected root.
+  const segments = localSrc.startsWith("/")
+    ? []
+    : parentPath.split("/").filter(Boolean);
+
+  for (const segment of localSrc.replace(/\\/gu, "/").split("/")) {
+    if (!segment || segment === ".") continue;
+    if (segment === "..") {
+      if (!segments.length) throw new Error("Image path is outside the web folder root.");
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+
+  return normalizeWebRelativePath(segments.join("/"));
 }
 
 function baseNameFromPath(path: string) {
@@ -227,6 +263,48 @@ function parseWebHandlePath(path: string): WebHandlePath | null {
   }
 
   return null;
+}
+
+function parseRuntimeFolderPath(path: string): RuntimeFolderPath | null {
+  const workspace = parseWorkspaceUrl(path);
+  if (workspace) {
+    return {
+      id: workspace.workspaceId,
+      relativePath: workspace.path,
+      workspace: true
+    };
+  }
+
+  const external = parseWebHandlePath(path);
+  if (external?.kind !== "folder") return null;
+
+  return {
+    id: external.id,
+    relativePath: external.relativePath,
+    workspace: false
+  };
+}
+
+function sameFolderRuntime(left: RuntimeFolderPath, right: RuntimeFolderPath) {
+  return left.id === right.id && left.workspace === right.workspace;
+}
+
+function pathAtOrBelow(path: string, rootPath: string) {
+  return !rootPath || path === rootPath || path.startsWith(`${rootPath}/`);
+}
+
+function pathRelativeToRoot(path: string, rootPath: string) {
+  if (!rootPath) return path;
+  if (path === rootPath) return "";
+  if (!path.startsWith(`${rootPath}/`)) throw new Error("Path is outside the selected web folder.");
+
+  return path.slice(rootPath.length + 1);
+}
+
+function createRuntimeFolderPath(location: RuntimeFolderPath, relativePath: string) {
+  return location.workspace
+    ? createWorkspaceUrl(location.id, relativePath)
+    : createFolderPath(location.id, relativePath);
 }
 
 async function fileToDataUrl(file: File) {
@@ -362,6 +440,7 @@ function createUploadedDirectoryHandle(files: File[]) {
 
 export function createWebFileRuntime(
   settings: AppSettingsRuntime,
+  workspaceRepository: WorkspaceRepository,
   options: WebRuntimeOptions
 ): AppFileRuntime {
   const fileHandles = new Map<string, WebFileHandle>();
@@ -518,11 +597,18 @@ export function createWebFileRuntime(
   }
 
   async function directoryForPath(path: string) {
-    const parsedPath = parseWebHandlePath(path);
-    if (parsedPath?.kind !== "folder") {
+    const parsedPath = parseRuntimeFolderPath(path);
+    if (!parsedPath) {
       throw new Error("Path is not a web folder handle.");
     }
-    const root = await directoryHandleForId(parsedPath.id);
+    const root = parsedPath.workspace
+      ? createWorkspaceDirectoryHandle(
+          workspaceRepository,
+          parsedPath.id,
+          "",
+          (await workspaceRepository.ensureDefaultWorkspace()).name
+        )
+      : await directoryHandleForId(parsedPath.id);
     if (!root) {
       throw new Error("Web folder handle is no longer available.");
     }
@@ -530,39 +616,46 @@ export function createWebFileRuntime(
     return {
       directory: await resolveDirectory(root, parsedPath.relativePath),
       id: parsedPath.id,
+      location: parsedPath,
       relativePath: parsedPath.relativePath,
       root
     };
   }
 
   async function treeEntryForPath(rootPath: string, path: string) {
-    const parsedPath = parseWebHandlePath(path);
-    if (parsedPath?.kind !== "folder" || !parsedPath.relativePath) {
+    const parsedPath = parseRuntimeFolderPath(path);
+    if (!parsedPath?.relativePath) {
       throw new Error("Path is not a web folder entry.");
     }
 
-    const { id, root } = await directoryForPath(rootPath);
-    if (parsedPath.id !== id) throw new Error("Path belongs to a different web folder.");
+    const rootDirectory = await directoryForPath(rootPath);
+    if (!sameFolderRuntime(parsedPath, rootDirectory.location)) {
+      throw new Error("Path belongs to a different web folder.");
+    }
+    if (!pathAtOrBelow(parsedPath.relativePath, rootDirectory.relativePath)) {
+      throw new Error("Path is outside the selected web folder.");
+    }
 
     const segments = parsedPath.relativePath.split("/").filter(Boolean);
     const name = segments.pop();
     if (!name) throw new Error("Path is not a movable web folder entry.");
 
     const parentRelativePath = segments.join("/");
-    const parent = await resolveDirectory(root, parentRelativePath);
+    const parent = await resolveDirectory(rootDirectory.root, parentRelativePath);
 
     try {
       const directory = await parent.getDirectoryHandle?.(name);
       if (directory) {
         return {
           handle: directory,
-          id,
+          location: parsedPath,
           kind: "folder" as const,
           name,
           parent,
           parentRelativePath,
           relativePath: parsedPath.relativePath,
-          root
+          root: rootDirectory.root,
+          rootRelativePath: rootDirectory.relativePath
         };
       }
     } catch {
@@ -574,34 +667,42 @@ export function createWebFileRuntime(
 
     return {
       handle: file,
-      id,
+      location: parsedPath,
       kind: "file" as const,
       name,
       parent,
       parentRelativePath,
       relativePath: parsedPath.relativePath,
-      root
+      root: rootDirectory.root,
+      rootRelativePath: rootDirectory.relativePath
     };
   }
 
   async function targetDirectoryForPath(rootPath: string, targetParentPath: string | null | undefined) {
-    const { id, root } = await directoryForPath(rootPath);
+    const rootDirectory = await directoryForPath(rootPath);
     if (!targetParentPath) {
       return {
-        directory: root,
-        id,
-        relativePath: ""
+        directory: rootDirectory.directory,
+        location: rootDirectory.location,
+        relativePath: rootDirectory.relativePath,
+        rootRelativePath: rootDirectory.relativePath
       };
     }
 
-    const parsedTargetPath = parseWebHandlePath(targetParentPath);
-    if (parsedTargetPath?.kind !== "folder") throw new Error("Target path is not a web folder handle.");
-    if (parsedTargetPath.id !== id) throw new Error("Target path belongs to a different web folder.");
+    const parsedTargetPath = parseRuntimeFolderPath(targetParentPath);
+    if (!parsedTargetPath) throw new Error("Target path is not a web folder handle.");
+    if (!sameFolderRuntime(parsedTargetPath, rootDirectory.location)) {
+      throw new Error("Target path belongs to a different web folder.");
+    }
+    if (!pathAtOrBelow(parsedTargetPath.relativePath, rootDirectory.relativePath)) {
+      throw new Error("Target path is outside the selected web folder.");
+    }
 
     return {
-      directory: await resolveDirectory(root, parsedTargetPath.relativePath),
-      id,
-      relativePath: parsedTargetPath.relativePath
+      directory: await resolveDirectory(rootDirectory.root, parsedTargetPath.relativePath),
+      location: parsedTargetPath,
+      relativePath: parsedTargetPath.relativePath,
+      rootRelativePath: rootDirectory.relativePath
     };
   }
 
@@ -625,6 +726,47 @@ export function createWebFileRuntime(
     if (await entryExists(directory, name)) {
       throw new Error("Target file already exists.");
     }
+  }
+
+  function isExclusiveCreateConflict(error: unknown) {
+    return typeof error === "object"
+      && error !== null
+      && "name" in error
+      && error.name === "InvalidModificationError";
+  }
+
+  async function createFileExclusive(directory: WebDirectoryHandle, name: string) {
+    if (directory.createFileExclusive) return directory.createFileExclusive(name);
+
+    await assertTargetEntryAvailable(directory, name);
+    if (!directory.getFileHandle) throw new Error("Browser directory handle cannot create files.");
+
+    return directory.getFileHandle(name, { create: true });
+  }
+
+  async function createDirectoryExclusive(directory: WebDirectoryHandle, name: string) {
+    if (directory.createDirectoryExclusive) return directory.createDirectoryExclusive(name);
+
+    await assertTargetEntryAvailable(directory, name);
+    if (!directory.getDirectoryHandle) throw new Error("Browser directory handle cannot create folders.");
+
+    return directory.getDirectoryHandle(name, { create: true });
+  }
+
+  async function createUniqueWorkspaceFile(directory: WebDirectoryHandle, fileName: string) {
+    for (let attempt = 0; attempt < 1000; attempt += 1) {
+      const candidate = uniqueFileNameCandidate(fileName, attempt);
+      try {
+        return {
+          handle: await createFileExclusive(directory, candidate),
+          name: candidate
+        };
+      } catch (error) {
+        if (!isExclusiveCreateConflict(error)) throw error;
+      }
+    }
+
+    throw new Error("Could not create a unique workspace file.");
   }
 
   async function ensureDirectory(directory: WebDirectoryHandle, relativePath: string) {
@@ -678,19 +820,36 @@ export function createWebFileRuntime(
     await parent.removeEntry(name, { recursive: true });
   }
 
-  function movedTreeFile(id: string, relativePath: string, name: string, kind: "file" | "folder") {
+  function movedTreeFile(
+    location: RuntimeFolderPath,
+    rootRelativePath: string,
+    path: string,
+    name: string,
+    kind: "file" | "folder"
+  ) {
+    const relativePath = pathRelativeToRoot(path, rootRelativePath);
+
     return {
       ...(kind === "folder" ? { kind: "folder" as const } : folderFileKindFromName(name)),
       name,
-      path: createFolderPath(id, relativePath),
+      path: createRuntimeFolderPath(location, path),
       relativePath
     };
   }
 
-  async function resolveFileFromFolderPath(id: string, relativePath: string) {
-    const root = await directoryHandleForId(id);
+  async function resolveFileFromFolderPath(path: string) {
+    const parsedPath = parseRuntimeFolderPath(path);
+    if (!parsedPath?.relativePath) throw new Error("Path is not a file.");
+    const root = parsedPath.workspace
+      ? createWorkspaceDirectoryHandle(
+          workspaceRepository,
+          parsedPath.id,
+          "",
+          (await workspaceRepository.ensureDefaultWorkspace()).name
+        )
+      : await directoryHandleForId(parsedPath.id);
     if (!root) throw new Error("Web folder handle is no longer available.");
-    const segments = relativePath.split("/").filter(Boolean);
+    const segments = parsedPath.relativePath.split("/").filter(Boolean);
     const fileName = segments.pop();
     if (!fileName) throw new Error("Path is not a file.");
 
@@ -715,7 +874,23 @@ export function createWebFileRuntime(
       };
     }
     if (parsedPath?.kind === "folder") {
-      const handle = await resolveFileFromFolderPath(parsedPath.id, parsedPath.relativePath);
+      const handle = await resolveFileFromFolderPath(path);
+
+      return {
+        file: await handle.getFile(),
+        handle,
+        path
+      };
+    }
+
+    const workspacePath = parseWorkspaceUrl(path);
+    if (workspacePath?.path) {
+      await workspaceRepository.ensureDefaultWorkspace();
+      const handle = createWorkspaceFileHandle(
+        workspaceRepository,
+        workspacePath.workspaceId,
+        workspacePath.path
+      );
 
       return {
         file: await handle.getFile(),
@@ -754,11 +929,11 @@ export function createWebFileRuntime(
   }
 
   async function collectMarkdownEntries(
-    id: string,
     directory: WebDirectoryHandle,
     parentRelativePath: string,
     entries: NativeMarkdownFolderFile[],
     managedAttachmentFolder: string | null,
+    createPath: (relativePath: string) => string,
     ignoreRules: MarkdownIgnoreRules
   ) {
     const iterator = directory.entries?.() ?? fallbackDirectoryEntries(directory);
@@ -771,10 +946,17 @@ export function createWebFileRuntime(
           entries.push({
             kind: "folder",
             name,
-            path: createFolderPath(id, relativePath),
+            path: createPath(relativePath),
             relativePath
           });
-          await collectMarkdownEntries(id, handle, relativePath, entries, managedAttachmentFolder, ignoreRules);
+          await collectMarkdownEntries(
+            handle,
+            relativePath,
+            entries,
+            managedAttachmentFolder,
+            createPath,
+            ignoreRules
+          );
         }
         continue;
       }
@@ -784,11 +966,50 @@ export function createWebFileRuntime(
       const file = {
         ...folderFileKindFromName(name),
         name,
-        path: createFolderPath(id, relativePath),
+        path: createPath(relativePath),
         relativePath
       };
       if (shouldIncludeFolderFile(file, managedAttachmentFolder)) entries.push(file);
     }
+  }
+
+  async function listWorkspaceMarkdownEntries(
+    location: RuntimeFolderPath,
+    managedAttachmentFolder: string | null,
+    ignoreRules: MarkdownIgnoreRules
+  ) {
+    const storedEntries = await workspaceRepository.list(
+      location.id,
+      location.relativePath || undefined
+    );
+    const entries: NativeMarkdownFolderFile[] = [];
+    for (const entry of storedEntries) {
+      const relativePath = pathRelativeToRoot(entry.path, location.relativePath);
+      if (!relativePath) continue;
+
+      if (ignoreRules.ignores(relativePath, entry.kind === "directory")) continue;
+
+      const segments = relativePath.split("/");
+      const name = segments.at(-1) ?? relativePath;
+      const file = entry.kind === "directory"
+        ? {
+            kind: "folder" as const,
+            name,
+            path: createRuntimeFolderPath(location, entry.path),
+            relativePath
+          }
+        : {
+            ...folderFileKindFromName(name),
+            name,
+            path: createRuntimeFolderPath(location, entry.path),
+            relativePath
+          };
+      if (entry.kind === "directory" || shouldIncludeFolderFile(file, managedAttachmentFolder)) {
+        entries.push(file);
+      }
+    }
+
+    return entries;
   }
 
   async function templateStore() {
@@ -888,10 +1109,29 @@ export function createWebFileRuntime(
     return droppedTargetFromUploadFiles(dropFiles(dataTransfer));
   }
 
+  async function readMarkdownImageFile(input: ReadNativeMarkdownImageInput) {
+    const documentPath = parseRuntimeFolderPath(input.documentPath);
+    if (!documentPath) throw new Error("Current document is not a web folder file.");
+    const documentSegments = documentPath.relativePath.split("/").filter(Boolean);
+    documentSegments.pop();
+    const localSrc = decodeMarkdownRelativePath(input.src);
+    const imagePath = resolveWebRelativePath(documentSegments.join("/"), localSrc);
+    const handle = await resolveFileFromFolderPath(createRuntimeFolderPath(documentPath, imagePath));
+    const file = await handle.getFile();
+
+    return {
+      dataUrl: await fileToDataUrl(file),
+      mimeType: file.type || "application/octet-stream",
+      path: createRuntimeFolderPath(documentPath, imagePath),
+      src: input.src
+    } satisfies NativeMarkdownImageFile;
+  }
+
   return {
     backupMarkdownFolder: async () => {
       throw new Error("Local folder backups require the desktop runtime.");
     },
+    canExportMarkdownFolder: (path) => parseWorkspaceUrl(path) !== null,
     syncMarkdownFolder: async () => {
       throw new Error("Remote sync requires the desktop runtime.");
     },
@@ -901,34 +1141,57 @@ export function createWebFileRuntime(
       const options = typeof optionsOrParentPath === "object" && optionsOrParentPath !== null
         ? optionsOrParentPath
         : { parentPath: optionsOrParentPath };
-      const { directory, id } = await directoryForPath(rootPath);
-      const parent = options.parentPath ? (await directoryForPath(options.parentPath)).directory : directory;
+      const root = await directoryForPath(rootPath);
+      const parentPath = options.parentPath ? await directoryForPath(options.parentPath) : root;
+      if (!sameFolderRuntime(root.location, parentPath.location)) {
+        throw new Error("Parent path belongs to a different web folder.");
+      }
+      if (!pathAtOrBelow(parentPath.relativePath, root.relativePath)) {
+        throw new Error("Parent path is outside the selected web folder.");
+      }
+      const parent = parentPath.directory;
       if (!parent.getFileHandle) throw new Error("Browser directory handle cannot create files.");
-      const handle = await parent.getFileHandle(fileName, { create: true });
+      let handle: WebFileHandle;
+      try {
+        handle = await createFileExclusive(parent, fileName);
+      } catch (error) {
+        if (!isExclusiveCreateConflict(error)) throw error;
+        throw new Error("Target entry already exists.");
+      }
       await writeFileHandle(handle, options.contents ?? "");
-      const relativePath = options.parentPath
-        ? joinRelativePath(parseWebHandlePath(options.parentPath)?.relativePath ?? "", fileName)
-        : fileName;
+      const path = joinRelativePath(parentPath.relativePath, fileName);
+      const relativePath = pathRelativeToRoot(path, root.relativePath);
 
       return {
         name: fileName,
-        path: createFolderPath(id, relativePath),
+        path: createRuntimeFolderPath(root.location, path),
         relativePath
       };
     },
     async createMarkdownTreeFolder(rootPath, folderName, parentPath = null) {
-      const { directory, id } = await directoryForPath(rootPath);
-      const parent = parentPath ? (await directoryForPath(parentPath)).directory : directory;
+      const root = await directoryForPath(rootPath);
+      const resolvedParent = parentPath ? await directoryForPath(parentPath) : root;
+      if (!sameFolderRuntime(root.location, resolvedParent.location)) {
+        throw new Error("Parent path belongs to a different web folder.");
+      }
+      if (!pathAtOrBelow(resolvedParent.relativePath, root.relativePath)) {
+        throw new Error("Parent path is outside the selected web folder.");
+      }
+      const parent = resolvedParent.directory;
       if (!parent.getDirectoryHandle) throw new Error("Browser directory handle cannot create folders.");
-      await parent.getDirectoryHandle(folderName, { create: true });
-      const relativePath = parentPath
-        ? joinRelativePath(parseWebHandlePath(parentPath)?.relativePath ?? "", folderName)
-        : folderName;
+      try {
+        await createDirectoryExclusive(parent, folderName);
+      } catch (error) {
+        if (!isExclusiveCreateConflict(error)) throw error;
+        throw new Error("Target entry already exists.");
+      }
+      const path = joinRelativePath(resolvedParent.relativePath, folderName);
+      const relativePath = pathRelativeToRoot(path, root.relativePath);
 
       return {
         kind: "folder",
         name: folderName,
-        path: createFolderPath(id, relativePath),
+        path: createRuntimeFolderPath(root.location, path),
         relativePath
       };
     },
@@ -938,17 +1201,64 @@ export function createWebFileRuntime(
       await store.save();
     },
     async deleteMarkdownTreeFile(rootPath, path) {
-      const parsedPath = parseWebHandlePath(path);
-      if (parsedPath?.kind !== "folder") throw new Error("Path is not a web folder entry.");
+      const parsedPath = parseRuntimeFolderPath(path);
+      if (!parsedPath) throw new Error("Path is not a web folder entry.");
       const segments = parsedPath.relativePath.split("/").filter(Boolean);
       const name = segments.pop();
       if (!name) return;
-      const { root } = await directoryForPath(rootPath);
-      const parent = await resolveDirectory(root, segments.join("/"));
+      const rootDirectory = await directoryForPath(rootPath);
+      if (!sameFolderRuntime(parsedPath, rootDirectory.location)) {
+        throw new Error("Path belongs to a different web folder.");
+      }
+      if (!pathAtOrBelow(parsedPath.relativePath, rootDirectory.relativePath)) {
+        throw new Error("Path is outside the selected web folder.");
+      }
+      const parent = await resolveDirectory(rootDirectory.root, segments.join("/"));
       if (!parent.removeEntry) throw new Error("Browser directory handle cannot delete entries.");
       await parent.removeEntry(name, { recursive: true });
     },
     detectPandocPath: async () => null,
+    async exportMarkdownFolder(path) {
+      const workspacePath = parseWorkspaceUrl(path);
+      if (!workspacePath) throw new Error("Path is not a web workspace folder.");
+      await workspaceRepository.ensureDefaultWorkspace();
+      const entries = await workspaceRepository.exportEntries(
+        workspacePath.workspaceId,
+        workspacePath.path || undefined
+      );
+      const archiveEntries: Array<readonly [string, Uint8Array]> = [];
+      for (const entry of entries) {
+        const relativePath = pathRelativeToRoot(entry.path, workspacePath.path);
+        if (!relativePath) continue;
+        if (entry.kind === "directory") {
+          archiveEntries.push([`${relativePath}/`, new Uint8Array()]);
+          continue;
+        }
+
+        archiveEntries.push([
+          relativePath,
+          new Uint8Array(await (entry.body ?? new Blob([])).arrayBuffer())
+        ]);
+      }
+      const name = `${baseNameFromPath(workspacePath.path) || "Markra"}.zip`;
+      const contents = new Blob([zipSync(Object.fromEntries(archiveEntries))], {
+        type: "application/zip"
+      });
+      await downloadFile({ contents, name, type: "application/zip" });
+
+      return {
+        name,
+        path: `web-download://${encodeURIComponent(name)}`
+      };
+    },
+    async getDefaultMarkdownFolder() {
+      const workspace = await workspaceRepository.ensureDefaultWorkspace();
+
+      return {
+        name: workspace.name,
+        path: createWorkspaceUrl(workspace.id, "")
+      };
+    },
     async downloadWebImage(input) {
       const response = await (options.fetch ?? globalThis.fetch)(input.src);
       const blob = await response.blob();
@@ -995,15 +1305,36 @@ export function createWebFileRuntime(
     listenOpenedMarkdownPaths: async () => () => undefined,
     listMarkdownFileHistory: async () => [],
     async listMarkdownFilesForPath(path, options: ListNativeMarkdownFilesOptions = {}) {
-      const parsedPath = parseWebHandlePath(path);
-      if (parsedPath?.kind !== "folder") return [];
-      const root = await directoryHandleForId(parsedPath.id);
-      if (!root) throw new Error("Web folder handle is no longer available.");
-      const entries: NativeMarkdownFolderFile[] = [];
+      const parsedPath = parseRuntimeFolderPath(path);
+      if (!parsedPath) return [];
       const managedAttachmentFolder = normalizeManagedAttachmentFolder(options.managedAttachmentFolder);
-      const ignoreRules = await loadMarkdownIgnoreRules(root, options.globalIgnoreRules ?? "");
+      const resolved = await directoryForPath(path);
+      const ignoreRules = await loadMarkdownIgnoreRules(
+        resolved.directory,
+        options.globalIgnoreRules ?? ""
+      );
+      if (parsedPath.workspace) {
+        // A flat repository scan prevents recursive handles from re-reading the same subtree at every depth.
+        const entries = await listWorkspaceMarkdownEntries(parsedPath, managedAttachmentFolder, ignoreRules);
 
-      await collectMarkdownEntries(parsedPath.id, root, "", entries, managedAttachmentFolder, ignoreRules);
+        return entries.sort((left, right) =>
+          left.relativePath.toLowerCase().localeCompare(right.relativePath.toLowerCase())
+        );
+      }
+
+      const entries: NativeMarkdownFolderFile[] = [];
+
+      await collectMarkdownEntries(
+        resolved.directory,
+        "",
+        entries,
+        managedAttachmentFolder,
+        (relativePath) => createRuntimeFolderPath(
+          parsedPath,
+          joinRelativePath(parsedPath.relativePath, relativePath)
+        ),
+        ignoreRules
+      );
 
       return entries.sort((left, right) => left.relativePath.toLowerCase().localeCompare(right.relativePath.toLowerCase()));
     },
@@ -1019,16 +1350,25 @@ export function createWebFileRuntime(
       }
 
       await assertTargetEntryAvailable(target.directory, source.name);
-      if (source.kind === "folder") {
+      if (source.location.workspace) {
+        if (!source.handle.move) throw new Error("Workspace entry cannot be moved atomically.");
+        await source.handle.move(target.directory);
+      } else if (source.kind === "folder") {
         await copyDirectoryHandle(source.handle, target.directory, source.name);
       } else {
         await copyFileHandle(source.handle, target.directory, source.name);
       }
-      await removeTreeEntry(source.parent, source.name);
+      if (!source.location.workspace) await removeTreeEntry(source.parent, source.name);
 
       const relativePath = joinRelativePath(target.relativePath, source.name);
 
-      return movedTreeFile(source.id, relativePath, source.name, source.kind);
+      return movedTreeFile(
+        target.location,
+        target.rootRelativePath,
+        relativePath,
+        source.name,
+        source.kind
+      );
     },
     async openMarkdownFile() {
       if (!showOpenFilePicker) return null;
@@ -1053,16 +1393,16 @@ export function createWebFileRuntime(
     openLocalImages: async () => [],
     openLocalFiles: async () => [],
     async openMarkdownAttachment(input) {
-      const parsedDocumentPath = input.documentPath ? parseWebHandlePath(input.documentPath) : null;
-      if (parsedDocumentPath?.kind !== "folder" || !parsedDocumentPath.relativePath) {
+      const parsedDocumentPath = input.documentPath ? parseRuntimeFolderPath(input.documentPath) : null;
+      if (!parsedDocumentPath?.relativePath) {
         throw new Error("Current document is not a web folder file.");
       }
 
       const documentSegments = parsedDocumentPath.relativePath.split("/").filter(Boolean);
       documentSegments.pop();
-      const localSrc = decodeMarkdownLocalPath(input.src.split(/[?#]/u)[0] ?? "");
+      const localSrc = decodeMarkdownRelativePath(input.src);
       const attachmentPath = normalizeWebRelativePath(joinRelativePath(documentSegments.join("/"), localSrc));
-      const handle = await resolveFileFromFolderPath(parsedDocumentPath.id, attachmentPath);
+      const handle = await resolveFileFromFolderPath(createRuntimeFolderPath(parsedDocumentPath, attachmentPath));
       const file = await handle.getFile();
       const url = URL.createObjectURL(file);
       window.open(url, "_blank", "noopener,noreferrer");
@@ -1079,14 +1419,15 @@ export function createWebFileRuntime(
         } satisfies NativeMarkdownFolder;
       }
 
-      const handle = createUploadedDirectoryHandle(await pickDirectoryFiles());
-      if (!handle) return null;
-      const registered = registerDirectoryHandle(handle);
-      await persistDirectoryHandle(registered.id, handle);
+      const files = await pickDirectoryFiles();
+      if (files.length === 0) return null;
+      const workspace = await workspaceRepository.ensureDefaultWorkspace();
+      const rootName = uploadedDirectoryRootName(files);
+      const relativePath = await workspaceRepository.importDirectory(workspace.id, rootName, files);
 
       return {
-        name: handle.name,
-        path: registered.path
+        name: rootName,
+        path: createWorkspaceUrl(workspace.id, relativePath)
       } satisfies NativeMarkdownFolder;
     },
     openMarkdownFolderInNewWindow: async (path) => openMarkdownRouteInNewWindow("folder", path),
@@ -1114,8 +1455,11 @@ export function createWebFileRuntime(
         path: await registerFileHandle(handle)
       };
     },
-    async readLocalImageFile() {
-      throw new Error("Local image file reading requires the desktop runtime.");
+    async readLocalImageFile(path) {
+      const { file } = await readFileFromPath(path);
+      if (!isAssetFileName(file.name)) throw new Error("Selected file is not a supported image file.");
+
+      return file;
     },
     async readMarkdownFile(path) {
       const { file } = await readFileFromPath(path);
@@ -1129,22 +1473,8 @@ export function createWebFileRuntime(
       };
     },
     readMarkdownFileHistory: () => Promise.reject(new Error("Markdown history is unavailable in the web runtime.")),
-    async readMarkdownImageFile(input) {
-      const documentPath = parseWebHandlePath(input.documentPath);
-      if (documentPath?.kind !== "folder") throw new Error("Current document is not a web folder file.");
-      const documentSegments = documentPath.relativePath.split("/").filter(Boolean);
-      documentSegments.pop();
-      const imagePath = joinRelativePath(documentSegments.join("/"), input.src);
-      const handle = await resolveFileFromFolderPath(documentPath.id, imagePath);
-      const file = await handle.getFile();
-
-      return {
-        dataUrl: await fileToDataUrl(file),
-        mimeType: file.type || "application/octet-stream",
-        path: createFolderPath(documentPath.id, imagePath),
-        src: input.src
-      } satisfies NativeMarkdownImageFile;
-    },
+    readMarkdownImageFile,
+    resolveMarkdownImageSrc: async (input) => (await readMarkdownImageFile(input)).dataUrl,
     async readMarkdownTemplateFile(fileName) {
       const store = await templateStore();
 
@@ -1155,22 +1485,52 @@ export function createWebFileRuntime(
       const normalizedFileName = fileName.trim();
       if (!normalizedFileName) throw new Error("File name is required.");
       if (normalizedFileName === source.name) {
-        return movedTreeFile(source.id, source.relativePath, source.name, source.kind);
+        return movedTreeFile(
+          source.location,
+          source.rootRelativePath,
+          source.relativePath,
+          source.name,
+          source.kind
+        );
       }
 
       await assertTargetEntryAvailable(source.parent, normalizedFileName);
-      if (source.kind === "folder") {
+      if (source.location.workspace) {
+        if (!source.handle.move) throw new Error("Workspace entry cannot be renamed atomically.");
+        await source.handle.move(normalizedFileName);
+      } else if (source.kind === "folder") {
         await copyDirectoryHandle(source.handle, source.parent, normalizedFileName);
       } else {
         await copyFileHandle(source.handle, source.parent, normalizedFileName);
       }
-      await removeTreeEntry(source.parent, source.name);
+      if (!source.location.workspace) await removeTreeEntry(source.parent, source.name);
 
       const relativePath = joinRelativePath(source.parentRelativePath, normalizedFileName);
 
-      return movedTreeFile(source.id, relativePath, normalizedFileName, source.kind);
+      return movedTreeFile(
+        source.location,
+        source.rootRelativePath,
+        relativePath,
+        normalizedFileName,
+        source.kind
+      );
     },
     async resolveMarkdownPath(path) {
+      const workspacePath = parseWorkspaceUrl(path);
+      if (workspacePath?.path) {
+        return {
+          kind: "file",
+          name: baseNameFromPath(workspacePath.path),
+          path
+        };
+      }
+      if (workspacePath) {
+        return {
+          kind: "folder",
+          name: (await workspaceRepository.ensureDefaultWorkspace()).name,
+          path
+        };
+      }
       const parsedPath = parseWebHandlePath(path);
       if (parsedPath?.kind === "folder" && parsedPath.relativePath) {
         const fileName = baseNameFromPath(parsedPath.relativePath);
@@ -1207,8 +1567,8 @@ export function createWebFileRuntime(
         };
       }
 
-      const parsedDocumentPath = parseWebHandlePath(input.documentPath ?? "");
-      if (parsedDocumentPath?.kind !== "folder" || !parsedDocumentPath.relativePath) {
+      const parsedDocumentPath = parseRuntimeFolderPath(input.documentPath ?? "");
+      if (!parsedDocumentPath?.relativePath) {
         const url = URL.createObjectURL(input.image);
 
         return {
@@ -1217,12 +1577,12 @@ export function createWebFileRuntime(
         };
       }
 
-      const root = await directoryHandleForId(parsedDocumentPath.id);
-      if (!root) throw new Error("Web folder handle is no longer available.");
-
       const documentSegments = parsedDocumentPath.relativePath.split("/").filter(Boolean);
       documentSegments.pop();
-      const documentDirectory = await resolveDirectory(root, documentSegments.join("/"));
+      const documentDirectory = (await directoryForPath(createRuntimeFolderPath(
+        parsedDocumentPath,
+        documentSegments.join("/")
+      ))).directory;
       const folder = normalizeClipboardImageFolder(input.folder);
       const targetDirectory = await ensureDirectory(documentDirectory, folder);
       const fileName = await uniqueFileName(targetDirectory, input.fileName);
@@ -1242,8 +1602,8 @@ export function createWebFileRuntime(
         };
       }
 
-      const parsedDocumentPath = parseWebHandlePath(input.documentPath ?? "");
-      if (parsedDocumentPath?.kind !== "folder" || !parsedDocumentPath.relativePath) {
+      const parsedDocumentPath = parseRuntimeFolderPath(input.documentPath ?? "");
+      if (!parsedDocumentPath?.relativePath) {
         const url = URL.createObjectURL(input.attachment);
 
         return {
@@ -1252,12 +1612,12 @@ export function createWebFileRuntime(
         };
       }
 
-      const root = await directoryHandleForId(parsedDocumentPath.id);
-      if (!root) throw new Error("Web folder handle is no longer available.");
-
       const documentSegments = parsedDocumentPath.relativePath.split("/").filter(Boolean);
       documentSegments.pop();
-      const documentDirectory = await resolveDirectory(root, documentSegments.join("/"));
+      const documentDirectory = (await directoryForPath(createRuntimeFolderPath(
+        parsedDocumentPath,
+        documentSegments.join("/")
+      ))).directory;
       const folder = normalizeClipboardImageFolder(input.folder);
       const targetDirectory = await ensureDirectory(documentDirectory, folder);
       const fileName = await uniqueFileName(targetDirectory, input.attachment.name.trim() || "attachment");
@@ -1275,11 +1635,15 @@ export function createWebFileRuntime(
     async saveMarkdownFile(input: SaveNativeMarkdownFileInput): Promise<SavedNativeMarkdownFile> {
       if (input.path) {
         const parsedPath = parseWebHandlePath(input.path);
-        const handle = parsedPath?.kind === "file"
-          ? await fileHandleForId(parsedPath.id)
-          : parsedPath?.kind === "folder"
-            ? await resolveFileFromFolderPath(parsedPath.id, parsedPath.relativePath)
-            : null;
+        const workspacePath = parseWorkspaceUrl(input.path);
+        const handle = workspacePath?.path
+          ? createWorkspaceFileHandle(workspaceRepository, workspacePath.workspaceId, workspacePath.path)
+          : parsedPath?.kind === "file"
+            ? await fileHandleForId(parsedPath.id)
+            : parsedPath?.kind === "folder"
+              ? await resolveFileFromFolderPath(input.path)
+              : null;
+        if (workspacePath) await workspaceRepository.ensureDefaultWorkspace();
         if (handle && await writeFileHandle(handle, input.contents)) {
           const file = await handle.getFile();
 
@@ -1288,6 +1652,26 @@ export function createWebFileRuntime(
             path: input.path
           };
         }
+      }
+
+      const defaultWorkspace = parseWorkspaceUrl(input.defaultDirectory ?? "");
+      if (defaultWorkspace) {
+        const workspace = await workspaceRepository.ensureDefaultWorkspace();
+        const directory = createWorkspaceDirectoryHandle(
+          workspaceRepository,
+          defaultWorkspace.workspaceId,
+          defaultWorkspace.path,
+          baseNameFromPath(defaultWorkspace.path) || workspace.name
+        );
+        const created = await createUniqueWorkspaceFile(directory, input.suggestedName);
+        const { fileName, handle } = { fileName: created.name, handle: created.handle };
+        await writeFileHandle(handle, input.contents);
+        const path = joinRelativePath(defaultWorkspace.path, fileName);
+
+        return {
+          name: fileName,
+          path: createWorkspaceUrl(defaultWorkspace.workspaceId, path)
+        };
       }
 
       if (showSaveFilePicker) {

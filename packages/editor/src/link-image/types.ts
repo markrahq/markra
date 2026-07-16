@@ -33,4 +33,4 @@ export type LiveMarkdownReplacement = {
   to: number;
 };
 
-export type ResolveMarkdownImageSrc = (src: string) => string;
+export type ResolveMarkdownImageSrc = (src: string) => string | Promise<string>;

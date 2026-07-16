@@ -141,6 +141,11 @@ export type SavedNativeMarkdownFile = {
   name: string;
 };
 
+export type SavedNativeMarkdownFolderArchive = {
+  path: string;
+  name: string;
+};
+
 export type SavedNativeHtmlFile = {
   path: string;
   name: string;
@@ -428,6 +433,18 @@ export function resolveNativeMarkdownPath(path: string) {
 
 export function openNativeMarkdownFolder(labels?: NativeMarkdownPickerLabels) {
   return getAppRuntime().files.openMarkdownFolder(labels);
+}
+
+export function getNativeDefaultMarkdownFolder() {
+  return getAppRuntime().files.getDefaultMarkdownFolder();
+}
+
+export function canExportNativeMarkdownFolder(path: string) {
+  return getAppRuntime().files.canExportMarkdownFolder(path);
+}
+
+export function exportNativeMarkdownFolder(path: string) {
+  return getAppRuntime().files.exportMarkdownFolder(path);
 }
 
 export function saveNativeMarkdownFile(input: SaveNativeMarkdownFileInput) {

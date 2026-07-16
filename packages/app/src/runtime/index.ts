@@ -40,6 +40,7 @@ import type {
   SavedNativeClipboardImage,
   SavedNativeHtmlFile,
   SavedNativeMarkdownFile,
+  SavedNativeMarkdownFolderArchive,
   SavedNativePandocFile,
   SavedNativePdfFile,
   SavedNativeSettingsFile,
@@ -139,6 +140,7 @@ export type AppDialogRuntime = {
 };
 
 export type AppFileRuntime = {
+  canExportMarkdownFolder: (path: string) => boolean;
   confirmMarkdownFileDelete: (
     fileName: string,
     labels: { cancelLabel: string; message: string; okLabel: string }
@@ -162,6 +164,8 @@ export type AppFileRuntime = {
   deleteMarkdownTreeFile: (rootPath: string, path: string) => Promise<unknown>;
   detectPandocPath: () => Promise<string | null>;
   downloadWebImage: (input: DownloadNativeWebImageInput) => Promise<File>;
+  exportMarkdownFolder: (path: string) => Promise<SavedNativeMarkdownFolderArchive | null>;
+  getDefaultMarkdownFolder: () => Promise<NativeMarkdownFolder | null>;
   installMarkdownFileDrop: (onDrop: NativeMarkdownFileDropHandler) => Promise<RuntimeCleanup>;
   importLocalFile: (input: ImportNativeLocalFileInput) => Promise<SavedNativeClipboardAttachment>;
   listenOpenedMarkdownPaths: (
@@ -195,6 +199,7 @@ export type AppFileRuntime = {
   readMarkdownFile: (path: string) => Promise<NativeMarkdownFile>;
   readMarkdownFileHistory: (path: string, id: string) => Promise<NativeMarkdownFileHistoryFile>;
   readMarkdownImageFile: (input: ReadNativeMarkdownImageInput) => Promise<NativeMarkdownImageFile>;
+  resolveMarkdownImageSrc?: (input: ReadNativeMarkdownImageInput) => string | Promise<string> | null;
   readMarkdownTemplateFile: (fileName: string) => Promise<string>;
   renameMarkdownTreeFile: (
     rootPath: string,
@@ -450,6 +455,7 @@ async function readBrowserClipboardText() {
 
 function createDefaultFileRuntime(): AppFileRuntime {
   return {
+    canExportMarkdownFolder: () => false,
     confirmMarkdownFileDelete: async () => false,
     confirmUnsavedMarkdownDocumentDiscard: async () => false,
     backupMarkdownFolder: () => unsupportedFeature("backupMarkdownFolder"),
@@ -459,6 +465,8 @@ function createDefaultFileRuntime(): AppFileRuntime {
     deleteMarkdownTreeFile: () => unsupportedFeature("deleteMarkdownTreeFile"),
     detectPandocPath: async () => null,
     downloadWebImage: () => unsupportedFeature("downloadWebImage"),
+    exportMarkdownFolder: async () => null,
+    getDefaultMarkdownFolder: async () => null,
     installMarkdownFileDrop: async () => () => undefined,
     importLocalFile: () => unsupportedFeature("importLocalFile"),
     listenOpenedMarkdownPaths: async () => () => undefined,
@@ -664,6 +672,7 @@ export type {
   SavedNativeClipboardImage,
   SavedNativeHtmlFile,
   SavedNativeMarkdownFile,
+  SavedNativeMarkdownFolderArchive,
   SavedNativePandocFile,
   SavedNativePdfFile,
   SavedNativeSettingsFile,

@@ -92,7 +92,7 @@ async function renderEditor(
     bottomOverlayInset?: number;
     onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
     readOnly?: boolean;
-    resolveImageSrc?: (src: string) => string;
+    resolveImageSrc?: (src: string) => string | Promise<string>;
     markdownShortcuts?: MarkdownShortcutMap;
     extendedSyntax?: ExtendedSyntaxPreferences;
     workspaceFiles?: Array<{
@@ -10159,6 +10159,33 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain('<img src="https://example.test/badges/version.svg" />');
   });
 
+  it("renders raw HTML image badges after an async local source resolves", async () => {
+    const dataUrl = "data:image/svg+xml;base64,PHN2Zy8+";
+    const { container } = await renderEditor('<img src="assets/example-badge.svg" alt="Example badge" />', {
+      resolveImageSrc: (src) => src.startsWith("assets/") ? Promise.resolve(dataUrl) : src
+    });
+
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[alt="Example badge"]');
+    expect(image).toBeInTheDocument();
+    await waitFor(() => expect(image).toHaveAttribute("src", dataUrl));
+  });
+
+  it("restores a raw HTML image source when async resolution fails", async () => {
+    let rejectSource = (_error: Error) => {};
+    const source = new Promise<string>((_resolve, reject) => {
+      rejectSource = reject;
+    });
+    const { container } = await renderEditor('<img src="assets/example-badge.svg" alt="Example badge" />', {
+      resolveImageSrc: () => source
+    });
+    const image = container.querySelector<HTMLImageElement>('.ProseMirror img[alt="Example badge"]');
+
+    expect(image).toBeInTheDocument();
+    expect(image).not.toHaveAttribute("src");
+    rejectSource(new Error("Synthetic image read failure"));
+    await waitFor(() => expect(image).toHaveAttribute("src", "assets/example-badge.svg"));
+  });
+
   it("keeps GitHub README HTML badge rows together", async () => {
     const source = [
       '<p align="center">',
@@ -10567,6 +10594,203 @@ describe("MarkdownPaper editing", () => {
     expect(imageNode?.draggable).toBe(false);
     expect(image?.draggable).toBe(false);
     expect(fireEvent.dragStart(imageNode!)).toBe(false);
+  });
+
+  it("renders local image markdown after an async preview source resolves", async () => {
+    const dataUrl = "data:image/png;base64,AQID";
+    const { container } = await renderEditor("![Screenshot](assets/pasted-image.png)", {
+      resolveImageSrc: async () => dataUrl
+    });
+
+    const image = container.querySelector<HTMLImageElement>(".ProseMirror .markra-image-node img");
+    expect(image).toBeInTheDocument();
+
+    await waitFor(() => expect(image).toHaveAttribute("src", dataUrl));
+  });
+
+  it("restores local image markdown when async preview resolution fails", async () => {
+    let rejectSource = (_error: Error) => {};
+    const source = new Promise<string>((_resolve, reject) => {
+      rejectSource = reject;
+    });
+    const { container } = await renderEditor("![Screenshot](assets/pasted-image.png)", {
+      resolveImageSrc: () => source
+    });
+    const image = container.querySelector<HTMLImageElement>(".ProseMirror .markra-image-node img");
+
+    expect(image).toBeInTheDocument();
+    expect(image).not.toHaveAttribute("src");
+    rejectSource(new Error("Synthetic image read failure"));
+    await waitFor(() => expect(image).toHaveAttribute("src", "assets/pasted-image.png"));
+  });
+
+  it("refreshes Markdown and raw HTML images when the document path changes", async () => {
+    const source = [
+      "![Markdown image](assets/markdown.png)",
+      "",
+      '<img src="assets/raw.png" alt="Raw image" />'
+    ].join("\n");
+    let resolveFirstMarkdown = (_src: string) => {};
+    let resolveFirstRaw = (_src: string) => {};
+    let resolveSecondMarkdown = (_src: string) => {};
+    let resolveSecondRaw = (_src: string) => {};
+    const firstMarkdown = new Promise<string>((resolve) => {
+      resolveFirstMarkdown = resolve;
+    });
+    const firstRaw = new Promise<string>((resolve) => {
+      resolveFirstRaw = resolve;
+    });
+    const secondMarkdown = new Promise<string>((resolve) => {
+      resolveSecondMarkdown = resolve;
+    });
+    const secondRaw = new Promise<string>((resolve) => {
+      resolveSecondRaw = resolve;
+    });
+    const firstResolver = vi.fn((src: string) => src.endsWith("markdown.png") ? firstMarkdown : firstRaw);
+    const secondResolver = vi.fn((src: string) => src.endsWith("markdown.png") ? secondMarkdown : secondRaw);
+    const { container, rerender } = render(
+      <MarkdownPaper
+        documentKey="current-document"
+        documentPath="web-workspace://default/first/note.md"
+        initialContent={source}
+        onEditorReady={() => {}}
+        onMarkdownChange={() => {}}
+        resolveImageSrc={firstResolver}
+        revision={0}
+      />
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('.ProseMirror img[alt="Markdown image"]')).toBeInTheDocument();
+      expect(container.querySelector('.ProseMirror img[alt="Raw image"]')).toBeInTheDocument();
+    });
+    expect(firstResolver).toHaveBeenCalledTimes(2);
+
+    rerender(
+      <MarkdownPaper
+        documentKey="current-document"
+        documentPath="web-workspace://default/second/note.md"
+        initialContent={source}
+        onEditorReady={() => {}}
+        onMarkdownChange={() => {}}
+        resolveImageSrc={secondResolver}
+        revision={0}
+      />
+    );
+    resolveSecondMarkdown("data:image/png;base64,SECOND-MARKDOWN");
+    resolveSecondRaw("data:image/png;base64,SECOND-RAW");
+
+    await waitFor(() => {
+      expect(container.querySelector('.ProseMirror img[alt="Markdown image"]'))
+        .toHaveAttribute("src", "data:image/png;base64,SECOND-MARKDOWN");
+      expect(container.querySelector('.ProseMirror img[alt="Raw image"]'))
+        .toHaveAttribute("src", "data:image/png;base64,SECOND-RAW");
+    });
+
+    resolveFirstMarkdown("data:image/png;base64,FIRST-MARKDOWN");
+    resolveFirstRaw("data:image/png;base64,FIRST-RAW");
+    await Promise.resolve();
+    expect(container.querySelector('.ProseMirror img[alt="Markdown image"]'))
+      .toHaveAttribute("src", "data:image/png;base64,SECOND-MARKDOWN");
+    expect(container.querySelector('.ProseMirror img[alt="Raw image"]'))
+      .toHaveAttribute("src", "data:image/png;base64,SECOND-RAW");
+  });
+
+  it("refreshes a folded live image preview when the document path changes", async () => {
+    let editor: Editor | null = null;
+    let resolveFirst = (_src: string) => {};
+    let resolveSecond = (_src: string) => {};
+    const firstSource = new Promise<string>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const secondSource = new Promise<string>((resolve) => {
+      resolveSecond = resolve;
+    });
+    const firstResolver = vi.fn(() => firstSource);
+    const secondResolver = vi.fn(() => secondSource);
+    const { container, rerender } = render(
+      <MarkdownPaper
+        documentKey="current-document"
+        documentPath="web-workspace://default/first/note.md"
+        initialContent=""
+        onEditorReady={(instance) => {
+          editor = instance;
+        }}
+        onMarkdownChange={() => {}}
+        resolveImageSrc={firstResolver}
+        revision={0}
+      />
+    );
+    await waitFor(() => expect(editor).not.toBeNull());
+    const initialEditor = editor!;
+    const view = initialEditor.action((ctx) => ctx.get(editorViewCtx));
+    insertTextDirectly(view, "![Live image](assets/live.png) after");
+    moveCursor(view, findTextPosition(view, "Live image", "Live image".length));
+    moveCursor(view, findTextPosition(view, "after", "after".length));
+    const firstImage = container.querySelector<HTMLImageElement>(".ProseMirror img.markra-live-image-preview");
+    expect(firstImage).toBeInTheDocument();
+    expect(firstResolver).toHaveBeenCalled();
+
+    rerender(
+      <MarkdownPaper
+        documentKey="current-document"
+        documentPath="web-workspace://default/second/note.md"
+        initialContent=""
+        onEditorReady={(instance) => {
+          editor = instance;
+        }}
+        onMarkdownChange={() => {}}
+        resolveImageSrc={secondResolver}
+        revision={0}
+      />
+    );
+    resolveSecond("data:image/png;base64,SECOND-LIVE");
+
+    await waitFor(() => {
+      expect(container.querySelector<HTMLImageElement>(".ProseMirror img.markra-live-image-preview"))
+        .toHaveAttribute("src", "data:image/png;base64,SECOND-LIVE");
+    });
+    expect(editor).toBe(initialEditor);
+    expect(secondResolver).toHaveBeenCalledOnce();
+
+    resolveFirst("data:image/png;base64,FIRST-LIVE");
+    await Promise.resolve();
+    expect(container.querySelector<HTMLImageElement>(".ProseMirror img.markra-live-image-preview"))
+      .toHaveAttribute("src", "data:image/png;base64,SECOND-LIVE");
+  });
+
+  it("keeps a newer async image source when an older read resolves later", async () => {
+    const firstDataUrl = "data:image/png;base64,AQID";
+    const secondDataUrl = "data:image/png;base64,BAUG";
+    let resolveFirst = (_src: string) => {};
+    let resolveSecond = (_src: string) => {};
+    const firstSource = new Promise<string>((resolve) => {
+      resolveFirst = resolve;
+    });
+    const secondSource = new Promise<string>((resolve) => {
+      resolveSecond = resolve;
+    });
+    const { container, view } = await renderEditor("![Screenshot](assets/first.png)", {
+      resolveImageSrc: (src) => src === "assets/first.png" ? firstSource : secondSource
+    });
+    const image = container.querySelector<HTMLImageElement>(".ProseMirror .markra-image-node img");
+    const imagePosition = findNodeStartPosition(view, "image");
+    const currentImage = view.state.doc.nodeAt(imagePosition);
+    expect(image).toBeInTheDocument();
+    expect(currentImage).not.toBeNull();
+
+    act(() => {
+      view.dispatch(view.state.tr.setNodeMarkup(imagePosition, undefined, {
+        ...currentImage!.attrs,
+        src: "assets/second.png"
+      }));
+    });
+    resolveSecond(secondDataUrl);
+    await waitFor(() => expect(image).toHaveAttribute("src", secondDataUrl));
+
+    resolveFirst(firstDataUrl);
+    await Promise.resolve();
+    expect(image).toHaveAttribute("src", secondDataUrl);
   });
 
   it("renders standalone images as top-level image nodes", async () => {

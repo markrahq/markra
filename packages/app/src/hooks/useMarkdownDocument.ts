@@ -19,6 +19,7 @@ import { getMarkdownOutline, getWordCount, type MarkdownOutlineItem } from "@mar
 import {
   destroyNativeWindow,
   exitNativeApp,
+  getNativeDefaultMarkdownFolder,
   listNativeEditorWindowRestoreStates,
   openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownFileInNewWindow,
@@ -155,6 +156,7 @@ type UseMarkdownDocumentOptions = {
   globalIgnoreRules?: string;
   isCurrentMarkdownEquivalent?: (markdown: string) => boolean | undefined;
   onActiveDiskFileContentChange?: (change: ActiveDiskFileContentChange) => boolean | undefined;
+  onAutoSaveError?: (error: unknown) => unknown;
   onMarkdownTreeChange?: (path: string) => unknown | Promise<unknown>;
   onTreeRootFromFolderPath: (
     path: string,
@@ -184,18 +186,19 @@ type OpenMarkdownFileOptions = {
   pickerTitle?: string;
 };
 
-let pendingWorkspaceStateSave: Promise<unknown> | null = null;
+let pendingDocumentWorkspaceStateSave: Promise<unknown> | null = null;
 
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
-  // Workspace writes are read-modify-write operations; keep draft snapshots ordered.
+  // Keep the document lifecycle chained to its latest draft write so close and
+  // restart preparation cannot finish before mocked or runtime persistence settles.
   const save = () => saveStoredWorkspaceState(patch).catch(() => {});
-  const savePromise = pendingWorkspaceStateSave
-    ? pendingWorkspaceStateSave.then(save, save)
+  const savePromise = pendingDocumentWorkspaceStateSave
+    ? pendingDocumentWorkspaceStateSave.then(save, save)
     : save();
   const queuedPromise = savePromise.finally(() => {
-    if (pendingWorkspaceStateSave === queuedPromise) pendingWorkspaceStateSave = null;
+    if (pendingDocumentWorkspaceStateSave === queuedPromise) pendingDocumentWorkspaceStateSave = null;
   });
-  pendingWorkspaceStateSave = queuedPromise;
+  pendingDocumentWorkspaceStateSave = queuedPromise;
   return queuedPromise;
 }
 
@@ -257,6 +260,7 @@ export function useMarkdownDocument({
   globalIgnoreRules = "",
   isCurrentMarkdownEquivalent,
   onActiveDiskFileContentChange,
+  onAutoSaveError,
   onMarkdownTreeChange,
   onTreeRootFromFolderPath,
   onTreeRootFromFilePath,
@@ -442,6 +446,20 @@ export function useMarkdownDocument({
 
     return isCurrentMarkdownEquivalent?.(markdown);
   }, [editorReady, isCurrentMarkdownEquivalent]);
+
+  const captureDocumentDiscardSnapshot = useCallback(() => {
+    const activeDocument = documentRef.current;
+    const activeTabId = activeTabIdRef.current;
+
+    return JSON.stringify({
+      activeDocument: {
+        ...activeDocument,
+        content: currentMarkdown()
+      },
+      activeTabId,
+      inactiveTabs: tabsRef.current.filter((tab) => tab.id !== activeTabId)
+    });
+  }, [currentMarkdown]);
 
   const registerWindowRestoreState = useCallback((filePath: string | null, openFilePaths: string[]) => {
     setNativeEditorWindowRestoreState({ filePath, openFilePaths }).catch(() => {});
@@ -1654,8 +1672,10 @@ export function useMarkdownDocument({
       debug(() => ["[markra-autosave] save failed", {
         error: error instanceof Error ? error.message : String(error)
       }]);
+      // A failed persistence attempt must stay dirty so a later save can retry the same content.
+      onAutoSaveError?.(error);
     }
-  }, [saveDirtyMarkdownFiles]);
+  }, [onAutoSaveError, saveDirtyMarkdownFiles]);
 
   const selectMarkdownTab = useCallback((tabId: string) => {
     syncActiveDocumentFromEditor();
@@ -2004,10 +2024,13 @@ export function useMarkdownDocument({
 
           assignWorkspaceSessionId(sessionId);
 
+          let handleRestoredFolderResult: ((folderResult: unknown) => unknown) | null = null;
+          let pendingFolderRestore: Promise<unknown> | null = null;
+
           if (workspace.folderPath) {
             const folderPath = workspace.folderPath;
             const folderName = workspace.folderName ?? folderPath;
-            const handleRestoredFolderResult = (folderResult: unknown) => {
+            handleRestoredFolderResult = (folderResult: unknown) => {
               if (folderResult === null || folderResult === false) {
                 persistWorkspaceState({
                   fileTreeOpen: false,
@@ -2029,22 +2052,16 @@ export function useMarkdownDocument({
 
             // Some saved roots, such as metadata folders, can make tree loading stall. Restoring
             // files independently prevents the app from staying on Untitled.md while the tree waits.
-            restoredWorkspace = true;
+            pendingFolderRestore = Promise.resolve()
+              .then(restoreFolderRoot)
+              .catch(() => null);
 
-            if (restoreFilePaths.length > 0) {
-              // File restoration should not wait for potentially slow or skipped tree roots.
-              Promise.resolve()
-                .then(restoreFolderRoot)
-                .then((folderResult) => {
-                  if (active) handleRestoredFolderResult(folderResult);
-                })
-                .catch(() => {
-                  if (active) handleRestoredFolderResult(null);
-                });
-            } else {
-              const folderResult = await Promise.resolve().then(restoreFolderRoot);
+            if (restoreFilePaths.length === 0) {
+              const folderResult = await pendingFolderRestore;
               if (!active) return;
               handleRestoredFolderResult(folderResult);
+              if (folderResult !== null && folderResult !== false) restoredWorkspace = true;
+              pendingFolderRestore = null;
             }
           }
 
@@ -2075,6 +2092,22 @@ export function useMarkdownDocument({
             restoredWorkspace = true;
           }
 
+          if (pendingFolderRestore && handleRestoredFolderResult) {
+            if (restoredWorkspace) {
+              // A restored file or draft is already usable, so a slow tree root must not block startup.
+              pendingFolderRestore.then((folderResult) => {
+                if (active) handleRestoredFolderResult?.(folderResult);
+              });
+            } else {
+              // Without any usable file or draft, wait long enough to distinguish a restored root
+              // from a lost permission before falling back to the browser-local workspace.
+              const folderResult = await pendingFolderRestore;
+              if (!active) return;
+              handleRestoredFolderResult(folderResult);
+              if (folderResult !== null && folderResult !== false) restoredWorkspace = true;
+            }
+          }
+
           if (restoreWindows.length > 0) {
             persistWorkspaceState({ openWindows: [] });
           }
@@ -2088,6 +2121,22 @@ export function useMarkdownDocument({
       }
 
       if (!active || restoredWorkspace) return;
+
+      // Explicit launch targets and restored workspaces take precedence over the runtime default.
+      const defaultFolder = await getNativeDefaultMarkdownFolder();
+      if (!active) return;
+      if (defaultFolder) {
+        const sessionId = resolveWorkspaceSessionId();
+        const opened = await onTreeRootFromFolderPath(
+          defaultFolder.path,
+          defaultFolder.name,
+          sessionId,
+          true,
+          true
+        );
+        if (!active) return;
+        if (opened) return;
+      }
 
       const sessionId = resolveWorkspaceSessionId();
       persistWorkspaceState({ aiAgentSessionId: sessionId });
@@ -2258,6 +2307,7 @@ export function useMarkdownDocument({
   ]);
 
   return {
+    captureDocumentDiscardSnapshot,
     clearRecentMarkdownFiles,
     clearOpenDocument,
     closeMarkdownTab,
