@@ -7,6 +7,7 @@ import {
   mockedConsumeWelcomeDocumentState,
   mockedListNativeMarkdownFileHistory,
   mockedReadNativeMarkdownFileHistory,
+  mockedResolveDesktopPlatform,
   mockedSaveNativeMarkdownFile,
   renderApp
 } from "./test/app-harness";
@@ -124,6 +125,53 @@ describe("Markra document history restore", () => {
     debugSpy.mockRestore();
   });
 
+  it("closes history before opening another titlebar menu", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Current\n\nSynthetic body.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Current")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show history" }));
+    expect(await screen.findByRole("region", { name: "History versions" })).toBeInTheDocument();
+
+    const viewModeButton = screen.getByRole("button", { name: "View mode: Daily" });
+    fireEvent.pointerDown(viewModeButton);
+    fireEvent.click(viewModeButton);
+
+    expect(screen.queryByRole("region", { name: "History versions" })).not.toBeInTheDocument();
+    expect(screen.getByRole("menu", { name: "View mode" })).toBeInTheDocument();
+  });
+
+  it("positions history below the self-drawn Windows titlebar", async () => {
+    mockedResolveDesktopPlatform.mockReturnValue("windows");
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Current\n\nSynthetic body.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
+
+    renderApp();
+
+    fireEvent.keyDown(window, { ctrlKey: true, key: "o" });
+    expect(await screen.findByText("Current")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show history" }));
+
+    expect(await screen.findByRole("region", { name: "History versions" })).toHaveStyle({
+      top: "88px"
+    });
+  });
+
   it("writes restored history contents into the active visual editor", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockOpenMarkdownFile({
@@ -221,6 +269,7 @@ describe("Markra document history restore", () => {
     fireEvent.click(historyButton);
     expect(await screen.findByRole("region", { name: "History versions" })).toBeInTheDocument();
 
+    fireEvent.pointerDown(historyButton);
     fireEvent.click(historyButton);
     expect(screen.queryByRole("region", { name: "History versions" })).not.toBeInTheDocument();
   });

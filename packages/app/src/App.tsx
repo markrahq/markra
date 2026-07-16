@@ -4301,6 +4301,7 @@ function WorkspaceApp() {
             onClose={() => setDocumentHistoryOpen(false)}
             onRestore={handleDocumentHistoryRestore}
             refreshKey={documentHistoryRefreshKey}
+            windowsSelfDrawnChrome={windowsSelfDrawnChromeEnabled}
           />
         ) : null}
 

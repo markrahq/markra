@@ -87,10 +87,53 @@ describe("DocumentHistoryDialog", () => {
       />
     );
 
-    expect(await screen.findByRole("region", { name: "History versions" })).toHaveClass(
+    const panel = await screen.findByRole("region", { name: "History versions" });
+
+    expect(panel).toHaveClass(
       "animate-[markra-history-panel-in_140ms_cubic-bezier(0.2,0,0,1)_both]",
       "motion-reduce:animate-none"
     );
+    expect(panel).toHaveStyle({ top: "48px" });
+  });
+
+  it("dismisses on an outside pointer press without dismissing interactions inside the panel", async () => {
+    const onClose = vi.fn();
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
+
+    render(
+      <DocumentHistoryDialog
+        documentPath="/mock-files/guide.md"
+        language="en"
+        onClose={onClose}
+        onRestore={() => {}}
+      />
+    );
+
+    const panel = await screen.findByRole("region", { name: "History versions" });
+
+    fireEvent.pointerDown(panel);
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(document.body);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("sits below both rows of the self-drawn Windows titlebar", async () => {
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
+
+    render(
+      <DocumentHistoryDialog
+        documentPath="/mock-files/guide.md"
+        language="en"
+        onClose={() => {}}
+        onRestore={() => {}}
+        windowsSelfDrawnChrome
+      />
+    );
+
+    expect(await screen.findByRole("region", { name: "History versions" })).toHaveStyle({
+      top: "88px"
+    });
   });
 
   it("restores the selected version after StrictMode remount checks", async () => {

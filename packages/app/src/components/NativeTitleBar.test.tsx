@@ -54,9 +54,10 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector("[data-titlebar-action='open']")).not.toBeInTheDocument();
     expect(within(container.querySelector(".document-actions") as HTMLElement).queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
     expect(titlebar).toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
-    expect(titlebar).toHaveClass("h-10");
+    expect(titlebar).toHaveClass("h-10", "z-30");
     expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
     expect(container.querySelector(".document-actions")).toHaveClass("h-10");
+    expect(container.querySelector(".document-actions")).toHaveClass("opacity-40");
     expect(container.querySelector("[data-titlebar-action='aiAgent']")).toHaveClass("transition-transform");
   });
 
@@ -988,6 +989,7 @@ describe("NativeTitleBar", () => {
     const menu = screen.getByRole("menu", { name: "View mode" });
 
     expect(menu).toBeInTheDocument();
+    expect(menu.closest(".native-titlebar")).toHaveClass("z-30");
     expect(menu.closest(".native-titlebar.overflow-hidden")).toBeNull();
   });
 

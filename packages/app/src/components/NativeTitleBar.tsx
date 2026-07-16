@@ -520,6 +520,7 @@ export function NativeTitleBar({
       return (
         <IconButton
           className={mergeClassNames("disabled:opacity-35", sortable.actionClassName)}
+          data-document-history-trigger="true"
           disabled={historyDisabled || !onShowDocumentHistory}
           label={label("app.showDocumentHistory")}
           onClick={(event) => {
@@ -585,7 +586,7 @@ export function NativeTitleBar({
     </div>
   );
 
-  const documentActionsClassName = `document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-10 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
+  const documentActionsClassName = `document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-40 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
     aiAgentResizing
       ? "transition-none"
       : "transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -706,7 +707,7 @@ export function NativeTitleBar({
 
   return (
     <header
-      className={`native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[164px_minmax(0,1fr)_164px] select-none items-center ${titlebarSurfaceClassName} [-webkit-user-select:none]`}
+      className={`native-titlebar group/titlebar fixed inset-x-0 top-0 z-30 grid h-10 grid-cols-[164px_minmax(0,1fr)_164px] select-none items-center ${titlebarSurfaceClassName} [-webkit-user-select:none]`}
       style={titlebarGridStyle}
       aria-label={label("app.windowDragRegion")}
       data-tauri-drag-region={nativeWindowChrome && !titleContent ? true : undefined}

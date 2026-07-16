@@ -14,7 +14,11 @@ export type DocumentHistoryDialogProps = {
   onClose: () => unknown;
   onRestore: (contents: string, historyId: string) => unknown;
   refreshKey?: number;
+  windowsSelfDrawnChrome?: boolean;
 };
+
+const documentHistoryPanelGapPx = 8;
+const titlebarRowHeightPx = 40;
 
 function formatHistoryDate(language: AppLanguage, timestamp: number) {
   return new Intl.DateTimeFormat(language, {
@@ -34,7 +38,8 @@ export function DocumentHistoryDialog({
   language = "en",
   onClose,
   onRestore,
-  refreshKey = 0
+  refreshKey = 0,
+  windowsSelfDrawnChrome = false
 }: DocumentHistoryDialogProps) {
   const label = (key: string) => t(language, key);
   const [entries, setEntries] = useState<NativeMarkdownFileHistoryEntry[]>([]);
@@ -43,8 +48,10 @@ export function DocumentHistoryDialog({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [restorePendingId, setRestorePendingId] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState(false);
+  const panelRef = useRef<HTMLElement | null>(null);
   const loadedDocumentPathRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
+  const panelTopPx = titlebarRowHeightPx * (windowsSelfDrawnChrome ? 2 : 1) + documentHistoryPanelGapPx;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -55,15 +62,26 @@ export function DocumentHistoryDialog({
   }, []);
 
   useEffect(() => {
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node) || panelRef.current?.contains(target)) return;
+
+      // The trigger owns the toggle; dismissing on pointerdown would let its following click reopen the panel.
+      if (target instanceof Element && target.closest("[data-document-history-trigger]")) return;
+
+      onClose();
+    };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
 
       onClose();
     };
 
+    window.addEventListener("pointerdown", handlePointerDown);
     window.addEventListener("keydown", handleKeyDown);
 
     return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose]);
@@ -172,8 +190,13 @@ export function DocumentHistoryDialog({
   return (
     <section
       aria-label={label("app.documentHistory")}
-      className="fixed right-3 top-12 z-40 grid w-[min(22rem,calc(100vw-1rem))] max-h-[min(420px,calc(100vh-56px))] animate-[markra-history-panel-in_140ms_cubic-bezier(0.2,0,0,1)_both] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) shadow-xl motion-reduce:animate-none"
+      className="fixed right-3 z-40 grid w-[min(22rem,calc(100vw-1rem))] animate-[markra-history-panel-in_140ms_cubic-bezier(0.2,0,0,1)_both] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) shadow-xl motion-reduce:animate-none"
+      ref={panelRef}
       role="region"
+      style={{
+        maxHeight: `min(420px, calc(100vh - ${panelTopPx + documentHistoryPanelGapPx}px))`,
+        top: panelTopPx
+      }}
     >
       <div className="flex items-center justify-between gap-3 border-b border-(--border-default) px-3 py-2">
         <h4 className="m-0 truncate text-[12px] leading-5 font-bold text-(--text-heading)">
