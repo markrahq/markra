@@ -102,6 +102,8 @@ describe("Markra AI workspace", () => {
     expect(screen.getByRole("button", { name: "Toggle Markra AI" })).toHaveAttribute("aria-pressed", "true");
     const agentPanel = await screen.findByRole("complementary", { name: "Markra AI" });
     expect(agentPanel).toBeInTheDocument();
+    expect(container.querySelector(".native-titlebar")).toHaveClass("z-8");
+    expect(agentPanel.closest(".ai-agent-panel-slot")).toHaveClass("z-20");
     expect(within(agentPanel).getAllByText("OpenAI · GPT-5.5")[0]).toBeInTheDocument();
     expect(within(agentPanel).getByRole("combobox", { name: "AI model" })).toHaveTextContent("OpenAI · GPT-5.5");
     expect(within(agentPanel).getByRole("button", { name: "Attach images" })).toBeEnabled();

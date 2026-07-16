@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -24,6 +25,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode
 } from "react";
+import { createPortal } from "react-dom";
 import {
   closestCenter,
   DndContext,
@@ -44,6 +46,7 @@ import {
   type TitlebarActionPreference
 } from "../lib/settings/app-settings";
 import { viewModeOptions, type ViewMode } from "../lib/view-mode";
+import { anchoredPopoverStyle } from "../lib/anchored-popover";
 import type { NativeMenuHandlers } from "../lib/tauri/menu";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import { t, type AppLanguage } from "@markra/shared";
@@ -161,10 +164,12 @@ export function NativeTitleBar({
 }: NativeTitleBarProps) {
   const openMenuRef = useRef<HTMLDivElement | null>(null);
   const viewModeMenuRef = useRef<HTMLDivElement | null>(null);
+  const viewModeMenuSurfaceRef = useRef<HTMLDivElement | null>(null);
   const draggingActionIdRef = useRef<TitlebarActionId | null>(null);
   const suppressActionClickIdsRef = useRef(new Set<TitlebarActionId>());
   const [openMenuVisible, setOpenMenuVisible] = useState(false);
   const [viewModeMenuVisible, setViewModeMenuVisible] = useState(false);
+  const [viewModeMenuStyle, setViewModeMenuStyle] = useState<CSSProperties | null>(null);
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
   const editorViewMode = splitMode ? "split" : sourceMode ? "source" : "visual";
@@ -185,6 +190,19 @@ export function NativeTitleBar({
       distance: titlebarActionDragThresholdPx
     }
   }));
+  const positionViewModeMenu = (anchor: Element) => {
+    setViewModeMenuStyle(
+      anchoredPopoverStyle(anchor, viewModeMenuSurfaceRef.current, {
+        align: "end",
+        fallbackSize: {
+          height: viewModeOptions.length * 32 + 8,
+          width: 176
+        },
+        gap: 6,
+        placement: "bottom"
+      })
+    );
+  };
 
   useEffect(() => {
     if (!openMarkdownButtonVisible) setOpenMenuVisible(false);
@@ -200,7 +218,13 @@ export function NativeTitleBar({
     const handlePointerDown = (event: PointerEvent) => {
       const target = event.target as Node;
       if (openMenuVisible && !openMenuRef.current?.contains(target)) setOpenMenuVisible(false);
-      if (viewModeMenuVisible && !viewModeMenuRef.current?.contains(target)) setViewModeMenuVisible(false);
+      if (
+        viewModeMenuVisible &&
+        !viewModeMenuRef.current?.contains(target) &&
+        !viewModeMenuSurfaceRef.current?.contains(target)
+      ) {
+        setViewModeMenuVisible(false);
+      }
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -208,15 +232,30 @@ export function NativeTitleBar({
         setViewModeMenuVisible(false);
       }
     };
+    const handleLayoutChange = () => {
+      const trigger = viewModeMenuRef.current?.querySelector("button");
+      if (viewModeMenuVisible && trigger) positionViewModeMenu(trigger);
+    };
 
     window.addEventListener("pointerdown", handlePointerDown);
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleLayoutChange);
+    window.addEventListener("scroll", handleLayoutChange, true);
 
     return () => {
       window.removeEventListener("pointerdown", handlePointerDown);
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleLayoutChange);
+      window.removeEventListener("scroll", handleLayoutChange, true);
     };
   }, [openMenuVisible, viewModeMenuVisible]);
+
+  useLayoutEffect(() => {
+    if (!viewModeMenuVisible) return;
+
+    const trigger = viewModeMenuRef.current?.querySelector("button");
+    if (trigger) positionViewModeMenu(trigger);
+  }, [viewModeMenuVisible]);
 
   const runOpenAction = (action: () => unknown) => {
     setOpenMenuVisible(false);
@@ -430,7 +469,13 @@ export function NativeTitleBar({
                 }
 
                 setOpenMenuVisible(false);
-                setViewModeMenuVisible((current) => !current);
+                if (viewModeMenuVisible) {
+                  setViewModeMenuVisible(false);
+                  return;
+                }
+
+                positionViewModeMenu(event.currentTarget);
+                setViewModeMenuVisible(true);
               });
             }}
             {...sortable.actionAttributes}
@@ -438,33 +483,39 @@ export function NativeTitleBar({
           >
             <Focus aria-hidden="true" size={15} />
           </IconButton>
-          {onSelectViewMode && viewModeMenuVisible ? (
-            <PopoverSurface
-              className="absolute top-[calc(100%+6px)] right-0 z-40 w-44 overflow-hidden rounded-lg p-1"
-              open
-              role="menu"
-              aria-label={label("settings.editor.viewMode")}
-            >
-              {viewModeOptions.map((mode) => {
-                const selected = mode === viewMode;
-                const optionLabel = label(`settings.editor.viewMode.${mode}` as Parameters<typeof t>[1]);
+          {onSelectViewMode && viewModeMenuVisible && viewModeMenuStyle && typeof document !== "undefined"
+            ? createPortal(
+                // Escape the titlebar stacking context without lifting its full-width surface above the AI panel.
+                <PopoverSurface
+                  ref={viewModeMenuSurfaceRef}
+                  className="fixed z-40 w-44 overflow-hidden rounded-lg p-1"
+                  style={viewModeMenuStyle}
+                  open
+                  role="menu"
+                  aria-label={label("settings.editor.viewMode")}
+                >
+                  {viewModeOptions.map((mode) => {
+                    const selected = mode === viewMode;
+                    const optionLabel = label(`settings.editor.viewMode.${mode}` as Parameters<typeof t>[1]);
 
-                return (
-                  <button
-                    key={mode}
-                    className="flex h-8 w-full cursor-pointer items-center justify-between gap-3 rounded-md border-0 bg-transparent px-2.5 text-left text-[12px] leading-5 font-[560] text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-checked:text-(--text-heading)"
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={selected}
-                    onClick={() => runViewModeAction(mode)}
-                  >
-                    <span className="truncate">{optionLabel}</span>
-                    {selected ? <Check aria-hidden="true" className="shrink-0 text-(--accent)" size={14} /> : null}
-                  </button>
-                );
-              })}
-            </PopoverSurface>
-          ) : null}
+                    return (
+                      <button
+                        key={mode}
+                        className="flex h-8 w-full cursor-pointer items-center justify-between gap-3 rounded-md border-0 bg-transparent px-2.5 text-left text-[12px] leading-5 font-[560] text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none aria-checked:text-(--text-heading)"
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={selected}
+                        onClick={() => runViewModeAction(mode)}
+                      >
+                        <span className="truncate">{optionLabel}</span>
+                        {selected ? <Check aria-hidden="true" className="shrink-0 text-(--accent)" size={14} /> : null}
+                      </button>
+                    );
+                  })}
+                </PopoverSurface>,
+                document.body
+              )
+            : null}
         </div>
       );
     }
@@ -707,7 +758,7 @@ export function NativeTitleBar({
 
   return (
     <header
-      className={`native-titlebar group/titlebar fixed inset-x-0 top-0 z-30 grid h-10 grid-cols-[164px_minmax(0,1fr)_164px] select-none items-center ${titlebarSurfaceClassName} [-webkit-user-select:none]`}
+      className={`native-titlebar group/titlebar fixed inset-x-0 top-0 z-8 grid h-10 grid-cols-[164px_minmax(0,1fr)_164px] select-none items-center ${titlebarSurfaceClassName} [-webkit-user-select:none]`}
       style={titlebarGridStyle}
       aria-label={label("app.windowDragRegion")}
       data-tauri-drag-region={nativeWindowChrome && !titleContent ? true : undefined}

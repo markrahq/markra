@@ -14,10 +14,14 @@ export type DocumentHistoryDialogProps = {
   onClose: () => unknown;
   onRestore: (contents: string, historyId: string) => unknown;
   refreshKey?: number;
+  rightInsetPx?: number;
   windowsSelfDrawnChrome?: boolean;
 };
 
+const documentHistoryPanelHorizontalGapPx = 12;
 const documentHistoryPanelGapPx = 8;
+const documentHistoryPanelMinimumWidthPx = 192;
+const documentHistoryPanelViewportMarginPx = 4;
 const titlebarRowHeightPx = 40;
 
 function formatHistoryDate(language: AppLanguage, timestamp: number) {
@@ -39,6 +43,7 @@ export function DocumentHistoryDialog({
   onClose,
   onRestore,
   refreshKey = 0,
+  rightInsetPx = 0,
   windowsSelfDrawnChrome = false
 }: DocumentHistoryDialogProps) {
   const label = (key: string) => t(language, key);
@@ -51,7 +56,17 @@ export function DocumentHistoryDialog({
   const panelRef = useRef<HTMLElement | null>(null);
   const loadedDocumentPathRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
+  const normalizedRightInsetPx = Math.max(0, rightInsetPx);
   const panelTopPx = titlebarRowHeightPx * (windowsSelfDrawnChrome ? 2 : 1) + documentHistoryPanelGapPx;
+  const viewportWidthPx = typeof window === "undefined" ? Number.POSITIVE_INFINITY : window.innerWidth;
+  const requestedPanelRightPx = normalizedRightInsetPx + documentHistoryPanelHorizontalGapPx;
+  // Preserve a usable panel on narrow windows even when fully avoiding the AI sidebar is impossible.
+  const maximumPanelRightPx = Math.max(
+    documentHistoryPanelHorizontalGapPx,
+    viewportWidthPx - documentHistoryPanelMinimumWidthPx - documentHistoryPanelViewportMarginPx
+  );
+  const panelRightPx = Math.min(requestedPanelRightPx, maximumPanelRightPx);
+  const panelWidthInsetPx = panelRightPx + documentHistoryPanelViewportMarginPx;
 
   useEffect(() => {
     mountedRef.current = true;
@@ -190,12 +205,15 @@ export function DocumentHistoryDialog({
   return (
     <section
       aria-label={label("app.documentHistory")}
-      className="fixed right-3 z-40 grid w-[min(22rem,calc(100vw-1rem))] animate-[markra-history-panel-in_140ms_cubic-bezier(0.2,0,0,1)_both] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) shadow-xl motion-reduce:animate-none"
+      className="fixed z-40 grid animate-[markra-history-panel-in_140ms_cubic-bezier(0.2,0,0,1)_both] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) shadow-xl motion-reduce:animate-none"
       ref={panelRef}
       role="region"
       style={{
         maxHeight: `min(420px, calc(100vh - ${panelTopPx + documentHistoryPanelGapPx}px))`,
-        top: panelTopPx
+        maxWidth: "22rem",
+        right: panelRightPx,
+        top: panelTopPx,
+        width: `calc(100vw - ${panelWidthInsetPx}px)`
       }}
     >
       <div className="flex items-center justify-between gap-3 border-b border-(--border-default) px-3 py-2">

@@ -54,7 +54,7 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector("[data-titlebar-action='open']")).not.toBeInTheDocument();
     expect(within(container.querySelector(".document-actions") as HTMLElement).queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
     expect(titlebar).toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
-    expect(titlebar).toHaveClass("h-10", "z-30");
+    expect(titlebar).toHaveClass("h-10", "z-8");
     expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
     expect(container.querySelector(".document-actions")).toHaveClass("h-10");
     expect(container.querySelector(".document-actions")).toHaveClass("opacity-40");
@@ -943,10 +943,15 @@ describe("NativeTitleBar", () => {
     const viewModeButton = screen.getByRole("button", { name: "View mode: Focus" });
 
     expect(viewModeButton).toContainElement(container.querySelector(".lucide-focus"));
+    expect(container.querySelector(".native-titlebar")).toHaveClass("z-8");
 
     fireEvent.click(viewModeButton);
 
-    expect(screen.getByRole("menu", { name: "View mode" })).toBeInTheDocument();
+    const menu = screen.getByRole("menu", { name: "View mode" });
+
+    expect(menu).toBeInTheDocument();
+    expect(menu).toHaveClass("fixed", "z-40");
+    expect(menu.closest(".native-titlebar")).toBeNull();
     expect(screen.getByRole("menuitemradio", { name: "Focus" })).toHaveAttribute("aria-checked", "true");
 
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Immersive" }));
@@ -957,7 +962,7 @@ describe("NativeTitleBar", () => {
 
   it("keeps the Windows workspace view mode menu outside clipped titlebar overflow", () => {
     const selectViewMode = vi.fn();
-    render(
+    const { container } = render(
       <NativeTitleBar
         aiAgentOpen={false}
         dirty={false}
@@ -984,12 +989,15 @@ describe("NativeTitleBar", () => {
       />
     );
 
+    expect(container.querySelector(".native-titlebar")).toHaveClass("z-10");
+
     fireEvent.click(screen.getByRole("button", { name: "View mode: Focus" }));
 
     const menu = screen.getByRole("menu", { name: "View mode" });
 
     expect(menu).toBeInTheDocument();
-    expect(menu.closest(".native-titlebar")).toHaveClass("z-30");
+    expect(menu).toHaveClass("fixed", "z-40");
+    expect(menu.closest(".native-titlebar")).toBeNull();
     expect(menu.closest(".native-titlebar.overflow-hidden")).toBeNull();
   });
 
@@ -1420,7 +1428,7 @@ describe("NativeTitleBar", () => {
     const titlebar = container.querySelector(".native-titlebar");
 
     expect(screen.getAllByLabelText("Window drag region")).toHaveLength(2);
-    expect(titlebar).toHaveClass("fixed", "inset-x-0", "grid");
+    expect(titlebar).toHaveClass("fixed", "inset-x-0", "grid", "z-10");
     expect(titlebar).not.toHaveClass("right-3.5", "w-auto");
     expect(titlebar).not.toHaveClass("grid-cols-[240px_minmax(0,1fr)_240px]");
     expect(container.querySelector(".mac-window-controls")).not.toBeInTheDocument();

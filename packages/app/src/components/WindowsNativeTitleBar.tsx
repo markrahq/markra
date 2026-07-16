@@ -415,7 +415,7 @@ export function WindowsNativeTitleBar({
         {renderWindowsAppChrome()}
         {renderWindowsTitlebarCornerMask()}
         <header
-          className={`native-titlebar group/titlebar fixed inset-x-0 ${windowsTitlebarTopClassName} z-30 grid h-10 select-none items-center ${windowsTitlebarSurfaceClassName} ${windowsTitlebarEdgeClassName} ${windowsTitlebarPositionTransitionClassName} [-webkit-user-select:none]`}
+          className={`native-titlebar group/titlebar fixed inset-x-0 ${windowsTitlebarTopClassName} z-10 grid h-10 select-none items-center ${windowsTitlebarSurfaceClassName} ${windowsTitlebarEdgeClassName} ${windowsTitlebarPositionTransitionClassName} [-webkit-user-select:none]`}
           style={windowsTitlebarStyle}
           aria-label={label("app.windowDragRegion")}
           onMouseDownCapture={handleWindowsTitlebarMouseDownCapture}
@@ -454,7 +454,7 @@ export function WindowsNativeTitleBar({
       {renderWindowsAppChrome()}
       {renderWindowsTitlebarCornerMask()}
       <header
-        className={`native-titlebar group/titlebar fixed inset-x-0 ${windowsTitlebarTopClassName} z-30 grid h-10 select-none items-center ${windowsTitlebarSurfaceClassName} ${windowsTitlebarEdgeClassName} ${windowsTitlebarPositionTransitionClassName} [-webkit-user-select:none]`}
+        className={`native-titlebar group/titlebar fixed inset-x-0 ${windowsTitlebarTopClassName} z-10 grid h-10 select-none items-center ${windowsTitlebarSurfaceClassName} ${windowsTitlebarEdgeClassName} ${windowsTitlebarPositionTransitionClassName} [-webkit-user-select:none]`}
         style={windowsTitlebarStyle}
         aria-label={label("app.windowDragRegion")}
         data-tauri-drag-region={nativeWindowChrome ? true : undefined}

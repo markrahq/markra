@@ -172,6 +172,32 @@ describe("Markra document history restore", () => {
     });
   });
 
+  it("keeps history to the left of the open AI panel", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Current\n\nSynthetic body.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    expect(await screen.findByText("Current")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Markra AI" }));
+    expect(await screen.findByRole("complementary", { name: "Markra AI" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show history" }));
+
+    expect(await screen.findByRole("region", { name: "History versions" })).toHaveStyle({
+      maxWidth: "22rem",
+      right: "396px",
+      width: "calc(100vw - 400px)"
+    });
+  });
+
   it("writes restored history contents into the active visual editor", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockOpenMarkdownFile({

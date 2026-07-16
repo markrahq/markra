@@ -136,6 +136,51 @@ describe("DocumentHistoryDialog", () => {
     });
   });
 
+  it("stays inside the editor area when a right-side panel is open", async () => {
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
+
+    render(
+      <DocumentHistoryDialog
+        documentPath="/mock-files/guide.md"
+        language="en"
+        onClose={() => {}}
+        onRestore={() => {}}
+        rightInsetPx={384}
+      />
+    );
+
+    expect(await screen.findByRole("region", { name: "History versions" })).toHaveStyle({
+      maxWidth: "22rem",
+      right: "396px",
+      width: "calc(100vw - 400px)"
+    });
+  });
+
+  it("stays visible when the window is too narrow to fully avoid the right-side panel", async () => {
+    const originalInnerWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 360 });
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([]);
+
+    try {
+      render(
+        <DocumentHistoryDialog
+          documentPath="/mock-files/guide.md"
+          language="en"
+          onClose={() => {}}
+          onRestore={() => {}}
+          rightInsetPx={320}
+        />
+      );
+
+      expect(await screen.findByRole("region", { name: "History versions" })).toHaveStyle({
+        right: "164px",
+        width: "calc(100vw - 168px)"
+      });
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalInnerWidth });
+    }
+  });
+
   it("restores the selected version after StrictMode remount checks", async () => {
     const onRestore = vi.fn();
     mockedListNativeMarkdownFileHistory.mockResolvedValue([
