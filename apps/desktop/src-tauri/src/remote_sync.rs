@@ -748,6 +748,8 @@ fn webdav_child_url(
         let mut path_segments = url
             .path_segments_mut()
             .map_err(|_| "WebDAV sync URL cannot be used as a base URL".to_string())?;
+        // The sync root ends with `/`; remove its empty segment so appending does not create `//`.
+        path_segments.pop_if_empty();
         for segment in relative_path
             .split('/')
             .filter(|segment| !segment.is_empty())
@@ -1406,6 +1408,25 @@ mod tests {
         assert_eq!(
             url.as_str(),
             "https://dav.example.test/remote.php/dav/files/ada/notes/2026/"
+        );
+    }
+
+    #[test]
+    fn builds_webdav_child_urls_without_duplicate_separators() {
+        let root_url = webdav_sync_root_url("https://dav.example.test/base/", "notes")
+            .expect("sync root URL should be built");
+
+        assert_eq!(
+            webdav_child_url(&root_url, "draft.md", false)
+                .expect("file URL should be built")
+                .as_str(),
+            "https://dav.example.test/base/notes/draft.md"
+        );
+        assert_eq!(
+            webdav_child_url(&root_url, "assets/images", true)
+                .expect("directory URL should be built")
+                .as_str(),
+            "https://dav.example.test/base/notes/assets/images/"
         );
     }
 
