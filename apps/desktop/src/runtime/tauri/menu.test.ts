@@ -417,7 +417,7 @@ describe("native menu", () => {
 
   it("passes customized app shortcuts to the native application menu", async () => {
     await installNativeApplicationMenu({}, "en", {
-      openQuickOpen: "Mod+Alt+P",
+      openQuickOpen: "Mod+Alt+Q",
       toggleAiAgent: "Mod+Shift+Y",
       toggleAiCommand: "Mod+Alt+J",
       toggleAllFolds: "Mod+Shift+Alt+F",
@@ -428,7 +428,7 @@ describe("native menu", () => {
 
     expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
       accelerators: {
-        openQuickOpen: "CmdOrCtrl+Alt+P",
+        openQuickOpen: "CmdOrCtrl+Alt+Q",
         toggleAiAgent: "CmdOrCtrl+Shift+Y",
         toggleAiCommand: "CmdOrCtrl+Alt+J",
         toggleAllFolds: "CmdOrCtrl+Shift+Alt+F",

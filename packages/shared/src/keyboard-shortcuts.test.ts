@@ -43,8 +43,8 @@ describe("keyboard shortcuts", () => {
     expect(keyboardShortcutActions).toContain("openQuickOpen");
     expect(defaultKeyboardShortcuts.openQuickOpen).toBe("Mod+P");
     expect(normalizeKeyboardShortcuts({
-      openQuickOpen: "Mod+Alt+P"
-    }).openQuickOpen).toBe("Mod+Alt+P");
+      openQuickOpen: "Mod+Alt+Q"
+    }).openQuickOpen).toBe("Mod+Alt+Q");
   });
 
   it("includes all folds as a configurable editor shortcut", () => {
@@ -74,6 +74,18 @@ describe("keyboard shortcuts", () => {
     expect(normalizeKeyboardShortcuts({
       toggleDocumentHistory: "Mod+H"
     }).toggleDocumentHistory).toBe(defaultKeyboardShortcuts.toggleDocumentHistory);
+  });
+
+  it.each([
+    "Mod+W",
+    "Mod+F",
+    "Mod+Alt+F",
+    "Mod+Shift+F",
+    "Mod+Alt+P"
+  ])("reserves the fixed application shortcut %s", (shortcut) => {
+    expect(normalizeKeyboardShortcuts({
+      toggleAiAgent: shortcut
+    }).toggleAiAgent).toBe(defaultKeyboardShortcuts.toggleAiAgent);
   });
 
   it("uses physical digit keys for shifted digit shortcuts", () => {

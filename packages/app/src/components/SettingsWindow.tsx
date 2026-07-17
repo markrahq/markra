@@ -373,6 +373,7 @@ export function SettingsWindow() {
           {activeSettingsCategory === "keyboardShortcuts" ? (
             <KeyboardShortcutsSettings
               aiEnabled={appFeatures.ai}
+              newDocumentShortcutAvailable={appFeatures.nativeWindowChrome}
               platform={platform}
               preferences={editorPreferences}
               translate={translate}

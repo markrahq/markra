@@ -1,10 +1,21 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { defaultMarkdownShortcuts } from "@markra/editor";
 import { translate } from "../../test/settings-components";
+import { showAppToast } from "../../lib/app-toast";
 import { defaultEditorPreferences, type EditorPreferences } from "../../lib/settings/app-settings";
 import { KeyboardShortcutsSettings } from "./KeyboardShortcutsSettings";
 
+vi.mock("../../lib/app-toast", () => ({
+  showAppToast: vi.fn()
+}));
+
+const mockedShowAppToast = vi.mocked(showAppToast);
+
 describe("KeyboardShortcutsSettings", () => {
+  beforeEach(() => {
+    mockedShowAppToast.mockReset();
+  });
+
   it("records and resets custom markdown shortcuts", () => {
     const onUpdatePreferences = vi.fn();
     const preferences: EditorPreferences = {
@@ -172,6 +183,37 @@ describe("KeyboardShortcutsSettings", () => {
     });
   });
 
+  it("warns when recording a reserved application shortcut", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <KeyboardShortcutsSettings
+        platform="windows"
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const quickOpenShortcut = screen.getByRole("button", { name: "Quick open shortcut" });
+    fireEvent.click(quickOpenShortcut);
+    fireEvent.keyDown(window, {
+      code: "KeyO",
+      ctrlKey: true,
+      key: "o"
+    });
+
+    expect(mockedShowAppToast).toHaveBeenCalledWith({
+      duration: 4500,
+      id: "keyboard-shortcut-conflict",
+      message: "This shortcut is reserved or already in use.",
+      status: "error"
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(quickOpenShortcut).toHaveTextContent("Ctrl+P");
+    expect(onUpdatePreferences).not.toHaveBeenCalled();
+  });
+
   it("uses Ctrl labels for markdown shortcuts on Windows and Linux", () => {
     render(
       <KeyboardShortcutsSettings
@@ -192,6 +234,58 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.getByRole("button", { name: "Spelling suggestions shortcut" })).toHaveTextContent("Ctrl+.");
     expect(screen.getByRole("button", { name: "Link shortcut" })).toHaveTextContent("Ctrl+K");
     expect(screen.getByRole("button", { name: "Strikethrough shortcut" })).toHaveTextContent("Ctrl+Shift+X");
+  });
+
+  it("lists fixed application shortcuts as read-only keycaps", () => {
+    render(
+      <KeyboardShortcutsSettings
+        platform="windows"
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    const fixedShortcuts = screen.getByRole("heading", { name: "Fixed shortcuts" }).parentElement;
+    expect(fixedShortcuts).not.toBeNull();
+    if (!fixedShortcuts) return;
+
+    expect(within(fixedShortcuts).getByText("New")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+N")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Open...")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+O")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Save")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+S")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Search document")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+F")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Replace in document")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+Alt+F · Ctrl+H")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Search workspace")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+Shift+F")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Settings...")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+,")).toBeInTheDocument();
+    expect(within(fixedShortcuts).queryByRole("button")).not.toBeInTheDocument();
+  });
+
+  it("omits the desktop-only new document shortcut when it is unavailable", () => {
+    render(
+      <KeyboardShortcutsSettings
+        newDocumentShortcutAvailable={false}
+        platform="windows"
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    const fixedShortcuts = screen.getByRole("heading", { name: "Fixed shortcuts" }).parentElement;
+    expect(fixedShortcuts).not.toBeNull();
+    if (!fixedShortcuts) return;
+
+    expect(within(fixedShortcuts).queryByText("New")).not.toBeInTheDocument();
+    expect(within(fixedShortcuts).queryByText("Ctrl+N")).not.toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Open...")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+O")).toBeInTheDocument();
   });
 
   it("records the spelling suggestions shortcut from the keyboard shortcuts tab", () => {

@@ -9,6 +9,7 @@ import {
   type MarkdownShortcutBindings
 } from "@markra/editor";
 import type { I18nKey } from "@markra/shared";
+import { showAppToast } from "../../lib/app-toast";
 import type { EditorPreferences } from "../../lib/settings/app-settings";
 import type { DesktopPlatform } from "../../lib/platform";
 import {
@@ -87,6 +88,32 @@ const keyboardShortcutSections: Array<{
   }
 ];
 
+// This inventory mirrors the non-configurable handlers in useNativeBindings and Tauri's native
+// menu accelerators; keep them aligned so settings never advertise stale shortcuts.
+const fixedKeyboardShortcuts: Array<{
+  desktopOnly?: boolean;
+  labelKey: I18nKey;
+  nonMacAlternateShortcut?: string;
+  shortcut: string;
+}> = [
+  { desktopOnly: true, labelKey: "menu.newDocument", shortcut: "Mod+N" },
+  { labelKey: "menu.openDocument", shortcut: "Mod+O" },
+  { labelKey: "app.openFolderDialog", shortcut: "Mod+Shift+O" },
+  { labelKey: "settings.editor.shortcutCloseDocument", shortcut: "Mod+W" },
+  { labelKey: "menu.saveDocument", shortcut: "Mod+S" },
+  { labelKey: "menu.saveDocumentAs", shortcut: "Mod+Shift+S" },
+  { labelKey: "settings.editor.shortcutDocumentSearch", shortcut: "Mod+F" },
+  {
+    labelKey: "settings.editor.shortcutDocumentReplace",
+    nonMacAlternateShortcut: "Mod+H",
+    shortcut: "Mod+Alt+F"
+  },
+  { labelKey: "app.workspaceSearch.searchWorkspace", shortcut: "Mod+Shift+F" },
+  { labelKey: "menu.exportPdf", shortcut: "Mod+Alt+P" },
+  { labelKey: "menu.exportHtml", shortcut: "Mod+Shift+E" },
+  { labelKey: "menu.settings", shortcut: "Mod+," }
+];
+
 function keyboardShortcutActionAvailable(action: MarkdownShortcutAction, aiEnabled: boolean) {
   return aiEnabled || (action !== "toggleAiAgent" && action !== "toggleAiCommand");
 }
@@ -133,6 +160,18 @@ function formatShortcutForPlatform(shortcut: string, platform: DesktopPlatform) 
   ].filter((part): part is string => Boolean(part)).join("+");
 }
 
+function formatFixedShortcutForPlatform(
+  shortcut: typeof fixedKeyboardShortcuts[number],
+  platform: DesktopPlatform
+) {
+  return [
+    formatShortcutForPlatform(shortcut.shortcut, platform),
+    platform !== "macos" && shortcut.nonMacAlternateShortcut
+      ? formatShortcutForPlatform(shortcut.nonMacAlternateShortcut, platform)
+      : null
+  ].filter((value): value is string => Boolean(value)).join(" · ");
+}
+
 function ShortcutCaptureButton({
   active,
   actionLabel,
@@ -167,12 +206,14 @@ function ShortcutCaptureButton({
 
 export function KeyboardShortcutsSettings({
   aiEnabled = true,
+  newDocumentShortcutAvailable = true,
   onUpdatePreferences,
   platform = "macos",
   preferences,
   translate
 }: {
   aiEnabled?: boolean;
+  newDocumentShortcutAvailable?: boolean;
   onUpdatePreferences: (preferences: EditorPreferences) => unknown;
   platform?: DesktopPlatform;
   preferences: EditorPreferences;
@@ -191,6 +232,9 @@ export function KeyboardShortcutsSettings({
       }))
       .filter((section) => section.actions.length > 0),
     [aiEnabled]
+  );
+  const availableFixedKeyboardShortcuts = fixedKeyboardShortcuts.filter(
+    (shortcut) => newDocumentShortcutAvailable || !shortcut.desktopOnly
   );
 
   useEffect(() => {
@@ -213,9 +257,24 @@ export function KeyboardShortcutsSettings({
 
       event.preventDefault();
       event.stopPropagation();
+      const nextShortcuts = assignKeyboardShortcut(shortcuts, activeAction, nextShortcut);
+
+      // Normalization restores reserved chords to the action default. Compare before saving so a
+      // rejected capture is visible to the user instead of looking like a successful no-op.
+      if (nextShortcuts[activeAction] !== nextShortcut) {
+        showAppToast({
+          duration: 4500,
+          id: "keyboard-shortcut-conflict",
+          message: translate("settings.editor.shortcutConflict"),
+          status: "error"
+        });
+        setActiveAction(null);
+        return;
+      }
+
       onUpdatePreferences({
         ...preferences,
-        markdownShortcuts: assignKeyboardShortcut(shortcuts, activeAction, nextShortcut)
+        markdownShortcuts: nextShortcuts
       });
       setActiveAction(null);
     };
@@ -225,7 +284,7 @@ export function KeyboardShortcutsSettings({
     return () => {
       window.removeEventListener("keydown", handleShortcutCapture, true);
     };
-  }, [activeAction, onUpdatePreferences, preferences, shortcuts]);
+  }, [activeAction, onUpdatePreferences, preferences, shortcuts, translate]);
 
   return (
     <SettingsSection label={translate("settings.sections.keyboardShortcuts")}>
@@ -280,6 +339,26 @@ export function KeyboardShortcutsSettings({
             </div>
           </div>
         ))}
+        <div className="py-4 first:pt-3 last:pb-4">
+          <h4 className="m-0 mb-3 text-[12px] leading-5 font-bold tracking-normal text-(--text-secondary)">
+            {translate("settings.editor.shortcutsGroupFixed")}
+          </h4>
+          <div className="grid grid-cols-2 gap-x-5 gap-y-2 max-[760px]:grid-cols-1">
+            {availableFixedKeyboardShortcuts.map((shortcut) => (
+              <div
+                key={shortcut.labelKey}
+                className="grid min-h-9 grid-cols-[minmax(0,1fr)_auto] items-center gap-3"
+              >
+                <span className="min-w-0 truncate text-[12px] leading-5 font-[560] text-(--text-heading)">
+                  {translate(shortcut.labelKey)}
+                </span>
+                <kbd className="inline-flex h-8 min-w-28 items-center justify-center whitespace-nowrap rounded-md border border-(--border-default) bg-(--bg-secondary) px-3 font-mono text-[12px] leading-5 font-[650] text-(--text-heading)">
+                  {formatFixedShortcutForPlatform(shortcut, platform)}
+                </kbd>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </SettingsSection>
   );
