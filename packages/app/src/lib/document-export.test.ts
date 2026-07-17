@@ -63,6 +63,19 @@ describe("document export helpers", () => {
     expect(exportRule).toContain("font-variant-numeric: lining-nums;");
   });
 
+  it("uses a unified CJK serif stack for Simplified Chinese exports", () => {
+    const html = buildMarkdownHtmlDocument({
+      bodyHtml: "<p>示例12345</p>",
+      language: "zh-CN",
+      title: "Mock CJK export"
+    });
+    const simplifiedChineseRule = html.match(/:root:lang\(zh-CN\),[\s\S]*?\{([^}]*)\}/u)?.[1] ?? "";
+
+    expect(simplifiedChineseRule).toMatch(
+      /font-family: "Noto Serif CJK SC",[\s\S]*"Songti SC",[\s\S]*ui-serif/u
+    );
+  });
+
   it("removes rendered pure LaTeX macro definition blocks from standalone documents", () => {
     const html = buildMarkdownHtmlDocument({
       bodyHtml: [

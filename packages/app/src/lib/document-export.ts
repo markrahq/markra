@@ -62,6 +62,13 @@ ${katexStyles}
   font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
+/* Keep Han text and Latin numerals on one CJK-capable family when possible. */
+:root:lang(zh-CN),
+:root:lang(zh-SG),
+:root:lang(zh-Hans) {
+  font-family: "Noto Serif CJK SC", "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", STSong, SimSun, ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
 body {
   margin: 0;
   background: #fff;
