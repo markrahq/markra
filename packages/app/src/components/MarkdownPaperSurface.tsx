@@ -76,6 +76,7 @@ import {
   markraCommonmark,
   markraExternalLinkClickPlugin,
   markraGfm,
+  readInlineHtmlMarkdownText,
   markraTextSelectionObserverPlugin,
   serializeMarkdownClipboardText
 } from "./markdown-paper-plugins";
@@ -443,10 +444,25 @@ function MilkdownEditorSurface({
         .config((ctx) => {
           ctx.set(rootCtx, root);
           ctx.set(defaultValueCtx, initialContentRef.current);
-          ctx.update(remarkStringifyOptionsCtx, (options) => ({
-            ...options,
-            bullet: "-" as const
-          }));
+          ctx.update(remarkStringifyOptionsCtx, (options) => {
+            const textHandler = options.handlers?.text;
+            if (!textHandler) {
+              return {
+                ...options,
+                bullet: "-" as const
+              };
+            }
+
+            return {
+              ...options,
+              bullet: "-" as const,
+              handlers: {
+                ...options.handlers,
+                text: (node, parent, state, info) =>
+                  readInlineHtmlMarkdownText(node) ?? textHandler(node, parent, state, info)
+              }
+            };
+          });
           ctx.update(editorViewOptionsCtx, (options) => ({
             ...options,
             attributes: {

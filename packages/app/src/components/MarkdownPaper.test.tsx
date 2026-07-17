@@ -10189,6 +10189,25 @@ describe("MarkdownPaper editing", () => {
     expect(reloadedHtmlValues).toEqual(["<sup>", "</sup>"]);
   });
 
+  it("preserves soft line breaks before paired inline HTML", async () => {
+    const source = [
+      "Mock<sub>2</sub> line",
+      "<sup>**2**</sup>",
+      "<mark>Highlighted</mark>",
+      "<kbd>Ctrl</kbd>"
+    ].join("\n");
+    const onMarkdownChange = vi.fn();
+    const { editor, view } = await renderEditor(source, { onMarkdownChange });
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(serializeMarkdown(view.state.doc)).toBe(`${source}\n`);
+
+    view.dispatch(view.state.tr.setSelection(TextSelection.atEnd(view.state.doc)));
+    typeText(view, "!");
+
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenLastCalledWith(`${source}!\n`));
+  });
+
   it("sanitizes attributes on paired inline HTML without changing its source", async () => {
     const source = '<a href="javascript:alert(1)" onclick="alert(2)" data-example="safe">Synthetic link</a>';
     const { container, editor, view } = await renderEditor(source);

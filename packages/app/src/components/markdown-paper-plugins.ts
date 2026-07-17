@@ -3,6 +3,7 @@ import {
   emphasisSchema,
   hardbreakAttr,
   hardbreakSchema,
+  htmlSchema,
   hrSchema,
   imageSchema,
   inlineNodesCursorPlugin,
@@ -156,6 +157,45 @@ const markraHardbreakSchema = hardbreakSchema.extendSchema((previous) => (ctx) =
     }
   };
 });
+
+const inlineHtmlTextDataKey = "markraInlineHtml";
+
+function isInlineHtmlSource(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0 && !/[\r\n]/u.test(value);
+}
+
+const markraHtmlSchema = htmlSchema.extendSchema((previous) => (ctx) => {
+  const baseSchema = previous(ctx);
+
+  return {
+    ...baseSchema,
+    toMarkdown: {
+      ...baseSchema.toMarkdown,
+      runner: (state, node) => {
+        const source = node.attrs.value;
+        if (!isInlineHtmlSource(source)) {
+          baseSchema.toMarkdown.runner(state, node);
+          return;
+        }
+
+        // mdast-util-to-markdown replaces a soft break before an `html` node with a space.
+        // A marked text node keeps the source token raw without triggering that normalization.
+        state.addNode("text", undefined, source, {
+          data: {
+            [inlineHtmlTextDataKey]: true
+          }
+        });
+      }
+    }
+  };
+});
+
+export function readInlineHtmlMarkdownText(node: { data?: unknown; value?: unknown }) {
+  const data = node.data;
+  if (!data || typeof data !== "object" || !(inlineHtmlTextDataKey in data)) return null;
+
+  return typeof node.value === "string" ? node.value : null;
+}
 
 function lineNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -387,6 +427,7 @@ export const markraCommonmark = [
   markraStrongSchema,
   markraBlockImageSchema,
   markraHardbreakSchema,
+  markraHtmlSchema,
   markraCommonmarkInputRules,
   commonmarkCommands,
   commonmarkKeymap,
