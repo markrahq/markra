@@ -53,6 +53,16 @@ describe("document export helpers", () => {
     expect(html).toContain(".markdown-export pre,\n  .markdown-export pre code {\n    white-space: pre-wrap;\n    overflow-wrap: anywhere;\n  }");
   });
 
+  it("uses lining figures so exported digits have a consistent height", () => {
+    const html = buildMarkdownHtmlDocument({
+      bodyHtml: "<p>Mock IDs A64, A064, A55, A054, A39, and A039.</p>",
+      title: "Mock numeric export"
+    });
+    const exportRule = html.match(/\.markdown-export \{([^}]*)\}/u)?.[1];
+
+    expect(exportRule).toContain("font-variant-numeric: lining-nums;");
+  });
+
   it("removes rendered pure LaTeX macro definition blocks from standalone documents", () => {
     const html = buildMarkdownHtmlDocument({
       bodyHtml: [

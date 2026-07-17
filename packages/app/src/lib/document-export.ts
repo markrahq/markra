@@ -76,6 +76,8 @@ body {
   padding: 48px 56px;
   font-size: 16px;
   line-height: 1.65;
+  /* Serif export fonts may default to old-style figures with uneven heights. */
+  font-variant-numeric: lining-nums;
 }
 
 .markdown-export h1,
