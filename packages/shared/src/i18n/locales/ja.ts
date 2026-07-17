@@ -701,6 +701,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "現在のドキュメントのバックリンクと未リンクの言及をサイドバーに表示します。",
   "settings.editor.showWordCount": "単語数を表示",
   "settings.editor.showWordCountDescription": "エディターのステータス行にドキュメントの単語数を表示します。",
+  "settings.editor.showLineNumbers": "ソースの行番号を表示",
+  "settings.editor.showLineNumbersDescription": "ソースモードで Markdown ファイルの実際の行番号を表示します。",
   "settings.editor.wrapCodeBlocks": "コードブロックの行を折り返す",
   "settings.editor.wrapCodeBlocksDescription": "横スクロールではなく、コードブロック内の長い行を折り返します。",
   "settings.editor.spellcheck": "スペルチェック",

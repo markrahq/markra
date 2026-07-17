@@ -701,6 +701,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "Показывает обратные ссылки и несвязанные упоминания текущего документа на боковой панели.",
   "settings.editor.showWordCount": "Показывать число слов",
   "settings.editor.showWordCountDescription": "Показывает число слов документа в строке состояния редактора.",
+  "settings.editor.showLineNumbers": "Показывать номера строк исходного текста",
+  "settings.editor.showLineNumbersDescription": "Показывает фактические номера строк Markdown в режиме исходного текста.",
   "settings.editor.wrapCodeBlocks": "Переносить строки в блоках кода",
   "settings.editor.wrapCodeBlocksDescription": "Переносит длинные строки в блоках кода вместо горизонтальной прокрутки.",
   "settings.editor.spellcheck": "Проверять орфографию",

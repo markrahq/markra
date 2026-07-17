@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, type CSSProperties, type Ref, type UIEvent } from "react";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { Annotation, Compartment, EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
-import { Decoration, EditorView, keymap } from "@codemirror/view";
+import { Decoration, EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { t, type AppLanguage, type SearchRange } from "@markra/shared";
 import {
@@ -41,6 +41,7 @@ export type MarkdownSourceEditorProps = {
   readOnly?: boolean;
   searchActiveIndex?: number;
   searchMatches?: SearchRange[];
+  showLineNumbers?: boolean;
   scrollRef?: Ref<HTMLElement>;
   topInset?: "none" | "tabs" | "titlebar";
 };
@@ -158,6 +159,15 @@ function markdownSourceTheme(): Extension {
     ".cm-line": {
       padding: "0"
     },
+    ".cm-gutters": {
+      backgroundColor: "transparent",
+      border: "none",
+      color: "var(--text-secondary)"
+    },
+    ".cm-lineNumbers .cm-gutterElement": {
+      minWidth: "2.5rem",
+      padding: "0 0.75rem 0 0"
+    },
     ".cm-scroller": {
       cursor: "text",
       fontFamily:
@@ -194,6 +204,7 @@ export function MarkdownSourceEditor({
   readOnly = false,
   searchActiveIndex = -1,
   searchMatches = [],
+  showLineNumbers = false,
   scrollRef,
   topInset = "titlebar"
 }: MarkdownSourceEditorProps) {
@@ -206,6 +217,7 @@ export function MarkdownSourceEditor({
   const viewRef = useRef<EditorView | null>(null);
   const contentAttributesCompartmentRef = useRef(new Compartment());
   const editableCompartmentRef = useRef(new Compartment());
+  const lineNumbersCompartmentRef = useRef(new Compartment());
   const searchCompartmentRef = useRef(new Compartment());
   const externalContentScrollSuppressedRef = useRef(false);
   const externalContentScrollRestoreFrameRef = useRef<number | null>(null);
@@ -268,6 +280,7 @@ export function MarkdownSourceEditor({
       EditorView.lineWrapping,
       contentAttributesCompartmentRef.current.of(markdownSourceContentAttributes(sourceLabel, readOnly)),
       editableCompartmentRef.current.of(EditorView.editable.of(!readOnly)),
+      lineNumbersCompartmentRef.current.of(showLineNumbers ? lineNumbers() : []),
       searchCompartmentRef.current.of(markdownSourceSearchExtension(searchMatches, searchActiveIndex)),
       EditorView.updateListener.of((update) => {
         if (update.selectionSet || update.docChanged) {
@@ -324,6 +337,15 @@ export function MarkdownSourceEditor({
       ]
     });
   }, [readOnly, sourceLabel]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    view.dispatch({
+      effects: lineNumbersCompartmentRef.current.reconfigure(showLineNumbers ? lineNumbers() : [])
+    });
+  }, [showLineNumbers]);
 
   useEffect(() => {
     const view = viewRef.current;

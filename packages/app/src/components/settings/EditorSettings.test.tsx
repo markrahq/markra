@@ -174,6 +174,32 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("toggles source line numbers from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          showLineNumbers: false
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const lineNumbersSwitch = screen.getByRole("switch", { name: "Show source line numbers" });
+
+    expect(lineNumbersSwitch).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(lineNumbersSwitch);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      showLineNumbers: true
+    });
+  });
+
   it("updates the default table column width mode from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

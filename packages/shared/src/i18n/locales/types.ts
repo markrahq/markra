@@ -333,6 +333,8 @@ export type I18nKey =
   | "settings.editor.documentLinksDescription"
   | "settings.editor.showWordCount"
   | "settings.editor.showWordCountDescription"
+  | "settings.editor.showLineNumbers"
+  | "settings.editor.showLineNumbersDescription"
   | "settings.editor.wrapCodeBlocks"
   | "settings.editor.wrapCodeBlocksDescription"
   | "settings.editor.spellcheck"

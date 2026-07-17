@@ -399,6 +399,7 @@ function createStoredEditorPreferences(
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ],
+    showLineNumbers: overrides.showLineNumbers ?? false,
     showWordCount: true,
     ...overrides,
     aiWorkspaceAnimationEnabled: overrides.aiWorkspaceAnimationEnabled ?? false,
@@ -1373,6 +1374,7 @@ describe("Markra workspace", () => {
           viewModeToggle: "visible",
           wordCount: "visible"
         },
+        showLineNumbers: false,
         showWordCount: true,
         wrapCodeBlocks: true
       })
@@ -1439,6 +1441,7 @@ describe("Markra workspace", () => {
           viewModeToggle: "visible",
           wordCount: "visible"
         },
+        showLineNumbers: false,
         showWordCount: true,
         wrapCodeBlocks: true
       })
@@ -2642,6 +2645,7 @@ describe("Markra workspace", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showLineNumbers: false,
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -5679,6 +5683,7 @@ describe("Markra workspace", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showLineNumbers: false,
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -5844,6 +5849,7 @@ describe("Markra workspace", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showLineNumbers: false,
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -6558,6 +6564,23 @@ describe("Markra workspace", () => {
     expect(await screen.findByRole("heading", { name: "Source edit" })).toBeInTheDocument();
     expect(screen.getByText("Updated from source mode.")).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "milkdown");
+  });
+
+  it("shows optional line numbers in source and split source modes", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      showLineNumbers: true
+    }));
+    const { container } = renderApp();
+
+    expect(await screen.findByText("Welcome to Markra")).toBeInTheDocument();
+    expect(container.querySelector(".cm-lineNumbers")).not.toBeInTheDocument();
+
+    await selectEditorViewMode("Source code");
+    await waitFor(() => expect(container.querySelectorAll(".cm-lineNumbers")).toHaveLength(1));
+
+    await selectEditorViewMode("Preview + Source");
+    expect(container.querySelectorAll(".cm-lineNumbers")).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Welcome to Markra" })).toBeInTheDocument();
   });
 
   it("keeps raw source punctuation unchanged while editing in source mode", async () => {

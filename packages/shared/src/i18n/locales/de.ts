@@ -701,6 +701,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "Zeigt Rückverweise und nicht verlinkte Erwähnungen des aktuellen Dokuments in der Seitenleiste.",
   "settings.editor.showWordCount": "Wortzahl anzeigen",
   "settings.editor.showWordCountDescription": "Zeigt die Wortzahl des Dokuments in der Statuszeile des Editors.",
+  "settings.editor.showLineNumbers": "Quellcode-Zeilennummern anzeigen",
+  "settings.editor.showLineNumbersDescription": "Zeigt die tatsächlichen Markdown-Zeilennummern im Quelltextmodus an.",
   "settings.editor.wrapCodeBlocks": "Codeblock-Zeilen umbrechen",
   "settings.editor.wrapCodeBlocksDescription": "Bricht lange Zeilen in Codeblöcken um, statt horizontales Scrollen zu erzwingen.",
   "settings.editor.spellcheck": "Rechtschreibung prüfen",

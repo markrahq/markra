@@ -314,6 +314,12 @@ describe("app settings", () => {
     expect(normalizeEditorPreferences({ documentLinksOpen: "no" }).documentLinksOpen).toBe(true);
   });
 
+  it("normalizes the source line number preference", () => {
+    expect(defaultEditorPreferences.showLineNumbers).toBe(false);
+    expect(normalizeEditorPreferences({ showLineNumbers: true }).showLineNumbers).toBe(true);
+    expect(normalizeEditorPreferences({ showLineNumbers: "yes" }).showLineNumbers).toBe(false);
+  });
+
   it("resets the welcome document state for the next launch", async () => {
     await resetWelcomeDocumentState();
 

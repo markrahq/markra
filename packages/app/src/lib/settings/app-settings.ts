@@ -403,6 +403,7 @@ export type EditorPreferences = {
   titlebarActions: TitlebarActionPreference[];
   viewMode: ViewMode;
   viewModeCustomizations: ViewModeCustomizations;
+  showLineNumbers: boolean;
   showWordCount: boolean;
   wrapCodeBlocks: boolean;
 };
@@ -530,6 +531,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   titlebarActions: [...defaultTitlebarActions],
   viewMode: "daily",
   viewModeCustomizations: { ...defaultViewModeCustomizations },
+  showLineNumbers: false,
   showWordCount: true,
   wrapCodeBlocks: true
 };
@@ -1685,6 +1687,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     titlebarActions: normalizeTitlebarActions(preferences.titlebarActions),
     viewMode: isViewMode(preferences.viewMode) ? preferences.viewMode : defaultEditorPreferences.viewMode,
     viewModeCustomizations: normalizeViewModeCustomizations(preferences.viewModeCustomizations),
+    showLineNumbers:
+      typeof preferences.showLineNumbers === "boolean"
+        ? preferences.showLineNumbers
+        : defaultEditorPreferences.showLineNumbers,
     showWordCount:
       typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount,
     wrapCodeBlocks:

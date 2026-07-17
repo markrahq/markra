@@ -109,6 +109,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showLineNumbers: false,
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -260,6 +261,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showLineNumbers: false,
       showWordCount: false,
       wrapCodeBlocks: true
     });
@@ -778,6 +780,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showLineNumbers: false,
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -879,6 +882,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showLineNumbers: false,
       showWordCount: false,
       wrapCodeBlocks: false
     });
@@ -978,6 +982,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showLineNumbers: false,
       showWordCount: false,
       wrapCodeBlocks: false
     });

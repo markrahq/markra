@@ -77,6 +77,45 @@ describe("MarkdownSourceEditor", () => {
     );
   });
 
+  it("shows document line numbers when enabled and updates them without recreating the editor", async () => {
+    const { container, rerender } = render(
+      <MarkdownSourceEditor
+        content={["first", "second", "third"].join("\n")}
+        onChange={() => {}}
+        showLineNumbers
+      />
+    );
+    const view = getMarkdownSourceView(container);
+    const visibleLineNumbers = () => Array.from(
+      container.querySelectorAll<HTMLElement>(".cm-lineNumbers .cm-gutterElement")
+    )
+      .filter((element) => element.style.visibility !== "hidden")
+      .map((element) => element.textContent);
+
+    await waitFor(() => {
+      expect(visibleLineNumbers()).toEqual(["1", "2", "3"]);
+    });
+
+    replaceCodeMirrorDoc(view, ["first", "second", "third", "fourth"].join("\n"));
+
+    await waitFor(() => {
+      expect(visibleLineNumbers()).toEqual(["1", "2", "3", "4"]);
+    });
+
+    rerender(
+      <MarkdownSourceEditor
+        content={["first", "second", "third", "fourth"].join("\n")}
+        onChange={() => {}}
+        showLineNumbers={false}
+      />
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector(".cm-lineNumbers")).not.toBeInTheDocument();
+    });
+    expect(getMarkdownSourceView(container)).toBe(view);
+  });
+
   it("lets an explicit editor font override the default source font", () => {
     const { container } = render(
       <MarkdownSourceEditor

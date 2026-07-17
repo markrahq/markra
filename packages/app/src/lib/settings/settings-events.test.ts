@@ -248,6 +248,7 @@ describe("settings events", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showLineNumbers: false,
       showWordCount: false,
       wrapCodeBlocks: false
     };

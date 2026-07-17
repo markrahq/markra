@@ -701,6 +701,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "Mostra backlinks e menções sem link do documento atual na barra lateral.",
   "settings.editor.showWordCount": "Mostrar contagem de palavras",
   "settings.editor.showWordCountDescription": "Mostra a contagem de palavras na linha de status do editor.",
+  "settings.editor.showLineNumbers": "Mostrar números de linha do código-fonte",
+  "settings.editor.showLineNumbersDescription": "Mostra os números de linha reais do Markdown no modo de código-fonte.",
   "settings.editor.wrapCodeBlocks": "Quebrar linhas em blocos de código",
   "settings.editor.wrapCodeBlocksDescription": "Quebra linhas longas dentro de blocos de código em vez de exigir rolagem horizontal.",
   "settings.editor.spellcheck": "Verificar ortografia",

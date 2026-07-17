@@ -865,6 +865,22 @@ export function EditorSettings({
           }
         />
         <SettingsRow
+          title={translate("settings.editor.showLineNumbers")}
+          description={translate("settings.editor.showLineNumbersDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.showLineNumbers}
+              label={translate("settings.editor.showLineNumbers")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  showLineNumbers: !preferences.showLineNumbers
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.editor.showWordCount")}
           description={translate("settings.editor.showWordCountDescription")}
           action={

@@ -109,6 +109,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     spellcheckEnabled: false,
     spellcheckIgnoredWords: [],
     spellcheckLanguage: "en",
+    showLineNumbers: false,
     showWordCount: true,
     tableColumnWidthMode: "auto",
     viewMode: "daily",
@@ -230,6 +231,7 @@ describe("useEditorPreferences", () => {
       ],
       viewMode: "daily",
       viewModeCustomizations: defaultViewModeCustomizations,
+      showLineNumbers: false,
       showWordCount: true,
       wrapCodeBlocks: true
     });
@@ -341,6 +343,7 @@ describe("useEditorPreferences", () => {
         ],
         viewMode: "daily",
         viewModeCustomizations: defaultViewModeCustomizations,
+        showLineNumbers: false,
         showWordCount: false,
         wrapCodeBlocks: false
       });

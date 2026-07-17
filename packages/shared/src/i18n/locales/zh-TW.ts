@@ -701,6 +701,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "在側欄顯示目前文件的反向連結與未連結提及。",
   "settings.editor.showWordCount": "顯示字數統計",
   "settings.editor.showWordCountDescription": "在編輯器狀態列顯示目前文件字數。",
+  "settings.editor.showLineNumbers": "顯示原始碼行號",
+  "settings.editor.showLineNumbersDescription": "在原始碼模式中顯示 Markdown 檔案的實際行號。",
   "settings.editor.wrapCodeBlocks": "程式碼區塊自動換行",
   "settings.editor.wrapCodeBlocksDescription": "在程式碼區塊中折行顯示長行，而不是依賴水平捲動。",
   "settings.editor.spellcheck": "檢查拼字",

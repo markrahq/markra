@@ -32,6 +32,7 @@ type SideDocumentPaneProps = {
   resolveImageSrc?: (src: string) => string;
   revision: number;
   sizeBytes?: number;
+  showLineNumbers?: boolean;
   spellcheckEnabled?: boolean;
   spellcheckIgnoredWords?: readonly string[];
   spellchecker?: Spellchecker;
@@ -73,6 +74,7 @@ export function SideDocumentPane({
   resolveImageSrc,
   revision,
   sizeBytes,
+  showLineNumbers = false,
   spellcheckEnabled = false,
   spellcheckIgnoredWords,
   spellchecker,
@@ -111,6 +113,7 @@ export function SideDocumentPane({
           onContentWidthChange={onContentWidthChange}
           onContentWidthResizeEnd={onContentWidthResizeEnd}
           readOnly={readOnly}
+          showLineNumbers={showLineNumbers}
           topInset="titlebar"
         />
       ) : visualBlocked ? (

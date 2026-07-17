@@ -701,6 +701,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "Affiche les liens entrants et les mentions non liées du document actuel dans la barre latérale.",
   "settings.editor.showWordCount": "Afficher le nombre de mots",
   "settings.editor.showWordCountDescription": "Affiche le nombre de mots dans la ligne d’état de l’éditeur.",
+  "settings.editor.showLineNumbers": "Afficher les numéros de ligne source",
+  "settings.editor.showLineNumbersDescription": "Affiche les numéros de ligne Markdown réels en mode source.",
   "settings.editor.wrapCodeBlocks": "Renvoyer les lignes des blocs de code",
   "settings.editor.wrapCodeBlocksDescription": "Renvoie les longues lignes dans les blocs de code au lieu d’imposer un défilement horizontal.",
   "settings.editor.spellcheck": "Vérifier l’orthographe",

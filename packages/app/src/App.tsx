@@ -4499,6 +4499,7 @@ function WorkspaceApp() {
                           readOnly={readOnlyMode}
                           searchActiveIndex={normalizedDocumentSearchActiveIndex}
                           searchMatches={visibleSourceDocumentSearchMatches}
+                          showLineNumbers={editorPreferences.preferences.showLineNumbers}
                           scrollRef={sourceScrollRef}
                           topInset="titlebar"
                         />
@@ -4529,6 +4530,7 @@ function WorkspaceApp() {
                           readOnly={readOnlyMode}
                           searchActiveIndex={normalizedDocumentSearchActiveIndex}
                           searchMatches={visibleSourceDocumentSearchMatches}
+                          showLineNumbers={editorPreferences.preferences.showLineNumbers}
                           scrollRef={sourceScrollRef}
                           topInset="titlebar"
                         />
@@ -4587,6 +4589,7 @@ function WorkspaceApp() {
                         resolveImageSrc={resolveSideDocumentImageSrc}
                         revision={sideDocumentTab.revision}
                         sizeBytes={sideDocumentTab.sizeBytes}
+                        showLineNumbers={editorPreferences.preferences.showLineNumbers}
                         spellcheckEnabled={spellcheckFeatureEnabled && editorPreferences.preferences.spellcheckEnabled}
                         spellcheckIgnoredWords={editorPreferences.preferences.spellcheckIgnoredWords}
                         spellchecker={appSpellchecker}
