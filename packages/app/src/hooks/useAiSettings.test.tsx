@@ -201,6 +201,58 @@ describe("useAiSettings", () => {
     );
   });
 
+  it("lets inline AI select the model already selected by the agent panel", async () => {
+    mockedGetStoredAiSettings.mockResolvedValue({
+      agentDefaultModelId: "model-b",
+      agentDefaultProviderId: "provider-b",
+      defaultModelId: "model-a",
+      defaultProviderId: "provider-a",
+      inlineDefaultModelId: "model-a",
+      inlineDefaultProviderId: "provider-a",
+      providers: [
+        {
+          apiKey: "provider-a-key",
+          baseUrl: "https://provider-a.example.test/v1",
+          defaultModelId: "model-a",
+          enabled: true,
+          id: "provider-a",
+          models: [{ capabilities: ["text"], enabled: true, id: "model-a", name: "Model A" }],
+          name: "Provider A",
+          type: "openai-compatible"
+        },
+        {
+          apiKey: "provider-b-key",
+          baseUrl: "https://provider-b.example.test/v1",
+          defaultModelId: "model-b",
+          enabled: true,
+          id: "provider-b",
+          models: [{ capabilities: ["text"], enabled: true, id: "model-b", name: "Model B" }],
+          name: "Provider B",
+          type: "openai-compatible"
+        }
+      ]
+    });
+
+    const { result } = renderHook(() => useAiSettings());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.selectInlineModel("provider-b", "model-b");
+    });
+
+    expect(result.current.inlineProviderId).toBe("provider-b");
+    expect(result.current.inlineModelId).toBe("model-b");
+    expect(mockedSaveStoredAiSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        agentDefaultModelId: "model-b",
+        agentDefaultProviderId: "provider-b",
+        inlineDefaultModelId: "model-b",
+        inlineDefaultProviderId: "provider-b"
+      })
+    );
+  });
+
   it("reacts to AI settings updates from another window", async () => {
     let handleAiSettingsChanged: ((settings: Parameters<typeof mockedNotifyAppAiSettingsChanged>[0]) => unknown) | null = null;
 

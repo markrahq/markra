@@ -68,7 +68,8 @@ export function useAiSettings() {
       const selectedModel = selectedProvider?.models.find((model) => isEnabledTextModel(model) && model.id === modelId);
 
       if (!selectedProvider || !selectedModel) return;
-      if (settings.agentDefaultProviderId === providerId && settings.agentDefaultModelId === modelId) return;
+      // Inline and agent selections are independent, even when both choose the same model.
+      if (settings.inlineDefaultProviderId === providerId && settings.inlineDefaultModelId === modelId) return;
 
       const nextSettings: AiProviderSettings = {
         ...settings,
