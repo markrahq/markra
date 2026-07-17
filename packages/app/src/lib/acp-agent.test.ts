@@ -1,5 +1,6 @@
 import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests, type AppAcpAgentMessageEvent } from "../runtime";
 import { parseAcpAgentArgs, resolveAcpAgentCwd, runAcpDocumentAgent, runAcpInlineAiAgent } from "./acp-agent";
+import { appVersion } from "./app-version";
 
 describe("ACP agent helpers", () => {
   afterEach(() => {
@@ -40,6 +41,78 @@ describe("ACP agent helpers", () => {
       "/mock-workspace/notes/current.md",
       "/mock-workspace/notes/current.md"
     )).toBe("/mock-workspace/notes");
+  });
+
+  it("identifies the Markra version when initializing an ACP agent", async () => {
+    let handleAgentMessage: ((event: AppAcpAgentMessageEvent) => unknown) | null = null;
+    let initializeParams: unknown;
+    const runtime = createDefaultAppRuntime();
+
+    configureAppRuntime({
+      ...runtime,
+      acp: {
+        listenAgentMessages: vi.fn(async (handler) => {
+          handleAgentMessage = handler;
+
+          return () => {
+            handleAgentMessage = null;
+          };
+        }),
+        startAgent: vi.fn(async () => ({ connectionId: "acp-1" })),
+        stopAgent: vi.fn(async () => undefined),
+        writeAgentMessage: vi.fn(async (_connectionId, message) => {
+          if (!(message && typeof message === "object" && "method" in message && "id" in message)) return;
+
+          if (message.method === "initialize") {
+            initializeParams = "params" in message ? message.params : undefined;
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: {} }),
+              type: "message"
+            });
+            return;
+          }
+          if (message.method === "session/new") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { sessionId: "session-1" } }),
+              type: "message"
+            });
+            return;
+          }
+          if (message.method === "session/prompt") {
+            handleAgentMessage?.({
+              connectionId: "acp-1",
+              message: JSON.stringify({ id: message.id, jsonrpc: "2.0", result: { stopReason: "end_turn" } }),
+              type: "message"
+            });
+          }
+        })
+      }
+    });
+
+    await runAcpDocumentAgent({
+      documentContent: "# Synthetic note",
+      documentPath: "/mock-workspace/current.md",
+      history: [],
+      onTextDelta: vi.fn(),
+      prompt: "Hello",
+      settings: {
+        args: "",
+        command: "synthetic-acp-agent",
+        cwd: "",
+        enabled: true
+      },
+      workspaceKey: "/mock-workspace"
+    });
+
+    expect(initializeParams).toMatchObject({
+      clientInfo: {
+        name: "markra",
+        title: "Markra",
+        version: appVersion
+      }
+    });
   });
 
   it("embeds current and historical chat images as ACP resources in turn order", async () => {

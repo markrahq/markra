@@ -64,7 +64,7 @@ export type AcpContentBlock =
 export type AcpClientInfo = {
   name: string;
   title?: string;
-  version?: string;
+  version: string;
 };
 
 export type AcpClientTransport = {

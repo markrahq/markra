@@ -24,7 +24,15 @@ import {
 } from "@markra/ai";
 import type { AgentEvent } from "@earendil-works/pi-agent-core";
 import { getAppRuntime, type RuntimeCleanup } from "../runtime";
+import { appVersion } from "./app-version";
 import type { AcpAgentSettings } from "./settings/app-settings";
+
+const markraAcpClientInfo = {
+  name: "markra",
+  title: "Markra",
+  // ACP 0.23 agents reject clientInfo when its required version is missing.
+  version: appVersion
+};
 
 export type AcpDocumentAgentRunOptions = {
   documentContent: string;
@@ -221,7 +229,7 @@ export async function runAcpDocumentAgent({
   }
 
   try {
-    const initializeResponse = await agentFailure.race(client.initialize({ name: "markra", title: "Markra" }));
+    const initializeResponse = await agentFailure.race(client.initialize(markraAcpClientInfo));
     const session = await createAcpSession({
       agentFailure,
       client,
@@ -314,7 +322,7 @@ export async function runAcpInlineAiAgent({
   }
 
   try {
-    const initializeResponse = await agentFailure.race(client.initialize({ name: "markra", title: "Markra" }));
+    const initializeResponse = await agentFailure.race(client.initialize(markraAcpClientInfo));
     const session = await createAcpSession({
       agentFailure,
       client,
