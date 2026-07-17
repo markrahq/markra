@@ -59,6 +59,7 @@ export function QuickOpenPanel({
   const quickOpenLabel = (key: I18nKey, values: Record<string, string>) =>
     formatQuickOpenMessage(label(key), values);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const selectedResultRef = useRef<HTMLDivElement | null>(null);
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const results = useMemo(
@@ -82,6 +83,10 @@ export function QuickOpenPanel({
   useEffect(() => {
     setSelectedIndex((current) => Math.min(current, Math.max(0, results.length - 1)));
   }, [results.length]);
+
+  useEffect(() => {
+    selectedResultRef.current?.scrollIntoView?.({ block: "nearest" });
+  }, [selectedIndex]);
 
   const openResult = (result: QuickOpenResult | undefined, toSide: boolean) => {
     if (!result) return;
@@ -165,6 +170,7 @@ export function QuickOpenPanel({
               const selected = index === selectedIndex;
 
               return (
+                // Keep pointer hover visual-only because WebKit may emit movement events while scrolling.
                 <div
                   className={`group grid min-h-11 w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-sm px-1.5 py-1.5 transition-colors duration-150 ${
                     selected ? "bg-(--bg-active)" : "hover:bg-(--bg-hover)"
@@ -173,8 +179,8 @@ export function QuickOpenPanel({
                   aria-label={quickOpenLabel("app.quickOpen.openFile", { path: result.file.relativePath })}
                   aria-selected={selected}
                   key={result.file.path}
+                  ref={selected ? selectedResultRef : undefined}
                   role="option"
-                  onMouseEnter={() => setSelectedIndex(index)}
                 >
                   <FileText aria-hidden="true" className="text-(--text-secondary)" size={15} />
                   <button
