@@ -1,7 +1,8 @@
 import type { Node as ProseNode } from "@milkdown/kit/prose/model";
 import { Plugin } from "@milkdown/kit/prose/state";
-import type { EditorView, NodeView } from "@milkdown/kit/prose/view";
+import { Decoration, DecorationSet, type EditorView, type NodeView } from "@milkdown/kit/prose/view";
 import { $prose } from "@milkdown/kit/utils";
+import { findInlineHtmlRanges, type InlineHtmlRange } from "./inline-html";
 
 export type ResolveRawHtmlSrc = (src: string) => string;
 
@@ -233,6 +234,54 @@ function sanitizeRawHtmlNode(
 
   element.append(...sanitizedChildren);
   return [element];
+}
+
+function inlineHtmlDecorationAttributes(
+  range: InlineHtmlRange,
+  ownerDocument: Document,
+  options: RawHtmlRenderOptions
+) {
+  const template = ownerDocument.createElement("template");
+  template.innerHTML = range.openSource;
+  const sourceElement = Array.from(template.content.childNodes).find((node) => node instanceof HTMLElement);
+  if (!(sourceElement instanceof HTMLElement)) return null;
+
+  const sanitizedElement = sanitizeRawHtmlNode(sourceElement, ownerDocument, options)
+    .find((node) => node instanceof HTMLElement);
+  if (!(sanitizedElement instanceof HTMLElement) || sanitizedElement.tagName.toLowerCase() !== range.tagName) return null;
+
+  const attributes: Record<string, string> = {
+    class: "markra-inline-html",
+    nodeName: range.tagName
+  };
+  for (const attribute of Array.from(sanitizedElement.attributes)) {
+    attributes[attribute.name] = attribute.value;
+  }
+
+  return attributes;
+}
+
+function inlineHtmlDecorations(doc: ProseNode, ownerDocument: Document, options: RawHtmlRenderOptions) {
+  const decorations: Decoration[] = [];
+
+  findInlineHtmlRanges(doc).forEach((range) => {
+    const attributes = inlineHtmlDecorationAttributes(range, ownerDocument, options);
+    if (!attributes) return;
+
+    // Keep the HTML boundary atoms in the document so nested Markdown stays editable and serializes unchanged.
+    if (range.from < range.to) {
+      decorations.push(Decoration.inline(range.from, range.to, attributes));
+    }
+
+    const boundaryAttributes = {
+      class: "markra-inline-html-boundary",
+      style: "display: none"
+    };
+    decorations.push(Decoration.node(range.openFrom, range.openTo, boundaryAttributes));
+    decorations.push(Decoration.node(range.closeFrom, range.closeTo, boundaryAttributes));
+  });
+
+  return decorations.length > 0 ? DecorationSet.create(doc, decorations) : DecorationSet.empty;
 }
 
 function createRawHtmlFallback(rawHtml: string, ownerDocument: Document) {
@@ -608,6 +657,11 @@ export function markraRawHtmlPlugin(options: RawHtmlRenderOptions = {}) {
   return $prose(() => {
     return new Plugin({
       props: {
+        decorations(state) {
+          if (typeof document === "undefined") return DecorationSet.empty;
+
+          return inlineHtmlDecorations(state.doc, document, options);
+        },
         nodeViews: {
           html: (node, view, getPos) => new MarkraRawHtmlNodeView(node, view, getPos as GetNodePosition, options)
         }

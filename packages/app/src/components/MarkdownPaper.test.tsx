@@ -10159,6 +10159,52 @@ describe("MarkdownPaper editing", () => {
     expect(serializeMarkdown(view.state.doc)).toContain('<img src="https://example.test/badges/version.svg" />');
   });
 
+  it("renders balanced inline HTML without swallowing nested Markdown", async () => {
+    const source = "Power<sup>**2**</sup> tail";
+    const { container, editor, view } = await renderEditor(source);
+
+    const renderedSup = container.querySelector<HTMLElement>(".ProseMirror sup.markra-inline-html");
+    const renderedStrong = container.querySelector<HTMLElement>(".ProseMirror strong");
+    const boundaries = container.querySelectorAll<HTMLElement>(".ProseMirror .markra-inline-html-boundary");
+
+    expect(renderedSup).toBeInTheDocument();
+    expect(renderedSup).toHaveTextContent("2");
+    expect(renderedStrong).toHaveTextContent("2");
+    expect(boundaries).toHaveLength(2);
+    expect(Array.from(boundaries).every((boundary) => boundary.style.display === "none")).toBe(true);
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    const parseMarkdown = editor.action((ctx) => ctx.get(parserCtx));
+    const serialized = serializeMarkdown(view.state.doc);
+    const reloaded = parseMarkdown(serialized);
+    const reloadedHtmlValues: string[] = [];
+
+    reloaded.descendants((node) => {
+      if (node.type.name === "html" && typeof node.attrs.value === "string") {
+        reloadedHtmlValues.push(node.attrs.value);
+      }
+    });
+
+    expect(serialized).toBe(`${source}\n`);
+    expect(reloadedHtmlValues).toEqual(["<sup>", "</sup>"]);
+  });
+
+  it("sanitizes attributes on paired inline HTML without changing its source", async () => {
+    const source = '<a href="javascript:alert(1)" onclick="alert(2)" data-example="safe">Synthetic link</a>';
+    const { container, editor, view } = await renderEditor(source);
+
+    const renderedLink = container.querySelector<HTMLAnchorElement>(".ProseMirror a.markra-inline-html");
+
+    expect(renderedLink).toBeInTheDocument();
+    expect(renderedLink).not.toHaveAttribute("href");
+    expect(renderedLink).not.toHaveAttribute("onclick");
+    expect(renderedLink).toHaveAttribute("data-example", "safe");
+    expect(renderedLink).toHaveAttribute("rel", "noopener noreferrer");
+
+    const serializeMarkdown = editor.action((ctx) => ctx.get(serializerCtx));
+    expect(serializeMarkdown(view.state.doc)).toBe(`${source}\n`);
+  });
+
   it("keeps GitHub README HTML badge rows together", async () => {
     const source = [
       '<p align="center">',
