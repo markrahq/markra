@@ -7329,6 +7329,30 @@ describe("MarkdownPaper editing", () => {
     expect(markdown).toBe(expected);
   });
 
+  it("preserves markdown punctuation inside typed live inline code", async () => {
+    const onMarkdownChange = vi.fn();
+    const { container, view } = await renderEditor("", { onMarkdownChange });
+
+    typeText(view, "`[mock]` tail");
+
+    expectLiveMark(container, "inlineCode", "[mock]");
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe("`[mock]` tail");
+  });
+
+  it("serializes html-looking text typed in the visual editor as literal text", async () => {
+    const onMarkdownChange = vi.fn();
+    const { view } = await renderEditor("", { onMarkdownChange });
+
+    typeText(view, "mock<sup>2</sup> tail");
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).toBe(String.raw`mock\<sup>2\</sup> tail`);
+  });
+
   it.each(["*", "_", "~", "`", "="])("serializes a typed %s delimiter without escaping it", async (delimiter) => {
     const onMarkdownChange = vi.fn();
     const { view } = await renderEditor("", { onMarkdownChange });
@@ -10756,6 +10780,26 @@ describe("MarkdownPaper editing", () => {
     expect(container.querySelectorAll(".ProseMirror .markra-live-link-source.markra-md-delimiter")).toHaveLength(2);
     expect(container.querySelector(".ProseMirror")?.textContent).toBe("[Markra](https://example.com)");
     await settleMarkdownListener();
+  });
+
+  it("treats escaped link-looking text typed in the visual editor as literal text", async () => {
+    const source = String.raw`[mock\]](docs/mock-target)`;
+    const onMarkdownChange = vi.fn();
+    const rendered = await renderEditor("", { onMarkdownChange });
+
+    typeText(rendered.view, source);
+    expect(rendered.container.querySelector(".markra-live-link-source-label")).not.toBeInTheDocument();
+    expect(rendered.container.querySelector(".ProseMirror a[href]")).not.toBeInTheDocument();
+    await waitFor(() => expect(onMarkdownChange).toHaveBeenCalled());
+
+    const markdown = String(onMarkdownChange.mock.calls.at(-1)?.[0] ?? "").trimEnd();
+    expect(markdown).not.toBe(source);
+    expect(markdown).toBe(String.raw`[mock\\]]\(docs/mock-target)`);
+    rendered.unmount();
+
+    const reloaded = await renderEditor(markdown);
+    expect(reloaded.view.state.doc.textContent).toBe(source);
+    expect(reloaded.container.querySelector(".ProseMirror a[href]")).not.toBeInTheDocument();
   });
 
   it("turns pasted standalone URLs into finalized links", async () => {

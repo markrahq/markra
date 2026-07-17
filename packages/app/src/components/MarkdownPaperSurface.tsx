@@ -56,7 +56,7 @@ import {
   getActiveSpellcheckMatch,
   normalizeMarkdownShortcuts,
   replaceSpellcheckMatch,
-  restoreEscapedLiveMarkdownSource,
+  restoreEscapedMarkdownSource,
   serializeLinkImageLiveMarkdown,
   updateSpellcheckOptions,
   type MarkdownShortcutMap,
@@ -480,10 +480,11 @@ function MilkdownEditorSurface({
               deferredMarkdownChange.schedule(() => {
                 try {
                   onMarkdownChangeRef.current(
-                    restoreEscapedLiveMarkdownSource(
+                    restoreEscapedMarkdownSource(
                       serializeLinkImageLiveMarkdown(markdownDocument, serializeMarkdown, link, image),
                       markdownState,
-                      liveMarkdownSpecs
+                      liveMarkdownSpecs,
+                      serializeMarkdown
                     )
                   );
                 } catch {

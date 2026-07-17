@@ -862,6 +862,7 @@ export function finalizeActiveLiveMarkdown(view: EditorView, specs: LiveMarkdown
 
 const hasRestorableLiveMarkdownDelimiterPattern = /\\[*_~`=]/u;
 const escapedIntrawordUnderscorePattern = /(?<=[\p{L}\p{N}])\\_(?=[\p{L}\p{N}])/gu;
+const escapedLabelLiteralPattern = /\[((?:\\.|[^\]\\\n])+)\]\(([^)\n]+)\)/g;
 const restorableLiveMarkdownDelimiterCharacters = new Set(["*", "_", "~", "`", "="]);
 const singleRestorableLiveMarkdownDelimiters = new Set(["*", "_", "~", "`", "="]);
 
@@ -869,6 +870,13 @@ type SerializedMarkdownOperation = {
   candidates: string[];
   from: number;
   replacement: string;
+  to: number;
+};
+
+type MarkdownSerializer = (doc: ProseNode) => string;
+
+type MarkdownTextRange = {
+  from: number;
   to: number;
 };
 
@@ -934,21 +942,72 @@ function singleDelimiterOperation(
 }
 
 function liveMarkdownOperation(
+  state: EditorState,
   node: ProseNode,
   blockStart: number,
-  range: LiveMarkdownRange
+  range: LiveMarkdownRange,
+  serializeMarkdown: MarkdownSerializer
 ): SerializedMarkdownOperation {
   const source = node.textContent.slice(range.from, range.to);
+  const serializedSource = serializedPlainText(source, state, serializeMarkdown);
 
   return {
-    candidates: serializedLiveMarkdownCandidates(source, range.marker),
+    candidates: [...new Set([
+      ...serializedLiveMarkdownCandidates(source, range.marker),
+      ...(serializedSource ? [serializedSource] : [])
+    ])],
     from: blockStart + range.from,
     replacement: source,
     to: blockStart + range.to
   };
 }
 
-function serializedMarkdownOperations(state: EditorState, specs: LiveMarkdownSpec[]) {
+function serializedPlainText(source: string, state: EditorState, serializeMarkdown: MarkdownSerializer) {
+  const paragraph = state.schema.nodes.paragraph;
+  if (!paragraph || source.length === 0) return "";
+
+  // Reuse the configured serializer so source restoration follows its exact escaping rules.
+  const text = state.schema.text(source);
+  const document = state.schema.topNodeType.create(null, paragraph.create(null, text));
+  return serializeMarkdown(document).trimEnd();
+}
+
+function escapedLabelLiteralRanges(text: string) {
+  escapedLabelLiteralPattern.lastIndex = 0;
+
+  return Array.from(text.matchAll(escapedLabelLiteralPattern))
+    .filter((match) => match[1]?.includes("\\"))
+    .map((match): MarkdownTextRange => ({
+      from: match.index,
+      to: match.index + match[0].length
+    }));
+}
+
+function escapedLabelLiteralOperation(
+  state: EditorState,
+  node: ProseNode,
+  blockStart: number,
+  range: MarkdownTextRange,
+  serializeMarkdown: MarkdownSerializer
+): SerializedMarkdownOperation | null {
+  const source = node.textContent.slice(range.from, range.to);
+  const serializedSource = serializedPlainText(source, state, serializeMarkdown);
+  if (!serializedSource.startsWith("\\[")) return null;
+
+  // Avoid `\[` here because Markra reserves it as a math delimiter; `\(` still keeps this text from becoming a link.
+  return {
+    candidates: [serializedSource],
+    from: blockStart + range.from,
+    replacement: serializedSource.slice(1),
+    to: blockStart + range.to
+  };
+}
+
+function serializedMarkdownOperations(
+  state: EditorState,
+  specs: LiveMarkdownSpec[],
+  serializeMarkdown: MarkdownSerializer
+) {
   const pluginState = liveMarkdownKey.getState(state) as LiveMarkdownPluginState | undefined;
   const suppressedLiteralRanges = pluginState?.suppressedLiteralRanges ?? [];
   const operations: SerializedMarkdownOperation[] = [];
@@ -965,12 +1024,29 @@ function serializedMarkdownOperations(state: EditorState, specs: LiveMarkdownSpe
     const singleOperation = singleDelimiterOperation(node, blockStart, specs);
     if (singleOperation) operations.push(singleOperation);
 
-    for (const range of getLiveMarkdownRangesInTextblock(node, specs)) {
+    const liveRanges = getLiveMarkdownRangesInTextblock(node, specs);
+    for (const range of liveRanges) {
       const from = blockStart + range.from;
       const to = blockStart + range.to;
       if (isSuppressedLiteralRange(suppressedLiteralRanges, from, to, range.marker)) continue;
 
-      operations.push(liveMarkdownOperation(node, blockStart, range));
+      operations.push(liveMarkdownOperation(state, node, blockStart, range, serializeMarkdown));
+    }
+
+    const inlineCodeMarkTypes = getMarkTypesForKind(specs, "inlineCode");
+    for (const range of escapedLabelLiteralRanges(node.textContent)) {
+      if (!textRangeAvoidsMarks(node, range.from, range.to, inlineCodeMarkTypes)) continue;
+      if (
+        liveRanges.some(
+          (liveRange) =>
+            liveRange.kinds.includes("inlineCode") && range.from < liveRange.to && range.to > liveRange.from
+        )
+      ) {
+        continue;
+      }
+
+      const operation = escapedLabelLiteralOperation(state, node, blockStart, range, serializeMarkdown);
+      if (operation) operations.push(operation);
     }
   });
 
@@ -1064,10 +1140,15 @@ function restoreIntrawordEscapedUnderscores(markdown: string) {
   return markdown.replace(escapedIntrawordUnderscorePattern, "_");
 }
 
-export function restoreEscapedLiveMarkdownSource(markdown: string, state: EditorState, specs: LiveMarkdownSpec[]) {
-  if (!hasRestorableLiveMarkdownDelimiterPattern.test(markdown)) return markdown;
+export function restoreEscapedMarkdownSource(
+  markdown: string,
+  state: EditorState,
+  specs: LiveMarkdownSpec[],
+  serializeMarkdown: MarkdownSerializer
+) {
+  if (!hasRestorableLiveMarkdownDelimiterPattern.test(markdown) && !markdown.includes("\\[")) return markdown;
 
-  const operations = serializedMarkdownOperations(state, specs);
+  const operations = serializedMarkdownOperations(state, specs, serializeMarkdown);
   const { protectedMarkdown, protectedSegments } = protectMarkdownCode(markdown);
   let restored = "";
   let markdownCursor = 0;

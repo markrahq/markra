@@ -16,7 +16,7 @@ import {
   markraLiveMarkdownSpecs,
   scrollAiEditorPreviewIntoView,
   scrollSearchMatchIntoView,
-  restoreEscapedLiveMarkdownSource,
+  restoreEscapedMarkdownSource,
   serializeLinkImageLiveMarkdown,
   setLiveMarkdownSourceContext,
   showAiEditorPreview,
@@ -109,10 +109,11 @@ function serializeCurrentEditorMarkdown(
   image: NodeType,
   liveMarkdownSpecs: ReturnType<typeof markraLiveMarkdownSpecs>
 ) {
-  return restoreEscapedLiveMarkdownSource(
+  return restoreEscapedMarkdownSource(
     serializeLinkImageLiveMarkdown(view.state.doc, serializeMarkdown, link, image),
     view.state,
-    liveMarkdownSpecs
+    liveMarkdownSpecs,
+    serializeMarkdown
   );
 }
 
