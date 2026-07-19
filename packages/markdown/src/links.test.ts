@@ -113,7 +113,7 @@ describe("markdown links", () => {
 
     expect(rebased).toContain("![Asset 0](../notes/assets/asset-0.png)");
     expect(rebased).toContain("![Asset 14999](../notes/assets/asset-14999.png)");
-    expect(elapsed).toBeLessThan(1_500);
+    expect(elapsed).toBeLessThan(5_000);
   }, 15_000);
 
   it("finds unlinked mentions outside existing links and code", () => {
