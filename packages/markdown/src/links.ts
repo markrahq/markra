@@ -300,6 +300,8 @@ function rebasedMarkdownHref(href: string, fromDocumentPath: string, toDocumentP
   const suffixStart = trimmed.search(/[?#]/u);
   const rawPath = suffixStart >= 0 ? trimmed.slice(0, suffixStart) : trimmed;
   const suffix = suffixStart >= 0 ? trimmed.slice(suffixStart) : "";
+  if (!rawPath) return null;
+
   let decodedPath: string;
   try {
     decodedPath = decodeURI(rawPath);
@@ -313,6 +315,8 @@ function rebasedMarkdownHref(href: string, fromDocumentPath: string, toDocumentP
 
   const targetParts = normalizedRelativePathParts([...fromDirectory, decodedPath].join("/"));
   if (!targetParts) return null;
+  const fromDocumentParts = normalizedRelativePathParts(fromDocumentPath);
+  if (fromDocumentParts?.join("/") === targetParts.join("/")) return null;
 
   let shared = 0;
   while (
@@ -330,6 +334,20 @@ function rebasedMarkdownHref(href: string, fromDocumentPath: string, toDocumentP
   if (!rebasedPath) return null;
 
   return `${encodedMarkdownHrefPath(rebasedPath)}${suffix}`;
+}
+
+function applyMarkdownEdits(markdown: string, edits: MarkdownEdit[]) {
+  if (!edits.length) return markdown;
+
+  const contentParts: string[] = [];
+  let cursor = 0;
+  for (const edit of edits.sort((left, right) => left.from - right.from)) {
+    contentParts.push(markdown.slice(cursor, edit.from), edit.text);
+    cursor = edit.to;
+  }
+  contentParts.push(markdown.slice(cursor));
+
+  return contentParts.join("");
 }
 
 function decodeMarkdownHref(href: string) {
@@ -556,9 +574,7 @@ export function rebaseMarkdownLocalLinks(
     edits.push({ ...range, text: href });
   });
 
-  return edits
-    .sort((left, right) => right.from - left.from)
-    .reduce((content, edit) => `${content.slice(0, edit.from)}${edit.text}${content.slice(edit.to)}`, markdown);
+  return applyMarkdownEdits(markdown, edits);
 }
 
 export function parseMarkdownMentionRanges(markdown: string): MarkdownMentionRange[] {

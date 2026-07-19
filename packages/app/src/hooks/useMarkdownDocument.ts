@@ -101,6 +101,11 @@ type ApplySavedCurrentDocumentOptions = {
   targetTabId?: string | null;
 };
 
+type MovedMarkdownDocumentUpdate = {
+  content: string;
+  dirty: boolean;
+};
+
 export type ActiveDiskFileContentChange = {
   content: string;
   path: string;
@@ -546,6 +551,13 @@ export function useMarkdownDocument({
   const persistActiveDocumentDraftSnapshot = useCallback(() => {
     const snapshot = syncActiveDocumentDraftSnapshot();
     return persistWorkspaceState(draftWorkspacePatchFromTabs(snapshot.tabs, snapshot.activeTabId));
+  }, [syncActiveDocumentDraftSnapshot]);
+
+  const getDirtyMarkdownFileContent = useCallback((path: string) => {
+    const snapshot = syncActiveDocumentDraftSnapshot();
+    const tab = snapshot.tabs.find((candidate) => sameNativePath(candidate.path, path));
+
+    return tab?.dirty ? tab.content : null;
   }, [syncActiveDocumentDraftSnapshot]);
 
   const persistNativeEditorWindowRestoreSnapshot = useCallback(async () => {
@@ -1251,7 +1263,7 @@ export function useMarkdownDocument({
   const replaceMovedOpenDocumentFile = useCallback((
     previousPath: string,
     file: NativeMarkdownFolderFile,
-    content?: string
+    documentUpdate?: MovedMarkdownDocumentUpdate
   ) => {
     const movedPathFor = (path: string | null) => (path ? replaceMovedPath(path, previousPath, file.path) : path);
     const affected =
@@ -1263,10 +1275,16 @@ export function useMarkdownDocument({
     if (current.path !== null) {
       const nextPath = movedPathFor(current.path);
       if (nextPath !== current.path) {
-        const contentRebased = content !== undefined && sameNativePath(current.path, previousPath);
+        const contentRebased = documentUpdate !== undefined && sameNativePath(current.path, previousPath);
         setActiveDocument({
           ...current,
-          ...(contentRebased ? { content, dirty: false, revision: current.revision + 1 } : {}),
+          ...(contentRebased
+            ? {
+                content: documentUpdate.content,
+                dirty: documentUpdate.dirty,
+                revision: current.revision + 1
+              }
+            : {}),
           deleted: false,
           name: current.path === previousPath ? file.name : current.name,
           path: nextPath
@@ -1278,11 +1296,17 @@ export function useMarkdownDocument({
       const nextPath = movedPathFor(tab.path);
       if (nextPath === tab.path) return tab;
 
-      const contentRebased = content !== undefined && sameNativePath(tab.path, previousPath);
+      const contentRebased = documentUpdate !== undefined && sameNativePath(tab.path, previousPath);
       if (contentRebased) editorSyncState.clearCleanVisualMarkdownBaseline(tab.id);
       return {
         ...tab,
-        ...(contentRebased ? { content, dirty: false, revision: tab.revision + 1 } : {}),
+        ...(contentRebased
+          ? {
+              content: documentUpdate.content,
+              dirty: documentUpdate.dirty,
+              revision: tab.revision + 1
+            }
+          : {}),
         deleted: false,
         name: tab.path === previousPath ? file.name : tab.name,
         path: nextPath
@@ -2278,6 +2302,7 @@ export function useMarkdownDocument({
     tabs,
     activeTabId,
     handleDroppedMarkdownPath,
+    getDirtyMarkdownFileContent,
     handleMarkdownChange,
     handleMarkdownTabChange,
     handleSaveClick,

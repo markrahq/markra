@@ -115,7 +115,10 @@ import {
 } from "./lib/workspace-operation-animation";
 import { shouldBlockLargeMarkdownVisual } from "./lib/large-markdown";
 import { markAppPerformance } from "./lib/performance-marks";
-import { moveMarkdownTreeFileWithLinks } from "./lib/markdown-tree-move";
+import {
+  moveMarkdownTreeFileWithLinks,
+  type MarkdownTreeMoveDocumentUpdate
+} from "./lib/markdown-tree-move";
 import { replaceMovedPath, sameNativePath } from "./lib/path-move";
 import { createAppSpellcheckerForLanguage } from "./lib/spellcheck";
 import { editorContentWidthPixels, shouldShowEditorWidthResizer } from "./lib/editor-width";
@@ -749,6 +752,7 @@ function WorkspaceApp() {
     tabs: documentTabs,
     activeTabId,
     closeMarkdownTab,
+    getDirtyMarkdownFileContent,
     handleDroppedMarkdownPath,
     handleMarkdownChange,
     handleMarkdownTabChange,
@@ -1120,7 +1124,7 @@ function WorkspaceApp() {
   const applyMovedTreeFile = useCallback((
     previousFile: NativeMarkdownFolderFile,
     movedFile: NativeMarkdownFolderFile,
-    content?: string
+    documentUpdate?: MarkdownTreeMoveDocumentUpdate
   ) => {
     const moveFolderFile = (file: NativeMarkdownFolderFile): NativeMarkdownFolderFile => {
       const nextPath = replaceMovedPath(file.path, previousFile.path, movedFile.path);
@@ -1134,7 +1138,7 @@ function WorkspaceApp() {
       };
     };
 
-    replaceMovedOpenDocumentFile(previousFile.path, movedFile, content);
+    replaceMovedOpenDocumentFile(previousFile.path, movedFile, documentUpdate);
     persistSideDocumentGroupPathUpdate({
       nextPath: movedFile.path,
       previousPath: previousFile.path
@@ -1149,16 +1153,16 @@ function WorkspaceApp() {
     file: NativeMarkdownFolderFile,
     targetParentPath: string | null
   ) => {
-    await saveDirtyMarkdownFiles();
     const result = await moveMarkdownTreeFileWithLinks(file, targetParentPath, {
+      dirtyContent: file.kind ? null : getDirtyMarkdownFileContent(file.path),
       moveFile: moveMarkdownTreeFile,
       readFile: readNativeMarkdownFile,
       saveFile: saveNativeMarkdownFile
     });
-    if (result) applyMovedTreeFile(file, result.file, result.content);
+    if (result) applyMovedTreeFile(file, result.file, result.document);
 
     return result?.file ?? null;
-  }, [applyMovedTreeFile, moveMarkdownTreeFile, saveDirtyMarkdownFiles]);
+  }, [applyMovedTreeFile, getDirtyMarkdownFileContent, moveMarkdownTreeFile]);
   const getAiDocumentContent = useCallback(
     () => (document.open ? readCurrentMarkdownForDocument(document.content) : document.content),
     [document.content, document.open, readCurrentMarkdownForDocument]

@@ -2530,7 +2530,10 @@ describe("useMarkdownDocument", () => {
         name: "daily.md",
         path: "/mock-files/archive/daily.md",
         relativePath: "archive/daily.md"
-      }, "![Diagram](../notes/assets/diagram.png)")).toBe(true);
+      }, {
+        content: "![Diagram](../notes/assets/diagram.png)",
+        dirty: false
+      })).toBe(true);
     });
 
     expect(result.current.document).toMatchObject({
@@ -2542,6 +2545,90 @@ describe("useMarkdownDocument", () => {
     expect(result.current.tabs[0]).toMatchObject({
       content: "![Diagram](../notes/assets/diagram.png)",
       dirty: false,
+      path: "/mock-files/archive/daily.md"
+    });
+  });
+
+  it("returns dirty content for the requested document without mixing dirty tabs", async () => {
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => ({
+      content: path.endsWith("daily.md") ? "# Daily" : "# Other",
+      name: path.endsWith("daily.md") ? "daily.md" : "other.md",
+      path
+    }));
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "daily.md",
+        path: "/mock-files/notes/daily.md",
+        relativePath: "notes/daily.md"
+      });
+      await result.current.openTreeMarkdownFileInBackground({
+        name: "other.md",
+        path: "/mock-files/notes/other.md",
+        relativePath: "notes/other.md"
+      });
+    });
+    act(() => {
+      result.current.handleMarkdownChange("# Daily\n\nDraft");
+      const otherTab = result.current.tabs.find((tab) => tab.path === "/mock-files/notes/other.md");
+      expect(otherTab).toBeTruthy();
+      result.current.handleMarkdownTabChange(otherTab!.id, "# Other\n\nDraft");
+    });
+
+    expect(result.current.getDirtyMarkdownFileContent("/mock-files/notes/daily.md")).toBe("# Daily\n\nDraft");
+    expect(result.current.getDirtyMarkdownFileContent("/mock-files/notes/other.md")).toBe("# Other\n\nDraft");
+    expect(result.current.getDirtyMarkdownFileContent("/mock-files/notes/missing.md")).toBeNull();
+  });
+
+  it("keeps rebased moved content dirty when it came from an unsaved document", async () => {
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "![Diagram](assets/diagram.png)",
+      name: "daily.md",
+      path: "/mock-files/notes/daily.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "daily.md",
+        path: "/mock-files/notes/daily.md",
+        relativePath: "notes/daily.md"
+      });
+    });
+
+    act(() => {
+      expect(result.current.replaceMovedOpenDocumentFile("/mock-files/notes/daily.md", {
+        name: "daily.md",
+        path: "/mock-files/archive/daily.md",
+        relativePath: "archive/daily.md"
+      }, {
+        content: "![Diagram](../notes/assets/diagram.png)\n\nDraft",
+        dirty: true
+      })).toBe(true);
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "![Diagram](../notes/assets/diagram.png)\n\nDraft",
+      dirty: true,
       path: "/mock-files/archive/daily.md"
     });
   });

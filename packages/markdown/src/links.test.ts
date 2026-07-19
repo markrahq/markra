@@ -91,6 +91,31 @@ describe("markdown links", () => {
     expect(rebaseMarkdownLocalLinks(markdown, "notes/daily.md", "notes/renamed.md")).toBe(markdown);
   });
 
+  it("keeps self references and query-only links attached to the moved document", () => {
+    const markdown = [
+      "[Self](daily.md#section)",
+      "[Dot self](./daily.md)",
+      "[Query](?preview=1)"
+    ].join("\n");
+
+    expect(rebaseMarkdownLocalLinks(markdown, "notes/daily.md", "archive/daily.md")).toBe(markdown);
+  });
+
+  it("rebases many local links without repeatedly copying the whole document", () => {
+    const markdown = Array.from(
+      { length: 15_000 },
+      (_, index) => `![Asset ${index}](assets/asset-${index}.png)`
+    ).join("\n");
+    const startedAt = performance.now();
+
+    const rebased = rebaseMarkdownLocalLinks(markdown, "notes/daily.md", "archive/daily.md");
+    const elapsed = performance.now() - startedAt;
+
+    expect(rebased).toContain("![Asset 0](../notes/assets/asset-0.png)");
+    expect(rebased).toContain("![Asset 14999](../notes/assets/asset-14999.png)");
+    expect(elapsed).toBeLessThan(1_500);
+  }, 15_000);
+
   it("finds unlinked mentions outside existing links and code", () => {
     const markdown = [
       "# Mock note",
