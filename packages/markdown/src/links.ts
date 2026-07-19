@@ -28,6 +28,12 @@ type ProtectedRange = {
   to: number;
 };
 
+type MarkdownEdit = {
+  from: number;
+  text: string;
+  to: number;
+};
+
 export type MarkdownLinkReference = {
   columnNumber: number;
   from: number;
@@ -68,6 +74,7 @@ const localUrlSchemePattern = /^[a-z][a-z\d+.-]*:/iu;
 const wikiLinkPattern = /!?\[\[([^\]\n]+)\]\]/gu;
 const wordCharacterPattern = /[\p{L}\p{N}_-]/u;
 const boundarySensitiveTitlePattern = /[\p{Script=Latin}\p{N}_-]/u;
+const unsafeMarkdownHrefCharactersPattern = /%(?![a-f\d]{2})|[\s()<>#]/giu;
 
 function parseMarkdown(markdown: string) {
   return markdownLinkParser.parse(markdown) as MarkdownNode;
@@ -157,6 +164,172 @@ function traverseMarkdownNode(node: MarkdownNode, visit: (node: MarkdownNode, pa
   };
 
   walk(node, []);
+}
+
+function markdownLabelEnd(source: string, start: number) {
+  let depth = 0;
+
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "\\") {
+      index += 1;
+      continue;
+    }
+    if (character === "[") {
+      depth += 1;
+      continue;
+    }
+    if (character !== "]") continue;
+
+    depth -= 1;
+    if (depth === 0) return index;
+  }
+
+  return -1;
+}
+
+function skipMarkdownWhitespace(source: string, start: number) {
+  let index = start;
+  while (index < source.length && /[\t\n\r ]/u.test(source[index] ?? "")) index += 1;
+  return index;
+}
+
+function markdownDestinationEnd(source: string, start: number, inline: boolean) {
+  if (source[start] === "<") {
+    for (let index = start + 1; index < source.length; index += 1) {
+      if (source[index] === "\\") {
+        index += 1;
+        continue;
+      }
+      if (source[index] === ">") return index;
+    }
+    return -1;
+  }
+
+  let nestedParentheses = 0;
+  for (let index = start; index < source.length; index += 1) {
+    const character = source[index] ?? "";
+    if (character === "\\") {
+      index += 1;
+      continue;
+    }
+    if (inline && character === "(") {
+      nestedParentheses += 1;
+      continue;
+    }
+    if (inline && character === ")") {
+      if (nestedParentheses === 0) return index;
+      nestedParentheses -= 1;
+      continue;
+    }
+    if (/\s/u.test(character) && nestedParentheses === 0) return index;
+  }
+
+  return source.length;
+}
+
+function markdownDestinationRange(markdown: string, node: MarkdownNode): ProtectedRange | null {
+  const nodeStart = markdownNodeStart(node);
+  const nodeEnd = markdownNodeEnd(node);
+  if (typeof nodeStart !== "number" || typeof nodeEnd !== "number") return null;
+
+  const source = markdown.slice(nodeStart, nodeEnd);
+  const labelStart = source.startsWith("![") ? 1 : 0;
+  if (source[labelStart] !== "[") return null;
+
+  const labelEnd = markdownLabelEnd(source, labelStart);
+  if (labelEnd < 0) return null;
+
+  const definition = node.type === "definition";
+  const delimiter = definition ? ":" : "(";
+  if (source[labelEnd + 1] !== delimiter) return null;
+
+  let destinationStart = skipMarkdownWhitespace(source, labelEnd + 2);
+  const wrapped = source[destinationStart] === "<";
+  const destinationEnd = markdownDestinationEnd(source, destinationStart, !definition);
+  if (destinationEnd < 0) return null;
+  if (wrapped) destinationStart += 1;
+
+  return {
+    from: nodeStart + destinationStart,
+    to: nodeStart + destinationEnd
+  };
+}
+
+function normalizedRelativePathParts(path: string) {
+  const parts: string[] = [];
+
+  for (const part of path.replace(/\\/gu, "/").split("/")) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      if (!parts.length) return null;
+      parts.pop();
+      continue;
+    }
+    parts.push(part);
+  }
+
+  return parts;
+}
+
+function markdownDocumentDirectoryParts(path: string) {
+  const parts = normalizedRelativePathParts(path);
+  if (!parts) return null;
+
+  return parts.slice(0, -1);
+}
+
+function encodedMarkdownHrefPath(path: string) {
+  return path.replace(unsafeMarkdownHrefCharactersPattern, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")}`
+  );
+}
+
+function rebasedMarkdownHref(href: string, fromDocumentPath: string, toDocumentPath: string) {
+  const trimmed = href.trim();
+  if (
+    !trimmed ||
+    trimmed.startsWith("#") ||
+    trimmed.startsWith("/") ||
+    trimmed.startsWith("\\") ||
+    localUrlSchemePattern.test(trimmed)
+  ) {
+    return null;
+  }
+
+  const suffixStart = trimmed.search(/[?#]/u);
+  const rawPath = suffixStart >= 0 ? trimmed.slice(0, suffixStart) : trimmed;
+  const suffix = suffixStart >= 0 ? trimmed.slice(suffixStart) : "";
+  let decodedPath: string;
+  try {
+    decodedPath = decodeURI(rawPath);
+  } catch {
+    return null;
+  }
+
+  const fromDirectory = markdownDocumentDirectoryParts(fromDocumentPath);
+  const toDirectory = markdownDocumentDirectoryParts(toDocumentPath);
+  if (!fromDirectory || !toDirectory) return null;
+
+  const targetParts = normalizedRelativePathParts([...fromDirectory, decodedPath].join("/"));
+  if (!targetParts) return null;
+
+  let shared = 0;
+  while (
+    shared < toDirectory.length &&
+    shared < targetParts.length &&
+    toDirectory[shared] === targetParts[shared]
+  ) {
+    shared += 1;
+  }
+
+  const rebasedPath = [
+    ...toDirectory.slice(shared).map(() => ".."),
+    ...targetParts.slice(shared)
+  ].join("/");
+  if (!rebasedPath) return null;
+
+  return `${encodedMarkdownHrefPath(rebasedPath)}${suffix}`;
 }
 
 function decodeMarkdownHref(href: string) {
@@ -355,6 +528,37 @@ export function parseMarkdownLinkReferences(markdown: string): MarkdownLinkRefer
   });
 
   return links.sort((left, right) => left.from - right.from);
+}
+
+export function rebaseMarkdownLocalLinks(
+  markdown: string,
+  fromDocumentPath: string,
+  toDocumentPath: string
+) {
+  const fromDirectory = markdownDocumentDirectoryParts(fromDocumentPath);
+  const toDirectory = markdownDocumentDirectoryParts(toDocumentPath);
+  if (!fromDirectory || !toDirectory || fromDirectory.join("/") === toDirectory.join("/")) return markdown;
+
+  const edits: MarkdownEdit[] = [];
+  traverseMarkdownNode(parseMarkdown(markdown), (node) => {
+    if (
+      (node.type !== "link" && node.type !== "image" && node.type !== "definition") ||
+      typeof node.url !== "string"
+    ) {
+      return;
+    }
+
+    const href = rebasedMarkdownHref(node.url, fromDocumentPath, toDocumentPath);
+    if (!href || href === node.url) return;
+
+    const range = markdownDestinationRange(markdown, node);
+    if (!range) return;
+    edits.push({ ...range, text: href });
+  });
+
+  return edits
+    .sort((left, right) => right.from - left.from)
+    .reduce((content, edit) => `${content.slice(0, edit.from)}${edit.text}${content.slice(edit.to)}`, markdown);
 }
 
 export function parseMarkdownMentionRanges(markdown: string): MarkdownMentionRange[] {

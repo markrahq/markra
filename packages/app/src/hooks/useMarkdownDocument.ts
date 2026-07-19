@@ -1248,7 +1248,11 @@ export function useMarkdownDocument({
     return true;
   }, [registerWindowRestoreState, setActiveDocument]);
 
-  const replaceMovedOpenDocumentFile = useCallback((previousPath: string, file: NativeMarkdownFolderFile) => {
+  const replaceMovedOpenDocumentFile = useCallback((
+    previousPath: string,
+    file: NativeMarkdownFolderFile,
+    content?: string
+  ) => {
     const movedPathFor = (path: string | null) => (path ? replaceMovedPath(path, previousPath, file.path) : path);
     const affected =
       tabsRef.current.some((tab) => tab.path !== null && movedPathFor(tab.path) !== tab.path) ||
@@ -1259,8 +1263,10 @@ export function useMarkdownDocument({
     if (current.path !== null) {
       const nextPath = movedPathFor(current.path);
       if (nextPath !== current.path) {
+        const contentRebased = content !== undefined && sameNativePath(current.path, previousPath);
         setActiveDocument({
           ...current,
+          ...(contentRebased ? { content, dirty: false, revision: current.revision + 1 } : {}),
           deleted: false,
           name: current.path === previousPath ? file.name : current.name,
           path: nextPath
@@ -1272,8 +1278,11 @@ export function useMarkdownDocument({
       const nextPath = movedPathFor(tab.path);
       if (nextPath === tab.path) return tab;
 
+      const contentRebased = content !== undefined && sameNativePath(tab.path, previousPath);
+      if (contentRebased) editorSyncState.clearCleanVisualMarkdownBaseline(tab.id);
       return {
         ...tab,
+        ...(contentRebased ? { content, dirty: false, revision: tab.revision + 1 } : {}),
         deleted: false,
         name: tab.path === previousPath ? file.name : tab.name,
         path: nextPath
@@ -1288,7 +1297,7 @@ export function useMarkdownDocument({
       openFilePaths: openFilePathsFromTabs(nextTabs)
     });
     return true;
-  }, [registerWindowRestoreState, setActiveDocument]);
+  }, [editorSyncState, registerWindowRestoreState, setActiveDocument]);
 
   const detachDeletedDocumentFile = useCallback((path: string) => {
     const currentTabs = tabsRef.current;

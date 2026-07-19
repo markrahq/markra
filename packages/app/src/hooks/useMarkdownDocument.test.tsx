@@ -2499,6 +2499,53 @@ describe("useMarkdownDocument", () => {
     ]);
   });
 
+  it("updates open document content when a moved file has rebased links", async () => {
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "![Diagram](assets/diagram.png)",
+      name: "daily.md",
+      path: "/mock-files/notes/daily.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "daily.md",
+        path: "/mock-files/notes/daily.md",
+        relativePath: "notes/daily.md"
+      });
+    });
+    const previousRevision = result.current.document.revision;
+
+    act(() => {
+      expect(result.current.replaceMovedOpenDocumentFile("/mock-files/notes/daily.md", {
+        name: "daily.md",
+        path: "/mock-files/archive/daily.md",
+        relativePath: "archive/daily.md"
+      }, "![Diagram](../notes/assets/diagram.png)")).toBe(true);
+    });
+
+    expect(result.current.document).toMatchObject({
+      content: "![Diagram](../notes/assets/diagram.png)",
+      dirty: false,
+      path: "/mock-files/archive/daily.md",
+      revision: previousRevision + 1
+    });
+    expect(result.current.tabs[0]).toMatchObject({
+      content: "![Diagram](../notes/assets/diagram.png)",
+      dirty: false,
+      path: "/mock-files/archive/daily.md"
+    });
+  });
+
   it("skips a restored folder workspace when the folder no longer opens", async () => {
     const onTreeRootFromFolderPath = vi.fn(async () => null);
     mockedGetStoredWorkspaceState.mockResolvedValue({
