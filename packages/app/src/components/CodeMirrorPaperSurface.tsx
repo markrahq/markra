@@ -178,6 +178,7 @@ function markdownExtension({
 
   return liveMarkdown({
     highlight: extendedSyntax?.highlight ?? true,
+    resolveLinkTarget: linkOptions?.resolveTarget,
     plugins: [
       blocksPlugin({
         callout: extendedSyntax?.githubAlerts ?? true,

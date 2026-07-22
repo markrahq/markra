@@ -30,6 +30,33 @@ export interface InlineMarkdownRenderOptions {
   readonly resolveImageSource?: (
     details: InlineMarkdownImageDetails,
   ) => string | null;
+  readonly resolveLinkTarget?: (source: string) => string | null;
+}
+
+function resolveLinkHref(
+  linkSource: string,
+  autolink: boolean,
+  options: InlineMarkdownRenderOptions,
+) {
+  const resolveTarget = options.resolveLinkTarget;
+  if (!resolveTarget) {
+    return autolink
+      ? resolveAutolinkTarget(linkSource)
+      : resolveSafeLinkTarget(linkSource);
+  }
+
+  const candidate = autolink
+    ? resolveAutolinkTarget(linkSource)
+    : unescapeMarkdown(linkSource);
+  if (!candidate) return null;
+  let target: string | null;
+  try {
+    target = resolveTarget(candidate);
+  } catch {
+    return null;
+  }
+  const normalizedTarget = target?.trim();
+  return normalizedTarget ? normalizedTarget : null;
 }
 
 function appendText(
@@ -125,7 +152,11 @@ function renderLink(
     return;
   }
 
-  const href = resolveSafeLinkTarget(source.slice(url.from, url.to).trim());
+  const href = resolveLinkHref(
+    source.slice(url.from, url.to).trim(),
+    false,
+    options,
+  );
   const element = ownerDocument.createElement(href ? "a" : "span");
   element.dataset.markraLinkMarkdown = source.slice(node.from, node.to);
   element.dataset.markraLinkSource = source.slice(url.from, url.to).trim();
@@ -158,6 +189,7 @@ function renderAutolink(
   ownerDocument: Document,
   source: string,
   node: InlineNode,
+  options: InlineMarkdownRenderOptions,
 ) {
   const url = node.name === "URL"
     ? node
@@ -168,7 +200,7 @@ function renderAutolink(
   }
 
   const linkSource = unescapeMarkdown(source.slice(url.from, url.to).trim());
-  const href = resolveAutolinkTarget(linkSource);
+  const href = resolveLinkHref(linkSource, true, options);
   const element = ownerDocument.createElement(href ? "a" : "span");
   element.dataset.markraLinkMarkdown = source.slice(node.from, node.to);
   element.dataset.markraLinkSource = href ?? linkSource;
@@ -282,7 +314,7 @@ function renderNode(
       return;
     case "Autolink":
     case "URL":
-      renderAutolink(parent, ownerDocument, source, node);
+      renderAutolink(parent, ownerDocument, source, node, options);
       return;
     case "HardBreak":
       parent.appendChild(ownerDocument.createElement("br"));

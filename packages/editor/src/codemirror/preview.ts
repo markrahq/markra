@@ -22,6 +22,7 @@ import {
 import {
   resolveAutolinkTarget,
   resolveSafeLinkTarget,
+  type MarkraLinkSourceContext,
 } from "./links.ts";
 import { unescapeMarkdown } from "./syntax.ts";
 import { createTaskDecoration } from "./tasks.ts";
@@ -155,8 +156,31 @@ function headingAriaLabel(source: string, setext: boolean) {
 }
 
 export interface LivePreviewConfig {
+  resolveLinkTarget?: (context: MarkraLinkSourceContext) => string | null;
   reveal?: RevealPolicy;
   taskCheckboxes?: boolean;
+}
+
+function resolveLinkHref(
+  nodeName: string,
+  source: string,
+  view: EditorView,
+  resolveTarget: LivePreviewConfig["resolveLinkTarget"],
+) {
+  const candidate = nodeName === "Link" ? source : resolveAutolinkTarget(source);
+  if (!candidate) return null;
+  if (!resolveTarget) {
+    return nodeName === "Link" ? resolveSafeLinkTarget(candidate) : candidate;
+  }
+
+  let target: string | null;
+  try {
+    target = resolveTarget({ source: candidate, state: view.state, view });
+  } catch {
+    return null;
+  }
+  const normalizedTarget = target?.trim();
+  return normalizedTarget ? normalizedTarget : null;
 }
 
 class LinkIconWidget extends WidgetType {
@@ -218,6 +242,7 @@ function buildDecorations(
   view: EditorView,
   reveal: RevealPolicy,
   taskCheckboxes: boolean,
+  resolveLinkTarget: LivePreviewConfig["resolveLinkTarget"],
 ) {
   const { state } = view;
   const ranges: Range<Decoration>[] = [];
@@ -382,9 +407,7 @@ function buildDecorations(
         ? unescapeMarkdown(state.sliceDoc(linkUrl.from, linkUrl.to).trim())
         : null;
       const linkHref = linkSource
-        ? node.name === "Link"
-          ? resolveSafeLinkTarget(linkSource)
-          : resolveAutolinkTarget(linkSource)
+        ? resolveLinkHref(node.name, linkSource, view, resolveLinkTarget)
         : null;
       const linkRevealed = linkLike && reveal({
         view,
@@ -586,6 +609,7 @@ function buildDecorations(
 function previewPlugin(config: LivePreviewConfig): Extension {
   const reveal = config.reveal ?? revealActiveLine;
   const taskCheckboxes = config.taskCheckboxes ?? true;
+  const resolveLinkTarget = config.resolveLinkTarget;
 
   return ViewPlugin.fromClass(
     class {
@@ -593,7 +617,12 @@ function previewPlugin(config: LivePreviewConfig): Extension {
       composing: boolean;
 
       constructor(view: EditorView) {
-        this.decorations = buildDecorations(view, reveal, taskCheckboxes);
+        this.decorations = buildDecorations(
+          view,
+          reveal,
+          taskCheckboxes,
+          resolveLinkTarget,
+        );
         this.composing = view.composing;
       }
 
@@ -629,6 +658,7 @@ function previewPlugin(config: LivePreviewConfig): Extension {
             update.view,
             reveal,
             taskCheckboxes,
+            resolveLinkTarget,
           );
         }
       }

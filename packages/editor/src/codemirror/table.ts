@@ -695,14 +695,24 @@ function renderVisualTableCell(
   cell: HTMLTableCellElement,
   source: string,
   images: ImagePreviewPluginOptions | undefined,
+  links: LinksPluginOptions | undefined,
 ) {
-  const resolver = images?.resolveSource;
-  renderInlineMarkdown(cell, source, resolver
-    ? {
-        resolveImageSource: (details: InlineMarkdownImageDetails) =>
-          resolver({ ...details, state: view.state, view }),
-      }
-    : undefined);
+  const imageResolver = images?.resolveSource;
+  const linkResolver = links?.resolveTarget;
+  renderInlineMarkdown(cell, source, {
+    ...(imageResolver
+      ? {
+          resolveImageSource: (details: InlineMarkdownImageDetails) =>
+            imageResolver({ ...details, state: view.state, view }),
+        }
+      : {}),
+    ...(linkResolver
+      ? {
+          resolveLinkTarget: (linkSource: string) =>
+            linkResolver({ source: linkSource, state: view.state, view }),
+        }
+      : {}),
+  });
 }
 
 function appendCell(
@@ -727,7 +737,7 @@ function appendCell(
     currentSession.header === header &&
     currentSession.inlineSourceVisible;
   if (keepInlineSourceVisible) cell.textContent = cellPreview.source;
-  else renderVisualTableCell(view, cell, cellPreview.source, images);
+  else renderVisualTableCell(view, cell, cellPreview.source, images, links);
   cell.tabIndex = view.state.readOnly ? -1 : 0;
   cell.dataset.tableColumn = String(columnIndex);
   cell.dataset.tableHeader = String(header);
@@ -830,7 +840,7 @@ function appendCell(
       ) {
         tableEditingSessions.delete(view);
         if (session.inlineSourceVisible && cell.isConnected) {
-          renderVisualTableCell(view, cell, cellPreview.source, images);
+          renderVisualTableCell(view, cell, cellPreview.source, images, links);
         }
       }
     }, 0);
@@ -884,6 +894,7 @@ function appendCell(
           cell,
           visualTableCellSource(cell),
           images,
+          links,
         );
       }
       view.focus();
@@ -905,7 +916,7 @@ function appendCell(
         session.originalSource,
       );
       if (!changed && session.inlineSourceVisible) {
-        renderVisualTableCell(view, cell, session.originalSource, images);
+        renderVisualTableCell(view, cell, session.originalSource, images, links);
       }
     }
     view.focus();

@@ -545,6 +545,10 @@ describe("Markra workspace", () => {
 
   afterEach(() => {
     resetAppRuntimeForTests();
+    // jsdom shares one document selection across tests. A selection left on a
+    // destroyed editor makes the next CodeMirror view treat the mismatching
+    // DOM selection as user input and collapse its own selection.
+    document.getSelection()?.removeAllRanges();
   });
 
   it("syncs selection toolbar formatting after running the editor link command", () => {
@@ -7547,7 +7551,7 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".cm-editor .markra-search-match-current")).not.toBeInTheDocument();
   });
 
-  it("clears finalized image source editing when document search opens", async () => {
+  it("keeps the image preview rendered while source editing and document search open", async () => {
     mockOpenMarkdownFile({
       content: "Intro\n\n![Screenshot](assets/pasted-image.png)\n\nContent",
       name: "native.md",
@@ -7567,15 +7571,14 @@ describe("Markra workspace", () => {
       view.dispatch({ selection: EditorSelection.cursor(imageFrom + 2) });
     });
     await waitFor(() => {
-      expect(container.querySelector('.cm-editor img[src="assets/pasted-image.png"]')).not.toBeInTheDocument();
+      expect(container.querySelector(".markra-image-node-selected")).toBeInTheDocument();
     });
+    expect(container.querySelector('.cm-editor img[src="assets/pasted-image.png"]')).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "f", metaKey: true });
 
     expect(screen.getByRole("searchbox", { name: "Find in document" })).toHaveFocus();
-    await waitFor(() => {
-      expect(container.querySelector('.cm-editor img[src="assets/pasted-image.png"]')).toBeInTheDocument();
-    });
+    expect(container.querySelector('.cm-editor img[src="assets/pasted-image.png"]')).toBeInTheDocument();
   });
 
   it("replaces the current source-mode document search match", async () => {

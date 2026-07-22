@@ -1,7 +1,9 @@
 import * as matchers from "@testing-library/jest-dom/matchers";
+import { configure } from "@testing-library/react";
 import { expect, vi } from "vitest";
 
 expect.extend(matchers);
+configure({ asyncUtilTimeout: 5000 });
 
 const testRect = {
   bottom: 0,

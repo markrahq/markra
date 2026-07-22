@@ -200,6 +200,37 @@ describe("liveMarkdown", () => {
     expect(view.state.doc.toString()).toBe(doc);
   });
 
+  it("renders an anchor for a target allowed by a custom link resolver", () => {
+    const doc = "Read [doc](FILE:///attachments/Doc.pdf)\n\nEdit";
+    const view = createView({
+      doc,
+      extensions: [
+        liveMarkdown({
+          resolveLinkTarget: ({ source }) =>
+            source.startsWith("FILE:") ? source : null,
+        }),
+      ],
+    });
+    const rendered = view.dom.querySelector(".cm-markra-link");
+
+    expect(rendered?.textContent).toBe("doc");
+    expect(rendered?.tagName).toBe("A");
+    expect(rendered?.getAttribute("href")).toBe("FILE:///attachments/Doc.pdf");
+  });
+
+  it("renders a plain span when the custom link resolver rejects a target", () => {
+    const doc = "Read [site](https://example.test)\n\nEdit";
+    const view = createView({
+      doc,
+      extensions: [liveMarkdown({ resolveLinkTarget: () => null })],
+    });
+    const rendered = view.dom.querySelector(".cm-markra-link");
+
+    expect(rendered?.textContent).toBe("site");
+    expect(rendered?.tagName).not.toBe("A");
+    expect(rendered?.hasAttribute("href")).toBe(false);
+  });
+
   it("enables and renders GFM strikethrough by default", () => {
     const doc = "Keep ~~old~~ new\n\nEdit";
     const view = createView({ doc });

@@ -93,6 +93,42 @@ describe("tablePreviewPlugin", () => {
     expect(view.state.doc.toString()).toBe(doc);
   });
 
+  it("renders anchors for custom-resolved link targets inside visual table cells", () => {
+    const doc = [
+      "| Attachment | Site |",
+      "| --- | --- |",
+      "| [Reference.pdf](FILE:///mock-files/Reference.pdf) | [Open](https://example.test) |",
+      "",
+      "Edit",
+    ].join("\n");
+    const resolveTarget = vi.fn(({ source }: { source: string }) =>
+      source.startsWith("FILE:") ? source : null,
+    );
+    const view = createView(
+      doc,
+      tablePreviewPlugin({ links: { open: () => true, resolveTarget } }),
+    );
+    const cells = view.dom.querySelectorAll<HTMLTableCellElement>(
+      ".cm-markra-table tbody td",
+    );
+    const attachment = cells[0]?.querySelector("a");
+    const rejected = cells[1]?.querySelector("[data-markra-link-markdown]");
+
+    expect(attachment?.textContent).toBe("Reference.pdf");
+    expect(attachment?.getAttribute("href")).toBe(
+      "FILE:///mock-files/Reference.pdf",
+    );
+    const resolveContext = resolveTarget.mock.calls[0]?.[0] as
+      | { source: string; state: EditorState; view: EditorView }
+      | undefined;
+    expect(resolveContext?.source).toBe("FILE:///mock-files/Reference.pdf");
+    expect(resolveContext?.state).toBeInstanceOf(EditorState);
+    expect(resolveContext?.view).toBe(view);
+    expect(rejected?.tagName).toBe("SPAN");
+    expect(rejected?.hasAttribute("href")).toBe(false);
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
   it("renders and preserves images inside visual table cells", async () => {
     const doc = [
       "| Name | Media |",
