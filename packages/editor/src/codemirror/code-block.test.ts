@@ -277,6 +277,23 @@ describe("codeBlockPreviewPlugin", () => {
     expect(view.state.doc.toString()).toBe(source);
   });
 
+  it("keeps Mermaid source visible while selecting from inside the code block", () => {
+    const source = "```mermaid\nflowchart TD\n  A --> B\n```\n\nEdit";
+    const view = createView(source);
+    const anchor = source.indexOf("flowchart");
+    const head = source.indexOf("B");
+
+    view.dispatch({ selection: { anchor } });
+    expect(view.dom.querySelector(".markra-mermaid-render")).toBeNull();
+
+    view.dispatch({ selection: { anchor, head } });
+
+    expect(view.state.selection.main.empty).toBe(false);
+    expect(view.dom.querySelector(".markra-mermaid-render")).toBeNull();
+    expect(renderedLines(view)).toContain("flowchart TD");
+    expect(renderedLines(view)).toContain("  A --> B");
+  });
+
   it("opens, zooms, pans, and resets an enlarged Mermaid preview", async () => {
     const source = "```mermaid\nflowchart TD\n  A --> B\n```\n\nEdit";
     const view = createView(
