@@ -832,6 +832,10 @@ describe("editor stylesheet", () => {
     );
     const mermaidZoomRevealEnd = styles.indexOf(".markdown-paper .markra-mermaid-zoom-button:hover");
     const mermaidZoomRevealStyles = styles.slice(mermaidZoomRevealStart, mermaidZoomRevealEnd);
+    const mermaidZoomButtonStart = styles.indexOf(".markdown-paper .markra-mermaid-zoom-button {");
+    const mermaidZoomButtonEnd =
+      styles.indexOf("\n  }\n", mermaidZoomButtonStart) + "\n  }\n".length;
+    const mermaidZoomButtonStyles = styles.slice(mermaidZoomButtonStart, mermaidZoomButtonEnd);
     const mermaidZoomHoverStart = styles.indexOf(".markdown-paper .markra-mermaid-zoom-button:hover");
     const mermaidZoomHoverEnd = styles.indexOf("\n  }\n", mermaidZoomHoverStart) + "\n  }\n".length;
     const mermaidZoomHoverStyles = styles.slice(mermaidZoomHoverStart, mermaidZoomHoverEnd);
@@ -848,6 +852,7 @@ describe("editor stylesheet", () => {
     expect(mermaidFoldStyles).toContain(".markra-code-language-control");
     expect(styles).toContain(".markdown-paper .markra-mermaid-preview-button");
     expect(styles).toContain(".markdown-paper .markra-mermaid-zoom-button");
+    expect(mermaidZoomButtonStyles).toContain("top-4");
     expect(mermaidZoomRevealStyles).not.toContain(":focus-within");
     expect(mermaidZoomRevealStyles).toContain("opacity: 1");
     expect(mermaidZoomRevealStyles).toContain("pointer-events: auto");

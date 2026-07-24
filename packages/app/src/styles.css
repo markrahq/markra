@@ -3873,7 +3873,7 @@
   }
 
   .markdown-paper .markra-mermaid-zoom-button {
-    @apply absolute top-2 right-2 z-[3] grid size-7 cursor-pointer place-items-center rounded-md border border-(--border-default) p-0 outline-none transition-[opacity,transform,color,background-color,border-color,box-shadow] duration-150 ease-out;
+    @apply absolute top-4 right-2 z-[3] grid size-7 cursor-pointer place-items-center rounded-md border border-(--border-default) p-0 outline-none transition-[opacity,transform,color,background-color,border-color,box-shadow] duration-150 ease-out;
     background: var(--editor-code-control-bg);
     border-color: var(--editor-border);
     color: var(--editor-text-secondary);

@@ -277,7 +277,7 @@ describe("codeBlockPreviewPlugin", () => {
     expect(view.state.doc.toString()).toBe(source);
   });
 
-  it("opens and controls an enlarged Mermaid preview", async () => {
+  it("opens, zooms, pans, and resets an enlarged Mermaid preview", async () => {
     const source = "```mermaid\nflowchart TD\n  A --> B\n```\n\nEdit";
     const view = createView(
       source,
@@ -289,16 +289,68 @@ describe("codeBlockPreviewPlugin", () => {
       expect(view.dom.querySelector(".markra-mermaid-zoom-button")).not.toBeNull();
     });
 
-    view.dom.querySelector<HTMLButtonElement>(".markra-mermaid-zoom-button")?.click();
+    const zoomButton = view.dom.querySelector<HTMLButtonElement>(
+      ".markra-mermaid-zoom-button",
+    );
+    const preview = view.dom.querySelector<HTMLElement>(".markra-mermaid-render");
+    expect(
+      zoomButton?.closest<HTMLElement>(".markra-code-block")?.dataset.mermaidMode,
+    ).toBe("preview");
+    expect(zoomButton?.parentElement).not.toBe(preview);
+    expect(zoomButton?.querySelector(".markra-mermaid-zoom-icon")).not.toBeNull();
+    expect(zoomButton?.textContent).toBe("");
+
+    zoomButton?.click();
     const dialog = document.querySelector<HTMLElement>(
       ".markra-mermaid-zoom-dialog",
     );
     expect(dialog?.getAttribute("role")).toBe("dialog");
     expect(dialog?.querySelector("svg")).not.toBeNull();
+    for (const className of [
+      ".markra-mermaid-zoom-out-button",
+      ".markra-mermaid-zoom-in-button",
+      ".markra-mermaid-zoom-reset-button",
+      ".markra-mermaid-zoom-close-button",
+    ]) {
+      const button = dialog?.querySelector<HTMLButtonElement>(className);
+      expect(button?.querySelector("svg")).not.toBeNull();
+      expect(button?.textContent).toBe("");
+    }
     dialog?.querySelector<HTMLButtonElement>(".markra-mermaid-zoom-in-button")?.click();
     expect(
       dialog?.querySelector<HTMLElement>(".markra-mermaid-zoom-canvas")?.style.transform,
     ).toContain("scale(1.25)");
+
+    const content = dialog?.querySelector<HTMLElement>(
+      ".markra-mermaid-zoom-content",
+    );
+    const canvas = dialog?.querySelector<HTMLElement>(
+      ".markra-mermaid-zoom-canvas",
+    );
+    content?.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      clientX: 100,
+      clientY: 80,
+      pointerId: 9,
+    }));
+    content?.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      clientX: 132,
+      clientY: 96,
+      pointerId: 9,
+    }));
+    expect(content?.dataset.dragging).toBe("true");
+    expect(canvas?.style.transform).toContain("translate(32px, 16px)");
+    content?.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true,
+      button: 0,
+      pointerId: 9,
+    }));
+    expect(content?.dataset.dragging).toBeUndefined();
+
+    dialog?.querySelector<HTMLButtonElement>(".markra-mermaid-zoom-reset-button")?.click();
+    expect(canvas?.style.transform).toBe("translate(0px, 0px) scale(1)");
 
     document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
     expect(document.querySelector(".markra-mermaid-zoom-dialog")).toBeNull();
