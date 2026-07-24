@@ -923,8 +923,21 @@ export function codeBlockPreviewPlugin(
           const firstLine = state.doc.lineAt(node.from);
           const lastLine = state.doc.lineAt(node.to);
           const revealed = context.revealed("line");
+          // A Mermaid source selection must not collapse as soon as dragging
+          // makes it non-empty. Anchor-only matching preserves drags that
+          // start inside the block without revealing source for selections
+          // that merely pass over the preview from outside.
+          const selectionAnchoredInside =
+            context.view.hasFocus &&
+            state.selection.ranges.some(
+              (selection) =>
+                !selection.empty &&
+                selection.anchor >= node.from &&
+                selection.anchor <= node.to,
+            );
           const sourceRevealed =
-            isMermaidLanguage(parts.language) && revealed;
+            isMermaidLanguage(parts.language) &&
+            (revealed || selectionAnchoredInside);
           if (
             !sourceRevealed &&
             parts.codeNode &&
