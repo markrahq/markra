@@ -63,6 +63,7 @@ type NativeTitleBarProps = {
   aiAgentOpen: boolean;
   aiAgentResizing?: boolean;
   aiAgentWidth?: number;
+  compactLayout?: boolean;
   dirty: boolean;
   documentKind?: "file" | "folder" | "image";
   documentName: string;
@@ -119,6 +120,7 @@ export function NativeTitleBar({
   aiAgentOpen,
   aiAgentResizing = false,
   aiAgentWidth = 384,
+  compactLayout = false,
   dirty,
   documentKind = "file",
   documentName,
@@ -637,7 +639,7 @@ export function NativeTitleBar({
     </div>
   );
 
-  const documentActionsClassName = `document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-40 group-hover/titlebar:opacity-100 focus-within:opacity-100 motion-reduce:transition-none ${
+  const documentActionsClassName = `document-actions relative z-10 flex h-10 items-center justify-end gap-0.5 overflow-x-auto pr-3.5 text-(--text-secondary) opacity-40 group-hover/titlebar:opacity-100 focus-within:opacity-100 max-[600px]:max-w-[46vw] motion-reduce:transition-none ${
     aiAgentResizing
       ? "transition-none"
       : "transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
@@ -648,7 +650,7 @@ export function NativeTitleBar({
     ? "transition-none"
     : "transition-[width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none";
   const titlebarGridStyle: CSSProperties = {
-    ...(!nativeWindowChrome && markdownFilesOpen ? { left: markdownFilesWidth + 1 } : {}),
+    ...(!compactLayout && !nativeWindowChrome && markdownFilesOpen ? { left: markdownFilesWidth + 1 } : {}),
     gridTemplateColumns: nativeWindowChrome
       ? `${titlebarSideSlotWidth}px minmax(0,1fr) ${titlebarSideSlotWidth}px`
       : "auto minmax(0, 1fr) auto"

@@ -1,8 +1,22 @@
 import { render, screen } from "@testing-library/react";
 
-import { SettingsTextarea, SettingsTextInput } from "./SettingsControls";
+import { SettingsRow, SettingsTextarea, SettingsTextInput } from "./SettingsControls";
 
 describe("SettingsControls", () => {
+  it("stacks setting labels and actions on narrow screens", () => {
+    const { container } = render(
+      <SettingsRow action={<button type="button">Choose</button>} title="Workspace" />
+    );
+
+    expect(container.querySelector(".settings-row")).toHaveClass(
+      "max-[520px]:grid-cols-1",
+      "max-[520px]:gap-2"
+    );
+    expect(screen.getByRole("button", { name: "Choose" }).parentElement).toHaveClass(
+      "max-[520px]:justify-start"
+    );
+  });
+
   it("turns off browser text correction for settings text inputs", () => {
     render(
       <SettingsTextInput

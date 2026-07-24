@@ -593,8 +593,23 @@ describe("liveMarkdown", () => {
     expect(view.state.doc.toString()).toBe("- [x] Ship mock release\n\nEdit");
     expect(
       view.dom.querySelector<HTMLInputElement>(".cm-markra-task-checkbox")
-        ?.checked,
+      ?.checked,
     ).toBe(true);
+  });
+
+  it("renders task markers as checkboxes when the task text is empty", () => {
+    const view = createView({ doc: "- [ ]\n- [x]" });
+    const checkboxes = Array.from(
+      view.dom.querySelectorAll<HTMLInputElement>(".cm-markra-task-checkbox"),
+    );
+
+    expect(checkboxes).toHaveLength(2);
+    expect(checkboxes[0]?.checked).toBe(false);
+    expect(checkboxes[1]?.checked).toBe(true);
+
+    checkboxes[0]?.click();
+
+    expect(view.state.doc.toString()).toBe("- [x]\n- [x]");
   });
 
   it("allows task checkbox rendering to be disabled", () => {
@@ -608,6 +623,15 @@ describe("liveMarkdown", () => {
       view.dom.querySelector(".cm-markra-task-checkbox"),
     ).toBeNull();
     expect(renderedLines(view)[0]).toBe("- [ ] Keep the marker visible");
+
+    const emptyView = createView({
+      doc: "- [x]",
+      extensions: [liveMarkdown({ taskCheckboxes: false })],
+    });
+    expect(
+      emptyView.dom.querySelector(".cm-markra-task-checkbox"),
+    ).toBeNull();
+    expect(renderedLines(emptyView)[0]).toBe("- [x]");
   });
 
   it("adds semantic classes without changing the Markdown document", () => {

@@ -40,14 +40,18 @@ export function SettingsRow({
   title: string;
 }) {
   return (
-    <div className="settings-row grid min-h-15 grid-cols-[minmax(0,1fr)_auto] items-center gap-5 py-4">
+    <div className="settings-row grid min-h-15 grid-cols-[minmax(0,1fr)_auto] items-center gap-5 py-4 max-[520px]:grid-cols-1 max-[520px]:gap-2">
       <div className="min-w-0">
         <p className="m-0 text-[13px] leading-5 font-[650] tracking-normal text-(--text-heading)">{title}</p>
         {description ? (
           <p className="m-0 mt-0.5 text-[12px] leading-4.5 font-[450] text-(--text-secondary)">{description}</p>
         ) : null}
       </div>
-      {action ? <div className="flex shrink-0 items-center justify-end">{action}</div> : null}
+      {action ? (
+        <div className="flex shrink-0 items-center justify-end max-[520px]:justify-start">
+          {action}
+        </div>
+      ) : null}
     </div>
   );
 }

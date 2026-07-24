@@ -11,6 +11,7 @@ type MarkdownFileTreeDrawerProps = ComponentProps<typeof MarkdownFileTreeDrawer>
 type WorkspaceLayoutProps = {
   aiAgentPanel: ReactNode;
   children: ReactNode;
+  compactFileTreeOverlay?: boolean;
   documentSearchAvailable: boolean;
   documentSearchOpen: boolean;
   editorAgentLayoutClassName: string;
@@ -29,6 +30,7 @@ type WorkspaceLayoutProps = {
 export function WorkspaceLayout({
   aiAgentPanel,
   children,
+  compactFileTreeOverlay = false,
   documentSearchAvailable,
   documentSearchOpen,
   editorAgentLayoutClassName,
@@ -43,12 +45,28 @@ export function WorkspaceLayout({
   onEditorContentDragOver,
   onEditorContentDrop
 }: WorkspaceLayoutProps) {
+  const fileTreeOverlayOpen = compactFileTreeOverlay && fileTree.open;
+
   return (
     <div
       className={`${workspaceLayoutClassName} ${windowsSelfDrawnChrome ? "pt-10" : ""}`}
       style={workspaceLayoutStyle}
     >
-      <div className="markdown-file-tree-slot min-h-0 overflow-hidden">
+      {fileTreeOverlayOpen ? (
+        <div
+          aria-hidden="true"
+          className="fixed inset-x-0 top-10 bottom-0 z-20 bg-black/20"
+          onPointerDown={() => fileTree.onToggleMarkdownFiles?.()}
+        />
+      ) : null}
+      <div
+        className={`markdown-file-tree-slot min-h-0 overflow-hidden ${
+          fileTreeOverlayOpen
+            ? "fixed top-10 bottom-0 left-0 z-30 shadow-[12px_0_32px_color-mix(in_srgb,var(--text-heading)_16%,transparent)]"
+            : ""
+        }`}
+        data-compact-overlay={fileTreeOverlayOpen ? "true" : undefined}
+      >
         <MarkdownFileTreeDrawer {...fileTree} />
       </div>
 

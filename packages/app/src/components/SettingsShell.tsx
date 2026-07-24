@@ -136,22 +136,25 @@ export function SettingsSidebar({
   translate: Translate;
 }) {
   const headerClassName = platform === "windows"
-    ? "settings-sidebar-header flex h-14 items-center px-7"
-    : "settings-sidebar-header px-7 pt-14 pb-5";
+    ? "settings-sidebar-header flex h-14 items-center px-7 max-[700px]:hidden"
+    : "settings-sidebar-header px-7 pt-14 pb-5 max-[700px]:hidden";
   const sidebarSurfaceClassName = platform === "windows"
     ? "border-r-0 bg-(--bg-chrome)"
     : "border-r border-(--border-default) bg-(--bg-secondary)";
   const visibleCategories = settingsCategories.filter((category) => !hiddenCategories.includes(category.id));
 
   return (
-    <aside className={`settings-sidebar flex min-h-0 flex-col ${sidebarSurfaceClassName}`}>
+    <aside className={`settings-sidebar flex min-h-0 flex-col max-[700px]:shrink-0 max-[700px]:border-r-0 max-[700px]:border-b max-[700px]:border-(--border-default) ${sidebarSurfaceClassName}`}>
       <div className={headerClassName}>
         <h1 className="settings-sidebar-title m-0 text-[17px] leading-6 font-bold tracking-normal text-(--text-heading)">
           {translate("settings.title")}
         </h1>
       </div>
 
-      <nav className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-3" aria-label={translate("settings.aria.categories")}>
+      <nav
+        className="flex min-h-0 flex-1 flex-col gap-1 overflow-auto px-3 max-[700px]:flex-none max-[700px]:flex-row max-[700px]:overflow-x-auto max-[700px]:px-2 max-[700px]:py-2"
+        aria-label={translate("settings.aria.categories")}
+      >
         {visibleCategories.map((category) => (
           <SettingsNavButton
             key={category.id}
@@ -163,7 +166,7 @@ export function SettingsSidebar({
         ))}
       </nav>
 
-      <div className="border-t border-(--border-default) px-7 py-4 text-[12px] leading-5 font-[560] text-(--text-secondary)">
+      <div className="border-t border-(--border-default) px-7 py-4 text-[12px] leading-5 font-[560] text-(--text-secondary) max-[700px]:hidden">
         Markra v{appVersion}
       </div>
     </aside>
@@ -186,7 +189,7 @@ function SettingsNavButton({
 
   return (
     <button
-      className="group inline-flex h-9 w-full items-center gap-3 rounded-md border-0 bg-transparent px-3 text-left text-[13px] leading-5 font-[620] tracking-normal text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) aria-current:bg-(--bg-active) aria-current:text-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+      className="group inline-flex h-9 w-full items-center gap-3 rounded-md border-0 bg-transparent px-3 text-left text-[13px] leading-5 font-[620] tracking-normal text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) aria-current:bg-(--bg-active) aria-current:text-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) max-[700px]:w-auto max-[700px]:shrink-0 max-[700px]:whitespace-nowrap"
       type="button"
       aria-current={active ? "page" : undefined}
       aria-label={label}
@@ -227,7 +230,7 @@ export function SettingsContent({
   return (
     <section className={`settings-content flex min-h-0 min-w-0 flex-col bg-(--bg-primary) ${contentSurfaceClassName}`}>
       <header
-        className="settings-content-header relative z-20 flex h-14 shrink-0 items-center border-b border-(--border-default) px-7"
+        className="settings-content-header relative z-20 flex h-14 shrink-0 items-center border-b border-(--border-default) px-7 max-[700px]:h-12 max-[700px]:px-4"
         data-tauri-drag-region={contentHeaderDragRegion}
       >
         <h2 className="settings-panel-title m-0 text-[16px] leading-6 font-bold tracking-normal text-(--text-heading)">
@@ -250,7 +253,7 @@ export function SettingsContent({
         className={
           activeCategory === "providers"
             ? "settings-scroll min-h-0 flex-1 overflow-hidden overscroll-none p-0"
-            : "settings-scroll min-h-0 flex-1 overflow-auto overscroll-none px-8 py-7"
+            : "settings-scroll min-h-0 flex-1 overflow-auto overscroll-none px-8 py-7 max-[700px]:px-4 max-[700px]:py-4"
         }
       >
         {children}

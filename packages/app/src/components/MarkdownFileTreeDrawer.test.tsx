@@ -1391,6 +1391,48 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(aws).not.toHaveAttribute("aria-selected");
   });
 
+  it("deletes focused tree rows from the keyboard", () => {
+    const deleteFile = vi.fn();
+    const architectureFile = {
+      name: "Architecture.md",
+      path: "/vault/Architecture.md",
+      relativePath: "Architecture.md"
+    };
+
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={[...markdownFiles, architectureFile]}
+        open
+        outlineItems={[]}
+        platform="macos"
+        rootName="Obsidian Vault"
+        onDeleteFile={deleteFile}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    const architecture = screen.getByRole("button", { name: "Architecture.md" });
+    const aws = screen.getByRole("button", { name: "AWS.md" });
+    const folder = screen.getByRole("button", { name: "deploy" });
+
+    fireEvent.click(aws, { metaKey: true });
+    fireEvent.click(architecture, { metaKey: true });
+    fireEvent.keyDown(aws, { key: "Delete" });
+
+    expect(deleteFile).toHaveBeenCalledWith(markdownFiles[1], {
+      files: expect.arrayContaining([markdownFiles[1], architectureFile])
+    });
+
+    fireEvent.keyDown(folder, { key: "Backspace" });
+
+    expect(deleteFile).toHaveBeenLastCalledWith(expect.objectContaining({
+      kind: "folder",
+      path: "deploy"
+    }));
+  });
+
   it("uses selected file rows for supported file tree context menu actions", () => {
     const deleteFile = vi.fn();
     const openFileToSide = vi.fn();

@@ -1469,6 +1469,29 @@ export function MarkdownFileTreeDrawer({
     targetFile.kind !== "asset" && targetFile.kind !== "attachment" && !sameNativePath(targetFile.path, currentPath)
   );
 
+  const deleteFileTreeTarget = (targetFile: NativeMarkdownFolderFile) => {
+    if (!onDeleteFile) return;
+
+    const targetFiles = fileTreeContextTargets(targetFile);
+    const operation = targetFiles.length > 1
+      ? onDeleteFile(targetFile, { files: targetFiles })
+      : onDeleteFile(targetFile);
+    Promise.resolve(operation).catch(() => {});
+  };
+
+  const handleFileTreeRowDeleteKey = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    targetFile: NativeMarkdownFolderFile
+  ) => {
+    const deleteKey = event.key === "Delete";
+    const macDeleteKey = platform === "macos" && event.key === "Backspace";
+    if ((!deleteKey && !macDeleteKey) || event.repeat || !onDeleteFile) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    deleteFileTreeTarget(targetFile);
+  };
+
   const openContextMenu = (
     event: ReactMouseEvent,
     file?: NativeMarkdownFolderFile,
@@ -1495,12 +1518,7 @@ export function MarkdownFileTreeDrawer({
           }))
           : undefined,
         createFolder: folderCreationAvailable ? () => startCreatingFolder(createTargetFolderPath) : undefined,
-        deleteFile: (targetFile) => {
-          const targetFiles = fileTreeContextTargets(targetFile);
-          if (targetFiles.length > 1) return onDeleteFile?.(targetFile, { files: targetFiles });
-
-          return onDeleteFile?.(targetFile);
-        },
+        deleteFile: deleteFileTreeTarget,
         openContainingFolder: onOpenContainingFolder
           ? (targetFile) => {
             const path = targetFile?.path ?? rootPath;
@@ -2073,6 +2091,7 @@ export function MarkdownFileTreeDrawer({
                 }}
                 {...dragSource.attributes}
                 {...dragSource.listeners}
+                onKeyDown={(event) => handleFileTreeRowDeleteKey(event, folderFile)}
               >
                 {expanded ? (
                   <ChevronDown aria-hidden="true" className="shrink-0" size={13} />
@@ -2262,6 +2281,7 @@ export function MarkdownFileTreeDrawer({
             {...dragSource.listeners}
             draggable={asset}
             onDragStart={(event) => handleFileRowDragStart(event, node.file)}
+            onKeyDown={(event) => handleFileTreeRowDeleteKey(event, node.file)}
           >
             <FileIcon aria-hidden="true" className="shrink-0" size={15} />
             <span

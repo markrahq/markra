@@ -31,6 +31,24 @@ function renderSettingsContent(platform?: "linux" | "macos" | "windows") {
 }
 
 describe("SettingsShell", () => {
+  it("uses a horizontally scrollable category strip on narrow settings screens", () => {
+    renderSettingsSidebar();
+
+    const sidebar = screen.getByRole("navigation", { name: "Settings categories" }).closest("aside");
+    const navigation = screen.getByRole("navigation", { name: "Settings categories" });
+
+    expect(sidebar).toHaveClass("max-[700px]:border-b", "max-[700px]:border-r-0");
+    expect(navigation).toHaveClass(
+      "max-[700px]:flex-row",
+      "max-[700px]:overflow-x-auto",
+      "max-[700px]:py-2"
+    );
+    expect(screen.getByRole("button", { name: "General" })).toHaveClass(
+      "max-[700px]:w-auto",
+      "max-[700px]:shrink-0"
+    );
+  });
+
   it("shows keyboard shortcuts as its own settings category", () => {
     const onCategoryChange = renderSettingsSidebar();
 

@@ -21,7 +21,7 @@ describe("DocumentHistoryDialog", () => {
     mockedReadNativeMarkdownFileHistory.mockReset();
   });
 
-  it("loads history entries and restores a clicked state", async () => {
+  it("previews a clicked history entry before explicitly restoring it", async () => {
     const onClose = vi.fn();
     const onRestore = vi.fn();
     mockedListNativeMarkdownFileHistory.mockResolvedValue([
@@ -62,14 +62,24 @@ describe("DocumentHistoryDialog", () => {
     fireEvent.click(options[1]);
 
     await waitFor(() => {
-      expect(onRestore).toHaveBeenCalledWith("# Earlier\n\nSynthetic history.", "history-older");
+      expect(mockedReadNativeMarkdownFileHistory).toHaveBeenLastCalledWith(
+        "/mock-files/guide.md",
+        "history-older"
+      );
     });
+    expect(onRestore).not.toHaveBeenCalled();
     expect(mockedListNativeMarkdownFileHistory).toHaveBeenCalledWith("/mock-files/guide.md");
-    expect(mockedReadNativeMarkdownFileHistory).toHaveBeenLastCalledWith(
-      "/mock-files/guide.md",
-      "history-older"
-    );
     expect(options[1]).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("region", { name: "History preview" })).toHaveTextContent(
+      "# Earlier Synthetic history."
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore version" }));
+
+    expect(onRestore).toHaveBeenCalledWith("# Earlier\n\nSynthetic history.", "history-older");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: "Restore version" })).toBeEnabled();
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Close history" }));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -209,8 +219,16 @@ describe("DocumentHistoryDialog", () => {
     const option = await screen.findByRole("option");
     fireEvent.click(option);
 
+    expect(await screen.findByRole("region", { name: "History preview" })).toHaveTextContent(
+      "# Earlier Synthetic history."
+    );
+    expect(onRestore).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Restore version" }));
+
+    expect(onRestore).toHaveBeenCalledWith("# Earlier\n\nSynthetic history.", "history-current");
     await waitFor(() => {
-      expect(onRestore).toHaveBeenCalledWith("# Earlier\n\nSynthetic history.", "history-current");
+      expect(screen.getByRole("button", { name: "Restore version" })).toBeEnabled();
     });
   });
 

@@ -110,8 +110,8 @@ export function SettingsWindow() {
   const showMacosWindowChrome = platform === "macos" && appFeatures.nativeWindowChrome;
   const settingsStartupReady = appLanguage.ready && appTheme.ready;
   const settingsLayoutClassName = showWindowsWindowChrome
-    ? "settings-layout absolute inset-x-0 top-10 bottom-0 grid grid-cols-[180px_minmax(0,1fr)]"
-    : "settings-layout grid h-screen grid-cols-[180px_minmax(0,1fr)]";
+    ? "settings-layout absolute inset-x-0 top-10 bottom-0 grid grid-cols-[180px_minmax(0,1fr)] max-[700px]:grid-cols-1 max-[700px]:grid-rows-[auto_minmax(0,1fr)]"
+    : "settings-layout grid h-screen grid-cols-[180px_minmax(0,1fr)] max-[700px]:grid-cols-1 max-[700px]:grid-rows-[auto_minmax(0,1fr)]";
   const handleCloseSettings = () => {
     hideSettingsWindow().catch(() => {});
   };

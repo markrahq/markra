@@ -117,11 +117,13 @@ describe("Markra document history restore", () => {
     expect(screen.queryByRole("dialog", { name: "History versions" })).not.toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("option"));
+    fireEvent.click(await screen.findByRole("button", { name: "Restore version" }));
 
     await waitFor(() => {
       expect(debugSpy.mock.calls.map((call) => call[0])).toEqual(expect.arrayContaining([
+        "[markra-history] preview click",
+        "[markra-history] preview contents resolved",
         "[markra-history] restore click",
-        "[markra-history] restore contents resolved",
         "[markra-history] app restore requested",
         "[markra-history] document restore state updated",
         "[markra-history] editor replace requested",
@@ -234,6 +236,7 @@ describe("Markra document history restore", () => {
     expect(await screen.findByRole("region", { name: "History versions" })).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("option"));
+    fireEvent.click(await screen.findByRole("button", { name: "Restore version" }));
 
     await waitFor(() => {
       expect(editorControllerSpies.replaceMarkdown).toHaveBeenCalledWith("# Earlier\n\nSynthetic body.");
@@ -272,15 +275,66 @@ describe("Markra document history restore", () => {
     expect(await screen.findByRole("region", { name: "History versions" })).toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("option"));
+    fireEvent.click(await screen.findByRole("button", { name: "Restore version" }));
 
     await waitFor(() => {
       expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledWith({
         contents: "# Earlier\n\nSynthetic body.",
-        historyCursorId: "history-current",
         path: mockNativePath,
-        skipHistorySnapshot: true,
         suggestedName: "native.md"
       });
+    });
+  });
+
+  it("preserves unsaved contents in history before restoring an earlier version", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockOpenMarkdownFile({
+      content: "# Current\n\nSynthetic body.",
+      name: "native.md",
+      path: mockNativePath
+    });
+    mockedListNativeMarkdownFileHistory.mockResolvedValue([
+      {
+        id: "history-current",
+        createdAt: 1_700_000_001_000,
+        sizeBytes: 27
+      }
+    ]);
+    mockedReadNativeMarkdownFileHistory.mockResolvedValue({
+      id: "history-current",
+      contents: "# Earlier\n\nSynthetic body."
+    });
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    await expectVisualMarkdownText("Current");
+    await selectEditorViewMode("Source code");
+    replaceMarkdownSource(
+      await screen.findByRole("textbox", { name: "Markdown source" }),
+      "# Unsaved\n\nSynthetic draft."
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show history" }));
+    fireEvent.click(await screen.findByRole("option"));
+    fireEvent.click(await screen.findByRole("button", { name: "Restore version" }));
+
+    await waitFor(() => {
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledTimes(2);
+    });
+    expect(mockedSaveNativeMarkdownFile).toHaveBeenNthCalledWith(1, {
+      contents: "# Unsaved\n\nSynthetic draft.",
+      path: mockNativePath,
+      suggestedName: "native.md"
+    });
+    expect(mockedSaveNativeMarkdownFile).toHaveBeenNthCalledWith(2, {
+      contents: "# Earlier\n\nSynthetic body.",
+      path: mockNativePath,
+      suggestedName: "native.md"
     });
   });
 

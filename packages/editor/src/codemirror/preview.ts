@@ -102,7 +102,9 @@ const PREFORMATTED_BLOCKS = new Set([
   "HTMLBlock",
 ]);
 
-const LIST_ITEM_PATTERN = /^([\t ]*)([-+*]|\d+[.)])[\t ]+(\[[ xX]\][\t ]+)?/u;
+const LIST_ITEM_PATTERN = /^([\t ]*)([-+*]|\d+[.)])[\t ]+(\[[ xX]\](?:[\t ]+|$))?/u;
+const EMPTY_TASK_ITEM_PATTERN =
+  /^([\t ]*)([-+*]|\d+[.)])([\t ]+)(\[[ xX]\])[\t ]*$/u;
 
 function listLineAttributes(source: string) {
   const match = LIST_ITEM_PATTERN.exec(source);
@@ -118,6 +120,20 @@ function listLineAttributes(source: string) {
   return {
     kind,
     marker: kind === "ordered" ? sourceMarker : "•",
+  };
+}
+
+function emptyTaskMarkerRange(source: string) {
+  const match = EMPTY_TASK_ITEM_PATTERN.exec(source);
+  if (!match) return null;
+
+  const markerFrom =
+    (match[1]?.length ?? 0) +
+    (match[2]?.length ?? 0) +
+    (match[3]?.length ?? 0);
+  return {
+    from: markerFrom,
+    to: markerFrom + (match[4]?.length ?? 0),
   };
 }
 
@@ -385,29 +401,20 @@ function buildDecorations(
       }
     }
 
-    if (taskCheckboxes && node.name === "TaskMarker") {
-      const taskDecoration = createTaskDecoration(
-        state,
-        node.from,
-        node.to,
-      );
-      if (taskDecoration) ranges.push(taskDecoration);
-    }
-
     if (node.name === "ListItem") {
       const line = state.doc.lineAt(node.from);
       const listAttributes = listLineAttributes(line.text);
+      const listMark = node.node.getChild("ListMark");
+      const sourceVisible = isRevealed({
+        view,
+        state,
+        from: listMark?.from ?? line.from,
+        to: listMark?.to ?? line.from,
+        nodeName: "ListMark",
+        scope: "line",
+      });
       if (listAttributes && !decoratedListLines.has(line.from)) {
         decoratedListLines.add(line.from);
-        const listMark = node.node.getChild("ListMark");
-        const sourceVisible = isRevealed({
-          view,
-          state,
-          from: listMark?.from ?? line.from,
-          to: listMark?.to ?? line.from,
-          nodeName: "ListMark",
-          scope: "line",
-        });
         ranges.push(
           Decoration.line({
             attributes: {
@@ -422,6 +429,36 @@ function buildDecorations(
           }).range(line.from),
         );
       }
+
+      const emptyTask = emptyTaskMarkerRange(line.text);
+      if (emptyTask) {
+        if (taskCheckboxes) {
+          const taskFrom = line.from + emptyTask.from;
+          const taskDecoration = createTaskDecoration(
+            state,
+            taskFrom,
+            line.from + emptyTask.to,
+          );
+          if (taskDecoration) ranges.push(taskDecoration);
+          if (!sourceVisible) {
+            pushHiddenRange(ranges, state.doc, line.from, taskFrom);
+          }
+        }
+
+        // Lezer treats an empty task marker as a paragraph or link. Claim the
+        // item so those fallback nodes cannot hide its source or overlap the
+        // checkbox replacement.
+        return false;
+      }
+    }
+
+    if (taskCheckboxes && node.name === "TaskMarker") {
+      const taskDecoration = createTaskDecoration(
+        state,
+        node.from,
+        node.to,
+      );
+      if (taskDecoration) ranges.push(taskDecoration);
     }
 
     const headingClass = HEADING_CLASSES[node.name];

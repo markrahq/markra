@@ -1115,6 +1115,7 @@ describe("Markra workspace", () => {
     expect(screen.queryByRole("dialog", { name: "History versions" })).not.toBeInTheDocument();
 
     fireEvent.click(await screen.findByRole("option"));
+    fireEvent.click(await screen.findByRole("button", { name: "Restore version" }));
 
     await waitFor(() => {
       const editor = screen.getByLabelText("Markdown editor");
@@ -1296,6 +1297,107 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".titlebar-spacer")).not.toBeInTheDocument();
     expect(container.querySelector(".document-tabs-drag-spacer")).not.toBeInTheDocument();
     expect(container.querySelector(".native-title-slot")?.getAttribute("style") ?? "").not.toContain("margin-left");
+  });
+
+  it("uses an overlay file tree instead of squeezing the editor on narrow web screens", async () => {
+    const restoreViewportWidth = mockWindowInnerWidth(390);
+    mockedResolveDesktopPlatform.mockReturnValue("linux");
+    configureAppRuntime({
+      ...createDefaultAppRuntime(),
+      features: {
+        ai: true,
+        export: true,
+        nativeWindowChrome: false,
+        networkProxy: true,
+        pandoc: true,
+        s3ImageUpload: true,
+        spellcheck: true,
+        updater: true
+      },
+      platform: {
+        resolveDesktopOsVersion: () => null,
+        resolveDesktopPlatform: () => "linux"
+      }
+    });
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-mobile-browser",
+      filePath: mockNativePath,
+      fileTreeOpen: true,
+      folderName: "mock-files",
+      folderPath: mockFolderPath,
+      openFilePaths: [mockNativePath]
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "mobile.md", path: mockNativePath, relativePath: "mobile.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Mobile browser",
+      name: "mobile.md",
+      path: mockNativePath
+    });
+
+    try {
+      const { container } = renderApp();
+
+      await expectVisibleMarkdownText("Mobile browser");
+      expect(container.querySelector(".workspace-layout")).toHaveStyle({
+        gridTemplateColumns: "0px minmax(0,1fr)"
+      });
+      expect(container.querySelector(".markdown-file-tree-slot")).toHaveClass(
+        "fixed",
+        "top-10",
+        "bottom-0",
+        "left-0"
+      );
+      expect(container.querySelector(".native-titlebar")).not.toHaveStyle({
+        left: "289px"
+      });
+      expect(screen.getByRole("button", { name: "Toggle file list" })).toBeInTheDocument();
+    } finally {
+      restoreViewportWidth();
+    }
+  });
+
+  it("keeps the file tree docked in narrow native windows", async () => {
+    const restoreViewportWidth = mockWindowInnerWidth(390);
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      events: {
+        ...runtime.events,
+        isAvailable: () => true
+      }
+    });
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-narrow-native",
+      filePath: mockNativePath,
+      fileTreeOpen: true,
+      folderName: "mock-files",
+      folderPath: mockFolderPath,
+      openFilePaths: [mockNativePath]
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "native.md", path: mockNativePath, relativePath: "native.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Narrow native window",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    try {
+      const { container } = renderApp();
+
+      await expectVisibleMarkdownText("Narrow native window");
+      expect(container.querySelector(".workspace-layout")).not.toHaveStyle({
+        gridTemplateColumns: "0px minmax(0,1fr)"
+      });
+      expect(container.querySelector(".markdown-file-tree-slot")).not.toHaveClass(
+        "fixed"
+      );
+    } finally {
+      restoreViewportWidth();
+    }
   });
 
   it("persists titlebar action order changes by holding and dragging", async () => {
@@ -1603,7 +1705,7 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".quiet-status")).not.toBeInTheDocument();
   });
 
-  it("selects the workspace view mode from the titlebar action menu", async () => {
+  it("keeps an exit control in immersive mode and exits it with Escape", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
       viewMode: "daily"
     }));
@@ -1619,10 +1721,26 @@ describe("Markra workspace", () => {
     expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith(expect.objectContaining({
       viewMode: "immersive"
     }));
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: "View mode: Immersive" })).not.toBeInTheDocument()
-    );
+    expect(await screen.findByRole("button", { name: "View mode: Immersive" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
+
+    mockedSaveStoredEditorPreferences.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "View mode: Immersive" }));
+    expect(await screen.findByRole("menu", { name: "View mode" })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("menu", { name: "View mode" })).not.toBeInTheDocument();
+    });
+    expect(mockedSaveStoredEditorPreferences).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "View mode: Immersive" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    await waitFor(() => expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ viewMode: "full" })
+    ));
+    expect(await screen.findByRole("button", { name: "View mode: Full" })).toBeInTheDocument();
   });
 
   it("hides fixed titlebar buttons from custom view mode visibility", async () => {
@@ -2461,6 +2579,10 @@ describe("Markra workspace", () => {
     const { container } = renderApp();
 
     await waitFor(() => expect(container.querySelector(".settings-window")).toBeInTheDocument());
+    expect(container.querySelector(".settings-layout")).toHaveClass(
+      "max-[700px]:grid-cols-1",
+      "max-[700px]:grid-rows-[auto_minmax(0,1fr)]"
+    );
     expect(container.querySelector(".settings-drag-region")).not.toBeInTheDocument();
     expect(container.querySelector(".settings-content-header")).not.toHaveAttribute("data-tauri-drag-region");
 

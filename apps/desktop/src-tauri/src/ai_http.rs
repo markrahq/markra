@@ -11,6 +11,12 @@ use crate::network::{apply_network_settings, NetworkSettings};
 const AI_PROVIDER_REQUEST_TIMEOUT_SECS: u64 = 20;
 const AI_CHAT_REQUEST_TIMEOUT_SECS: u64 = 60;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum RequestTimeoutPolicy {
+    Connect(Duration),
+    Total(Duration),
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AiProviderJsonRequest {
@@ -95,12 +101,9 @@ async fn execute_native_chat_request(
 ) -> Result<AiProviderJsonResponse, String> {
     let url = validated_http_url(&request.url)?;
     let headers = parse_headers(&request.headers)?;
-    let client = apply_network_settings(
-        reqwest::Client::builder().timeout(Duration::from_secs(AI_CHAT_REQUEST_TIMEOUT_SECS)),
-        request.network.as_ref(),
-    )?
-    .build()
-    .map_err(|error| error.to_string())?;
+    let client = apply_network_settings(chat_client_builder(false), request.network.as_ref())?
+        .build()
+        .map_err(|error| error.to_string())?;
 
     let response = client
         .post(url)
@@ -122,12 +125,9 @@ async fn execute_native_chat_stream_request(
 ) -> Result<AiProviderJsonResponse, String> {
     let url = validated_http_url(&request.url)?;
     let headers = parse_headers(&request.headers)?;
-    let client = apply_network_settings(
-        reqwest::Client::builder().timeout(Duration::from_secs(AI_CHAT_REQUEST_TIMEOUT_SECS)),
-        request.network.as_ref(),
-    )?
-    .build()
-    .map_err(|error| error.to_string())?;
+    let client = apply_network_settings(chat_client_builder(true), request.network.as_ref())?
+        .build()
+        .map_err(|error| error.to_string())?;
 
     let mut response = client
         .post(url)
@@ -173,6 +173,25 @@ async fn execute_native_chat_stream_request(
         status,
         body: Value::Null,
     })
+}
+
+fn chat_client_builder(streaming: bool) -> reqwest::ClientBuilder {
+    let builder = reqwest::Client::builder();
+
+    match chat_request_timeout_policy(streaming) {
+        // A total timeout would abort an otherwise healthy response stream after 60 seconds.
+        RequestTimeoutPolicy::Connect(timeout) => builder.connect_timeout(timeout),
+        RequestTimeoutPolicy::Total(timeout) => builder.timeout(timeout),
+    }
+}
+
+fn chat_request_timeout_policy(streaming: bool) -> RequestTimeoutPolicy {
+    let timeout = Duration::from_secs(AI_CHAT_REQUEST_TIMEOUT_SECS);
+    if streaming {
+        RequestTimeoutPolicy::Connect(timeout)
+    } else {
+        RequestTimeoutPolicy::Total(timeout)
+    }
 }
 
 fn take_utf8_text(pending: &mut Vec<u8>, chunk: &[u8]) -> Option<String> {
@@ -342,5 +361,17 @@ mod tests {
             Some("你好".to_string())
         );
         assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn limits_only_connection_setup_for_streaming_chat_requests() {
+        assert_eq!(
+            chat_request_timeout_policy(true),
+            RequestTimeoutPolicy::Connect(Duration::from_secs(AI_CHAT_REQUEST_TIMEOUT_SECS))
+        );
+        assert_eq!(
+            chat_request_timeout_policy(false),
+            RequestTimeoutPolicy::Total(Duration::from_secs(AI_CHAT_REQUEST_TIMEOUT_SECS))
+        );
     }
 }

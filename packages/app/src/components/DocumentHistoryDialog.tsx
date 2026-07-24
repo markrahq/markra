@@ -12,7 +12,7 @@ export type DocumentHistoryDialogProps = {
   documentPath: string;
   language?: AppLanguage;
   onClose: () => unknown;
-  onRestore: (contents: string, historyId: string) => unknown;
+  onRestore: (contents: string, historyId: string) => unknown | Promise<unknown>;
   refreshKey?: number;
   rightInsetPx?: number;
   windowsSelfDrawnChrome?: boolean;
@@ -51,11 +51,13 @@ export function DocumentHistoryDialog({
   const [entriesLoading, setEntriesLoading] = useState(true);
   const [entriesError, setEntriesError] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [restorePendingId, setRestorePendingId] = useState<string | null>(null);
-  const [restoreError, setRestoreError] = useState(false);
+  const [preview, setPreview] = useState<{ contents: string; id: string } | null>(null);
+  const [previewPendingId, setPreviewPendingId] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState(false);
+  const [restorePending, setRestorePending] = useState(false);
   const panelRef = useRef<HTMLElement | null>(null);
   const loadedDocumentPathRef = useRef<string | null>(null);
-  const mountedRef = useRef(true);
+  const previewRequestIdRef = useRef(0);
   const normalizedRightInsetPx = Math.max(0, rightInsetPx);
   const panelTopPx = titlebarRowHeightPx * (windowsSelfDrawnChrome ? 2 : 1) + documentHistoryPanelGapPx;
   const viewportWidthPx = typeof window === "undefined" ? Number.POSITIVE_INFINITY : window.innerWidth;
@@ -67,14 +69,6 @@ export function DocumentHistoryDialog({
   );
   const panelRightPx = Math.min(requestedPanelRightPx, maximumPanelRightPx);
   const panelWidthInsetPx = panelRightPx + documentHistoryPanelViewportMarginPx;
-
-  useEffect(() => {
-    mountedRef.current = true;
-
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -110,8 +104,11 @@ export function DocumentHistoryDialog({
       setEntries([]);
       setEntriesLoading(true);
       setSelectedId(null);
-      setRestoreError(false);
-      setRestorePendingId(null);
+      setPreview(null);
+      setPreviewError(false);
+      setPreviewPendingId(null);
+      setRestorePending(false);
+      previewRequestIdRef.current += 1;
     }
     setEntriesError(false);
 
@@ -134,6 +131,11 @@ export function DocumentHistoryDialog({
           if (current === null) return current;
 
           return historyEntries.some((entry) => entry.id === current) ? current : null;
+        });
+        setPreview((current) => {
+          if (current === null) return current;
+
+          return historyEntries.some((entry) => entry.id === current.id) ? current : null;
         });
       })
       .catch((error: unknown) => {
@@ -158,19 +160,23 @@ export function DocumentHistoryDialog({
     };
   }, [documentPath, refreshKey]);
 
-  const restoreEntry = (entry: NativeMarkdownFileHistoryEntry) => {
-    if (restorePendingId !== null) {
-      debug(() => ["[markra-history] restore ignored", {
+  const previewEntry = (entry: NativeMarkdownFileHistoryEntry) => {
+    if (previewPendingId !== null || restorePending) {
+      debug(() => ["[markra-history] preview ignored", {
         documentPath,
         historyId: entry.id,
-        restorePendingId
+        previewPendingId,
+        restorePending
       }]);
       return;
     }
 
-    setRestoreError(false);
-    setRestorePendingId(entry.id);
-    debug(() => ["[markra-history] restore click", {
+    const requestId = previewRequestIdRef.current + 1;
+    previewRequestIdRef.current = requestId;
+    setPreviewError(false);
+    setPreviewPendingId(entry.id);
+    setSelectedId(entry.id);
+    debug(() => ["[markra-history] preview click", {
       documentPath,
       historyId: entry.id,
       mode: "state-click"
@@ -178,28 +184,52 @@ export function DocumentHistoryDialog({
 
     readNativeMarkdownFileHistory(documentPath, entry.id)
       .then((file) => {
-        if (!mountedRef.current) return;
+        if (previewRequestIdRef.current !== requestId) return;
 
-        debug(() => ["[markra-history] restore contents resolved", {
+        debug(() => ["[markra-history] preview contents resolved", {
           documentPath,
           historyId: file.id,
           contentsChars: file.contents.length
         }]);
         setSelectedId(file.id);
-        setRestorePendingId(null);
-        onRestore(file.contents, file.id);
+        setPreview({ contents: file.contents, id: file.id });
+        setPreviewPendingId(null);
       })
       .catch((error: unknown) => {
-        if (!mountedRef.current) return;
+        if (previewRequestIdRef.current !== requestId) return;
 
-        debug(() => ["[markra-history] restore failed", {
+        debug(() => ["[markra-history] preview failed", {
           documentPath,
           historyId: entry.id,
           error: error instanceof Error ? error.message : String(error)
         }]);
-        setRestoreError(true);
-        setRestorePendingId(null);
+        setPreviewError(true);
+        setPreviewPendingId(null);
       });
+  };
+
+  const restorePreview = async () => {
+    if (preview === null || restorePending) return;
+
+    setRestorePending(true);
+    setPreviewError(false);
+    debug(() => ["[markra-history] restore click", {
+      documentPath,
+      historyId: preview.id,
+      mode: "preview-confirm"
+    }]);
+    try {
+      await onRestore(preview.contents, preview.id);
+    } catch (error: unknown) {
+      debug(() => ["[markra-history] restore failed", {
+        documentPath,
+        historyId: preview.id,
+        error: error instanceof Error ? error.message : String(error)
+      }]);
+      setPreviewError(true);
+    } finally {
+      setRestorePending(false);
+    }
   };
 
   return (
@@ -231,7 +261,8 @@ export function DocumentHistoryDialog({
           </button>
         </Tooltip>
       </div>
-      <div className="min-h-0 overflow-auto bg-(--bg-secondary) p-2">
+      <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] bg-(--bg-secondary)">
+        <div className="min-h-0 overflow-auto p-2">
         {entriesLoading ? (
           <p className="m-0 px-2 py-2 text-[12px] leading-5 text-(--text-secondary)">
             {label("app.historyLoading")}
@@ -248,12 +279,12 @@ export function DocumentHistoryDialog({
           <div className="grid gap-1" role="listbox" aria-label={label("app.documentHistory")}>
             {entries.map((entry) => {
               const selected = entry.id === selectedId;
-              const pending = entry.id === restorePendingId;
+              const pending = entry.id === previewPendingId;
 
               return (
                 <button
                   aria-selected={selected}
-                  disabled={restorePendingId !== null}
+                  disabled={previewPendingId !== null || restorePending}
                   className={`grid w-full min-w-0 rounded-md px-2 py-2 text-left transition-colors duration-150 ease-out ${
                     selected || pending
                       ? "bg-(--bg-active) text-(--text-heading)"
@@ -262,7 +293,7 @@ export function DocumentHistoryDialog({
                   key={entry.id}
                   role="option"
                   type="button"
-                  onClick={() => restoreEntry(entry)}
+                  onClick={() => previewEntry(entry)}
                 >
                   <span className="truncate text-[12px] leading-5 font-[650]">
                     {formatHistoryDate(language, entry.createdAt)}
@@ -273,13 +304,33 @@ export function DocumentHistoryDialog({
                 </button>
               );
             })}
-            {restoreError ? (
+            {previewError ? (
               <p className="m-0 px-2 py-2 text-[12px] leading-5 text-(--text-secondary)">
                 {label("app.historyLoadFailed")}
               </p>
             ) : null}
           </div>
         )}
+        </div>
+        {preview ? (
+          <section
+            aria-label={label("app.historyPreview")}
+            className="grid gap-2 border-t border-(--border-default) bg-(--bg-primary) p-3"
+            role="region"
+          >
+            <pre className="m-0 max-h-32 overflow-auto whitespace-pre-wrap break-words rounded-md bg-(--bg-secondary) p-2 text-[11px] leading-5 text-(--text-secondary)">
+              {preview.contents}
+            </pre>
+            <button
+              className="inline-flex min-h-8 cursor-pointer items-center justify-center rounded-md border border-(--accent) bg-(--accent) px-3 text-[12px] font-semibold text-white transition-opacity disabled:cursor-default disabled:opacity-60"
+              disabled={restorePending || previewPendingId !== null}
+              type="button"
+              onClick={() => void restorePreview()}
+            >
+              {label("app.restoreHistoryVersion")}
+            </button>
+          </section>
+        ) : null}
       </div>
     </section>
   );

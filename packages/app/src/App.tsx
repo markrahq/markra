@@ -806,9 +806,12 @@ function WorkspaceApp() {
     viewModeChrome.outline ||
     documentLinksVisible;
   const visibleFileTreeOpen = viewModeChrome.fileTree && fileTreeContentVisible && fileTreeOpen;
+  const compactViewport = !nativeRuntimeAvailable && viewportWidth <= 900;
   const visibleWorkspaceLayoutStyle = {
     ...workspaceLayoutStyle,
-    gridTemplateColumns: visibleFileTreeOpen ? `${fileTreeWidth}px minmax(0,1fr)` : "0px minmax(0,1fr)"
+    gridTemplateColumns: visibleFileTreeOpen && !compactViewport
+      ? `${fileTreeWidth}px minmax(0,1fr)`
+      : "0px minmax(0,1fr)"
   } satisfies CSSProperties;
   const sidebarLayoutMode = editorPreferences.preferences.sidebarLayoutMode;
   const documentLinksIndexEnabled = viewModeChrome.fileTree && documentLinksVisible === true && (
@@ -1399,7 +1402,7 @@ function WorkspaceApp() {
   const visibleAiAgentOpen = viewModeChrome.aiPanel && aiFeatureEnabled && aiAgentOpen;
   const aiAgentInset = visibleAiAgentOpen ? `${aiAgentPanelWidth}px` : "0px";
   const editorAreaWidth = Math.max(0, viewportWidth -
-    (visibleFileTreeOpen ? fileTreeWidth : 0) -
+    (visibleFileTreeOpen && !compactViewport ? fileTreeWidth : 0) -
     (visibleAiAgentOpen ? aiAgentPanelWidth : 0));
   const activeEditorContentWidthValue = activeEditorContentWidthPx ?? editorContentWidthPixels[activeEditorContentWidth];
   const editorWidthResizerVisible = shouldShowEditorWidthResizer({
@@ -2322,6 +2325,35 @@ function WorkspaceApp() {
       .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
       .catch(() => {});
   }, [editorPreferences.preferences, editorPreferences.updatePreferences]);
+  useEffect(() => {
+    if (editorPreferences.preferences.viewMode !== "immersive") return;
+
+    const handleImmersiveEscape = (event: KeyboardEvent) => {
+      if (
+        event.key !== "Escape" ||
+        event.defaultPrevented ||
+        event.isComposing ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey
+      ) {
+        return;
+      }
+
+      // Let the first Escape close transient UI before it exits immersive mode.
+      const transientUiOpen = window.document.querySelector(
+        '[aria-modal="true"], [role="dialog"], [role="listbox"], [role="menu"], [role="toolbar"]'
+      );
+      if (transientUiOpen) return;
+
+      event.preventDefault();
+      handleViewModeSelect("full");
+    };
+
+    window.addEventListener("keydown", handleImmersiveEscape);
+    return () => window.removeEventListener("keydown", handleImmersiveEscape);
+  }, [editorPreferences.preferences.viewMode, handleViewModeSelect]);
   const handleCreateMarkdownTreeFile = useCallback(async (
     fileName: string,
     parentPath: string | null = null,
@@ -2687,7 +2719,7 @@ function WorkspaceApp() {
 
     setDocumentHistoryOpen((current) => !current);
   }, [documentHistoryAvailable]);
-  const handleDocumentHistoryRestore = useCallback((contents: string, historyId: string) => {
+  const handleDocumentHistoryRestore = useCallback(async (contents: string, historyId: string) => {
     debug(() => ["[markra-history] app restore requested", {
       contentsChars: contents.length,
       currentDirty: document.dirty,
@@ -2696,36 +2728,47 @@ function WorkspaceApp() {
       historyId
     }]);
 
+    if (document.dirty) {
+      const savedCurrent = await saveCurrentDocument();
+      if (!savedCurrent) {
+        debug(() => ["[markra-history] app restore canceled", {
+          historyId,
+          reason: "current document was not saved"
+        }]);
+        return false;
+      }
+    }
+
     const restored = restoreDocumentContent(contents);
     debug(() => ["[markra-history] app restore state result", {
       restored
     }]);
-    if (!restored) return;
+    if (!restored) return false;
 
     const editorReplaced = replaceEditorMarkdown(contents);
     debug(() => ["[markra-history] editor replace requested", {
       editorReplaced
     }]);
-    saveCurrentDocumentContent(contents, {
-      historyCursorId: historyId,
-      skipHistorySnapshot: true
-    })
-      .then((savedFile) => {
-        debug(() => ["[markra-history] save restored document success", {
-          savedPath: savedFile?.path ?? null
-        }]);
-      })
-      .catch((error: unknown) => {
-        debug(() => ["[markra-history] save restored document failed", {
-          error: error instanceof Error ? error.message : String(error)
-        }]);
-      });
+    try {
+      // A normal save snapshots the version that was current immediately before this restore.
+      const savedFile = await saveCurrentDocumentContent(contents);
+      debug(() => ["[markra-history] save restored document success", {
+        savedPath: savedFile?.path ?? null
+      }]);
+      return savedFile !== null;
+    } catch (error: unknown) {
+      debug(() => ["[markra-history] save restored document failed", {
+        error: error instanceof Error ? error.message : String(error)
+      }]);
+      return false;
+    }
   }, [
     document.dirty,
     document.path,
     document.revision,
     replaceEditorMarkdown,
     restoreDocumentContent,
+    saveCurrentDocument,
     saveCurrentDocumentContent
   ]);
   useEffect(() => {
@@ -4030,16 +4073,19 @@ function WorkspaceApp() {
         ? editorPreferences.preferences.titlebarActions
         : editorPreferences.preferences.titlebarActions.filter((action) => action.id !== "aiAgent");
 
-      if (viewModeChrome.titlebarActions) {
-        return viewModeChrome.viewModeToggle
-          ? availableActions
-          : availableActions.filter((action) => action.id !== "viewMode");
+      if (!viewModeChrome.titlebarActions) {
+        return editorPreferences.preferences.viewMode === "immersive" && viewModeChrome.viewModeToggle
+          ? availableActions.filter((action) => action.id === "viewMode")
+          : [];
       }
 
-      return [];
+      return viewModeChrome.viewModeToggle
+        ? availableActions
+        : availableActions.filter((action) => action.id !== "viewMode");
     },
     [
       aiFeatureEnabled,
+      editorPreferences.preferences.viewMode,
       editorPreferences.preferences.titlebarActions,
       viewModeChrome.titlebarActions,
       viewModeChrome.viewModeToggle
@@ -4246,6 +4292,7 @@ function WorkspaceApp() {
           aiAgentOpen={visibleAiAgentOpen}
           aiAgentResizing={aiAgentPanelResizing}
           aiAgentWidth={aiAgentPanelWidth}
+          compactLayout={compactViewport}
           dirty={!activeImageFile && hasOpenDocument && document.dirty}
           documentKind={titleDocumentKind}
           documentName={titleDocumentName}
@@ -4304,6 +4351,7 @@ function WorkspaceApp() {
 
         <WorkspaceLayout
           aiAgentPanel={aiAgentPanel}
+          compactFileTreeOverlay={compactViewport}
           documentSearchAvailable={documentSearchAvailable}
           documentSearchOpen={documentSearchOpen}
           editorAgentLayoutClassName={editorAgentLayoutClassName}
@@ -4324,8 +4372,12 @@ function WorkspaceApp() {
             language: appLanguage.language,
             linkIndex: workspaceLinkIndex.index,
             linkIndexLoading: workspaceLinkIndex.loading,
-            maxWidth: fileTreeMaxWidth,
-            minWidth: fileTreeMinWidth,
+            maxWidth: compactViewport
+              ? Math.max(fileTreeMinWidth, viewportWidth - 48)
+              : fileTreeMaxWidth,
+            minWidth: compactViewport
+              ? Math.min(fileTreeMinWidth, Math.max(0, viewportWidth - 48))
+              : fileTreeMinWidth,
             open: visibleFileTreeOpen,
             operationRevealPaths: workspaceOperationRevealPaths,
             outlineItems,
@@ -4339,7 +4391,9 @@ function WorkspaceApp() {
             rootName: fileTreeRootName,
             sidebarLayoutMode,
             updateAvailable: Boolean(appUpdater.availableUpdate),
-            width: fileTreeWidth,
+            width: compactViewport
+              ? Math.min(fileTreeWidth, Math.max(0, viewportWidth - 48))
+              : fileTreeWidth,
             onCreateFile: handleCreateMarkdownTreeFile,
             onCreateFolder: handleCreateMarkdownTreeFolder,
             onDeleteFile: handleDeleteMarkdownTreeFile,
@@ -4360,9 +4414,9 @@ function WorkspaceApp() {
             onRecentFoldersOpenChange: setRecentMarkdownFoldersOpen,
             onRemoveRecentFolder: removeRecentFolder,
             onRenameFile: handleRenameMarkdownTreeFile,
-            onResize: resizeFileTree,
-            onResizeEnd: endFileTreeResize,
-            onResizeStart: startFileTreeResize,
+            onResize: compactViewport ? undefined : resizeFileTree,
+            onResizeEnd: compactViewport ? undefined : endFileTreeResize,
+            onResizeStart: compactViewport ? undefined : startFileTreeResize,
             onSaveFileAsTemplate: handleSaveMarkdownFileAsTemplate,
             onSelectOutlineItem: editor.selectOutlineItem,
             onToggleMarkdownFiles: handleFileTreeToggle
@@ -4635,7 +4689,7 @@ function WorkspaceApp() {
           <AiCommandBar
           aiResult={aiResult}
           availableModels={aiSettings.availableTextModels}
-          editorLeftInset={visibleFileTreeOpen ? `${fileTreeWidth}px` : "0px"}
+          editorLeftInset={visibleFileTreeOpen && !compactViewport ? `${fileTreeWidth}px` : "0px"}
           editorRightInset={aiAgentInset}
           externalActionPending={aiContextMenuActionPending}
           language={appLanguage.language}
