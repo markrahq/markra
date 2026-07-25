@@ -1544,6 +1544,33 @@ function WorkspaceApp() {
 
     if (nextReadOnlyMode) handleAiCommandClose();
   }, [handleAiCommandClose, readOnlyMode]);
+  const handleTypewriterModeToggle = useCallback(() => {
+    const nextPreferences = {
+      ...editorPreferences.preferences,
+      typewriterModeEnabled: !editorPreferences.preferences.typewriterModeEnabled
+    };
+
+    editorPreferences.updatePreferences(nextPreferences);
+    saveStoredEditorPreferences(nextPreferences)
+      .then(() => notifyAppEditorPreferencesChanged(nextPreferences))
+      .catch(() => {
+        editorPreferences.updatePreferences((currentPreferences) => {
+          // Do not overwrite state that has already moved past this optimistic value.
+          if (currentPreferences.typewriterModeEnabled !== nextPreferences.typewriterModeEnabled) {
+            return currentPreferences;
+          }
+
+          return {
+            ...currentPreferences,
+            typewriterModeEnabled: editorPreferences.preferences.typewriterModeEnabled
+          };
+        });
+        showAppToast({
+          message: translate("app.editorPreferencesSaveFailed"),
+          status: "error"
+        });
+      });
+  }, [editorPreferences.preferences, editorPreferences.updatePreferences, translate]);
   useEffect(() => {
     if (!shouldHideAiCommandForAiAgentPanel({
       aiAgentOpen: visibleAiAgentOpen,
@@ -3780,7 +3807,8 @@ function WorkspaceApp() {
     toggleDocumentHistory: handleDocumentHistoryOpen,
     toggleMarkdownFiles: handleFileTreeToggle,
     toggleReadOnlyMode: handleReadOnlyModeToggle,
-    toggleSourceMode: handleEditorModeToggle
+    toggleSourceMode: handleEditorModeToggle,
+    toggleTypewriterMode: handleTypewriterModeToggle
   });
 
   const quickOpenFilePaths = useMemo(
@@ -4203,6 +4231,7 @@ function WorkspaceApp() {
               tableColumnWidthMode={editorPreferences.preferences.tableColumnWidthMode}
               onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
               topInset="titlebar"
+              typewriterModeEnabled={editorPreferences.preferences.typewriterModeEnabled}
               workspaceFiles={fileTreeFiles}
               wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
             />
@@ -4589,6 +4618,7 @@ function WorkspaceApp() {
                           showLineNumbers={editorPreferences.preferences.showLineNumbers}
                           scrollRef={sourceScrollRef}
                           topInset="titlebar"
+                          typewriterModeEnabled={editorPreferences.preferences.typewriterModeEnabled}
                         />
                       </div>
                     </div>
@@ -4620,6 +4650,7 @@ function WorkspaceApp() {
                           showLineNumbers={editorPreferences.preferences.showLineNumbers}
                           scrollRef={sourceScrollRef}
                           topInset="titlebar"
+                          typewriterModeEnabled={editorPreferences.preferences.typewriterModeEnabled}
                         />
                       ) : null}
                     </div>
@@ -4690,6 +4721,7 @@ function WorkspaceApp() {
                           />
                         ) : null}
                         tableColumnWidthMode={editorPreferences.preferences.tableColumnWidthMode}
+                        typewriterModeEnabled={editorPreferences.preferences.typewriterModeEnabled}
                         onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
                         workspaceFiles={fileTreeFiles}
                         onChange={handleSideDocumentChange}

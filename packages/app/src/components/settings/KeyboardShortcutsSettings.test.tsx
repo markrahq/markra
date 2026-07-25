@@ -42,6 +42,7 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.getByRole("button", { name: "History versions shortcut" })).toHaveTextContent("⌘+⇧+H");
     expect(screen.getByRole("button", { name: "Switch to source mode shortcut" })).toHaveTextContent("⌘+⌥+S");
     expect(screen.getByRole("button", { name: "Toggle read-only mode shortcut" })).toHaveTextContent("⌘+⌥+L");
+    expect(screen.getByRole("button", { name: "Typewriter mode shortcut" })).toHaveTextContent("⌘+⇧+Y");
     expect(screen.getByRole("button", { name: "Spelling suggestions shortcut" })).toHaveTextContent("⌘+.");
     expect(screen.getByRole("button", { name: "Link shortcut" })).toHaveTextContent("⌘+K");
     expect(screen.getByRole("button", { name: "Bold shortcut" })).toHaveTextContent("⌘+B");
@@ -68,6 +69,39 @@ describe("KeyboardShortcutsSettings", () => {
     expect(onUpdatePreferences).toHaveBeenLastCalledWith({
       ...preferences,
       markdownShortcuts: defaultMarkdownShortcuts
+    });
+  });
+
+  it("records a custom typewriter mode shortcut", () => {
+    const onUpdatePreferences = vi.fn();
+    const preferences: EditorPreferences = {
+      ...defaultEditorPreferences,
+      markdownShortcuts: defaultMarkdownShortcuts
+    };
+
+    render(
+      <KeyboardShortcutsSettings
+        preferences={preferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const typewriterShortcut = screen.getByRole("button", { name: "Typewriter mode shortcut" });
+    fireEvent.click(typewriterShortcut);
+    fireEvent.keyDown(window, {
+      altKey: true,
+      code: "KeyG",
+      key: "©",
+      metaKey: true,
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...preferences,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        toggleTypewriterMode: "Mod+Alt+G"
+      }
     });
   });
 
@@ -231,6 +265,7 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.getByRole("button", { name: "History versions shortcut" })).toHaveTextContent("Ctrl+Shift+H");
     expect(screen.getByRole("button", { name: "Switch to source mode shortcut" })).toHaveTextContent("Ctrl+Alt+S");
     expect(screen.getByRole("button", { name: "Toggle read-only mode shortcut" })).toHaveTextContent("Ctrl+Alt+L");
+    expect(screen.getByRole("button", { name: "Typewriter mode shortcut" })).toHaveTextContent("Ctrl+Shift+Y");
     expect(screen.getByRole("button", { name: "Spelling suggestions shortcut" })).toHaveTextContent("Ctrl+.");
     expect(screen.getByRole("button", { name: "Link shortcut" })).toHaveTextContent("Ctrl+K");
     expect(screen.getByRole("button", { name: "Strikethrough shortcut" })).toHaveTextContent("Ctrl+Shift+X");

@@ -405,6 +405,7 @@ export type EditorPreferences = {
   viewModeCustomizations: ViewModeCustomizations;
   showLineNumbers: boolean;
   showWordCount: boolean;
+  typewriterModeEnabled: boolean;
   wrapCodeBlocks: boolean;
 };
 export type { AppLanguage };
@@ -533,6 +534,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   viewModeCustomizations: { ...defaultViewModeCustomizations },
   showLineNumbers: false,
   showWordCount: true,
+  typewriterModeEnabled: false,
   wrapCodeBlocks: true
 };
 
@@ -1693,6 +1695,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
         : defaultEditorPreferences.showLineNumbers,
     showWordCount:
       typeof preferences.showWordCount === "boolean" ? preferences.showWordCount : defaultEditorPreferences.showWordCount,
+    typewriterModeEnabled:
+      typeof preferences.typewriterModeEnabled === "boolean"
+        ? preferences.typewriterModeEnabled
+        : defaultEditorPreferences.typewriterModeEnabled,
     wrapCodeBlocks:
       typeof preferences.wrapCodeBlocks === "boolean" ? preferences.wrapCodeBlocks : defaultEditorPreferences.wrapCodeBlocks
   };

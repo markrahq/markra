@@ -430,6 +430,7 @@ function createStoredEditorPreferences(
     ],
     showLineNumbers: overrides.showLineNumbers ?? false,
     showWordCount: true,
+    typewriterModeEnabled: overrides.typewriterModeEnabled ?? false,
     ...overrides,
     aiWorkspaceAnimationEnabled: overrides.aiWorkspaceAnimationEnabled ?? false,
     viewMode: overrides.viewMode ?? "daily",
@@ -1489,6 +1490,7 @@ describe("Markra workspace", () => {
         },
         showLineNumbers: false,
         showWordCount: true,
+        typewriterModeEnabled: false,
         wrapCodeBlocks: true
       })
     );
@@ -1556,6 +1558,7 @@ describe("Markra workspace", () => {
         },
         showLineNumbers: false,
         showWordCount: true,
+        typewriterModeEnabled: false,
         wrapCodeBlocks: true
       })
     );
@@ -2780,6 +2783,7 @@ describe("Markra workspace", () => {
       },
       showLineNumbers: false,
       showWordCount: true,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: true
     });
     window.history.pushState({}, "", "/?settings=1");
@@ -5701,6 +5705,7 @@ describe("Markra workspace", () => {
       },
       showLineNumbers: false,
       showWordCount: true,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockedOpenNativeMarkdownPath.mockResolvedValue({
@@ -5867,6 +5872,7 @@ describe("Markra workspace", () => {
       },
       showLineNumbers: false,
       showWordCount: true,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockOpenMarkdownFile({
@@ -6480,6 +6486,73 @@ describe("Markra workspace", () => {
     await selectEditorViewMode("Preview + Source");
     expect(container.querySelectorAll(".cm-lineNumbers")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Welcome to Markra" })).toBeInTheDocument();
+  });
+
+  it("enables typewriter mode in visual and source editors", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      typewriterModeEnabled: true
+    }));
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+    expect(getVisibleCodeMirrorView(container).dom).toHaveAttribute(
+      "data-typewriter-mode",
+      "true"
+    );
+
+    await selectEditorViewMode("Source code");
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+
+    expect(sourceEditor.closest(".cm-editor")).toHaveAttribute(
+      "data-typewriter-mode",
+      "true"
+    );
+  });
+
+  it("toggles and persists typewriter mode from the keyboard shortcut", async () => {
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+    expect(getVisibleCodeMirrorView(container).dom).not.toHaveAttribute("data-typewriter-mode");
+
+    fireEvent.keyDown(window, { key: "Y", metaKey: true, shiftKey: true });
+
+    await waitFor(() => {
+      expect(getVisibleCodeMirrorView(container).dom).toHaveAttribute(
+        "data-typewriter-mode",
+        "true"
+      );
+    });
+    expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(expect.objectContaining({
+      typewriterModeEnabled: true
+    }));
+    expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith(expect.objectContaining({
+      typewriterModeEnabled: true
+    }));
+  });
+
+  it("rolls back typewriter mode and reports a preference save failure", async () => {
+    mockedSaveStoredEditorPreferences.mockRejectedValueOnce(
+      new Error("Synthetic editor preference save failure")
+    );
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+
+    fireEvent.keyDown(window, { key: "Y", metaKey: true, shiftKey: true });
+
+    await waitFor(() => expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(
+      expect.objectContaining({ typewriterModeEnabled: true })
+    ));
+    await waitFor(() => {
+      expect(getVisibleCodeMirrorView(container).dom).not.toHaveAttribute("data-typewriter-mode");
+    });
+    expect(document.querySelector(".app-toast")).toHaveTextContent(
+      "Could not save editor preferences."
+    );
+    expect(mockedNotifyAppEditorPreferencesChanged).not.toHaveBeenCalledWith(
+      expect.objectContaining({ typewriterModeEnabled: true })
+    );
   });
 
   it("keeps raw source punctuation unchanged while editing in source mode", async () => {

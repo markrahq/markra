@@ -62,6 +62,7 @@ type MarkdownPaperProps = {
   spellchecker?: CodeMirrorPaperSurfaceProps["spellchecker"];
   tableColumnWidthMode?: TableColumnWidthModePreference;
   topInset?: "tabs" | "titlebar";
+  typewriterModeEnabled?: CodeMirrorPaperSurfaceProps["typewriterModeEnabled"];
   workspaceFiles?: CodeMirrorPaperSurfaceProps["workspaceFiles"];
   wrapCodeBlocks?: boolean;
 };
@@ -129,6 +130,7 @@ export function MarkdownPaper({
   spellchecker,
   tableColumnWidthMode = "auto",
   topInset = "titlebar",
+  typewriterModeEnabled = false,
   workspaceFiles,
   wrapCodeBlocks = true
 }: MarkdownPaperProps) {
@@ -200,6 +202,7 @@ export function MarkdownPaper({
             spellcheckIgnoredWords={spellcheckIgnoredWords}
             spellchecker={spellchecker}
             tableColumnWidthMode={tableColumnWidthMode}
+            typewriterModeEnabled={typewriterModeEnabled}
             workspaceFiles={workspaceFiles}
           />
         </Suspense>

@@ -357,6 +357,26 @@ describe("useApplicationShortcuts", () => {
     expect(openSettings).toHaveBeenCalledTimes(1);
   });
 
+  it("does not treat Control+Meta as the platform modifier for static shortcuts", () => {
+    const openSettings = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        openSettings
+      })
+    );
+
+    const handled = fireEvent.keyDown(window, {
+      code: "Comma",
+      ctrlKey: true,
+      key: ",",
+      metaKey: true
+    });
+
+    expect(handled).toBe(true);
+    expect(openSettings).not.toHaveBeenCalled();
+  });
+
   it("routes configurable app shortcuts to panel toggles", () => {
     const toggleAiAgent = vi.fn();
     renderHook(() =>
@@ -496,6 +516,47 @@ describe("useApplicationShortcuts", () => {
     });
 
     expect(toggleReadOnlyMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes the configurable typewriter mode shortcut", () => {
+    const toggleTypewriterMode = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        markdownShortcuts: {
+          toggleTypewriterMode: "Mod+Alt+G"
+        },
+        toggleTypewriterMode
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      altKey: true,
+      code: "KeyG",
+      key: "©",
+      metaKey: true,
+    });
+
+    expect(toggleTypewriterMode).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores repeated keydown events for configurable shortcuts", () => {
+    const toggleTypewriterMode = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        toggleTypewriterMode
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      key: "Y",
+      metaKey: true,
+      repeat: true,
+      shiftKey: true
+    });
+
+    expect(toggleTypewriterMode).not.toHaveBeenCalled();
   });
 
   it("closes the current document from the default close shortcut", () => {

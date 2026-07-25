@@ -368,6 +368,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     },
     showLineNumbers: false,
     showWordCount: true,
+    typewriterModeEnabled: false,
     wrapCodeBlocks: true
   },
   appThemeOptions: [
@@ -655,6 +656,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     },
     showLineNumbers: preferences?.showLineNumbers ?? false,
     showWordCount: true,
+    typewriterModeEnabled: preferences?.typewriterModeEnabled ?? false,
     ...preferences,
     wrapCodeBlocks: preferences?.wrapCodeBlocks ?? true
   })),
@@ -1481,6 +1483,7 @@ export function installAppTestHarness() {
       },
       showLineNumbers: false,
       showWordCount: true,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockedGetStoredExportSettings.mockResolvedValue({

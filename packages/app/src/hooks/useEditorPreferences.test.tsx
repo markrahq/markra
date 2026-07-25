@@ -112,6 +112,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     showLineNumbers: false,
     showWordCount: true,
     tableColumnWidthMode: "auto",
+    typewriterModeEnabled: false,
     viewMode: "daily",
     viewModeCustomizations: defaultViewModeCustomizations,
     wrapCodeBlocks: true
@@ -208,7 +209,8 @@ describe("useEditorPreferences", () => {
         toggleDocumentHistory: "Mod+Shift+H",
         toggleMarkdownFiles: "Mod+Shift+M",
         toggleReadOnlyMode: "Mod+Alt+L",
-        toggleSourceMode: "Mod+Alt+S"
+        toggleSourceMode: "Mod+Alt+S",
+        toggleTypewriterMode: "Mod+Shift+Y"
       },
       markdownTemplates: [],
       paragraphSpacingPx: 8,
@@ -233,6 +235,7 @@ describe("useEditorPreferences", () => {
       viewModeCustomizations: defaultViewModeCustomizations,
       showLineNumbers: false,
       showWordCount: true,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockedListenAppEditorPreferencesChanged.mockImplementation(async (listener) => {
@@ -320,7 +323,8 @@ describe("useEditorPreferences", () => {
           toggleDocumentHistory: "Mod+Shift+H",
           toggleMarkdownFiles: "Mod+Shift+M",
           toggleReadOnlyMode: "Mod+Alt+L",
-          toggleSourceMode: "Mod+Alt+S"
+          toggleSourceMode: "Mod+Alt+S",
+          toggleTypewriterMode: "Mod+Shift+Y"
         },
         markdownTemplates: [],
         paragraphSpacingPx: 8,
@@ -345,6 +349,7 @@ describe("useEditorPreferences", () => {
         viewModeCustomizations: defaultViewModeCustomizations,
         showLineNumbers: false,
         showWordCount: false,
+        typewriterModeEnabled: false,
         wrapCodeBlocks: false
       });
     });

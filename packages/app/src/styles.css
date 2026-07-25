@@ -2536,6 +2536,138 @@
     border-color: var(--callout-border-focus) !important;
   }
 
+  /* Draw a one-line-high typewriter band instead of filling the entire
+     CodeMirror line box. Several visual blocks use asymmetric padding for
+     document rhythm, so the offset below tracks half of that padding delta. */
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-activeLine {
+    --typewriter-active-line-offset: 0px;
+    --typewriter-active-line-color: color-mix(in srgb, currentColor 8%, transparent);
+    background:
+      linear-gradient(
+        var(--typewriter-active-line-color),
+        var(--typewriter-active-line-color)
+      )
+      center calc(50% + var(--typewriter-active-line-offset)) / 100% 1lh no-repeat !important;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-h1.cm-activeLine {
+    --typewriter-active-line-offset: -8px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-h2.cm-activeLine {
+    --typewriter-active-line-offset: 8px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-h3.cm-activeLine {
+    --typewriter-active-line-offset: 9px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-h4.cm-activeLine {
+    --typewriter-active-line-offset: 8px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-h5.cm-activeLine,
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-h6.cm-activeLine {
+    --typewriter-active-line-offset: 7px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-list-item +
+    .cm-line.cm-markra-list-item.cm-activeLine {
+    --typewriter-active-line-offset: 4px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-list-item[data-list-depth="0"] +
+    .cm-line.cm-markra-list-item[data-list-depth="1"].cm-activeLine {
+    --typewriter-active-line-offset: 6px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-list-item[data-list-depth="1"] +
+    .cm-line.cm-markra-list-item[data-list-depth="0"].cm-activeLine,
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-list-item[data-list-kind="bullet"] +
+    .cm-line.cm-markra-list-item[data-list-kind="ordered"].cm-activeLine,
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-list-item[data-list-kind="ordered"] +
+    .cm-line.cm-markra-list-item[data-list-kind="task"].cm-activeLine {
+    --typewriter-active-line-offset: 12px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-activeLine.markra-callout-first {
+    --typewriter-active-line-offset: 7px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-activeLine.markra-callout-last {
+    --typewriter-active-line-offset: -7px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-activeLine.markra-callout-first.markra-callout-last {
+    --typewriter-active-line-offset: 0px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-code-header-line +
+    .cm-line.cm-activeLine.cm-markra-code-content-line {
+    --typewriter-active-line-offset: 8px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-activeLine.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {
+    --typewriter-active-line-offset: -8px;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-markra-code-header-line +
+    .cm-line.cm-activeLine.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {
+    --typewriter-active-line-offset: 0px;
+  }
+
+  /* The code backdrop is a negative-z pseudo-element, so its active band must
+     be composed into that same surface rather than painted on the parent. */
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-activeLine.cm-markra-code-content-line {
+    background: transparent !important;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-activeLine.cm-markra-code-content-line::after {
+    background:
+      linear-gradient(
+        var(--typewriter-active-line-color),
+        var(--typewriter-active-line-color)
+      )
+      center calc(50% + var(--typewriter-active-line-offset)) / 100% 1lh no-repeat,
+      linear-gradient(
+        90deg,
+        var(--editor-code-line-bg) 0 43px,
+        var(--editor-border) 43px 44px,
+        var(--editor-code-bg) 44px 100%
+      ) !important;
+  }
+
+  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
+    .cm-line.cm-activeLine.cm-markra-callout {
+    background:
+      linear-gradient(
+        var(--typewriter-active-line-color),
+        var(--typewriter-active-line-color)
+      )
+      center calc(50% + var(--typewriter-active-line-offset)) / 100% 1lh no-repeat,
+      var(--callout-bg) !important;
+  }
+
   .markdown-paper .markra-callout-type-select:focus {
     border-color: var(--callout-color);
     color: var(--editor-text-primary);

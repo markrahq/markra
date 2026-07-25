@@ -175,14 +175,14 @@ describe("native menu", () => {
 
     await installNativeApplicationMenu(handlers, "fr", {
       bold: "Mod+Alt+B",
-      syncNow: "Mod+Shift+Y"
+      syncNow: "Mod+Shift+U"
     }, recentFiles);
 
     expect(mockedListen).toHaveBeenCalledWith("markra://menu-command", expect.any(Function));
     expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
       accelerators: {
         formatBold: "CmdOrCtrl+Alt+B",
-        syncNow: "CmdOrCtrl+Shift+Y"
+        syncNow: "CmdOrCtrl+Shift+U"
       },
       language: "fr",
       recentFiles
@@ -418,7 +418,7 @@ describe("native menu", () => {
   it("passes customized app shortcuts to the native application menu", async () => {
     await installNativeApplicationMenu({}, "en", {
       openQuickOpen: "Mod+Alt+Q",
-      toggleAiAgent: "Mod+Shift+Y",
+      toggleAiAgent: "Mod+Shift+U",
       toggleAiCommand: "Mod+Alt+J",
       toggleAllFolds: "Mod+Shift+Alt+F",
       toggleMarkdownFiles: "Mod+Alt+M",
@@ -429,7 +429,7 @@ describe("native menu", () => {
     expect(mockedInvoke).toHaveBeenCalledWith("install_application_menu", {
       accelerators: {
         openQuickOpen: "CmdOrCtrl+Alt+Q",
-        toggleAiAgent: "CmdOrCtrl+Shift+Y",
+        toggleAiAgent: "CmdOrCtrl+Shift+U",
         toggleAiCommand: "CmdOrCtrl+Alt+J",
         toggleAllFolds: "CmdOrCtrl+Shift+Alt+F",
         toggleMarkdownFiles: "CmdOrCtrl+Alt+M",

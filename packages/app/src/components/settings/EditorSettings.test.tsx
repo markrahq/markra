@@ -200,6 +200,32 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("toggles typewriter mode from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          typewriterModeEnabled: false
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const typewriterSwitch = screen.getByRole("switch", { name: "Typewriter mode" });
+
+    expect(typewriterSwitch).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(typewriterSwitch);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      typewriterModeEnabled: true
+    });
+  });
+
   it("updates the default table column width mode from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

@@ -85,6 +85,33 @@ describe("CodeMirrorPaperSurface", () => {
     expect(view.contentDOM.getAttribute("aria-readonly")).toBe("true");
   });
 
+  it("reconfigures typewriter mode without recreating the editor view", () => {
+    const onEditorReady = vi.fn();
+    const { rerender } = render(
+      <CodeMirrorPaperSurface
+        initialContent={"first\nsecond\nthird"}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        typewriterModeEnabled={false}
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    expect(view.dom).not.toHaveAttribute("data-typewriter-mode");
+
+    rerender(
+      <CodeMirrorPaperSurface
+        initialContent={"first\nsecond\nthird"}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        typewriterModeEnabled
+      />,
+    );
+
+    expect(onEditorReady).toHaveBeenCalledTimes(1);
+    expect(view.dom).toHaveAttribute("data-typewriter-mode", "true");
+  });
+
   it("synchronizes host Markdown changes without recreating the editor view", () => {
     const onEditorReady = vi.fn();
     const onMarkdownChange = vi.fn();

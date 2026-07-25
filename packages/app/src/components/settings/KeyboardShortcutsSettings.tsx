@@ -44,7 +44,8 @@ const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
   toggleDocumentHistory: "app.documentHistory",
   toggleMarkdownFiles: "app.toggleMarkdownFiles",
   toggleReadOnlyMode: "app.toggleReadOnlyMode",
-  toggleSourceMode: "app.switchToSourceMode"
+  toggleSourceMode: "app.switchToSourceMode",
+  toggleTypewriterMode: "settings.editor.typewriterMode"
 };
 
 const keyboardShortcutSections: Array<{
@@ -61,7 +62,8 @@ const keyboardShortcutSections: Array<{
       "toggleAiAgent",
       "toggleAiCommand",
       "toggleSourceMode",
-      "toggleReadOnlyMode"
+      "toggleReadOnlyMode",
+      "toggleTypewriterMode"
     ]
   },
   {

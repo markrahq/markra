@@ -9,6 +9,7 @@ import {
   codeMirrorSearchPlugin,
   codeMirrorSelectionIsInsideFencedCode,
   codeMirrorSpellcheckPlugin,
+  codeMirrorTypewriterMode,
   documentLinksPlugin,
   footnotePreviewPlugin,
   foldTogglePlugin,
@@ -104,6 +105,7 @@ export interface CodeMirrorPaperSurfaceProps {
   spellcheckIgnoredWords?: readonly string[];
   spellchecker?: Spellchecker;
   tableColumnWidthMode?: TableColumnWidthModePreference;
+  typewriterModeEnabled?: boolean;
   workspaceFiles?: MarkdownDocumentLinkFile[];
 }
 
@@ -337,6 +339,7 @@ export function CodeMirrorPaperSurface({
   spellcheckIgnoredWords = [],
   spellchecker,
   tableColumnWidthMode = "auto",
+  typewriterModeEnabled = false,
   workspaceFiles = [],
 }: CodeMirrorPaperSurfaceProps) {
   const [editorView, setEditorView] = useState<EditorView | null>(null);
@@ -363,6 +366,7 @@ export function CodeMirrorPaperSurface({
   const markdownCompartmentRef = useRef(new Compartment());
   const editableCompartmentRef = useRef(new Compartment());
   const spellcheckCompartmentRef = useRef(new Compartment());
+  const typewriterModeCompartmentRef = useRef(new Compartment());
   const spellcheckIgnoredWordsRef = useRef(spellcheckIgnoredWords);
   const workspaceFilesRef = useRef(workspaceFiles);
 
@@ -529,6 +533,9 @@ export function CodeMirrorPaperSurface({
               spellchecker,
             }),
           ),
+          typewriterModeCompartmentRef.current.of(
+            codeMirrorTypewriterMode({ enabled: typewriterModeEnabled }),
+          ),
           editableCompartmentRef.current.of(
             editableExtension(readOnly, language),
           ),
@@ -679,6 +686,17 @@ export function CodeMirrorPaperSurface({
       ),
     });
   }, [spellcheckEnabled, spellcheckIgnoredWords, spellchecker]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    view.dispatch({
+      effects: typewriterModeCompartmentRef.current.reconfigure(
+        codeMirrorTypewriterMode({ enabled: typewriterModeEnabled }),
+      ),
+    });
+  }, [typewriterModeEnabled]);
 
   useEffect(() => {
     if (!autoFocus) return;

@@ -19,8 +19,8 @@ describe("keyboard shortcuts", () => {
     expect(keyboardShortcutActions).toContain("syncNow");
     expect(defaultKeyboardShortcuts.syncNow).toBe("Mod+Alt+R");
     expect(normalizeKeyboardShortcuts({
-      syncNow: "Mod+Shift+Y"
-    }).syncNow).toBe("Mod+Shift+Y");
+      syncNow: "Mod+Shift+U"
+    }).syncNow).toBe("Mod+Shift+U");
   });
 
   it("includes read-only mode as a configurable application shortcut", () => {
@@ -29,6 +29,57 @@ describe("keyboard shortcuts", () => {
     expect(normalizeKeyboardShortcuts({
       toggleReadOnlyMode: "Mod+Alt+Y"
     }).toggleReadOnlyMode).toBe("Mod+Alt+Y");
+  });
+
+  it("includes typewriter mode as a configurable application shortcut", () => {
+    expect(keyboardShortcutActions).toContain("toggleTypewriterMode");
+    expect(defaultKeyboardShortcuts.toggleTypewriterMode).toBe("Mod+Shift+Y");
+    expect(normalizeKeyboardShortcuts({
+      toggleTypewriterMode: "Mod+Shift+W"
+    }).toggleTypewriterMode).toBe("Mod+Shift+W");
+  });
+
+  it("migrates the previous typewriter shortcut away from the macOS close-all shortcut", () => {
+    expect(normalizeKeyboardShortcuts({
+      toggleTypewriterMode: "Mod+Alt+W"
+    }).toggleTypewriterMode).toBe("Mod+Shift+Y");
+    expect(normalizeKeyboardShortcuts({
+      bold: "Mod+Alt+W"
+    }).bold).toBe(defaultKeyboardShortcuts.bold);
+  });
+
+  it("preserves an existing custom shortcut when a new action adopts the same default", () => {
+    const normalized = normalizeKeyboardShortcuts({
+      syncNow: "Mod+Shift+Y"
+    });
+
+    expect(normalized.syncNow).toBe("Mod+Shift+Y");
+    expect(normalized.toggleTypewriterMode).toBe("Mod+Shift+Alt+Y");
+  });
+
+  it("records and matches macOS Option-modified letter shortcuts by physical key", () => {
+    const event = new KeyboardEvent("keydown", {
+      altKey: true,
+      code: "KeyW",
+      key: "∑",
+      metaKey: true
+    });
+
+    expect(keyboardShortcutFromKeyboardEvent(event)).toBe("Mod+Alt+W");
+    expect(matchesKeyboardShortcutEvent(event, "Mod+Alt+W")).toBe(true);
+  });
+
+  it("does not record or match shortcuts with both platform modifier keys", () => {
+    const event = new KeyboardEvent("keydown", {
+      code: "KeyY",
+      ctrlKey: true,
+      key: "Y",
+      metaKey: true,
+      shiftKey: true
+    });
+
+    expect(keyboardShortcutFromKeyboardEvent(event)).toBeNull();
+    expect(matchesKeyboardShortcutEvent(event, "Mod+Shift+Y")).toBe(false);
   });
 
   it("includes document history as a configurable application shortcut", () => {

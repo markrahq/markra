@@ -4,6 +4,7 @@ import { Annotation, Compartment, EditorSelection, EditorState, Prec, Transactio
 import { Decoration, EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { t, type AppLanguage, type SearchRange } from "@markra/shared";
+import { codeMirrorTypewriterMode } from "@markra/editor/codemirror";
 import {
   editorContentWidthPixels,
   editorCustomContentWidthMax,
@@ -44,6 +45,7 @@ export type MarkdownSourceEditorProps = {
   showLineNumbers?: boolean;
   scrollRef?: Ref<HTMLElement>;
   topInset?: "none" | "tabs" | "titlebar";
+  typewriterModeEnabled?: boolean;
 };
 
 type MarkdownSourcePaperStyle = CSSProperties & {
@@ -206,7 +208,8 @@ export function MarkdownSourceEditor({
   searchMatches = [],
   showLineNumbers = false,
   scrollRef,
-  topInset = "titlebar"
+  topInset = "titlebar",
+  typewriterModeEnabled = false
 }: MarkdownSourceEditorProps) {
   const editorContainerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef(content);
@@ -219,6 +222,7 @@ export function MarkdownSourceEditor({
   const editableCompartmentRef = useRef(new Compartment());
   const lineNumbersCompartmentRef = useRef(new Compartment());
   const searchCompartmentRef = useRef(new Compartment());
+  const typewriterModeCompartmentRef = useRef(new Compartment());
   const externalContentScrollSuppressedRef = useRef(false);
   const externalContentScrollRestoreFrameRef = useRef<number | null>(null);
   const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
@@ -282,6 +286,9 @@ export function MarkdownSourceEditor({
       editableCompartmentRef.current.of(EditorView.editable.of(!readOnly)),
       lineNumbersCompartmentRef.current.of(showLineNumbers ? lineNumbers() : []),
       searchCompartmentRef.current.of(markdownSourceSearchExtension(searchMatches, searchActiveIndex)),
+      typewriterModeCompartmentRef.current.of(
+        codeMirrorTypewriterMode({ enabled: typewriterModeEnabled })
+      ),
       EditorView.updateListener.of((update) => {
         if (update.selectionSet || update.docChanged) {
           onSelectionTextChangeRef.current?.(selectedSourceTextFromState(update.state));
@@ -346,6 +353,17 @@ export function MarkdownSourceEditor({
       effects: lineNumbersCompartmentRef.current.reconfigure(showLineNumbers ? lineNumbers() : [])
     });
   }, [showLineNumbers]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    view.dispatch({
+      effects: typewriterModeCompartmentRef.current.reconfigure(
+        codeMirrorTypewriterMode({ enabled: typewriterModeEnabled })
+      )
+    });
+  }, [typewriterModeEnabled]);
 
   useEffect(() => {
     const view = viewRef.current;

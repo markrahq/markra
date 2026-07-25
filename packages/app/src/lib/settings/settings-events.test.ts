@@ -250,6 +250,7 @@ describe("settings events", () => {
       },
       showLineNumbers: false,
       showWordCount: false,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: false
     };
 

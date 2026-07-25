@@ -111,6 +111,7 @@ describe("editor preferences", () => {
       },
       showLineNumbers: false,
       showWordCount: true,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: true
     });
 
@@ -263,6 +264,7 @@ describe("editor preferences", () => {
       },
       showLineNumbers: false,
       showWordCount: false,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: true
     });
   });
@@ -273,6 +275,12 @@ describe("editor preferences", () => {
     expect((normalizeEditorPreferences({ paragraphSpacingPx: -8 }) as Record<string, unknown>).paragraphSpacingPx).toBe(0);
     expect((normalizeEditorPreferences({ paragraphSpacingPx: 120 }) as Record<string, unknown>).paragraphSpacingPx).toBe(32);
     expect((normalizeEditorPreferences({ paragraphSpacingPx: "loose" }) as Record<string, unknown>).paragraphSpacingPx).toBe(8);
+  });
+
+  it("normalizes the typewriter mode preference", () => {
+    expect((normalizeEditorPreferences({ typewriterModeEnabled: true }) as Record<string, unknown>).typewriterModeEnabled).toBe(true);
+    expect((normalizeEditorPreferences({ typewriterModeEnabled: false }) as Record<string, unknown>).typewriterModeEnabled).toBe(false);
+    expect((normalizeEditorPreferences({ typewriterModeEnabled: "yes" }) as Record<string, unknown>).typewriterModeEnabled).toBe(false);
   });
 
   it("normalizes view mode preferences", () => {
@@ -782,6 +790,7 @@ describe("editor preferences", () => {
       },
       showLineNumbers: false,
       showWordCount: true,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: true
     });
   });
@@ -884,6 +893,7 @@ describe("editor preferences", () => {
       },
       showLineNumbers: false,
       showWordCount: false,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: false
     });
 
@@ -984,6 +994,7 @@ describe("editor preferences", () => {
       },
       showLineNumbers: false,
       showWordCount: false,
+      typewriterModeEnabled: false,
       wrapCodeBlocks: false
     });
     expect(store.save).toHaveBeenCalledTimes(1);

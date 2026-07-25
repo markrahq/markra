@@ -116,6 +116,30 @@ describe("MarkdownSourceEditor", () => {
     expect(getMarkdownSourceView(container)).toBe(view);
   });
 
+  it("reconfigures typewriter mode without recreating the editor", () => {
+    const { container, rerender } = render(
+      <MarkdownSourceEditor
+        content={"first\nsecond\nthird"}
+        onChange={() => {}}
+        typewriterModeEnabled={false}
+      />
+    );
+    const view = getMarkdownSourceView(container);
+
+    expect(view.dom).not.toHaveAttribute("data-typewriter-mode");
+
+    rerender(
+      <MarkdownSourceEditor
+        content={"first\nsecond\nthird"}
+        onChange={() => {}}
+        typewriterModeEnabled
+      />
+    );
+
+    expect(getMarkdownSourceView(container)).toBe(view);
+    expect(view.dom).toHaveAttribute("data-typewriter-mode", "true");
+  });
+
   it("lets an explicit editor font override the default source font", () => {
     const { container } = render(
       <MarkdownSourceEditor

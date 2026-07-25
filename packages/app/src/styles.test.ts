@@ -91,6 +91,81 @@ describe("editor stylesheet", () => {
     expect(lineNumberRule).not.toContain("box-shadow:");
   });
 
+  it("keeps the typewriter active-line highlight visible inside rich blocks", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const activeLineSelector =
+      '.markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused\n' +
+      "    .cm-line.cm-activeLine {";
+    const codeHighlightSelector =
+      '.markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused\n' +
+      "    .cm-line.cm-activeLine.cm-markra-code-content-line::after {";
+    const calloutHighlightSelector =
+      '.markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused\n' +
+      "    .cm-line.cm-activeLine.cm-markra-callout {";
+    const activeLineStart = styles.indexOf(activeLineSelector);
+    const activeLineEnd = styles.indexOf("\n  }", activeLineStart);
+    const codeHighlightStart = styles.indexOf(codeHighlightSelector);
+    const codeHighlightEnd = styles.indexOf("\n  }", codeHighlightStart);
+    const calloutHighlightStart = styles.indexOf(calloutHighlightSelector);
+    const calloutHighlightEnd = styles.indexOf(
+      "\n  }",
+      calloutHighlightStart,
+    );
+    const activeLineRule = styles.slice(activeLineStart, activeLineEnd);
+    const codeHighlightRule = styles.slice(
+      codeHighlightStart,
+      codeHighlightEnd,
+    );
+    const calloutHighlightRule = styles.slice(
+      calloutHighlightStart,
+      calloutHighlightEnd,
+    );
+
+    expect(activeLineStart).toBeGreaterThanOrEqual(0);
+    expect(activeLineRule).toContain("--typewriter-active-line-offset: 0px");
+    expect(activeLineRule).toContain("currentColor 8%");
+    expect(activeLineRule).toContain("/ 100% 1lh no-repeat");
+    expect(codeHighlightStart).toBeGreaterThanOrEqual(0);
+    expect(codeHighlightRule).toContain("background:");
+    expect(codeHighlightRule).toContain("var(--typewriter-active-line-color)");
+    expect(codeHighlightRule).toContain("var(--editor-code-bg)");
+    expect(calloutHighlightStart).toBeGreaterThanOrEqual(0);
+    expect(calloutHighlightRule).toContain("background:");
+    expect(calloutHighlightRule).toContain(
+      "var(--typewriter-active-line-color)",
+    );
+    expect(calloutHighlightRule).toContain("var(--callout-bg)");
+  });
+
+  it("aligns the typewriter highlight with text inside padded visual lines", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain(
+      ".cm-line.cm-markra-h1.cm-activeLine {\n" +
+      "    --typewriter-active-line-offset: -8px;",
+    );
+    expect(styles).toContain(
+      ".cm-line.cm-markra-h2.cm-activeLine {\n" +
+      "    --typewriter-active-line-offset: 8px;",
+    );
+    expect(styles).toContain(
+      ".cm-line.cm-markra-list-item.cm-activeLine {\n" +
+      "    --typewriter-active-line-offset: 4px;",
+    );
+    expect(styles).toContain(
+      ".cm-line.cm-activeLine.markra-callout-last {\n" +
+      "    --typewriter-active-line-offset: -7px;",
+    );
+    expect(styles).toContain(
+      ".cm-line.cm-activeLine.markra-callout-first.markra-callout-last {\n" +
+      "    --typewriter-active-line-offset: 0px;",
+    );
+    expect(styles).toContain(
+      ".cm-line.cm-activeLine.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {\n" +
+      "    --typewriter-active-line-offset: -8px;",
+    );
+  });
+
   it("matches the original code block control layout", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const closingLineStart = styles.indexOf(

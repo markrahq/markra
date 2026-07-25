@@ -16,6 +16,7 @@ import {
 } from "@markra/editor";
 import {
   aiTranslationLanguageName,
+  isKeyboardShortcutModKey,
   matchesKeyboardShortcutEvent,
   type AppLanguage
 } from "@markra/shared";
@@ -82,6 +83,7 @@ type ApplicationShortcutOptions = {
   toggleMarkdownFiles?: () => unknown | Promise<unknown>;
   toggleReadOnlyMode?: () => unknown | Promise<unknown>;
   toggleSourceMode?: () => unknown | Promise<unknown>;
+  toggleTypewriterMode?: () => unknown | Promise<unknown>;
 };
 
 const emptyRecentMarkdownFiles: readonly RecentMarkdownFile[] = [];
@@ -106,7 +108,7 @@ function runFocusedEditableTextCommand(command: "redo" | "undo") {
 }
 
 function isSettingsWindowShortcutEvent(event: KeyboardEvent) {
-  const isModKey = event.metaKey || event.ctrlKey;
+  const isModKey = isKeyboardShortcutModKey(event);
   return isModKey && !event.altKey && !event.shiftKey && (event.key === "," || event.code === "Comma");
 }
 
@@ -444,7 +446,8 @@ export function useApplicationShortcuts({
   toggleDocumentHistory,
   toggleMarkdownFiles,
   toggleReadOnlyMode,
-  toggleSourceMode
+  toggleSourceMode,
+  toggleTypewriterMode
 }: ApplicationShortcutOptions) {
   const normalizedMarkdownShortcuts = useMemo(
     () => normalizeMarkdownShortcuts(markdownShortcuts ?? defaultMarkdownShortcuts),
@@ -453,7 +456,7 @@ export function useApplicationShortcuts({
 
   useEffect(() => {
     const handleApplicationShortcut = (event: KeyboardEvent) => {
-      const isModKey = event.metaKey || event.ctrlKey;
+      const isModKey = isKeyboardShortcutModKey(event);
       if (event.defaultPrevented || !isModKey) return;
 
       if (handleSettingsWindowShortcut(event, openSettings)) return;
@@ -466,7 +469,8 @@ export function useApplicationShortcuts({
         [normalizedMarkdownShortcuts.toggleAiAgent, toggleAiAgent],
         [normalizedMarkdownShortcuts.toggleAiCommand, toggleAiCommand],
         [normalizedMarkdownShortcuts.toggleSourceMode, toggleSourceMode],
-        [normalizedMarkdownShortcuts.toggleReadOnlyMode, toggleReadOnlyMode]
+        [normalizedMarkdownShortcuts.toggleReadOnlyMode, toggleReadOnlyMode],
+        [normalizedMarkdownShortcuts.toggleTypewriterMode, toggleTypewriterMode]
       ];
 
       for (const [shortcut, handler] of configurableActions) {
@@ -474,7 +478,7 @@ export function useApplicationShortcuts({
 
         event.preventDefault();
         event.stopPropagation();
-        handler();
+        if (!event.repeat) handler();
         return;
       }
 
@@ -554,6 +558,7 @@ export function useApplicationShortcuts({
     toggleDocumentHistory,
     toggleMarkdownFiles,
     toggleReadOnlyMode,
-    toggleSourceMode
+    toggleSourceMode,
+    toggleTypewriterMode
   ]);
 }

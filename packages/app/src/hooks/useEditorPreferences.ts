@@ -10,7 +10,9 @@ export function useEditorPreferences() {
   const [preferences, setPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
   const [loading, setLoading] = useState(true);
   const livePreferencesReceivedRef = useRef(false);
-  const updatePreferences = useCallback((nextPreferences: EditorPreferences) => {
+  const updatePreferences = useCallback((
+    nextPreferences: EditorPreferences | ((currentPreferences: EditorPreferences) => EditorPreferences)
+  ) => {
     livePreferencesReceivedRef.current = true;
     setPreferences(nextPreferences);
   }, []);

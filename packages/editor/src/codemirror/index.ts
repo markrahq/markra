@@ -220,6 +220,8 @@ export type {
 } from "./table.ts";
 export { readCodeMirrorTableShape, tablePreviewPlugin } from "./table.ts";
 export { trailingSpacePlugin } from "./trailing-space.ts";
+export type { CodeMirrorTypewriterModeOptions } from "./typewriter.ts";
+export { codeMirrorTypewriterMode } from "./typewriter.ts";
 
 export interface LiveMarkdownConfig extends LivePreviewConfig {
   highlight?: boolean;
