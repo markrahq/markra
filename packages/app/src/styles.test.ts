@@ -417,24 +417,6 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("background-clip: content-box");
   });
 
-  it("keeps the titlebar action scroller usable without a visible scrollbar", () => {
-    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
-    const actionRuleStart = styles.indexOf("html .document-actions {");
-    const actionRuleEnd = styles.indexOf("\n  }", actionRuleStart);
-    const actionRule = styles.slice(actionRuleStart, actionRuleEnd);
-    const webkitRuleStart = styles.indexOf(
-      "html .document-actions::-webkit-scrollbar {",
-    );
-    const webkitRuleEnd = styles.indexOf("\n  }", webkitRuleStart);
-    const webkitRule = styles.slice(webkitRuleStart, webkitRuleEnd);
-
-    expect(actionRuleStart).toBeGreaterThanOrEqual(0);
-    expect(actionRule).toContain("scrollbar-width: none");
-    expect(webkitRuleStart).toBeGreaterThanOrEqual(0);
-    expect(webkitRule).toContain("display: none");
-    expect(webkitRule).toContain("height: 0");
-  });
-
   it("keeps editor scrollbars below the titlebar tab area", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const scrollRuleStart = styles.indexOf(".editor-content-slot .paper-scroll {");

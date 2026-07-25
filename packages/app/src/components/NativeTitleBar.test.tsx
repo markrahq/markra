@@ -53,11 +53,22 @@ describe("NativeTitleBar", () => {
     expect(screen.getByRole("button", { name: "Toggle file list" })).toBeInTheDocument();
     expect(container.querySelector("[data-titlebar-action='open']")).not.toBeInTheDocument();
     expect(within(container.querySelector(".document-actions") as HTMLElement).queryByRole("button", { name: "Open Markdown or Folder" })).not.toBeInTheDocument();
-    expect(titlebar).toHaveClass("grid-cols-[164px_minmax(0,1fr)_164px]");
+    expect(titlebar).toHaveClass("grid-cols-[196px_minmax(0,1fr)_196px]");
+    expect(titlebar).toHaveStyle({
+      gridTemplateColumns: "196px minmax(0,1fr) 196px",
+    });
     expect(titlebar).toHaveClass("h-10", "z-8");
     expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
-    expect(container.querySelector(".document-actions")).toHaveClass("h-10");
-    expect(container.querySelector(".document-actions")).toHaveClass("opacity-40");
+    expect(container.querySelector(".document-actions")).toHaveClass(
+      "h-10",
+      "min-w-0",
+      "overflow-visible",
+      "opacity-40",
+    );
+    expect(container.querySelector(".document-actions")).not.toHaveClass(
+      "overflow-x-auto",
+      "max-[600px]:max-w-[46vw]",
+    );
     expect(container.querySelector("[data-titlebar-action='aiAgent']")).toHaveClass("transition-transform");
   });
 
@@ -122,7 +133,7 @@ describe("NativeTitleBar", () => {
     expect(sidebarSurface).toContainElement(sidebarDivider);
     expect(sidebarDivider).toHaveClass("right-0", "opacity-100");
     expect(container.querySelector(".native-title-slot")).toHaveStyle({
-      marginLeft: "56px"
+      marginLeft: "24px"
     });
     expect(container.querySelector(".native-title-slot")).not.toHaveStyle({ transform: "translateX(110px)" });
   });
@@ -212,8 +223,8 @@ describe("NativeTitleBar", () => {
 
     expect(sidebarGap).toHaveAttribute("data-tauri-drag-region");
     expect(sidebarGap).toHaveStyle({
-      left: "164px",
-      width: "356px"
+      left: "196px",
+      width: "324px"
     });
     expect(screen.getByRole("tab", { name: "Draft.md" }).closest("[data-tauri-drag-region]")).toBeNull();
   });
@@ -280,7 +291,7 @@ describe("NativeTitleBar", () => {
     );
 
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "minmax(0,1fr) 164px",
+      gridTemplateColumns: "minmax(0,1fr) 196px",
       left: "289px"
     });
     expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
@@ -315,7 +326,7 @@ describe("NativeTitleBar", () => {
     );
 
     expect(container.querySelector(".native-title-slot")).toHaveStyle({
-      marginLeft: "124px",
+      marginLeft: "92px",
       marginRight: "384px"
     });
   });
@@ -416,7 +427,7 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".document-actions")).not.toHaveAttribute("data-tauri-drag-region");
     expect(container.querySelector(".native-title-slot")).not.toHaveAttribute("data-tauri-drag-region");
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "minmax(0,1fr) 164px 384px"
+      gridTemplateColumns: "minmax(0,1fr) 196px 384px"
     });
     expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
     expect(container.querySelector(".windows-app-chrome .windows-window-controls")).toBeInTheDocument();
@@ -471,7 +482,7 @@ describe("NativeTitleBar", () => {
     expect(container.querySelector(".native-title-slot")).toHaveClass("pl-3");
     expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "minmax(0,1fr) 164px"
+      gridTemplateColumns: "minmax(0,1fr) 196px"
     });
     expect(container.querySelector(".windows-window-controls")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Minimize window" })).toBeInTheDocument();
@@ -742,7 +753,7 @@ describe("NativeTitleBar", () => {
     );
 
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "minmax(0,1fr) 164px 384px"
+      gridTemplateColumns: "minmax(0,1fr) 196px 384px"
     });
     expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
     expect(container.querySelector(".windows-app-chrome .windows-window-controls")).toBeInTheDocument();
@@ -769,7 +780,7 @@ describe("NativeTitleBar", () => {
     );
 
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "minmax(0,1fr) 164px 384px"
+      gridTemplateColumns: "minmax(0,1fr) 196px 384px"
     });
     expect(container.querySelector(".windows-titlebar-actions")).not.toHaveStyle({ transform: "translateX(-384px)" });
     expect(container.querySelector(".windows-app-chrome .windows-window-controls")).toBeInTheDocument();
