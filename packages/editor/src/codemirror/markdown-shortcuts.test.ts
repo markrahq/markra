@@ -82,6 +82,53 @@ describe("markdownShortcutsPlugin", () => {
     expect(view.state.doc.toString()).toBe("Before **text** after");
   });
 
+  it("supports Alt-only formatting shortcuts without also matching Mod+Alt", () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: "Alpha",
+        extensions: [
+          liveMarkdown({
+            plugins: [
+              blocksPlugin({ keybindings: false }),
+              formattingPlugin({ keybindings: false }),
+              markdownShortcutsPlugin({
+                shortcuts: { heading1: "Alt+1" },
+              }),
+            ],
+          }),
+        ],
+        selection: EditorSelection.cursor(0),
+      }),
+    });
+    views.push(view);
+
+    const modAltEvent = new KeyboardEvent("keydown", {
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+      code: "Digit1",
+      ctrlKey: true,
+      key: "¡",
+    });
+    const altEvent = new KeyboardEvent("keydown", {
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+      code: "Digit1",
+      key: "¡",
+    });
+
+    view.contentDOM.dispatchEvent(modAltEvent);
+    expect(view.state.doc.toString()).toBe("Alpha");
+
+    view.contentDOM.dispatchEvent(altEvent);
+    expect(altEvent.defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe("# Alpha");
+  });
+
   it("routes configured block and insertion shortcuts to CodeMirror commands", () => {
     const heading = createView("Alpha", 2, 2);
     expect(shortcut(heading, "4")).toBe(true);

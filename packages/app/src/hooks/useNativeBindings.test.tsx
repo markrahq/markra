@@ -171,6 +171,29 @@ describe("useNativeMenuHandlers", () => {
     expect(runEditorShortcut).toHaveBeenCalledWith("b", {
       altKey: true,
       code: undefined,
+      modKey: true,
+      shiftKey: false
+    });
+  });
+
+  it("routes native formatting commands through Alt-only custom shortcuts", () => {
+    const runEditorShortcut = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        markdownShortcuts: {
+          heading1: "Alt+1"
+        },
+        runEditorShortcut
+      })
+    );
+
+    result.current.formatHeading1?.();
+
+    expect(runEditorShortcut).toHaveBeenCalledWith("1", {
+      altKey: true,
+      code: "Digit1",
+      modKey: false,
       shiftKey: false
     });
   });
@@ -189,6 +212,7 @@ describe("useNativeMenuHandlers", () => {
     expect(runEditorShortcut).toHaveBeenCalledWith("*", {
       altKey: false,
       code: "Digit8",
+      modKey: true,
       shiftKey: true
     });
   });
@@ -261,6 +285,7 @@ describe("useNativeMenuHandlers", () => {
 
     expect(runEditorShortcut).toHaveBeenCalledWith("F", {
       altKey: true,
+      modKey: true,
       shiftKey: true
     });
   });
@@ -392,6 +417,33 @@ describe("useApplicationShortcuts", () => {
     fireEvent.keyDown(window, {
       key: "a",
       altKey: true,
+      metaKey: true
+    });
+
+    expect(toggleAiAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes Alt-only configurable app shortcuts without accepting Mod+Alt", () => {
+    const toggleAiAgent = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        markdownShortcuts: {
+          toggleAiAgent: "Alt+1"
+        },
+        toggleAiAgent
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      altKey: true,
+      code: "Digit1",
+      key: "¡"
+    });
+    fireEvent.keyDown(window, {
+      altKey: true,
+      code: "Digit1",
+      key: "¡",
       metaKey: true
     });
 

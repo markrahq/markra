@@ -249,7 +249,7 @@ export function useCodeMirrorEditorController() {
   const runEditorShortcut = useCallback(
     (
       key: string,
-      modifiers: Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey"> = {},
+      modifiers: Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey"> & { modKey?: boolean } = {},
       options: { focusEditor?: boolean } = {},
     ) => {
       const view = viewRef.current;
@@ -268,13 +268,14 @@ export function useCodeMirrorEditorController() {
         modifiers.shiftKey && /^[A-Z]$/u.test(key)
           ? key.toLocaleLowerCase()
           : key;
+      const { modKey = true, ...eventModifiers } = modifiers;
       const event = new KeyboardEvent("keydown", {
         bubbles: true,
         cancelable: true,
-        ctrlKey: !mac,
+        ctrlKey: modKey && !mac,
         key: normalizedKey,
-        metaKey: mac,
-        ...modifiers,
+        metaKey: modKey && mac,
+        ...eventModifiers,
       });
       const handled = runScopeHandlers(view, event, "editor");
       if (handled && options.focusEditor !== false) view.focus();

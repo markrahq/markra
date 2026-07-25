@@ -516,6 +516,7 @@ describe("editor preferences", () => {
     }).markdownShortcuts).toEqual({
       ...defaultMarkdownShortcuts,
       bold: "Mod+Alt+B",
+      quote: "Alt+Q",
       strikethrough: "Mod+Shift+X"
     });
   });

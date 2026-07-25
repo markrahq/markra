@@ -1,5 +1,5 @@
 import { EditorSelection, EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorView, keymap } from "@codemirror/view";
 import { history } from "@codemirror/commands";
 import {
   blocksPlugin,
@@ -139,6 +139,41 @@ describe("useCodeMirrorEditorController", () => {
       expect(result.current.runEditorShortcut("X", { shiftKey: true })).toBe(true);
     });
     expect(view.state.doc.toString()).toBe("Before text after");
+  });
+
+  it("preserves an Alt-only shortcut when dispatching a synthetic editor event", () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    let shortcutHandled = false;
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: "Alpha",
+        extensions: [
+          keymap.of([{
+            key: "Alt-1",
+            run: () => {
+              shortcutHandled = true;
+              return true;
+            },
+          }]),
+        ],
+        selection: EditorSelection.cursor(0),
+      }),
+    });
+    views.push(view);
+    const { result } = renderHook(() => useCodeMirrorEditorController());
+    act(() => result.current.handleEditorReady(view));
+
+    act(() => {
+      expect(result.current.runEditorShortcut("1", {
+        altKey: true,
+        code: "Digit1",
+        modKey: false,
+      })).toBe(true);
+    });
+
+    expect(shortcutHandled).toBe(true);
   });
 
   it("normalizes native redo shortcuts across desktop platforms", () => {

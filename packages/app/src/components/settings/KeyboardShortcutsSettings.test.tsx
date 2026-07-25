@@ -106,6 +106,112 @@ describe("KeyboardShortcutsSettings", () => {
     });
   });
 
+  it("records an Option-only digit shortcut and warns about text input conflicts", () => {
+    const onUpdatePreferences = vi.fn();
+    const preferences: EditorPreferences = {
+      ...defaultEditorPreferences,
+      markdownShortcuts: defaultMarkdownShortcuts
+    };
+
+    render(
+      <KeyboardShortcutsSettings
+        preferences={preferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const boldShortcut = screen.getByRole("button", { name: "Bold shortcut" });
+    fireEvent.click(boldShortcut);
+    fireEvent.keyDown(window, {
+      altKey: true,
+      code: "Digit1",
+      key: "¡"
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...preferences,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        bold: "Alt+1"
+      }
+    });
+    expect(mockedShowAppToast).toHaveBeenCalledWith({
+      duration: 4500,
+      id: "keyboard-shortcut-alt-only-warning",
+      message: "This shortcut may replace Option/Alt text input or system behavior.",
+      status: "warning"
+    });
+  });
+
+  it("shows Alt-only shortcuts without a primary modifier label", () => {
+    render(
+      <KeyboardShortcutsSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          markdownShortcuts: {
+            ...defaultMarkdownShortcuts,
+            bold: "Alt+1"
+          }
+        }}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Bold shortcut" })).toHaveTextContent("⌥+1");
+    expect(screen.getByRole("button", { name: "Bold shortcut" })).not.toHaveTextContent("⌘");
+  });
+
+  it("shows a toast when the recorded shortcut is unsupported", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <KeyboardShortcutsSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const boldShortcut = screen.getByRole("button", { name: "Bold shortcut" });
+    fireEvent.click(boldShortcut);
+    fireEvent.keyDown(window, {
+      code: "Digit1",
+      key: "1"
+    });
+
+    expect(mockedShowAppToast).toHaveBeenCalledWith({
+      duration: 4500,
+      id: "keyboard-shortcut-unsupported",
+      message: "This shortcut is not supported. Use Cmd/Ctrl or Alt/Option with a letter, number, or punctuation key.",
+      status: "error"
+    });
+    expect(onUpdatePreferences).not.toHaveBeenCalled();
+    expect(boldShortcut).toHaveTextContent("⌘+B");
+  });
+
+  it("keeps recording while preventing a modifier key from activating native UI", () => {
+    render(
+      <KeyboardShortcutsSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    const shortcutButton = screen.getByRole("button", { name: "Bold shortcut" });
+    fireEvent.click(shortcutButton);
+    const handled = fireEvent.keyDown(window, {
+      altKey: true,
+      key: "Alt"
+    });
+
+    expect(handled).toBe(false);
+    expect(shortcutButton).toHaveTextContent("Press keys");
+    expect(mockedShowAppToast).not.toHaveBeenCalled();
+  });
+
   it("records shortcuts from the active window while capture is active", () => {
     const onUpdatePreferences = vi.fn();
     const preferences: EditorPreferences = {

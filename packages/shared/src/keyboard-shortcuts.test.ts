@@ -4,8 +4,10 @@ import {
   keyboardShortcutFromKeyboardEvent,
   keyboardShortcutActions,
   keyboardShortcutToKeyboardEventInit,
+  keyboardShortcutToNativeAccelerator,
   matchesKeyboardShortcutEvent,
-  normalizeKeyboardShortcuts
+  normalizeKeyboardShortcuts,
+  parseKeyboardShortcut
 } from "./keyboard-shortcuts";
 
 describe("keyboard shortcuts", () => {
@@ -84,6 +86,36 @@ describe("keyboard shortcuts", () => {
 
     expect(keyboardShortcutFromKeyboardEvent(event)).toBe("Mod+Alt+W");
     expect(matchesKeyboardShortcutEvent(event, "Mod+Alt+W")).toBe(true);
+  });
+
+  it("records, parses, and exactly matches Alt-only digit shortcuts", () => {
+    const optionDigit = new KeyboardEvent("keydown", {
+      altKey: true,
+      code: "Digit1",
+      key: "¡"
+    });
+    const modOptionDigit = new KeyboardEvent("keydown", {
+      altKey: true,
+      code: "Digit1",
+      key: "¡",
+      metaKey: true
+    });
+
+    expect(parseKeyboardShortcut("Alt+1")).toEqual({
+      alt: true,
+      key: "1",
+      mod: false,
+      shift: false
+    });
+    expect(keyboardShortcutFromKeyboardEvent(optionDigit)).toBe("Alt+1");
+    expect(matchesKeyboardShortcutEvent(optionDigit, "Alt+1")).toBe(true);
+    expect(matchesKeyboardShortcutEvent(modOptionDigit, "Alt+1")).toBe(false);
+    expect(keyboardShortcutToNativeAccelerator("Alt+1")).toBe("Alt+1");
+  });
+
+  it("keeps a primary or Alt modifier mandatory", () => {
+    expect(parseKeyboardShortcut("1")).toBeNull();
+    expect(parseKeyboardShortcut("Shift+1")).toBeNull();
   });
 
   it("does not record or match shortcuts with both platform modifier keys", () => {
@@ -186,13 +218,22 @@ describe("keyboard shortcuts", () => {
       altKey: false,
       code: "Digit8",
       key: "*",
+      modKey: true,
       shiftKey: true
     });
     expect(keyboardShortcutToKeyboardEventInit("Mod+Shift+/")).toEqual({
       altKey: false,
       code: "Slash",
       key: "?",
+      modKey: true,
       shiftKey: true
+    });
+    expect(keyboardShortcutToKeyboardEventInit("Alt+1")).toEqual({
+      altKey: true,
+      code: "Digit1",
+      key: "1",
+      modKey: false,
+      shiftKey: false
     });
   });
 
@@ -200,11 +241,13 @@ describe("keyboard shortcuts", () => {
     expect(keyboardShortcutToKeyboardEventInit("Mod+B")).toEqual({
       altKey: false,
       key: "b",
+      modKey: true,
       shiftKey: false
     });
     expect(keyboardShortcutToKeyboardEventInit("Mod+Shift+B")).toEqual({
       altKey: false,
       key: "B",
+      modKey: true,
       shiftKey: true
     });
     expect(keyboardShortcutToKeyboardEventInit("Mod+I")?.key).toBe("i");

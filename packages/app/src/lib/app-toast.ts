@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { toast, type ExternalToast } from "sonner";
 
-export type AppToastStatus = "error" | "loading" | "success";
+export type AppToastStatus = "error" | "loading" | "success" | "warning";
 export type AppToastSurface = "notice" | "toast";
 export type AppToastAction = ExternalToast["action"];
 
@@ -45,6 +45,11 @@ export function showAppToast({
 
   if (status === "loading") {
     toast.loading(message, options);
+    return;
+  }
+
+  if (status === "warning") {
+    toast.warning(message, options);
     return;
   }
 

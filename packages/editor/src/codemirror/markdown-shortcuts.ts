@@ -1,7 +1,9 @@
-import { keymap, type EditorView as CodeMirrorView } from "@codemirror/view";
+import { EditorView, keymap } from "@codemirror/view";
 import {
   keyboardShortcutActions,
+  matchesKeyboardShortcutEvent,
   normalizeKeyboardShortcuts,
+  parseKeyboardShortcut,
   type KeyboardShortcutAction,
   type KeyboardShortcutMap,
 } from "@markra/shared";
@@ -14,9 +16,9 @@ import { toggleAllCodeMirrorFolds } from "./folding.ts";
 import { defineMarkraPlugin, runMarkraCommand } from "./plugin.ts";
 
 export interface MarkdownShortcutsPluginOptions {
-  openSpellcheckSuggestions?: (view: CodeMirrorView) => boolean;
+  openSpellcheckSuggestions?: (view: EditorView) => boolean;
   shortcuts?: KeyboardShortcutMap;
-  toggleAllFolds?: (view: CodeMirrorView) => boolean;
+  toggleAllFolds?: (view: EditorView) => boolean;
 }
 
 const commandByAction: Partial<Record<KeyboardShortcutAction, string>> = {
@@ -35,7 +37,7 @@ const commandByAction: Partial<Record<KeyboardShortcutAction, string>> = {
 };
 
 function runShortcutAction(
-  view: CodeMirrorView,
+  view: EditorView,
   action: KeyboardShortcutAction,
   options: MarkdownShortcutsPluginOptions,
 ) {
@@ -69,13 +71,28 @@ export function markdownShortcutsPlugin(
   options: MarkdownShortcutsPluginOptions = {},
 ) {
   const shortcuts = normalizeKeyboardShortcuts(options.shortcuts);
+  const altOnlyActions = keyboardShortcutActions.filter(
+    (action) => parseKeyboardShortcut(shortcuts[action])?.mod === false,
+  );
   return defineMarkraPlugin({
     id: "markra.markdown-shortcuts",
-    extension: keymap.of(
-      keyboardShortcutActions.map((action) => ({
-        key: codeMirrorShortcut(shortcuts[action]),
-        run: (view) => runShortcutAction(view, action, options),
-      })),
-    ),
+    extension: [
+      // macOS reports Option-modified digits and letters as generated symbols.
+      // Match Alt-only shortcuts by physical code before CodeMirror's character keymap.
+      EditorView.domEventHandlers({
+        keydown: (event, view) => {
+          const action = altOnlyActions.find((candidate) =>
+            matchesKeyboardShortcutEvent(event, shortcuts[candidate])
+          );
+          return action ? runShortcutAction(view, action, options) : false;
+        },
+      }),
+      keymap.of(
+        keyboardShortcutActions.map((action) => ({
+          key: codeMirrorShortcut(shortcuts[action]),
+          run: (view) => runShortcutAction(view, action, options),
+        })),
+      ),
+    ],
   });
 }

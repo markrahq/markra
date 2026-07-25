@@ -48,7 +48,10 @@ type NativeMenuHandlerOptions = {
   openQuickOpen?: () => unknown | Promise<unknown>;
   openRecentFile?: (file: RecentMarkdownFile) => unknown | Promise<unknown>;
   runAiQuickAction?: (intent: NativeAiQuickActionIntent, prompt: string) => unknown | Promise<unknown>;
-  runEditorShortcut: (key: string, modifiers?: Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey">) => unknown;
+  runEditorShortcut: (
+    key: string,
+    modifiers?: Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey"> & { modKey?: boolean }
+  ) => unknown;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
   syncNow?: () => unknown | Promise<unknown>;
@@ -306,6 +309,7 @@ export function useNativeMenuHandlers({
     latestOptionsRef.current.runEditorShortcut(shortcut.key, {
       altKey: Boolean(shortcut.altKey),
       code: shortcut.code,
+      modKey: shortcut.modKey,
       shiftKey: Boolean(shortcut.shiftKey)
     });
   }
@@ -459,10 +463,10 @@ export function useApplicationShortcuts({
   useEffect(() => {
     const handleApplicationShortcut = (event: KeyboardEvent) => {
       const isModKey = isKeyboardShortcutModKey(event);
-      if (event.defaultPrevented || !isModKey) return;
+      if (event.defaultPrevented) return;
 
-      if (handleSettingsWindowShortcut(event, openSettings)) return;
-
+      // Alt-only configurable bindings must be checked before the Mod guard
+      // that still protects all fixed application shortcuts below.
       const configurableActions: Array<[string, (() => unknown | Promise<unknown>) | undefined]> = [
         [normalizedMarkdownShortcuts.openQuickOpen, openQuickOpen],
         [normalizedMarkdownShortcuts.syncNow, syncNow],
@@ -484,6 +488,9 @@ export function useApplicationShortcuts({
         if (!event.repeat) handler();
         return;
       }
+
+      if (!isModKey) return;
+      if (handleSettingsWindowShortcut(event, openSettings)) return;
 
       const key = event.key.toLowerCase();
       const isPhysicalFKey = key === "f" || event.code === "KeyF";

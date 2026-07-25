@@ -149,7 +149,7 @@ function formatShortcutForPlatform(shortcut: string, platform: DesktopPlatform) 
 
   if (platform === "macos") {
     return [
-      "⌘",
+      parsed.mod ? "⌘" : null,
       parsed.shift ? "⇧" : null,
       parsed.alt ? "⌥" : null,
       parsed.key
@@ -157,7 +157,7 @@ function formatShortcutForPlatform(shortcut: string, platform: DesktopPlatform) 
   }
 
   return [
-    "Ctrl",
+    parsed.mod ? "Ctrl" : null,
     parsed.shift ? "Shift" : null,
     parsed.alt ? "Alt" : null,
     parsed.key
@@ -257,7 +257,24 @@ export function KeyboardShortcutsSettings({
       }
 
       const nextShortcut = markdownShortcutFromKeyboardEvent(event);
-      if (!nextShortcut) return;
+      if (!nextShortcut) {
+        if (event.key === "Alt" || event.key === "Control" || event.key === "Meta" || event.key === "Shift") {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+
+        event.preventDefault();
+        event.stopPropagation();
+        showAppToast({
+          duration: 4500,
+          id: "keyboard-shortcut-unsupported",
+          message: translate("settings.editor.shortcutUnsupported"),
+          status: "error"
+        });
+        setActiveAction(null);
+        return;
+      }
 
       event.preventDefault();
       event.stopPropagation();
@@ -280,6 +297,14 @@ export function KeyboardShortcutsSettings({
         ...preferences,
         markdownShortcuts: nextShortcuts
       });
+      if (!parseMarkdownShortcut(nextShortcut)?.mod) {
+        showAppToast({
+          duration: 4500,
+          id: "keyboard-shortcut-alt-only-warning",
+          message: translate("settings.editor.shortcutAltOnlyWarning"),
+          status: "warning"
+        });
+      }
       setActiveAction(null);
     };
 

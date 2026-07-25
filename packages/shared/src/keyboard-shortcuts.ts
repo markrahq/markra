@@ -132,11 +132,13 @@ const reservedKeyboardShortcutChords = new Set([
 export type ParsedKeyboardShortcut = {
   alt: boolean;
   key: string;
+  mod: boolean;
   shift: boolean;
 };
 
 export type KeyboardShortcutEventInit = Pick<KeyboardEventInit, "altKey" | "code" | "shiftKey"> & {
   key: string;
+  modKey: boolean;
 };
 
 export function isKeyboardShortcutModKey(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey">) {
@@ -284,11 +286,12 @@ export function parseKeyboardShortcut(shortcut: unknown): ParsedKeyboardShortcut
     if (key === null) return null;
   }
 
-  if (!mod || key === null) return null;
+  if ((!mod && !alt) || key === null) return null;
 
   return {
     alt,
     key,
+    mod,
     shift
   };
 }
@@ -298,7 +301,7 @@ export function formatKeyboardShortcut(shortcut: unknown) {
   if (!parsed) return null;
 
   return [
-    "Mod",
+    parsed.mod ? "Mod" : null,
     parsed.shift ? "Shift" : null,
     parsed.alt ? "Alt" : null,
     parsed.key
@@ -318,6 +321,7 @@ export function keyboardShortcutToKeyboardEventInit(shortcut: unknown): Keyboard
   const eventInit: KeyboardShortcutEventInit = {
     altKey: parsed.alt,
     key,
+    modKey: parsed.mod,
     shiftKey: parsed.shift
   };
   if (code) eventInit.code = code;
@@ -328,7 +332,11 @@ export function keyboardShortcutToKeyboardEventInit(shortcut: unknown): Keyboard
 export function keyboardShortcutFromKeyboardEvent(
   event: Pick<KeyboardEvent, "altKey" | "ctrlKey" | "key" | "metaKey" | "shiftKey"> & Partial<Pick<KeyboardEvent, "code">>
 ) {
-  if (!isKeyboardShortcutModKey(event)) return null;
+  // Control+Meta is never a valid primary modifier. Do not let Alt make that
+  // invalid chord look like an Alt-only shortcut after Mod became optional.
+  if (event.metaKey && event.ctrlKey) return null;
+  const mod = isKeyboardShortcutModKey(event);
+  if (!mod && !event.altKey) return null;
   if (event.key === "Alt" || event.key === "Control" || event.key === "Meta" || event.key === "Shift") {
     return null;
   }
@@ -337,7 +345,7 @@ export function keyboardShortcutFromKeyboardEvent(
   if (!key) return null;
 
   return formatKeyboardShortcut([
-    "Mod",
+    mod ? "Mod" : null,
     event.shiftKey ? "Shift" : null,
     event.altKey ? "Alt" : null,
     key
@@ -349,7 +357,7 @@ export function keyboardShortcutToNativeAccelerator(shortcut: unknown) {
   if (!parsed) return null;
 
   return [
-    "CmdOrCtrl",
+    parsed.mod ? "CmdOrCtrl" : null,
     parsed.shift ? "Shift" : null,
     parsed.alt ? "Alt" : null,
     parsed.key
@@ -423,9 +431,11 @@ export function matchesKeyboardShortcutEvent(
   if (!parsed) return false;
   const key = shortcutKeyFromKeyboardEvent(event);
   if (!key) return false;
+  // Keep capture and matching symmetrical for the invalid Control+Meta chord.
+  if (event.metaKey && event.ctrlKey) return false;
 
   return (
-    isKeyboardShortcutModKey(event) &&
+    isKeyboardShortcutModKey(event) === parsed.mod &&
     key.toLowerCase() === parsed.key.toLowerCase() &&
     event.altKey === parsed.alt &&
     event.shiftKey === parsed.shift
