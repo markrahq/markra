@@ -80,6 +80,8 @@ describe("editor stylesheet", () => {
     expect(styles).not.toContain(".markdown-paper .cm-cursorLayer {");
     expect(codeLineRule).toContain("position: relative");
     expect(codeLineRule).toContain("background: transparent !important");
+    expect(codeLineRule).toContain("padding-inline: 59px 16px !important");
+    expect(codeLineRule).toContain("text-indent: -59px");
     expect(backdropStart).toBeGreaterThanOrEqual(0);
     expect(backdropRule).toContain("z-index: -2");
     expect(backdropRule).toContain("background: linear-gradient(");
@@ -166,15 +168,23 @@ describe("editor stylesheet", () => {
     );
   });
 
-  it("matches the original code block control layout", () => {
+  it("keeps code block controls in the header without extra closing space", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const headerActionsStart = styles.indexOf(
+      ".markdown-paper .cm-markra-code-header-actions {",
+    );
+    const headerActionsEnd = styles.indexOf("\n  }", headerActionsStart);
+    const headerActionsRule = styles.slice(
+      headerActionsStart,
+      headerActionsEnd,
+    );
     const closingLineStart = styles.indexOf(
       ".markdown-paper .cm-line.cm-markra-code-closing-line {",
     );
     const closingLineEnd = styles.indexOf("\n  }", closingLineStart);
     const closingLineRule = styles.slice(closingLineStart, closingLineEnd);
     const languageControlStart = styles.indexOf(
-      ".markdown-paper .cm-line.cm-markra-code-closing-line .markra-code-language-control {",
+      ".markdown-paper .cm-markra-code-header-actions .markra-code-language-control {",
     );
     const languageControlEnd = styles.indexOf("\n  }", languageControlStart);
     const languageControlRule = styles.slice(
@@ -182,20 +192,19 @@ describe("editor stylesheet", () => {
       languageControlEnd,
     );
 
+    expect(headerActionsRule).toContain("opacity: 1 !important");
+    expect(headerActionsRule).toContain("pointer-events: auto !important");
+    expect(headerActionsRule).toContain("transform: none");
     expect(closingLineRule).toContain("position: relative");
-    expect(closingLineRule).toContain("height: 56px");
+    expect(closingLineRule).toContain("height: 12px");
+    expect(closingLineRule).toContain("min-height: 12px");
     expect(languageControlStart).toBeGreaterThanOrEqual(0);
-    expect(languageControlRule).toContain("position: absolute");
-    expect(languageControlRule).toContain("top: 12px");
-    expect(languageControlRule).toContain("right: 0");
+    expect(languageControlRule).toContain("position: relative");
     expect(languageControlRule).toContain("padding: 0");
     expect(languageControlRule).toContain("opacity: 1 !important");
     expect(languageControlRule).toContain("pointer-events: auto !important");
-    expect(styles).toContain(
-      '.cm-markra-code-closing-line[data-code-block-active="true"] .markra-code-language-control',
-    );
-    expect(styles).toContain(
-      '.markdown-paper .cm-line.cm-markra-code-closing-line[data-code-block-active="true"] .markra-code-language-control',
+    expect(styles).not.toContain(
+      ".markdown-paper .cm-line.cm-markra-code-closing-line .markra-code-language-control {",
     );
   });
 

@@ -81,6 +81,16 @@ describe("codeBlockPreviewPlugin", () => {
     expect(view.dom.querySelector(".markra-code-language-select")).not.toBeNull();
   });
 
+  it("keeps a lone unfinished opening fence editable until Enter", () => {
+    const source = "```";
+    const view = createView(source);
+    view.dispatch({ selection: { anchor: source.length } });
+
+    expect(renderedLines(view)).toContain(source);
+    expect(view.dom.querySelector(".cm-markra-code-header")).toBeNull();
+    expect(view.dom.querySelector(".markra-code-language-select")).toBeNull();
+  });
+
   it("moves a click on the folded closing line to an editable line after the fence", () => {
     const view = createView("```ts\nconst answer = 42;\n```");
     const closingLine = view.dom.querySelector<HTMLElement>(
@@ -93,6 +103,88 @@ describe("codeBlockPreviewPlugin", () => {
 
     expect(view.state.doc.toString()).toBe(
       "```ts\nconst answer = 42;\n```\nOutside",
+    );
+    expect(view.state.selection.main.head).toBe(view.state.doc.length);
+  });
+
+  it("inserts a matching closing fence when Enter creates a code block", () => {
+    const source = "```sh";
+    const view = createView(source);
+    view.dispatch({ selection: { anchor: source.length } });
+
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "Enter",
+    }), "editor")).toBe(true);
+    expect(view.state.doc.toString()).toBe("```sh\n\n```");
+    expect(view.state.selection.main.head).toBe(source.length + 1);
+  });
+
+  it("exits after Enter on the trailing empty code line", () => {
+    const source = "```sh\nfirst command\n\n```\nAfter";
+    const trailingEmptyLine = source.indexOf("\n\n```") + 1;
+    const view = createView(source);
+    view.dispatch({ selection: { anchor: trailingEmptyLine } });
+
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "Enter",
+    }), "editor")).toBe(true);
+    expect(view.state.doc.toString()).toBe(source);
+    expect(view.state.selection.main.head).toBe(source.indexOf("After"));
+  });
+
+  it("exits when the trailing empty line was just inserted", () => {
+    const source = "```sh\nfirst command\n```\nAfter";
+    const view = createView(source);
+    view.dispatch({
+      selection: { anchor: source.indexOf("\n```") },
+    });
+
+    view.dispatch(view.state.replaceSelection("\n"));
+
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "Enter",
+    }), "editor")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      "```sh\nfirst command\n\n```\nAfter",
+    );
+    expect(view.state.selection.main.head).toBe(
+      view.state.doc.toString().indexOf("After"),
+    );
+  });
+
+  it("materializes an outside line when exiting a code block at document end", () => {
+    const source = "```sh\nfirst command\n```";
+    const view = createView(source);
+    view.dispatch({
+      selection: { anchor: source.indexOf("\n```") },
+    });
+
+    view.dispatch(view.state.replaceSelection("\n"));
+
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "Enter",
+    }), "editor")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      "```sh\nfirst command\n\n```\n",
+    );
+    expect(view.state.selection.main.head).toBe(view.state.doc.length);
+  });
+
+  it("closes and exits an unfinished code block after Enter on its final empty line", () => {
+    const source = "```sh\nfirst command\n";
+    const view = createView(source);
+    view.dispatch({ selection: { anchor: source.length } });
+
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "Enter",
+    }), "editor")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      "```sh\nfirst command\n```\n",
     );
     expect(view.state.selection.main.head).toBe(view.state.doc.length);
   });
@@ -218,7 +310,9 @@ describe("codeBlockPreviewPlugin", () => {
     expect(copy?.querySelector(".markra-code-copy-check-icon")).not.toBeNull();
     expect(language?.closest(".markra-code-language-control")).not.toBeNull();
     expect(copy?.closest(".cm-markra-code-header-line")).not.toBeNull();
-    expect(language?.closest(".cm-markra-code-closing-line")).not.toBeNull();
+    expect(language?.closest(".cm-markra-code-header-actions")).not.toBeNull();
+    expect(language?.closest(".cm-markra-code-header-line")).not.toBeNull();
+    expect(language?.closest(".cm-markra-code-closing-line")).toBeNull();
     copy?.click();
 
     expect(writeText).toHaveBeenCalledWith(

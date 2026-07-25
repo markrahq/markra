@@ -284,6 +284,11 @@ class CodeBlockHeaderWidget extends WidgetType {
     readonly code: string,
     readonly displayLanguage: string,
     readonly labels: CodeBlockPreviewLabels,
+    readonly language: string,
+    readonly languageFrom: number,
+    readonly languageTo: number,
+    readonly languages: readonly MarkraCodeLanguageOption[],
+    readonly openingMarkTo: number,
   ) {
     super();
   }
@@ -292,7 +297,12 @@ class CodeBlockHeaderWidget extends WidgetType {
     return (
       this.code === other.code &&
       this.displayLanguage === other.displayLanguage &&
-      JSON.stringify(this.labels) === JSON.stringify(other.labels)
+      this.language === other.language &&
+      this.languageFrom === other.languageFrom &&
+      this.languageTo === other.languageTo &&
+      this.openingMarkTo === other.openingMarkTo &&
+      JSON.stringify(this.labels) === JSON.stringify(other.labels) &&
+      JSON.stringify(this.languages) === JSON.stringify(other.languages)
     );
   }
 
@@ -301,12 +311,18 @@ class CodeBlockHeaderWidget extends WidgetType {
     const wrapper = document.createElement("span");
     const label = document.createElement("span");
     const actions = document.createElement("span");
+    const languageControl = document.createElement("span");
+    const language = document.createElement("select");
     const copy = document.createElement("button");
 
     wrapper.className = "cm-markra-code-header-wrap";
     label.className = "cm-markra-code-header";
     label.textContent = this.displayLanguage;
     actions.className = "cm-markra-code-header-actions";
+    languageControl.className = "markra-code-language-control";
+    language.className = "markra-code-language-select";
+    language.ariaLabel = this.labels.language;
+    language.disabled = view.state.readOnly;
     copy.className = "markra-code-copy-button";
     copy.type = "button";
     copy.ariaLabel = this.labels.copyCode;
@@ -324,90 +340,6 @@ class CodeBlockHeaderWidget extends WidgetType {
         checkIconChildren,
       ),
     );
-
-    copy.addEventListener("mousedown", (event) => event.stopPropagation());
-    copy.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const clipboard = document.defaultView?.navigator.clipboard;
-      if (!clipboard?.writeText) return;
-      clipboard.writeText(this.code).then(() => {
-        copy.ariaLabel = this.labels.codeCopied;
-        copy.title = this.labels.codeCopied;
-        copy.dataset.copied = "true";
-      }).catch(() => undefined);
-    });
-
-    actions.append(copy);
-    wrapper.append(label, actions);
-    return wrapper;
-  }
-}
-
-function moveSelectionAfterCodeBlock(
-  view: CodeMirrorView,
-  requestedAfterFence: number,
-) {
-  const afterFence = Math.min(requestedAfterFence, view.state.doc.length);
-  const hasFollowingLineBreak =
-    view.state.sliceDoc(afterFence, afterFence + 1) === "\n";
-  const canMaterializeLine = !hasFollowingLineBreak && !view.state.readOnly;
-
-  // The closing fence is visually folded. Materialize/select the line after
-  // it so clicks in the visual gap can never append code inside the fence.
-  view.dispatch({
-    changes: canMaterializeLine
-      ? { from: afterFence, insert: "\n" }
-      : undefined,
-    scrollIntoView: true,
-    selection: EditorSelection.cursor(
-      afterFence + (hasFollowingLineBreak || canMaterializeLine ? 1 : 0),
-    ),
-  });
-  view.focus();
-}
-
-class CodeBlockExitWidget extends WidgetType {
-  constructor(
-    readonly afterFence: number,
-    readonly labels: CodeBlockPreviewLabels,
-    readonly language: string,
-    readonly languageFrom: number,
-    readonly languageTo: number,
-    readonly languages: readonly MarkraCodeLanguageOption[],
-    readonly openingMarkTo: number,
-  ) {
-    super();
-  }
-
-  eq(other: CodeBlockExitWidget) {
-    return (
-      this.afterFence === other.afterFence &&
-      this.language === other.language &&
-      this.languageFrom === other.languageFrom &&
-      this.languageTo === other.languageTo &&
-      JSON.stringify(this.labels) === JSON.stringify(other.labels) &&
-      JSON.stringify(this.languages) === JSON.stringify(other.languages)
-    );
-  }
-
-  ignoreEvent() {
-    return true;
-  }
-
-  toDOM(view: CodeMirrorView) {
-    const document = view.dom.ownerDocument;
-    const wrapper = document.createElement("span");
-    const exit = document.createElement("span");
-    const languageControl = document.createElement("span");
-    const language = document.createElement("select");
-    wrapper.className = "cm-markra-code-exit-wrap";
-    exit.className = "cm-markra-code-exit";
-    exit.setAttribute("aria-hidden", "true");
-    languageControl.className = "markra-code-language-control";
-    language.className = "markra-code-language-select";
-    language.ariaLabel = this.labels.language;
-    language.disabled = view.state.readOnly;
 
     const languageOptions = [...this.languages];
     if (
@@ -442,14 +374,79 @@ class CodeBlockExitWidget extends WidgetType {
       });
     });
 
+    copy.addEventListener("mousedown", (event) => event.stopPropagation());
+    copy.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const clipboard = document.defaultView?.navigator.clipboard;
+      if (!clipboard?.writeText) return;
+      clipboard.writeText(this.code).then(() => {
+        copy.ariaLabel = this.labels.codeCopied;
+        copy.title = this.labels.codeCopied;
+        copy.dataset.copied = "true";
+      }).catch(() => undefined);
+    });
+
+    // Keep both controls in one header surface. The closing widget stays a
+    // compact exit target instead of creating detached chrome below the block.
+    languageControl.append(language);
+    actions.append(languageControl, copy);
+    wrapper.append(label, actions);
+    return wrapper;
+  }
+}
+
+function moveSelectionAfterCodeBlock(
+  view: CodeMirrorView,
+  requestedAfterFence: number,
+) {
+  const afterFence = Math.min(requestedAfterFence, view.state.doc.length);
+  const hasFollowingLineBreak =
+    view.state.sliceDoc(afterFence, afterFence + 1) === "\n";
+  const canMaterializeLine = !hasFollowingLineBreak && !view.state.readOnly;
+
+  // The closing fence is visually folded. Materialize/select the line after
+  // it so clicks in the visual gap can never append code inside the fence.
+  view.dispatch({
+    changes: canMaterializeLine
+      ? { from: afterFence, insert: "\n" }
+      : undefined,
+    scrollIntoView: true,
+    selection: EditorSelection.cursor(
+      afterFence + (hasFollowingLineBreak || canMaterializeLine ? 1 : 0),
+    ),
+  });
+  view.focus();
+}
+
+class CodeBlockExitWidget extends WidgetType {
+  constructor(readonly afterFence: number) {
+    super();
+  }
+
+  eq(other: CodeBlockExitWidget) {
+    return this.afterFence === other.afterFence;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+
+  toDOM(view: CodeMirrorView) {
+    const document = view.dom.ownerDocument;
+    const wrapper = document.createElement("span");
+    const exit = document.createElement("span");
+    wrapper.className = "cm-markra-code-exit-wrap";
+    exit.className = "cm-markra-code-exit";
+    exit.setAttribute("aria-hidden", "true");
+
     exit.addEventListener("mousedown", (event) => {
       if (event.button !== 0 || view.state.readOnly) return;
       event.preventDefault();
       event.stopPropagation();
       moveSelectionAfterCodeBlock(view, this.afterFence);
     });
-    languageControl.append(language);
-    wrapper.append(exit, languageControl);
+    wrapper.append(exit);
     return wrapper;
   }
 }
@@ -821,6 +818,82 @@ function selectCurrentCodeBlockContent(view: CodeMirrorView) {
   return true;
 }
 
+function handleCodeBlockEnter(view: CodeMirrorView) {
+  const selection = view.state.selection.main;
+  if (!selection.empty || view.state.readOnly) return false;
+  const node = fencedCodeAt(view);
+  if (!node) return false;
+  const parts = codeBlockParts(view.state, node);
+  const cursorLine = view.state.doc.lineAt(selection.head);
+  const openingMark = parts.hasClosingFence
+    ? undefined
+    : node.getChildren("CodeMark")[0];
+  const openingLine = openingMark
+    ? view.state.doc.lineAt(openingMark.from)
+    : undefined;
+  const closingFence = openingMark && openingLine
+    ? `${view.state.sliceDoc(
+        openingLine.from,
+        openingMark.from,
+      )}${view.state.sliceDoc(openingMark.from, openingMark.to)}`
+    : undefined;
+
+  if (
+    openingLine &&
+    closingFence &&
+    cursorLine.number === openingLine.number &&
+    selection.head === cursorLine.to
+  ) {
+    // Pair on Enter so an info string such as ```sh can still be typed before
+    // the editor creates the content line and matching closing fence.
+    view.dispatch({
+      changes: {
+        from: cursorLine.to,
+        insert: `\n\n${closingFence}`,
+      },
+      scrollIntoView: true,
+      selection: EditorSelection.cursor(cursorLine.to + 1),
+    });
+    view.focus();
+    return true;
+  }
+
+  if (cursorLine.text.trim()) return false;
+
+  if (!parts.hasClosingFence) {
+    if (
+      cursorLine.number !== view.state.doc.lines ||
+      selection.head !== cursorLine.to ||
+      !closingFence
+    ) {
+      return false;
+    }
+
+    view.dispatch({
+      changes: {
+        from: cursorLine.from,
+        insert: `${closingFence}\n`,
+        to: cursorLine.to,
+      },
+      scrollIntoView: true,
+      selection: EditorSelection.cursor(
+        cursorLine.from + closingFence.length + 1,
+      ),
+    });
+    view.focus();
+    return true;
+  }
+
+  const closingLine = view.state.doc.lineAt(node.to);
+  if (cursorLine.number + 1 !== closingLine.number) return false;
+
+  // The first Enter creates this trailing empty code line. The next Enter
+  // exits. Unfinished blocks are closed first so the new cursor position is
+  // structurally outside the fence instead of extending code forever.
+  moveSelectionAfterCodeBlock(view, node.to);
+  return true;
+}
+
 function exitMermaidSource(view: CodeMirrorView) {
   const node = fencedCodeAt(view);
   if (!node) return false;
@@ -837,6 +910,7 @@ function exitMermaidSource(view: CodeMirrorView) {
 
 const codeBlockKeymap = Prec.high(
   keymap.of([
+    { key: "Enter", run: handleCodeBlockEnter },
     { key: "Mod-a", run: selectCurrentCodeBlockContent },
     { key: "Escape", run: exitMermaidSource },
   ]),
@@ -922,6 +996,14 @@ export function codeBlockPreviewPlugin(
           const parts = codeBlockParts(state, node);
           const firstLine = state.doc.lineAt(node.from);
           const lastLine = state.doc.lineAt(node.to);
+          if (
+            !parts.hasClosingFence &&
+            firstLine.number === lastLine.number
+          ) {
+            // Keep a newly typed fence visible until Enter pairs it. Folding
+            // its only line would leave a zero-height block with no caret.
+            return false;
+          }
           const revealed = context.revealed("line");
           // A Mermaid source selection must not collapse as soon as dragging
           // makes it non-empty. Anchor-only matching preserves drags that
@@ -1016,6 +1098,11 @@ export function codeBlockPreviewPlugin(
                   parts.code,
                   parts.language || plainTextLabel,
                   labels,
+                  parts.language,
+                  parts.languageFrom,
+                  parts.languageTo,
+                  languages,
+                  parts.openingMarkTo,
                 ),
               }).range(node.from, firstLine.to),
             );
@@ -1027,15 +1114,7 @@ export function codeBlockPreviewPlugin(
           ) {
             context.add(
               Decoration.replace({
-                widget: new CodeBlockExitWidget(
-                  node.to,
-                  labels,
-                  parts.language,
-                  parts.languageFrom,
-                  parts.languageTo,
-                  languages,
-                  parts.openingMarkTo,
-                ),
+                widget: new CodeBlockExitWidget(node.to),
               }).range(lastLine.from, node.to),
             );
           }

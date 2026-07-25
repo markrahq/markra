@@ -1140,23 +1140,10 @@
     display: flex !important;
     align-items: center;
     gap: 6px;
-    opacity: 0 !important;
-    pointer-events: none !important;
-    transform: translateY(-2px);
-    transition: opacity 150ms ease-out, transform 150ms ease-out;
-  }
-
-  .markdown-paper .cm-content:has(.cm-markra-code-line:hover)
-    .cm-markra-code-header-actions,
-  .markdown-paper .cm-markra-code-header-actions:focus-within,
-  .markdown-paper .cm-content:has(.cm-markra-code-line:hover)
-    .cm-markra-code-closing-line
-    .markra-code-language-control,
-  .markdown-paper .cm-line.cm-markra-code-closing-line[data-code-block-active="true"] .markra-code-language-control,
-  .markdown-paper .cm-markra-code-closing-line .markra-code-language-control:focus-within {
     opacity: 1 !important;
     pointer-events: auto !important;
-    transform: translateY(0);
+    transform: none;
+    transition: opacity 150ms ease-out, transform 150ms ease-out;
   }
 
   .markdown-paper .cm-markra-code-header-actions .markra-code-language-control {
@@ -1194,7 +1181,10 @@
   .markdown-paper .cm-line.cm-markra-code-content-line {
     position: relative;
     box-sizing: border-box;
-    padding-inline: 0 16px !important;
+    /* The inline line-number marker only occupies the first visual row.
+       A hanging indent keeps soft-wrapped continuations out of the gutter. */
+    padding-inline: 59px 16px !important;
+    text-indent: -59px;
     border: 0 !important;
     background: transparent !important;
     color: var(--editor-code-text) !important;
@@ -1260,8 +1250,8 @@
 
   .markdown-paper .cm-line.cm-markra-code-closing-line {
     position: relative !important;
-    height: 56px !important;
-    min-height: 56px !important;
+    height: 12px !important;
+    min-height: 12px !important;
     padding: 0 !important;
     border: 0 !important;
     background: transparent !important;
@@ -1272,7 +1262,7 @@
   .markdown-paper .cm-markra-code-exit-wrap {
     display: inline-block !important;
     width: 100% !important;
-    height: 56px !important;
+    height: 12px !important;
   }
 
   .markdown-paper .cm-markra-code-exit {
@@ -1280,31 +1270,6 @@
     width: 100% !important;
     height: 12px !important;
     cursor: var(--editor-text-cursor);
-  }
-
-  /* Keep the selector visible like the original editor; WebView hover/reveal
-     state is not reliable enough for the only route to this control. */
-  .markdown-paper .cm-line.cm-markra-code-closing-line .markra-code-language-control {
-    position: absolute !important;
-    top: 12px;
-    right: 0;
-    z-index: 4;
-    display: flex !important;
-    padding: 0 !important;
-    opacity: 1 !important;
-    pointer-events: auto !important;
-    transform: translateY(0);
-    transition: opacity 150ms ease-out, transform 150ms ease-out;
-  }
-
-  .markdown-paper .cm-line.cm-markra-code-closing-line .markra-code-language-select {
-    height: 32px !important;
-    min-height: 32px !important;
-    min-width: 160px !important;
-    padding: 0 12px !important;
-    font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace !important;
-    font-size: 13px !important;
-    line-height: 1 !important;
   }
 
   .markdown-paper .cm-markra-table-wrap {
