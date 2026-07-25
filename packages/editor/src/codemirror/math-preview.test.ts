@@ -70,6 +70,29 @@ describe("mathPreviewPlugin", () => {
     expect(view.dom.textContent).toContain("$x + y$");
   });
 
+  it("reveals source when a Vim normal cursor targets a math boundary", () => {
+    const doc = "$x^2$";
+    const view = createView(doc);
+
+    view.scrollDOM.classList.add("cm-vimMode");
+    view.dispatch({ selection: EditorSelection.cursor(0) });
+
+    expect(view.dom.querySelector(".markra-math-render-inline")).toBeNull();
+    expect(view.dom.textContent).toContain(doc);
+  });
+
+  it("renders math when a Vim cursor targets the next character", () => {
+    const doc = "$x^2$ tail";
+    const view = createView(doc);
+
+    view.scrollDOM.classList.add("cm-vimMode");
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf(" tail")),
+    });
+
+    expect(view.dom.querySelector(".markra-math-render-inline")).not.toBeNull();
+  });
+
   it("keeps math source visible while dragging from inside it", () => {
     const doc = "Before $x + y$ after\n\nEdit";
     const anchor = doc.indexOf("x");

@@ -63,6 +63,7 @@ type MarkdownPaperProps = {
   tableColumnWidthMode?: TableColumnWidthModePreference;
   topInset?: "tabs" | "titlebar";
   typewriterModeEnabled?: CodeMirrorPaperSurfaceProps["typewriterModeEnabled"];
+  vimModeEnabled?: CodeMirrorPaperSurfaceProps["vimModeEnabled"];
   workspaceFiles?: CodeMirrorPaperSurfaceProps["workspaceFiles"];
   wrapCodeBlocks?: boolean;
 };
@@ -131,6 +132,7 @@ export function MarkdownPaper({
   tableColumnWidthMode = "auto",
   topInset = "titlebar",
   typewriterModeEnabled = false,
+  vimModeEnabled = false,
   workspaceFiles,
   wrapCodeBlocks = true
 }: MarkdownPaperProps) {
@@ -203,6 +205,7 @@ export function MarkdownPaper({
             spellchecker={spellchecker}
             tableColumnWidthMode={tableColumnWidthMode}
             typewriterModeEnabled={typewriterModeEnabled}
+            vimModeEnabled={vimModeEnabled}
             workspaceFiles={workspaceFiles}
           />
         </Suspense>

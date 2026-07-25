@@ -913,6 +913,22 @@ export function EditorSettings({
           }
         />
         <SettingsRow
+          title={translate("settings.editor.vimMode")}
+          description={translate("settings.editor.vimModeDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.vimModeEnabled}
+              label={translate("settings.editor.vimMode")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  vimModeEnabled: !preferences.vimModeEnabled
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.editor.wrapCodeBlocks")}
           description={translate("settings.editor.wrapCodeBlocksDescription")}
           action={

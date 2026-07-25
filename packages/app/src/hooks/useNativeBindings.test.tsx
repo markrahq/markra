@@ -540,6 +540,29 @@ describe("useApplicationShortcuts", () => {
     expect(toggleTypewriterMode).toHaveBeenCalledTimes(1);
   });
 
+  it("routes the configurable Vim mode shortcut", () => {
+    const toggleVimMode = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        markdownShortcuts: {
+          toggleVimMode: "Mod+Shift+Alt+I"
+        },
+        toggleVimMode
+      })
+    );
+
+    fireEvent.keyDown(window, {
+      altKey: true,
+      code: "KeyI",
+      key: "I",
+      metaKey: true,
+      shiftKey: true
+    });
+
+    expect(toggleVimMode).toHaveBeenCalledTimes(1);
+  });
+
   it("ignores repeated keydown events for configurable shortcuts", () => {
     const toggleTypewriterMode = vi.fn();
     renderHook(() =>

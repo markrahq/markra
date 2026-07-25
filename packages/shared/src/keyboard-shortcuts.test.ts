@@ -39,6 +39,14 @@ describe("keyboard shortcuts", () => {
     }).toggleTypewriterMode).toBe("Mod+Shift+W");
   });
 
+  it("includes Vim mode as a configurable application shortcut", () => {
+    expect(keyboardShortcutActions).toContain("toggleVimMode");
+    expect(defaultKeyboardShortcuts.toggleVimMode).toBe("Mod+Alt+V");
+    expect(normalizeKeyboardShortcuts({
+      toggleVimMode: "Mod+Shift+Alt+I"
+    }).toggleVimMode).toBe("Mod+Shift+Alt+I");
+  });
+
   it("migrates the previous typewriter shortcut away from the macOS close-all shortcut", () => {
     expect(normalizeKeyboardShortcuts({
       toggleTypewriterMode: "Mod+Alt+W"
@@ -55,6 +63,15 @@ describe("keyboard shortcuts", () => {
 
     expect(normalized.syncNow).toBe("Mod+Shift+Y");
     expect(normalized.toggleTypewriterMode).toBe("Mod+Shift+Alt+Y");
+  });
+
+  it("moves the Vim shortcut when an existing custom action already uses its default", () => {
+    const normalized = normalizeKeyboardShortcuts({
+      link: "Mod+Alt+V"
+    });
+
+    expect(normalized.link).toBe("Mod+Alt+V");
+    expect(normalized.toggleVimMode).toBe("Mod+Shift+Alt+V");
   });
 
   it("records and matches macOS Option-modified letter shortcuts by physical key", () => {

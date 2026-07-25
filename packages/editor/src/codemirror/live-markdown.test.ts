@@ -143,6 +143,28 @@ describe("liveMarkdown", () => {
     expect(renderedLines(view)[0]).toBe("# Project notes");
   });
 
+  it("reveals inline source when a Vim normal cursor targets its boundary", () => {
+    const doc = "**Synthetic strong text**";
+    const view = createView({ doc, anchor: doc.length });
+
+    view.scrollDOM.classList.add("cm-vimMode");
+    view.dispatch({ selection: EditorSelection.cursor(0) });
+
+    expect(renderedLines(view)[0]).toBe(doc);
+  });
+
+  it("keeps inline source hidden when a Vim cursor targets the next character", () => {
+    const doc = "**Synthetic strong text** tail";
+    const view = createView({ doc, anchor: doc.length });
+
+    view.scrollDOM.classList.add("cm-vimMode");
+    view.dispatch({
+      selection: EditorSelection.cursor(doc.indexOf(" tail")),
+    });
+
+    expect(renderedLines(view)[0]).toBe("Synthetic strong text tail");
+  });
+
   it.each([
     ["list", "- Synthetic item"],
     ["blockquote", "> Synthetic quote"],

@@ -1,5 +1,9 @@
 import { StateField, type EditorState } from "@codemirror/state";
 import type { EditorView, ViewUpdate } from "@codemirror/view";
+import {
+  codeMirrorVimModeChangedEffect,
+  codeMirrorVimNormalModeActive,
+} from "./vim.ts";
 
 export type RevealScope = "line" | "node" | "node-boundary" | "heading";
 
@@ -66,8 +70,15 @@ function revealCursorKey(state: EditorState) {
 
 export function selectionChangeAffectsReveal(update: ViewUpdate) {
   return (
-    update.selectionSet &&
-    revealCursorKey(update.startState) !== revealCursorKey(update.state)
+    update.transactions.some((transaction) =>
+      transaction.effects.some((effect) =>
+        effect.is(codeMirrorVimModeChangedEffect),
+      ),
+    ) ||
+    (
+      update.selectionSet &&
+      revealCursorKey(update.startState) !== revealCursorKey(update.state)
+    )
   );
 }
 
@@ -76,12 +87,15 @@ export function cursorInsideRange(
   from: number,
   to: number,
 ) {
+  const includeCursorBoundaries = codeMirrorVimNormalModeActive(view);
   return (
     view.hasFocus &&
     view.state.selection.ranges.some(
       (selection) =>
         selection.empty
-          ? selection.head > from && selection.head < to
+          ? includeCursorBoundaries
+            ? selection.head >= from && selection.head < to
+            : selection.head > from && selection.head < to
           : sourceDragStartedInsideRange(view.state, from, to),
     )
   );
@@ -122,8 +136,15 @@ export const revealActiveLine: RevealPolicy = ({
   }
 
   if (scope === "node" || scope === "node-boundary") {
+    const includeCursorBoundaries = codeMirrorVimNormalModeActive(view);
+    // A Vim block cursor targets the source character at its document
+    // position. Reveal boundary delimiters so destructive commands never act
+    // on Markdown that the user cannot see.
     return cursors.some(
-      (selection) => selection.head > from && selection.head < to,
+      (selection) =>
+        includeCursorBoundaries
+          ? selection.head >= from && selection.head < to
+          : selection.head > from && selection.head < to,
     );
   }
 

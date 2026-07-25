@@ -320,6 +320,12 @@ describe("app settings", () => {
     expect(normalizeEditorPreferences({ showLineNumbers: "yes" }).showLineNumbers).toBe(false);
   });
 
+  it("normalizes the Vim mode preference", () => {
+    expect(defaultEditorPreferences.vimModeEnabled).toBe(false);
+    expect(normalizeEditorPreferences({ vimModeEnabled: true }).vimModeEnabled).toBe(true);
+    expect(normalizeEditorPreferences({ vimModeEnabled: "yes" }).vimModeEnabled).toBe(false);
+  });
+
   it("resets the welcome document state for the next launch", async () => {
     await resetWelcomeDocumentState();
 

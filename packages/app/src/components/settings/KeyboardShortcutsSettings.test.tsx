@@ -43,6 +43,7 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.getByRole("button", { name: "Switch to source mode shortcut" })).toHaveTextContent("⌘+⌥+S");
     expect(screen.getByRole("button", { name: "Toggle read-only mode shortcut" })).toHaveTextContent("⌘+⌥+L");
     expect(screen.getByRole("button", { name: "Typewriter mode shortcut" })).toHaveTextContent("⌘+⇧+Y");
+    expect(screen.getByRole("button", { name: "Vim mode shortcut" })).toHaveTextContent("⌘+⌥+V");
     expect(screen.getByRole("button", { name: "Spelling suggestions shortcut" })).toHaveTextContent("⌘+.");
     expect(screen.getByRole("button", { name: "Link shortcut" })).toHaveTextContent("⌘+K");
     expect(screen.getByRole("button", { name: "Bold shortcut" })).toHaveTextContent("⌘+B");

@@ -13,6 +13,7 @@ export const keyboardShortcutActions = [
   "toggleSourceMode",
   "toggleReadOnlyMode",
   "toggleTypewriterMode",
+  "toggleVimMode",
   "bold",
   "italic",
   "strikethrough",
@@ -78,7 +79,8 @@ export const defaultKeyboardShortcuts: KeyboardShortcutBindings = {
   openSpellcheckSuggestions: "Mod+.",
   toggleReadOnlyMode: "Mod+Alt+L",
   toggleSourceMode: "Mod+Alt+S",
-  toggleTypewriterMode: "Mod+Shift+Y"
+  toggleTypewriterMode: "Mod+Shift+Y",
+  toggleVimMode: "Mod+Alt+V"
 };
 
 const previousDefaultKeyboardShortcuts: Partial<KeyboardShortcutBindings> = {
@@ -93,6 +95,11 @@ const introducedKeyboardShortcutFallbacks: Partial<Record<KeyboardShortcutAction
     "Mod+Shift+Alt+Y",
     "Mod+Shift+Alt+U",
     "Mod+Shift+Alt+W"
+  ],
+  toggleVimMode: [
+    "Mod+Shift+Alt+V",
+    "Mod+Shift+Alt+I",
+    "Mod+Shift+Alt+M"
   ]
 };
 

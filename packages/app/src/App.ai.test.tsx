@@ -221,6 +221,7 @@ describe("Markra AI workspace", () => {
       suggestAiPanelForComplexInlinePrompts: true,
       tableColumnWidthMode: "even",
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },
@@ -335,6 +336,7 @@ describe("Markra AI workspace", () => {
       suggestAiPanelForComplexInlinePrompts: false,
       tableColumnWidthMode: "even",
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true,
       titlebarActions: [
         { id: "aiAgent", visible: true },

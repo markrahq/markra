@@ -181,6 +181,7 @@ import {
   saveStoredAiAgentSessionTitle,
   saveStoredWorkspaceState,
   setStoredAiAgentSessionArchived,
+  type EditorPreferences,
   type RecentMarkdownFile,
   type RecentMarkdownFolder,
   type StoredWorkspaceSideBySideGroup,
@@ -1544,10 +1545,13 @@ function WorkspaceApp() {
 
     if (nextReadOnlyMode) handleAiCommandClose();
   }, [handleAiCommandClose, readOnlyMode]);
-  const handleTypewriterModeToggle = useCallback(() => {
+  const persistEditorModePreferenceToggle = useCallback((
+    preference: "typewriterModeEnabled" | "vimModeEnabled"
+  ) => {
+    const previousValue = editorPreferences.preferences[preference];
     const nextPreferences = {
       ...editorPreferences.preferences,
-      typewriterModeEnabled: !editorPreferences.preferences.typewriterModeEnabled
+      [preference]: !previousValue
     };
 
     editorPreferences.updatePreferences(nextPreferences);
@@ -1556,14 +1560,14 @@ function WorkspaceApp() {
       .catch(() => {
         editorPreferences.updatePreferences((currentPreferences) => {
           // Do not overwrite state that has already moved past this optimistic value.
-          if (currentPreferences.typewriterModeEnabled !== nextPreferences.typewriterModeEnabled) {
+          if (currentPreferences[preference] !== nextPreferences[preference]) {
             return currentPreferences;
           }
 
           return {
             ...currentPreferences,
-            typewriterModeEnabled: editorPreferences.preferences.typewriterModeEnabled
-          };
+            [preference]: previousValue
+          } satisfies EditorPreferences;
         });
         showAppToast({
           message: translate("app.editorPreferencesSaveFailed"),
@@ -1571,6 +1575,12 @@ function WorkspaceApp() {
         });
       });
   }, [editorPreferences.preferences, editorPreferences.updatePreferences, translate]);
+  const handleTypewriterModeToggle = useCallback(() => {
+    persistEditorModePreferenceToggle("typewriterModeEnabled");
+  }, [persistEditorModePreferenceToggle]);
+  const handleVimModeToggle = useCallback(() => {
+    persistEditorModePreferenceToggle("vimModeEnabled");
+  }, [persistEditorModePreferenceToggle]);
   useEffect(() => {
     if (!shouldHideAiCommandForAiAgentPanel({
       aiAgentOpen: visibleAiAgentOpen,
@@ -3808,7 +3818,8 @@ function WorkspaceApp() {
     toggleMarkdownFiles: handleFileTreeToggle,
     toggleReadOnlyMode: handleReadOnlyModeToggle,
     toggleSourceMode: handleEditorModeToggle,
-    toggleTypewriterMode: handleTypewriterModeToggle
+    toggleTypewriterMode: handleTypewriterModeToggle,
+    toggleVimMode: handleVimModeToggle
   });
 
   const quickOpenFilePaths = useMemo(
@@ -4232,6 +4243,7 @@ function WorkspaceApp() {
               onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
               topInset="titlebar"
               typewriterModeEnabled={editorPreferences.preferences.typewriterModeEnabled}
+              vimModeEnabled={editorPreferences.preferences.vimModeEnabled}
               workspaceFiles={fileTreeFiles}
               wrapCodeBlocks={editorPreferences.preferences.wrapCodeBlocks}
             />
@@ -4619,6 +4631,7 @@ function WorkspaceApp() {
                           scrollRef={sourceScrollRef}
                           topInset="titlebar"
                           typewriterModeEnabled={editorPreferences.preferences.typewriterModeEnabled}
+                          vimModeEnabled={editorPreferences.preferences.vimModeEnabled}
                         />
                       </div>
                     </div>
@@ -4651,6 +4664,7 @@ function WorkspaceApp() {
                           scrollRef={sourceScrollRef}
                           topInset="titlebar"
                           typewriterModeEnabled={editorPreferences.preferences.typewriterModeEnabled}
+                          vimModeEnabled={editorPreferences.preferences.vimModeEnabled}
                         />
                       ) : null}
                     </div>
@@ -4722,6 +4736,7 @@ function WorkspaceApp() {
                         ) : null}
                         tableColumnWidthMode={editorPreferences.preferences.tableColumnWidthMode}
                         typewriterModeEnabled={editorPreferences.preferences.typewriterModeEnabled}
+                        vimModeEnabled={editorPreferences.preferences.vimModeEnabled}
                         onAddSpellcheckIgnoredWord={handleAddSpellcheckIgnoredWord}
                         workspaceFiles={fileTreeFiles}
                         onChange={handleSideDocumentChange}

@@ -251,6 +251,7 @@ describe("settings events", () => {
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: false
     };
 

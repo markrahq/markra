@@ -27,6 +27,21 @@ function replaceCodeMirrorDoc(view: EditorView, value: string) {
   });
 }
 
+function readVimMode(view: EditorView) {
+  const vimView = view as EditorView & {
+    cm?: {
+      state: {
+        vim?: {
+          visualBlock: boolean;
+          visualMode: boolean;
+        };
+      };
+    };
+  };
+
+  return vimView.cm?.state.vim;
+}
+
 describe("MarkdownSourceEditor", () => {
   it("renders editable markdown with lightweight CodeMirror source highlighting", async () => {
     const content = [
@@ -138,6 +153,79 @@ describe("MarkdownSourceEditor", () => {
 
     expect(getMarkdownSourceView(container)).toBe(view);
     expect(view.dom).toHaveAttribute("data-typewriter-mode", "true");
+  });
+
+  it("reconfigures Vim mode without recreating the editor", async () => {
+    const content = "alpha\nbeta";
+    const { container, rerender } = render(
+      <MarkdownSourceEditor
+        content={content}
+        onChange={() => {}}
+        vimModeEnabled={false}
+      />
+    );
+    const view = getMarkdownSourceView(container);
+
+    expect(view.scrollDOM).not.toHaveClass("cm-vimMode");
+
+    rerender(
+      <MarkdownSourceEditor
+        content={content}
+        onChange={() => {}}
+        vimModeEnabled
+      />
+    );
+
+    await waitFor(() => {
+      expect(view.scrollDOM).toHaveClass("cm-vimMode");
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--NORMAL--",
+      );
+      expect(view.dom.querySelector(".markra-vim-hint")).toHaveTextContent(
+        "i/a insert · # previous match",
+      );
+    });
+    expect(getMarkdownSourceView(container)).toBe(view);
+
+    fireEvent.keyDown(view.contentDOM, { code: "KeyL", key: "l" });
+
+    expect(view.state.doc.toString()).toBe(content);
+    expect(view.state.selection.main.head).toBe(1);
+
+    fireEvent.keyDown(view.contentDOM, { code: "KeyV", ctrlKey: true, key: "v" });
+    fireEvent.keyDown(view.contentDOM, { code: "KeyJ", key: "j" });
+
+    expect(view.state.doc.toString()).toBe(content);
+    expect(readVimMode(view)).toMatchObject({
+      visualBlock: true,
+      visualMode: true
+    });
+
+    fireEvent.keyDown(view.contentDOM, { code: "Escape", key: "Escape" });
+    fireEvent.keyDown(view.contentDOM, { code: "KeyI", key: "i" });
+    expect(view.scrollDOM).not.toHaveClass("cm-vimMode");
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--INSERT--",
+      );
+      expect(view.dom.querySelector(".markra-vim-hint")).toHaveTextContent(
+        "Esc return to Normal",
+      );
+    });
+
+    rerender(
+      <MarkdownSourceEditor
+        content={content}
+        onChange={() => {}}
+        vimModeEnabled={false}
+      />
+    );
+
+    await waitFor(() => {
+      expect(view.scrollDOM).not.toHaveClass("cm-vimMode");
+      expect(view.dom.querySelector(".cm-vim-panel")).toBeNull();
+    });
+    expect(getMarkdownSourceView(container)).toBe(view);
   });
 
   it("lets an explicit editor font override the default source font", () => {

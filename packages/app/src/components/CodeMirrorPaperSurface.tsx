@@ -27,6 +27,7 @@ import {
   rawHtmlPreviewPlugin,
   readCodeMirrorAiSelectionContext,
   readCodeMirrorHeadingAnchors,
+  reconfigureCodeMirrorVimMode,
   replaceCodeMirrorMarkdown,
   replaceCodeMirrorSpellcheckMatch,
   resolveSafeLinkTarget,
@@ -69,6 +70,7 @@ import {
   mergeSpellcheckIgnoredWords,
   spellcheckMenuPosition,
 } from "../lib/spellcheck-menu";
+import { codeMirrorVimLabels } from "../lib/vim-labels";
 import { CodeMirrorEditorFloatingMenus } from "./CodeMirrorEditorFloatingMenus";
 import { CodeMirrorPluginUi } from "./CodeMirrorPluginUi";
 import {
@@ -106,6 +108,7 @@ export interface CodeMirrorPaperSurfaceProps {
   spellchecker?: Spellchecker;
   tableColumnWidthMode?: TableColumnWidthModePreference;
   typewriterModeEnabled?: boolean;
+  vimModeEnabled?: boolean;
   workspaceFiles?: MarkdownDocumentLinkFile[];
 }
 
@@ -340,6 +343,7 @@ export function CodeMirrorPaperSurface({
   spellchecker,
   tableColumnWidthMode = "auto",
   typewriterModeEnabled = false,
+  vimModeEnabled = false,
   workspaceFiles = [],
 }: CodeMirrorPaperSurfaceProps) {
   const [editorView, setEditorView] = useState<EditorView | null>(null);
@@ -367,6 +371,7 @@ export function CodeMirrorPaperSurface({
   const editableCompartmentRef = useRef(new Compartment());
   const spellcheckCompartmentRef = useRef(new Compartment());
   const typewriterModeCompartmentRef = useRef(new Compartment());
+  const vimModeCompartmentRef = useRef(new Compartment());
   const spellcheckIgnoredWordsRef = useRef(spellcheckIgnoredWords);
   const workspaceFilesRef = useRef(workspaceFiles);
 
@@ -494,6 +499,7 @@ export function CodeMirrorPaperSurface({
       state: EditorState.create({
         doc: initialContentRef.current,
         extensions: [
+          vimModeCompartmentRef.current.of([]),
           minimalSetup,
           EditorView.lineWrapping,
           markdownCompartmentRef.current.of(
@@ -697,6 +703,18 @@ export function CodeMirrorPaperSurface({
       ),
     });
   }, [typewriterModeEnabled]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    return reconfigureCodeMirrorVimMode(
+      view,
+      vimModeCompartmentRef.current,
+      vimModeEnabled,
+      codeMirrorVimLabels(language),
+    );
+  }, [language, vimModeEnabled]);
 
   useEffect(() => {
     if (!autoFocus) return;

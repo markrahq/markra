@@ -433,6 +433,7 @@ function createStoredEditorPreferences(
     typewriterModeEnabled: overrides.typewriterModeEnabled ?? false,
     ...overrides,
     aiWorkspaceAnimationEnabled: overrides.aiWorkspaceAnimationEnabled ?? false,
+    vimModeEnabled: overrides.vimModeEnabled ?? false,
     viewMode: overrides.viewMode ?? "daily",
     viewModeCustomizations: overrides.viewModeCustomizations ?? {
       aiPanel: "visible",
@@ -1491,6 +1492,7 @@ describe("Markra workspace", () => {
         showLineNumbers: false,
         showWordCount: true,
         typewriterModeEnabled: false,
+        vimModeEnabled: false,
         wrapCodeBlocks: true
       })
     );
@@ -1559,6 +1561,7 @@ describe("Markra workspace", () => {
         showLineNumbers: false,
         showWordCount: true,
         typewriterModeEnabled: false,
+        vimModeEnabled: false,
         wrapCodeBlocks: true
       })
     );
@@ -2784,6 +2787,7 @@ describe("Markra workspace", () => {
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     window.history.pushState({}, "", "/?settings=1");
@@ -5706,6 +5710,7 @@ describe("Markra workspace", () => {
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockedOpenNativeMarkdownPath.mockResolvedValue({
@@ -5873,6 +5878,7 @@ describe("Markra workspace", () => {
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockOpenMarkdownFile({
@@ -6553,6 +6559,25 @@ describe("Markra workspace", () => {
     expect(mockedNotifyAppEditorPreferencesChanged).not.toHaveBeenCalledWith(
       expect.objectContaining({ typewriterModeEnabled: true })
     );
+  });
+
+  it("toggles and persists Vim mode from the keyboard shortcut", async () => {
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+    expect(getVisibleCodeMirrorView(container).scrollDOM).not.toHaveClass("cm-vimMode");
+
+    fireEvent.keyDown(window, { altKey: true, code: "KeyV", key: "v", metaKey: true });
+
+    await waitFor(() => {
+      expect(getVisibleCodeMirrorView(container).scrollDOM).toHaveClass("cm-vimMode");
+    });
+    expect(mockedSaveStoredEditorPreferences).toHaveBeenCalledWith(expect.objectContaining({
+      vimModeEnabled: true
+    }));
+    expect(mockedNotifyAppEditorPreferencesChanged).toHaveBeenCalledWith(expect.objectContaining({
+      vimModeEnabled: true
+    }));
   });
 
   it("keeps raw source punctuation unchanged while editing in source mode", async () => {

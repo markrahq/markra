@@ -113,6 +113,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     showWordCount: true,
     tableColumnWidthMode: "auto",
     typewriterModeEnabled: false,
+    vimModeEnabled: false,
     viewMode: "daily",
     viewModeCustomizations: defaultViewModeCustomizations,
     wrapCodeBlocks: true
@@ -210,7 +211,8 @@ describe("useEditorPreferences", () => {
         toggleMarkdownFiles: "Mod+Shift+M",
         toggleReadOnlyMode: "Mod+Alt+L",
         toggleSourceMode: "Mod+Alt+S",
-        toggleTypewriterMode: "Mod+Shift+Y"
+        toggleTypewriterMode: "Mod+Shift+Y",
+        toggleVimMode: "Mod+Alt+V"
       },
       markdownTemplates: [],
       paragraphSpacingPx: 8,
@@ -236,6 +238,7 @@ describe("useEditorPreferences", () => {
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockedListenAppEditorPreferencesChanged.mockImplementation(async (listener) => {
@@ -324,7 +327,8 @@ describe("useEditorPreferences", () => {
           toggleMarkdownFiles: "Mod+Shift+M",
           toggleReadOnlyMode: "Mod+Alt+L",
           toggleSourceMode: "Mod+Alt+S",
-          toggleTypewriterMode: "Mod+Shift+Y"
+          toggleTypewriterMode: "Mod+Shift+Y",
+          toggleVimMode: "Mod+Alt+V"
         },
         markdownTemplates: [],
         paragraphSpacingPx: 8,
@@ -350,6 +354,7 @@ describe("useEditorPreferences", () => {
         showLineNumbers: false,
         showWordCount: false,
         typewriterModeEnabled: false,
+        vimModeEnabled: false,
         wrapCodeBlocks: false
       });
     });

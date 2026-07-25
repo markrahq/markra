@@ -84,6 +84,7 @@ type ApplicationShortcutOptions = {
   toggleReadOnlyMode?: () => unknown | Promise<unknown>;
   toggleSourceMode?: () => unknown | Promise<unknown>;
   toggleTypewriterMode?: () => unknown | Promise<unknown>;
+  toggleVimMode?: () => unknown | Promise<unknown>;
 };
 
 const emptyRecentMarkdownFiles: readonly RecentMarkdownFile[] = [];
@@ -447,7 +448,8 @@ export function useApplicationShortcuts({
   toggleMarkdownFiles,
   toggleReadOnlyMode,
   toggleSourceMode,
-  toggleTypewriterMode
+  toggleTypewriterMode,
+  toggleVimMode
 }: ApplicationShortcutOptions) {
   const normalizedMarkdownShortcuts = useMemo(
     () => normalizeMarkdownShortcuts(markdownShortcuts ?? defaultMarkdownShortcuts),
@@ -470,7 +472,8 @@ export function useApplicationShortcuts({
         [normalizedMarkdownShortcuts.toggleAiCommand, toggleAiCommand],
         [normalizedMarkdownShortcuts.toggleSourceMode, toggleSourceMode],
         [normalizedMarkdownShortcuts.toggleReadOnlyMode, toggleReadOnlyMode],
-        [normalizedMarkdownShortcuts.toggleTypewriterMode, toggleTypewriterMode]
+        [normalizedMarkdownShortcuts.toggleTypewriterMode, toggleTypewriterMode],
+        [normalizedMarkdownShortcuts.toggleVimMode, toggleVimMode]
       ];
 
       for (const [shortcut, handler] of configurableActions) {
@@ -559,6 +562,7 @@ export function useApplicationShortcuts({
     toggleMarkdownFiles,
     toggleReadOnlyMode,
     toggleSourceMode,
-    toggleTypewriterMode
+    toggleTypewriterMode,
+    toggleVimMode
   ]);
 }

@@ -6,7 +6,7 @@ import {
   showCodeMirrorAiPreview,
   showCodeMirrorAiSelectionHold,
 } from "@markra/editor/codemirror";
-import { EditorSelection } from "@codemirror/state";
+import { EditorSelection, Transaction } from "@codemirror/state";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { markraEditorReactBridge } from "@markra/editor-react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -110,6 +110,296 @@ describe("CodeMirrorPaperSurface", () => {
 
     expect(onEditorReady).toHaveBeenCalledTimes(1);
     expect(view.dom).toHaveAttribute("data-typewriter-mode", "true");
+  });
+
+  it("reconfigures Vim mode without recreating the editor view", async () => {
+    const content = "alpha\nbeta";
+    const onEditorReady = vi.fn();
+    const { rerender } = render(
+      <CodeMirrorPaperSurface
+        initialContent={content}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled={false}
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    expect(view.scrollDOM).not.toHaveClass("cm-vimMode");
+
+    rerender(
+      <CodeMirrorPaperSurface
+        initialContent={content}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled
+      />,
+    );
+
+    await waitFor(() => {
+      expect(view.scrollDOM).toHaveClass("cm-vimMode");
+    });
+    expect(onEditorReady).toHaveBeenCalledTimes(1);
+
+    fireEvent.keyDown(view.contentDOM, { code: "KeyL", key: "l" });
+
+    expect(view.state.doc.toString()).toBe(content);
+    expect(view.state.selection.main.head).toBe(1);
+
+    rerender(
+      <CodeMirrorPaperSurface
+        initialContent={content}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(view.scrollDOM).not.toHaveClass("cm-vimMode");
+    });
+    expect(onEditorReady).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows the active Vim mode in the editor", async () => {
+    const onEditorReady = vi.fn();
+    render(
+      <CodeMirrorPaperSurface
+        initialContent="Synthetic text"
+        language="zh-CN"
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--NORMAL--",
+      );
+      expect(view.dom.querySelector(".markra-vim-hint")).toHaveTextContent(
+        "i/a 输入 · # 搜索上一处",
+      );
+    });
+
+    fireEvent.keyDown(view.contentDOM, { code: "KeyI", key: "i" });
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--INSERT--",
+      );
+      expect(view.dom.querySelector(".markra-vim-hint")).toHaveTextContent(
+        "Esc 返回普通模式",
+      );
+    });
+
+    fireEvent.keyDown(view.contentDOM, { code: "Escape", key: "Escape" });
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--NORMAL--",
+      );
+    });
+
+    fireEvent.keyDown(view.contentDOM, { code: "KeyV", key: "v" });
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--VISUAL--",
+      );
+      expect(view.dom.querySelector(".markra-vim-hint")).toHaveTextContent(
+        "y 复制 · d 删除",
+      );
+    });
+  });
+
+  it("explains a successful Vim previous-word search", async () => {
+    const content = "# Synthetic target\n\nSynthetic target";
+    const onEditorReady = vi.fn();
+    render(
+      <CodeMirrorPaperSurface
+        autoFocus
+        initialContent={content}
+        language="zh-CN"
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--NORMAL--",
+      );
+    });
+
+    act(() => {
+      view.dispatch({ selection: { anchor: content.indexOf("Synthetic") } });
+    });
+    fireEvent.keyDown(view.contentDOM, {
+      code: "Digit3",
+      key: "#",
+      shiftKey: true,
+    });
+
+    expect(view.state.selection.main.head).toBe(
+      content.lastIndexOf("Synthetic"),
+    );
+    expect(view.dom.querySelector(".markra-vim-feedback")).toHaveTextContent(
+      "已跳到上一处“Synthetic” · 按 i 编辑",
+    );
+  });
+
+  it("names the heading word when Vim searches from a hidden marker", async () => {
+    const content = "# Synthetic target\n\nSynthetic target";
+    const onEditorReady = vi.fn();
+    render(
+      <CodeMirrorPaperSurface
+        autoFocus
+        initialContent={content}
+        language="zh-CN"
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--NORMAL--",
+      );
+    });
+
+    act(() => {
+      view.dispatch({ selection: { anchor: 0 } });
+    });
+    fireEvent.keyDown(view.contentDOM, {
+      code: "Digit3",
+      key: "#",
+      shiftKey: true,
+    });
+
+    expect(view.state.selection.main.head).toBe(
+      content.lastIndexOf("Synthetic"),
+    );
+    expect(view.dom.querySelector(".markra-vim-feedback")).toHaveTextContent(
+      "已跳到上一处“Synthetic” · 按 i 编辑",
+    );
+  });
+
+  it("replaces raw Vim regex errors with a friendly search message", async () => {
+    const content = "# Synthetic target";
+    const onEditorReady = vi.fn();
+    render(
+      <CodeMirrorPaperSurface
+        autoFocus
+        initialContent={content}
+        language="zh-CN"
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--NORMAL--",
+      );
+    });
+
+    act(() => {
+      view.dispatch({ selection: { anchor: content.indexOf("Synthetic") } });
+    });
+    fireEvent.keyDown(view.contentDOM, {
+      code: "Digit3",
+      key: "#",
+      shiftKey: true,
+    });
+
+    expect(view.state.selection.main.head).toBe(content.indexOf("Synthetic"));
+    expect(view.dom.querySelector(".markra-vim-feedback")).toHaveTextContent(
+      "未找到上一处“Synthetic” · 按 i 编辑",
+    );
+    expect(view.dom.querySelector(".cm-vim-panel")).not.toHaveTextContent(
+      "set nopcre",
+    );
+  });
+
+  it("keeps a heading marker insertion at the Vim insert caret", async () => {
+    const onEditorReady = vi.fn();
+    render(
+      <CodeMirrorPaperSurface
+        autoFocus
+        initialContent="# Synthetic heading"
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--NORMAL--",
+      );
+    });
+
+    fireEvent.keyDown(view.contentDOM, { code: "KeyI", key: "i" });
+    expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+      "--INSERT--",
+    );
+
+    act(() => {
+      view.dispatch({
+        annotations: Transaction.userEvent.of("input.type"),
+        changes: { from: 0, insert: "#" },
+        selection: { anchor: 1 },
+      });
+    });
+
+    expect(view.state.doc.toString()).toBe("## Synthetic heading");
+    expect(view.state.selection.main.head).toBe(1);
+    expect(view.contentDOM).toHaveTextContent("## Synthetic heading");
+  });
+
+  it("reveals preview source under the initial Vim normal cursor", async () => {
+    const onEditorReady = vi.fn();
+    const { container, rerender } = render(
+      <CodeMirrorPaperSurface
+        autoFocus
+        initialContent="$x^2$"
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toHaveTextContent(
+        "--NORMAL--",
+      );
+      expect(container.querySelector(".markra-math-render-inline")).toBeNull();
+      expect(view.contentDOM).toHaveTextContent("$x^2$");
+    });
+
+    rerender(
+      <CodeMirrorPaperSurface
+        autoFocus
+        initialContent="$x^2$"
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        vimModeEnabled={false}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(view.dom.querySelector(".cm-vim-panel")).toBeNull();
+      expect(
+        container.querySelector(".markra-math-render-inline"),
+      ).not.toBeNull();
+    });
   });
 
   it("synchronizes host Markdown changes without recreating the editor view", () => {

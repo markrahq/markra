@@ -45,7 +45,8 @@ const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
   toggleMarkdownFiles: "app.toggleMarkdownFiles",
   toggleReadOnlyMode: "app.toggleReadOnlyMode",
   toggleSourceMode: "app.switchToSourceMode",
-  toggleTypewriterMode: "settings.editor.typewriterMode"
+  toggleTypewriterMode: "settings.editor.typewriterMode",
+  toggleVimMode: "settings.editor.vimMode"
 };
 
 const keyboardShortcutSections: Array<{
@@ -63,7 +64,8 @@ const keyboardShortcutSections: Array<{
       "toggleAiCommand",
       "toggleSourceMode",
       "toggleReadOnlyMode",
-      "toggleTypewriterMode"
+      "toggleTypewriterMode",
+      "toggleVimMode"
     ]
   },
   {

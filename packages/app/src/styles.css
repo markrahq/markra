@@ -859,6 +859,60 @@
     border-left-color: var(--editor-caret-color) !important;
   }
 
+  .markdown-paper .cm-vimMode .cm-fat-cursor,
+  .markdown-source-paper .cm-vimMode .cm-fat-cursor {
+    background: var(--accent) !important;
+    color: var(--bg-primary) !important;
+  }
+
+  .markdown-paper .cm-editor:not(.cm-focused) .cm-vimMode .cm-fat-cursor,
+  .markdown-source-paper .cm-editor:not(.cm-focused) .cm-vimMode .cm-fat-cursor {
+    display: none !important;
+  }
+
+  .markdown-paper .cm-vim-panel {
+    border-top: 1px solid var(--editor-border);
+    background: var(--editor-bg-secondary);
+    color: var(--editor-text-secondary);
+  }
+
+  .markdown-source-paper .cm-vim-panel {
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+  }
+
+  .markdown-paper .cm-vim-panel,
+  .markdown-source-paper .cm-vim-panel {
+    align-items: center;
+    gap: 8px;
+    min-height: 24px;
+    padding: 2px 10px;
+    font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-size: 11px;
+    line-height: 20px;
+  }
+
+  .markdown-paper .cm-vim-panel > span:first-child,
+  .markdown-source-paper .cm-vim-panel > span:first-child {
+    color: var(--accent);
+    font-weight: 650;
+    letter-spacing: 0.04em;
+  }
+
+  .markdown-paper .markra-vim-hint,
+  .markdown-source-paper .markra-vim-hint {
+    color: var(--editor-text-secondary, var(--text-secondary));
+    opacity: 0.82;
+    white-space: nowrap;
+  }
+
+  .markdown-paper .markra-vim-feedback,
+  .markdown-source-paper .markra-vim-feedback {
+    color: var(--editor-text-primary, var(--text-primary));
+    white-space: nowrap;
+  }
+
   /* CodeMirror uses transparent image nodes to stabilize widget cursors. They
      are editor chrome, so Markdown media spacing must never leak onto them. */
   .markdown-paper .cm-widgetBuffer {

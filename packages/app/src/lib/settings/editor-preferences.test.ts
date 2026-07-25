@@ -112,6 +112,7 @@ describe("editor preferences", () => {
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
 
@@ -265,6 +266,7 @@ describe("editor preferences", () => {
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
   });
@@ -791,6 +793,7 @@ describe("editor preferences", () => {
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
   });
@@ -894,6 +897,7 @@ describe("editor preferences", () => {
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: false
     });
 
@@ -995,6 +999,7 @@ describe("editor preferences", () => {
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: false
     });
     expect(store.save).toHaveBeenCalledTimes(1);

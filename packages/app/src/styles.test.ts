@@ -264,6 +264,37 @@ describe("editor stylesheet", () => {
     );
   });
 
+  it("uses theme colors for the focused Vim block cursor and hides it when unfocused", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain(
+      ".markdown-paper .cm-vimMode .cm-fat-cursor",
+    );
+    expect(styles).toContain(
+      ".markdown-source-paper .cm-vimMode .cm-fat-cursor",
+    );
+    expect(styles).toContain("background: var(--accent) !important");
+    expect(styles).toContain("color: var(--bg-primary) !important");
+
+    const unfocusedRuleStart = styles.indexOf(
+      ".markdown-paper .cm-editor:not(.cm-focused) .cm-vimMode .cm-fat-cursor",
+    );
+    const unfocusedRuleEnd = styles.indexOf("\n  }", unfocusedRuleStart);
+    const unfocusedRule = styles.slice(unfocusedRuleStart, unfocusedRuleEnd);
+    expect(unfocusedRule).toContain("display: none !important");
+  });
+
+  it("styles the Vim mode panel with editor theme colors", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain(".markdown-paper .cm-vim-panel");
+    expect(styles).toContain(".markdown-source-paper .cm-vim-panel");
+    expect(styles).toContain(".markra-vim-hint");
+    expect(styles).toContain(".markra-vim-feedback");
+    expect(styles).toContain("background: var(--editor-bg-secondary)");
+    expect(styles).toContain("color: var(--accent)");
+  });
+
   it("reveals inline CodeMirror block controls when their block is hovered", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const toolbarRuleStart = styles.indexOf(

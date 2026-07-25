@@ -4,7 +4,10 @@ import { Annotation, Compartment, EditorSelection, EditorState, Prec, Transactio
 import { Decoration, EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { t, type AppLanguage, type SearchRange } from "@markra/shared";
-import { codeMirrorTypewriterMode } from "@markra/editor/codemirror";
+import {
+  codeMirrorTypewriterMode,
+  reconfigureCodeMirrorVimMode
+} from "@markra/editor/codemirror";
 import {
   editorContentWidthPixels,
   editorCustomContentWidthMax,
@@ -16,6 +19,7 @@ import {
   type EditorFontFamilyPreference
 } from "../lib/editor-font";
 import type { ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
+import { codeMirrorVimLabels } from "../lib/vim-labels";
 import { EditorWidthResizer } from "./EditorWidthResizer";
 
 export type MarkdownSourceEditorProps = {
@@ -46,6 +50,7 @@ export type MarkdownSourceEditorProps = {
   scrollRef?: Ref<HTMLElement>;
   topInset?: "none" | "tabs" | "titlebar";
   typewriterModeEnabled?: boolean;
+  vimModeEnabled?: boolean;
 };
 
 type MarkdownSourcePaperStyle = CSSProperties & {
@@ -209,7 +214,8 @@ export function MarkdownSourceEditor({
   showLineNumbers = false,
   scrollRef,
   topInset = "titlebar",
-  typewriterModeEnabled = false
+  typewriterModeEnabled = false,
+  vimModeEnabled = false
 }: MarkdownSourceEditorProps) {
   const editorContainerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef(content);
@@ -223,6 +229,7 @@ export function MarkdownSourceEditor({
   const lineNumbersCompartmentRef = useRef(new Compartment());
   const searchCompartmentRef = useRef(new Compartment());
   const typewriterModeCompartmentRef = useRef(new Compartment());
+  const vimModeCompartmentRef = useRef(new Compartment());
   const externalContentScrollSuppressedRef = useRef(false);
   const externalContentScrollRestoreFrameRef = useRef<number | null>(null);
   const resolvedContentWidth = contentWidthPx ?? editorContentWidthPixels[contentWidth];
@@ -275,6 +282,7 @@ export function MarkdownSourceEditor({
 
   const extensions = useMemo(
     () => [
+      vimModeCompartmentRef.current.of([]),
       minimalSetup,
       markdownSourceSharedHistoryExtension(onUndoRef, onRedoRef),
       markdown({
@@ -364,6 +372,18 @@ export function MarkdownSourceEditor({
       )
     });
   }, [typewriterModeEnabled]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    return reconfigureCodeMirrorVimMode(
+      view,
+      vimModeCompartmentRef.current,
+      vimModeEnabled,
+      codeMirrorVimLabels(language)
+    );
+  }, [language, vimModeEnabled]);
 
   useEffect(() => {
     const view = viewRef.current;

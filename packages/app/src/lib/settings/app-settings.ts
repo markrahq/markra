@@ -406,6 +406,7 @@ export type EditorPreferences = {
   showLineNumbers: boolean;
   showWordCount: boolean;
   typewriterModeEnabled: boolean;
+  vimModeEnabled: boolean;
   wrapCodeBlocks: boolean;
 };
 export type { AppLanguage };
@@ -535,6 +536,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   showLineNumbers: false,
   showWordCount: true,
   typewriterModeEnabled: false,
+  vimModeEnabled: false,
   wrapCodeBlocks: true
 };
 
@@ -1699,6 +1701,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       typeof preferences.typewriterModeEnabled === "boolean"
         ? preferences.typewriterModeEnabled
         : defaultEditorPreferences.typewriterModeEnabled,
+    vimModeEnabled:
+      typeof preferences.vimModeEnabled === "boolean"
+        ? preferences.vimModeEnabled
+        : defaultEditorPreferences.vimModeEnabled,
     wrapCodeBlocks:
       typeof preferences.wrapCodeBlocks === "boolean" ? preferences.wrapCodeBlocks : defaultEditorPreferences.wrapCodeBlocks
   };

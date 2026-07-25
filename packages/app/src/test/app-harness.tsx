@@ -369,6 +369,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     showLineNumbers: false,
     showWordCount: true,
     typewriterModeEnabled: false,
+    vimModeEnabled: false,
     wrapCodeBlocks: true
   },
   appThemeOptions: [
@@ -658,6 +659,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     showWordCount: true,
     typewriterModeEnabled: preferences?.typewriterModeEnabled ?? false,
     ...preferences,
+    vimModeEnabled: preferences?.vimModeEnabled ?? false,
     wrapCodeBlocks: preferences?.wrapCodeBlocks ?? true
   })),
   normalizeFileIgnoreSettings: vi.fn((value: unknown) => {
@@ -1484,6 +1486,7 @@ export function installAppTestHarness() {
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
+      vimModeEnabled: false,
       wrapCodeBlocks: true
     });
     mockedGetStoredExportSettings.mockResolvedValue({

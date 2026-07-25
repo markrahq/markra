@@ -222,6 +222,8 @@ export { readCodeMirrorTableShape, tablePreviewPlugin } from "./table.ts";
 export { trailingSpacePlugin } from "./trailing-space.ts";
 export type { CodeMirrorTypewriterModeOptions } from "./typewriter.ts";
 export { codeMirrorTypewriterMode } from "./typewriter.ts";
+export type { CodeMirrorVimLabels } from "./vim.ts";
+export { reconfigureCodeMirrorVimMode } from "./vim.ts";
 
 export interface LiveMarkdownConfig extends LivePreviewConfig {
   highlight?: boolean;

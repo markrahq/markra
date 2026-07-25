@@ -21,9 +21,10 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
+    "@codemirror/commands": "6.10.3",
     "@codemirror/lang-markdown": "6.5.0",
     "@codemirror/language": "6.12.3",
-    "@codemirror/commands": "6.10.3",
+    "@codemirror/search": "6.7.0",
     "@codemirror/state": "6.6.0",
     "@codemirror/view": "6.41.1",
     "@cspell/cspell-types": "10.0.1",
@@ -31,6 +32,7 @@
     "@markra/ai": "workspace:*",
     "@markra/markdown": "workspace:*",
     "@markra/shared": "workspace:*",
+    "@replit/codemirror-vim": "6.3.0",
     "cspell-trie-lib": "10.0.1",
     "katex": "0.16.45",
     "lowlight": "3.3.0",
