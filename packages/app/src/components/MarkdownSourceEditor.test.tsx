@@ -50,7 +50,8 @@ describe("MarkdownSourceEditor", () => {
       "```ts",
       "const answer = 42;",
       "```",
-      "- Item"
+      "- Item",
+      "==highlight=="
     ].join("\n");
     const handleChange = vi.fn();
 
@@ -70,6 +71,12 @@ describe("MarkdownSourceEditor", () => {
     await waitFor(() => {
       expect(container.querySelector(".cm-line span[class]")).toBeInTheDocument();
     });
+    const syntaxCharacters = Array.from(
+      container.querySelectorAll(".cm-markra-syntax-character"),
+      (element) => element.textContent ?? "",
+    ).join("");
+    expect(syntaxCharacters).toContain("#");
+    expect(syntaxCharacters).toContain("====");
 
     replaceCodeMirrorDoc(view, "# Changed");
 

@@ -113,6 +113,32 @@ describe("liveMarkdown", () => {
     ]);
   });
 
+  it.each([
+    ["heading", "# Synthetic heading", 3, "#"],
+    ["strong", "**Synthetic**", 4, "****"],
+    ["emphasis", "*Synthetic*", 3, "**"],
+    ["inline code", "`Synthetic`", 3, "``"],
+    ["strikethrough", "~~Synthetic~~", 4, "~~~~"],
+    ["highlight", "==Synthetic==", 4, "===="],
+    ["blockquote", "> Synthetic quote", 0, ">"],
+    ["list", "- Synthetic item", 0, "-"],
+    ["link", "[Synthetic](https://example.test)", 3, "[]()"],
+    ["horizontal rule", "---", 1, "---"],
+  ])("uses the muted syntax class for %s markers", (
+    _label,
+    doc,
+    anchor,
+    expectedMarkers,
+  ) => {
+    const view = createView({ doc, anchor });
+    const syntaxCharacters = Array.from(
+      view.dom.querySelectorAll(".cm-markra-syntax-character"),
+      (element) => element.textContent ?? "",
+    ).join("");
+
+    expect(syntaxCharacters).toBe(expectedMarkers);
+  });
+
   it("reveals the heading marker while the cursor edits heading text", () => {
     const view = createView();
 

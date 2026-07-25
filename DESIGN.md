@@ -17,7 +17,7 @@ colors:
   text: "#555555"
   text-strong: "#333333"
   text-muted: "#999999"
-  markdown-syntax: "#C7C5C5"
+  markdown-syntax: "#D7D5D5"
   border: "#EEEEEE"
   border-strong: "#DDDDDD"
   ghost: "#C0C0C0"
@@ -216,7 +216,7 @@ The palette is based on clean neutrals and one restrained ink-black accent.
 - **Surface (#FAFAFA), Surface Muted (#F8F8F8), Surface Hover (#F5F5F5), Surface Active (#EEEEEE):** Layered neutral surfaces for panels, code, hover feedback, and selected controls.
 - **Text (#555555) and Text Strong (#333333):** Body text and headings. Strong text is for document headings, selected labels, and critical UI labels.
 - **Text Muted (#999999):** Secondary labels, empty states, helper text, metadata, and inactive controls.
-- **Markdown Syntax (#C7C5C5):** Low-emphasis rendered Markdown markers and source-mode syntax characters.
+- **Markdown Syntax (#D7D5D5):** Low-emphasis rendered Markdown markers and source-mode syntax characters. Theme variants derive the same quiet role by mixing their syntax token toward the editor background.
 - **Border (#EEEEEE) and Border Strong (#DDDDDD):** Fine separation for tool surfaces, tables, inputs, and editor structure.
 
 Do not introduce extra brand colors for primary flows. Semantic colors may appear for table delete affordances, callout types, syntax highlighting, or destructive confirmation, but they should stay localized to those contexts.

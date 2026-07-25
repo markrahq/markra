@@ -1,15 +1,38 @@
+import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import type {
   DelimiterType,
   MarkdownExtension,
 } from "@lezer/markdown";
+import { tags } from "@lezer/highlight";
 
 const highlightDelimiter: DelimiterType = {
   mark: "HighlightMark",
   resolve: "Highlight",
 };
 
+export const markdownSyntaxHighlighting = syntaxHighlighting(
+  HighlightStyle.define([
+    {
+      class: "cm-markra-syntax-character",
+      // GFM task markers and horizontal rules use atom/contentSeparator
+      // instead of the processingInstruction tag used by other delimiters.
+      tag: [
+        tags.processingInstruction,
+        tags.contentSeparator,
+        tags.atom,
+      ],
+    },
+  ]),
+);
+
 export const markraHighlight: MarkdownExtension = {
-  defineNodes: ["Highlight", "HighlightMark"],
+  defineNodes: [
+    "Highlight",
+    {
+      name: "HighlightMark",
+      style: tags.processingInstruction,
+    },
+  ],
   parseInline: [
     {
       after: "Emphasis",

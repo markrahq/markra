@@ -6,6 +6,8 @@ import { minimalSetup } from "codemirror";
 import { t, type AppLanguage, type SearchRange } from "@markra/shared";
 import {
   codeMirrorTypewriterMode,
+  markdownSyntaxHighlighting,
+  markraHighlight,
   reconfigureCodeMirrorVimMode
 } from "@markra/editor/codemirror";
 import {
@@ -287,8 +289,10 @@ export function MarkdownSourceEditor({
       markdownSourceSharedHistoryExtension(onUndoRef, onRedoRef),
       markdown({
         base: markdownLanguage,
-        codeLanguages: []
+        codeLanguages: [],
+        extensions: [markraHighlight]
       }),
+      markdownSyntaxHighlighting,
       EditorView.lineWrapping,
       contentAttributesCompartmentRef.current.of(markdownSourceContentAttributes(sourceLabel, readOnly)),
       editableCompartmentRef.current.of(EditorView.editable.of(!readOnly)),

@@ -753,7 +753,7 @@ describe("editor stylesheet", () => {
       ".markdown-paper .cm-markra-link-source,\n  .markdown-paper .cm-markra-link-source * {",
     );
     expect(styles.slice(sourceStart, sourceLabelStart)).toContain(
-      "color: var(--text-md-char)",
+      "color: var(--editor-markdown-syntax-color)",
     );
     expect(styles.slice(sourceStart, sourceLabelStart)).toContain(
       "text-decoration: none !important",
@@ -762,6 +762,33 @@ describe("editor stylesheet", () => {
     expect(sourceLabelStyles).toContain("cursor: var(--editor-text-cursor)");
     expect(iconStyles).toContain('content: "↗"');
     expect(iconStyles).toContain("pointer-events: none");
+  });
+
+  it("uses one quieter theme color for Markdown syntax characters", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const syntaxColorStart = styles.indexOf(
+      "--editor-markdown-syntax-color:",
+    );
+    const syntaxRuleStart = styles.indexOf(
+      ".markdown-paper .cm-markra-syntax-character,",
+    );
+    const syntaxRuleEnd = styles.indexOf("\n  }", syntaxRuleStart);
+    const syntaxRule = styles.slice(syntaxRuleStart, syntaxRuleEnd);
+
+    expect(syntaxColorStart).toBeGreaterThanOrEqual(0);
+    expect(styles.slice(syntaxColorStart, syntaxColorStart + 180)).toContain(
+      "color-mix(in srgb, var(--text-md-char) 72%, var(--editor-paper-bg, var(--bg-primary)))",
+    );
+    expect(syntaxRuleStart).toBeGreaterThanOrEqual(0);
+    expect(syntaxRule).toContain(
+      ".markdown-source-paper .cm-markra-syntax-character",
+    );
+    expect(syntaxRule).toContain(
+      "color: var(--editor-markdown-syntax-color) !important",
+    );
+    expect(styles).toContain(
+      ".markdown-paper .markra-md-delimiter {\n    @apply text-(--editor-markdown-syntax-color);",
+    );
   });
 
   it("removes CodeMirror's inline baseline around standalone image editors", () => {

@@ -2,7 +2,10 @@ import { markdown } from "@codemirror/lang-markdown";
 import { codeFolding } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 import { GFM } from "@lezer/markdown";
-import { markraHighlight } from "./highlight.ts";
+import {
+  markdownSyntaxHighlighting,
+  markraHighlight,
+} from "./highlight.ts";
 import {
   markraPlugins,
   type MarkraPlugin,
@@ -131,7 +134,10 @@ export type {
   MarkraImageSourceContext,
 } from "./image.ts";
 export { imagePreviewPlugin, resolveSafeImageSource } from "./image.ts";
-export { markraHighlight } from "./highlight.ts";
+export {
+  markdownSyntaxHighlighting,
+  markraHighlight,
+} from "./highlight.ts";
 export { horizontalRulePlugin } from "./horizontal-rule.ts";
 export { markdownEditingPlugin } from "./markdown-editing.ts";
 export type { MarkdownShortcutsPluginOptions } from "./markdown-shortcuts.ts";
@@ -246,6 +252,7 @@ export function liveMarkdown(config: LiveMarkdownConfig = {}): Extension {
     highlight
       ? markraLanguage
       : markdown({ extensions: [GFM] }),
+    markdownSyntaxHighlighting,
     codeFolding(),
     livePreview(previewConfig),
     markraTheme,
