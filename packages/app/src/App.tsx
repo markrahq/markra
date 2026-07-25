@@ -14,6 +14,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import { AppToaster } from "./components/AppToaster";
+import { AssetCleanupDialog } from "./components/AssetCleanupDialog";
 import { AiCommandBar } from "./components/AiCommandBar";
 import { AiSelectionToolbar } from "./components/AiSelectionToolbar";
 import { DocumentHistoryDialog } from "./components/DocumentHistoryDialog";
@@ -79,6 +80,7 @@ import { useRuntimeLogCapture } from "./hooks/useRuntimeLogCapture";
 import { useStartupWindowReveal } from "./hooks/useStartupWindowReveal";
 import { useWorkspaceBackupSync } from "./hooks/useWorkspaceBackupSync";
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch";
+import { useWorkspaceAssetCleanup } from "./hooks/useWorkspaceAssetCleanup";
 import {
   useApplicationShortcuts,
   useNativeMarkdownDrop,
@@ -410,6 +412,10 @@ function WorkspaceApp() {
   const webKitScrollWorkaround = webKitScrollWorkaroundForPlatform(desktopPlatform, desktopOsVersion);
   const nativeRuntimeAvailable = getAppRuntime().events.isAvailable();
   const appFeatures = getAppRuntime().features;
+  const appFiles = getAppRuntime().files;
+  const assetCleanupAvailable = Boolean(
+    appFiles.listMarkdownReferenceFilesForPath && appFiles.trashMarkdownAssets
+  );
   const aiFeatureEnabled = appFeatures.ai;
   const exportFeatureEnabled = appFeatures.export;
   const nativeWindowChromeEnabled = appFeatures.nativeWindowChrome && desktopPlatform !== "linux";
@@ -773,6 +779,24 @@ function WorkspaceApp() {
     workspaceSessionId,
     wordCount
   } = markdownDocument;
+  const getDirtyAssetCleanupDocuments = useCallback(
+    () => documentTabs.flatMap((tab) => {
+      if (!tab.path || !tab.dirty) return [];
+
+      return [{
+        content: getDirtyMarkdownFileContent(tab.path) ?? tab.content,
+        path: tab.path
+      }];
+    }),
+    [documentTabs, getDirtyMarkdownFileContent]
+  );
+  const assetCleanup = useWorkspaceAssetCleanup({
+    getDirtyDocuments: getDirtyAssetCleanupDocuments,
+    globalIgnoreRules: fileIgnoreSettings.settings.rules,
+    managedFolder: editorPreferences.preferences.clipboardImageFolder,
+    onTreeRefresh: refreshMarkdownFileTree,
+    rootPath: fileTreeSourcePath
+  });
   documentRevisionRef.current = document.revision;
   const activeDocumentOutlineIndex =
     !sourceSurfaceActive &&
@@ -4347,6 +4371,20 @@ function WorkspaceApp() {
           />
         ) : null}
 
+        {assetCleanup.dialogOpen ? (
+          <AssetCleanupDialog
+            error={assetCleanup.error}
+            index={assetCleanup.index}
+            key={assetCleanup.revision}
+            language={appLanguage.language}
+            loading={assetCleanup.loading}
+            trashing={assetCleanup.trashing}
+            onClose={assetCleanup.closeDialog}
+            onRefresh={assetCleanup.refresh}
+            onTrash={assetCleanup.trashAssets}
+          />
+        ) : null}
+
         <span className="screen-reader-title sr-only">{titleDocumentName}</span>
 
         <WorkspaceLayout
@@ -4394,6 +4432,7 @@ function WorkspaceApp() {
             width: compactViewport
               ? Math.min(fileTreeWidth, Math.max(0, viewportWidth - 48))
               : fileTreeWidth,
+            onCleanUnusedImages: assetCleanupAvailable ? assetCleanup.openDialog : undefined,
             onCreateFile: handleCreateMarkdownTreeFile,
             onCreateFolder: handleCreateMarkdownTreeFolder,
             onDeleteFile: handleDeleteMarkdownTreeFile,

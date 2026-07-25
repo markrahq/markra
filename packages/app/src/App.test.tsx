@@ -3441,6 +3441,36 @@ describe("Markra workspace", () => {
     expect(mockedListNativeMarkdownFilesForPath).toHaveBeenCalledWith(mockFolderPath, defaultFileTreeListOptions);
   });
 
+  it("opens unused image cleanup from an open workspace", async () => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      files: {
+        ...runtime.files,
+        listMarkdownReferenceFilesForPath: vi.fn().mockResolvedValue([]),
+        trashMarkdownAssets: vi.fn()
+      }
+    });
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: {
+        path: mockFolderPath,
+        name: "vault"
+      }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "index.md", path: "/mock-files/vault/index.md", relativePath: "index.md" }
+    ]);
+
+    renderApp();
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await screen.findByRole("button", { name: "index.md" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Clean up unused images" }));
+
+    expect(await screen.findByRole("dialog", { name: "Clean up unused images" })).toBeInTheDocument();
+  });
+
   it("opens a markdown folder from the Windows file tree header", async () => {
     mockedResolveDesktopPlatform.mockReturnValue("windows");
     mockedOpenNativeMarkdownFolder.mockResolvedValue({

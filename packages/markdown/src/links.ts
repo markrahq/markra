@@ -53,6 +53,11 @@ export type MarkdownMentionRange = {
   to: number;
 };
 
+export type MarkdownAssetReference = {
+  href: string;
+  kind: "definition" | "html" | "image" | "link" | "text" | "wiki";
+};
+
 export type MarkdownMentionCandidate = {
   id: string;
   title: string;
@@ -72,12 +77,64 @@ const markdownLinkParser = unified().use(remarkParse).use(remarkGfm).use(remarkM
 const markdownDocumentExtensionPattern = /\.(md|markdown)$/iu;
 const localUrlSchemePattern = /^[a-z][a-z\d+.-]*:/iu;
 const wikiLinkPattern = /!?\[\[([^\]\n]+)\]\]/gu;
+const markdownAssetExtensionPattern = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/iu;
+const markdownAssetTextPattern = /(?:file:\/\/\/?|[a-z]:[\\/]|[./\\]*)(?:[^\s"'`()<>[\]]+[\\/])*[^\s"'`()<>[\]]+\.(?:avif|bmp|gif|jpe?g|png|svg|webp)(?:[?#][^\s"'`()<>[\]]*)?/giu;
+const rawHtmlImageSourcePattern = /<img\b[^>]*\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/giu;
 const wordCharacterPattern = /[\p{L}\p{N}_-]/u;
 const boundarySensitiveTitlePattern = /[\p{Script=Latin}\p{N}_-]/u;
 const unsafeMarkdownHrefCharactersPattern = /%(?![a-f\d]{2})|[\s()<>#]/giu;
 
 function parseMarkdown(markdown: string) {
   return markdownLinkParser.parse(markdown) as MarkdownNode;
+}
+
+function unwrappedMarkdownHref(href: string) {
+  const trimmed = href.trim();
+  return trimmed.startsWith("<") && trimmed.endsWith(">") ? trimmed.slice(1, -1).trim() : trimmed;
+}
+
+function isLocalMarkdownAssetHref(href: string) {
+  const unwrapped = unwrappedMarkdownHref(href);
+  if (!unwrapped || unwrapped.startsWith("#") || unwrapped.startsWith("//")) return false;
+
+  const windowsAbsolutePath = /^[a-z]:[\\/]/iu.test(unwrapped);
+  const scheme = windowsAbsolutePath ? null : /^([a-z][a-z\d+.-]*):/iu.exec(unwrapped)?.[1]?.toLowerCase();
+  if (scheme && scheme !== "file") return false;
+
+  const path = unwrapped.split(/[?#]/u)[0] ?? "";
+  if (!path) return false;
+
+  try {
+    return markdownAssetExtensionPattern.test(decodeURI(path));
+  } catch {
+    return false;
+  }
+}
+
+function rawHtmlImageSources(source: string) {
+  const sources: string[] = [];
+
+  rawHtmlImageSourcePattern.lastIndex = 0;
+  for (const match of source.matchAll(rawHtmlImageSourcePattern)) {
+    const href = match[1] ?? match[2] ?? match[3] ?? "";
+    if (isLocalMarkdownAssetHref(href)) sources.push(href);
+  }
+
+  return sources;
+}
+
+function wikiAssetSources(source: string) {
+  const sources: string[] = [];
+
+  wikiLinkPattern.lastIndex = 0;
+  for (const match of source.matchAll(wikiLinkPattern)) {
+    if (!match[0].startsWith("!")) continue;
+
+    const href = match[1]?.split("|", 1)[0]?.trim() ?? "";
+    if (isLocalMarkdownAssetHref(href)) sources.push(href);
+  }
+
+  return sources;
 }
 
 function leadingDelimitedFrontmatterRange(markdown: string): ProtectedRange | null {
@@ -546,6 +603,63 @@ export function parseMarkdownLinkReferences(markdown: string): MarkdownLinkRefer
   });
 
   return links.sort((left, right) => left.from - right.from);
+}
+
+export function parseMarkdownAssetReferences(markdown: string): MarkdownAssetReference[] {
+  const references: MarkdownAssetReference[] = [];
+  const parsedReferenceRanges: ProtectedRange[] = [];
+  const seen = new Set<string>();
+  const pushReference = (href: string, kind: MarkdownAssetReference["kind"]) => {
+    const normalizedHref = unwrappedMarkdownHref(href);
+    if (!isLocalMarkdownAssetHref(normalizedHref) || seen.has(normalizedHref)) return;
+
+    seen.add(normalizedHref);
+    references.push({ href: normalizedHref, kind });
+  };
+
+  traverseMarkdownNode(parseMarkdown(markdown), (node) => {
+    if (
+      (node.type === "image" || node.type === "link" || node.type === "definition") &&
+      typeof node.url === "string"
+    ) {
+      pushReference(node.url, node.type);
+      const from = markdownNodeStart(node);
+      const to = markdownNodeEnd(node);
+      if (typeof from === "number" && typeof to === "number") {
+        parsedReferenceRanges.push({ from, to });
+      }
+      return;
+    }
+
+    if (node.type === "html" && typeof node.value === "string") {
+      rawHtmlImageSources(node.value).forEach((href) => pushReference(href, "html"));
+      markdownAssetTextPattern.lastIndex = 0;
+      for (const match of node.value.matchAll(markdownAssetTextPattern)) {
+        pushReference(match[0], "html");
+      }
+      const from = markdownNodeStart(node);
+      const to = markdownNodeEnd(node);
+      if (typeof from === "number" && typeof to === "number") {
+        parsedReferenceRanges.push({ from, to });
+      }
+      return;
+    }
+
+    if (node.type === "text" && typeof node.value === "string") {
+      wikiAssetSources(node.value).forEach((href) => pushReference(href, "wiki"));
+    }
+  });
+
+  markdownAssetTextPattern.lastIndex = 0;
+  for (const match of markdown.matchAll(markdownAssetTextPattern)) {
+    const from = match.index ?? 0;
+    const to = from + match[0].length;
+    if (parsedReferenceRanges.some((range) => from < range.to && to > range.from)) continue;
+
+    pushReference(match[0], "text");
+  }
+
+  return references;
 }
 
 export function rebaseMarkdownLocalLinks(

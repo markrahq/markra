@@ -47,6 +47,7 @@ type MarkdownFolderFileResponse = {
   modifiedAt?: number;
   path: string;
   relativePath: string;
+  sizeBytes?: number;
 };
 
 type MarkdownOpenPathResponse =
@@ -105,6 +106,28 @@ export type NativeMarkdownFolderFile = {
   path: string;
   name: string;
   relativePath: string;
+  sizeBytes?: number;
+};
+
+export type NativeMarkdownAssetCleanupFileSnapshot = {
+  modifiedAt?: number;
+  path: string;
+  sizeBytes?: number;
+};
+
+export type TrashNativeMarkdownAssetsInput = {
+  documents: NativeMarkdownAssetCleanupFileSnapshot[];
+  managedFolder: string;
+  rootPath: string;
+  targets: NativeMarkdownAssetCleanupFileSnapshot[];
+};
+
+export type NativeMarkdownAssetTrashSummary = {
+  failures: Array<{
+    error: string;
+    path: string;
+  }>;
+  trashedPaths: string[];
 };
 
 export type NativeMarkdownFolder = {
@@ -618,6 +641,17 @@ export async function listNativeMarkdownFilesForPath(
   return files.map(markdownFolderFileFromResponse);
 }
 
+export async function listNativeMarkdownReferenceFilesForPath(
+  path: string
+): Promise<NativeMarkdownFolderFile[]> {
+  const files = await invokeNative<MarkdownFolderFileResponse[]>(
+    "list_markdown_reference_files_for_path",
+    { path }
+  );
+
+  return files.map(markdownFolderFileFromResponse);
+}
+
 const markdownFileTreeLoadEvent = "markra://markdown-tree-load";
 let markdownFileTreeLoadRequestIndex = 0;
 
@@ -769,6 +803,10 @@ function markdownFolderFileFromResponse(file: MarkdownFolderFileResponse): Nativ
     mappedFile.modifiedAt = file.modifiedAt;
   }
 
+  if (typeof file.sizeBytes === "number") {
+    mappedFile.sizeBytes = file.sizeBytes;
+  }
+
   if (file.kind === "asset" || (!file.kind && isMarkdownTreeAssetPath(file.relativePath))) {
     mappedFile.kind = "asset";
   } else if (file.kind === "attachment") {
@@ -806,6 +844,12 @@ export async function createNativeMarkdownTreeFile(
   const file = await invokeNative<MarkdownFolderFileResponse>("create_markdown_tree_file", args);
 
   return markdownFolderFileFromResponse(file);
+}
+
+export function trashNativeMarkdownAssets(
+  input: TrashNativeMarkdownAssetsInput
+): Promise<NativeMarkdownAssetTrashSummary> {
+  return invokeNative<NativeMarkdownAssetTrashSummary>("trash_markdown_assets", input);
 }
 
 export async function createNativeMarkdownTreeFolder(

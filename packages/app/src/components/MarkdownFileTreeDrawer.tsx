@@ -45,6 +45,7 @@ import {
   Search,
   Settings,
   TableOfContents,
+  Trash2,
   X
 } from "lucide-react";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -163,6 +164,7 @@ type MarkdownFileTreeDrawerProps = {
   sidebarLayoutMode?: SidebarLayoutMode;
   updateAvailable?: boolean;
   width?: number;
+  onCleanUnusedImages?: () => unknown | Promise<unknown>;
   onCreateFile?: (fileName: string, parentPath?: string | null, contents?: string) => unknown | Promise<unknown>;
   onCreateFolder?: (folderName: string, parentPath?: string | null) => unknown | Promise<unknown>;
   onDeleteFile?: (
@@ -480,6 +482,7 @@ export function MarkdownFileTreeDrawer({
   sidebarLayoutMode = "stacked",
   updateAvailable = false,
   width = 288,
+  onCleanUnusedImages,
   onCreateFile,
   onCreateFolder,
   onDeleteFile,
@@ -2858,6 +2861,15 @@ export function MarkdownFileTreeDrawer({
                     ) : (
                       <ImageIcon aria-hidden="true" size={14} />
                     )}
+                  </IconButton>
+                ) : null}
+                {rootPath && onCleanUnusedImages ? (
+                  <IconButton
+                    className="rounded-md"
+                    label={label("app.assetCleanup.title")}
+                    onClick={() => void onCleanUnusedImages()}
+                  >
+                    <Trash2 aria-hidden="true" size={14} />
                   </IconButton>
                 ) : null}
                 {folderExpansionAvailable ? (

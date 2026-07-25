@@ -533,6 +533,27 @@ fn list_markdown_files_for_path_with_asset_scope(
     Ok(files)
 }
 
+fn list_markdown_reference_files_for_path_with_scope(
+    path: String,
+    allow_root_assets: impl FnOnce(&Path) -> Result<(), String>,
+) -> Result<Vec<MarkdownFolderFile>, String> {
+    let source_path = PathBuf::from(path);
+    let root = markdown_tree_root_for_path(&source_path)?;
+    let ignore_rules = MarkdownIgnoreRules::built_in_only(&root);
+    let mut files = Vec::new();
+
+    allow_root_assets(&root)?;
+    collect_markdown_tree_files(&root, &root, &ignore_rules, &mut files)?;
+    files.retain(|file| matches!(file.kind, MarkdownFolderEntryKind::File));
+    files.sort_by(|a, b| {
+        a.relative_path
+            .to_lowercase()
+            .cmp(&b.relative_path.to_lowercase())
+    });
+
+    Ok(files)
+}
+
 #[tauri::command]
 pub(crate) fn list_markdown_files_for_path(
     app: tauri::AppHandle,
@@ -546,6 +567,16 @@ pub(crate) fn list_markdown_files_for_path(
         global_ignore_rules.as_deref(),
         |root| allow_asset_directory(&app, root),
     )
+}
+
+#[tauri::command]
+pub(crate) fn list_markdown_reference_files_for_path(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<Vec<MarkdownFolderFile>, String> {
+    list_markdown_reference_files_for_path_with_scope(path, |root| {
+        allow_asset_directory(&app, root)
+    })
 }
 
 #[tauri::command]
@@ -1098,6 +1129,41 @@ mod tests {
             vec!["drafts", "drafts/restored.md", "keep.md"]
         );
 
+        fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn reference_scan_includes_user_ignored_markdown_but_skips_builtin_directories() {
+        let root = std::env::temp_dir().join(format!(
+            "markra-reference-tree-test-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock should be after epoch")
+                .as_nanos()
+        ));
+        let drafts = root.join("drafts");
+        let git = root.join(".git");
+        fs::create_dir_all(&drafts).expect("draft folder should be created");
+        fs::create_dir_all(&git).expect("git folder should be created");
+        fs::write(root.join(".markraignore"), "drafts/\n").expect("ignore rules should be created");
+        fs::write(root.join("index.md"), "# Index").expect("markdown file should be created");
+        fs::write(drafts.join("hidden.md"), "![Kept](../assets/kept.png)")
+            .expect("ignored markdown should be created");
+        fs::write(git.join("readme.md"), "# Git metadata").expect("git markdown should be created");
+
+        let files = list_markdown_reference_files_for_path_with_scope(
+            root.to_string_lossy().to_string(),
+            |_| Ok(()),
+        )
+        .expect("reference Markdown files should be listed");
+
+        assert_eq!(
+            files
+                .iter()
+                .map(|file| file.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["drafts/hidden.md", "index.md"]
+        );
         fs::remove_dir_all(root).expect("test tree should be removed");
     }
 

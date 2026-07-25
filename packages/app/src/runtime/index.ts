@@ -24,6 +24,7 @@ import type {
   NativeMarkdownFileHistoryFile,
   NativeMarkdownFolder,
   NativeMarkdownFolderFile,
+  NativeMarkdownAssetTrashSummary,
   NativeMarkdownImageFile,
   NativeMarkdownOpenTarget,
   NativeMarkdownBackupSummary,
@@ -51,6 +52,7 @@ import type {
   SaveNativePdfFileInput,
   SaveNativeSettingsFileInput,
   SyncNativeMarkdownFolderInput,
+  TrashNativeMarkdownAssetsInput,
   UploadNativePicGoImageInput,
   UploadNativeS3ImageInput,
   UploadNativeWebDavImageInput
@@ -172,6 +174,7 @@ export type AppFileRuntime = {
     path: string,
     options?: ListNativeMarkdownFilesOptions
   ) => Promise<NativeMarkdownFolderFile[]>;
+  listMarkdownReferenceFilesForPath?: (path: string) => Promise<NativeMarkdownFolderFile[]>;
   loadMarkdownFilesForPath?: (
     path: string,
     options?: LoadNativeMarkdownFilesForPathOptions
@@ -212,6 +215,9 @@ export type AppFileRuntime = {
   searchMarkdownFiles?: (request: WorkspaceSearchRequest) => Promise<WorkspaceSearchResponse>;
   syncMarkdownFolder: (input: SyncNativeMarkdownFolderInput) => Promise<NativeMarkdownSyncSummary>;
   takeOpenedMarkdownPaths: () => Promise<string[]>;
+  trashMarkdownAssets?: (
+    input: TrashNativeMarkdownAssetsInput
+  ) => Promise<NativeMarkdownAssetTrashSummary>;
   uploadPicGoImage: (input: UploadNativePicGoImageInput) => Promise<SavedNativeClipboardImage>;
   uploadS3Image: (input: UploadNativeS3ImageInput) => Promise<SavedNativeClipboardImage>;
   uploadWebDavImage: (input: UploadNativeWebDavImageInput) => Promise<SavedNativeClipboardImage>;

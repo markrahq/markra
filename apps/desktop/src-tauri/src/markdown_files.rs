@@ -1,4 +1,5 @@
 mod asset;
+mod asset_cleanup;
 mod attachment;
 mod document;
 mod export;
@@ -12,6 +13,7 @@ mod template;
 mod tree;
 mod types;
 
+pub(crate) use asset_cleanup::trash_markdown_assets;
 pub(crate) use attachment::{import_local_file, save_clipboard_attachment};
 pub(crate) use document::{read_markdown_file, write_markdown_file};
 pub(crate) use export::{
@@ -31,6 +33,7 @@ pub(crate) use template::{
 };
 pub(crate) use tree::{
     cancel_markdown_files_load, create_markdown_tree_file, create_markdown_tree_folder,
-    delete_markdown_tree_file, list_markdown_files_for_path, load_markdown_files_for_path,
-    move_markdown_tree_file, rename_markdown_tree_file, MarkdownTreeLoadState,
+    delete_markdown_tree_file, list_markdown_files_for_path,
+    list_markdown_reference_files_for_path, load_markdown_files_for_path, move_markdown_tree_file,
+    rename_markdown_tree_file, MarkdownTreeLoadState,
 };

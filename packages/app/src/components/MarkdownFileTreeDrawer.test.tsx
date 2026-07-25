@@ -2115,6 +2115,27 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(screen.getByRole("button", { name: "assets/diagram.png" })).toBeInTheDocument();
   });
 
+  it("opens unused image cleanup from the file tree toolbar", () => {
+    const onCleanUnusedImages = vi.fn();
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/index.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootPath="/vault"
+        rootName="Example Vault"
+        onCleanUnusedImages={onCleanUnusedImages}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Clean up unused images" }));
+
+    expect(onCleanUnusedImages).toHaveBeenCalledTimes(1);
+  });
+
   it("starts native drags for image assets with a markdown image payload", () => {
     const asset = {
       kind: "asset" as const,

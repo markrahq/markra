@@ -86,7 +86,7 @@ function localPathIsAbsolute(path: string) {
   return path.startsWith("/") || path.startsWith("\\\\") || /^[a-zA-Z]:[\\/]/u.test(path);
 }
 
-function resolveLocalPath(src: string, documentPath: string) {
+export function resolveMarkdownLocalPath(src: string, documentPath: string) {
   const normalizedDocumentPath = normalizeWindowsVerbatimPath(documentPath);
   const decodedSrc = normalizeWindowsVerbatimPath(decodeMarkdownImagePath(src));
   const separator = documentSeparator(documentPath);
@@ -122,6 +122,6 @@ export function createMarkdownImageSrcResolver(
     if (!documentPath || isRemoteOrEmbeddedImageSrc(src)) return src;
     if (!options.convertFileSrc && !hasTauriRuntime()) return src;
 
-    return toFileSrc(resolveLocalPath(src, documentPath));
+    return toFileSrc(resolveMarkdownLocalPath(src, documentPath));
   };
 }

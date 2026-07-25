@@ -41,6 +41,27 @@ export type NativeMarkdownFolderFile = {
   sizeBytes?: number;
 };
 
+export type NativeMarkdownAssetCleanupFileSnapshot = {
+  modifiedAt?: number;
+  path: string;
+  sizeBytes?: number;
+};
+
+export type TrashNativeMarkdownAssetsInput = {
+  documents: NativeMarkdownAssetCleanupFileSnapshot[];
+  managedFolder: string;
+  rootPath: string;
+  targets: NativeMarkdownAssetCleanupFileSnapshot[];
+};
+
+export type NativeMarkdownAssetTrashSummary = {
+  failures: Array<{
+    error: string;
+    path: string;
+  }>;
+  trashedPaths: string[];
+};
+
 export type MarkdownIgnoreOptions = {
   globalIgnoreRules?: string | null;
 };
@@ -329,6 +350,20 @@ export function listNativeMarkdownFilesForPath(path: string, options: ListNative
   return getAppRuntime().files.listMarkdownFilesForPath(path, options);
 }
 
+export function nativeAssetCleanupAvailable() {
+  const files = getAppRuntime().files;
+  return Boolean(files.listMarkdownReferenceFilesForPath && files.trashMarkdownAssets);
+}
+
+export function listNativeMarkdownReferenceFilesForPath(path: string) {
+  const listReferenceFiles = getAppRuntime().files.listMarkdownReferenceFilesForPath;
+  if (!listReferenceFiles) {
+    return Promise.reject(new Error("Native image cleanup is unavailable."));
+  }
+
+  return listReferenceFiles(path);
+}
+
 export async function loadNativeMarkdownFilesForPath(
   path: string,
   options: LoadNativeMarkdownFilesForPathOptions = {}
@@ -366,6 +401,15 @@ export function moveNativeMarkdownTreeFile(rootPath: string, path: string, targe
 
 export function deleteNativeMarkdownTreeFile(rootPath: string, path: string) {
   return getAppRuntime().files.deleteMarkdownTreeFile(rootPath, path);
+}
+
+export function trashNativeMarkdownAssets(input: TrashNativeMarkdownAssetsInput) {
+  const trashAssets = getAppRuntime().files.trashMarkdownAssets;
+  if (!trashAssets) {
+    return Promise.reject(new Error("Native image cleanup is unavailable."));
+  }
+
+  return trashAssets(input);
 }
 
 export function openNativeContainingFolder(path: string) {

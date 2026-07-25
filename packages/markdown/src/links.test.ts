@@ -1,11 +1,40 @@
 import {
   findMarkdownUnlinkedMentions,
+  parseMarkdownAssetReferences,
   parseMarkdownLinkReferences,
   parseMarkdownMentionRanges,
   rebaseMarkdownLocalLinks
 } from "./links";
 
 describe("markdown links", () => {
+  it("extracts local image references from supported Markdown forms", () => {
+    const references = parseMarkdownAssetReferences([
+      "![Inline](assets/inline.png)",
+      "[Download](assets/download.webp?raw=1)",
+      "![Reference][diagram]",
+      "",
+      "[diagram]: <assets/reference diagram.jpg>",
+      '<img src="../media/raw.svg" alt="Raw">',
+      '<picture><source srcset="assets/responsive.webp 2x"></picture>',
+      "![[assets/wiki.gif|Wiki]]",
+      "---",
+      "cover: assets/frontmatter.avif",
+      "---",
+      "![Remote](https://example.test/remote.png)",
+      "![Embedded](data:image/png;base64,AAAA)"
+    ].join("\n"));
+
+    expect(references.map((reference) => reference.href)).toEqual([
+      "assets/inline.png",
+      "assets/download.webp?raw=1",
+      "assets/reference diagram.jpg",
+      "../media/raw.svg",
+      "assets/responsive.webp",
+      "assets/wiki.gif",
+      "assets/frontmatter.avif"
+    ]);
+  });
+
   it("extracts local markdown and wiki-style document links", () => {
     const links = parseMarkdownLinkReferences([
       "# Mock note",
