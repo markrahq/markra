@@ -3,6 +3,7 @@ import {
   darkEditorThemeOptions,
   defaultAcpAgentSettings,
   codexAcpAgentArgs,
+  defaultCustomThemeCss,
   defaultEditorPreferences,
   exportStoredAppSettings,
   getStoredAcpAgentSettings,
@@ -52,6 +53,22 @@ describe("app settings", () => {
 
   afterEach(() => {
     resetSettingsStoreRuntime();
+  });
+
+  it("documents the supported heading tokens in the default custom theme CSS", () => {
+    expect(defaultCustomThemeCss).toContain("--editor-heading-font-weight: 760;");
+    expect(defaultCustomThemeCss).toContain("--editor-heading-letter-spacing: 0;");
+    expect(defaultCustomThemeCss).toContain("--editor-h1-font-size-compact: 34px;");
+    expect(defaultCustomThemeCss).toContain("--editor-h2-font-size-compact: 26px;");
+
+    for (const level of [1, 2, 3, 4, 5, 6]) {
+      expect(defaultCustomThemeCss).toContain(`--editor-h${level}-color: var(--editor-text-heading);`);
+      expect(defaultCustomThemeCss).toContain(`--editor-h${level}-font-size:`);
+      expect(defaultCustomThemeCss).toContain(
+        `--editor-h${level}-font-weight: var(--editor-heading-font-weight);`
+      );
+      expect(defaultCustomThemeCss).toContain(`--editor-h${level}-line-height:`);
+    }
   });
 
   it("consumes and persists the first welcome document state in the Tauri app data store", async () => {

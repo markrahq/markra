@@ -943,42 +943,60 @@
   .markdown-paper .cm-line.cm-markra-h4,
   .markdown-paper .cm-line.cm-markra-h5,
   .markdown-paper .cm-line.cm-markra-h6 {
-    color: var(--editor-text-heading) !important;
     font-family: var(--editor-heading-font-family) !important;
-    font-weight: 760 !important;
-    letter-spacing: 0 !important;
+    letter-spacing: var(--editor-heading-letter-spacing) !important;
     text-wrap: balance;
   }
 
   .markdown-paper .cm-line.cm-markra-h1 {
+    color: var(--editor-h1-color) !important;
     padding-block: 0 16px !important;
-    font-size: 44px !important;
-    line-height: 1.15 !important;
+    font-size: var(--editor-h1-font-size) !important;
+    font-weight: var(--editor-h1-font-weight) !important;
+    line-height: var(--editor-h1-line-height) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-h2 {
+    color: var(--editor-h2-color) !important;
     padding-block: 28px 12px !important;
-    font-size: 31px !important;
-    line-height: 1.22 !important;
+    font-size: var(--editor-h2-font-size) !important;
+    font-weight: var(--editor-h2-font-weight) !important;
+    line-height: var(--editor-h2-line-height) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-h3 {
+    color: var(--editor-h3-color) !important;
     padding-block: 22px 4px !important;
-    font-size: 24px !important;
-    line-height: 1.28 !important;
+    font-size: var(--editor-h3-font-size) !important;
+    font-weight: var(--editor-h3-font-weight) !important;
+    line-height: var(--editor-h3-line-height) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-h4 {
+    color: var(--editor-h4-color) !important;
     padding-block: 18px 2px !important;
-    font-size: 19px !important;
-    line-height: 1.35 !important;
+    font-size: var(--editor-h4-font-size) !important;
+    font-weight: var(--editor-h4-font-weight) !important;
+    line-height: var(--editor-h4-line-height) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-h5,
   .markdown-paper .cm-line.cm-markra-h6 {
     padding-block-start: 14px !important;
-    font-size: 16px !important;
-    line-height: 1.45 !important;
+  }
+
+  .markdown-paper .cm-line.cm-markra-h5 {
+    color: var(--editor-h5-color) !important;
+    font-size: var(--editor-h5-font-size) !important;
+    font-weight: var(--editor-h5-font-weight) !important;
+    line-height: var(--editor-h5-line-height) !important;
+  }
+
+  .markdown-paper .cm-line.cm-markra-h6 {
+    color: var(--editor-h6-color) !important;
+    font-size: var(--editor-h6-font-size) !important;
+    font-weight: var(--editor-h6-font-weight) !important;
+    line-height: var(--editor-h6-line-height) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-h1 > span:not(.cm-markra-link):not(.cm-markra-link-source-label):not(.cm-markra-strikethrough),
@@ -1367,11 +1385,11 @@
 
   @media (max-width: 900px) {
     .markdown-paper .cm-line.cm-markra-h1 {
-      font-size: 34px !important;
+      font-size: var(--editor-h1-font-size-compact) !important;
     }
 
     .markdown-paper .cm-line.cm-markra-h2 {
-      font-size: 26px !important;
+      font-size: var(--editor-h2-font-size-compact) !important;
     }
   }
 
@@ -1597,6 +1615,34 @@
     --editor-text-primary: var(--text-primary);
     --editor-text-heading: var(--text-heading);
     --editor-text-secondary: var(--text-secondary);
+    --editor-heading-font-weight: 760;
+    --editor-heading-letter-spacing: 0;
+    --editor-h1-color: var(--editor-text-heading);
+    --editor-h1-font-size: 44px;
+    --editor-h1-font-size-compact: 34px;
+    --editor-h1-font-weight: var(--editor-heading-font-weight);
+    --editor-h1-line-height: 1.15;
+    --editor-h2-color: var(--editor-text-heading);
+    --editor-h2-font-size: 31px;
+    --editor-h2-font-size-compact: 26px;
+    --editor-h2-font-weight: var(--editor-heading-font-weight);
+    --editor-h2-line-height: 1.22;
+    --editor-h3-color: var(--editor-text-heading);
+    --editor-h3-font-size: 24px;
+    --editor-h3-font-weight: var(--editor-heading-font-weight);
+    --editor-h3-line-height: 1.28;
+    --editor-h4-color: var(--editor-text-heading);
+    --editor-h4-font-size: 19px;
+    --editor-h4-font-weight: var(--editor-heading-font-weight);
+    --editor-h4-line-height: 1.35;
+    --editor-h5-color: var(--editor-text-heading);
+    --editor-h5-font-size: 16px;
+    --editor-h5-font-weight: var(--editor-heading-font-weight);
+    --editor-h5-line-height: 1.45;
+    --editor-h6-color: var(--editor-text-heading);
+    --editor-h6-font-size: 16px;
+    --editor-h6-font-weight: var(--editor-heading-font-weight);
+    --editor-h6-line-height: 1.45;
     --editor-border: var(--border-default);
     --editor-border-strong: var(--border-strong);
     --editor-bg-secondary: var(--bg-secondary);
@@ -2106,21 +2152,63 @@
   .markdown-paper h4,
   .markdown-paper h5,
   .markdown-paper h6 {
-    @apply text-[var(--text-heading)] font-[760] tracking-normal;
-    color: var(--editor-text-heading);
     font-family: var(--editor-heading-font-family);
+    letter-spacing: var(--editor-heading-letter-spacing);
   }
 
   .markdown-paper h1 {
-    @apply m-0 mb-6 text-[44px] leading-[1.15] max-[900px]:text-[34px];
+    @apply m-0 mb-6;
+    color: var(--editor-h1-color);
+    font-size: var(--editor-h1-font-size);
+    font-weight: var(--editor-h1-font-weight);
+    line-height: var(--editor-h1-line-height);
   }
 
   .markdown-paper h2 {
-    @apply mt-9 mb-5 text-[31px] leading-[1.22] max-[900px]:text-[26px];
+    @apply mt-9 mb-5;
+    color: var(--editor-h2-color);
+    font-size: var(--editor-h2-font-size);
+    font-weight: var(--editor-h2-font-weight);
+    line-height: var(--editor-h2-line-height);
   }
 
   .markdown-paper h3 {
-    @apply mt-7.5 mb-3 text-2xl leading-[1.28];
+    @apply mt-7.5 mb-3;
+    color: var(--editor-h3-color);
+    font-size: var(--editor-h3-font-size);
+    font-weight: var(--editor-h3-font-weight);
+    line-height: var(--editor-h3-line-height);
+  }
+
+  .markdown-paper h4 {
+    color: var(--editor-h4-color);
+    font-size: var(--editor-h4-font-size);
+    font-weight: var(--editor-h4-font-weight);
+    line-height: var(--editor-h4-line-height);
+  }
+
+  .markdown-paper h5 {
+    color: var(--editor-h5-color);
+    font-size: var(--editor-h5-font-size);
+    font-weight: var(--editor-h5-font-weight);
+    line-height: var(--editor-h5-line-height);
+  }
+
+  .markdown-paper h6 {
+    color: var(--editor-h6-color);
+    font-size: var(--editor-h6-font-size);
+    font-weight: var(--editor-h6-font-weight);
+    line-height: var(--editor-h6-line-height);
+  }
+
+  @media (max-width: 900px) {
+    .markdown-paper h1 {
+      font-size: var(--editor-h1-font-size-compact);
+    }
+
+    .markdown-paper h2 {
+      font-size: var(--editor-h2-font-size-compact);
+    }
   }
 
   .markdown-paper[data-editor-theme="github"] h1,

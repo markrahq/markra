@@ -59,6 +59,43 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("opacity: 0 !important");
   });
 
+  it("exposes shared per-level heading theme tokens for CodeMirror and rendered headings", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const headingDefaults = [
+      { fontSize: "44px", level: 1, lineHeight: "1.15" },
+      { fontSize: "31px", level: 2, lineHeight: "1.22" },
+      { fontSize: "24px", level: 3, lineHeight: "1.28" },
+      { fontSize: "19px", level: 4, lineHeight: "1.35" },
+      { fontSize: "16px", level: 5, lineHeight: "1.45" },
+      { fontSize: "16px", level: 6, lineHeight: "1.45" }
+    ];
+
+    expect(styles).toContain("--editor-heading-font-weight: 760;");
+    expect(styles).toContain("--editor-heading-letter-spacing: 0;");
+    expect(styles).toContain("--editor-h1-font-size-compact: 34px;");
+    expect(styles).toContain("--editor-h2-font-size-compact: 26px;");
+
+    for (const { fontSize, level, lineHeight } of headingDefaults) {
+      const colorVariable = `--editor-h${level}-color`;
+      const fontSizeVariable = `--editor-h${level}-font-size`;
+      const fontWeightVariable = `--editor-h${level}-font-weight`;
+      const lineHeightVariable = `--editor-h${level}-line-height`;
+
+      expect(styles).toContain(`${colorVariable}: var(--editor-text-heading);`);
+      expect(styles).toContain(`${fontSizeVariable}: ${fontSize};`);
+      expect(styles).toContain(`${fontWeightVariable}: var(--editor-heading-font-weight);`);
+      expect(styles).toContain(`${lineHeightVariable}: ${lineHeight};`);
+      expect(styles).toContain(`color: var(${colorVariable}) !important;`);
+      expect(styles).toContain(`font-size: var(${fontSizeVariable}) !important;`);
+      expect(styles).toContain(`font-weight: var(${fontWeightVariable}) !important;`);
+      expect(styles).toContain(`line-height: var(${lineHeightVariable}) !important;`);
+      expect(styles).toContain(`color: var(${colorVariable});`);
+      expect(styles).toContain(`font-size: var(${fontSizeVariable});`);
+      expect(styles).toContain(`font-weight: var(${fontWeightVariable});`);
+      expect(styles).toContain(`line-height: var(${lineHeightVariable});`);
+    }
+  });
+
   it("keeps CodeMirror's drawn selection background visible", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 
@@ -474,8 +511,8 @@ describe("editor stylesheet", () => {
     expect(headingEnd).toBeGreaterThan(headingStart);
     expect(headingStyles).not.toContain("border-b");
     expect(headingStyles).not.toContain("border-color: var(--editor-border)");
-    expect(headingStyles).toContain("text-[44px]");
-    expect(headingStyles).toContain("text-[31px]");
+    expect(headingStyles).toContain("font-size: var(--editor-h1-font-size)");
+    expect(headingStyles).toContain("font-size: var(--editor-h2-font-size)");
   });
 
   it("uses a paragraph spacing variable for visual editor paragraphs", () => {
