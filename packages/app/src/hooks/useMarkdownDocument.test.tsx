@@ -4,6 +4,7 @@ import {
   destroyNativeWindow,
   listNativeEditorWindowRestoreStates,
   openNativeMarkdownFileInNewWindow,
+  openNativeMarkdownFolderInNewWindow,
   openNativeMarkdownPath,
   readNativeMarkdownFile,
   saveNativeMarkdownFile,
@@ -66,6 +67,7 @@ type MockWindowCloseRequestEvent = {
 };
 
 const mockedOpenNativeMarkdownFileInNewWindow = vi.mocked(openNativeMarkdownFileInNewWindow);
+const mockedOpenNativeMarkdownFolderInNewWindow = vi.mocked(openNativeMarkdownFolderInNewWindow);
 const mockedDestroyNativeWindow = vi.mocked(destroyNativeWindow);
 const mockedListNativeEditorWindowRestoreStates = vi.mocked(listNativeEditorWindowRestoreStates);
 const mockedOpenNativeMarkdownPath = vi.mocked(openNativeMarkdownPath);
@@ -104,6 +106,7 @@ describe("useMarkdownDocument", () => {
     mockedListNativeEditorWindowRestoreStates.mockReset();
     mockedOpenNativeMarkdownPath.mockReset();
     mockedOpenNativeMarkdownFileInNewWindow.mockReset();
+    mockedOpenNativeMarkdownFolderInNewWindow.mockReset();
     mockedReadNativeMarkdownFile.mockReset();
     mockedSaveNativeMarkdownFile.mockReset();
     mockedExitNativeApp.mockReset();
@@ -4119,6 +4122,189 @@ describe("useMarkdownDocument", () => {
     expect(onTreeRootFromFilePath).not.toHaveBeenCalled();
     expect(result.current.document.path).toBe(droppedPath);
     expect(result.current.tabs.map((tab) => tab.path)).toEqual([currentPath, droppedPath]);
+  });
+
+  it("preserves the current workspace when a file replaces an empty tab", async () => {
+    const droppedPath = "/mock-files/external/dropped.md";
+    const onTreeRootFromFilePath = vi.fn();
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Dropped",
+      name: "dropped.md",
+      path: droppedPath
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath,
+        onTreeRootFromFolderPath: vi.fn(),
+        openDroppedFilesInTabs: true,
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false,
+        workspaceSourcePath: "/mock-files/vault"
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleDroppedMarkdownPath({
+        kind: "file",
+        name: "dropped.md",
+        path: droppedPath
+      });
+    });
+
+    expect(mockedOpenNativeMarkdownFileInNewWindow).not.toHaveBeenCalled();
+    expect(onTreeRootFromFilePath).not.toHaveBeenCalled();
+    expect(result.current.document.path).toBe(droppedPath);
+    expect(result.current.tabs.map((tab) => tab.path)).toEqual([droppedPath]);
+  });
+
+  it("reuses an empty active tab while retaining other open documents", async () => {
+    const currentPath = "/mock-files/vault/current.md";
+    const droppedPath = "/mock-files/external/dropped.md";
+    const onTreeRootFromFilePath = vi.fn();
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => ({
+      content: path === droppedPath ? "# Dropped" : "# Current",
+      name: path === droppedPath ? "dropped.md" : "current.md",
+      path
+    }));
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath,
+        onTreeRootFromFolderPath: vi.fn(),
+        openDroppedFilesInTabs: true,
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "current.md",
+        path: currentPath,
+        relativePath: "current.md"
+      });
+      await result.current.createBlankDocument();
+      await result.current.handleDroppedMarkdownPath({
+        kind: "file",
+        name: "dropped.md",
+        path: droppedPath
+      });
+    });
+
+    expect(onTreeRootFromFilePath).not.toHaveBeenCalled();
+    expect(result.current.document.path).toBe(droppedPath);
+    expect(result.current.tabs.map((tab) => tab.path)).toEqual([currentPath, droppedPath]);
+  });
+
+  it("establishes a workspace from a file dropped into a fresh window", async () => {
+    const droppedPath = "/mock-files/vault/dropped.md";
+    const onTreeRootFromFilePath = vi.fn();
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Dropped",
+      name: "dropped.md",
+      path: droppedPath
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath,
+        onTreeRootFromFolderPath: vi.fn(),
+        openDroppedFilesInTabs: true,
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.handleDroppedMarkdownPath({
+        kind: "file",
+        name: "dropped.md",
+        path: droppedPath
+      });
+    });
+
+    expect(onTreeRootFromFilePath).toHaveBeenCalledWith(droppedPath);
+    expect(result.current.document.path).toBe(droppedPath);
+  });
+
+  it("opens dropped folders in a new window when another tab contains unsaved work", async () => {
+    const currentPath = "/mock-files/vault/current.md";
+    const folderPath = "/mock-files/incoming";
+    const onTreeRootFromFolderPath = vi.fn();
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Current",
+      name: "current.md",
+      path: currentPath
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath,
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "current.md",
+        path: currentPath,
+        relativePath: "current.md"
+      });
+    });
+    act(() => {
+      result.current.handleMarkdownChange("# Current\n\nUnsaved work.");
+    });
+    await act(async () => {
+      await result.current.createBlankDocument();
+      await result.current.handleDroppedMarkdownPath({
+        kind: "folder",
+        name: "incoming",
+        path: folderPath
+      });
+    });
+
+    expect(mockedOpenNativeMarkdownFolderInNewWindow).toHaveBeenCalledWith(folderPath);
+    expect(onTreeRootFromFolderPath).not.toHaveBeenCalled();
+    expect(result.current.tabs.map((tab) => tab.path)).toEqual([currentPath, null]);
+    expect(result.current.tabs[0]?.dirty).toBe(true);
+  });
+
+  it("opens a dropped folder in the current window when every tab is empty", async () => {
+    const folderPath = "/mock-files/incoming";
+    const onTreeRootFromFolderPath = vi.fn();
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath,
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.createBlankDocument();
+      await result.current.handleDroppedMarkdownPath({
+        kind: "folder",
+        name: "incoming",
+        path: folderPath
+      });
+    });
+
+    expect(mockedOpenNativeMarkdownFolderInNewWindow).not.toHaveBeenCalled();
+    expect(onTreeRootFromFolderPath).toHaveBeenCalledWith(
+      folderPath,
+      "incoming",
+      expect.any(String)
+    );
   });
 
   it("keeps opening dropped Markdown files in new windows by default", async () => {
