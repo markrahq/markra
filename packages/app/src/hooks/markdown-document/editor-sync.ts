@@ -7,6 +7,34 @@ type SavedVisualEditorStaleContent = {
   staleContent: string;
 };
 
+type RouteMarkdownChangeToTabOptions = {
+  content: string;
+  documentRevision?: number;
+  handleMarkdownTabChange: (
+    tabId: string,
+    content: string,
+    options: {
+      documentRevision?: number;
+      surface: EditorSurface;
+    }
+  ) => unknown;
+  surface: EditorSurface;
+  tabId: string;
+};
+
+export function routeMarkdownChangeToTab({
+  content,
+  documentRevision,
+  handleMarkdownTabChange,
+  surface,
+  tabId
+}: RouteMarkdownChangeToTabOptions) {
+  return handleMarkdownTabChange(tabId, content, {
+    documentRevision,
+    surface
+  });
+}
+
 export function createEditorSyncState() {
   const cleanVisualContentBeforeDirty = new Map<string, string>();
   const cleanVisualMarkdownBaseline = new Map<string, string>();

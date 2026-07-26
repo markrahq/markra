@@ -18,6 +18,7 @@ type ReplaceEditorMarkdown = (
 
 type SharedEditorHistoryOptions = {
   documentContent: string;
+  documentKey: string | null;
   documentRevision: number;
   largeMarkdownVisualBlocked: boolean;
   replaceEditorMarkdown: ReplaceEditorMarkdown;
@@ -28,6 +29,7 @@ type SharedEditorHistoryOptions = {
 
 export function useSharedEditorHistory({
   documentContent,
+  documentKey,
   documentRevision,
   largeMarkdownVisualBlocked,
   replaceEditorMarkdown,
@@ -36,7 +38,15 @@ export function useSharedEditorHistory({
   visualEditorReadySequence
 }: SharedEditorHistoryOptions) {
   const pendingSourceHistoryRef = useRef<PendingSourceHistory | null>(null);
+  const pendingSourceHistoryDocumentKeyRef = useRef(documentKey);
   const syncingSourceToVisualRef = useRef(false);
+
+  if (pendingSourceHistoryDocumentKeyRef.current !== documentKey) {
+    // A pending baseline belongs to one tab; carrying it across a tab switch
+    // would splice the previous document into the current document's undo stack.
+    pendingSourceHistoryDocumentKeyRef.current = documentKey;
+    pendingSourceHistoryRef.current = null;
+  }
 
   const isApplyingSourceToVisualSync = useCallback(() => syncingSourceToVisualRef.current, []);
   const markSourceEditForHistory = useCallback((content: string, options?: MarkdownChangeOptions) => {

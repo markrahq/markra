@@ -6515,6 +6515,162 @@ describe("Markra workspace", () => {
     expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "codemirror");
   });
 
+  it("commits pending visual IME content before source mode mounts", async () => {
+    renderApp();
+
+    await expectVisibleMarkdownText("Welcome to Markra");
+    const visualEditor = screen.getByRole("textbox", { name: "Markdown document" });
+    const visualView = getMarkdownSourceView(visualEditor);
+    const pendingCompositionTasks: VoidFunction[] = [];
+    const queueMicrotaskSpy = vi
+      .spyOn(globalThis, "queueMicrotask")
+      .mockImplementation((task) => pendingCompositionTasks.push(task));
+    try {
+      act(() => {
+        fireEvent.compositionStart(visualEditor);
+        visualView.dispatch({
+          changes: {
+            from: 0,
+            insert: "# Pending visual edit\n\nNot published by the IME yet.",
+            to: visualView.state.doc.length
+          }
+        });
+        fireEvent.compositionEnd(visualEditor);
+      });
+    } finally {
+      queueMicrotaskSpy.mockRestore();
+    }
+
+    await selectEditorViewMode("Source code");
+
+    expect(readMarkdownSource(await screen.findByRole("textbox", { name: "Markdown source" }))).toBe(
+      "# Pending visual edit\n\nNot published by the IME yet."
+    );
+    act(() => pendingCompositionTasks.forEach((task) => task()));
+  });
+
+  it("keeps the active tab content across editor modes after a prior tab finishes IME composition", async () => {
+    const bulletinPath = "/mock-files/vault/bulletin.md";
+    const tempPath = "/mock-files/vault/temp.md";
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-source-tabs",
+      filePath: bulletinPath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: [bulletinPath, tempPath]
+    });
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => path === bulletinPath
+      ? {
+        content: "# Bulletin\n\nFirst document.",
+        name: "bulletin.md",
+        path
+      }
+      : {
+        content: "# Temporary notes\n\nSecond document.",
+        name: "temp.md",
+        path
+      });
+
+    renderApp();
+
+    expect(await screen.findByRole("heading", { name: "Bulletin" })).toBeInTheDocument();
+    const bulletinEditor = screen.getByRole("textbox", { name: "Markdown document" });
+    const bulletinView = getMarkdownSourceView(bulletinEditor);
+    const pendingCompositionTasks: VoidFunction[] = [];
+    const queueMicrotaskSpy = vi
+      .spyOn(globalThis, "queueMicrotask")
+      .mockImplementation((task) => pendingCompositionTasks.push(task));
+    try {
+      act(() => {
+        fireEvent.compositionStart(bulletinEditor);
+        bulletinView.dispatch({
+          changes: {
+            from: 0,
+            insert: "# Bulletin\n\nFinished Chinese composition.",
+            to: bulletinView.state.doc.length
+          }
+        });
+        fireEvent.compositionEnd(bulletinEditor);
+      });
+    } finally {
+      queueMicrotaskSpy.mockRestore();
+    }
+    fireEvent.click(screen.getByRole("tab", { name: /temp\.md/ }));
+
+    await selectEditorViewMode("Source code");
+
+    expect(readMarkdownSource(await screen.findByRole("textbox", { name: "Markdown source" }))).toBe(
+      "# Temporary notes\n\nSecond document."
+    );
+    act(() => pendingCompositionTasks.forEach((task) => task()));
+    expect(readMarkdownSource(screen.getByRole("textbox", { name: "Markdown source" }))).toBe(
+      "# Temporary notes\n\nSecond document."
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /bulletin\.md/ }));
+    expect(readMarkdownSource(await screen.findByRole("textbox", { name: "Markdown source" }))).toBe(
+      "# Bulletin\n\nFinished Chinese composition."
+    );
+    fireEvent.click(screen.getByRole("tab", { name: /temp\.md/ }));
+
+    await selectEditorViewMode("Preview + Source");
+
+    expect(readMarkdownSource(screen.getByRole("textbox", { name: "Markdown source" }))).toBe(
+      "# Temporary notes\n\nSecond document."
+    );
+    await expectVisibleCodeMirrorText(document.body, "Temporary notes");
+    expect(readMarkdownSource(screen.getByRole("textbox", { name: "Markdown document" }))).toBe(
+      "# Temporary notes\n\nSecond document."
+    );
+
+    await selectEditorViewMode("Preview");
+
+    await expectVisibleCodeMirrorText(document.body, "Temporary notes");
+    expect(readMarkdownSource(screen.getByRole("textbox", { name: "Markdown document" }))).toBe(
+      "# Temporary notes\n\nSecond document."
+    );
+  });
+
+  it("isolates source editor instances between document tabs", async () => {
+    const firstPath = "/mock-files/vault/first.md";
+    const secondPath = "/mock-files/vault/second.md";
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-isolated-source-tabs",
+      filePath: firstPath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: [firstPath, secondPath]
+    });
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => path === firstPath
+      ? {
+        content: "# First document",
+        name: "first.md",
+        path
+      }
+      : {
+        content: "# Second document",
+        name: "second.md",
+        path
+      });
+
+    renderApp();
+
+    expect(await screen.findByRole("heading", { name: "First document" })).toBeInTheDocument();
+    await selectEditorViewMode("Source code");
+    const firstSourceView = getMarkdownSourceView(
+      await screen.findByRole("textbox", { name: "Markdown source" })
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: /second\.md/ }));
+
+    const secondSourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    const secondSourceView = getMarkdownSourceView(secondSourceEditor);
+    expect(secondSourceView).not.toBe(firstSourceView);
+    expect(secondSourceView.state.doc.toString()).toBe("# Second document");
+  });
+
   it("shows optional line numbers in source and split source modes", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
       showLineNumbers: true

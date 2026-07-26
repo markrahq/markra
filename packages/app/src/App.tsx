@@ -68,6 +68,7 @@ import { useMarkdownDocument, type ActiveDiskFileContentChange } from "./hooks/u
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
 import { useSelectionToolbarAnchorRefresh } from "./hooks/useSelectionToolbarAnchorRefresh";
 import { useSharedEditorHistory } from "./hooks/useSharedEditorHistory";
+import { routeMarkdownChangeToTab } from "./hooks/markdown-document/editor-sync";
 import { useSideBySideTabs } from "./hooks/useSideBySideTabs";
 import { useAutoUpdater } from "./hooks/useAutoUpdater";
 import { useBackupSettings } from "./hooks/useBackupSettings";
@@ -1003,6 +1004,7 @@ function WorkspaceApp() {
     syncSourceEditsToVisualHistory
   } = useSharedEditorHistory({
     documentContent: document.content,
+    documentKey: activeTabId,
     documentRevision: document.revision,
     largeMarkdownVisualBlocked,
     replaceEditorMarkdown,
@@ -2939,7 +2941,11 @@ function WorkspaceApp() {
   const handleSideDocumentPaneFocus = useCallback(() => {
     setDocumentOperationTarget("side");
   }, []);
-  const handleVisualMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
+  const handleVisualMarkdownTabChange = useCallback((
+    tabId: string,
+    content: string,
+    options?: { documentRevision?: number }
+  ) => {
     if (isApplyingSourceToVisualSync()) return;
     if (syncingExternalDocumentHistoryRef.current) return;
     if (sourceMode) return;
@@ -2953,16 +2959,28 @@ function WorkspaceApp() {
     }
 
     if (splitMode && activeEditorSurface !== "source") setActiveEditorSurface("visual");
-    handleMarkdownChange(content, { ...options, surface: "visual" });
+    // IME completion can publish after another tab becomes active, so preserve the
+    // originating tab identity instead of writing through the current-document path.
+    routeMarkdownChangeToTab({
+      content,
+      documentRevision: options?.documentRevision,
+      handleMarkdownTabChange,
+      surface: "visual",
+      tabId
+    });
   }, [
     activeEditorSurface,
-    handleMarkdownChange,
+    handleMarkdownTabChange,
     isApplyingSourceToVisualSync,
     readOnlyMode,
     sourceMode,
     splitMode
   ]);
-  const handleSourceMarkdownChange = useCallback((content: string, options?: { documentRevision?: number }) => {
+  const handleSourceMarkdownTabChange = useCallback((
+    tabId: string,
+    content: string,
+    options?: { documentRevision?: number }
+  ) => {
     if (readOnlyMode) return;
     if (
       content !== document.content &&
@@ -2973,15 +2991,29 @@ function WorkspaceApp() {
 
     markSourceEditForHistory(content, options);
     if (splitMode) setActiveEditorSurface("source");
-    handleMarkdownChange(content, { ...options, surface: "source" });
+    routeMarkdownChangeToTab({
+      content,
+      documentRevision: options?.documentRevision,
+      handleMarkdownTabChange,
+      surface: "source",
+      tabId
+    });
   }, [
     document.content,
     document.revision,
-    handleMarkdownChange,
+    handleMarkdownTabChange,
     markSourceEditForHistory,
     readOnlyMode,
     splitMode
   ]);
+  const handleSourceMarkdownChange = useCallback((
+    content: string,
+    options?: { documentRevision?: number }
+  ) => {
+    if (!activeTabId) return;
+
+    handleSourceMarkdownTabChange(activeTabId, content, options);
+  }, [activeTabId, handleSourceMarkdownTabChange]);
   const syncSplitPaneScrollPosition = useCallback((sourceSurface: EditorSurface, sourceElement: HTMLElement) => {
     if (!splitMode) return false;
 
@@ -3499,11 +3531,36 @@ function WorkspaceApp() {
       path: document.path
     };
   }, [activeImageFile, document.content, document.name, document.path, hasOpenDocument]);
+  const commitActiveVisualMarkdown = useCallback(() => {
+    if (!activeTabId) return;
+    if (editorMode === "source") return;
+    if (editorMode === "split" && activeEditorSurface === "source") return;
+
+    const activeVisualEditor = mainVisualEditorsRef.current.get(activeTabId);
+    if (!activeVisualEditor) return;
+
+    handleVisualMarkdownTabChange(
+      activeTabId,
+      getMarkdownFromEditor(activeVisualEditor, document.content),
+      { documentRevision: document.revision }
+    );
+  }, [
+    activeEditorSurface,
+    activeTabId,
+    document.content,
+    document.revision,
+    editorMode,
+    getMarkdownFromEditor,
+    handleVisualMarkdownTabChange
+  ]);
   const handleEditorModeSelect = useCallback((nextMode: EditorMode) => {
     if (!sourceModeAvailable) return;
     if (nextMode === editorMode) return;
 
     captureActiveDocumentViewState();
+    // IME changes can still be pending in the visual surface when source mode
+    // mounts, so snapshot the originating editor before changing surfaces.
+    commitActiveVisualMarkdown();
 
     if (nextMode === "visual") {
       if (sourceMode) syncSourceEditsToVisualHistory();
@@ -3530,6 +3587,7 @@ function WorkspaceApp() {
   }, [
     captureActiveDocumentViewState,
     clearSideDocumentGroup,
+    commitActiveVisualMarkdown,
     editorMode,
     handleAiCommandClose,
     queueEditorModeScroll,
@@ -4214,15 +4272,11 @@ function WorkspaceApp() {
               onEditorReady={(readyEditor, disposedEditor) =>
                 handleMainVisualEditorReady(tab.id, readyEditor, disposedEditor)
               }
-              onMarkdownChange={(content) => {
-                const options = { documentRevision: tab.revision };
-                if (tabActive) {
-                  handleVisualMarkdownChange(content, options);
-                  return;
-                }
-
-                handleMarkdownTabChange(tab.id, content, { ...options, surface: "visual" });
-              }}
+              onMarkdownChange={(content) => handleVisualMarkdownTabChange(
+                tab.id,
+                content,
+                { documentRevision: tab.revision }
+              )}
               onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
               onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
               onSaveClipboardAttachment={handleSaveClipboardAttachment}
@@ -4605,6 +4659,7 @@ function WorkspaceApp() {
                       </div>
                       <div className="min-h-0 overflow-hidden" onFocusCapture={handleSourcePaneFocus}>
                         <LazyMarkdownSourceEditor
+                          key={activeTabId ?? "untitled:0"}
                           autoFocus={activeEditorSurface === "source"}
                           bottomOverlayInset={editorBottomOverlayInset(
                             aiCommandVisible && activeEditorSurface === "source",
@@ -4618,9 +4673,13 @@ function WorkspaceApp() {
                           extendedSyntax={editorPreferences.preferences.extendedSyntax}
                           language={appLanguage.language}
                           lineHeight={editorPreferences.preferences.lineHeight}
-                          onChange={(content) => handleSourceMarkdownChange(content, {
-                            documentRevision: document.revision
-                          })}
+                          onChange={(content) => handleSourceMarkdownTabChange(
+                            activeTabId ?? "untitled:0",
+                            content,
+                            {
+                              documentRevision: document.revision
+                            }
+                          )}
                           onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
                           onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
                           onScroll={handleSourcePaneScroll}
@@ -4641,6 +4700,7 @@ function WorkspaceApp() {
                       {mainVisualEditors}
                       {sourceMode ? (
                         <LazyMarkdownSourceEditor
+                          key={activeTabId ?? "untitled:0"}
                           autoFocus
                           bottomOverlayInset={editorBottomOverlayInset(aiCommandVisible, aiCommandOverlayInset)}
                           bodyFontSize={editorPreferences.preferences.bodyFontSize}
@@ -4651,9 +4711,13 @@ function WorkspaceApp() {
                           extendedSyntax={editorPreferences.preferences.extendedSyntax}
                           language={appLanguage.language}
                           lineHeight={editorPreferences.preferences.lineHeight}
-                          onChange={(content) => handleSourceMarkdownChange(content, {
-                            documentRevision: document.revision
-                          })}
+                          onChange={(content) => handleSourceMarkdownTabChange(
+                            activeTabId ?? "untitled:0",
+                            content,
+                            {
+                              documentRevision: document.revision
+                            }
+                          )}
                           onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
                           onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
                           onScroll={handleSourcePaneScroll}

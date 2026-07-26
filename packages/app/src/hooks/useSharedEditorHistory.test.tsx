@@ -7,6 +7,7 @@ describe("useSharedEditorHistory", () => {
     const { rerender } = renderHook(
       ({ sourceSurfaceActive }) => useSharedEditorHistory({
         documentContent: "# Split\n\nEdited from visual.",
+        documentKey: "file:/mock-files/split.md",
         documentRevision: 1,
         largeMarkdownVisualBlocked: false,
         replaceEditorMarkdown,
@@ -27,6 +28,7 @@ describe("useSharedEditorHistory", () => {
     const { result, rerender } = renderHook(
       ({ documentContent, sourceSurfaceActive }) => useSharedEditorHistory({
         documentContent,
+        documentKey: "file:/mock-files/split.md",
         documentRevision: 1,
         largeMarkdownVisualBlocked: false,
         replaceEditorMarkdown,
@@ -54,5 +56,40 @@ describe("useSharedEditorHistory", () => {
       addToHistory: true,
       historyBaselineMarkdown: "# Split\n\nOriginal."
     });
+  });
+
+  it("clears pending source history when the active document changes", () => {
+    const replaceEditorMarkdown = vi.fn(() => true);
+    const { result, rerender } = renderHook(
+      ({ documentContent, documentKey }) => useSharedEditorHistory({
+        documentContent,
+        documentKey,
+        documentRevision: 1,
+        largeMarkdownVisualBlocked: false,
+        replaceEditorMarkdown,
+        sourceSurfaceActive: true,
+        syncSourceToVisual: false,
+        visualEditorReadySequence: 1
+      }),
+      {
+        initialProps: {
+          documentContent: "# First\n\nOriginal.",
+          documentKey: "file:/mock-files/first.md"
+        }
+      }
+    );
+
+    act(() => {
+      result.current.markSourceEditForHistory("# First\n\nEdited.", { documentRevision: 1 });
+    });
+    rerender({
+      documentContent: "# Second\n\nOriginal.",
+      documentKey: "file:/mock-files/second.md"
+    });
+
+    act(() => {
+      expect(result.current.syncSourceEditsToVisualHistory()).toBe(false);
+    });
+    expect(replaceEditorMarkdown).not.toHaveBeenCalled();
   });
 });
