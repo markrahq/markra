@@ -98,6 +98,7 @@ const messages: LocaleMessages = {
   "settings.theme.academic": "Academic",
   "settings.theme.minimal": "Minimal",
   "settings.theme.custom": "カスタム",
+  "settings.theme.customThemeTitle": "カスタムテーマ",
   "settings.theme.customCssTitle": "カスタムテーマ CSS",
   "settings.theme.customCssDescription": "カスタムテーマを選んだときだけ適用されます。[data-theme=\"custom\"] と .markdown-paper[data-editor-theme=\"custom\"] で範囲を限定できます。",
   "settings.theme.previewTitle": "テーマプレビュー",

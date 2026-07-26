@@ -123,6 +123,7 @@ export type I18nKey =
   | "settings.theme.academic"
   | "settings.theme.minimal"
   | "settings.theme.custom"
+  | "settings.theme.customThemeTitle"
   | "settings.theme.customCssTitle"
   | "settings.theme.lightCustomCssTitle"
   | "settings.theme.darkCustomCssTitle"

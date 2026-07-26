@@ -90,6 +90,7 @@ const messages: LocaleMessages = {
   "settings.theme.academic": "Academic",
   "settings.theme.minimal": "Minimal",
   "settings.theme.custom": "Benutzerdefiniert",
+  "settings.theme.customThemeTitle": "Benutzerdefiniertes Theme",
   "settings.theme.customCssTitle": "Benutzerdefiniertes Theme-CSS",
   "settings.theme.customCssDescription": "Wird nur angewendet, wenn Benutzerdefiniert ausgewählt ist. Verwenden Sie [data-theme=\"custom\"] und .markdown-paper[data-editor-theme=\"custom\"], um Überschreibungen einzugrenzen.",
   "settings.theme.previewTitle": "Theme-Vorschau",

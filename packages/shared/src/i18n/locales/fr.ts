@@ -90,6 +90,7 @@ const messages: LocaleMessages = {
   "settings.theme.academic": "Academic",
   "settings.theme.minimal": "Minimal",
   "settings.theme.custom": "Personnalisé",
+  "settings.theme.customThemeTitle": "Thème personnalisé",
   "settings.theme.customCssTitle": "CSS du thème personnalisé",
   "settings.theme.customCssDescription": "S’applique uniquement lorsque Personnalisé est sélectionné. Utilisez [data-theme=\"custom\"] et .markdown-paper[data-editor-theme=\"custom\"] pour limiter les remplacements.",
   "settings.theme.previewTitle": "Aperçus des thèmes",

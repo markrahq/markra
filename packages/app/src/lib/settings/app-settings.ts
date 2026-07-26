@@ -184,6 +184,7 @@ const themeKey = "theme";
 const appearanceModeKey = "appearanceMode";
 const lightThemeKey = "lightTheme";
 const darkThemeKey = "darkTheme";
+const customThemeEnabledKey = "customThemeEnabled";
 const customThemeCssKey = "customThemeCss";
 const lightCustomThemeCssKey = "lightCustomThemeCss";
 const darkCustomThemeCssKey = "darkCustomThemeCss";
@@ -289,6 +290,7 @@ export const darkEditorThemeOptions = [
 export type DarkEditorTheme = typeof darkEditorThemeOptions[number];
 export type AppThemePreferences = {
   appearanceMode: AppAppearanceMode;
+  customThemeEnabled?: boolean;
   darkTheme: DarkEditorTheme;
   lightTheme: LightEditorTheme;
 };
@@ -347,6 +349,7 @@ export type PortableStoredAppSettings = {
   appearanceMode: AppAppearanceMode;
   backupSettings: BackupSettings;
   customThemeCss: CustomThemeCssValues;
+  customThemeEnabled?: boolean;
   darkTheme: DarkEditorTheme;
   editorPreferences: EditorPreferences;
   exportSettings: ExportSettings;
@@ -629,6 +632,7 @@ function normalizePortableStoredAppSettings(value: Record<string, unknown>): Por
     appearanceMode: themePreferences.appearanceMode,
     backupSettings: normalizeBackupSettings(value.backupSettings),
     customThemeCss: normalizeCustomThemeCssValues(value.customThemeCss),
+    ...(themePreferences.customThemeEnabled ? { customThemeEnabled: true } : {}),
     darkTheme: themePreferences.darkTheme,
     editorPreferences: normalizeEditorPreferences(value.editorPreferences),
     exportSettings: normalizeExportSettings(value.exportSettings),
@@ -649,6 +653,7 @@ async function readPortableStoredAppSettings(): Promise<PortableStoredAppSetting
     : defaultAppThemePreferences;
   const themePreferences = normalizeAppThemePreferences({
     appearanceMode: await store.get<AppAppearanceMode>(appearanceModeKey),
+    customThemeEnabled: await store.get<boolean>(customThemeEnabledKey),
     darkTheme: await store.get<DarkEditorTheme>(darkThemeKey),
     lightTheme: await store.get<LightEditorTheme>(lightThemeKey)
   }, legacyPreferences);
@@ -676,6 +681,7 @@ async function readPortableStoredAppSettings(): Promise<PortableStoredAppSetting
     appearanceMode: themePreferences.appearanceMode,
     backupSettings: normalizeBackupSettings(backupSettings),
     customThemeCss,
+    ...(themePreferences.customThemeEnabled ? { customThemeEnabled: true } : {}),
     darkTheme: themePreferences.darkTheme,
     editorPreferences: normalizeEditorPreferences(editorPreferences),
     exportSettings: normalizeExportSettings(exportSettings),
@@ -696,6 +702,7 @@ async function writePortableStoredAppSettings(settings: PortableStoredAppSetting
   await store.set(aiProvidersKey, settings.aiProviders);
   await store.set(appearanceModeKey, settings.appearanceMode);
   await store.set(backupSettingsKey, settings.backupSettings);
+  await store.set(customThemeEnabledKey, settings.customThemeEnabled === true);
   await store.set(darkCustomThemeCssKey, settings.customThemeCss.dark);
   await store.set(darkThemeKey, settings.darkTheme);
   await store.set(editorPreferencesKey, settings.editorPreferences);
@@ -786,13 +793,28 @@ export function normalizeAppThemePreferences(
   if (typeof value !== "object" || value === null) return fallback;
 
   const preferences = value as Partial<Record<keyof AppThemePreferences, unknown>>;
+  const fallbackDarkTheme = fallback.darkTheme === "custom"
+    ? defaultAppThemePreferences.darkTheme
+    : fallback.darkTheme;
+  const fallbackLightTheme = fallback.lightTheme === "custom"
+    ? defaultAppThemePreferences.lightTheme
+    : fallback.lightTheme;
+  const storedCustomTheme = preferences.darkTheme === "custom" || preferences.lightTheme === "custom";
+  const customThemeEnabled = typeof preferences.customThemeEnabled === "boolean"
+    ? preferences.customThemeEnabled
+    : storedCustomTheme || fallback.customThemeEnabled === true;
 
   return {
     appearanceMode: isAppAppearanceMode(preferences.appearanceMode)
       ? preferences.appearanceMode
       : fallback.appearanceMode,
-    darkTheme: isDarkEditorTheme(preferences.darkTheme) ? preferences.darkTheme : fallback.darkTheme,
-    lightTheme: isLightEditorTheme(preferences.lightTheme) ? preferences.lightTheme : fallback.lightTheme
+    ...(customThemeEnabled ? { customThemeEnabled: true } : {}),
+    darkTheme: isDarkEditorTheme(preferences.darkTheme) && preferences.darkTheme !== "custom"
+      ? preferences.darkTheme
+      : fallbackDarkTheme,
+    lightTheme: isLightEditorTheme(preferences.lightTheme) && preferences.lightTheme !== "custom"
+      ? preferences.lightTheme
+      : fallbackLightTheme
   };
 }
 
@@ -811,7 +833,14 @@ export function resolveAppEditorTheme(theme: AppTheme, systemTheme: ResolvedAppT
 
 export function createThemePreferencesFromLegacyTheme(theme: AppTheme): AppThemePreferences {
   if (theme === "system") return defaultAppThemePreferences;
-  if (isDarkEditorTheme(theme) && theme !== "custom") {
+  if (theme === "custom") {
+    return {
+      ...defaultAppThemePreferences,
+      appearanceMode: "light",
+      customThemeEnabled: true
+    };
+  }
+  if (isDarkEditorTheme(theme)) {
     return {
       ...defaultAppThemePreferences,
       appearanceMode: "dark",
@@ -840,6 +869,8 @@ export function resolveAppThemePreferencesEditorTheme(
   preferences: AppThemePreferences,
   systemTheme: ResolvedAppTheme
 ): EditorTheme {
+  if (preferences.customThemeEnabled) return "custom";
+
   return resolveAppThemePreferencesAppearance(preferences, systemTheme) === "dark"
     ? preferences.darkTheme
     : preferences.lightTheme;
@@ -874,6 +905,7 @@ export async function saveStoredTheme(theme: AppTheme) {
 export async function getStoredThemePreferences(): Promise<AppThemePreferences> {
   const store = await loadSettingsStore();
   const appearanceMode = await store.get<AppAppearanceMode>(appearanceModeKey);
+  const customThemeEnabled = await store.get<boolean>(customThemeEnabledKey);
   const lightTheme = await store.get<LightEditorTheme>(lightThemeKey);
   const darkTheme = await store.get<DarkEditorTheme>(darkThemeKey);
   const legacyTheme = await store.get<AppTheme>(themeKey);
@@ -881,11 +913,12 @@ export async function getStoredThemePreferences(): Promise<AppThemePreferences> 
     ? createThemePreferencesFromLegacyTheme(legacyTheme)
     : defaultAppThemePreferences;
 
-  return {
-    appearanceMode: isAppAppearanceMode(appearanceMode) ? appearanceMode : legacyPreferences.appearanceMode,
-    darkTheme: isDarkEditorTheme(darkTheme) ? darkTheme : legacyPreferences.darkTheme,
-    lightTheme: isLightEditorTheme(lightTheme) ? lightTheme : legacyPreferences.lightTheme
-  };
+  return normalizeAppThemePreferences({
+    appearanceMode,
+    customThemeEnabled,
+    darkTheme,
+    lightTheme
+  }, legacyPreferences);
 }
 
 export async function saveStoredThemePreferences(preferences: AppThemePreferences) {
@@ -893,6 +926,7 @@ export async function saveStoredThemePreferences(preferences: AppThemePreference
   const normalizedPreferences = normalizeAppThemePreferences(preferences);
 
   await store.set(appearanceModeKey, normalizedPreferences.appearanceMode);
+  await store.set(customThemeEnabledKey, normalizedPreferences.customThemeEnabled === true);
   await store.set(lightThemeKey, normalizedPreferences.lightTheme);
   await store.set(darkThemeKey, normalizedPreferences.darkTheme);
   await store.save();

@@ -124,6 +124,7 @@ export function useAppTheme() {
   const liveThemePreferencesReceivedRef = useRef(false);
   const editorTheme = resolveAppThemePreferencesEditorTheme(themePreferences, systemTheme);
   const resolvedTheme = resolveAppThemePreferencesAppearance(themePreferences, systemTheme);
+  const customThemeEnabled = themePreferences.customThemeEnabled === true;
   const ready = themePreferencesReady && (editorTheme !== "custom" || customThemeCssReady);
 
   useEffect(() => {
@@ -234,17 +235,20 @@ export function useAppTheme() {
     });
   }, [themePreferences, updateThemePreferences]);
 
+  // The custom swatches mirror the global switch; keep the saved palettes so turning custom off restores them.
   const selectLightTheme = useCallback((lightTheme: LightEditorTheme) => {
     updateThemePreferences({
       ...themePreferences,
-      lightTheme
+      customThemeEnabled: lightTheme === "custom",
+      ...(lightTheme === "custom" ? {} : { lightTheme })
     });
   }, [themePreferences, updateThemePreferences]);
 
   const selectDarkTheme = useCallback((darkTheme: DarkEditorTheme) => {
     updateThemePreferences({
       ...themePreferences,
-      darkTheme
+      customThemeEnabled: darkTheme === "custom",
+      ...(darkTheme === "custom" ? {} : { darkTheme })
     });
   }, [themePreferences, updateThemePreferences]);
 
@@ -254,6 +258,13 @@ export function useAppTheme() {
       appearanceMode: resolvedTheme === "dark" ? "light" : "dark"
     });
   }, [resolvedTheme, themePreferences, updateThemePreferences]);
+
+  const toggleCustomTheme = useCallback(() => {
+    updateThemePreferences({
+      ...themePreferences,
+      customThemeEnabled: !customThemeEnabled
+    });
+  }, [customThemeEnabled, themePreferences, updateThemePreferences]);
 
   const updateCustomThemeCss = useCallback((nextCss: string) => {
     const normalizedCss = normalizeCustomThemeCssValues({
@@ -293,6 +304,7 @@ export function useAppTheme() {
 
   return {
     customThemeCss,
+    customThemeEnabled,
     darkCustomThemeCss: customThemeCss.dark,
     editorTheme,
     appearanceMode: themePreferences.appearanceMode,
@@ -305,6 +317,7 @@ export function useAppTheme() {
     selectDarkTheme,
     selectLightTheme,
     themePreferences,
+    toggleCustomTheme,
     toggleTheme,
     updateCustomThemeCss,
     updateDarkCustomThemeCss,

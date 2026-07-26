@@ -112,6 +112,7 @@ const messages: BaseLocaleMessages = {
   "settings.theme.academic": "Academic",
   "settings.theme.minimal": "Minimal",
   "settings.theme.custom": "Custom",
+  "settings.theme.customThemeTitle": "Custom theme",
   "settings.theme.customCssTitle": "Custom theme CSS",
   "settings.theme.lightCustomCssTitle": "Light custom theme CSS",
   "settings.theme.darkCustomCssTitle": "Dark custom theme CSS",

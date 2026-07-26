@@ -90,6 +90,7 @@ const messages: LocaleMessages = {
   "settings.theme.academic": "Academic",
   "settings.theme.minimal": "Minimal",
   "settings.theme.custom": "사용자 지정",
+  "settings.theme.customThemeTitle": "사용자 지정 테마",
   "settings.theme.customCssTitle": "사용자 지정 테마 CSS",
   "settings.theme.customCssDescription": "사용자 지정 테마를 선택했을 때만 적용됩니다. [data-theme=\"custom\"] 및 .markdown-paper[data-editor-theme=\"custom\"]로 범위를 제한할 수 있습니다.",
   "settings.theme.previewTitle": "테마 미리보기",

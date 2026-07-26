@@ -11,6 +11,7 @@ describe("AppearanceSettings", () => {
 
     render(
       <AppearanceSettings
+        customThemeEnabled={false}
         darkCustomThemeCss=""
         lightCustomThemeCss=""
         selectedAppearanceMode="system"
@@ -20,6 +21,7 @@ describe("AppearanceSettings", () => {
         onSelectAppearanceMode={onSelectAppearanceMode}
         onSelectDarkTheme={onSelectDarkTheme}
         onSelectLightTheme={onSelectLightTheme}
+        onToggleCustomTheme={vi.fn()}
         onUpdateDarkCustomThemeCss={vi.fn()}
         onUpdateLightCustomThemeCss={vi.fn()}
       />
@@ -59,15 +61,17 @@ describe("AppearanceSettings", () => {
 
     render(
       <AppearanceSettings
+        customThemeEnabled
         darkCustomThemeCss={darkCss}
         lightCustomThemeCss={lightCss}
         selectedAppearanceMode="light"
-        selectedDarkTheme="custom"
-        selectedLightTheme="custom"
+        selectedDarkTheme="dark"
+        selectedLightTheme="light"
         translate={translate}
         onSelectAppearanceMode={vi.fn()}
         onSelectDarkTheme={vi.fn()}
         onSelectLightTheme={vi.fn()}
+        onToggleCustomTheme={vi.fn()}
         onUpdateDarkCustomThemeCss={onUpdateDarkCustomThemeCss}
         onUpdateLightCustomThemeCss={onUpdateLightCustomThemeCss}
       />
@@ -75,9 +79,25 @@ describe("AppearanceSettings", () => {
 
     const lightCustomCss = screen.getByRole("textbox", { name: "Light custom theme CSS" });
     const darkCustomCss = screen.getByRole("textbox", { name: "Dark custom theme CSS" });
+    const lightPalette = screen.getByRole("radiogroup", { name: "Light palette" });
+    const darkPalette = screen.getByRole("radiogroup", { name: "Dark palette" });
+    const customThemeSwitch = screen.getByRole("switch", { name: "Custom theme" });
+    const lightCustomThemePanel = screen.getByRole("region", { name: "Light custom theme CSS" });
+    const darkCustomThemePanel = screen.getByRole("region", { name: "Dark custom theme CSS" });
 
     expect(lightCustomCss).toHaveValue(lightCss);
     expect(darkCustomCss).toHaveValue(darkCss);
+    expect(customThemeSwitch).toBeChecked();
+    expect(customThemeSwitch.closest(".settings-row")?.nextElementSibling).toBe(lightPalette.closest(".settings-row"));
+    expect(within(lightPalette).getByRole("radio", { name: "Custom" })).toHaveAttribute("aria-checked", "true");
+    expect(within(darkPalette).getByRole("radio", { name: "Custom" })).toHaveAttribute("aria-checked", "true");
+    expect(within(lightPalette).getByRole("radio", { name: "Light" })).toHaveAttribute("aria-checked", "false");
+    expect(within(darkPalette).getByRole("radio", { name: "Dark" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getAllByText(/Applies only when Custom is selected/)).toHaveLength(1);
+    expect(lightCustomThemePanel.querySelector(".rounded-lg")).not.toBeInTheDocument();
+    expect(darkCustomThemePanel.querySelector(".rounded-lg")).not.toBeInTheDocument();
+    expect(lightCustomCss).toHaveClass("min-h-24");
+    expect(darkCustomCss).toHaveClass("min-h-24");
 
     fireEvent.change(lightCustomCss, {
       target: { value: ":root[data-theme=\"custom\"] { --accent: #0969da; }" }
@@ -90,11 +110,50 @@ describe("AppearanceSettings", () => {
     expect(onUpdateDarkCustomThemeCss).toHaveBeenCalledWith(":root[data-theme=\"custom\"] { --accent: #58a6ff; }");
   });
 
+  it("exposes custom theme as a switch while retaining both palette buttons", () => {
+    const onToggleCustomTheme = vi.fn();
+
+    render(
+      <AppearanceSettings
+        customThemeEnabled={false}
+        darkCustomThemeCss=""
+        lightCustomThemeCss=""
+        selectedAppearanceMode="system"
+        selectedDarkTheme="night"
+        selectedLightTheme="sepia"
+        translate={translate}
+        onSelectAppearanceMode={vi.fn()}
+        onSelectDarkTheme={vi.fn()}
+        onSelectLightTheme={vi.fn()}
+        onToggleCustomTheme={onToggleCustomTheme}
+        onUpdateDarkCustomThemeCss={vi.fn()}
+        onUpdateLightCustomThemeCss={vi.fn()}
+      />
+    );
+
+    const appearanceMode = screen.getByRole("radiogroup", { name: "Appearance mode" });
+    const lightPalette = screen.getByRole("radiogroup", { name: "Light palette" });
+    const darkPalette = screen.getByRole("radiogroup", { name: "Dark palette" });
+    const customThemeSwitch = screen.getByRole("switch", { name: "Custom theme" });
+
+    expect(appearanceMode.closest(".settings-row")?.nextElementSibling).toBe(customThemeSwitch.closest(".settings-row"));
+    expect(within(lightPalette).getByRole("radio", { name: "Custom" })).toHaveAttribute("aria-checked", "false");
+    expect(within(darkPalette).getByRole("radio", { name: "Custom" })).toHaveAttribute("aria-checked", "false");
+    expect(customThemeSwitch).not.toBeChecked();
+    expect(screen.queryByRole("textbox", { name: "Light custom theme CSS" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Dark custom theme CSS" })).not.toBeInTheDocument();
+
+    fireEvent.click(customThemeSwitch);
+
+    expect(onToggleCustomTheme).toHaveBeenCalledTimes(1);
+  });
+
   it("marks selected themes in each preview group", () => {
     const onSelectLightTheme = vi.fn();
 
     render(
       <AppearanceSettings
+        customThemeEnabled={false}
         darkCustomThemeCss=""
         lightCustomThemeCss=""
         selectedAppearanceMode="system"
@@ -104,6 +163,7 @@ describe("AppearanceSettings", () => {
         onSelectAppearanceMode={vi.fn()}
         onSelectDarkTheme={vi.fn()}
         onSelectLightTheme={onSelectLightTheme}
+        onToggleCustomTheme={vi.fn()}
         onUpdateDarkCustomThemeCss={vi.fn()}
         onUpdateLightCustomThemeCss={vi.fn()}
       />
@@ -126,21 +186,25 @@ describe("AppearanceSettings", () => {
 
     render(
       <AppearanceSettings
+        customThemeEnabled
         darkCustomThemeCss=""
         lightCustomThemeCss={":root[data-theme=\"custom\"] { --accent: #b91c1c; }"}
         selectedAppearanceMode="light"
         selectedDarkTheme="dark"
-        selectedLightTheme="custom"
+        selectedLightTheme="light"
         translate={translate}
         onSelectAppearanceMode={vi.fn()}
         onSelectDarkTheme={vi.fn()}
         onSelectLightTheme={vi.fn()}
+        onToggleCustomTheme={vi.fn()}
         onUpdateDarkCustomThemeCss={vi.fn()}
         onUpdateLightCustomThemeCss={onUpdateLightCustomThemeCss}
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset template" }));
+    const lightCustomThemePanel = screen.getByRole("region", { name: "Light custom theme CSS" });
+
+    fireEvent.click(within(lightCustomThemePanel).getByRole("button", { name: "Reset template" }));
 
     expect(onUpdateLightCustomThemeCss).toHaveBeenCalledWith(defaultCustomThemeCss);
   });
@@ -151,21 +215,24 @@ describe("AppearanceSettings", () => {
 
     render(
       <AppearanceSettings
+        customThemeEnabled
         darkCustomThemeCss=""
         lightCustomThemeCss=""
         selectedAppearanceMode="dark"
-        selectedDarkTheme="custom"
+        selectedDarkTheme="dark"
         selectedLightTheme="light"
         translate={translate}
         onSelectAppearanceMode={vi.fn()}
         onSelectDarkTheme={vi.fn()}
         onSelectLightTheme={vi.fn()}
+        onToggleCustomTheme={vi.fn()}
         onUpdateDarkCustomThemeCss={onUpdateDarkCustomThemeCss}
         onUpdateLightCustomThemeCss={vi.fn()}
       />
     );
 
-    const fileInput = document.querySelector("input[type=\"file\"]") as HTMLInputElement;
+    const darkCustomThemePanel = screen.getByRole("region", { name: "Dark custom theme CSS" });
+    const fileInput = darkCustomThemePanel.querySelector("input[type=\"file\"]") as HTMLInputElement;
 
     expect(fileInput).toHaveAttribute("accept", ".css,text/css");
 
@@ -186,21 +253,25 @@ describe("AppearanceSettings", () => {
 
     render(
       <AppearanceSettings
+        customThemeEnabled
         darkCustomThemeCss={css}
         lightCustomThemeCss=""
         selectedAppearanceMode="dark"
-        selectedDarkTheme="custom"
+        selectedDarkTheme="dark"
         selectedLightTheme="light"
         translate={translate}
         onSelectAppearanceMode={vi.fn()}
         onSelectDarkTheme={vi.fn()}
         onSelectLightTheme={vi.fn()}
+        onToggleCustomTheme={vi.fn()}
         onUpdateDarkCustomThemeCss={vi.fn()}
         onUpdateLightCustomThemeCss={vi.fn()}
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Export CSS" }));
+    const darkCustomThemePanel = screen.getByRole("region", { name: "Dark custom theme CSS" });
+
+    fireEvent.click(within(darkCustomThemePanel).getByRole("button", { name: "Export CSS" }));
 
     expect(createObjectUrl).toHaveBeenCalledWith(expect.any(Blob));
     const exportedBlob = createObjectUrl.mock.calls[0]?.[0] as Blob;

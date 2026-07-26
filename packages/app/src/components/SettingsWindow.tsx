@@ -323,6 +323,7 @@ export function SettingsWindow() {
           ) : null}
           {activeSettingsCategory === "appearance" ? (
             <AppearanceSettings
+              customThemeEnabled={appTheme.customThemeEnabled}
               darkCustomThemeCss={appTheme.darkCustomThemeCss}
               lightCustomThemeCss={appTheme.lightCustomThemeCss}
               selectedAppearanceMode={appTheme.appearanceMode}
@@ -334,6 +335,7 @@ export function SettingsWindow() {
               onSelectAppearanceMode={appTheme.selectAppearanceMode}
               onSelectDarkTheme={appTheme.selectDarkTheme}
               onSelectLightTheme={appTheme.selectLightTheme}
+              onToggleCustomTheme={appTheme.toggleCustomTheme}
             />
           ) : null}
           {activeSettingsCategory === "view" ? (

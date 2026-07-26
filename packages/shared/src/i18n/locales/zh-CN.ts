@@ -112,6 +112,7 @@ const messages: LocaleMessages = {
   "settings.theme.academic": "Academic",
   "settings.theme.minimal": "Minimal",
   "settings.theme.custom": "自定义",
+  "settings.theme.customThemeTitle": "自定义主题",
   "settings.theme.customCssTitle": "自定义主题 CSS",
   "settings.theme.lightCustomCssTitle": "浅色自定义主题 CSS",
   "settings.theme.darkCustomCssTitle": "深色自定义主题 CSS",

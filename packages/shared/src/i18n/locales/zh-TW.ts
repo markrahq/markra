@@ -98,6 +98,7 @@ const messages: LocaleMessages = {
   "settings.theme.academic": "Academic",
   "settings.theme.minimal": "Minimal",
   "settings.theme.custom": "自訂",
+  "settings.theme.customThemeTitle": "自訂主題",
   "settings.theme.customCssTitle": "自訂主題 CSS",
   "settings.theme.customCssDescription": "只會在選取自訂主題時套用。可用 [data-theme=\"custom\"] 和 .markdown-paper[data-editor-theme=\"custom\"] 限定覆寫範圍。",
   "settings.theme.previewTitle": "主題預覽",

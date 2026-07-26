@@ -128,6 +128,7 @@ describe("app settings", () => {
   it("loads and persists split appearance preferences", async () => {
     store.get.mockImplementation(async (key: string) => {
       if (key === "appearanceMode") return "system";
+      if (key === "customThemeEnabled") return true;
       if (key === "lightTheme") return "solarized-light";
       if (key === "darkTheme") return "night";
 
@@ -136,17 +137,20 @@ describe("app settings", () => {
 
     await expect(getStoredThemePreferences()).resolves.toEqual({
       appearanceMode: "system",
+      customThemeEnabled: true,
       darkTheme: "night",
       lightTheme: "solarized-light"
     });
 
     await saveStoredThemePreferences({
       appearanceMode: "dark",
+      customThemeEnabled: true,
       darkTheme: "catppuccin-mocha",
       lightTheme: "catppuccin-latte"
     });
 
     expect(store.set).toHaveBeenCalledWith("appearanceMode", "dark");
+    expect(store.set).toHaveBeenCalledWith("customThemeEnabled", true);
     expect(store.set).toHaveBeenCalledWith("lightTheme", "catppuccin-latte");
     expect(store.set).toHaveBeenCalledWith("darkTheme", "catppuccin-mocha");
     expect(store.set).not.toHaveBeenCalledWith("theme", expect.any(String));
@@ -169,6 +173,20 @@ describe("app settings", () => {
     expect(resolveAppThemePreferencesAppearance(preferences, "dark")).toBe("dark");
     expect(resolveAppThemePreferencesEditorTheme(preferences, "dark")).toBe("night");
     expect(resolveAppThemePreferencesEditorTheme(preferences, "light")).toBe("sepia");
+  });
+
+  it("uses the custom theme without replacing the saved light and dark palettes", () => {
+    const preferences = {
+      appearanceMode: "system" as const,
+      customThemeEnabled: true,
+      darkTheme: "night" as const,
+      lightTheme: "sepia" as const
+    };
+
+    expect(resolveAppThemePreferencesEditorTheme(preferences, "dark")).toBe("custom");
+    expect(resolveAppThemePreferencesEditorTheme(preferences, "light")).toBe("custom");
+    expect(preferences.darkTheme).toBe("night");
+    expect(preferences.lightTheme).toBe("sepia");
   });
 
   it("recognizes GitHub and One theme options", () => {

@@ -90,6 +90,7 @@ const messages: LocaleMessages = {
   "settings.theme.academic": "Academic",
   "settings.theme.minimal": "Minimal",
   "settings.theme.custom": "Пользовательская",
+  "settings.theme.customThemeTitle": "Пользовательская тема",
   "settings.theme.customCssTitle": "CSS пользовательской темы",
   "settings.theme.customCssDescription": "Применяется только при выборе пользовательской темы. Используйте [data-theme=\"custom\"] и .markdown-paper[data-editor-theme=\"custom\"], чтобы ограничить переопределения.",
   "settings.theme.previewTitle": "Предпросмотр тем",

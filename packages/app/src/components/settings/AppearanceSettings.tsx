@@ -1,4 +1,5 @@
-import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
+import { Code2, Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
+import { useId } from "react";
 import {
   appAppearanceModeOptions,
   darkEditorThemeOptions,
@@ -9,7 +10,8 @@ import {
 } from "../../lib/settings/app-settings";
 import {
   SettingsRow,
-  SettingsSection
+  SettingsSection,
+  SettingsSwitch
 } from "./SettingsControls";
 import {
   CustomThemeCssControl,
@@ -75,24 +77,65 @@ function AppearanceModeControl({
   );
 }
 
+function CustomThemeCssPanel({
+  customThemeCss,
+  onUpdateCustomThemeCss,
+  title,
+  translate
+}: {
+  customThemeCss: string;
+  onUpdateCustomThemeCss: (css: string) => unknown;
+  title: string;
+  translate: SettingsTranslate;
+}) {
+  const titleId = useId();
+
+  return (
+    <section
+      className="custom-theme-css-panel py-3"
+      aria-labelledby={titleId}
+    >
+      <div className="mb-2 flex items-center gap-1.5 px-0.5">
+        <Code2 className="shrink-0 text-(--text-secondary)" aria-hidden="true" size={13} strokeWidth={2} />
+        <h4
+          className="m-0 text-[12px] leading-5 font-[650] tracking-normal text-(--text-heading)"
+          id={titleId}
+        >
+          {title}
+        </h4>
+      </div>
+      <CustomThemeCssControl
+        customThemeCss={customThemeCss}
+        label={title}
+        translate={translate}
+        onUpdateCustomThemeCss={onUpdateCustomThemeCss}
+      />
+    </section>
+  );
+}
+
 export function AppearanceSettings({
+  customThemeEnabled,
   selectedAppearanceMode,
   darkCustomThemeCss,
   lightCustomThemeCss,
   onSelectAppearanceMode,
   onSelectDarkTheme,
   onSelectLightTheme,
+  onToggleCustomTheme,
   onUpdateDarkCustomThemeCss,
   onUpdateLightCustomThemeCss,
   selectedDarkTheme,
   selectedLightTheme,
   translate
 }: {
+  customThemeEnabled: boolean;
   darkCustomThemeCss: string;
   lightCustomThemeCss: string;
   onSelectAppearanceMode: (mode: AppAppearanceMode) => unknown;
   onSelectDarkTheme: (theme: DarkEditorTheme) => unknown;
   onSelectLightTheme: (theme: LightEditorTheme) => unknown;
+  onToggleCustomTheme: () => unknown;
   onUpdateDarkCustomThemeCss: (css: string) => unknown;
   onUpdateLightCustomThemeCss: (css: string) => unknown;
   selectedAppearanceMode: AppAppearanceMode;
@@ -114,11 +157,22 @@ export function AppearanceSettings({
         }
       />
       <SettingsRow
+        title={translate("settings.theme.customThemeTitle")}
+        description={translate("settings.theme.customCssDescription")}
+        action={
+          <SettingsSwitch
+            checked={customThemeEnabled}
+            label={translate("settings.theme.customThemeTitle")}
+            onChange={onToggleCustomTheme}
+          />
+        }
+      />
+      <SettingsRow
         title={translate("settings.theme.lightPaletteTitle")}
         action={
           <ThemePreviewGrid
             ariaLabel={translate("settings.theme.lightPaletteTitle")}
-            selectedTheme={selectedLightTheme}
+            selectedTheme={customThemeEnabled ? "custom" : selectedLightTheme}
             themes={lightEditorThemeOptions}
             translate={translate}
             onSelectTheme={onSelectLightTheme}
@@ -130,40 +184,28 @@ export function AppearanceSettings({
         action={
           <ThemePreviewGrid
             ariaLabel={translate("settings.theme.darkPaletteTitle")}
-            selectedTheme={selectedDarkTheme}
+            selectedTheme={customThemeEnabled ? "custom" : selectedDarkTheme}
             themes={darkEditorThemeOptions}
             translate={translate}
             onSelectTheme={onSelectDarkTheme}
           />
         }
       />
-      {selectedLightTheme === "custom" ? (
-        <SettingsRow
-          title={translate("settings.theme.lightCustomCssTitle")}
-          description={translate("settings.theme.customCssDescription")}
-          action={
-            <CustomThemeCssControl
-              customThemeCss={lightCustomThemeCss}
-              label={translate("settings.theme.lightCustomCssTitle")}
-              translate={translate}
-              onUpdateCustomThemeCss={onUpdateLightCustomThemeCss}
-            />
-          }
-        />
-      ) : null}
-      {selectedDarkTheme === "custom" ? (
-        <SettingsRow
-          title={translate("settings.theme.darkCustomCssTitle")}
-          description={translate("settings.theme.customCssDescription")}
-          action={
-            <CustomThemeCssControl
-              customThemeCss={darkCustomThemeCss}
-              label={translate("settings.theme.darkCustomCssTitle")}
-              translate={translate}
-              onUpdateCustomThemeCss={onUpdateDarkCustomThemeCss}
-            />
-          }
-        />
+      {customThemeEnabled ? (
+        <>
+          <CustomThemeCssPanel
+            customThemeCss={lightCustomThemeCss}
+            title={translate("settings.theme.lightCustomCssTitle")}
+            translate={translate}
+            onUpdateCustomThemeCss={onUpdateLightCustomThemeCss}
+          />
+          <CustomThemeCssPanel
+            customThemeCss={darkCustomThemeCss}
+            title={translate("settings.theme.darkCustomCssTitle")}
+            translate={translate}
+            onUpdateCustomThemeCss={onUpdateDarkCustomThemeCss}
+          />
+        </>
       ) : null}
     </SettingsSection>
   );

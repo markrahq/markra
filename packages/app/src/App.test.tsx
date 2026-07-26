@@ -2214,8 +2214,9 @@ describe("Markra workspace", () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockedGetStoredThemePreferences.mockResolvedValue({
       appearanceMode: "light",
-      darkTheme: "custom",
-      lightTheme: "custom"
+      customThemeEnabled: true,
+      darkTheme: "dark",
+      lightTheme: "light"
     });
     mockedGetStoredCustomThemeCss.mockResolvedValue({
       dark: ":root[data-theme=\"custom\"] { --bg-primary: #0d1117; }",
@@ -2495,9 +2496,24 @@ describe("Markra workspace", () => {
       lightTheme: "light"
     }));
 
-    fireEvent.click(within(lightPalette).getByRole("radio", { name: "Personnalisé" }));
+    const customThemeSwitch = screen.getByRole("switch", { name: "Thème personnalisé" });
+    fireEvent.click(customThemeSwitch);
+
+    expect(customThemeSwitch).toBeChecked();
+    expect(within(lightPalette).getByRole("radio", { name: "Personnalisé" })).toHaveAttribute("aria-checked", "true");
+    expect(within(darkPalette).getByRole("radio", { name: "Personnalisé" })).toHaveAttribute("aria-checked", "true");
+    expect(within(darkPalette).getByRole("radio", { name: "Night" })).toHaveAttribute("aria-checked", "false");
+    expect(document.documentElement).toHaveAttribute("data-theme", "custom");
+    expect(document.getElementById("markra-custom-theme-style")).toHaveTextContent("--bg-primary: #0d1117");
+    await waitFor(() => expect(mockedSaveStoredThemePreferences).toHaveBeenCalledWith({
+      appearanceMode: "dark",
+      customThemeEnabled: true,
+      darkTheme: "night",
+      lightTheme: "light"
+    }));
+
     fireEvent.click(within(appearanceMode).getByRole("radio", { name: "Clair" }));
-    const customCss = await screen.findByRole("textbox");
+    const customCss = await screen.findByRole("textbox", { name: "CSS du thème personnalisé clair" });
     fireEvent.change(customCss, {
       target: { value: ":root[data-theme=\"custom\"] { --accent: #0969da; }" }
     });
@@ -2512,6 +2528,21 @@ describe("Markra workspace", () => {
       dark: ":root[data-theme=\"custom\"] { --bg-primary: #0d1117; }",
       light: ":root[data-theme=\"custom\"] { --accent: #0969da; }"
     }));
+
+    fireEvent.click(customThemeSwitch);
+
+    expect(customThemeSwitch).not.toBeChecked();
+    expect(within(lightPalette).getByRole("radio", { name: "Clair" })).toHaveAttribute("aria-checked", "true");
+    expect(within(darkPalette).getByRole("radio", { name: "Night" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByRole("textbox", { name: "CSS du thème personnalisé clair" })).not.toBeInTheDocument();
+
+    fireEvent.click(within(lightPalette).getByRole("radio", { name: "Personnalisé" }));
+    expect(customThemeSwitch).toBeChecked();
+    expect(within(darkPalette).getByRole("radio", { name: "Personnalisé" })).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(within(lightPalette).getByRole("radio", { name: "Clair" }));
+    expect(customThemeSwitch).not.toBeChecked();
+    expect(within(darkPalette).getByRole("radio", { name: "Night" })).toHaveAttribute("aria-checked", "true");
 
     const templatesCategoryButton = screen.getByRole("button", { name: "Modèles" });
     fireEvent.click(templatesCategoryButton);

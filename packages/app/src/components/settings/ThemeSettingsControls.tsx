@@ -1,4 +1,4 @@
-import { Download, RotateCcw, Upload } from "lucide-react";
+import { Code2, Download, RotateCcw, Upload } from "lucide-react";
 import { type ChangeEvent, type CSSProperties, useRef } from "react";
 import {
   defaultCustomThemeCss,
@@ -272,31 +272,45 @@ export function ThemePreviewGrid<Theme extends EditorTheme>({
               style={createThemePreviewStyle(themePreviewSwatches[theme])}
               onClick={() => onSelectTheme(theme)}
             >
-              <span
-                className="relative h-6 w-6 overflow-hidden rounded-[5px] border"
-                style={{
-                  background: "var(--theme-preview-bg)",
-                  borderColor: "var(--theme-preview-border)"
-                }}
-                aria-hidden="true"
-              >
+              {theme === "custom" ? (
                 <span
-                  className="absolute top-1 left-1 h-1 w-3 rounded-full"
-                  style={{ background: "var(--theme-preview-text)" }}
-                />
+                  className="relative flex h-6 w-6 items-center justify-center rounded-[5px] border text-(--text-heading)"
+                  style={{
+                    background: "var(--theme-preview-panel)",
+                    borderColor: "var(--theme-preview-border)"
+                  }}
+                  aria-hidden="true"
+                >
+                  <Code2 size={15} strokeWidth={2.2} />
+                  <span className="absolute right-0.5 bottom-0.5 size-1.5 rounded-full bg-(--accent)" />
+                </span>
+              ) : (
                 <span
-                  className="absolute top-2.5 left-1 h-1 w-3.5 rounded-full"
-                  style={{ background: "var(--theme-preview-muted)" }}
-                />
-                <span
-                  className="absolute right-1 bottom-1 h-2 w-2 rounded-full"
-                  style={{ background: "var(--theme-preview-accent)" }}
-                />
-                <span
-                  className="absolute bottom-1 left-1 h-1.5 w-3.5 rounded-sm"
-                  style={{ background: "var(--theme-preview-panel)" }}
-                />
-              </span>
+                  className="relative h-6 w-6 overflow-hidden rounded-[5px] border"
+                  style={{
+                    background: "var(--theme-preview-bg)",
+                    borderColor: "var(--theme-preview-border)"
+                  }}
+                  aria-hidden="true"
+                >
+                  <span
+                    className="absolute top-1 left-1 h-1 w-3 rounded-full"
+                    style={{ background: "var(--theme-preview-text)" }}
+                  />
+                  <span
+                    className="absolute top-2.5 left-1 h-1 w-3.5 rounded-full"
+                    style={{ background: "var(--theme-preview-muted)" }}
+                  />
+                  <span
+                    className="absolute right-1 bottom-1 h-2 w-2 rounded-full"
+                    style={{ background: "var(--theme-preview-accent)" }}
+                  />
+                  <span
+                    className="absolute bottom-1 left-1 h-1.5 w-3.5 rounded-sm"
+                    style={{ background: "var(--theme-preview-panel)" }}
+                  />
+                </span>
+              )}
               {selected ? <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-(--accent)" aria-hidden="true" /> : null}
             </button>
           </Tooltip>
@@ -350,13 +364,15 @@ export function CustomThemeCssControl({
   }
 
   return (
-    <div className="flex w-80 max-w-full flex-col items-stretch gap-2">
+    <div className="flex w-full flex-col items-stretch gap-2">
       <SettingsTextarea
+        className="min-h-24 font-mono font-[500]"
         label={label}
         value={customThemeCss}
+        widthClassName="w-full"
         onChange={onUpdateCustomThemeCss}
       />
-      <div className="flex flex-wrap justify-end gap-2">
+      <div className="flex flex-wrap justify-end gap-1.5">
         <SettingsButton label={importLabel} onClick={() => fileInputRef.current?.click()}>
           <Upload aria-hidden="true" size={13} />
           {importLabel}
