@@ -88,6 +88,20 @@ describe("Markra slash menu", () => {
     ]);
   });
 
+  it("supports the Chinese dunhao as a typed slash-menu trigger", () => {
+    const view = createView("、h2");
+
+    expect(getMarkraSlashMenuState(view)).toMatchObject({
+      from: 0,
+      open: true,
+      query: "h2",
+      source: "typed",
+      to: 3,
+    });
+    expect(editorKey(view, "Enter")).toBe(true);
+    expect(view.state.doc.toString()).toBe("## ");
+  });
+
   it("does not open from source text inside a fenced code block", () => {
     const view = createView("```text\n/hea\n```");
     view.dispatch({ selection: EditorSelection.cursor(12) });

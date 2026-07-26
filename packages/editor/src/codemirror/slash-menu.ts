@@ -80,7 +80,7 @@ function typedRangeFromState(state: EditorState): SlashMenuRange | null {
   if (isInsideCodeBlock(state, selection.head)) return null;
 
   const beforeCursor = state.sliceDoc(line.from, selection.head);
-  const match = /^([\t ]*)\/([^\s/]*)$/u.exec(beforeCursor);
+  const match = /^([\t ]*)[/、]([^\s/、]*)$/u.exec(beforeCursor);
   if (!match) return null;
 
   const indentLength = match[1]?.length ?? 0;
@@ -105,7 +105,7 @@ function virtualRangeFromState(
   if (isInsideCodeBlock(state, selection.head)) return null;
 
   const query = state.sliceDoc(from, selection.head);
-  if (/\s|\//u.test(query)) return null;
+  if (/\s|[/、]/u.test(query)) return null;
 
   return {
     from,
