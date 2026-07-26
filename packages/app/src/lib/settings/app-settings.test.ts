@@ -320,6 +320,12 @@ describe("app settings", () => {
     expect(normalizeEditorPreferences({ autoRevealActiveFile: "sometimes" }).autoRevealActiveFile).toBe(false);
   });
 
+  it("normalizes the dropped file tab preference", () => {
+    expect(defaultEditorPreferences.openDroppedFilesInTabs).toBe(false);
+    expect(normalizeEditorPreferences({ openDroppedFilesInTabs: true }).openDroppedFilesInTabs).toBe(true);
+    expect(normalizeEditorPreferences({ openDroppedFilesInTabs: "yes" }).openDroppedFilesInTabs).toBe(false);
+  });
+
   it("normalizes the document links visibility preference", () => {
     expect(defaultEditorPreferences.documentLinksVisible).toBe(false);
     expect(normalizeEditorPreferences({ documentLinksVisible: true }).documentLinksVisible).toBe(true);

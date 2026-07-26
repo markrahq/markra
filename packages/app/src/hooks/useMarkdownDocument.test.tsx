@@ -4080,4 +4080,81 @@ describe("useMarkdownDocument", () => {
       openFilePaths: [filePath]
     });
   });
+
+  it("opens dropped Markdown files in current workspace tabs when enabled", async () => {
+    const currentPath = "/mock-files/vault/current.md";
+    const droppedPath = "/mock-files/external/dropped.md";
+    const onTreeRootFromFilePath = vi.fn();
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => ({
+      content: path === droppedPath ? "# Dropped" : "# Current",
+      name: path === droppedPath ? "dropped.md" : "current.md",
+      path
+    }));
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath,
+        onTreeRootFromFolderPath: vi.fn(),
+        openDroppedFilesInTabs: true,
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "current.md",
+        path: currentPath,
+        relativePath: "current.md"
+      });
+      await result.current.handleDroppedMarkdownPath({
+        kind: "file",
+        name: "dropped.md",
+        path: droppedPath
+      });
+    });
+
+    expect(mockedOpenNativeMarkdownFileInNewWindow).not.toHaveBeenCalled();
+    expect(onTreeRootFromFilePath).not.toHaveBeenCalled();
+    expect(result.current.document.path).toBe(droppedPath);
+    expect(result.current.tabs.map((tab) => tab.path)).toEqual([currentPath, droppedPath]);
+  });
+
+  it("keeps opening dropped Markdown files in new windows by default", async () => {
+    const currentPath = "/mock-files/vault/current.md";
+    const droppedPath = "/mock-files/external/dropped.md";
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Current",
+      name: "current.md",
+      path: currentPath
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "current.md",
+        path: currentPath,
+        relativePath: "current.md"
+      });
+      await result.current.handleDroppedMarkdownPath({
+        kind: "file",
+        name: "dropped.md",
+        path: droppedPath
+      });
+    });
+
+    expect(mockedOpenNativeMarkdownFileInNewWindow).toHaveBeenCalledWith(droppedPath);
+    expect(result.current.document.path).toBe(currentPath);
+    expect(result.current.tabs.map((tab) => tab.path)).toEqual([currentPath]);
+  });
 });

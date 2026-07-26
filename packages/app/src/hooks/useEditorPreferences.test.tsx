@@ -99,6 +99,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       toggleSourceMode: "Mod+Alt+S"
     },
     markdownTemplates: [],
+    openDroppedFilesInTabs: false,
     paragraphSpacingPx: 8,
     restoreWorkspaceOnStartup: true,
     sidebarLayoutMode: "stacked",
@@ -216,6 +217,7 @@ describe("useEditorPreferences", () => {
         toggleVimMode: "Mod+Alt+V"
       },
       markdownTemplates: [],
+      openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
       sidebarLayoutMode: "stacked",
@@ -333,6 +335,7 @@ describe("useEditorPreferences", () => {
           toggleVimMode: "Mod+Alt+V"
         },
         markdownTemplates: [],
+        openDroppedFilesInTabs: false,
         paragraphSpacingPx: 8,
         restoreWorkspaceOnStartup: false,
         sidebarLayoutMode: "stacked",

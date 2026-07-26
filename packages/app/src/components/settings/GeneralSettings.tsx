@@ -222,6 +222,25 @@ export function GeneralSettings({
         </p>
       ) : null}
 
+      <SettingsSection label={translate("settings.sections.fileOpening")}>
+        <SettingsRow
+          title={translate("settings.files.openDroppedFilesInTabs")}
+          description={translate("settings.files.openDroppedFilesInTabsDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.openDroppedFilesInTabs}
+              label={translate("settings.files.openDroppedFilesInTabs")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  openDroppedFilesInTabs: !preferences.openDroppedFilesInTabs
+                })
+              }
+            />
+          }
+        />
+      </SettingsSection>
+
       <SettingsSection label={translate("settings.sections.saving")}>
         <SettingsRow
           title={translate("settings.editor.autoSave")}

@@ -116,6 +116,40 @@ describe("GeneralSettings", () => {
     });
   });
 
+  it("toggles opening dropped files in document tabs", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <GeneralSettings
+        appVersion="0.0.7"
+        language="en"
+        preferences={{
+          ...defaultEditorPreferences,
+          openDroppedFilesInTabs: false
+        }}
+        translate={translate}
+        welcomeReset={false}
+        onCheckForUpdates={vi.fn()}
+        onResetWelcomeDocument={vi.fn()}
+        onSelectLanguage={vi.fn()}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const openDroppedFilesInTabsSwitch = screen.getByRole("switch", {
+      name: "Open dropped files in tabs"
+    });
+
+    expect(openDroppedFilesInTabsSwitch).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(openDroppedFilesInTabsSwitch);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      openDroppedFilesInTabs: true
+    });
+  });
+
   it("keeps diagnostics actions out of general settings", () => {
     render(
       <GeneralSettings

@@ -170,6 +170,7 @@ type UseMarkdownDocumentOptions = {
   ) => unknown | Promise<unknown>;
   onTreeRootFromFilePath: (path: string) => unknown;
   onWorkspaceSessionChange?: (sessionId: string) => unknown;
+  openDroppedFilesInTabs?: boolean;
   preferencesReady?: boolean;
   restoreWorkspaceOnStartup?: boolean;
   workspaceSourcePath?: string | null;
@@ -266,6 +267,7 @@ export function useMarkdownDocument({
   onTreeRootFromFolderPath,
   onTreeRootFromFilePath,
   onWorkspaceSessionChange,
+  openDroppedFilesInTabs = false,
   preferencesReady = true,
   restoreWorkspaceOnStartup = true,
   workspaceSourcePath
@@ -1771,9 +1773,23 @@ export function useMarkdownDocument({
         return;
       }
 
+      if (openDroppedFilesInTabs && documentTabsEnabled) {
+        // Keep the existing workspace tree while adding an external file as a document tab.
+        await loadNativeMarkdownPath(target.path, false);
+        return;
+      }
+
       await openNativeMarkdownFileInNewWindow(target.path);
     },
-    [clearOpenDocument, isCurrentDocumentEmptyUntitled, loadNativeMarkdownPath, onTreeRootFromFolderPath, resolveWorkspaceSessionId]
+    [
+      clearOpenDocument,
+      documentTabsEnabled,
+      isCurrentDocumentEmptyUntitled,
+      loadNativeMarkdownPath,
+      onTreeRootFromFolderPath,
+      openDroppedFilesInTabs,
+      resolveWorkspaceSessionId
+    ]
   );
 
   const handleNativeOpenedMarkdownPaths = useCallback(async (paths: string[]) => {

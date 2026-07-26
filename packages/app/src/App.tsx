@@ -744,6 +744,7 @@ function WorkspaceApp() {
     onTreeRootFromFolderPath: openFolderPath,
     onTreeRootFromFilePath: setRootFromMarkdownFilePath,
     onWorkspaceSessionChange: setAiAgentSessionId,
+    openDroppedFilesInTabs: editorPreferences.preferences.openDroppedFilesInTabs,
     preferencesReady: !editorPreferences.loading,
     restoreWorkspaceOnStartup: editorPreferences.preferences.restoreWorkspaceOnStartup,
     workspaceSourcePath: fileTreeSourcePath

@@ -1453,6 +1453,7 @@ export function installAppTestHarness() {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
       sidebarLayoutMode: "stacked",

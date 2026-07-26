@@ -71,6 +71,7 @@ describe("editor preferences", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
       sidebarLayoutMode: "stacked",
@@ -226,6 +227,7 @@ describe("editor preferences", () => {
           suggestedName: "{{date}} standup"
         }
       ],
+      openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,
       sidebarLayoutMode: "stacked",
@@ -762,6 +764,7 @@ describe("editor preferences", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
       sidebarLayoutMode: "stacked",
@@ -867,6 +870,7 @@ describe("editor preferences", () => {
           suggestedName: "{{date}} weekly"
         }
       ],
+      openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,
       sidebarLayoutMode: "tabs",
@@ -970,6 +974,7 @@ describe("editor preferences", () => {
           suggestedName: "{{date}} weekly"
         }
       ],
+      openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,
       sidebarLayoutMode: "tabs",
