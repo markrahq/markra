@@ -110,7 +110,7 @@ jobs:
       - name: Test
         env:
           MARKRA_APP_TEST_SHARD: ${{ matrix.shard }}
-        run: pnpm --filter "${{ matrix.package }}" test -- ${{ matrix.args }}
+        run: pnpm --filter "${{ matrix.package }}" test ${{ matrix.args }}
 
   frontend-test-typecheck:
     name: Frontend Test Typecheck
