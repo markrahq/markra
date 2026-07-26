@@ -1290,7 +1290,7 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("complementary", { name: "Markdown file tree" })).toHaveAttribute("aria-hidden", "false");
     expect(screen.getByRole("tab", { name: /browser\.md/ })).toBeInTheDocument();
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "minmax(0,1fr) 164px",
+      gridTemplateColumns: "minmax(0,1fr) 196px",
       left: "289px"
     });
     expect(container.querySelector(".windows-app-chrome")).not.toBeInTheDocument();
@@ -3260,7 +3260,7 @@ describe("Markra workspace", () => {
       width: "360px"
     });
     expect(container.querySelector(".native-title-slot")).toHaveStyle({
-      marginLeft: "196px"
+      marginLeft: "164px"
     });
     expect(container.querySelector(".markdown-file-tree")).toHaveStyle({
       width: "360px"
@@ -3275,7 +3275,7 @@ describe("Markra workspace", () => {
       gridTemplateColumns: "220px minmax(0,1fr)"
     });
     expect(container.querySelector(".native-title-slot")).toHaveStyle({
-      marginLeft: "56px"
+      marginLeft: "24px"
     });
     expect(container.querySelector(".native-title-slot")).not.toHaveAttribute("data-tauri-drag-region");
     expect(container.querySelector(".document-tabs-drag-spacer")).toHaveAttribute("data-tauri-drag-region");
