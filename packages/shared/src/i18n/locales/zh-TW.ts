@@ -315,6 +315,7 @@ const messages: LocaleMessages = {
   "app.noBacklinks": "沒有反向連結",
   "app.noUnlinkedMentions": "沒有未連結提及",
   "app.showFiles": "顯示檔案",
+  "app.hideFiles": "隱藏檔案",
   "app.showOutline": "顯示大綱",
   "app.hideOutline": "隱藏大綱",
   "app.resizeOutline": "調整大綱高度",

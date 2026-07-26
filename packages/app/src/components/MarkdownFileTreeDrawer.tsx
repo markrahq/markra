@@ -530,6 +530,7 @@ export function MarkdownFileTreeDrawer({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [localRecentFoldersOpen, setLocalRecentFoldersOpen] = useState(true);
+  const [fileTreeListOpen, setFileTreeListOpen] = useState(true);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [localDocumentLinksOpen, setLocalDocumentLinksOpen] = useState(true);
   const [outlineHeightPercent, setOutlineHeightPercent] = useState(defaultOutlineHeightPercent);
@@ -807,9 +808,19 @@ export function MarkdownFileTreeDrawer({
   const activeUnlinkedMentions = linkIndex && currentPath ? workspaceUnlinkedMentionsForPath(linkIndex, currentPath) : [];
   const filePanelAvailable = fileListVisible && (folderOpen || (open && fileCreationAvailable));
   const outlinePanelAvailable = outlineVisible;
-  const filePanelVisible = filePanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "files");
-  const filePanelClassName = tabbedSidebarLayout || !outlineOpen ? "flex-1" : "min-h-24";
-  const filePanelStyle = !tabbedSidebarLayout && outlineOpen ? { flex: `0 1 ${100 - outlineHeightPercent}%` } : undefined;
+  const filePanelRendered =
+    filePanelAvailable &&
+    (!tabbedSidebarLayout || activeSidebarPanel === "files");
+  const filePanelVisible = filePanelRendered && fileTreeListOpen;
+  const filePanelClassName = !fileTreeListOpen
+    ? "shrink-0"
+    : tabbedSidebarLayout || !outlineOpen
+      ? "flex-1"
+      : "min-h-24";
+  const filePanelStyle =
+    !tabbedSidebarLayout && fileTreeListOpen && outlineOpen
+      ? { flex: `0 1 ${100 - outlineHeightPercent}%` }
+      : undefined;
   const outlinePanelVisible = outlinePanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "outline");
   const linksPanelVisible = linkPanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "links");
   const linksPanelOpen = tabbedSidebarLayout || documentLinksOpen;
@@ -823,12 +834,21 @@ export function MarkdownFileTreeDrawer({
     : undefined;
   const outlinePanelOpen = tabbedSidebarLayout || outlineOpen;
   const outlinePanelStyle =
-    !tabbedSidebarLayout && filePanelAvailable && outlineOpen ? { flex: `0 1 ${outlineHeightPercent}%` } : undefined;
-  const outlinePanelFlexible = tabbedSidebarLayout || !filePanelAvailable;
-  const outlineResizerVisible = !tabbedSidebarLayout && outlineOpen && filePanelAvailable;
+    !tabbedSidebarLayout && filePanelAvailable && fileTreeListOpen && outlineOpen
+      ? { flex: `0 1 ${outlineHeightPercent}%` }
+      : undefined;
+  const outlinePanelFlexible = tabbedSidebarLayout || !filePanelAvailable || !fileTreeListOpen;
+  const outlineResizerVisible =
+    !tabbedSidebarLayout &&
+    outlinePanelAvailable &&
+    outlineOpen &&
+    filePanelAvailable &&
+    fileTreeListOpen;
   const documentLinksResizerVisible = !tabbedSidebarLayout && linkPanelAvailable && documentLinksOpen;
-  const fileSearchVisible = filePanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "files");
-  const folderAccessVisible = recentFolderAreaVisible && (!tabbedSidebarLayout || activeSidebarPanel === "files");
+  const fileSearchVisible = filePanelRendered;
+  const folderAccessVisible =
+    recentFolderAreaVisible &&
+    filePanelRendered;
   const fileTreeSurfaceClassName = platform === "windows" ? "bg-(--bg-chrome)" : "bg-(--bg-secondary)";
   const outlineToolbarVisible = !tabbedSidebarLayout ||
     (outlinePanelOpen && (outlineItems.length > 0 || outlineExpansionAvailable));
@@ -2639,6 +2659,180 @@ export function MarkdownFileTreeDrawer({
     if (panel !== "outline") setOutlineLevelMenuOpen(false);
   };
 
+  const renderFileTreeActions = (className: string) => {
+    const actionButtonClassName = "rounded-md";
+
+    return (
+      <div className={className}>
+        {showWindowsOpenFolderAction ? (
+          <IconButton
+            className={actionButtonClassName}
+            label={label("app.openFolder")}
+            onClick={onOpenFolder}
+          >
+            <FolderOpen aria-hidden="true" size={14} />
+          </IconButton>
+        ) : null}
+        {fileSearchVisible ? (
+          <IconButton
+            className={actionButtonClassName}
+            label={label("app.searchMarkdownFiles")}
+            pressed={searchOpen}
+            onClick={toggleFileSearch}
+          >
+            <Search aria-hidden="true" size={14} />
+          </IconButton>
+        ) : null}
+        <div className="relative" ref={fileTreeSortMenuRef}>
+          <IconButton
+            className={actionButtonClassName}
+            label={label("app.sortMarkdownFiles")}
+            pressed={fileTreeSortMenuOpen}
+            onClick={() => {
+              setFileTreeSortMenuOpen((open) => {
+                const nextOpen = !open;
+                if (nextOpen) setCreateMenuOpen(false);
+                return nextOpen;
+              });
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault();
+                setFileTreeSortMenuOpen(false);
+              }
+            }}
+          >
+            <ArrowUpDown aria-hidden="true" size={14} />
+          </IconButton>
+          {fileTreeSortMenuOpen ? (
+            // The toolbar is left-aligned, so the menu must expand rightward to avoid the drawer's clipped edge.
+            <div
+              className="absolute top-8 left-0 z-40 min-w-40 rounded-md border border-(--border-default) bg-(--bg-primary) py-1 shadow-[0_12px_30px_color-mix(in_srgb,var(--text-heading)_14%,transparent)]"
+              role="menu"
+              aria-label={label("app.sortMarkdownFiles")}
+            >
+              {renderSortMenuItem("name", label("app.sortMarkdownFilesByName"))}
+              {renderSortMenuItem("modifiedAt", label("app.sortMarkdownFilesByModifiedTime"))}
+              {renderSortMenuItem("createdAt", label("app.sortMarkdownFilesByCreatedTime"))}
+              <div className="my-1 h-px bg-(--border-default)" role="separator" />
+              {renderSortDirectionMenuItem(
+                "ascending",
+                label("app.sortMarkdownFilesAscending"),
+                <ArrowDownAZ size={13} />
+              )}
+              {renderSortDirectionMenuItem(
+                "descending",
+                label("app.sortMarkdownFilesDescending"),
+                <ArrowUpZA size={13} />
+              )}
+            </div>
+          ) : null}
+        </div>
+        {assetVisibilityToggleAvailable ? (
+          <IconButton
+            className={actionButtonClassName}
+            label={fileTreeAssetsVisible ? label("app.hideImageAssets") : label("app.showImageAssets")}
+            pressed={!fileTreeAssetsVisible}
+            onClick={toggleFileTreeAssetsVisible}
+          >
+            {fileTreeAssetsVisible ? (
+              <ImageOff aria-hidden="true" size={14} />
+            ) : (
+              <ImageIcon aria-hidden="true" size={14} />
+            )}
+          </IconButton>
+        ) : null}
+        {rootPath && onCleanUnusedImages ? (
+          <IconButton
+            className={actionButtonClassName}
+            label={label("app.assetCleanup.title")}
+            onClick={() => onCleanUnusedImages()}
+          >
+            <Trash2 aria-hidden="true" size={14} />
+          </IconButton>
+        ) : null}
+        {folderExpansionAvailable ? (
+          <IconButton
+            className={actionButtonClassName}
+            label={allFoldersExpanded ? label("app.collapseMarkdownFolders") : label("app.expandMarkdownFolders")}
+            pressed={allFoldersExpanded}
+            onClick={toggleAllFolders}
+          >
+            {allFoldersExpanded ? (
+              <ListChevronsDownUp aria-hidden="true" size={14} />
+            ) : (
+              <ListChevronsUpDown aria-hidden="true" size={14} />
+            )}
+          </IconButton>
+        ) : null}
+        {folderActionsAvailable ? (
+          <div className="relative" ref={createMenuRef}>
+            <IconButton
+              className={actionButtonClassName}
+              label={label("app.newMarkdownItem")}
+              pressed={createMenuOpen}
+              onClick={() => {
+                setCreateMenuOpen((open) => {
+                  const nextOpen = !open;
+                  if (nextOpen) setFileTreeSortMenuOpen(false);
+                  return nextOpen;
+                });
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setCreateMenuOpen(false);
+                }
+              }}
+            >
+              <Plus aria-hidden="true" size={14} />
+            </IconButton>
+            {createMenuOpen ? (
+              <div
+                className="absolute top-8 right-0 z-40 min-w-44 rounded-md border border-(--border-default) bg-(--bg-primary) py-1 shadow-[0_12px_30px_color-mix(in_srgb,var(--text-heading)_14%,transparent)]"
+                role="menu"
+                aria-label={label("app.newMarkdownItem")}
+              >
+                {fileCreationAvailable ? renderCreateMenuItem(
+                  label("app.newMarkdownFile"),
+                  <FileText size={13} />,
+                  () => startCreatingFile(activeCreateParentPath)
+                ) : null}
+                {folderCreationAvailable ? renderCreateMenuItem(
+                  label("app.newMarkdownFolder"),
+                  <Folder size={13} />,
+                  () => startCreatingFolder(activeCreateParentPath)
+                ) : null}
+                {fileCreationAvailable ? (
+                  <>
+                    <div className="my-1 h-px bg-(--border-default)" role="separator" />
+                    <div className="px-2.5 pt-0.5 pb-1 text-[11px] leading-none font-[560] text-(--text-secondary)">
+                      {label("app.newMarkdownFileFromTemplate")}
+                    </div>
+                    {availableMarkdownTemplates.map((template, index) => (
+                      <button
+                        key={`${template.id}-${index}`}
+                        className="flex h-7 w-full items-center gap-2 border-0 bg-transparent px-2.5 text-left text-[12px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                        role="menuitem"
+                        type="button"
+                        onClick={() => startCreatingFile(activeCreateParentPath, template)}
+                      >
+                        <span className="flex w-3.5 justify-center" aria-hidden="true">
+                          <LayoutTemplate size={13} />
+                        </span>
+                        <span>{template.name}</span>
+                      </button>
+                    ))}
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const renderSidebarPanelTabs = () => (
     tabbedSidebarLayout && sidebarPanelTabs.length > 1 ? (
       <div
@@ -2722,40 +2916,17 @@ export function MarkdownFileTreeDrawer({
           />
         ) : null}
         {!tabbedSidebarLayout && filePanelAvailable ? (
-          <div className="grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center border-b border-(--border-default) px-3">
+          <div className="markdown-file-tree-files-header grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center border-b border-(--border-default) pr-2 pl-3">
             <h2 className="m-0 truncate text-[14px] leading-5 font-[560] tracking-normal text-(--text-heading)">
               {label("app.files")}
             </h2>
-            <div className="markdown-file-tree-header-actions flex items-center gap-0.5">
-              {showWindowsOpenFolderAction ? (
-                <IconButton
-                  className="rounded-md"
-                  label={label("app.openFolder")}
-                  onClick={onOpenFolder}
-                >
-                  <FolderOpen aria-hidden="true" size={15} />
-                </IconButton>
-              ) : null}
-              {fileSearchVisible ? (
-                <IconButton
-                  className="rounded-md"
-                  label={label("app.searchMarkdownFiles")}
-                  pressed={searchOpen}
-                  onClick={toggleFileSearch}
-                >
-                  <Search aria-hidden="true" size={15} />
-                </IconButton>
-              ) : null}
-            </div>
           </div>
         ) : null}
-
-        {!tabbedSidebarLayout && filePanelAvailable ? renderFileSearchInput() : null}
 
         {folderAccessVisible ? renderFolderAccessArea() : null}
 
         <div ref={fileTreeBodyRef} className="markdown-file-tree-body flex min-h-0 flex-1 flex-col">
-          {filePanelVisible ? (
+          {filePanelRendered ? (
             <section
               className={`markdown-file-tree-files flex min-h-0 flex-col ${filePanelClassName}`}
               data-ai-workspace-file-tree="true"
@@ -2769,7 +2940,13 @@ export function MarkdownFileTreeDrawer({
                 onDragOver={handleFileTreeDragOver}
                 onDragStart={handleFileTreeDragStart}
               >
-                <div className="flex h-9 shrink-0 items-center gap-1 px-4 text-[13px] text-(--text-secondary)">
+                {renderFileTreeActions(
+                  "markdown-file-tree-toolbar flex h-8 shrink-0 items-center justify-start gap-1 pr-4 pl-2.5 text-(--text-secondary)"
+                )}
+
+                {renderFileSearchInput()}
+
+                <div className="markdown-file-tree-root flex h-8 shrink-0 items-center gap-1 pr-2 pl-4 text-[13px] text-(--text-secondary)">
                   <FileTreeDropTarget
                     disabled={!dragMoveAvailable}
                     id={fileTreeRootDropId("header")}
@@ -2786,202 +2963,52 @@ export function MarkdownFileTreeDrawer({
                       </div>
                     )}
                   </FileTreeDropTarget>
-                  {tabbedSidebarLayout && showWindowsOpenFolderAction ? (
-                    <IconButton
-                      className="rounded-md"
-                      label={label("app.openFolder")}
-                      onClick={onOpenFolder}
-                    >
-                      <FolderOpen aria-hidden="true" size={14} />
-                    </IconButton>
-                  ) : null}
-                  {tabbedSidebarLayout && fileSearchVisible ? (
-                    <IconButton
-                      className="rounded-md"
-                      label={label("app.searchMarkdownFiles")}
-                      pressed={searchOpen}
-                      onClick={toggleFileSearch}
-                    >
-                      <Search aria-hidden="true" size={14} />
-                    </IconButton>
-                  ) : null}
-                  <div className="relative" ref={fileTreeSortMenuRef}>
-                    <IconButton
-                      className="rounded-md"
-                      label={label("app.sortMarkdownFiles")}
-                      pressed={fileTreeSortMenuOpen}
-                      onClick={() => {
-                        setFileTreeSortMenuOpen((open) => {
-                          const nextOpen = !open;
-                          if (nextOpen) setCreateMenuOpen(false);
-                          return nextOpen;
-                        });
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          setFileTreeSortMenuOpen(false);
-                        }
-                      }}
-                    >
-                      <ArrowUpDown aria-hidden="true" size={14} />
-                    </IconButton>
-                    {fileTreeSortMenuOpen ? (
-                      <div
-                        className="absolute top-8 right-0 z-40 min-w-40 rounded-md border border-(--border-default) bg-(--bg-primary) py-1 shadow-[0_12px_30px_color-mix(in_srgb,var(--text-heading)_14%,transparent)]"
-                        role="menu"
-                        aria-label={label("app.sortMarkdownFiles")}
-                      >
-                      {renderSortMenuItem("name", label("app.sortMarkdownFilesByName"))}
-                      {renderSortMenuItem("modifiedAt", label("app.sortMarkdownFilesByModifiedTime"))}
-                      {renderSortMenuItem("createdAt", label("app.sortMarkdownFilesByCreatedTime"))}
-                      <div className="my-1 h-px bg-(--border-default)" role="separator" />
-                      {renderSortDirectionMenuItem(
-                        "ascending",
-                        label("app.sortMarkdownFilesAscending"),
-                        <ArrowDownAZ size={13} />
-                      )}
-                      {renderSortDirectionMenuItem(
-                        "descending",
-                        label("app.sortMarkdownFilesDescending"),
-                        <ArrowUpZA size={13} />
-                      )}
-                    </div>
-                  ) : null}
+                  <IconButton
+                    className="rounded-md"
+                    label={fileTreeListOpen ? label("app.hideFiles") : label("app.showFiles")}
+                    pressed={fileTreeListOpen}
+                    onClick={() => setFileTreeListOpen((open) => !open)}
+                  >
+                    {fileTreeListOpen ? (
+                      <ChevronDown aria-hidden="true" size={14} />
+                    ) : (
+                      <ChevronRight aria-hidden="true" size={14} />
+                    )}
+                  </IconButton>
                 </div>
-                {assetVisibilityToggleAvailable ? (
-                  <IconButton
-                    className="rounded-md"
-                    label={fileTreeAssetsVisible ? label("app.hideImageAssets") : label("app.showImageAssets")}
-                    pressed={!fileTreeAssetsVisible}
-                    onClick={toggleFileTreeAssetsVisible}
-                  >
-                    {fileTreeAssetsVisible ? (
-                      <ImageOff aria-hidden="true" size={14} />
-                    ) : (
-                      <ImageIcon aria-hidden="true" size={14} />
-                    )}
-                  </IconButton>
-                ) : null}
-                {rootPath && onCleanUnusedImages ? (
-                  <IconButton
-                    className="rounded-md"
-                    label={label("app.assetCleanup.title")}
-                    onClick={() => void onCleanUnusedImages()}
-                  >
-                    <Trash2 aria-hidden="true" size={14} />
-                  </IconButton>
-                ) : null}
-                {folderExpansionAvailable ? (
-                  <IconButton
-                    className="rounded-md"
-                    label={allFoldersExpanded ? label("app.collapseMarkdownFolders") : label("app.expandMarkdownFolders")}
-                    pressed={allFoldersExpanded}
-                    onClick={toggleAllFolders}
-                  >
-                    {allFoldersExpanded ? (
-                      <ListChevronsDownUp aria-hidden="true" size={14} />
-                    ) : (
-                      <ListChevronsUpDown aria-hidden="true" size={14} />
-                    )}
-                  </IconButton>
-                ) : null}
-                {folderActionsAvailable ? (
-                  <div className="relative" ref={createMenuRef}>
-                    <IconButton
-                      className="rounded-md"
-                      label={label("app.newMarkdownItem")}
-                      pressed={createMenuOpen}
-                      onClick={() => {
-                        setCreateMenuOpen((open) => {
-                          const nextOpen = !open;
-                          if (nextOpen) setFileTreeSortMenuOpen(false);
-                          return nextOpen;
-                        });
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          event.preventDefault();
-                          setCreateMenuOpen(false);
-                        }
-                      }}
+
+                {fileTreeListOpen ? (
+                  <>
+                    <FileTreeDropTarget
+                      disabled={!dragMoveAvailable}
+                      id={fileTreeRootDropId("scroll")}
+                      targetParentPath={null}
                     >
-                      <Plus aria-hidden="true" size={14} />
-                    </IconButton>
-                    {createMenuOpen ? (
-                      <div
-                        className="absolute top-8 right-0 z-40 min-w-44 rounded-md border border-(--border-default) bg-(--bg-primary) py-1 shadow-[0_12px_30px_color-mix(in_srgb,var(--text-heading)_14%,transparent)]"
-                        role="menu"
-                        aria-label={label("app.newMarkdownItem")}
-                      >
-                        {fileCreationAvailable ? renderCreateMenuItem(
-                          label("app.newMarkdownFile"),
-                          <FileText size={13} />,
-                          () => startCreatingFile(activeCreateParentPath)
-                        ) : null}
-                        {folderCreationAvailable ? renderCreateMenuItem(
-                          label("app.newMarkdownFolder"),
-                          <Folder size={13} />,
-                          () => startCreatingFolder(activeCreateParentPath)
-                        ) : null}
-                        {fileCreationAvailable ? (
-                          <>
-                            <div className="my-1 h-px bg-(--border-default)" role="separator" />
-                            <div className="px-2.5 pb-1 pt-0.5 text-[11px] leading-none font-[560] text-(--text-secondary)">
-                              {label("app.newMarkdownFileFromTemplate")}
+                      {(rootDropTarget) => (
+                        <div
+                          ref={combineNodeRefs<HTMLDivElement>(rootDropTarget.setNodeRef, setFileTreeScrollRef)}
+                          className={`file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4 ${dragOverTargetPath === dragTargetKey(null) ? fileTreeDropTargetClassName : ""}`}
+                          onScroll={handleFileTreeScroll}
+                          onMouseDown={cancelFileTreeInputsFromBlankArea}
+                          onContextMenu={(event) => openContextMenu(event)}
+                        >
+                          {tree.length > 0 || creatingFile || creatingFolder ? (
+                            virtualFileTreeEnabled ? renderVirtualFileTreeRows() : renderNodes(tree)
+                          ) : (
+                            <div className="min-h-full" role="tree" aria-label={label("app.markdownFiles")}>
+                              <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">
+                                {label("app.noMarkdownFiles")}
+                              </p>
                             </div>
-                            {availableMarkdownTemplates.map((template, index) => (
-                              <button
-                                key={`${template.id}-${index}`}
-                                className="flex h-7 w-full items-center gap-2 border-0 bg-transparent px-2.5 text-left text-[12px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                                role="menuitem"
-                                type="button"
-                                onClick={() => startCreatingFile(activeCreateParentPath, template)}
-                              >
-                                <span className="flex w-3.5 justify-center" aria-hidden="true">
-                                  <LayoutTemplate size={13} />
-                                </span>
-                                <span>{template.name}</span>
-                              </button>
-                            ))}
-                          </>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
+                          )}
+                        </div>
+                      )}
+                    </FileTreeDropTarget>
+                    <DragOverlay dropAnimation={null}>
+                      <FileTreeDragOverlay file={activeDragFile} />
+                    </DragOverlay>
+                  </>
                 ) : null}
-              </div>
-
-              {tabbedSidebarLayout ? renderFileSearchInput() : null}
-
-              <FileTreeDropTarget
-                disabled={!dragMoveAvailable}
-                id={fileTreeRootDropId("scroll")}
-                targetParentPath={null}
-              >
-                {(rootDropTarget) => (
-                  <div
-                    ref={combineNodeRefs<HTMLDivElement>(rootDropTarget.setNodeRef, setFileTreeScrollRef)}
-                    className={`file-tree-scroll min-h-0 flex-1 overflow-y-auto overscroll-none pb-4 ${dragOverTargetPath === dragTargetKey(null) ? fileTreeDropTargetClassName : ""}`}
-                    onScroll={handleFileTreeScroll}
-                    onMouseDown={cancelFileTreeInputsFromBlankArea}
-                    onContextMenu={(event) => openContextMenu(event)}
-                  >
-                    {tree.length > 0 || creatingFile || creatingFolder ? (
-                      virtualFileTreeEnabled ? renderVirtualFileTreeRows() : renderNodes(tree)
-                    ) : (
-                      <div className="min-h-full" role="tree" aria-label={label("app.markdownFiles")}>
-                        <p className="m-0 px-4 py-3 text-[12px] text-(--text-secondary)">
-                          {label("app.noMarkdownFiles")}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </FileTreeDropTarget>
-              <DragOverlay dropAnimation={null}>
-                <FileTreeDragOverlay file={activeDragFile} />
-              </DragOverlay>
               </DndContext>
             </section>
           ) : null}
@@ -3070,7 +3097,9 @@ export function MarkdownFileTreeDrawer({
                       onClick={() => {
                         setOutlineOpen((open) => {
                           const nextOpen = !open;
-                          if (!nextOpen) setOutlineLevelMenuOpen(false);
+                          if (!nextOpen) {
+                            setOutlineLevelMenuOpen(false);
+                          }
                           return nextOpen;
                         });
                       }}

@@ -307,6 +307,7 @@ const messages: LocaleMessages = {
   "app.noBacklinks": "No backlinks",
   "app.noUnlinkedMentions": "No unlinked mentions",
   "app.showFiles": "Mostrar archivos",
+  "app.hideFiles": "Ocultar archivos",
   "app.showOutline": "Mostrar esquema",
   "app.hideOutline": "Ocultar esquema",
   "app.resizeOutline": "Cambiar altura del esquema",

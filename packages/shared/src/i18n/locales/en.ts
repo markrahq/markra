@@ -625,6 +625,7 @@ const messages: BaseLocaleMessages = {
   "app.noBacklinks": "No backlinks",
   "app.noUnlinkedMentions": "No unlinked mentions",
   "app.showFiles": "Show files",
+  "app.hideFiles": "Hide files",
   "app.showOutline": "Show outline",
   "app.hideOutline": "Hide outline",
   "app.resizeOutline": "Resize outline",

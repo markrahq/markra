@@ -315,6 +315,7 @@ const messages: LocaleMessages = {
   "app.noBacklinks": "No backlinks",
   "app.noUnlinkedMentions": "No unlinked mentions",
   "app.showFiles": "ファイルを表示",
+  "app.hideFiles": "ファイルを非表示",
   "app.showOutline": "アウトラインを表示",
   "app.hideOutline": "アウトラインを非表示",
   "app.resizeOutline": "アウトラインの高さを変更",

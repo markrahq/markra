@@ -636,6 +636,7 @@ export type I18nKey =
   | "app.noBacklinks"
   | "app.noUnlinkedMentions"
   | "app.showFiles"
+  | "app.hideFiles"
   | "app.showOutline"
   | "app.hideOutline"
   | "app.resizeOutline"

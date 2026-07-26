@@ -307,6 +307,7 @@ const messages: LocaleMessages = {
   "app.noBacklinks": "No backlinks",
   "app.noUnlinkedMentions": "No unlinked mentions",
   "app.showFiles": "파일 보기",
+  "app.hideFiles": "파일 숨기기",
   "app.showOutline": "개요 보기",
   "app.hideOutline": "개요 숨기기",
   "app.resizeOutline": "개요 높이 조정",
