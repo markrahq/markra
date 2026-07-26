@@ -305,6 +305,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "在侧栏显示当前文档的反向链接和未链接提及。",
   "settings.editor.showWordCount": "显示字数统计",
   "settings.editor.showWordCountDescription": "在编辑器状态栏显示当前文档字数。",
+  "settings.editor.revealMarkdownMarkersOnFocus": "自动展开 Markdown 标记",
+  "settings.editor.revealMarkdownMarkersOnFocusDescription": "光标位于标题或格式化文本中时，显示该内容的完整 Markdown 标记。关闭后，仅显示光标所在位置的标记。",
   "settings.editor.showLineNumbers": "显示源码行号",
   "settings.editor.showLineNumbersDescription": "在源码模式中显示 Markdown 文件的实际行号。",
   "settings.editor.typewriterMode": "打字机模式",

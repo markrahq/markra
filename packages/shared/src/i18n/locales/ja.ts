@@ -704,6 +704,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "現在のドキュメントのバックリンクと未リンクの言及をサイドバーに表示します。",
   "settings.editor.showWordCount": "単語数を表示",
   "settings.editor.showWordCountDescription": "エディターのステータス行にドキュメントの単語数を表示します。",
+  "settings.editor.revealMarkdownMarkersOnFocus": "Markdown 記号を自動的に表示",
+  "settings.editor.revealMarkdownMarkersOnFocusDescription": "カーソルが内容内にあるとき、見出しとインライン書式の記号をすべて表示します。オフにすると、カーソル位置の記号だけを表示します。",
   "settings.editor.showLineNumbers": "ソースの行番号を表示",
   "settings.editor.showLineNumbersDescription": "ソースモードで Markdown ファイルの実際の行番号を表示します。",
   "settings.editor.typewriterMode": "タイプライターモード",

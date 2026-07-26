@@ -334,6 +334,8 @@ export type I18nKey =
   | "settings.editor.documentLinksDescription"
   | "settings.editor.showWordCount"
   | "settings.editor.showWordCountDescription"
+  | "settings.editor.revealMarkdownMarkersOnFocus"
+  | "settings.editor.revealMarkdownMarkersOnFocusDescription"
   | "settings.editor.showLineNumbers"
   | "settings.editor.showLineNumbersDescription"
   | "settings.editor.typewriterMode"

@@ -220,6 +220,7 @@ function headingAriaLabel(source: string, setext: boolean) {
 export interface LivePreviewConfig {
   resolveLinkTarget?: (context: MarkraLinkSourceContext) => string | null;
   reveal?: RevealPolicy;
+  revealMarkdownMarkersOnFocus?: boolean;
   taskCheckboxes?: boolean;
 }
 
@@ -300,9 +301,55 @@ function pushHiddenRange(
   }
 }
 
+function inlineDelimiterRun(
+  tree: ReturnType<typeof syntaxTree>,
+  from: number,
+  to: number,
+) {
+  let runFrom = from;
+  let runTo = to;
+
+  // Lezer represents nested runs such as `***` as adjacent marker nodes.
+  // Treat the contiguous run as one side so boundary editing never exposes
+  // only the outer marker and leaves the rest hidden under the caret.
+  while (runFrom > 0) {
+    let adjacent: ReturnType<typeof tree.resolveInner> | null =
+      tree.resolveInner(runFrom, -1);
+    while (
+      adjacent &&
+      (
+        adjacent.to !== runFrom ||
+        !INLINE_WRAPPER_MARKS.has(adjacent.name)
+      )
+    ) {
+      adjacent = adjacent.parent;
+    }
+    if (!adjacent) break;
+    runFrom = adjacent.from;
+  }
+  while (runTo < tree.length) {
+    let adjacent: ReturnType<typeof tree.resolveInner> | null =
+      tree.resolveInner(runTo, 1);
+    while (
+      adjacent &&
+      (
+        adjacent.from !== runTo ||
+        !INLINE_WRAPPER_MARKS.has(adjacent.name)
+      )
+    ) {
+      adjacent = adjacent.parent;
+    }
+    if (!adjacent) break;
+    runTo = adjacent.to;
+  }
+
+  return { from: runFrom, to: runTo };
+}
+
 function buildDecorations(
   view: EditorView,
   reveal: RevealPolicy,
+  revealMarkdownMarkersOnFocus: boolean,
   taskCheckboxes: boolean,
   resolveLinkTarget: LivePreviewConfig["resolveLinkTarget"],
   typedBoundary: number | null,
@@ -625,22 +672,38 @@ function buildDecorations(
       }
     } else if (node.name === "HeaderMark") {
       const heading = node.node.parent;
-      if (heading && HEADING_CLASSES[heading.name]) {
+      if (
+        revealMarkdownMarkersOnFocus &&
+        heading &&
+        HEADING_CLASSES[heading.name]
+      ) {
         // Heading source follows the same edit affordance as paired inline
         // wrappers: entering its rendered text reveals the complete marker.
         revealFrom = heading.from;
         revealTo = heading.to;
         revealScope = "heading";
       }
+      // The opt-out deliberately keeps this marker's own range so a heading
+      // marker only appears when the cursor reaches its source boundary.
     } else if (INLINE_WRAPPER_MARKS.has(node.name)) {
       const wrapper = node.node.parent;
-      if (wrapper && INLINE_WRAPPERS.has(wrapper.name)) {
+      if (
+        revealMarkdownMarkersOnFocus &&
+        wrapper &&
+        INLINE_WRAPPERS.has(wrapper.name)
+      ) {
         // Paired delimiters must reveal as one unit. Revealing each mark by
         // itself leaves an orphan closing marker when the text is active.
         revealFrom = wrapper.from;
         revealTo = wrapper.to;
         revealScope = "node";
+      } else if (!revealMarkdownMarkersOnFocus) {
+        const delimiterRun = inlineDelimiterRun(tree, node.from, node.to);
+        revealFrom = delimiterRun.from;
+        revealTo = delimiterRun.to;
       }
+      // With automatic reveal off, keep each side's run separate so opening
+      // and closing delimiters can be edited independently.
     }
 
     if (
@@ -726,6 +789,8 @@ function buildDecorations(
 
 function previewPlugin(config: LivePreviewConfig): Extension {
   const reveal = config.reveal ?? revealActiveLine;
+  const revealMarkdownMarkersOnFocus =
+    config.revealMarkdownMarkersOnFocus ?? true;
   const taskCheckboxes = config.taskCheckboxes ?? true;
   const resolveLinkTarget = config.resolveLinkTarget;
 
@@ -748,6 +813,7 @@ function previewPlugin(config: LivePreviewConfig): Extension {
         this.decorations = buildDecorations(
           view,
           reveal,
+          revealMarkdownMarkersOnFocus,
           taskCheckboxes,
           resolveLinkTarget,
           this.typedBoundary,
@@ -804,6 +870,7 @@ function previewPlugin(config: LivePreviewConfig): Extension {
           this.decorations = buildDecorations(
             update.view,
             reveal,
+            revealMarkdownMarkersOnFocus,
             taskCheckboxes,
             resolveLinkTarget,
             this.typedBoundary,

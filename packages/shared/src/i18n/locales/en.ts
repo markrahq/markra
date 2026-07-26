@@ -305,6 +305,8 @@ const messages: BaseLocaleMessages = {
   "settings.editor.documentLinksDescription": "Show backlinks and unlinked mentions for the current document in the sidebar.",
   "settings.editor.showWordCount": "Show word count",
   "settings.editor.showWordCountDescription": "Show document word count in the editor status line.",
+  "settings.editor.revealMarkdownMarkersOnFocus": "Automatically reveal Markdown markers",
+  "settings.editor.revealMarkdownMarkersOnFocusDescription": "Reveal complete heading and inline formatting markers while the cursor is inside their content. Turn off to reveal only the marker at the cursor.",
   "settings.editor.showLineNumbers": "Show source line numbers",
   "settings.editor.showLineNumbersDescription": "Show actual Markdown line numbers in source mode.",
   "settings.editor.typewriterMode": "Typewriter mode",

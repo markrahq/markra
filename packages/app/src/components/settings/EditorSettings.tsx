@@ -865,6 +865,23 @@ export function EditorSettings({
           }
         />
         <SettingsRow
+          title={translate("settings.editor.revealMarkdownMarkersOnFocus")}
+          description={translate("settings.editor.revealMarkdownMarkersOnFocusDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.revealMarkdownMarkersOnFocus}
+              label={translate("settings.editor.revealMarkdownMarkersOnFocus")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  revealMarkdownMarkersOnFocus:
+                    !preferences.revealMarkdownMarkersOnFocus
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.editor.showLineNumbers")}
           description={translate("settings.editor.showLineNumbersDescription")}
           action={

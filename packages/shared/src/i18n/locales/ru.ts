@@ -704,6 +704,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "Показывает обратные ссылки и несвязанные упоминания текущего документа на боковой панели.",
   "settings.editor.showWordCount": "Показывать число слов",
   "settings.editor.showWordCountDescription": "Показывает число слов документа в строке состояния редактора.",
+  "settings.editor.revealMarkdownMarkersOnFocus": "Автоматически показывать маркеры Markdown",
+  "settings.editor.revealMarkdownMarkersOnFocusDescription": "Показывает полные маркеры заголовков и встроенного форматирования, когда курсор находится внутри содержимого. Отключите, чтобы видеть только маркер в позиции курсора.",
   "settings.editor.showLineNumbers": "Показывать номера строк исходного текста",
   "settings.editor.showLineNumbersDescription": "Показывает фактические номера строк Markdown в режиме исходного текста.",
   "settings.editor.typewriterMode": "Режим пишущей машинки",

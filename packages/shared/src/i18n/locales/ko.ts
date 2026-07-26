@@ -704,6 +704,8 @@ const messages: LocaleMessages = {
   "settings.editor.documentLinksDescription": "현재 문서의 백링크와 연결되지 않은 언급을 사이드바에 표시합니다.",
   "settings.editor.showWordCount": "단어 수 표시",
   "settings.editor.showWordCountDescription": "편집기 상태 줄에 문서 단어 수를 표시합니다.",
+  "settings.editor.revealMarkdownMarkersOnFocus": "Markdown 표시 자동으로 보기",
+  "settings.editor.revealMarkdownMarkersOnFocusDescription": "커서가 내용 안에 있을 때 제목과 인라인 서식 표시 전체를 보여 줍니다. 끄면 커서 위치의 표시만 보여 줍니다.",
   "settings.editor.showLineNumbers": "소스 줄 번호 표시",
   "settings.editor.showLineNumbersDescription": "소스 모드에서 Markdown 파일의 실제 줄 번호를 표시합니다.",
   "settings.editor.typewriterMode": "타자기 모드",

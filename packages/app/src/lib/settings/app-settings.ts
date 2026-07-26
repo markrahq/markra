@@ -406,6 +406,7 @@ export type EditorPreferences = {
   titlebarActions: TitlebarActionPreference[];
   viewMode: ViewMode;
   viewModeCustomizations: ViewModeCustomizations;
+  revealMarkdownMarkersOnFocus: boolean;
   showLineNumbers: boolean;
   showWordCount: boolean;
   typewriterModeEnabled: boolean;
@@ -536,6 +537,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   titlebarActions: [...defaultTitlebarActions],
   viewMode: "daily",
   viewModeCustomizations: { ...defaultViewModeCustomizations },
+  revealMarkdownMarkersOnFocus: true,
   showLineNumbers: false,
   showWordCount: true,
   typewriterModeEnabled: false,
@@ -1725,6 +1727,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     titlebarActions: normalizeTitlebarActions(preferences.titlebarActions),
     viewMode: isViewMode(preferences.viewMode) ? preferences.viewMode : defaultEditorPreferences.viewMode,
     viewModeCustomizations: normalizeViewModeCustomizations(preferences.viewModeCustomizations),
+    revealMarkdownMarkersOnFocus:
+      typeof preferences.revealMarkdownMarkersOnFocus === "boolean"
+        ? preferences.revealMarkdownMarkersOnFocus
+        : defaultEditorPreferences.revealMarkdownMarkersOnFocus,
     showLineNumbers:
       typeof preferences.showLineNumbers === "boolean"
         ? preferences.showLineNumbers

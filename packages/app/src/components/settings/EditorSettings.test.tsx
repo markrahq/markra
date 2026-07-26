@@ -200,6 +200,34 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("toggles automatic Markdown marker reveal from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          revealMarkdownMarkersOnFocus: true
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const markdownMarkersSwitch = screen.getByRole("switch", {
+      name: "Automatically reveal Markdown markers"
+    });
+
+    expect(markdownMarkersSwitch).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(markdownMarkersSwitch);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      revealMarkdownMarkersOnFocus: false
+    });
+  });
+
   it("toggles typewriter mode from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

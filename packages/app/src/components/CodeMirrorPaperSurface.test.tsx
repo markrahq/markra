@@ -85,6 +85,44 @@ describe("CodeMirrorPaperSurface", () => {
     expect(view.contentDOM.getAttribute("aria-readonly")).toBe("true");
   });
 
+  it("reconfigures Markdown marker focus reveal without recreating the editor view", () => {
+    const content = "# Synthetic heading";
+    const onEditorReady = vi.fn();
+    const { rerender } = render(
+      <CodeMirrorPaperSurface
+        initialContent={content}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        revealMarkdownMarkersOnFocus
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    act(() => {
+      view.focus();
+      view.dispatch({ selection: { anchor: content.indexOf("heading") } });
+    });
+    expect(view.dom.querySelector(".cm-line")?.textContent).toBe(content);
+
+    rerender(
+      <CodeMirrorPaperSurface
+        initialContent={content}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        revealMarkdownMarkersOnFocus={false}
+      />,
+    );
+
+    act(() => {
+      view.focus();
+      view.dispatch({ selection: { anchor: content.indexOf("Synthetic") + 2 } });
+    });
+    expect(onEditorReady).toHaveBeenCalledTimes(1);
+    expect(view.dom.querySelector(".cm-line")?.textContent).toBe(
+      "Synthetic heading",
+    );
+  });
+
   it("reconfigures typewriter mode without recreating the editor view", () => {
     const onEditorReady = vi.fn();
     const { rerender } = render(

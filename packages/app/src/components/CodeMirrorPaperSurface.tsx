@@ -103,6 +103,7 @@ export interface CodeMirrorPaperSurfaceProps {
   plugins?: readonly MarkraPlugin[];
   readOnly?: boolean;
   resolveImageSrc?: (src: string) => string;
+  revealMarkdownMarkersOnFocus?: boolean;
   spellcheckEnabled?: boolean;
   spellcheckIgnoredWords?: readonly string[];
   spellchecker?: Spellchecker;
@@ -135,6 +136,7 @@ interface MarkdownExtensionOptions {
   openLocalAttachment: () => ((src: string) => unknown) | undefined;
   openSpellcheckSuggestions: (view: EditorView) => boolean;
   resolveImageSrc: (source: string) => string | undefined;
+  revealMarkdownMarkersOnFocus: boolean;
   plugins: readonly MarkraPlugin[];
   shortcuts?: MarkdownShortcutMap;
   tableColumnWidthMode: TableColumnWidthModePreference;
@@ -149,6 +151,7 @@ function markdownExtension({
   openLocalAttachment,
   openSpellcheckSuggestions,
   resolveImageSrc,
+  revealMarkdownMarkersOnFocus,
   plugins,
   shortcuts,
   tableColumnWidthMode,
@@ -184,6 +187,7 @@ function markdownExtension({
   return liveMarkdown({
     highlight: extendedSyntax?.highlight ?? true,
     resolveLinkTarget: linkOptions?.resolveTarget,
+    revealMarkdownMarkersOnFocus,
     plugins: [
       blocksPlugin({
         callout: extendedSyntax?.githubAlerts ?? true,
@@ -338,6 +342,7 @@ export function CodeMirrorPaperSurface({
   plugins = emptyPlugins,
   readOnly = false,
   resolveImageSrc,
+  revealMarkdownMarkersOnFocus = true,
   spellcheckEnabled = false,
   spellcheckIgnoredWords = [],
   spellchecker,
@@ -511,6 +516,7 @@ export function CodeMirrorPaperSurface({
               openLocalAttachment: () => openLocalAttachmentRef.current,
               openSpellcheckSuggestions: openSpellcheckSuggestionMenu,
               resolveImageSrc: (source) => resolveImageSrcRef.current?.(source),
+              revealMarkdownMarkersOnFocus,
               plugins,
               shortcuts: markdownShortcuts,
               tableColumnWidthMode,
@@ -641,6 +647,7 @@ export function CodeMirrorPaperSurface({
           openLocalAttachment: () => openLocalAttachmentRef.current,
           openSpellcheckSuggestions: openSpellcheckSuggestionMenu,
           resolveImageSrc: (source) => resolveImageSrcRef.current?.(source),
+          revealMarkdownMarkersOnFocus,
           plugins,
           shortcuts: markdownShortcuts,
           tableColumnWidthMode,
@@ -656,6 +663,7 @@ export function CodeMirrorPaperSurface({
     Boolean(openLocalAttachment),
     openSpellcheckSuggestionMenu,
     plugins,
+    revealMarkdownMarkersOnFocus,
     tableColumnWidthMode,
   ]);
 

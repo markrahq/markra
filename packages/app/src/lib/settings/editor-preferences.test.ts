@@ -109,6 +109,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      revealMarkdownMarkersOnFocus: true,
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
@@ -263,6 +264,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      revealMarkdownMarkersOnFocus: true,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
@@ -283,6 +285,13 @@ describe("editor preferences", () => {
     expect((normalizeEditorPreferences({ typewriterModeEnabled: true }) as Record<string, unknown>).typewriterModeEnabled).toBe(true);
     expect((normalizeEditorPreferences({ typewriterModeEnabled: false }) as Record<string, unknown>).typewriterModeEnabled).toBe(false);
     expect((normalizeEditorPreferences({ typewriterModeEnabled: "yes" }) as Record<string, unknown>).typewriterModeEnabled).toBe(false);
+  });
+
+  it("normalizes the Markdown marker focus preference", () => {
+    expect(defaultEditorPreferences.revealMarkdownMarkersOnFocus).toBe(true);
+    expect(normalizeEditorPreferences({ revealMarkdownMarkersOnFocus: true }).revealMarkdownMarkersOnFocus).toBe(true);
+    expect(normalizeEditorPreferences({ revealMarkdownMarkersOnFocus: false }).revealMarkdownMarkersOnFocus).toBe(false);
+    expect(normalizeEditorPreferences({ revealMarkdownMarkersOnFocus: "no" }).revealMarkdownMarkersOnFocus).toBe(true);
   });
 
   it("normalizes view mode preferences", () => {
@@ -791,6 +800,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      revealMarkdownMarkersOnFocus: true,
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
@@ -895,6 +905,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      revealMarkdownMarkersOnFocus: false,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
@@ -997,6 +1008,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      revealMarkdownMarkersOnFocus: false,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
