@@ -13,7 +13,7 @@ export const defaultEditorFontFamily: EditorFontFamilyPreference = {
   source: "theme"
 };
 
-const visualEditorFontFallback = '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif';
+const visualEditorFontFallback = "var(--font-ui)";
 
 function quoteCssFontFamilyName(family: string) {
   return `"${family.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;

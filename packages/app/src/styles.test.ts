@@ -8,6 +8,15 @@ describe("editor stylesheet", () => {
     expect(styles).toContain('@source "../../../packages/ui/src"');
   });
 
+  it("uses the bundled UI font for app chrome and default editor themes", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).toContain('@import "@fontsource-variable/noto-sans-sc/wght.css";');
+    expect(styles).toContain('--font-ui: "Noto Sans SC Variable"');
+    expect(styles).toContain("font-family: var(--font-ui);");
+    expect(styles).toContain("--editor-font-family: var(--font-ui);");
+  });
+
   it("uses theme-aware custom text cursors for visual editor text surfaces", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

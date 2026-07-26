@@ -329,7 +329,7 @@ const frontmatterTheme = EditorView.baseTheme({
   },
   ".cm-markra-frontmatter-label": {
     display: "block",
-    fontFamily: "system-ui, sans-serif",
+    fontFamily: 'var(--font-ui, "Noto Sans SC Variable", sans-serif)',
     fontSize: "0.72em",
     fontWeight: "650",
     marginBottom: "0.4em",

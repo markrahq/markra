@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@fontsource-variable/noto-sans-sc/wght.css";
 @source ".";
 @source "../../../packages/ui/src";
 @import "katex/dist/katex.css";
@@ -204,10 +205,14 @@
     --ai-ghost: #c0c0c0;
     --ai-border: #dddddd;
 
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --font-ui: "Noto Sans SC Variable", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
+
+    font-family: var(--font-ui);
     color: var(--text-primary);
     background: var(--bg-primary);
     color-scheme: light;
+    font-kerning: normal;
+    font-optical-sizing: auto;
     font-synthesis: none;
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
@@ -1610,7 +1615,7 @@
     --editor-hl-meta: oklch(44% 0.15 330);
     --editor-hl-symbol: oklch(40% 0.12 190);
     --editor-hl-deletion: oklch(45% 0.17 29);
-    --editor-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --editor-font-family: var(--font-ui);
     --editor-heading-font-family: var(--editor-font-family);
     --editor-paragraph-spacing: 8px;
     --editor-caret-color: var(--accent);
@@ -1707,7 +1712,7 @@
   }
 
   .markdown-paper[data-editor-theme="minimal"] {
-    --editor-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --editor-font-family: var(--font-ui);
   }
 
   .markdown-paper[data-editor-theme="custom"] {

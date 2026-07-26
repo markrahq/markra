@@ -24,43 +24,43 @@ colors:
   overlay-ink: "#1F232C"
 typography:
   editor-h1:
-    fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif
+    fontFamily: '"Noto Sans SC Variable", "Noto Sans SC", "Noto Sans CJK SC", sans-serif'
     fontSize: 44px
     fontWeight: 760
     lineHeight: 1.15
     letterSpacing: 0em
   editor-h2:
-    fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif
+    fontFamily: '"Noto Sans SC Variable", "Noto Sans SC", "Noto Sans CJK SC", sans-serif'
     fontSize: 31px
     fontWeight: 760
     lineHeight: 1.22
     letterSpacing: 0em
   editor-h3:
-    fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif
+    fontFamily: '"Noto Sans SC Variable", "Noto Sans SC", "Noto Sans CJK SC", sans-serif'
     fontSize: 24px
     fontWeight: 760
     lineHeight: 1.28
     letterSpacing: 0em
   editor-body:
-    fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif
+    fontFamily: '"Noto Sans SC Variable", "Noto Sans SC", "Noto Sans CJK SC", sans-serif'
     fontSize: 16px
     fontWeight: 400
     lineHeight: 1.65
     letterSpacing: 0em
   ui-body:
-    fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif
+    fontFamily: '"Noto Sans SC Variable", "Noto Sans SC", "Noto Sans CJK SC", sans-serif'
     fontSize: 13px
     fontWeight: 520
     lineHeight: 1.54
     letterSpacing: 0em
   ui-label:
-    fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif
+    fontFamily: '"Noto Sans SC Variable", "Noto Sans SC", "Noto Sans CJK SC", sans-serif'
     fontSize: 12px
     fontWeight: 560
     lineHeight: 1.67
     letterSpacing: 0em
   ui-control:
-    fontFamily: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif
+    fontFamily: '"Noto Sans SC Variable", "Noto Sans SC", "Noto Sans CJK SC", sans-serif'
     fontSize: 12px
     fontWeight: 620
     lineHeight: 1.67
@@ -223,7 +223,7 @@ Do not introduce extra brand colors for primary flows. Semantic colors may appea
 
 ## Typography
 
-Markra uses the system UI stack for both application chrome and the default editor theme. This keeps the desktop app native-feeling across macOS, Windows, and Linux while avoiding font loading cost.
+Markra bundles Noto Sans SC Variable for application chrome and the default editor theme. This gives macOS, Windows, Linux, and the web app the same typographic voice while retaining a generic sans-serif fallback if the bundled font cannot load.
 
 Editor typography is larger and calmer than UI typography. Body copy defaults to 16px with a 1.65 line-height for comfortable long-form writing. Headings use strong weight, normal tracking, and clear scale jumps: H1 at 44px, H2 at 31px, and H3 at 24px.
 

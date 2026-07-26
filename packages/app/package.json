@@ -37,6 +37,7 @@
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",
     "@earendil-works/pi-agent-core": "0.75.5",
+    "@fontsource-variable/noto-sans-sc": "5.3.0",
     "@markra/ai": "workspace:*",
     "@markra/editor": "workspace:*",
     "@markra/editor-react": "workspace:*",

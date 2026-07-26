@@ -186,7 +186,7 @@ const codeBlockTheme = EditorView.baseTheme({
   ".cm-markra-code-header": {
     color: "color-mix(in srgb, currentColor 62%, transparent)",
     display: "inline-block",
-    fontFamily: "ui-sans-serif, system-ui, sans-serif",
+    fontFamily: 'var(--font-ui, "Noto Sans SC Variable", sans-serif)',
     fontSize: "0.78em",
     fontWeight: "650",
     letterSpacing: "0.04em",

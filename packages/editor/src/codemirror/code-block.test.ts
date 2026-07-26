@@ -46,9 +46,11 @@ afterEach(() => {
 describe("codeBlockPreviewPlugin", () => {
   it("renders a language header and code body while preserving Markdown", () => {
     const view = createView();
+    const header = view.dom.querySelector<HTMLElement>(".cm-markra-code-header");
 
-    expect(view.dom.querySelector(".cm-markra-code-header")?.textContent).toBe(
-      "ts",
+    expect(header?.textContent).toBe("ts");
+    expect(header && getComputedStyle(header).fontFamily).toContain(
+      "var(--font-ui",
     );
     expect(
       view.dom.querySelectorAll(".cm-markra-code-content-line"),

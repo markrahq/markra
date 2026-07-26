@@ -67,9 +67,15 @@ describe("frontmatterPreviewPlugin", () => {
     const editor = view.dom.querySelector<HTMLTextAreaElement>(
       ".cm-markra-frontmatter-editor",
     );
+    const label = view.dom.querySelector<HTMLElement>(
+      ".cm-markra-frontmatter-label",
+    );
 
     expect(editor?.value).toBe("title: Synthetic");
     expect(view.dom.querySelector(".cm-markra-frontmatter")).not.toBeNull();
+    expect(label && getComputedStyle(label).fontFamily).toContain(
+      "var(--font-ui",
+    );
     expect(editor && getComputedStyle(editor).fontFamily).toContain("ui-monospace");
     expect(
       [...view.dom.querySelectorAll<HTMLElement>(".cm-markra-frontmatter-hidden-line")]

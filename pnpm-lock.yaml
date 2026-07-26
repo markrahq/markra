@@ -257,6 +257,9 @@ importers:
       '@earendil-works/pi-agent-core':
         specifier: 0.75.5
         version: 0.75.5(ws@8.20.0)(zod@4.4.3)
+      '@fontsource-variable/noto-sans-sc':
+        specifier: 5.3.0
+        version: 5.3.0
       '@markra/ai':
         specifier: workspace:*
         version: link:../ai
@@ -981,6 +984,9 @@ packages:
     peerDependenciesMeta:
       '@noble/hashes':
         optional: true
+
+  '@fontsource-variable/noto-sans-sc@5.3.0':
+    resolution: {integrity: sha512-lNar1dF7Ik/lHNPo/7JWG0TolXY29LtsqYgMvEysooZ5bsO9uH4shJmRrwyJ3PjyTPljhpMJEK0jDuLSU4vJ1w==}
 
   '@google/genai@1.52.0':
     resolution: {integrity: sha512-gwSvbpiN/17O9TbsqSsE/OzZcpv5Fo4RQjdngGgogtuB9RsyJ8ZHhX5KjHj1bp5N9snN2eK8LDGXSaWW2hof8Q==}
@@ -3668,6 +3674,8 @@ snapshots:
   '@exodus/bytes@1.15.0(@noble/hashes@2.2.0)':
     optionalDependencies:
       '@noble/hashes': 2.2.0
+
+  '@fontsource-variable/noto-sans-sc@5.3.0': {}
 
   '@google/genai@1.52.0':
     dependencies:
