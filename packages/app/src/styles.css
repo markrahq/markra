@@ -1274,8 +1274,8 @@
 
   .markdown-paper .cm-markra-table-wrap {
     display: block !important;
-    margin: 24px 0 !important;
-    padding: 28px 36px 36px 0 !important;
+    margin: 0 !important;
+    padding: 20px 36px 12px 0 !important;
     overflow: visible !important;
     font-size: 16px !important;
     line-height: 26.4px !important;
@@ -3048,7 +3048,8 @@
   }
 
   .markdown-paper .markra-table-align-controls {
-    @apply absolute top-0 left-1.5 z-10 flex items-center gap-0.5;
+    @apply absolute left-1.5 z-10 flex items-center gap-0.5;
+    top: -12px !important;
   }
 
   .markdown-paper .markra-table-size-controls {
@@ -3251,7 +3252,7 @@
   }
 
   .markdown-paper .markra-table-add-row {
-    @apply bottom-1.5 -translate-x-1/2;
+    @apply -bottom-3 -translate-x-1/2;
     left: calc(50% + var(--markra-table-control-inline-center-offset));
   }
 

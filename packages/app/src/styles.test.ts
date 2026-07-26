@@ -237,11 +237,11 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .cm-markra-code-header-actions");
     expect(styles).toContain("opacity: 0 !important");
     expect(styles).toContain(".markdown-paper .cm-markra-table-wrap");
-    expect(styles).toContain("padding: 28px 36px 36px 0 !important");
+    expect(styles).toContain("padding: 20px 36px 12px 0 !important");
     expect(styles).toContain(
       ".markdown-paper .cm-line:has(> .cm-markra-table-wrap)",
     );
-    expect(styles).toContain("margin: 24px 0 !important");
+    expect(styles).toContain("margin: 0 !important");
     expect(styles).toContain(
       '.markdown-paper .cm-markra-table[data-width-mode="auto"]',
     );
