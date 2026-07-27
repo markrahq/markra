@@ -865,17 +865,17 @@ export function EditorSettings({
           }
         />
         <SettingsRow
-          title={translate("settings.editor.revealMarkdownMarkersOnFocus")}
-          description={translate("settings.editor.revealMarkdownMarkersOnFocusDescription")}
+          title={translate("settings.editor.hideHeadingMarkersOnFocus")}
+          description={translate("settings.editor.hideHeadingMarkersOnFocusDescription")}
           action={
             <SettingsSwitch
-              checked={preferences.revealMarkdownMarkersOnFocus}
-              label={translate("settings.editor.revealMarkdownMarkersOnFocus")}
+              checked={preferences.hideHeadingMarkersOnFocus}
+              label={translate("settings.editor.hideHeadingMarkersOnFocus")}
               onChange={() =>
                 onUpdatePreferences({
                   ...preferences,
-                  revealMarkdownMarkersOnFocus:
-                    !preferences.revealMarkdownMarkersOnFocus
+                  hideHeadingMarkersOnFocus:
+                    !preferences.hideHeadingMarkersOnFocus
                 })
               }
             />

@@ -233,6 +233,9 @@ export type TableColumnWidthModePreference = "auto" | "even";
 type LegacyEditorPreferences = {
   aiSelectionDisplayMode?: AiSelectionDisplayMode;
   autoOpenAiOnSelection?: boolean;
+  // The replacement uses opposite boolean semantics, so normalization must
+  // invert this value when upgrading preferences written by beta.6/beta.7.
+  revealMarkdownMarkersOnFocus?: boolean;
 };
 export const editorThemeOptions = [
   "light",
@@ -407,7 +410,7 @@ export type EditorPreferences = {
   titlebarActions: TitlebarActionPreference[];
   viewMode: ViewMode;
   viewModeCustomizations: ViewModeCustomizations;
-  revealMarkdownMarkersOnFocus: boolean;
+  hideHeadingMarkersOnFocus: boolean;
   showLineNumbers: boolean;
   showWordCount: boolean;
   typewriterModeEnabled: boolean;
@@ -567,7 +570,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   titlebarActions: [...defaultTitlebarActions],
   viewMode: "daily",
   viewModeCustomizations: { ...defaultViewModeCustomizations },
-  revealMarkdownMarkersOnFocus: true,
+  hideHeadingMarkersOnFocus: false,
   showLineNumbers: false,
   showWordCount: true,
   typewriterModeEnabled: false,
@@ -1761,10 +1764,12 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
     titlebarActions: normalizeTitlebarActions(preferences.titlebarActions),
     viewMode: isViewMode(preferences.viewMode) ? preferences.viewMode : defaultEditorPreferences.viewMode,
     viewModeCustomizations: normalizeViewModeCustomizations(preferences.viewModeCustomizations),
-    revealMarkdownMarkersOnFocus:
-      typeof preferences.revealMarkdownMarkersOnFocus === "boolean"
-        ? preferences.revealMarkdownMarkersOnFocus
-        : defaultEditorPreferences.revealMarkdownMarkersOnFocus,
+    hideHeadingMarkersOnFocus:
+      typeof preferences.hideHeadingMarkersOnFocus === "boolean"
+        ? preferences.hideHeadingMarkersOnFocus
+        : typeof preferences.revealMarkdownMarkersOnFocus === "boolean"
+          ? !preferences.revealMarkdownMarkersOnFocus
+          : defaultEditorPreferences.hideHeadingMarkersOnFocus,
     showLineNumbers:
       typeof preferences.showLineNumbers === "boolean"
         ? preferences.showLineNumbers

@@ -147,9 +147,9 @@ describe("liveMarkdown", () => {
     expect(renderedLines(view)[0]).toBe("# Project notes");
   });
 
-  it("reveals only the marker boundary when automatic Markdown reveal is disabled", () => {
+  it("reveals a heading marker only at its boundary when automatic heading hiding is enabled", () => {
     const headingView = createView({
-      extensions: [liveMarkdown({ revealMarkdownMarkersOnFocus: false })],
+      extensions: [liveMarkdown({ hideHeadingMarkersOnFocus: true })],
     });
 
     headingView.dispatch({ selection: { anchor: 5 } });
@@ -157,62 +157,26 @@ describe("liveMarkdown", () => {
 
     headingView.dispatch({ selection: { anchor: 0 } });
     expect(renderedLines(headingView)[0]).toBe("# Project notes");
-
-    const inlineDoc = "**Synthetic**";
-    const inlineView = createView({
-      doc: inlineDoc,
-      anchor: inlineDoc.indexOf("Synthetic") + 2,
-      extensions: [liveMarkdown({ revealMarkdownMarkersOnFocus: false })],
-    });
-
-    expect(renderedLines(inlineView)[0]).toBe("Synthetic");
-
-    inlineView.dispatch({ selection: { anchor: 0 } });
-    expect(renderedLines(inlineView)[0]).toBe("**Synthetic");
-
-    inlineView.dispatch({ selection: { anchor: inlineDoc.length } });
-    expect(renderedLines(inlineView)[0]).toBe("Synthetic**");
   });
 
   it.each([
-    ["asterisk", "***Synthetic***", "***"],
-    ["underscore", "___Synthetic___", "___"],
-    ["mixed", "_*Synthetic*_", "_*"],
-  ])("reveals the complete nested %s delimiter side at its boundary", (
+    ["bold", "**Synthetic**"],
+    ["italic", "*Synthetic*"],
+    ["strikethrough", "~~Synthetic~~"],
+    ["highlight", "==Synthetic=="],
+    ["inline code", "`Synthetic`"],
+    ["nested bold and italic", "***Synthetic***"],
+  ])("keeps complete %s markers visible when automatic heading hiding is enabled", (
     _label,
     doc,
-    opening,
   ) => {
     const view = createView({
       doc,
-      anchor: 0,
-      extensions: [liveMarkdown({ revealMarkdownMarkersOnFocus: false })],
+      anchor: doc.indexOf("Synthetic") + 2,
+      extensions: [liveMarkdown({ hideHeadingMarkersOnFocus: true })],
     });
 
-    expect(renderedLines(view)[0]).toBe(`${opening}Synthetic`);
-
-    view.dispatch({ selection: { anchor: doc.length } });
-    expect(renderedLines(view)[0]).toBe(
-      `Synthetic${doc.slice(-opening.length)}`,
-    );
-  });
-
-  it.each([
-    ["opening", "`*Synthetic`", 2, "*Synthetic"],
-    ["closing", "`Synthetic*`", 10, "Synthetic*"],
-  ])("does not extend the %s code delimiter into delimiter-like content", (
-    _label,
-    doc,
-    anchor,
-    expected,
-  ) => {
-    const view = createView({
-      doc,
-      anchor,
-      extensions: [liveMarkdown({ revealMarkdownMarkersOnFocus: false })],
-    });
-
-    expect(renderedLines(view)[0]).toBe(expected);
+    expect(renderedLines(view)[0]).toBe(doc);
   });
 
   it("keeps the heading marker visible while dragging a selection from its text", () => {

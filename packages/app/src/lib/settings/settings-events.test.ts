@@ -218,7 +218,7 @@ describe("settings events", () => {
       showAiSelectionToolbarOnSelection: true,
       suggestAiPanelForComplexInlinePrompts: true,
       showDocumentTabs: true,
-      revealMarkdownMarkersOnFocus: true,
+      hideHeadingMarkersOnFocus: false,
       splitVisualPanePercent: 64,
       spellcheckEnabled: true,
       spellcheckIgnoredWords: [],

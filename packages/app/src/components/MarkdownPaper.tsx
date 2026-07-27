@@ -57,7 +57,7 @@ type MarkdownPaperProps = {
   resolveImageSrc?: CodeMirrorPaperSurfaceProps["resolveImageSrc"];
   revision: number;
   scrollRef?: Ref<HTMLElement>;
-  revealMarkdownMarkersOnFocus?: CodeMirrorPaperSurfaceProps["revealMarkdownMarkersOnFocus"];
+  hideHeadingMarkersOnFocus?: CodeMirrorPaperSurfaceProps["hideHeadingMarkersOnFocus"];
   spellcheckEnabled?: CodeMirrorPaperSurfaceProps["spellcheckEnabled"];
   spellcheckIgnoredWords?: CodeMirrorPaperSurfaceProps["spellcheckIgnoredWords"];
   spellchecker?: CodeMirrorPaperSurfaceProps["spellchecker"];
@@ -127,7 +127,7 @@ export function MarkdownPaper({
   resolveImageSrc,
   revision,
   scrollRef,
-  revealMarkdownMarkersOnFocus = true,
+  hideHeadingMarkersOnFocus = false,
   spellcheckEnabled = false,
   spellcheckIgnoredWords,
   spellchecker,
@@ -202,7 +202,7 @@ export function MarkdownPaper({
             readOnly={readOnly}
             onTextSelectionChange={onTextSelectionChange}
             resolveImageSrc={resolveImageSrc}
-            revealMarkdownMarkersOnFocus={revealMarkdownMarkersOnFocus}
+            hideHeadingMarkersOnFocus={hideHeadingMarkersOnFocus}
             spellcheckEnabled={spellcheckEnabled}
             spellcheckIgnoredWords={spellcheckIgnoredWords}
             spellchecker={spellchecker}

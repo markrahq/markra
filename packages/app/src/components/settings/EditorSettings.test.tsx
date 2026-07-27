@@ -200,31 +200,31 @@ describe("EditorSettings", () => {
     });
   });
 
-  it("toggles automatic Markdown marker reveal from the editor settings", () => {
+  it("toggles automatic heading marker hiding from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 
     render(
       <EditorSettings
         preferences={{
           ...defaultEditorPreferences,
-          revealMarkdownMarkersOnFocus: true
+          hideHeadingMarkersOnFocus: false
         }}
         translate={translate}
         onUpdatePreferences={onUpdatePreferences}
       />
     );
 
-    const markdownMarkersSwitch = screen.getByRole("switch", {
-      name: "Automatically reveal Markdown markers"
+    const headingMarkersSwitch = screen.getByRole("switch", {
+      name: "Automatically hide heading markers (Typora-like)"
     });
 
-    expect(markdownMarkersSwitch).toHaveAttribute("aria-checked", "true");
+    expect(headingMarkersSwitch).toHaveAttribute("aria-checked", "false");
 
-    fireEvent.click(markdownMarkersSwitch);
+    fireEvent.click(headingMarkersSwitch);
 
     expect(onUpdatePreferences).toHaveBeenCalledWith({
       ...defaultEditorPreferences,
-      revealMarkdownMarkersOnFocus: false
+      hideHeadingMarkersOnFocus: true
     });
   });
 

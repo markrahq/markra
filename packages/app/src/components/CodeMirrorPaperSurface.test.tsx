@@ -85,7 +85,7 @@ describe("CodeMirrorPaperSurface", () => {
     expect(view.contentDOM.getAttribute("aria-readonly")).toBe("true");
   });
 
-  it("reconfigures Markdown marker focus reveal without recreating the editor view", () => {
+  it("reconfigures automatic heading marker hiding without recreating the editor view", () => {
     const content = "# Synthetic heading";
     const onEditorReady = vi.fn();
     const { rerender } = render(
@@ -93,7 +93,6 @@ describe("CodeMirrorPaperSurface", () => {
         initialContent={content}
         onEditorReady={onEditorReady}
         onMarkdownChange={() => {}}
-        revealMarkdownMarkersOnFocus
       />,
     );
     const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
@@ -109,7 +108,7 @@ describe("CodeMirrorPaperSurface", () => {
         initialContent={content}
         onEditorReady={onEditorReady}
         onMarkdownChange={() => {}}
-        revealMarkdownMarkersOnFocus={false}
+        hideHeadingMarkersOnFocus
       />,
     );
 

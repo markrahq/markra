@@ -110,7 +110,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
-      revealMarkdownMarkersOnFocus: true,
+      hideHeadingMarkersOnFocus: false,
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
@@ -266,7 +266,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
-      revealMarkdownMarkersOnFocus: true,
+      hideHeadingMarkersOnFocus: false,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
@@ -289,11 +289,13 @@ describe("editor preferences", () => {
     expect((normalizeEditorPreferences({ typewriterModeEnabled: "yes" }) as Record<string, unknown>).typewriterModeEnabled).toBe(false);
   });
 
-  it("normalizes the Markdown marker focus preference", () => {
-    expect(defaultEditorPreferences.revealMarkdownMarkersOnFocus).toBe(true);
-    expect(normalizeEditorPreferences({ revealMarkdownMarkersOnFocus: true }).revealMarkdownMarkersOnFocus).toBe(true);
-    expect(normalizeEditorPreferences({ revealMarkdownMarkersOnFocus: false }).revealMarkdownMarkersOnFocus).toBe(false);
-    expect(normalizeEditorPreferences({ revealMarkdownMarkersOnFocus: "no" }).revealMarkdownMarkersOnFocus).toBe(true);
+  it("normalizes and migrates the automatic heading marker hiding preference", () => {
+    expect((defaultEditorPreferences as Record<string, unknown>).hideHeadingMarkersOnFocus).toBe(false);
+    expect((normalizeEditorPreferences({ hideHeadingMarkersOnFocus: true }) as Record<string, unknown>).hideHeadingMarkersOnFocus).toBe(true);
+    expect((normalizeEditorPreferences({ hideHeadingMarkersOnFocus: false }) as Record<string, unknown>).hideHeadingMarkersOnFocus).toBe(false);
+    expect((normalizeEditorPreferences({ hideHeadingMarkersOnFocus: "no" }) as Record<string, unknown>).hideHeadingMarkersOnFocus).toBe(false);
+    expect((normalizeEditorPreferences({ revealMarkdownMarkersOnFocus: true }) as Record<string, unknown>).hideHeadingMarkersOnFocus).toBe(false);
+    expect((normalizeEditorPreferences({ revealMarkdownMarkersOnFocus: false }) as Record<string, unknown>).hideHeadingMarkersOnFocus).toBe(true);
   });
 
   it("normalizes view mode preferences", () => {
@@ -803,7 +805,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
-      revealMarkdownMarkersOnFocus: true,
+      hideHeadingMarkersOnFocus: false,
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
@@ -909,7 +911,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
-      revealMarkdownMarkersOnFocus: false,
+      hideHeadingMarkersOnFocus: true,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
@@ -1013,7 +1015,7 @@ describe("editor preferences", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
-      revealMarkdownMarkersOnFocus: false,
+      hideHeadingMarkersOnFocus: true,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,

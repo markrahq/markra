@@ -32,7 +32,7 @@ type SideDocumentPaneProps = {
   resolveImageSrc?: (src: string) => string;
   revision: number;
   sizeBytes?: number;
-  revealMarkdownMarkersOnFocus?: boolean;
+  hideHeadingMarkersOnFocus?: boolean;
   showLineNumbers?: boolean;
   spellcheckEnabled?: boolean;
   spellcheckIgnoredWords?: readonly string[];
@@ -77,7 +77,7 @@ export function SideDocumentPane({
   resolveImageSrc,
   revision,
   sizeBytes,
-  revealMarkdownMarkersOnFocus = true,
+  hideHeadingMarkersOnFocus = false,
   showLineNumbers = false,
   spellcheckEnabled = false,
   spellcheckIgnoredWords,
@@ -153,7 +153,7 @@ export function SideDocumentPane({
           readOnly={readOnly}
           resolveImageSrc={resolveImageSrc}
           revision={revision}
-          revealMarkdownMarkersOnFocus={revealMarkdownMarkersOnFocus}
+          hideHeadingMarkersOnFocus={hideHeadingMarkersOnFocus}
           spellcheckEnabled={spellcheckEnabled}
           spellcheckIgnoredWords={spellcheckIgnoredWords}
           spellchecker={spellchecker}
