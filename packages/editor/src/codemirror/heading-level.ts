@@ -1,3 +1,4 @@
+import { syntaxTree } from "@codemirror/language";
 import { StateEffect, StateField, type EditorState } from "@codemirror/state";
 import {
   Decoration,
@@ -24,7 +25,21 @@ function activeHeading(state: EditorState): ActiveHeading | null {
   const line = state.doc.lineAt(selection.head);
   if (selection.from < line.from || selection.to > line.to) return null;
   const match = headingPattern.exec(line.text);
-  return match ? { from: line.from, level: match[1]?.length ?? 1 } : null;
+  if (!match) return null;
+  const level = match[1]?.length ?? 1;
+  const markerOffset = match[0].indexOf("#");
+  let node = syntaxTree(state).resolveInner(line.from + markerOffset, 1);
+  // A line-start hash is ambiguous inside fenced code. Require the Markdown
+  // parser to classify the marker as the matching ATX heading before showing
+  // controls that can rewrite the line.
+  while (true) {
+    if (node.name === `ATXHeading${level}`) {
+      return { from: line.from, level };
+    }
+    const parent = node.parent;
+    if (!parent) return null;
+    node = parent;
+  }
 }
 
 const openHeadingField = StateField.define<number | null>({

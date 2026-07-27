@@ -83,6 +83,29 @@ describe("codeBlockPreviewPlugin", () => {
     expect(view.dom.querySelector(".markra-code-language-select")).not.toBeNull();
   });
 
+  it("uses measured top gaps for consecutive code blocks", () => {
+    const source = [
+      "```sh",
+      "first_command",
+      "```",
+      "",
+      "```python",
+      "second_value = 2",
+      "```",
+    ].join("\n");
+    const view = createView(source);
+    const topGaps = [
+      ...view.dom.querySelectorAll<HTMLElement>(".cm-markra-code-top-gap"),
+    ];
+
+    expect(topGaps).toHaveLength(2);
+    expect(topGaps.map((gap) => getComputedStyle(gap).height)).toEqual([
+      "12px",
+      "12px",
+    ]);
+    expect(view.state.doc.toString()).toBe(source);
+  });
+
   it("keeps a lone unfinished opening fence editable until Enter", () => {
     const source = "```";
     const view = createView(source);

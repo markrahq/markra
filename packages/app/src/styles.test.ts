@@ -127,7 +127,9 @@ describe("editor stylesheet", () => {
     expect(codeLineRule).toContain("position: relative");
     expect(codeLineRule).toContain("background: transparent !important");
     expect(codeLineRule).toContain("padding-inline: 59px 16px !important");
+    expect(codeLineRule).toContain("padding-block: 0 !important");
     expect(codeLineRule).toContain("text-indent: -59px");
+    expect(codeLineRule).toContain("line-height: 24px !important");
     expect(backdropStart).toBeGreaterThanOrEqual(0);
     expect(backdropRule).toContain("z-index: -2");
     expect(backdropRule).toContain("background: linear-gradient(");
@@ -208,14 +210,32 @@ describe("editor stylesheet", () => {
       ".cm-line.cm-activeLine.markra-callout-first.markra-callout-last {\n" +
       "    --typewriter-active-line-offset: 0px;",
     );
-    expect(styles).toContain(
-      ".cm-line.cm-activeLine.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {\n" +
-      "    --typewriter-active-line-offset: -8px;",
+    expect(styles).not.toContain(
+      ".cm-line.cm-markra-code-header-line +\n" +
+      "    .cm-line.cm-activeLine.cm-markra-code-content-line {",
+    );
+    expect(styles).not.toContain(
+      ".cm-line.cm-activeLine.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {",
     );
   });
 
-  it("keeps code block controls in the header without extra closing space", () => {
+  it("overlays code block controls without inserting a blank header line", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const headerLineStart = styles.indexOf(
+      ".markdown-paper .cm-line.cm-markra-code-header-line {",
+    );
+    const headerLineEnd = styles.indexOf("\n  }", headerLineStart);
+    const headerLineRule = styles.slice(headerLineStart, headerLineEnd);
+    const headerWrapStart = styles.indexOf(
+      ".markdown-paper .cm-markra-code-header-wrap {",
+    );
+    const headerWrapEnd = styles.indexOf("\n  }", headerWrapStart);
+    const headerWrapRule = styles.slice(headerWrapStart, headerWrapEnd);
+    const topGapStart = styles.indexOf(
+      ".markdown-paper .cm-markra-code-top-gap {",
+    );
+    const topGapEnd = styles.indexOf("\n  }", topGapStart);
+    const topGapRule = styles.slice(topGapStart, topGapEnd);
     const headerActionsStart = styles.indexOf(
       ".markdown-paper .cm-markra-code-header-actions {",
     );
@@ -237,10 +257,60 @@ describe("editor stylesheet", () => {
       languageControlStart,
       languageControlEnd,
     );
+    const languageSelectStart = styles.indexOf(
+      ".markdown-paper .cm-markra-code-header-actions .markra-code-language-select {",
+    );
+    const languageSelectEnd = styles.indexOf("\n  }", languageSelectStart);
+    const languageSelectRule = styles.slice(
+      languageSelectStart,
+      languageSelectEnd,
+    );
+    const copyButtonStart = styles.indexOf(
+      ".markdown-paper .cm-markra-code-header-actions .markra-code-copy-button {",
+    );
+    const copyButtonEnd = styles.indexOf("\n  }", copyButtonStart);
+    const copyButtonRule = styles.slice(copyButtonStart, copyButtonEnd);
+    const firstContentLineStart = styles.indexOf(
+      ".markdown-paper .cm-line.cm-markra-code-header-line +\n" +
+      "    .cm-line.cm-markra-code-content-line {",
+    );
+    const firstContentLineEnd = styles.indexOf(
+      "\n  }",
+      firstContentLineStart,
+    );
+    const firstContentLineRule = styles.slice(
+      firstContentLineStart,
+      firstContentLineEnd,
+    );
+    const firstContentBackdropStart = styles.indexOf(
+      ".markdown-paper .cm-line.cm-markra-code-header-line +\n" +
+      "    .cm-line.cm-markra-code-content-line::after {",
+    );
+    const lastContentBackdropStart = styles.indexOf(
+      ".markdown-paper .cm-line.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line)::after {",
+    );
 
+    expect(headerLineStart).toBeGreaterThanOrEqual(0);
+    expect(headerLineRule).toContain("height: 0 !important");
+    expect(headerLineRule).toContain("min-height: 0 !important");
+    expect(headerLineRule).toContain("margin-block: 0 !important");
+    expect(headerLineRule).not.toContain("margin-block-start: 8px");
+    expect(headerLineRule).toContain("border: 0 !important");
+    expect(headerLineRule).toContain("background: transparent !important");
+    expect(headerWrapRule).toContain("height: 0 !important");
+    expect(topGapStart).toBeGreaterThanOrEqual(0);
+    expect(topGapRule).toContain("height: 12px !important");
+    expect(topGapRule).toContain("margin: 0 !important");
+    expect(topGapRule).toContain("pointer-events: none");
+    expect(topGapRule).toContain(
+      "border-top: 1px solid var(--editor-border)",
+    );
+    expect(topGapRule).toContain("border-radius: 4px 4px 0 0");
+    expect(topGapRule).toContain("var(--editor-code-line-bg) 0 43px");
     expect(headerActionsRule).toContain("opacity: 1 !important");
     expect(headerActionsRule).toContain("pointer-events: auto !important");
     expect(headerActionsRule).toContain("transform: none");
+    expect(headerActionsRule).toContain("top: 0");
     expect(closingLineRule).toContain("position: relative");
     expect(closingLineRule).toContain("height: 12px");
     expect(closingLineRule).toContain("min-height: 12px");
@@ -249,6 +319,29 @@ describe("editor stylesheet", () => {
     expect(languageControlRule).toContain("padding: 0");
     expect(languageControlRule).toContain("opacity: 1 !important");
     expect(languageControlRule).toContain("pointer-events: auto !important");
+    expect(languageSelectRule).toContain("width: 160px !important");
+    expect(languageSelectRule).toContain("height: 24px !important");
+    expect(languageSelectRule).toContain("min-height: 24px !important");
+    expect(copyButtonRule).toContain("width: 24px !important");
+    expect(copyButtonRule).toContain("height: 24px !important");
+    expect(firstContentLineStart).toBeGreaterThanOrEqual(0);
+    expect(firstContentLineRule).not.toContain("padding-block");
+    expect(firstContentLineRule).toContain(
+      "padding-inline-end: 220px !important",
+    );
+    expect(firstContentBackdropStart).toBe(-1);
+    expect(lastContentBackdropStart).toBe(-1);
+    expect(closingLineRule).toContain(
+      "border-bottom: 1px solid var(--editor-border)",
+    );
+    expect(closingLineRule).toContain("border-radius: 0 0 4px 4px");
+    expect(closingLineRule).toContain(
+      "var(--editor-code-line-bg) 0 43px",
+    );
+    expect(styles).not.toContain(
+      ".markdown-paper .cm-line.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {\n" +
+      "    padding-block-end:",
+    );
     expect(styles).not.toContain(
       ".markdown-paper .cm-line.cm-markra-code-closing-line .markra-code-language-control {",
     );
@@ -1070,6 +1163,11 @@ describe("editor stylesheet", () => {
     const activeInlineCodeStart = styles.indexOf(".markdown-paper code .markra-live-mark-inlineCode {");
     const activeInlineCodeEnd = styles.indexOf(".markdown-paper .markra-ai-preview-delete");
     const activeInlineCodeStyles = styles.slice(activeInlineCodeStart, activeInlineCodeEnd);
+    const commentStart = styles.indexOf(
+      ".markdown-paper .hljs-comment,",
+    );
+    const commentEnd = styles.indexOf("\n  }", commentStart);
+    const commentStyles = styles.slice(commentStart, commentEnd);
 
     expect(inlineCodeStyles).toContain("color: oklch");
     expect(inlineCodeStyles).toContain("box-shadow");
@@ -1080,6 +1178,9 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .hljs-meta");
     expect(styles).toContain(".markdown-paper .hljs-symbol");
     expect(styles).toContain(".markdown-paper .hljs-type");
+    expect(commentStart).toBeGreaterThanOrEqual(0);
+    expect(commentStyles).toContain("font-style: normal");
+    expect(commentStyles).not.toContain("font-style: italic");
   });
 
   it("defines Typora-style editor themes and code block copy controls", () => {

@@ -1133,11 +1133,15 @@
     padding-inline-start: calc(1.4em + var(--markra-list-depth-offset)) !important;
   }
 
+  /* The opening fence is folded into this zero-height line. Keep controls
+     over the first code row: vertical height or margins on the hidden line
+     accumulate across blocks and shift WebKit's pointer mapping away from
+     the rendered caret. */
   .markdown-paper .cm-line.cm-markra-code-header-line {
     position: relative !important;
     height: 0 !important;
     min-height: 0 !important;
-    margin-block-start: 8px !important;
+    margin-block: 0 !important;
     overflow: visible !important;
     padding: 0 !important;
     border: 0 !important;
@@ -1151,13 +1155,31 @@
     height: 0 !important;
   }
 
+  .markdown-paper .cm-markra-code-top-gap {
+    box-sizing: border-box;
+    width: 100% !important;
+    height: 12px !important;
+    margin: 0 !important;
+    border-top: 1px solid var(--editor-border);
+    border-right: 1px solid var(--editor-border);
+    border-left: 1px solid var(--editor-border);
+    border-radius: 4px 4px 0 0;
+    background: linear-gradient(
+      90deg,
+      var(--editor-code-line-bg) 0 43px,
+      var(--editor-border) 43px 44px,
+      var(--editor-code-bg) 44px 100%
+    );
+    pointer-events: none;
+  }
+
   .markdown-paper .cm-markra-code-header {
     display: none !important;
   }
 
   .markdown-paper .cm-markra-code-header-actions {
     position: absolute !important;
-    top: 8px;
+    top: 0;
     right: 8px;
     z-index: 4;
     display: flex !important;
@@ -1179,9 +1201,10 @@
   }
 
   .markdown-paper .cm-markra-code-header-actions .markra-code-language-select {
-    height: 28px !important;
-    min-height: 28px !important;
+    height: 24px !important;
+    min-height: 24px !important;
     min-width: 160px !important;
+    width: 160px !important;
     padding: 0 10px !important;
     font-size: 13px !important;
     line-height: 1 !important;
@@ -1191,10 +1214,10 @@
     position: relative !important;
     top: auto !important;
     right: auto !important;
-    width: 28px !important;
-    min-width: 28px !important;
-    height: 28px !important;
-    min-height: 28px !important;
+    width: 24px !important;
+    min-width: 24px !important;
+    height: 24px !important;
+    min-height: 24px !important;
     padding: 0 !important;
     opacity: 1 !important;
     pointer-events: auto !important;
@@ -1207,13 +1230,17 @@
     /* The inline line-number marker only occupies the first visual row.
        A hanging indent keeps soft-wrapped continuations out of the gutter. */
     padding-inline: 59px 16px !important;
+    /* WebKit and CodeMirror disagree about pointer coordinates when selected
+       editable lines add vertical padding. Keep every code row geometrically
+       uniform so a click and its rendered caret stay on the same line. */
+    padding-block: 0 !important;
     text-indent: -59px;
     border: 0 !important;
     background: transparent !important;
     color: var(--editor-code-text) !important;
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace !important;
     font-size: 14.4px !important;
-    line-height: 23.76px !important;
+    line-height: 24px !important;
   }
 
   /* CodeMirror draws selections at z-index -1. Keeping the code surface at
@@ -1253,31 +1280,26 @@
 
   .markdown-paper .cm-line.cm-markra-code-header-line +
     .cm-line.cm-markra-code-content-line {
-    padding-block-start: 16px !important;
-  }
-
-  .markdown-paper .cm-line.cm-markra-code-header-line +
-    .cm-line.cm-markra-code-content-line::after {
-    border-top: 1px solid var(--editor-border);
-    border-radius: 4px 4px 0 0;
-  }
-
-  .markdown-paper .cm-line.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {
-    padding-block-end: 16px !important;
-  }
-
-  .markdown-paper .cm-line.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line)::after {
-    border-bottom: 1px solid var(--editor-border);
-    border-radius: 0 0 4px 4px;
+    padding-inline-end: 220px !important;
   }
 
   .markdown-paper .cm-line.cm-markra-code-closing-line {
     position: relative !important;
+    box-sizing: border-box;
     height: 12px !important;
     min-height: 12px !important;
     padding: 0 !important;
     border: 0 !important;
-    background: transparent !important;
+    border-right: 1px solid var(--editor-border) !important;
+    border-bottom: 1px solid var(--editor-border) !important;
+    border-left: 1px solid var(--editor-border) !important;
+    border-radius: 0 0 4px 4px !important;
+    background: linear-gradient(
+      90deg,
+      var(--editor-code-line-bg) 0 43px,
+      var(--editor-border) 43px 44px,
+      var(--editor-code-bg) 44px 100%
+    ) !important;
     line-height: 12px !important;
     overflow: visible !important;
   }
@@ -2732,23 +2754,6 @@
 
   .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
     .cm-line.cm-activeLine.markra-callout-first.markra-callout-last {
-    --typewriter-active-line-offset: 0px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-code-header-line +
-    .cm-line.cm-activeLine.cm-markra-code-content-line {
-    --typewriter-active-line-offset: 8px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-activeLine.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {
-    --typewriter-active-line-offset: -8px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-code-header-line +
-    .cm-line.cm-activeLine.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {
     --typewriter-active-line-offset: 0px;
   }
 
@@ -4343,7 +4348,7 @@
   .markdown-paper .hljs-comment,
   .markdown-paper .hljs-quote {
     color: var(--editor-text-secondary);
-    font-style: italic;
+    font-style: normal;
   }
 
   .markdown-paper hr {

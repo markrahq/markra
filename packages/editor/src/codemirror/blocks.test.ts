@@ -151,6 +151,16 @@ describe("blocksPlugin", () => {
     expect(view.dom.querySelector(".markra-heading-level-list")).toBeNull();
   });
 
+  it("does not show a heading-level control for a code comment", () => {
+    const doc = "```python\n# Synthetic comment\n```";
+    const comment = doc.indexOf("Synthetic");
+    const view = createView({ doc, from: comment, to: comment });
+    view.focus();
+    view.dispatch({ selection: view.state.selection });
+
+    expect(view.dom.querySelector(".markra-heading-level-button")).toBeNull();
+  });
+
   it("does not transform the next line when a selection ends at its start", () => {
     const view = createView({ doc: "Alpha\nBeta", from: 0, to: 6 });
 

@@ -2,6 +2,8 @@ import { syntaxTree } from "@codemirror/language";
 import {
   EditorSelection,
   Prec,
+  StateField,
+  type Range,
   type EditorState,
   type Text,
 } from "@codemirror/state";
@@ -10,6 +12,7 @@ import {
   EditorView,
   keymap,
   WidgetType,
+  type DecorationSet,
   type EditorView as CodeMirrorView,
 } from "@codemirror/view";
 import {
@@ -183,6 +186,12 @@ const codeBlockTheme = EditorView.baseTheme({
     paddingBottom: "0.35em",
     paddingTop: "0.35em",
   },
+  ".cm-markra-code-top-gap": {
+    height: "12px",
+    margin: "0",
+    pointerEvents: "none",
+    width: "100%",
+  },
   ".cm-markra-code-header": {
     color: "color-mix(in srgb, currentColor 62%, transparent)",
     display: "inline-block",
@@ -277,6 +286,53 @@ const codeBlockTheme = EditorView.baseTheme({
   ".cm-markra-mermaid-hidden-line": {
     display: "none",
   },
+});
+
+class CodeBlockTopGapWidget extends WidgetType {
+  eq() {
+    return true;
+  }
+
+  get estimatedHeight() {
+    return 12;
+  }
+
+  toDOM(view: CodeMirrorView) {
+    const gap = view.dom.ownerDocument.createElement("div");
+    gap.className = "cm-markra-code-top-gap";
+    gap.setAttribute("aria-hidden", "true");
+    return gap;
+  }
+}
+
+function codeBlockTopGapDecorations(state: EditorState) {
+  const gaps: Range<Decoration>[] = [];
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (node.type.name !== "FencedCode") return;
+      const firstLine = state.doc.lineAt(node.from);
+      const lastLine = state.doc.lineAt(node.to);
+      if (firstLine.number === lastLine.number) return;
+      gaps.push(
+        Decoration.widget({
+          block: true,
+          side: -100,
+          widget: new CodeBlockTopGapWidget(),
+        }).range(node.from),
+      );
+    },
+  });
+  return Decoration.set(gaps, true);
+}
+
+const codeBlockTopGapField = StateField.define<DecorationSet>({
+  create: codeBlockTopGapDecorations,
+  update(gaps, transaction) {
+    return transaction.docChanged
+      ? codeBlockTopGapDecorations(transaction.state)
+      : gaps;
+  },
+  provide: (field) => EditorView.decorations.from(field),
 });
 
 class CodeBlockHeaderWidget extends WidgetType {
@@ -987,6 +1043,11 @@ export function codeBlockPreviewPlugin(
   return defineMarkraPlugin({
     id: "markra.code-block-preview",
     extension: [
+      // Vertical margins and padding on editable lines are not part of
+      // CodeMirror's height map in every WebView. State-field block widgets
+      // are measured explicitly, so repeated blocks cannot accumulate a
+      // pointer-to-caret offset.
+      codeBlockTopGapField,
       markraRenderer({
         id: "markra.code-block-preview",
         nodeNames: ["FencedCode"],
