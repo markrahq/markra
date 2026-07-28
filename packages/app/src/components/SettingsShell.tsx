@@ -189,7 +189,7 @@ function SettingsNavButton({
 
   return (
     <button
-      className="group inline-flex h-9 w-full items-center gap-3 rounded-md border-0 bg-transparent px-3 text-left text-[13px] leading-5 font-[620] tracking-normal text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) aria-current:bg-(--bg-active) aria-current:text-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) max-[700px]:w-auto max-[700px]:shrink-0 max-[700px]:whitespace-nowrap"
+      className="group inline-flex h-9 w-full items-center gap-3 rounded-md border-0 bg-transparent px-3 text-left text-[13px] leading-5 font-[620] tracking-normal text-(--text-secondary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) aria-[current=page]:bg-(--bg-active) aria-[current=page]:text-(--accent) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) max-[700px]:w-auto max-[700px]:shrink-0 max-[700px]:whitespace-nowrap"
       type="button"
       aria-current={active ? "page" : undefined}
       aria-label={label}

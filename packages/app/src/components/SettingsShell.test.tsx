@@ -63,6 +63,15 @@ describe("SettingsShell", () => {
     expect(screen.getByText("Markra v9.9.9")).toBeInTheDocument();
   });
 
+  it("styles the active settings category when aria-current is page", () => {
+    renderSettingsSidebar();
+
+    expect(screen.getByRole("button", { name: "General" })).toHaveClass(
+      "aria-[current=page]:bg-(--bg-active)",
+      "aria-[current=page]:text-(--accent)"
+    );
+  });
+
   it("keeps settings shell chrome treatment scoped to Windows", () => {
     const defaultContent = renderSettingsContent();
 
