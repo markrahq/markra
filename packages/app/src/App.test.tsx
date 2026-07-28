@@ -8112,6 +8112,56 @@ describe("Markra workspace", () => {
     expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
   });
 
+  it("syncs visual table cell edits to source in split mode and saves them", async () => {
+    mockOpenMarkdownFile({
+      content: ["| Field | Value |", "| --- | --- |", "| Name | Before |"].join("\n"),
+      name: "table.md",
+      path: mockNativePath
+    });
+    mockedSaveNativeMarkdownFile.mockResolvedValue({
+      name: "table.md",
+      path: mockNativePath
+    });
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await selectEditorViewMode("Preview + Source");
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    const cell = await waitFor(() => {
+      const nextCell = container.querySelector<HTMLTableCellElement>(
+        ".cm-markra-table tbody td:nth-child(2)"
+      );
+      expect(nextCell).toBeInTheDocument();
+      return nextCell!;
+    });
+
+    cell.focus();
+    cell.textContent = "After";
+    fireEvent.input(cell.closest("table")!);
+    const editedCell = await waitFor(() => {
+      const nextCell = container.querySelector<HTMLTableCellElement>(
+        ".cm-markra-table tbody td:nth-child(2)"
+      );
+      expect(nextCell).toHaveTextContent("After");
+      expect(nextCell).toHaveFocus();
+      return nextCell!;
+    });
+    await waitFor(() =>
+      expect(readMarkdownSource(sourceEditor)).toContain("| Name | After |")
+    );
+    fireEvent.keyDown(editedCell, { key: "s", metaKey: true });
+
+    await waitFor(() =>
+      expect(mockedSaveNativeMarkdownFile).toHaveBeenCalledWith(
+        expect.objectContaining({
+          contents: ["| Field | Value |", "| --- | --- |", "| Name | After |"].join("\n"),
+          path: mockNativePath,
+          suggestedName: "table.md"
+        })
+      )
+    );
+  });
+
   it("keeps a clean file unmodified when toggling markdown source mode without edits", async () => {
     const originalContent = "Native file\n===========\n\nOpened from disk.";
     mockOpenMarkdownFile({

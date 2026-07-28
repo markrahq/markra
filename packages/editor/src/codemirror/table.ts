@@ -625,6 +625,20 @@ function tableCellCaretOffset(cell: HTMLTableCellElement) {
   return range.toString().length;
 }
 
+function activeVisualTableCell(table: HTMLTableElement) {
+  const selectionNode = table.ownerDocument.getSelection()?.anchorNode;
+  const selectionElement =
+    selectionNode instanceof Element ? selectionNode : selectionNode?.parentElement;
+  const selectedCell = selectionElement?.closest<HTMLTableCellElement>("th, td");
+  if (selectedCell && table.contains(selectedCell)) return selectedCell;
+
+  const activeElement = table.ownerDocument.activeElement;
+  return activeElement instanceof HTMLTableCellElement &&
+    table.contains(activeElement)
+    ? activeElement
+    : null;
+}
+
 function focusVisualTableCell(
   view: CodeMirrorView,
   tableFrom: number,
@@ -668,6 +682,39 @@ function focusVisualTableCell(
     selection.removeAllRanges();
     selection.addRange(range);
   });
+}
+
+function syncVisualTableCell(
+  view: CodeMirrorView,
+  preview: TablePreview,
+  cell: HTMLTableCellElement,
+) {
+  if (view.state.readOnly) return;
+
+  const rowIndex = Number(cell.dataset.tableRow);
+  const columnIndex = Number(cell.dataset.tableColumn);
+  const header = cell.dataset.tableHeader === "true";
+  if (!Number.isInteger(rowIndex) || !Number.isInteger(columnIndex)) return;
+
+  const caretOffset = tableCellCaretOffset(cell);
+  const changed = replaceVisualTableCell(
+    view,
+    preview,
+    rowIndex,
+    columnIndex,
+    header,
+    visualTableCellSource(cell),
+  );
+  if (changed) {
+    focusVisualTableCell(
+      view,
+      preview.from,
+      rowIndex,
+      columnIndex,
+      header,
+      caretOffset,
+    );
+  }
 }
 
 function revealVisualTableInlineSource(
@@ -730,7 +777,6 @@ function appendCell(
   links: LinksPluginOptions | undefined,
 ) {
   const cell = row.ownerDocument.createElement(header ? "th" : "td");
-  let composing = false;
   const currentSession = tableEditingSessions.get(view);
   const keepInlineSourceVisible =
     currentSession?.tableFrom === preview.from &&
@@ -846,43 +892,6 @@ function appendCell(
         }
       }
     }, 0);
-  });
-  const syncCellSource = () => {
-    if (view.state.readOnly) return;
-    const caretOffset = tableCellCaretOffset(cell);
-    const changed = replaceVisualTableCell(
-      view,
-      preview,
-      rowIndex,
-      columnIndex,
-      header,
-      visualTableCellSource(cell),
-    );
-    if (changed) {
-      focusVisualTableCell(
-        view,
-        preview.from,
-        rowIndex,
-        columnIndex,
-        header,
-        caretOffset,
-      );
-    }
-  };
-  cell.addEventListener("compositionstart", (event) => {
-    event.stopPropagation();
-    composing = true;
-  });
-  cell.addEventListener("compositionend", (event) => {
-    event.stopPropagation();
-    composing = false;
-    syncCellSource();
-  });
-  cell.addEventListener("input", (event) => {
-    event.stopPropagation();
-    // Replacing the widget mid-composition cancels native CJK input, so commit only after compositionend.
-    if (composing || (event instanceof InputEvent && event.isComposing)) return;
-    syncCellSource();
   });
   cell.addEventListener("keydown", (event) => {
     if (event.key === "Enter") {
@@ -1134,6 +1143,7 @@ class TableWidget extends WidgetType {
     );
     let hoveredColumn = 0;
     let hoveredRow = 0;
+    let composing = false;
 
     wrapper.className =
       "cm-markra-table-wrap tableWrapper markra-table-controls-wrapper";
@@ -1151,6 +1161,25 @@ class TableWidget extends WidgetType {
     table.dataset.tableAlignment = tableAlignment;
     table.dataset.widthMode = widthMode;
     table.classList.toggle("markra-table-width-auto", widthMode === "auto");
+    // Browsers target editing events at the shared contenteditable table host,
+    // so cell-level listeners miss real input even though the cell DOM changes.
+    table.addEventListener("compositionstart", (event) => {
+      event.stopPropagation();
+      composing = true;
+    });
+    table.addEventListener("compositionend", (event) => {
+      event.stopPropagation();
+      composing = false;
+      const cell = activeVisualTableCell(table);
+      if (cell) syncVisualTableCell(view, this.preview, cell);
+    });
+    table.addEventListener("input", (event) => {
+      event.stopPropagation();
+      // Replacing the widget mid-composition cancels native CJK input, so commit only after compositionend.
+      if (composing || (event instanceof InputEvent && event.isComposing)) return;
+      const cell = activeVisualTableCell(table);
+      if (cell) syncVisualTableCell(view, this.preview, cell);
+    });
 
     const sizeButton = document.createElement("button");
     sizeButton.type = "button";

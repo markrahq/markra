@@ -675,6 +675,32 @@ describe("tablePreviewPlugin", () => {
     );
   });
 
+  it("updates Markdown when input targets the shared table editing host", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+    const cell = table?.querySelector<HTMLTableCellElement>("tbody td");
+
+    cell?.focus();
+    if (cell) cell.textContent = "Updated";
+    table?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain("| Updated | 1 |");
+    expect(
+      view.dom.querySelector<HTMLTableCellElement>(
+        ".cm-markra-table tbody td",
+      )?.textContent,
+    ).toBe("Updated");
+  });
+
   it("commits a visual table cell after IME composition finishes", async () => {
     const doc = [
       "| Name | Value |",
