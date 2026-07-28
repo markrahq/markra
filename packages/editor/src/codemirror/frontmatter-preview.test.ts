@@ -73,9 +73,9 @@ describe("frontmatterPreviewPlugin", () => {
 
     expect(editor?.value).toBe("title: Synthetic");
     expect(view.dom.querySelector(".cm-markra-frontmatter")).not.toBeNull();
-    expect(label && getComputedStyle(label).fontFamily).toContain(
-      "var(--font-ui",
-    );
+    const labelFontFamily = label && getComputedStyle(label).fontFamily;
+    expect(labelFontFamily).toContain("var(--font-ui");
+    expect(labelFontFamily).toContain("Noto Sans SC Variable");
     expect(editor && getComputedStyle(editor).fontFamily).toContain("ui-monospace");
     expect(
       [...view.dom.querySelectorAll<HTMLElement>(".cm-markra-frontmatter-hidden-line")]

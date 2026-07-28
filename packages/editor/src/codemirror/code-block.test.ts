@@ -49,9 +49,9 @@ describe("codeBlockPreviewPlugin", () => {
     const header = view.dom.querySelector<HTMLElement>(".cm-markra-code-header");
 
     expect(header?.textContent).toBe("ts");
-    expect(header && getComputedStyle(header).fontFamily).toContain(
-      "var(--font-ui",
-    );
+    const headerFontFamily = header && getComputedStyle(header).fontFamily;
+    expect(headerFontFamily).toContain("var(--font-ui");
+    expect(headerFontFamily).toContain("Noto Sans SC Variable");
     expect(
       view.dom.querySelectorAll(".cm-markra-code-content-line"),
     ).toHaveLength(2);

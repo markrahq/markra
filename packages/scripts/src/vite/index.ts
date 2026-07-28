@@ -3,6 +3,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
+import { katexFontsPlugin } from "./katex-fonts.ts";
 import { stripDebugPlugin } from "./strip-debug.ts";
 import type { UserConfig } from "vite";
 
@@ -126,6 +127,7 @@ export function createMarkraAppViteConfig(options: MarkraAppViteConfigOptions) {
     plugins: [
       react(),
       tailwindcss(),
+      katexFontsPlugin(),
       ...(options.stripDebug !== false && mode === "production" ? [stripDebugPlugin()] : [])
     ],
     build: {
