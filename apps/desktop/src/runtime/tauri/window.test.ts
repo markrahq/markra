@@ -14,6 +14,7 @@ import {
   hideSettingsWindow,
   markSettingsWindowReady,
   minimizeNativeWindow,
+  openNativeBlankEditorWindow,
   openSettingsWindow,
   prewarmSettingsWindow,
   setNativeEditorWindowRestoreState,
@@ -142,6 +143,14 @@ describe("native window actions", () => {
 
     expect(mockedInvoke).toHaveBeenCalledWith("minimize_current_window");
     expect(mockedGetCurrentWindow).not.toHaveBeenCalled();
+  });
+
+  it("opens a blank editor window through the native command", async () => {
+    mockedInvoke.mockResolvedValue(undefined);
+
+    await openNativeBlankEditorWindow();
+
+    expect(mockedInvoke).toHaveBeenCalledWith("open_blank_editor_window");
   });
 
   it("shows the current Tauri window", async () => {

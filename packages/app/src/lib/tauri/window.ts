@@ -37,6 +37,10 @@ export function hideSettingsWindow() {
   return getAppRuntime().window.hideSettingsWindow();
 }
 
+export function openBlankEditorWindow() {
+  return getAppRuntime().window.openBlankEditorWindow();
+}
+
 export function listenNativeSettingsWindowTarget(onTarget: (target: NativeSettingsWindowTarget) => unknown) {
   return getAppRuntime().window.listenSettingsWindowTarget(onTarget);
 }

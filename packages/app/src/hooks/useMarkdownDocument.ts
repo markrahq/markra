@@ -1768,6 +1768,21 @@ export function useMarkdownDocument({
 
   const handleDroppedMarkdownPath = useCallback(
     async (target: NativeMarkdownDroppedTarget) => {
+      const workspaceRootPath = workspaceRootForSource(workspaceSourcePath, documentRef.current.path);
+      if (
+        target.kind !== "image" &&
+        workspaceRootPath &&
+        !isPathWithinRoot(target.path, workspaceRootPath)
+      ) {
+        // Keep each window bound to one workspace; tab reuse only applies to paths inside it.
+        if (target.kind === "folder") {
+          await openNativeMarkdownFolderInNewWindow(target.path);
+        } else {
+          await openNativeMarkdownFileInNewWindow(target.path);
+        }
+        return;
+      }
+
       if (target.kind === "folder") {
         if (!isCurrentWindowEmptyUntitled()) {
           await openNativeMarkdownFolderInNewWindow(target.path);

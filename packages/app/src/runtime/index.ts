@@ -378,6 +378,7 @@ export type AppWindowRuntime = {
     onCloseRequested: (event: NativeWindowCloseRequestEvent) => unknown | Promise<unknown>
   ) => Promise<RuntimeCleanup>;
   minimizeWindow: () => Promise<unknown>;
+  openBlankEditorWindow: () => Promise<unknown>;
   openExternalUrl: (url: string) => Promise<unknown>;
   openSettingsWindow: (target?: NativeSettingsWindowTarget) => Promise<unknown>;
   prewarmSettingsWindow: () => Promise<unknown>;
@@ -593,6 +594,7 @@ export function createDefaultAppRuntime(): AppRuntime {
       listenSettingsWindowTarget: async () => () => undefined,
       listenWindowCloseRequested: async () => () => undefined,
       minimizeWindow: async () => undefined,
+      openBlankEditorWindow: async () => undefined,
       openExternalUrl: async (url) => {
         if (typeof window !== "undefined") {
           window.open(url, "_blank", "noopener,noreferrer");

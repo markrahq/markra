@@ -91,6 +91,7 @@ type NativeTitleBarProps = {
   onSelectViewMode?: (mode: ViewMode) => unknown;
   onCreateMarkdownFile?: () => unknown;
   onExitApp?: () => unknown;
+  onOpenBlankEditorWindow?: () => unknown;
   onOpenMarkdown: () => unknown;
   onOpenMarkdownFolder?: () => unknown;
   onOpenSettings?: () => unknown;
@@ -148,6 +149,7 @@ export function NativeTitleBar({
   onSelectViewMode,
   onCreateMarkdownFile,
   onExitApp,
+  onOpenBlankEditorWindow,
   onOpenMarkdown,
   onOpenMarkdownFolder,
   onOpenSettings,
@@ -718,6 +720,7 @@ export function NativeTitleBar({
         renderTitleContent={renderTitleContent}
         onCreateMarkdownFile={onCreateMarkdownFile}
         onExitApp={onExitApp}
+        onOpenBlankEditorWindow={onOpenBlankEditorWindow}
         onOpenMarkdown={onOpenMarkdown}
         onOpenMarkdownFolder={onOpenMarkdownFolder}
         onOpenSettings={onOpenSettings}

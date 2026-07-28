@@ -48,6 +48,10 @@ export function hideSettingsWindow() {
   return invokeNative("hide_settings_window");
 }
 
+export function openNativeBlankEditorWindow() {
+  return invokeNative("open_blank_editor_window");
+}
+
 export async function listenNativeSettingsWindowTarget(onTarget: (target: NativeSettingsWindowTarget) => unknown) {
   if (!("__TAURI_INTERNALS__" in window)) {
     return () => {};

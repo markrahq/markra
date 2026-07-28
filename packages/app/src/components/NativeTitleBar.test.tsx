@@ -554,6 +554,7 @@ describe("NativeTitleBar", () => {
   });
 
   it("opens self-drawn Windows app menu dropdowns from the top chrome", () => {
+    const openBlankEditorWindow = vi.fn();
     const openMarkdown = vi.fn();
     const saveMarkdown = vi.fn();
     const saveMarkdownAs = vi.fn();
@@ -583,6 +584,7 @@ describe("NativeTitleBar", () => {
           </div>
         )}
         onToggleAiAgent={() => {}}
+        onOpenBlankEditorWindow={openBlankEditorWindow}
         onOpenMarkdown={openMarkdown}
         onSaveMarkdown={saveMarkdown}
         onShowAbout={showAbout}
@@ -625,6 +627,10 @@ describe("NativeTitleBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "File" }));
 
     expect(screen.getByRole("menu", { name: "File" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "New Ctrl+N" }));
+    expect(openBlankEditorWindow).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "File" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Open... Ctrl+O" }));
     expect(openMarkdown).toHaveBeenCalledTimes(1);
 

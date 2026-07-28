@@ -144,6 +144,7 @@ import type {
 import {
   closeNativeWindow,
   hideSettingsWindow,
+  openBlankEditorWindow,
   openNativeExternalUrl,
   openSettingsWindow,
   prewarmSettingsWindow,
@@ -2857,6 +2858,9 @@ function WorkspaceApp() {
   const handleOpenSettings = useCallback(() => {
     openSettingsWindow().catch(() => {});
   }, []);
+  const handleOpenBlankEditorWindow = useCallback(() => {
+    openBlankEditorWindow().catch(() => {});
+  }, []);
   const handleShowAbout = useCallback(() => {
     showNativeAppAbout().catch(() => {});
   }, []);
@@ -3860,6 +3864,7 @@ function WorkspaceApp() {
     exportHtml: exportFeatureEnabled ? exportHtmlDocument : undefined,
     exportPdf: exportFeatureEnabled ? exportPdfDocument : undefined,
     markdownShortcuts: editorPreferences.preferences.markdownShortcuts,
+    openBlankEditorWindow: windowsSelfDrawnChromeEnabled ? handleOpenBlankEditorWindow : undefined,
     openDocument: handleOpenMarkdownFile,
     openDocumentReplace: handleDocumentReplaceOpen,
     openDocumentSearch: handleDocumentSearchOpen,
@@ -4439,6 +4444,7 @@ function WorkspaceApp() {
           onSelectViewMode={handleViewModeSelect}
           onCreateMarkdownFile={handleQuickCreateMarkdownTreeFile}
           onExitApp={handleExitApp}
+          onOpenBlankEditorWindow={windowsSelfDrawnChromeEnabled ? handleOpenBlankEditorWindow : undefined}
           onOpenMarkdown={handleOpenMarkdownFile}
           onOpenMarkdownFolder={handleOpenMarkdownFolder}
           onOpenSettings={handleOpenSettings}

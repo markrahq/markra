@@ -184,6 +184,7 @@ export const desktopRuntime = {
     listenSettingsWindowTarget: windowRuntime.listenNativeSettingsWindowTarget,
     listenWindowCloseRequested: windowRuntime.listenNativeWindowCloseRequested,
     minimizeWindow: windowRuntime.minimizeNativeWindow,
+    openBlankEditorWindow: windowRuntime.openNativeBlankEditorWindow,
     openExternalUrl: windowRuntime.openNativeExternalUrl,
     openSettingsWindow: windowRuntime.openSettingsWindow,
     prewarmSettingsWindow: windowRuntime.prewarmSettingsWindow,
