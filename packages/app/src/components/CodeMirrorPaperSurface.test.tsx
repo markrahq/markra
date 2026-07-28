@@ -520,8 +520,42 @@ describe("CodeMirrorPaperSurface", () => {
     expect(
       getMarkraSlashMenuState(view).actions.map((action) => action.command),
     ).toEqual(
-      expect.arrayContaining(["block.callout", "block.table"]),
+      expect.arrayContaining([
+        "block.callout",
+        "block.table",
+        "block.task-list",
+        "insert.today",
+      ]),
     );
+  });
+
+  it("inserts today's local date from the slash command", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2031, 4, 6, 10, 30));
+    const onEditorReady = vi.fn();
+
+    try {
+      render(
+        <CodeMirrorPaperSurface
+          autoFocus={false}
+          initialContent="Published: "
+          onEditorReady={onEditorReady}
+          onMarkdownChange={() => {}}
+        />,
+      );
+      const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+      act(() => {
+        view.dispatch({
+          selection: EditorSelection.cursor(view.state.doc.length),
+        });
+      });
+
+      expect(runMarkraCommand(view, "insert.today")).toBe(true);
+      expect(view.state.doc.toString()).toBe("Published: 2031-05-06");
+      expect(view.state.selection.main.head).toBe(view.state.doc.length);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("accepts host plugins and renders their toolbar actions", () => {

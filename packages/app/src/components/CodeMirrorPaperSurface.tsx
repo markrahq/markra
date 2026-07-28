@@ -18,6 +18,7 @@ import {
   getActiveCodeMirrorSpellcheckMatch,
   horizontalRulePlugin,
   imagePreviewPlugin,
+  insertionsPlugin,
   liveMarkdown,
   linksPlugin,
   markdownEditingPlugin,
@@ -204,6 +205,7 @@ function markdownExtension({
           "block.paragraph": t(language, "menu.paragraph"),
           "block.quote": t(language, "menu.quote"),
           "block.table": t(language, "menu.table"),
+          "block.task-list": t(language, "menu.taskList"),
         },
       }),
       codeMirrorBlockDragPlugin({
@@ -253,6 +255,11 @@ function markdownExtension({
       frontmatterPreviewPlugin(),
       horizontalRulePlugin(),
       imagePreviewPlugin(imageOptions),
+      insertionsPlugin({
+        labels: {
+          "insert.today": t(language, "menu.today"),
+        },
+      }),
       ...(linkOptions ? [linksPlugin(linkOptions)] : []),
       mathPreviewPlugin(),
       markdownEditingPlugin(),

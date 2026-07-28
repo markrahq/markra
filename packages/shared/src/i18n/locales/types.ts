@@ -934,6 +934,7 @@ export type I18nKey =
   | "menu.heading2"
   | "menu.heading3"
   | "menu.bulletList"
+  | "menu.taskList"
   | "menu.orderedList"
   | "menu.quote"
   | "menu.callout"
@@ -942,7 +943,8 @@ export type I18nKey =
   | "menu.image"
   | "menu.importLocalImages"
   | "menu.importLocalFiles"
-  | "menu.table";
+  | "menu.table"
+  | "menu.today";
 
 export type BaseLocaleMessages = Record<I18nKey, string>;
 export type LocaleMessages = Partial<Record<I18nKey, string>>;

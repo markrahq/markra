@@ -23,6 +23,7 @@ export type BlockCommandId =
   | "block.heading.5"
   | "block.heading.6"
   | "block.bullet-list"
+  | "block.task-list"
   | "block.ordered-list"
   | "block.quote"
   | "block.callout"
@@ -62,6 +63,7 @@ const defaultBlockLabels: BlockLabels = {
   "block.heading.5": "Heading 5",
   "block.heading.6": "Heading 6",
   "block.bullet-list": "Bullet list",
+  "block.task-list": "Task list",
   "block.ordered-list": "Numbered list",
   "block.quote": "Quote",
   "block.callout": "Callout",
@@ -127,18 +129,32 @@ const blockSpecs: readonly BlockSpec[] = [
     order: 80,
   },
   {
+    id: "block.task-list",
+    icon: "list-checks",
+    keywords: [
+      "task",
+      "todo",
+      "checkbox",
+      "checklist",
+      "任务",
+      "待办",
+      "复选框",
+    ],
+    order: 90,
+  },
+  {
     id: "block.ordered-list",
     icon: "list-ordered",
     key: "Mod-Shift-7",
     keywords: ["numbered", "ordered", "list", "编号", "有序列表"],
-    order: 90,
+    order: 100,
   },
   {
     id: "block.quote",
     icon: "text-quote",
     key: "Mod-Shift-b",
     keywords: ["quote", "blockquote", "引用"],
-    order: 100,
+    order: 110,
   },
   {
     id: "block.callout",
@@ -155,27 +171,30 @@ const blockSpecs: readonly BlockSpec[] = [
       "提示",
       "警告",
     ],
-    order: 105,
+    order: 115,
   },
   {
     id: "block.code",
     icon: "square-code",
     key: "Mod-Alt-c",
     keywords: ["code", "fence", "代码", "代码块"],
-    order: 110,
+    order: 120,
   },
   {
     id: "block.table",
     icon: "table-2",
     keywords: ["table", "grid", "表格"],
-    order: 120,
+    order: 130,
   },
 ];
 
 const headingPattern = /^([\t ]{0,3})#{1,6}[\t ]+/;
-const bulletPattern = /^([\t ]*)[-+*][\t ]+/;
+const taskPattern = /^([\t ]*)[-+*][\t ]+\[[ xX]\](?:[\t ]+|$)/;
+const bulletPattern =
+  /^([\t ]*)[-+*][\t ]+(?!\[[ xX]\](?:[\t ]+|$))/;
 const orderedPattern = /^([\t ]*)\d+[.)][\t ]+/;
-const listPattern = /^([\t ]*)(?:[-+*][\t ]+|\d+[.)][\t ]+)/;
+const listPattern =
+  /^([\t ]*)(?:[-+*][\t ]+\[[ xX]\](?:[\t ]+|$)|[-+*][\t ]+|\d+[.)][\t ]+)/;
 const quotePattern = /^([\t ]*)>[\t ]?/;
 const openingFencePattern = /^[\t ]*```[^`]*$/;
 const closingFencePattern = /^[\t ]*```[\t ]*$/;
@@ -309,6 +328,20 @@ function toggleList(view: EditorView, ordered: boolean) {
     if (remove) return markerChange(line, targetPattern, "");
     return markerChange(line, listPattern, ordered ? `${index + 1}. ` : "- ");
   });
+  return dispatchLineChanges(view, changes);
+}
+
+function toggleTaskList(view: EditorView) {
+  if (!isEditable(view)) return false;
+  const lines = selectedLines(view.state);
+  const remove = lines.every((line) => taskPattern.test(line.text));
+  const changes = lines.map((line) =>
+    markerChange(
+      line,
+      remove ? taskPattern : listPattern,
+      remove ? "" : "- [ ] ",
+    ),
+  );
   return dispatchLineChanges(view, changes);
 }
 
@@ -470,6 +503,12 @@ function blockCommand(
         ...shared,
         isActive: (view) => everyLineMatches(view, bulletPattern),
         run: (view) => toggleList(view, false),
+      };
+    case "block.task-list":
+      return {
+        ...shared,
+        isActive: (view) => everyLineMatches(view, taskPattern),
+        run: toggleTaskList,
       };
     case "block.ordered-list":
       return {

@@ -139,6 +139,12 @@ export {
   markraHighlight,
 } from "./highlight.ts";
 export { horizontalRulePlugin } from "./horizontal-rule.ts";
+export type {
+  InsertionCommandId,
+  InsertionLabels,
+  InsertionsPluginOptions,
+} from "./insertions.ts";
+export { insertionsPlugin } from "./insertions.ts";
 export { markdownEditingPlugin } from "./markdown-editing.ts";
 export type { MarkdownShortcutsPluginOptions } from "./markdown-shortcuts.ts";
 export { markdownShortcutsPlugin } from "./markdown-shortcuts.ts";

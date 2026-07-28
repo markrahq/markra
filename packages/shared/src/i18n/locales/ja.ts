@@ -923,6 +923,7 @@ const messages: LocaleMessages = {
   "menu.heading2": "見出し 2",
   "menu.heading3": "見出し 3",
   "menu.bulletList": "箇条書き",
+  "menu.taskList": "タスクリスト",
   "menu.orderedList": "番号付きリスト",
   "menu.quote": "引用",
   "menu.callout": "コールアウト",
@@ -931,7 +932,8 @@ const messages: LocaleMessages = {
   "menu.image": "画像",
   "menu.importLocalImages": "ローカル画像を読み込む...",
   "menu.importLocalFiles": "ローカルファイルを読み込む...",
-  "menu.table": "表"
+  "menu.table": "表",
+  "menu.today": "今日"
 };
 
 export default messages;

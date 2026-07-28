@@ -923,6 +923,7 @@ const messages: LocaleMessages = {
   "menu.heading2": "Titolo 2",
   "menu.heading3": "Titolo 3",
   "menu.bulletList": "Elenco puntato",
+  "menu.taskList": "Elenco attività",
   "menu.orderedList": "Elenco numerato",
   "menu.quote": "Citazione",
   "menu.callout": "Avviso",
@@ -931,7 +932,8 @@ const messages: LocaleMessages = {
   "menu.image": "Immagine",
   "menu.importLocalImages": "Importa immagini locali...",
   "menu.importLocalFiles": "Importa file locali...",
-  "menu.table": "Tabella"
+  "menu.table": "Tabella",
+  "menu.today": "Oggi"
 };
 
 export default messages;

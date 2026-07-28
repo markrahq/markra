@@ -923,6 +923,7 @@ const messages: LocaleMessages = {
   "menu.heading2": "标题 2",
   "menu.heading3": "标题 3",
   "menu.bulletList": "无序列表",
+  "menu.taskList": "任务列表",
   "menu.orderedList": "有序列表",
   "menu.quote": "引用",
   "menu.callout": "提示块",
@@ -931,7 +932,8 @@ const messages: LocaleMessages = {
   "menu.image": "图片",
   "menu.importLocalImages": "导入本地图片...",
   "menu.importLocalFiles": "导入本地文件...",
-  "menu.table": "表格"
+  "menu.table": "表格",
+  "menu.today": "今天"
 };
 
 export default messages;

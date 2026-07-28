@@ -923,6 +923,7 @@ const messages: LocaleMessages = {
   "menu.heading2": "제목 2",
   "menu.heading3": "제목 3",
   "menu.bulletList": "글머리 기호 목록",
+  "menu.taskList": "작업 목록",
   "menu.orderedList": "번호 매기기 목록",
   "menu.quote": "인용",
   "menu.callout": "콜아웃",
@@ -931,7 +932,8 @@ const messages: LocaleMessages = {
   "menu.image": "이미지",
   "menu.importLocalImages": "로컬 이미지 가져오기...",
   "menu.importLocalFiles": "로컬 파일 가져오기...",
-  "menu.table": "표"
+  "menu.table": "표",
+  "menu.today": "오늘"
 };
 
 export default messages;

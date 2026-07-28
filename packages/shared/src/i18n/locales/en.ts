@@ -923,6 +923,7 @@ const messages: BaseLocaleMessages = {
   "menu.heading2": "Heading 2",
   "menu.heading3": "Heading 3",
   "menu.bulletList": "Bullet List",
+  "menu.taskList": "Task List",
   "menu.orderedList": "Ordered List",
   "menu.quote": "Quote",
   "menu.callout": "Callout",
@@ -931,7 +932,8 @@ const messages: BaseLocaleMessages = {
   "menu.image": "Image",
   "menu.importLocalImages": "Import Local Images...",
   "menu.importLocalFiles": "Import Local Files...",
-  "menu.table": "Table"
+  "menu.table": "Table",
+  "menu.today": "Today"
 };
 
 export default messages;

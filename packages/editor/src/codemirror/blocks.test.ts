@@ -70,6 +70,11 @@ describe("blocksPlugin", () => {
         label: "Bullet list",
       },
       {
+        command: "block.task-list",
+        icon: "list-checks",
+        label: "Task list",
+      },
+      {
         command: "block.ordered-list",
         icon: "list-ordered",
         label: "Numbered list",
@@ -181,11 +186,28 @@ describe("blocksPlugin", () => {
     expect(runMarkraCommand(bullet, "block.bullet-list")).toBe(true);
     expect(bullet.state.doc.toString()).toBe("Alpha\nBeta");
 
+    const task = createView();
+    expect(runMarkraCommand(task, "block.task-list")).toBe(true);
+    expect(task.state.doc.toString()).toBe("- [ ] Alpha\n- [ ] Beta");
+    expect(runMarkraCommand(task, "block.task-list")).toBe(true);
+    expect(task.state.doc.toString()).toBe("Alpha\nBeta");
+
     const ordered = createView();
     expect(runMarkraCommand(ordered, "block.ordered-list")).toBe(true);
     expect(ordered.state.doc.toString()).toBe("1. Alpha\n2. Beta");
     expect(runMarkraCommand(ordered, "block.ordered-list")).toBe(true);
     expect(ordered.state.doc.toString()).toBe("Alpha\nBeta");
+  });
+
+  it("converts existing list markers without leaving task syntax behind", () => {
+    const view = createView({
+      doc: "- [x] Alpha\n* Beta",
+      from: 0,
+      to: "- [x] Alpha\n* Beta".length,
+    });
+
+    expect(runMarkraCommand(view, "block.ordered-list")).toBe(true);
+    expect(view.state.doc.toString()).toBe("1. Alpha\n2. Beta");
   });
 
   it("wraps and unwraps a selected block in a fenced code block", () => {
