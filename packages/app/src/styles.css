@@ -4102,6 +4102,10 @@
     box-shadow: none;
   }
 
+  .markdown-paper .cm-markra-code-top-gap:has(+ .cm-line .markra-code-block[data-mermaid-mode="preview"]) {
+    display: none;
+  }
+
   .markdown-paper .markra-code-block[data-mermaid-mode="preview"] .markra-code-line-numbers,
   .markdown-paper .markra-code-block[data-mermaid-mode="preview"] pre,
   .markdown-paper .markra-code-block[data-mermaid-mode="preview"] .markra-code-copy-button,
