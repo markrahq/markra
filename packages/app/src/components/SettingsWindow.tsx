@@ -387,6 +387,7 @@ export function SettingsWindow() {
               focusTarget={settingsFocusTarget}
               pandocEnabled={appFeatures.pandoc}
               settings={exportSettings}
+              systemFontFamilies={systemFontFamilies}
               translate={translate}
               onDetectPandocPath={handleDetectPandocPath}
               onFocusTargetHandled={clearSettingsFocusTarget}

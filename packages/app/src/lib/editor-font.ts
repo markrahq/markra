@@ -16,7 +16,12 @@ export const defaultEditorFontFamily: EditorFontFamilyPreference = {
 const visualEditorFontFallback = "var(--font-ui)";
 
 function quoteCssFontFamilyName(family: string) {
-  return `"${family.replace(/\\/g, "\\\\").replace(/"/g, "\\\"")}"`;
+  // Angle brackets are escaped because export CSS is serialized inside a raw <style> element.
+  return `"${family
+    .replace(/\\/g, "\\\\")
+    .replace(/"/g, "\\\"")
+    .replace(/</g, "\\3c ")
+    .replace(/>/g, "\\3e ")}"`;
 }
 
 export function normalizeSystemFontFamilyName(value: unknown) {
@@ -52,5 +57,9 @@ export function normalizeEditorFontFamilyPreference(value: unknown): EditorFontF
 export function editorFontFamilyCssValue(fontFamily: EditorFontFamilyPreference) {
   if (fontFamily.source === "theme") return null;
 
-  return `${quoteCssFontFamilyName(fontFamily.family)}, ${visualEditorFontFallback}`;
+  return systemFontFamilyCssValue(fontFamily.family, visualEditorFontFallback);
+}
+
+export function systemFontFamilyCssValue(family: string, fallback: string) {
+  return `${quoteCssFontFamilyName(family)}, ${fallback}`;
 }

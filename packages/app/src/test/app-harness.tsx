@@ -541,6 +541,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     proxyUrl: ""
   },
   defaultExportSettings: {
+    fontFamily: null,
     pandocArgs: "",
     pandocPath: "",
     pdfAuthor: "",
@@ -721,6 +722,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     return nextActions;
   }),
   normalizeExportSettings: vi.fn((settings) => ({
+    fontFamily: null,
     pandocArgs: "",
     pandocPath: "",
     pdfAuthor: "",
@@ -1500,6 +1502,7 @@ export function installAppTestHarness() {
       wrapCodeBlocks: true
     });
     mockedGetStoredExportSettings.mockResolvedValue({
+      fontFamily: null,
       pandocArgs: "",
       pandocPath: "",
       pdfAuthor: "",

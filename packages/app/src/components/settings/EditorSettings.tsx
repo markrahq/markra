@@ -6,7 +6,6 @@ import {
   Moon,
   RotateCcw,
   Save,
-  Search,
   type LucideIcon
 } from "lucide-react";
 import {
@@ -14,8 +13,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
-  type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent
 } from "react";
 import {
@@ -47,12 +44,9 @@ import {
   editorCustomContentWidthMin,
   normalizeEditorContentWidthPx
 } from "../../lib/editor-width";
-import {
-  editorFontFamilyCssValue,
-  normalizeSystemFontFamilyName
-} from "../../lib/editor-font";
 import type { AppSystemFontFamily } from "../../runtime";
 import { SortableTitlebarAction } from "../SortableTitlebarAction";
+import { FontFamilySelect } from "./FontFamilySelect";
 import {
   SettingsButton,
   SettingsNumberInput,
@@ -131,13 +125,6 @@ const sidebarLayoutOptions: Array<{
 const titlebarActionVisibleClassName =
   "aria-pressed:border-transparent aria-pressed:bg-(--bg-active) aria-pressed:text-(--text-heading) aria-pressed:opacity-100 aria-pressed:hover:bg-(--bg-active)";
 const titlebarActionHiddenClassName = "text-(--text-secondary) opacity-55 hover:opacity-100";
-const editorFontFamilyListboxId = "settings-editor-font-family-options";
-
-type EditorFontFamilySelectOption = {
-  fontFamily: string | null;
-  label: string;
-};
-
 function contentWidthRatioValue(preferences: EditorPreferences) {
   const contentWidthPx = preferences.contentWidthPx ?? editorContentWidthPixels[preferences.contentWidth];
 
@@ -149,186 +136,6 @@ function contentWidthPxFromRatio(value: number) {
   if (ratio === null) return null;
 
   return normalizeEditorContentWidthPx(Math.round(editorCustomContentWidthMin + (contentWidthRatioSpanPx * ratio) / 100));
-}
-
-function editorFontFamilySelectOptions(
-  preferences: EditorPreferences,
-  systemFontFamilies: readonly AppSystemFontFamily[],
-  themeLabel: string
-): EditorFontFamilySelectOption[] {
-  const fontFamilyOptions = new Map<string, EditorFontFamilySelectOption>();
-  for (const fontFamily of systemFontFamilies) {
-    const normalizedFontFamily = normalizeSystemFontFamilyName(fontFamily.family);
-    if (!normalizedFontFamily) continue;
-
-    const normalizedLabel = normalizeSystemFontFamilyName(fontFamily.label) ?? normalizedFontFamily;
-    if (!fontFamilyOptions.has(normalizedFontFamily)) {
-      fontFamilyOptions.set(normalizedFontFamily, {
-        fontFamily: normalizedFontFamily,
-        label: normalizedLabel
-      });
-    }
-  }
-  if (fontFamilyOptions.size === 0 && preferences.editorFontFamily.source === "system") {
-    fontFamilyOptions.set(preferences.editorFontFamily.family, {
-      fontFamily: preferences.editorFontFamily.family,
-      label: preferences.editorFontFamily.family
-    });
-  }
-
-  return [
-    { fontFamily: null, label: themeLabel },
-    ...Array.from(fontFamilyOptions.values())
-      .sort((first, second) => first.label.localeCompare(second.label) || first.fontFamily!.localeCompare(second.fontFamily!))
-  ];
-}
-
-function optionMatchesQuery(option: EditorFontFamilySelectOption, query: string) {
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  if (!normalizedQuery) return true;
-
-  return option.label.toLocaleLowerCase().includes(normalizedQuery);
-}
-
-function selectedFontFamilyOption(options: readonly EditorFontFamilySelectOption[], preferences: EditorPreferences) {
-  if (preferences.editorFontFamily.source === "theme") return options[0]!;
-
-  return options.find((option) => option.fontFamily === preferences.editorFontFamily.family) ?? options[0]!;
-}
-
-function editorFontFamilyOptionStyle(option: EditorFontFamilySelectOption): CSSProperties | undefined {
-  if (option.fontFamily === null) return undefined;
-
-  return {
-    fontFamily: editorFontFamilyCssValue({
-      family: option.fontFamily,
-      source: "system"
-    }) ?? undefined
-  };
-}
-
-function SearchableEditorFontFamilySelect({
-  label,
-  onChange,
-  options,
-  value
-}: {
-  label: string;
-  onChange: (option: EditorFontFamilySelectOption) => unknown;
-  options: EditorFontFamilySelectOption[];
-  value: EditorFontFamilySelectOption;
-}) {
-  const [activeIndex, setActiveIndex] = useState(0);
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const inputValue = open ? query : value.label;
-  const inputStyle = open ? undefined : editorFontFamilyOptionStyle(value);
-  const filteredOptions = useMemo(
-    () => options.filter((option) => optionMatchesQuery(option, query)),
-    [options, query]
-  );
-  const visibleOptions = filteredOptions;
-  const activeOption = visibleOptions[activeIndex] ?? visibleOptions[0];
-
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [open, query]);
-
-  const selectOption = (option: EditorFontFamilySelectOption) => {
-    setQuery("");
-    setOpen(false);
-    onChange(option);
-  };
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      setOpen(true);
-      if (visibleOptions.length === 0) return;
-      setActiveIndex((currentIndex) => Math.min(currentIndex + 1, visibleOptions.length - 1));
-      return;
-    }
-
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      setOpen(true);
-      if (visibleOptions.length === 0) return;
-      setActiveIndex((currentIndex) => Math.max(currentIndex - 1, 0));
-      return;
-    }
-
-    if (event.key === "Enter" && open && activeOption) {
-      event.preventDefault();
-      selectOption(activeOption);
-      return;
-    }
-
-    if (event.key === "Escape") {
-      setOpen(false);
-      setQuery("");
-    }
-  };
-
-  return (
-    <div className="relative inline-flex min-w-56 items-center">
-      <Search
-        aria-hidden="true"
-        className="pointer-events-none absolute left-2.5 z-10 text-(--text-secondary)"
-        size={13}
-      />
-      <input
-        className="h-8 w-56 rounded-md border border-(--border-default) bg-(--bg-primary) py-0 pr-3 pl-8 text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-        type="text"
-        role="combobox"
-        aria-activedescendant={open && activeOption ? `${editorFontFamilyListboxId}-${activeIndex}` : undefined}
-        aria-autocomplete="list"
-        aria-controls={editorFontFamilyListboxId}
-        aria-expanded={open}
-        aria-label={label}
-        autoCapitalize="none"
-        autoCorrect="off"
-        placeholder={value.label}
-        spellCheck={false}
-        style={inputStyle}
-        value={inputValue}
-        onBlur={() => {
-          setOpen(false);
-          setQuery("");
-        }}
-        onChange={(event) => {
-          setQuery(event.currentTarget.value);
-          setOpen(true);
-        }}
-        onFocus={() => {
-          setQuery("");
-          setOpen(true);
-        }}
-        onKeyDown={handleKeyDown}
-      />
-      {open ? (
-        <div
-          className="absolute top-full right-0 left-0 z-40 mt-1 max-h-56 overflow-y-auto rounded-md border border-(--border-default) bg-(--bg-primary) py-1 shadow-[0_12px_34px_rgba(0,0,0,0.14)]"
-          id={editorFontFamilyListboxId}
-          role="listbox"
-        >
-          {visibleOptions.map((option, index) => (
-            <button
-              key={option.fontFamily ?? "theme"}
-              className="flex h-8 w-full cursor-pointer items-center border-0 bg-transparent px-3 text-left text-[12px] leading-5 font-[560] text-(--text-heading) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus:bg-(--bg-hover) focus:outline-none aria-selected:bg-(--bg-active)"
-              id={`${editorFontFamilyListboxId}-${index}`}
-              role="option"
-              aria-selected={option.label === value.label}
-              style={editorFontFamilyOptionStyle(option)}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => selectOption(option)}
-            >
-              <span className="min-w-0 truncate">{option.label}</span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
 }
 
 function SettingsContentWidthInput({
@@ -655,12 +462,9 @@ export function EditorSettings({
   systemFontFamilies?: readonly AppSystemFontFamily[];
   translate: SettingsTranslate;
 }) {
-  const editorFontFamilyOptions = editorFontFamilySelectOptions(
-    preferences,
-    systemFontFamilies,
-    translate("settings.editor.fontFamily.theme")
-  );
-  const editorFontFamilyValue = selectedFontFamilyOption(editorFontFamilyOptions, preferences);
+  const editorFontFamily = preferences.editorFontFamily.source === "system"
+    ? preferences.editorFontFamily.family
+    : null;
 
   return (
     <>
@@ -669,16 +473,17 @@ export function EditorSettings({
           title={translate("settings.editor.fontFamily")}
           description={translate("settings.editor.fontFamilyDescription")}
           action={
-            <SearchableEditorFontFamilySelect
+            <FontFamilySelect
+              defaultLabel={translate("settings.editor.fontFamily.theme")}
+              family={editorFontFamily}
               label={translate("settings.editor.fontFamily")}
-              value={editorFontFamilyValue}
-              options={editorFontFamilyOptions}
-              onChange={(option) =>
+              systemFontFamilies={systemFontFamilies}
+              onChange={(family) =>
                 onUpdatePreferences({
                   ...preferences,
-                  editorFontFamily: option.fontFamily === null
+                  editorFontFamily: family === null
                     ? { family: null, source: "theme" }
-                    : { family: option.fontFamily, source: "system" }
+                    : { family, source: "system" }
                 })
               }
             />

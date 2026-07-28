@@ -1,7 +1,10 @@
+import { normalizeSystemFontFamilyName } from "../editor-font";
+
 export type PdfMarginPreset = "custom" | "default" | "narrow" | "none" | "normal" | "wide";
 export type PdfPageSize = "a4" | "custom" | "default" | "letter";
 
 export type ExportSettings = {
+  fontFamily: string | null;
   pandocArgs: string;
   pandocPath: string;
   pdfAuthor: string;
@@ -16,6 +19,7 @@ export type ExportSettings = {
 };
 
 export const defaultExportSettings: ExportSettings = {
+  fontFamily: null,
   pandocArgs: "",
   pandocPath: "",
   pdfAuthor: "",
@@ -61,6 +65,7 @@ export function normalizeExportSettings(value: unknown): ExportSettings {
     : exportPageSizeDimensions[pdfPageSize];
 
   return {
+    fontFamily: normalizeSystemFontFamilyName(settings.fontFamily),
     pandocArgs: normalizeExportText(settings.pandocArgs, 1000),
     pandocPath: normalizeExportText(settings.pandocPath, 500),
     pdfAuthor: normalizeExportText(settings.pdfAuthor),

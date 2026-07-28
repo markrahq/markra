@@ -76,6 +76,18 @@ describe("document export helpers", () => {
     );
   });
 
+  it("uses a selected system font for HTML and PDF document styles", () => {
+    const html = buildMarkdownHtmlDocument({
+      bodyHtml: "<p>Mock export</p>",
+      fontFamily: "Example Serif",
+      language: "zh-CN",
+      title: "Mock font export"
+    });
+
+    expect(html).toContain('font-family: "Example Serif", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;');
+    expect(html).not.toContain('font-family: "Noto Serif CJK SC"');
+  });
+
   it("removes rendered pure LaTeX macro definition blocks from standalone documents", () => {
     const html = buildMarkdownHtmlDocument({
       bodyHtml: [

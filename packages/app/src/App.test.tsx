@@ -6,6 +6,7 @@ import { defaultMarkdownShortcuts } from "@markra/editor";
 import { it as registerTest } from "vitest";
 import desktopPackage from "../package.json";
 import { defaultAiQuickActionPrompts } from "./lib/ai-actions";
+import { defaultExportSettings } from "./lib/settings/app-settings";
 import {
   dispatchAiEditorPreviewAction,
   installAppTestHarness,
@@ -8696,6 +8697,10 @@ describe("Markra workspace", () => {
   });
 
   it("exports the current markdown document as standalone HTML from the native menu", async () => {
+    mockedGetStoredExportSettings.mockResolvedValue({
+      ...defaultExportSettings,
+      fontFamily: "Example Serif"
+    });
     mockOpenMarkdownFile({
       content: "# Exportable\n\nRendered from markdown.",
       name: "exportable.md",
@@ -8731,6 +8736,7 @@ describe("Markra workspace", () => {
     const exportedHtml = mockedSaveNativeHtmlFile.mock.calls.at(-1)?.[0].contents ?? "";
     expect(exportedHtml).toContain("<p>Rendered from markdown.</p>");
     expect(exportedHtml).toContain("<title>exportable.md</title>");
+    expect(exportedHtml).toContain('font-family: "Example Serif", ui-serif');
   });
 
   it("exports the current markdown document as PDF from the native menu", async () => {
@@ -8740,6 +8746,7 @@ describe("Markra workspace", () => {
       path: "/mock-files/printable.pdf"
     });
     mockedGetStoredExportSettings.mockResolvedValue({
+      fontFamily: null,
       pandocArgs: "",
       pandocPath: "",
       pdfAuthor: "Ada & Co",
@@ -8802,6 +8809,7 @@ describe("Markra workspace", () => {
       path: "/mock-files/portable.docx"
     });
     mockedGetStoredExportSettings.mockResolvedValue({
+      fontFamily: null,
       pandocArgs: "--toc",
       pandocPath: "/usr/local/bin/pandoc",
       pdfAuthor: "",
@@ -8895,6 +8903,7 @@ describe("Markra workspace", () => {
   it("opens settings directly to the Pandoc path target", async () => {
     window.history.pushState({}, "", "/?settings=1&settingsTarget=exportPandocPath");
     mockedGetStoredExportSettings.mockResolvedValue({
+      fontFamily: null,
       pandocArgs: "",
       pandocPath: "",
       pdfAuthor: "",
@@ -8918,6 +8927,7 @@ describe("Markra workspace", () => {
     window.history.pushState({}, "", "/?settings=1&settingsTarget=exportPandocPath");
     mockedDetectNativePandocPath.mockResolvedValue("/opt/homebrew/bin/pandoc");
     mockedGetStoredExportSettings.mockResolvedValue({
+      fontFamily: null,
       pandocArgs: "",
       pandocPath: "",
       pdfAuthor: "",
@@ -8948,6 +8958,7 @@ describe("Markra workspace", () => {
   it("saves the PDF export margin from the settings export page", async () => {
     window.history.pushState({}, "", "/?settings");
     mockedGetStoredExportSettings.mockResolvedValue({
+      fontFamily: null,
       pandocArgs: "",
       pandocPath: "",
       pdfAuthor: "",

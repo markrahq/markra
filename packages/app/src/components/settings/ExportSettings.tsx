@@ -6,6 +6,8 @@ import {
   type PdfPageSize
 } from "../../lib/settings/app-settings";
 import type { I18nKey } from "@markra/shared";
+import type { AppSystemFontFamily } from "../../runtime";
+import { FontFamilySelect } from "./FontFamilySelect";
 import {
   SettingsButton,
   SettingsCheckbox,
@@ -83,6 +85,7 @@ export function ExportSettings({
   onUpdateSettings,
   pandocEnabled = true,
   settings,
+  systemFontFamilies = [],
   translate
 }: {
   focusTarget?: "pandocPath" | null;
@@ -91,6 +94,7 @@ export function ExportSettings({
   onUpdateSettings: (settings: ExportSettingsValue) => unknown;
   pandocEnabled?: boolean;
   settings: ExportSettingsValue;
+  systemFontFamilies?: readonly AppSystemFontFamily[];
   translate: SettingsTranslate;
 }) {
   const pandocPathTargetRef = useRef<HTMLDivElement>(null);
@@ -112,6 +116,27 @@ export function ExportSettings({
 
   return (
     <>
+      <SettingsSection label={translate("settings.sections.documentExport")}>
+        <SettingsRow
+          title={translate("settings.export.fontFamily")}
+          description={translate("settings.export.fontFamilyDescription")}
+          action={
+            <FontFamilySelect
+              defaultLabel={translate("settings.export.fontFamily.default")}
+              family={settings.fontFamily}
+              label={translate("settings.export.fontFamily")}
+              systemFontFamilies={systemFontFamilies}
+              onChange={(fontFamily) =>
+                onUpdateSettings({
+                  ...settings,
+                  fontFamily
+                })
+              }
+            />
+          }
+        />
+      </SettingsSection>
+
       <SettingsSection label={translate("settings.sections.pdfExport")}>
         <SettingsRow
           title={translate("settings.export.pageSize")}

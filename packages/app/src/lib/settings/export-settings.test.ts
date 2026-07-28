@@ -18,6 +18,7 @@ describe("export settings", () => {
     store.get.mockResolvedValue(undefined);
 
     await expect(getStoredExportSettings()).resolves.toEqual({
+      fontFamily: null,
       pandocArgs: "",
       pandocPath: "",
       pdfAuthor: "",
@@ -36,6 +37,7 @@ describe("export settings", () => {
 
   it("normalizes persisted export settings", () => {
     expect(normalizeExportSettings({
+      fontFamily: " Example Serif ",
       pandocArgs: " --toc --metadata title=\"Draft\" ",
       pandocPath: " /opt/homebrew/bin/pandoc ",
       pdfAuthor: " Ada Lovelace ",
@@ -48,6 +50,7 @@ describe("export settings", () => {
       pdfPageSize: "letter",
       pdfWidthMm: 216
     })).toEqual({
+      fontFamily: "Example Serif",
       pandocArgs: "--toc --metadata title=\"Draft\"",
       pandocPath: "/opt/homebrew/bin/pandoc",
       pdfAuthor: "Ada Lovelace",
@@ -61,6 +64,7 @@ describe("export settings", () => {
       pdfWidthMm: 216
     });
     expect(normalizeExportSettings({
+      fontFamily: 42,
       pandocArgs: "x".repeat(1500),
       pandocPath: "x".repeat(700),
       pdfHeightMm: 9999,
@@ -69,6 +73,7 @@ describe("export settings", () => {
       pdfPageSize: "custom",
       pdfWidthMm: 10
     })).toEqual({
+      fontFamily: null,
       pandocArgs: "x".repeat(1000),
       pandocPath: "x".repeat(500),
       pdfAuthor: "",
@@ -82,6 +87,7 @@ describe("export settings", () => {
       pdfWidthMm: 50
     });
     expect(normalizeExportSettings({ pdfMarginMm: 24 })).toEqual({
+      fontFamily: null,
       pandocArgs: "",
       pandocPath: "",
       pdfAuthor: "",
@@ -98,6 +104,7 @@ describe("export settings", () => {
 
   it("persists normalized export settings", async () => {
     await saveStoredExportSettings({
+      fontFamily: " Example Serif ",
       pandocArgs: " --toc ",
       pandocPath: " /usr/local/bin/pandoc ",
       pdfAuthor: "Ada",
@@ -112,6 +119,7 @@ describe("export settings", () => {
     });
 
     expect(store.set).toHaveBeenCalledWith("exportSettings", {
+      fontFamily: "Example Serif",
       pandocArgs: "--toc",
       pandocPath: "/usr/local/bin/pandoc",
       pdfAuthor: "Ada",

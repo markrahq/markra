@@ -3670,6 +3670,7 @@ function WorkspaceApp() {
     const pdfSettings = exported.kind === "pdf" ? exportSettings.settings : null;
     const contents = buildMarkdownHtmlDocument({
       bodyHtml: exported.bodyHtml,
+      fontFamily: exportSettings.settings.fontFamily,
       language: appLanguage.language,
       pdfAuthor: pdfSettings?.pdfAuthor,
       pdfFooter: pdfSettings?.pdfFooter,

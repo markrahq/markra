@@ -1,13 +1,19 @@
 import katexStyles from "katex/dist/katex.css?raw";
 import { isMarkraMathMacroDefinitionSource } from "@markra/editor";
+import { normalizeSystemFontFamilyName, systemFontFamilyCssValue } from "./editor-font";
 
 export type ExportDocumentFormat = "html" | "pdf" | "docx" | "epub" | "latex";
 
 const defaultPdfMarginMm = 18;
 const defaultPdfPageHeightMm = 297;
 const defaultPdfPageWidthMm = 210;
+const defaultExportFontFamily = 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif';
+const simplifiedChineseExportFontFamily =
+  '"Noto Serif CJK SC", "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", STSong, SimSun, ' +
+  defaultExportFontFamily;
 
 export type MarkdownExportStyleOptions = {
+  fontFamily?: string | null;
   pdfFooter?: string;
   pdfHeader?: string;
   pdfHeightMm?: number;
@@ -29,6 +35,7 @@ function normalizePdfPageDimensionMm(value: number | undefined, fallback: number
 }
 
 export function createMarkdownExportStyles({
+  fontFamily,
   pdfFooter,
   pdfHeader,
   pdfHeightMm,
@@ -41,6 +48,21 @@ export function createMarkdownExportStyles({
   const pageMarginMm = normalizePdfMarginMm(pdfMarginMm);
   const pageHeightMm = normalizePdfPageDimensionMm(pdfHeightMm, defaultPdfPageHeightMm);
   const pageWidthMm = normalizePdfPageDimensionMm(pdfWidthMm, defaultPdfPageWidthMm);
+  const normalizedFontFamily = normalizeSystemFontFamilyName(fontFamily);
+  const exportFontFamily = normalizedFontFamily
+    ? systemFontFamilyCssValue(normalizedFontFamily, defaultExportFontFamily)
+    : defaultExportFontFamily;
+  // The language-specific stack must not override the user's explicit font choice.
+  const simplifiedChineseFontStyles = normalizedFontFamily
+    ? ""
+    : `
+
+/* Keep Han text and Latin numerals on one CJK-capable family when possible. */
+:root:lang(zh-CN),
+:root:lang(zh-SG),
+:root:lang(zh-Hans) {
+  font-family: ${simplifiedChineseExportFontFamily};
+}`;
   const pageBreakStyles = pdfPageBreakOnH1
     ? `
 
@@ -59,15 +81,8 @@ ${katexStyles}
 :root {
   color: #222;
   background: #fff;
-  font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-}
-
-/* Keep Han text and Latin numerals on one CJK-capable family when possible. */
-:root:lang(zh-CN),
-:root:lang(zh-SG),
-:root:lang(zh-Hans) {
-  font-family: "Noto Serif CJK SC", "Noto Serif SC", "Source Han Serif SC", "Source Han Serif CN", "Songti SC", STSong, SimSun, ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-}
+  font-family: ${exportFontFamily};
+}${simplifiedChineseFontStyles}
 
 body {
   margin: 0;
@@ -368,6 +383,7 @@ export const markdownExportStyles = createMarkdownExportStyles();
 
 type BuildMarkdownHtmlDocumentInput = {
   bodyHtml: string;
+  fontFamily?: string | null;
   language?: string;
   pdfAuthor?: string;
   pdfFooter?: string;
@@ -469,6 +485,7 @@ export function localFileUrlFromPath(path: string) {
 
 export function buildMarkdownHtmlDocument({
   bodyHtml,
+  fontFamily,
   language = "en",
   pdfAuthor,
   pdfFooter,
@@ -487,6 +504,7 @@ export function buildMarkdownHtmlDocument({
   const escapedHeader = escapeHtmlText(pdfHeader?.trim() ?? "");
   const exportBodyHtml = removeRenderedMathMacroDefinitions(removeRenderedMathMacroDefinitionMarkers(bodyHtml));
   const documentStyles = styles ?? createMarkdownExportStyles({
+    fontFamily,
     pdfFooter,
     pdfHeader,
     pdfHeightMm,
