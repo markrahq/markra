@@ -433,7 +433,18 @@ describe("codeBlockPreviewPlugin", () => {
       zoomButton?.closest<HTMLElement>(".markra-code-block")?.dataset.mermaidMode,
     ).toBe("preview");
     expect(zoomButton?.parentElement).not.toBe(preview);
-    expect(zoomButton?.querySelector(".markra-mermaid-zoom-icon")).not.toBeNull();
+    const zoomIcon = zoomButton?.querySelector(".markra-mermaid-zoom-icon");
+    const iconPaths = (icon: Element | null | undefined) => (
+      Array.from(icon?.querySelectorAll("path") ?? [])
+        .map((path) => path.getAttribute("d"))
+    );
+    expect(zoomIcon).not.toBeNull();
+    expect(iconPaths(zoomIcon)).toEqual([
+      "M15 3h6v6",
+      "m21 3-7 7",
+      "M9 21H3v-6",
+      "m3 21 7-7",
+    ]);
     expect(zoomButton?.textContent).toBe("");
 
     zoomButton?.click();
@@ -446,12 +457,22 @@ describe("codeBlockPreviewPlugin", () => {
       ".markra-mermaid-zoom-out-button",
       ".markra-mermaid-zoom-in-button",
       ".markra-mermaid-zoom-reset-button",
+      ".markra-mermaid-zoom-fullscreen-button",
       ".markra-mermaid-zoom-close-button",
     ]) {
       const button = dialog?.querySelector<HTMLButtonElement>(className);
       expect(button?.querySelector("svg")).not.toBeNull();
       expect(button?.textContent).toBe("");
     }
+    const fullscreenIcon = dialog?.querySelector(
+      ".markra-mermaid-zoom-fullscreen-icon",
+    );
+    expect(iconPaths(fullscreenIcon)).toEqual([
+      "M8 3H5a2 2 0 0 0-2 2v3",
+      "M21 8V5a2 2 0 0 0-2-2h-3",
+      "M3 16v3a2 2 0 0 0 2 2h3",
+      "M16 21h3a2 2 0 0 0 2-2v-3",
+    ]);
     dialog?.querySelector<HTMLButtonElement>(".markra-mermaid-zoom-in-button")?.click();
     expect(
       dialog?.querySelector<HTMLElement>(".markra-mermaid-zoom-canvas")?.style.transform,
@@ -487,6 +508,32 @@ describe("codeBlockPreviewPlugin", () => {
 
     dialog?.querySelector<HTMLButtonElement>(".markra-mermaid-zoom-reset-button")?.click();
     expect(canvas?.style.transform).toBe("translate(0px, 0px) scale(1)");
+
+    const fullscreen = dialog?.querySelector<HTMLButtonElement>(
+      ".markra-mermaid-zoom-fullscreen-button",
+    );
+    fullscreen?.click();
+    expect(dialog?.dataset.fullscreen).toBe("true");
+    expect(fullscreen?.ariaPressed).toBe("true");
+    expect(fullscreen?.ariaLabel).toBe("Exit full screen");
+    expect(iconPaths(dialog?.querySelector(".markra-mermaid-zoom-fullscreen-icon"))).toEqual([
+      "M8 3v3a2 2 0 0 1-2 2H3",
+      "M21 8h-3a2 2 0 0 1-2-2V3",
+      "M3 16h3a2 2 0 0 1 2 2v3",
+      "M16 21v-3a2 2 0 0 1 2-2h3",
+    ]);
+
+    fullscreen?.click();
+    expect(dialog?.dataset.fullscreen).toBeUndefined();
+    expect(fullscreen?.ariaPressed).toBe("false");
+    expect(fullscreen?.ariaLabel).toBe("Enter full screen");
+
+    fullscreen?.click();
+    document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
+    expect(document.querySelector(".markra-mermaid-zoom-dialog")).toBe(dialog);
+    expect(dialog?.dataset.fullscreen).toBeUndefined();
+    expect(fullscreen?.ariaPressed).toBe("false");
+    expect(fullscreen?.ariaLabel).toBe("Enter full screen");
 
     document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
     expect(document.querySelector(".markra-mermaid-zoom-dialog")).toBeNull();

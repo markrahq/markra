@@ -148,11 +148,25 @@ const checkIconChildren = [
   },
 ] as const;
 
-const expandIconChildren = [
+const enlargeIconChildren = [
   { tag: "path", attributes: { d: "M15 3h6v6" } },
   { tag: "path", attributes: { d: "m21 3-7 7" } },
   { tag: "path", attributes: { d: "M9 21H3v-6" } },
   { tag: "path", attributes: { d: "m3 21 7-7" } },
+] as const;
+
+const fullscreenIconChildren = [
+  { tag: "path", attributes: { d: "M8 3H5a2 2 0 0 0-2 2v3" } },
+  { tag: "path", attributes: { d: "M21 8V5a2 2 0 0 0-2-2h-3" } },
+  { tag: "path", attributes: { d: "M3 16v3a2 2 0 0 0 2 2h3" } },
+  { tag: "path", attributes: { d: "M16 21h3a2 2 0 0 0 2-2v-3" } },
+] as const;
+
+const exitFullscreenIconChildren = [
+  { tag: "path", attributes: { d: "M8 3v3a2 2 0 0 1-2 2H3" } },
+  { tag: "path", attributes: { d: "M21 8h-3a2 2 0 0 1-2-2V3" } },
+  { tag: "path", attributes: { d: "M3 16h3a2 2 0 0 1 2 2v3" } },
+  { tag: "path", attributes: { d: "M16 21v-3a2 2 0 0 1 2-2h3" } },
 ] as const;
 
 const closeIconChildren = [
@@ -598,6 +612,13 @@ class MermaidPreviewWidget extends WidgetType {
       "markra-mermaid-zoom-reset-icon",
       resetViewIconChildren,
     );
+    const fullscreen = makeButton(
+      "markra-mermaid-zoom-control-button markra-mermaid-zoom-fullscreen-button",
+      "Enter full screen",
+      "markra-mermaid-zoom-fullscreen-icon",
+      fullscreenIconChildren,
+    );
+    fullscreen.ariaPressed = "false";
     const close = makeButton(
       "markra-mermaid-zoom-close-button",
       "Close enlarged Mermaid diagram",
@@ -638,6 +659,24 @@ class MermaidPreviewWidget extends WidgetType {
       this.zoomScale = Math.max(0.25, Math.min(6, scale));
       syncZoom();
     };
+    const setFullscreen = (isFullscreen: boolean) => {
+      if (isFullscreen) {
+        dialog.dataset.fullscreen = "true";
+      } else {
+        delete dialog.dataset.fullscreen;
+      }
+      const label = isFullscreen ? "Exit full screen" : "Enter full screen";
+      fullscreen.ariaLabel = label;
+      fullscreen.title = label;
+      fullscreen.ariaPressed = String(isFullscreen);
+      fullscreen.replaceChildren(
+        createCodeControlIcon(
+          document,
+          "markra-mermaid-zoom-fullscreen-icon",
+          isFullscreen ? exitFullscreenIconChildren : fullscreenIconChildren,
+        ),
+      );
+    };
     zoomOut.addEventListener("click", () => setZoom(this.zoomScale - 0.25));
     zoomIn.addEventListener("click", () => setZoom(this.zoomScale + 0.25));
     reset.addEventListener("click", () => {
@@ -645,6 +684,9 @@ class MermaidPreviewWidget extends WidgetType {
       translateX = 0;
       translateY = 0;
       syncZoom();
+    });
+    fullscreen.addEventListener("click", () => {
+      setFullscreen(dialog.dataset.fullscreen !== "true");
     });
     close.addEventListener("click", () => this.closeZoom(trigger));
     content.addEventListener("wheel", (event) => {
@@ -689,11 +731,17 @@ class MermaidPreviewWidget extends WidgetType {
     this.zoomKeyDown = (event) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
+      // Preserve the enlarged view on the first Escape by restoring the
+      // regular dialog before the next Escape closes it.
+      if (dialog.dataset.fullscreen === "true") {
+        setFullscreen(false);
+        return;
+      }
       this.closeZoom(trigger);
     };
     document.addEventListener("keydown", this.zoomKeyDown, true);
 
-    toolbar.append(zoomOut, zoomValue, zoomIn, reset, close);
+    toolbar.append(zoomOut, zoomValue, zoomIn, reset, fullscreen, close);
     content.append(canvas);
     panel.append(toolbar, content);
     dialog.append(panel);
@@ -719,7 +767,7 @@ class MermaidPreviewWidget extends WidgetType {
       createCodeControlIcon(
         view.dom.ownerDocument,
         "markra-mermaid-zoom-icon",
-        expandIconChildren,
+        enlargeIconChildren,
       ),
     );
     button.addEventListener("mousedown", (event) => event.stopPropagation());

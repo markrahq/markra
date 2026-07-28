@@ -4210,6 +4210,21 @@
     min-height: min(28rem, 88vh);
   }
 
+  .markra-mermaid-zoom-dialog[data-fullscreen="true"] {
+    padding: 0;
+  }
+
+  .markra-mermaid-zoom-dialog[data-fullscreen="true"] .markra-mermaid-zoom-panel {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    min-height: 0;
+    border-width: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
   .markra-mermaid-zoom-toolbar {
     @apply relative z-[2] flex items-center justify-end gap-1 border-b border-(--border-default) px-3 py-2;
     background: color-mix(in srgb, var(--editor-paper-bg, var(--bg-primary)) 94%, transparent);

@@ -1142,6 +1142,7 @@ describe("editor stylesheet", () => {
     expect(mermaidZoomCloseHoverStyles).not.toContain(":focus-visible");
     expect(mermaidZoomCloseHoverStyles).not.toContain("box-shadow");
     expect(styles).toContain(".markra-mermaid-zoom-dialog");
+    expect(styles).toContain(".markra-mermaid-zoom-dialog[data-fullscreen=\"true\"]");
     expect(styles).toContain(".markra-mermaid-zoom-toolbar");
     expect(styles).toContain(".markra-mermaid-zoom-control-button");
     expect(styles).toContain(".markra-mermaid-zoom-content[data-dragging=\"true\"]");
