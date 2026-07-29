@@ -83,6 +83,33 @@ describe("MarkdownSourceEditor", () => {
     expect(handleChange).toHaveBeenCalledWith("# Changed");
   });
 
+  it("keeps the theme-aware drawn selection above CodeMirror's light fallback", () => {
+    render(
+      <MarkdownSourceEditor
+        content="synthetic_value = 2"
+        onChange={() => {}}
+      />
+    );
+
+    const themeStyles = Array.from(
+      document.head.querySelectorAll("style"),
+      (style) => style.textContent ?? "",
+    ).filter(
+      (styles) =>
+        styles.includes(".cm-selectionBackground") &&
+        styles.includes("var(--accent)"),
+    );
+
+    expect(themeStyles.length).toBeGreaterThan(0);
+    expect(
+      themeStyles.some((styles) =>
+        styles.includes(
+          "background-color: color-mix(in srgb, var(--accent) 22%, transparent) !important;",
+        ),
+      ),
+    ).toBe(true);
+  });
+
   it("keeps source scrolling vertical without pane-level horizontal scroll", () => {
     const { container } = render(
       <MarkdownSourceEditor

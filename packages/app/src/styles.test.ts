@@ -96,11 +96,17 @@ describe("editor stylesheet", () => {
     }
   });
 
-  it("keeps CodeMirror's drawn selection background visible", () => {
+  it("keeps CodeMirror's preview selection theme-aware and readable", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const selectionStart = styles.indexOf(
+      ".markdown-paper .cm-selectionBackground {",
+    );
+    const selectionEnd = styles.indexOf("\n  }", selectionStart);
+    const selectionRule = styles.slice(selectionStart, selectionEnd);
 
-    expect(styles).not.toContain(
-      ".markdown-paper .cm-selectionBackground {\n    background: transparent !important;",
+    expect(selectionStart).toBeGreaterThanOrEqual(0);
+    expect(selectionRule).toContain(
+      "background: color-mix(in srgb, var(--accent) 20%, transparent) !important;",
     );
   });
 
@@ -912,27 +918,66 @@ describe("editor stylesheet", () => {
     expect(iconStyles).toContain("pointer-events: none");
   });
 
-  it("uses one quieter theme color for Markdown syntax characters", () => {
+  it("keeps visual Markdown markers quiet while source markers stay readable in dark themes", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
-    const syntaxColorStart = styles.indexOf(
+    const visualSyntaxColorStart = styles.indexOf(
       "--editor-markdown-syntax-color:",
     );
-    const syntaxRuleStart = styles.indexOf(
-      ".markdown-paper .cm-markra-syntax-character,",
+    const sourceSyntaxColorStart = styles.indexOf(
+      "--source-markdown-syntax-color:",
     );
-    const syntaxRuleEnd = styles.indexOf("\n  }", syntaxRuleStart);
-    const syntaxRule = styles.slice(syntaxRuleStart, syntaxRuleEnd);
+    const darkSourceSyntaxStart = styles.indexOf(
+      '[data-theme="dark"] .markdown-source-paper,',
+    );
+    const darkSourceSyntaxEnd = styles.indexOf("\n  }", darkSourceSyntaxStart);
+    const darkSourceSyntax = styles.slice(
+      darkSourceSyntaxStart,
+      darkSourceSyntaxEnd,
+    );
+    const visualSyntaxRuleStart = styles.indexOf(
+      ".markdown-paper .cm-markra-syntax-character {",
+    );
+    const visualSyntaxRuleEnd = styles.indexOf(
+      "\n  }",
+      visualSyntaxRuleStart,
+    );
+    const visualSyntaxRule = styles.slice(
+      visualSyntaxRuleStart,
+      visualSyntaxRuleEnd,
+    );
+    const sourceSyntaxRuleStart = styles.indexOf(
+      ".markdown-source-paper .cm-markra-syntax-character {",
+    );
+    const sourceSyntaxRuleEnd = styles.indexOf(
+      "\n  }",
+      sourceSyntaxRuleStart,
+    );
+    const sourceSyntaxRule = styles.slice(
+      sourceSyntaxRuleStart,
+      sourceSyntaxRuleEnd,
+    );
 
-    expect(syntaxColorStart).toBeGreaterThanOrEqual(0);
-    expect(styles.slice(syntaxColorStart, syntaxColorStart + 180)).toContain(
+    expect(visualSyntaxColorStart).toBeGreaterThanOrEqual(0);
+    expect(
+      styles.slice(visualSyntaxColorStart, visualSyntaxColorStart + 180),
+    ).toContain(
       "color-mix(in srgb, var(--text-md-char) 72%, var(--editor-paper-bg, var(--bg-primary)))",
     );
-    expect(syntaxRuleStart).toBeGreaterThanOrEqual(0);
-    expect(syntaxRule).toContain(
-      ".markdown-source-paper .cm-markra-syntax-character",
+    expect(sourceSyntaxColorStart).toBeGreaterThanOrEqual(0);
+    expect(
+      styles.slice(sourceSyntaxColorStart, sourceSyntaxColorStart + 120),
+    ).toContain("var(--editor-markdown-syntax-color)");
+    expect(darkSourceSyntaxStart).toBeGreaterThanOrEqual(0);
+    expect(darkSourceSyntax).toContain(
+      "color-mix(in srgb, var(--text-md-char) 30%, var(--text-primary))",
     );
-    expect(syntaxRule).toContain(
+    expect(visualSyntaxRuleStart).toBeGreaterThanOrEqual(0);
+    expect(visualSyntaxRule).toContain(
       "color: var(--editor-markdown-syntax-color) !important",
+    );
+    expect(sourceSyntaxRuleStart).toBeGreaterThanOrEqual(0);
+    expect(sourceSyntaxRule).toContain(
+      "color: var(--source-markdown-syntax-color) !important",
     );
     expect(styles).toContain(
       ".markdown-paper .markra-md-delimiter {\n    @apply text-(--editor-markdown-syntax-color);",

@@ -821,6 +821,23 @@
     --editor-text-cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http://www.w3.org/2000/svg%27%20width%3D%2724%27%20height%3D%2724%27%20viewBox%3D%270%200%2024%2024%27%3E%3Cpath%20d%3D%27M12%204v16M8.5%204h7M8.5%2020h7%27%20fill%3D%27none%27%20stroke%3D%27%23ffffff%27%20stroke-width%3D%274%27%20stroke-linecap%3D%27round%27/%3E%3Cpath%20d%3D%27M12%204v16M8.5%204h7M8.5%2020h7%27%20fill%3D%27none%27%20stroke%3D%27%231a1c1e%27%20stroke-width%3D%272%27%20stroke-linecap%3D%27round%27/%3E%3C/svg%3E") 12 12, text;
   }
 
+  .markdown-source-paper {
+    --source-markdown-syntax-color: var(--editor-markdown-syntax-color);
+  }
+
+  /* Source markers carry document structure, so dark themes keep them
+     readable while visual-editor markers remain intentionally quiet. */
+  [data-theme="dark"] .markdown-source-paper,
+  [data-theme="github-dark"] .markdown-source-paper,
+  [data-theme="night"] .markdown-source-paper,
+  [data-theme="one-dark"] .markdown-source-paper,
+  [data-theme="one-dark-pro"] .markdown-source-paper,
+  [data-theme="solarized-dark"] .markdown-source-paper,
+  [data-theme="nord"] .markdown-source-paper,
+  [data-theme="catppuccin-mocha"] .markdown-source-paper {
+    --source-markdown-syntax-color: color-mix(in srgb, var(--text-md-char) 30%, var(--text-primary));
+  }
+
   [data-theme="dark"] .markdown-paper,
   [data-theme="github-dark"] .markdown-paper,
   [data-theme="night"] .markdown-paper,
@@ -860,9 +877,12 @@
     font-family: inherit;
   }
 
-  .markdown-paper .cm-markra-syntax-character,
-  .markdown-source-paper .cm-markra-syntax-character {
+  .markdown-paper .cm-markra-syntax-character {
     color: var(--editor-markdown-syntax-color) !important;
+  }
+
+  .markdown-source-paper .cm-markra-syntax-character {
+    color: var(--source-markdown-syntax-color) !important;
   }
 
   .markdown-paper .cm-cursor,
@@ -4453,6 +4473,12 @@
   .markdown-paper::selection,
   .markdown-paper *::selection {
     background: color-mix(in srgb, var(--accent) 20%, transparent);
+  }
+
+  /* CodeMirror draws selections in a separate layer, so its focused light
+     fallback must not override the theme-aware native selection color. */
+  .markdown-paper .cm-selectionBackground {
+    background: color-mix(in srgb, var(--accent) 20%, transparent) !important;
   }
 
   .editor-content-slot[data-document-search-open="true"] .markdown-paper,
