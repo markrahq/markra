@@ -4,6 +4,7 @@ import { linter, lintGutter } from "@codemirror/lint";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { basicSetup } from "codemirror";
+import { jsonSyntaxHighlighting } from "@markra/editor/codemirror";
 
 export function JsonCodeEditor({
   label,
@@ -29,6 +30,7 @@ export function JsonCodeEditor({
       basicSetup,
       lintGutter(),
       json(),
+      jsonSyntaxHighlighting,
       linter(jsonParseLinter()),
       EditorView.lineWrapping,
       EditorView.contentAttributes.of({
@@ -75,10 +77,24 @@ export function JsonCodeEditor({
         ".cm-line": {
           padding: "0"
         },
+        ".cm-markra-json-literal": {
+          color: "color-mix(in srgb, var(--link-color) 55%, var(--text-heading)) !important"
+        },
+        ".cm-markra-json-property": {
+          color: "var(--text-heading) !important"
+        },
+        ".cm-markra-json-string": {
+          color: "var(--text-primary) !important"
+        },
         ".cm-scroller": {
           fontFamily:
             'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
           lineHeight: "1.25rem"
+        },
+        ".cm-selectionBackground, &.cm-focused .cm-selectionBackground": {
+          // CodeMirror's focused light fallback is more specific than the
+          // app theme and otherwise obscures JSON tokens in dark mode.
+          backgroundColor: "color-mix(in srgb, var(--accent) 22%, transparent) !important"
         },
         ".cm-tooltip": {
           backgroundColor: "var(--bg-primary)",

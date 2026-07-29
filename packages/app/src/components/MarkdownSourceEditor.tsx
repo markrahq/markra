@@ -6,6 +6,7 @@ import { minimalSetup } from "codemirror";
 import { t, type AppLanguage, type SearchRange } from "@markra/shared";
 import {
   codeMirrorTypewriterMode,
+  markdownSourceSyntaxHighlighting,
   markdownSyntaxHighlighting,
   markraHighlight,
   reconfigureCodeMirrorVimMode
@@ -295,6 +296,7 @@ export function MarkdownSourceEditor({
         extensions: [markraHighlight]
       }),
       markdownSyntaxHighlighting,
+      markdownSourceSyntaxHighlighting,
       EditorView.lineWrapping,
       contentAttributesCompartmentRef.current.of(markdownSourceContentAttributes(sourceLabel, readOnly)),
       editableCompartmentRef.current.of(EditorView.editable.of(!readOnly)),

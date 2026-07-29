@@ -25,6 +25,32 @@ export const markdownSyntaxHighlighting = syntaxHighlighting(
   ]),
 );
 
+export const markdownSourceSyntaxHighlighting = syntaxHighlighting(
+  HighlightStyle.define([
+    {
+      class: "cm-markra-source-metadata",
+      tag: [tags.url, tags.labelName, tags.string],
+    },
+  ]),
+);
+
+export const jsonSyntaxHighlighting = syntaxHighlighting(
+  HighlightStyle.define([
+    {
+      class: "cm-markra-json-property",
+      tag: tags.propertyName,
+    },
+    {
+      class: "cm-markra-json-string",
+      tag: tags.string,
+    },
+    {
+      class: "cm-markra-json-literal",
+      tag: [tags.number, tags.bool, tags.null],
+    },
+  ]),
+);
+
 export const markraHighlight: MarkdownExtension = {
   defineNodes: [
     "Highlight",

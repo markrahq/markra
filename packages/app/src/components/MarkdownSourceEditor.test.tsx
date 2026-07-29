@@ -51,6 +51,7 @@ describe("MarkdownSourceEditor", () => {
       "const answer = 42;",
       "```",
       "- Item",
+      '[link](https://example.test "synthetic title")',
       "==highlight=="
     ].join("\n");
     const handleChange = vi.fn();
@@ -77,6 +78,13 @@ describe("MarkdownSourceEditor", () => {
     ).join("");
     expect(syntaxCharacters).toContain("#");
     expect(syntaxCharacters).toContain("====");
+    const sourceMetadata = Array.from(
+      container.querySelectorAll(".cm-markra-source-metadata"),
+      (element) => element.textContent ?? "",
+    ).join("");
+    expect(sourceMetadata).toContain("ts");
+    expect(sourceMetadata).toContain("https://example.test");
+    expect(sourceMetadata).toContain("synthetic title");
 
     replaceCodeMirrorDoc(view, "# Changed");
 

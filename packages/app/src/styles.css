@@ -235,7 +235,7 @@
 
     --text-primary: #d4d4d4;
     --text-heading: #e0e0e0;
-    --text-secondary: #808080;
+    --text-secondary: #858585;
     --text-md-char: #555555;
 
     --border-default: #333333;
@@ -326,7 +326,7 @@
 
     --text-primary: #abb2bf;
     --text-heading: #e6edf3;
-    --text-secondary: #5c6370;
+    --text-secondary: #8f96a3;
     --text-md-char: #4b5263;
 
     --border-default: #3b4048;
@@ -366,7 +366,7 @@
 
     --text-primary: #abb2bf;
     --text-heading: #e6edf3;
-    --text-secondary: #7f848e;
+    --text-secondary: #8f96a3;
     --text-md-char: #5c6370;
 
     --border-default: #3e4451;
@@ -825,8 +825,19 @@
     --source-markdown-syntax-color: var(--editor-markdown-syntax-color);
   }
 
-  /* Source markers carry document structure, so dark themes keep them
-     readable while visual-editor markers remain intentionally quiet. */
+  /* Revealed Markdown markers are editable content. Keep them at the
+     theme's primary text contrast instead of reusing muted chrome tokens. */
+  .markdown-paper[data-editor-theme="dark"],
+  .markdown-paper[data-editor-theme="github-dark"],
+  .markdown-paper[data-editor-theme="night"],
+  .markdown-paper[data-editor-theme="one-dark"],
+  .markdown-paper[data-editor-theme="one-dark-pro"],
+  .markdown-paper[data-editor-theme="solarized-dark"],
+  .markdown-paper[data-editor-theme="nord"],
+  .markdown-paper[data-editor-theme="catppuccin-mocha"] {
+    --editor-markdown-syntax-color: var(--editor-text-primary);
+  }
+
   [data-theme="dark"] .markdown-source-paper,
   [data-theme="github-dark"] .markdown-source-paper,
   [data-theme="night"] .markdown-source-paper,
@@ -835,7 +846,7 @@
   [data-theme="solarized-dark"] .markdown-source-paper,
   [data-theme="nord"] .markdown-source-paper,
   [data-theme="catppuccin-mocha"] .markdown-source-paper {
-    --source-markdown-syntax-color: color-mix(in srgb, var(--text-md-char) 30%, var(--text-primary));
+    --source-markdown-syntax-color: var(--text-primary);
   }
 
   [data-theme="dark"] .markdown-paper,
@@ -883,6 +894,10 @@
 
   .markdown-source-paper .cm-markra-syntax-character {
     color: var(--source-markdown-syntax-color) !important;
+  }
+
+  .markdown-source-paper .cm-markra-source-metadata {
+    color: var(--text-primary) !important;
   }
 
   .markdown-paper .cm-cursor,
@@ -2044,7 +2059,7 @@
     --editor-paper-bg: #282c34;
     --editor-text-primary: #abb2bf;
     --editor-text-heading: #e6edf3;
-    --editor-text-secondary: #5c6370;
+    --editor-text-secondary: #8f96a3;
     --editor-border: #3b4048;
     --editor-border-strong: #4b5263;
     --editor-bg-secondary: #21252b;
@@ -2094,7 +2109,7 @@
     --editor-paper-bg: #282c34;
     --editor-text-primary: #abb2bf;
     --editor-text-heading: #e6edf3;
-    --editor-text-secondary: #7f848e;
+    --editor-text-secondary: #8f96a3;
     --editor-border: #3e4451;
     --editor-border-strong: #4b5263;
     --editor-bg-secondary: #21252b;
@@ -4472,13 +4487,13 @@
 
   .markdown-paper::selection,
   .markdown-paper *::selection {
-    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    background: color-mix(in srgb, var(--editor-caret-color, var(--accent)) 20%, transparent);
   }
 
   /* CodeMirror draws selections in a separate layer, so its focused light
      fallback must not override the theme-aware native selection color. */
   .markdown-paper .cm-selectionBackground {
-    background: color-mix(in srgb, var(--accent) 20%, transparent) !important;
+    background: color-mix(in srgb, var(--editor-caret-color, var(--accent)) 20%, transparent) !important;
   }
 
   .editor-content-slot[data-document-search-open="true"] .markdown-paper,
