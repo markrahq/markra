@@ -40,6 +40,10 @@ function createDragOverEvent(dataTransfer: Partial<DataTransfer>) {
   return event;
 }
 
+function utf8Base64(value: string) {
+  return btoa(String.fromCharCode(...new TextEncoder().encode(value)));
+}
+
 function captureNextDrop() {
   const drops: NativeMarkdownDroppedTarget[] = [];
   let resolveDrop: (target: NativeMarkdownDroppedTarget) => void = () => undefined;
@@ -656,5 +660,54 @@ describe("web file runtime", () => {
 
     expect(confirm).toHaveBeenCalledWith("Delete file?");
     expect(confirm).toHaveBeenCalledWith("Discard?");
+  });
+
+  it("reads and writes nested WebDAV settings backup files", async () => {
+    const requests: Array<{ init?: RequestInit; url: string }> = [];
+    const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      requests.push({ init, url });
+
+      if (init?.method === "HEAD") return new Response(null, { status: 404 });
+      if (init?.method === "GET") {
+        return new Response('{"format":"markra-settings-backup"}', { status: 200 });
+      }
+
+      return new Response(null, { status: init?.method === "PUT" ? 201 : 200 });
+    });
+    const runtime = createWebRuntime({
+      fetch,
+      indexedDB: new FakeIndexedDbFactory().indexedDB
+    });
+    const settings = {
+      password: "模拟密码",
+      publicBaseUrl: "",
+      serverUrl: "https://dav.example.test/base",
+      uploadPath: "images",
+      username: "模拟用户"
+    };
+
+    await runtime.files.writeWebDavTextFile({
+      contents: '{"format":"markra-settings-backup"}',
+      remotePath: "markra/settings/markra-settings.json",
+      settings
+    });
+    await expect(runtime.files.readWebDavTextFile({
+      remotePath: "markra/settings/markra-settings.json",
+      settings
+    })).resolves.toBe('{"format":"markra-settings-backup"}');
+
+    expect(requests.map(({ init, url }) => [init?.method, url])).toEqual([
+      ["MKCOL", "https://dav.example.test/base/markra/"],
+      ["MKCOL", "https://dav.example.test/base/markra/settings/"],
+      ["HEAD", "https://dav.example.test/base/markra/settings/markra-settings.json"],
+      ["PUT", "https://dav.example.test/base/markra/settings/markra-settings.json"],
+      ["GET", "https://dav.example.test/base/markra/settings/markra-settings.json"]
+    ]);
+    expect(requests[3]?.init?.headers).toMatchObject({
+      authorization: `Basic ${utf8Base64("模拟用户:模拟密码")}`,
+      "content-type": "application/json; charset=utf-8",
+      "if-none-match": "*"
+    });
   });
 });

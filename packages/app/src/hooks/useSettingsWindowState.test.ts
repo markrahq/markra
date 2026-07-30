@@ -131,6 +131,174 @@ describe("settings window import and export", () => {
     });
   });
 
+  it("backs up and restores portable settings through the selected remote storage", async () => {
+    const defaultRuntime = createDefaultAppRuntime();
+    const preferences = {
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        s3: {
+          accessKeyId: "mock-access-key",
+          bucket: "mock-settings",
+          endpointUrl: "https://s3.example.test",
+          publicBaseUrl: "",
+          region: "ap-southeast-1",
+          secretAccessKey: "mock-secret",
+          uploadPath: "images"
+        },
+        webdav: {
+          password: "mock-password",
+          publicBaseUrl: "",
+          serverUrl: "https://dav.example.test/base",
+          uploadPath: "images",
+          username: "mock-user"
+        }
+      }
+    };
+    let remoteContents = "";
+    const writeWebDavTextFile = vi.fn(async (input: { contents: string }) => {
+      remoteContents = input.contents;
+    });
+    const readWebDavTextFile = vi.fn(async () => remoteContents);
+    const writeS3TextFile = vi.fn(async (input: { contents: string }) => {
+      remoteContents = input.contents;
+    });
+    const readS3TextFile = vi.fn(async () => remoteContents);
+    configureAppRuntime({
+      ...defaultRuntime,
+      files: {
+        ...defaultRuntime.files,
+        readS3TextFile,
+        readWebDavTextFile,
+        writeS3TextFile,
+        writeWebDavTextFile
+      },
+      settings: createSettingsRuntimeWithEditorPreferences(preferences)
+    });
+    const { result } = renderHook(() => useSettingsWindowState());
+
+    await waitFor(() => {
+      expect(result.current.editorPreferences.imageUpload.webdav.serverUrl)
+        .toBe("https://dav.example.test/base");
+    });
+
+    await act(async () => {
+      await result.current.handleBackupSettings("webdav");
+    });
+
+    const backedUpFile = JSON.parse(remoteContents);
+    expect(backedUpFile).toMatchObject({
+      format: "markra-settings-backup",
+      includesSensitiveSettings: false,
+      version: 1
+    });
+    expect(backedUpFile.settings.editorPreferences.imageUpload.webdav.password).toBe("");
+    expect(writeWebDavTextFile).toHaveBeenCalledWith({
+      contents: expect.any(String),
+      remotePath: "markra/settings/markra-settings.json",
+      settings: preferences.imageUpload.webdav
+    });
+
+    backedUpFile.settings.editorPreferences.bodyFontSize = 20;
+    backedUpFile.settings.language = "zh-CN";
+    remoteContents = JSON.stringify(backedUpFile);
+
+    await act(async () => {
+      await result.current.handleRestoreSettings("webdav");
+    });
+
+    expect(readWebDavTextFile).toHaveBeenCalledWith({
+      remotePath: "markra/settings/markra-settings.json",
+      settings: preferences.imageUpload.webdav
+    });
+    await waitFor(() => {
+      expect(result.current.editorPreferences.bodyFontSize).toBe(20);
+    });
+    expect(result.current.editorPreferences.imageUpload.webdav.password).toBe("mock-password");
+    expect(mockedShowAppToast).toHaveBeenCalledWith({
+      message: "Settings backed up.",
+      status: "success"
+    });
+    expect(mockedShowAppToast).toHaveBeenCalledWith({
+      message: "Settings restored.",
+      status: "success"
+    });
+
+    await act(async () => {
+      await result.current.handleBackupSettings("s3");
+      await result.current.handleRestoreSettings("s3");
+    });
+
+    expect(writeS3TextFile).toHaveBeenCalledWith({
+      contents: expect.any(String),
+      objectKey: "markra/settings/markra-settings.json",
+      settings: preferences.imageUpload.s3
+    });
+    expect(readS3TextFile).toHaveBeenCalledWith({
+      objectKey: "markra/settings/markra-settings.json",
+      settings: preferences.imageUpload.s3
+    });
+  });
+
+  it("backs up portable settings to a local file and rejects PicGo backup", async () => {
+    const defaultRuntime = createDefaultAppRuntime();
+    let localContents = "";
+    const saveSettingsFile = vi.fn(async (input) => {
+      localContents = input.contents;
+
+      return {
+        name: input.suggestedName,
+        path: `/mock-files/${input.suggestedName}`
+      };
+    });
+    const openSettingsFile = vi.fn(async () => ({
+      content: localContents,
+      name: "markra-settings-backup.json",
+      path: "/mock-files/markra-settings-backup.json"
+    }));
+    configureAppRuntime({
+      ...defaultRuntime,
+      files: {
+        ...defaultRuntime.files,
+        openSettingsFile,
+        saveSettingsFile
+      }
+    });
+    const { result } = renderHook(() => useSettingsWindowState());
+
+    await act(async () => {
+      await result.current.handleBackupSettings("local");
+    });
+
+    expect(saveSettingsFile).toHaveBeenCalledWith({
+      contents: expect.any(String),
+      suggestedName: "markra-settings-backup.json"
+    });
+    expect(JSON.parse(saveSettingsFile.mock.calls[0][0].contents)).toMatchObject({
+      format: "markra-settings-backup",
+      includesSensitiveSettings: false,
+      version: 1
+    });
+
+    const localBackup = JSON.parse(localContents);
+    localBackup.settings.editorPreferences.bodyFontSize = 20;
+    localContents = JSON.stringify(localBackup);
+    await act(async () => {
+      await result.current.handleRestoreSettings("local");
+    });
+    await waitFor(() => {
+      expect(result.current.editorPreferences.bodyFontSize).toBe(20);
+    });
+
+    await act(async () => {
+      await result.current.handleBackupSettings("picgo");
+    });
+    expect(mockedShowAppToast).toHaveBeenCalledWith({
+      message: "PicGo/PicList does not support settings backup or restore.",
+      status: "error"
+    });
+  });
+
   it("persists and broadcasts applied global ignore rules", async () => {
     const defaultRuntime = createDefaultAppRuntime();
     const values = new Map<string, unknown>([["fileIgnoreSettings", { rules: "saved/" }]]);

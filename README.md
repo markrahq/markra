@@ -92,7 +92,7 @@ Download the latest desktop builds from [GitHub Releases](https://github.com/mar
 | AI providers | Native runtime requests with app proxy settings | Browser requests subject to provider CORS support |
 | Spellcheck | Markra-managed local spellcheck with on-demand language packs and a personal dictionary | Not available yet |
 | Image storage | Local folders, WebDAV, PicGo/PicList, and S3-compatible storage | Local/browser handles and WebDAV where CORS permits |
-| Backup and sync | Local backups and WebDAV sync | Not available in the web runtime |
+| Backup and sync | Local backups, WebDAV note sync, and settings backup to local files, WebDAV, or S3-compatible storage | Settings backup to local files or WebDAV where CORS permits; note backup and sync are unavailable |
 | Export | HTML, PDF, and Pandoc formats when configured | HTML download and browser print/PDF |
 
 ## Comparison
@@ -139,6 +139,7 @@ Markra is not trying to replace every Markdown tool. It is closest to a calm doc
 - Paste or drop images to local storage, WebDAV, PicGo/PicList, or S3-compatible storage.
 - Create one-way local backups manually, on exit, or on a schedule.
 - Optional WebDAV sync keeps notes aligned across devices and preserves conflict copies.
+- Back up portable settings to a local file, WebDAV, or S3-compatible storage and restore them on another device; sensitive credentials are excluded by default.
 
 ### Blocks, Tables, and Code
 

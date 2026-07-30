@@ -15,11 +15,14 @@ mod menu_labels;
 mod network;
 mod opened_files;
 mod remote_sync;
+mod s3;
+mod s3_text_file;
 mod shell_command;
 mod spellcheck_dictionary;
 mod text_file;
 mod watcher;
 mod web_http;
+mod webdav_text_file;
 mod window_state;
 mod windows;
 
@@ -64,6 +67,7 @@ use opened_files::{
     OpenedMarkdownPathsState,
 };
 use remote_sync::sync_webdav_markdown_folder;
+use s3_text_file::{read_s3_text_file, write_s3_text_file};
 use shell_command::{get_shell_command_status, install_shell_command, uninstall_shell_command};
 use spellcheck_dictionary::{
     delete_spellcheck_dictionary, get_spellcheck_dictionary_status, load_spellcheck_dictionary,
@@ -76,6 +80,7 @@ use watcher::{
     MarkdownFileWatcherState, MarkdownTreeWatcherState,
 };
 use web_http::{download_web_image, request_web_resource};
+use webdav_text_file::{read_webdav_text_file, write_webdav_text_file};
 use window_state::{
     list_editor_window_restore_states, remove_editor_window_restore_state,
     set_editor_window_restore_state, EditorWindowRestoreState,
@@ -309,6 +314,10 @@ pub fn run() {
             request_web_resource,
             backup_markdown_folder,
             sync_webdav_markdown_folder,
+            read_s3_text_file,
+            write_s3_text_file,
+            read_webdav_text_file,
+            write_webdav_text_file,
             download_web_image,
             upload_picgo_image,
             upload_s3_image,

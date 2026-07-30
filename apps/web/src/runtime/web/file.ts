@@ -76,6 +76,60 @@ const settingsFilePickerTypes = [{
   },
   description: "Markra settings"
 }];
+const webDavTextFileMaxCharacters = 2 * 1024 * 1024;
+
+function webDavTextFileSegments(remotePath: string) {
+  const segments = remotePath
+    .trim()
+    .replace(/\\/gu, "/")
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0 && segment !== ".");
+
+  if (segments.length === 0 || segments.some((segment) => segment === "..")) {
+    throw new Error("WebDAV text file path is invalid.");
+  }
+
+  return segments;
+}
+
+function webDavTextFileUrl(serverUrl: string, segments: readonly string[], trailingSlash = false) {
+  const url = new URL(serverUrl.trim());
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new Error("WebDAV text files only support HTTP and HTTPS URLs.");
+  }
+
+  const basePath = url.pathname.replace(/\/+$/u, "");
+  const remotePath = segments.map((segment) => encodeURIComponent(segment)).join("/");
+  url.pathname = `${basePath}/${remotePath}${trailingSlash ? "/" : ""}`;
+  url.search = "";
+  url.hash = "";
+
+  return url.toString();
+}
+
+function webDavBasicAuthorization(username: string, password: string) {
+  const credentials = new TextEncoder().encode(`${username}:${password}`);
+  const binaryCredentials = Array.from(
+    credentials,
+    (byte) => String.fromCharCode(byte)
+  ).join("");
+
+  return `Basic ${btoa(binaryCredentials)}`;
+}
+
+function webDavTextFileHeaders(
+  username: string,
+  password: string,
+  additionalHeaders: Record<string, string> = {}
+) {
+  return {
+    ...(username || password
+      ? { authorization: webDavBasicAuthorization(username, password) }
+      : {}),
+    ...additionalHeaders
+  };
+}
 
 function extensionFromName(name: string) {
   const extension = name.split(".").pop()?.toLowerCase();
@@ -1350,11 +1404,10 @@ export function createWebFileRuntime(
       const normalizedBaseUrl = input.settings.serverUrl.replace(/\/+$/, "");
       const uploadPath = input.settings.uploadPath.replace(/^\/+|\/+$/g, "");
       const targetUrl = `${normalizedBaseUrl}/${uploadPath ? `${uploadPath}/` : ""}${encodeURIComponent(input.fileName)}`;
-      const auth = btoa(`${input.settings.username}:${input.settings.password}`);
       const response = await (options.fetch ?? globalThis.fetch)(targetUrl, {
         body: input.image,
         headers: {
-          authorization: `Basic ${auth}`
+          authorization: webDavBasicAuthorization(input.settings.username, input.settings.password)
         },
         method: "PUT"
       });
@@ -1365,6 +1418,81 @@ export function createWebFileRuntime(
         alt: input.fileName,
         src: `${publicBaseUrl}/${uploadPath ? `${uploadPath}/` : ""}${encodeURIComponent(input.fileName)}`
       };
+    },
+    async readWebDavTextFile(input) {
+      const segments = webDavTextFileSegments(input.remotePath);
+      const response = await (options.fetch ?? globalThis.fetch)(
+        webDavTextFileUrl(input.settings.serverUrl, segments),
+        {
+          headers: webDavTextFileHeaders(input.settings.username, input.settings.password),
+          method: "GET"
+        }
+      );
+      if (response.status === 404) throw new Error("No WebDAV settings backup was found.");
+      if (!response.ok) throw new Error(`WebDAV text file download failed with status ${response.status}.`);
+      const contents = await response.text();
+      if (contents.length > webDavTextFileMaxCharacters) {
+        throw new Error("WebDAV settings backup is too large.");
+      }
+
+      return contents;
+    },
+    readS3TextFile: async () => {
+      throw new Error("S3 settings backup requires the desktop runtime.");
+    },
+    async writeWebDavTextFile(input) {
+      if (input.contents.length > webDavTextFileMaxCharacters) {
+        throw new Error("WebDAV settings backup is too large.");
+      }
+
+      const fetchWebDav = options.fetch ?? globalThis.fetch;
+      const segments = webDavTextFileSegments(input.remotePath);
+      const authHeaders = webDavTextFileHeaders(input.settings.username, input.settings.password);
+      for (let index = 0; index < segments.length - 1; index += 1) {
+        const response = await fetchWebDav(
+          webDavTextFileUrl(input.settings.serverUrl, segments.slice(0, index + 1), true),
+          {
+            headers: authHeaders,
+            method: "MKCOL"
+          }
+        );
+        if (!(response.ok || response.status === 405)) {
+          throw new Error(`WebDAV text file folder creation failed with status ${response.status}.`);
+        }
+      }
+
+      const targetUrl = webDavTextFileUrl(input.settings.serverUrl, segments);
+      const metadataResponse = await fetchWebDav(targetUrl, {
+        headers: authHeaders,
+        method: "HEAD"
+      });
+      const remoteMissing = metadataResponse.status === 404;
+      const metadataUnavailable = [405, 501].includes(metadataResponse.status);
+      if (!(metadataResponse.ok || remoteMissing || metadataUnavailable)) {
+        throw new Error(`WebDAV text file metadata failed with status ${metadataResponse.status}.`);
+      }
+
+      const remoteEtag = metadataResponse.headers.get("etag")?.trim() ?? "";
+      const conditionalHeaders: Record<string, string> = remoteMissing
+        ? { "if-none-match": "*" }
+        : remoteEtag && !remoteEtag.startsWith("W/")
+          ? { "if-match": remoteEtag }
+          : {};
+      const response = await fetchWebDav(targetUrl, {
+        body: input.contents,
+        headers: webDavTextFileHeaders(input.settings.username, input.settings.password, {
+          "content-type": "application/json; charset=utf-8",
+          ...conditionalHeaders
+        }),
+        method: "PUT"
+      });
+      if (response.status === 412) {
+        throw new Error("The WebDAV settings backup changed during upload.");
+      }
+      if (!response.ok) throw new Error(`WebDAV text file upload failed with status ${response.status}.`);
+    },
+    writeS3TextFile: async () => {
+      throw new Error("S3 settings backup requires the desktop runtime.");
     },
     watchMarkdownFile: async () => () => undefined,
     watchMarkdownTree: async () => () => undefined,

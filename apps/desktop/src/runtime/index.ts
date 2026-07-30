@@ -114,6 +114,8 @@ export const desktopRuntime = {
     readMarkdownFileHistory: files.readNativeMarkdownFileHistory,
     readMarkdownImageFile: files.readNativeMarkdownImageFile,
     readMarkdownTemplateFile: files.readNativeMarkdownTemplateFile,
+    readS3TextFile: files.readNativeS3TextFile,
+    readWebDavTextFile: files.readNativeWebDavTextFile,
     renameMarkdownTreeFile: files.renameNativeMarkdownTreeFile,
     resolveMarkdownPath: files.resolveNativeMarkdownPath,
     saveClipboardAttachment: files.saveNativeClipboardAttachment,
@@ -130,6 +132,8 @@ export const desktopRuntime = {
     uploadPicGoImage: files.uploadNativePicGoImage,
     uploadS3Image: files.uploadNativeS3Image,
     uploadWebDavImage: files.uploadNativeWebDavImage,
+    writeS3TextFile: files.writeNativeS3TextFile,
+    writeWebDavTextFile: files.writeNativeWebDavTextFile,
     watchMarkdownFile: files.watchNativeMarkdownFile,
     watchMarkdownTree: files.watchNativeMarkdownTree,
     writeMarkdownTemplateFile: files.writeNativeMarkdownTemplateFile

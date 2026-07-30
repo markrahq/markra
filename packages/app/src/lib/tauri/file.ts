@@ -213,6 +213,24 @@ export type UploadNativeWebDavImageInput = {
   settings: WebDavImageUploadSettings;
 };
 
+export type ReadNativeWebDavTextFileInput = {
+  remotePath: string;
+  settings: WebDavImageUploadSettings;
+};
+
+export type WriteNativeWebDavTextFileInput = ReadNativeWebDavTextFileInput & {
+  contents: string;
+};
+
+export type ReadNativeS3TextFileInput = {
+  objectKey: string;
+  settings: S3ImageUploadSettings;
+};
+
+export type WriteNativeS3TextFileInput = ReadNativeS3TextFileInput & {
+  contents: string;
+};
+
 export type UploadNativePicGoImageInput = {
   fileName: string;
   image: File;
@@ -512,6 +530,22 @@ export function downloadNativeWebImage(input: DownloadNativeWebImageInput) {
 
 export function uploadNativeWebDavImage(input: UploadNativeWebDavImageInput) {
   return getAppRuntime().files.uploadWebDavImage(input);
+}
+
+export function readNativeWebDavTextFile(input: ReadNativeWebDavTextFileInput) {
+  return getAppRuntime().files.readWebDavTextFile(input);
+}
+
+export function writeNativeWebDavTextFile(input: WriteNativeWebDavTextFileInput) {
+  return getAppRuntime().files.writeWebDavTextFile(input);
+}
+
+export function readNativeS3TextFile(input: ReadNativeS3TextFileInput) {
+  return getAppRuntime().files.readS3TextFile(input);
+}
+
+export function writeNativeS3TextFile(input: WriteNativeS3TextFileInput) {
+  return getAppRuntime().files.writeS3TextFile(input);
 }
 
 export function uploadNativePicGoImage(input: UploadNativePicGoImageInput) {

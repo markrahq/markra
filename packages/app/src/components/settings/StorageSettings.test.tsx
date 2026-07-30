@@ -4,16 +4,16 @@ import { defaultEditorPreferences } from "../../lib/settings/app-settings";
 import { StorageSettings } from "./StorageSettings";
 
 describe("StorageSettings", () => {
-  it("offers Markra settings import and export actions", () => {
-    const onExportSettings = vi.fn();
-    const onImportSettings = vi.fn();
+  it("offers local settings backup and restore actions", () => {
+    const onBackupSettings = vi.fn();
+    const onRestoreSettings = vi.fn();
 
     render(
       <StorageSettings
         preferences={defaultEditorPreferences}
         translate={translate}
-        onExportSettings={onExportSettings}
-        onImportSettings={onImportSettings}
+        onBackupSettings={onBackupSettings}
+        onRestoreSettings={onRestoreSettings}
         onUpdatePreferences={vi.fn()}
       />
     );
@@ -22,31 +22,100 @@ describe("StorageSettings", () => {
     expect(settingsBackupRow).not.toBeNull();
     expect(
       within(settingsBackupRow as HTMLElement).getByText(
-        "Export or import Markra settings, including AI keys and storage credentials. Keep exported files private."
+        "Back up or restore portable Markra settings with the selected storage type."
       )
     ).toBeInTheDocument();
 
-    fireEvent.click(within(settingsBackupRow as HTMLElement).getByRole("button", { name: "Export settings" }));
-    fireEvent.click(within(settingsBackupRow as HTMLElement).getByRole("button", { name: "Import settings" }));
+    fireEvent.click(within(settingsBackupRow as HTMLElement).getByRole("button", { name: "Back up settings" }));
+    fireEvent.click(within(settingsBackupRow as HTMLElement).getByRole("button", { name: "Restore settings" }));
 
-    expect(onExportSettings).toHaveBeenCalledTimes(1);
-    expect(onImportSettings).toHaveBeenCalledTimes(1);
+    expect(onBackupSettings).toHaveBeenCalledWith("local");
+    expect(onRestoreSettings).toHaveBeenCalledWith("local");
   });
 
-  it("disables settings import and export actions while a transfer is running", () => {
+  it("disables settings backup and restore actions while a transfer is running", () => {
     render(
       <StorageSettings
         preferences={defaultEditorPreferences}
         settingsTransferRunning
         translate={translate}
-        onExportSettings={vi.fn()}
-        onImportSettings={vi.fn()}
+        onBackupSettings={vi.fn()}
+        onRestoreSettings={vi.fn()}
         onUpdatePreferences={vi.fn()}
       />
     );
 
-    expect(screen.getByRole("button", { name: "Export settings" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Import settings" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Back up settings" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Restore settings" })).toBeDisabled();
+  });
+
+  it("backs up with local, WebDAV, and S3 storage while explaining the PicGo limitation", () => {
+    const onBackupSettings = vi.fn();
+    const onRestoreSettings = vi.fn();
+    const onToggleIncludeSensitiveSettingsBackup = vi.fn();
+    const preferences = {
+      ...defaultEditorPreferences,
+      imageUpload: {
+        ...defaultEditorPreferences.imageUpload,
+        s3: {
+          accessKeyId: "mock-access-key",
+          bucket: "mock-settings",
+          endpointUrl: "https://s3.example.test",
+          publicBaseUrl: "",
+          region: "us-east-1",
+          secretAccessKey: "mock-secret",
+          uploadPath: "images"
+        },
+        webdav: {
+          ...defaultEditorPreferences.imageUpload.webdav,
+          serverUrl: "https://dav.example.test/base"
+        }
+      }
+    };
+
+    render(
+      <StorageSettings
+        includeSensitiveSettingsBackup={false}
+        preferences={preferences}
+        translate={translate}
+        onBackupSettings={onBackupSettings}
+        onRestoreSettings={onRestoreSettings}
+        onToggleIncludeSensitiveSettingsBackup={onToggleIncludeSensitiveSettingsBackup}
+        onUpdatePreferences={vi.fn()}
+      />
+    );
+
+    const backupRow = screen.getByText("Settings backup").closest(".settings-row") as HTMLElement;
+    fireEvent.click(within(backupRow).getByRole("button", { name: "Back up settings" }));
+    fireEvent.click(within(backupRow).getByRole("button", { name: "Restore settings" }));
+    expect(onBackupSettings).toHaveBeenLastCalledWith("local");
+    expect(onRestoreSettings).toHaveBeenLastCalledWith("local");
+
+    const settingsType = screen.getByRole("group", { name: "Settings type" });
+    fireEvent.click(within(settingsType).getByRole("button", { name: "Show WebDAV settings" }));
+    fireEvent.click(within(backupRow).getByRole("button", { name: "Back up settings" }));
+    fireEvent.click(within(backupRow).getByRole("button", { name: "Restore settings" }));
+    expect(onBackupSettings).toHaveBeenLastCalledWith("webdav");
+    expect(onRestoreSettings).toHaveBeenLastCalledWith("webdav");
+
+    fireEvent.click(within(settingsType).getByRole("button", { name: "Show S3-compatible settings" }));
+    fireEvent.click(within(backupRow).getByRole("button", { name: "Back up settings" }));
+    fireEvent.click(within(backupRow).getByRole("button", { name: "Restore settings" }));
+    expect(onBackupSettings).toHaveBeenLastCalledWith("s3");
+    expect(onRestoreSettings).toHaveBeenLastCalledWith("s3");
+
+    fireEvent.click(within(settingsType).getByRole("button", { name: "Show PicGo/PicList settings" }));
+    expect(within(backupRow).getByRole("button", { name: "Back up settings" })).toBeDisabled();
+    expect(within(backupRow).getByRole("button", { name: "Restore settings" })).toBeDisabled();
+    expect(within(backupRow).getByText(
+      "PicGo/PicList does not provide stable file read and write APIs, so settings backup is unavailable."
+    )).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("checkbox", {
+      name: "Include AI keys and storage credentials"
+    }));
+
+    expect(onToggleIncludeSensitiveSettingsBackup).toHaveBeenCalledTimes(1);
   });
 
   it("switches between provider settings without changing the active storage type", () => {
@@ -74,7 +143,7 @@ describe("StorageSettings", () => {
     expect(settingsTypeRow).not.toBeNull();
     expect(
       within(settingsTypeRow as HTMLElement).getByText(
-        "Change the active storage type in Editor settings. The switch here only chooses which settings to configure."
+        "Change the active image storage in Editor settings. Here, the switch chooses which settings to configure and the target for settings backup."
       )
     ).toBeInTheDocument();
 

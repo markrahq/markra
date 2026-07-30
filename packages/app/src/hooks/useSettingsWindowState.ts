@@ -43,6 +43,7 @@ import {
   normalizeExportSettings,
   normalizeFileIgnoreSettings,
   normalizeWebSearchSettings,
+  readPortableStoredAppSettings,
   type AcpAgentSettings,
   type AiProviderConfig,
   type AiProviderModel,
@@ -55,8 +56,18 @@ import {
   type NetworkSettings,
   type PortableStoredAppSettings,
   type WebSearchSettings,
-  type SyncSettings
+  type SyncSettings,
+  writePortableStoredAppSettings
 } from "../lib/settings/app-settings";
+import {
+  createSettingsBackupFile,
+  restoreSettingsBackupFile,
+  settingsBackupFileSuggestedName,
+  settingsBackupProviderConfigured,
+  settingsBackupProviderSupported,
+  settingsBackupRemotePath,
+  type SettingsBackupProvider
+} from "../lib/settings/settings-backup";
 import {
   listenAppEditorPreferencesChanged,
   listenAppFileIgnoreSettingsChanged,
@@ -82,10 +93,14 @@ import {
   openNativeMarkdownFolder,
   openNativeSettingsFile,
   readNativeMarkdownTemplateFile,
+  readNativeS3TextFile,
+  readNativeWebDavTextFile,
   requestNativeAiJson,
   saveNativeSettingsFile,
   uninstallNativeShellCommand,
-  writeNativeMarkdownTemplateFile
+  writeNativeMarkdownTemplateFile,
+  writeNativeS3TextFile,
+  writeNativeWebDavTextFile
 } from "../lib/tauri";
 import type { NativeShellCommandStatus } from "../lib/tauri/shell-command";
 import { showAppToast } from "../lib/app-toast";
@@ -207,6 +222,7 @@ export function useSettingsWindowState() {
   const [syncRunning, setSyncRunning] = useState(false);
   const [syncSourcePath, setSyncSourcePath] = useState<string | null>(null);
   const [settingsTransferRunning, setSettingsTransferRunning] = useState(false);
+  const [includeSensitiveSettingsBackup, setIncludeSensitiveSettingsBackup] = useState(false);
   const [testingStorageProvider, setTestingStorageProvider] = useState<ImageUploadProvider | null>(null);
   const [editorPreferences, setEditorPreferences] = useState<EditorPreferences>(defaultEditorPreferences);
   const [markdownTemplates, setMarkdownTemplates] = useState<MarkdownTemplate[]>([]);
@@ -782,6 +798,136 @@ export function useSettingsWindowState() {
     }
   }, [applyImportedSettings, settingsTransferRunning, translate]);
 
+  const handleBackupSettings = useCallback(async (provider: SettingsBackupProvider) => {
+    if (settingsTransferRunning) return;
+
+    if (!settingsBackupProviderSupported(provider)) {
+      showAppToast({
+        message: translate("settings.storage.settingsBackupUnsupported"),
+        status: "error"
+      });
+      return;
+    }
+    if (!settingsBackupProviderConfigured(provider, editorPreferences)) {
+      showAppToast({
+        message: translate("settings.storage.settingsBackupMissing"),
+        status: "error"
+      });
+      return;
+    }
+
+    setSettingsTransferRunning(true);
+    try {
+      const settings = await readPortableStoredAppSettings();
+      const contents = createSettingsBackupFile(settings, {
+        includeSensitiveSettings: includeSensitiveSettingsBackup
+      });
+      if (provider === "local") {
+        const savedFile = await saveNativeSettingsFile({
+          contents,
+          suggestedName: settingsBackupFileSuggestedName
+        });
+        if (!savedFile) return;
+      } else if (provider === "webdav") {
+        await writeNativeWebDavTextFile({
+          contents,
+          remotePath: settingsBackupRemotePath,
+          settings: editorPreferences.imageUpload.webdav
+        });
+      } else {
+        await writeNativeS3TextFile({
+          contents,
+          objectKey: settingsBackupRemotePath,
+          settings: editorPreferences.imageUpload.s3
+        });
+      }
+      showAppToast({
+        message: translate("settings.storage.settingsBackupSucceeded"),
+        status: "success"
+      });
+    } catch {
+      showAppToast({
+        message: translate("settings.storage.settingsBackupFailed"),
+        status: "error"
+      });
+    } finally {
+      setSettingsTransferRunning(false);
+    }
+  }, [
+    editorPreferences,
+    includeSensitiveSettingsBackup,
+    settingsTransferRunning,
+    translate
+  ]);
+
+  const handleRestoreSettings = useCallback(async (provider: SettingsBackupProvider) => {
+    if (settingsTransferRunning) return;
+
+    if (!settingsBackupProviderSupported(provider)) {
+      showAppToast({
+        message: translate("settings.storage.settingsBackupUnsupported"),
+        status: "error"
+      });
+      return;
+    }
+    if (!settingsBackupProviderConfigured(provider, editorPreferences)) {
+      showAppToast({
+        message: translate("settings.storage.settingsBackupMissing"),
+        status: "error"
+      });
+      return;
+    }
+
+    setSettingsTransferRunning(true);
+    try {
+      let contents: string;
+      if (provider === "local") {
+        const file = await openNativeSettingsFile({
+          title: translate("settings.storage.restorePickerTitle")
+        });
+        if (!file) return;
+        contents = file.content;
+      } else if (provider === "webdav") {
+        contents = await readNativeWebDavTextFile({
+          remotePath: settingsBackupRemotePath,
+          settings: editorPreferences.imageUpload.webdav
+        });
+      } else {
+        contents = await readNativeS3TextFile({
+          objectKey: settingsBackupRemotePath,
+          settings: editorPreferences.imageUpload.s3
+        });
+      }
+      const localSettings = await readPortableStoredAppSettings();
+      const restoredSettings = restoreSettingsBackupFile(contents, localSettings);
+
+      try {
+        await writePortableStoredAppSettings(restoredSettings);
+      } catch (error) {
+        await writePortableStoredAppSettings(localSettings).catch(() => {});
+        throw error;
+      }
+
+      applyImportedSettings(restoredSettings);
+      showAppToast({
+        message: translate("settings.storage.settingsRestoreSucceeded"),
+        status: "success"
+      });
+    } catch {
+      showAppToast({
+        message: translate("settings.storage.settingsRestoreFailed"),
+        status: "error"
+      });
+    } finally {
+      setSettingsTransferRunning(false);
+    }
+  }, [
+    applyImportedSettings,
+    editorPreferences,
+    settingsTransferRunning,
+    translate
+  ]);
+
   const handleTestStorageProvider = useCallback(async (provider: ImageUploadProvider) => {
     if (testingStorageProvider) return;
 
@@ -921,11 +1067,13 @@ export function useSettingsWindowState() {
     exportSettings,
     fileIgnoreSettings,
     handleAddAiProvider,
+    handleBackupSettings,
     handleFetchAiProviderModels,
     handleExportSettings,
     handleApplyFileIgnoreSettings,
     handleImportSettings,
     handleResetWelcomeDocument,
+    handleRestoreSettings,
     handleSaveAiSettings,
     handleTestAiProvider,
     handleChooseBackupTargetPath,
@@ -947,6 +1095,7 @@ export function useSettingsWindowState() {
     handleRefreshShellCommandStatus: refreshShellCommandStatus,
     handleUninstallShellCommand,
     handleUpdateWebSearchSettings,
+    includeSensitiveSettingsBackup,
     selectedAiProvider,
     setActiveCategory: handleSelectCategory,
     setSelectedAiProviderId,
@@ -954,6 +1103,7 @@ export function useSettingsWindowState() {
     networkSettings,
     settingsFocusTarget,
     settingsTransferRunning,
+    setIncludeSensitiveSettingsBackup,
     testingStorageProvider,
     shellCommandRunning,
     shellCommandStatus,

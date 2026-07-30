@@ -6,14 +6,20 @@ import { networkSettingsForNativeRequest } from "./network";
 import { listenNativeEvent } from "./events";
 import type {
   PicGoImageUploadSettings,
+  ReadNativeS3TextFileInput,
   S3ImageUploadSettings,
   ImportNativeLocalFileInput,
   SyncNativeMarkdownFolderInput,
   WebDavImageUploadSettings,
   NativeMarkdownSyncSummary,
+  ReadNativeWebDavTextFileInput,
+  WriteNativeWebDavTextFileInput,
+  WriteNativeS3TextFileInput,
   WorkspaceSearchRequest,
   WorkspaceSearchResponse
 } from "@markra/app/runtime";
+
+const defaultS3Region = "us-east-1";
 
 type MarkdownFileResponse = {
   path: string;
@@ -1570,6 +1576,70 @@ export async function uploadNativeWebDavImage({
   };
 }
 
+export async function readNativeWebDavTextFile({
+  remotePath,
+  settings
+}: ReadNativeWebDavTextFileInput): Promise<string> {
+  return invokeNative<string>("read_webdav_text_file", {
+    request: await requestWithNetwork({
+      password: settings.password,
+      remotePath,
+      serverUrl: settings.serverUrl,
+      username: settings.username
+    })
+  });
+}
+
+export async function writeNativeWebDavTextFile({
+  contents,
+  remotePath,
+  settings
+}: WriteNativeWebDavTextFileInput): Promise<void> {
+  return invokeNative<void>("write_webdav_text_file", {
+    request: await requestWithNetwork({
+      contents,
+      password: settings.password,
+      remotePath,
+      serverUrl: settings.serverUrl,
+      username: settings.username
+    })
+  });
+}
+
+export async function readNativeS3TextFile({
+  objectKey,
+  settings
+}: ReadNativeS3TextFileInput): Promise<string> {
+  return invokeNative<string>("read_s3_text_file", {
+    request: await requestWithNetwork({
+      accessKeyId: settings.accessKeyId,
+      bucket: settings.bucket,
+      endpointUrl: settings.endpointUrl,
+      objectKey,
+      region: settings.region.trim() || defaultS3Region,
+      secretAccessKey: settings.secretAccessKey
+    })
+  });
+}
+
+export async function writeNativeS3TextFile({
+  contents,
+  objectKey,
+  settings
+}: WriteNativeS3TextFileInput): Promise<void> {
+  return invokeNative<void>("write_s3_text_file", {
+    request: await requestWithNetwork({
+      accessKeyId: settings.accessKeyId,
+      bucket: settings.bucket,
+      contents,
+      endpointUrl: settings.endpointUrl,
+      objectKey,
+      region: settings.region.trim() || defaultS3Region,
+      secretAccessKey: settings.secretAccessKey
+    })
+  });
+}
+
 export async function uploadNativePicGoImage({
   fileName,
   image,
@@ -1607,7 +1677,7 @@ export async function uploadNativeS3Image({
       fileName,
       mimeType: image.type,
       publicBaseUrl: settings.publicBaseUrl,
-      region: settings.region.trim() || "us-east-1",
+      region: settings.region.trim() || defaultS3Region,
       secretAccessKey: settings.secretAccessKey,
       uploadPath: settings.uploadPath
     })

@@ -1,11 +1,17 @@
 import { useEffect, useState } from "react";
-import { Download, Upload, Wifi } from "lucide-react";
+import { CloudDownload, CloudUpload, Wifi } from "lucide-react";
 import type {
   EditorPreferences,
   ImageUploadProvider
 } from "../../lib/settings/app-settings";
 import {
+  settingsBackupProviderConfigured,
+  settingsBackupProviderSupported,
+  type SettingsBackupProvider
+} from "../../lib/settings/settings-backup";
+import {
   SettingsButton,
+  SettingsCheckbox,
   SettingsRow,
   SettingsSection,
   SettingsTextInput
@@ -17,9 +23,11 @@ import {
 import type { SettingsTranslate } from "./translate";
 
 export function StorageSettings({
-  onExportSettings,
-  onImportSettings,
+  includeSensitiveSettingsBackup = false,
+  onBackupSettings,
+  onRestoreSettings,
   onTestStorageProvider = () => {},
+  onToggleIncludeSensitiveSettingsBackup,
   onUpdatePreferences,
   preferences,
   s3ImageUploadEnabled = true,
@@ -27,9 +35,11 @@ export function StorageSettings({
   testingStorageProvider = null,
   translate
 }: {
-  onExportSettings?: () => unknown;
-  onImportSettings?: () => unknown;
+  includeSensitiveSettingsBackup?: boolean;
+  onBackupSettings?: (provider: SettingsBackupProvider) => unknown;
+  onRestoreSettings?: (provider: SettingsBackupProvider) => unknown;
   onTestStorageProvider?: (provider: ImageUploadProvider) => unknown;
+  onToggleIncludeSensitiveSettingsBackup?: () => unknown;
   onUpdatePreferences: (preferences: EditorPreferences) => unknown;
   preferences: EditorPreferences;
   s3ImageUploadEnabled?: boolean;
@@ -44,6 +54,17 @@ export function StorageSettings({
   const activeSettingsProvider = availableImageUploadProvider(settingsProvider, s3ImageUploadEnabled);
   const storageConnectionTestRunning = testingStorageProvider !== null;
   const activeStorageConnectionTestRunning = testingStorageProvider === activeSettingsProvider;
+  const settingsBackupSupported = settingsBackupProviderSupported(activeSettingsProvider);
+  const settingsBackupConfigured = settingsBackupProviderConfigured(
+    activeSettingsProvider,
+    preferences
+  );
+  const settingsBackupDisabled = settingsTransferRunning
+    || !settingsBackupSupported
+    || !settingsBackupConfigured;
+  const settingsBackupDescription = settingsBackupSupported
+    ? translate("settings.storage.settingsBackupDescription")
+    : translate("settings.storage.settingsBackupPicGoUnsupported");
   const storageConnectionTestLabel = activeStorageConnectionTestRunning
     ? translate("settings.storage.testingConnection")
     : translate("settings.storage.testConnection");
@@ -90,30 +111,6 @@ export function StorageSettings({
   return (
     <SettingsSection label={translate("settings.categories.storage")}>
       <SettingsRow
-        title={translate("settings.storage.settingsBackup")}
-        description={translate("settings.storage.settingsBackupDescription")}
-        action={
-          <div className="inline-flex items-center gap-2">
-            <SettingsButton
-              disabled={settingsTransferRunning || !onExportSettings}
-              label={translate("settings.storage.exportSettings")}
-              onClick={() => onExportSettings?.()}
-            >
-              <Download aria-hidden="true" size={13} />
-              {translate("settings.storage.exportSettings")}
-            </SettingsButton>
-            <SettingsButton
-              disabled={settingsTransferRunning || !onImportSettings}
-              label={translate("settings.storage.importSettings")}
-              onClick={() => onImportSettings?.()}
-            >
-              <Upload aria-hidden="true" size={13} />
-              {translate("settings.storage.importSettings")}
-            </SettingsButton>
-          </div>
-        }
-      />
-      <SettingsRow
         title={translate("settings.editor.imageUploadProviderSettings")}
         description={translate("settings.editor.imageUploadProviderStorageHint")}
         action={
@@ -122,6 +119,41 @@ export function StorageSettings({
             s3ImageUploadEnabled={s3ImageUploadEnabled}
             translate={translate}
             onSelectProvider={setSettingsProvider}
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.storage.settingsBackup")}
+        description={settingsBackupDescription}
+        action={
+          <div className="inline-flex items-center gap-2">
+            <SettingsButton
+              disabled={settingsBackupDisabled || !onBackupSettings}
+              label={translate("settings.storage.backupSettings")}
+              onClick={() => onBackupSettings?.(activeSettingsProvider)}
+            >
+              <CloudUpload aria-hidden="true" size={13} />
+              {translate("settings.storage.backupSettings")}
+            </SettingsButton>
+            <SettingsButton
+              disabled={settingsBackupDisabled || !onRestoreSettings}
+              label={translate("settings.storage.restoreSettings")}
+              onClick={() => onRestoreSettings?.(activeSettingsProvider)}
+            >
+              <CloudDownload aria-hidden="true" size={13} />
+              {translate("settings.storage.restoreSettings")}
+            </SettingsButton>
+          </div>
+        }
+      />
+      <SettingsRow
+        title={translate("settings.storage.includeSensitiveSettings")}
+        description={translate("settings.storage.includeSensitiveSettingsDescription")}
+        action={
+          <SettingsCheckbox
+            checked={includeSensitiveSettingsBackup}
+            label={translate("settings.storage.includeSensitiveSettings")}
+            onChange={() => onToggleIncludeSensitiveSettingsBackup?.()}
           />
         }
       />

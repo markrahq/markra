@@ -657,7 +657,7 @@ function parseStoredAppSettingsFile(contents: string): PortableStoredAppSettings
   return normalizePortableStoredAppSettings(parsed.settings);
 }
 
-function normalizePortableStoredAppSettings(value: Record<string, unknown>): PortableStoredAppSettings {
+export function normalizePortableStoredAppSettings(value: Record<string, unknown>): PortableStoredAppSettings {
   const themePreferences = normalizeAppThemePreferences(value);
 
   return {
@@ -680,7 +680,7 @@ function normalizePortableStoredAppSettings(value: Record<string, unknown>): Por
   };
 }
 
-async function readPortableStoredAppSettings(): Promise<PortableStoredAppSettings> {
+export async function readPortableStoredAppSettings(): Promise<PortableStoredAppSettings> {
   const store = await loadSettingsStore();
   const legacyTheme = await store.get<AppTheme>(themeKey);
   const legacyPreferences = isAppTheme(legacyTheme)
@@ -729,7 +729,7 @@ async function readPortableStoredAppSettings(): Promise<PortableStoredAppSetting
   };
 }
 
-async function writePortableStoredAppSettings(settings: PortableStoredAppSettings) {
+export async function writePortableStoredAppSettings(settings: PortableStoredAppSettings) {
   const store = await loadSettingsStore();
 
   await store.set(acpAgentSettingsKey, settings.acpAgentSettings);

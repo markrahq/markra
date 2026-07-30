@@ -1,16 +1,14 @@
 use std::time::Duration;
 
-use hmac::{Hmac, Mac};
 use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
 use reqwest::multipart;
 use reqwest::{Client, Method, RequestBuilder, Url};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use time::OffsetDateTime;
 
 use crate::network::{apply_network_settings, NetworkSettings};
-
-type HmacSha256 = Hmac<Sha256>;
+use crate::s3::{
+    normalize_s3_bucket, s3_amz_timestamp, s3_authorization_header, s3_object_url, sha256_hex,
+};
 
 const IMAGE_UPLOAD_REQUEST_TIMEOUT_SECS: u64 = 30;
 
@@ -221,8 +219,9 @@ async fn execute_s3_image_upload(request: S3ImageUploadRequest) -> Result<Upload
     let payload_hash = sha256_hex(&request.bytes);
     let (amz_date, date) = s3_amz_timestamp();
     let authorization = s3_authorization_header(
+        "PUT",
         &targets.upload_url,
-        &request.mime_type,
+        Some(&request.mime_type),
         &payload_hash,
         &amz_date,
         &date,
@@ -286,7 +285,7 @@ pub(crate) fn s3_image_upload_targets(
 ) -> Result<ImageUploadTargets, String> {
     let bucket = normalize_s3_bucket(bucket)?;
     let upload_segments = normalize_upload_path_segments(upload_path)?;
-    let upload_url = s3_upload_url(endpoint_url, &bucket, &upload_segments, file_name)?;
+    let upload_url = s3_object_url(endpoint_url, &bucket, &upload_segments, file_name)?;
     let public_url = if public_base_url.trim().is_empty() {
         upload_url.to_string()
     } else {
@@ -297,61 +296,6 @@ pub(crate) fn s3_image_upload_targets(
         public_url,
         upload_url,
     })
-}
-
-fn s3_upload_url(
-    endpoint_url: &str,
-    bucket: &str,
-    upload_segments: &[String],
-    file_name: &str,
-) -> Result<Url, String> {
-    let mut url = validated_upload_base_url(endpoint_url)?;
-
-    if s3_endpoint_uses_virtual_hosted_bucket(&url, bucket) {
-        return url_with_segments(url, upload_segments, file_name);
-    }
-
-    if s3_endpoint_requires_virtual_hosted_bucket(&url) {
-        let host = url
-            .host_str()
-            .ok_or_else(|| "S3 endpoint host is required".to_string())?
-            .to_string();
-        let virtual_host = format!("{bucket}.{host}");
-        url.set_host(Some(&virtual_host))
-            .map_err(|_| "S3 endpoint host is invalid".to_string())?;
-
-        return url_with_segments(url, upload_segments, file_name);
-    }
-
-    let path_style_segments = [vec![bucket.to_string()], upload_segments.to_vec()].concat();
-
-    url_with_segments(url, &path_style_segments, file_name)
-}
-
-fn s3_endpoint_uses_virtual_hosted_bucket(url: &Url, bucket: &str) -> bool {
-    let Some(host) = url.host_str() else {
-        return false;
-    };
-    let host = host.to_ascii_lowercase();
-    let bucket = bucket.to_ascii_lowercase();
-
-    host == bucket || host.starts_with(&format!("{bucket}."))
-}
-
-fn s3_endpoint_requires_virtual_hosted_bucket(url: &Url) -> bool {
-    let Some(host) = url.host_str() else {
-        return false;
-    };
-    let host = host.to_ascii_lowercase();
-
-    // Several S3-compatible providers reject path-style addressing even though
-    // generic self-hosted services such as MinIO still depend on it.
-    (host.ends_with(".aliyuncs.com") && host.starts_with("oss-"))
-        || (host.ends_with(".myqcloud.com") && host.starts_with("cos."))
-        || host.contains(".digitaloceanspaces.com")
-        || host.ends_with(".cwobject.com")
-        || host == "cwobject.com"
-        || host.contains(".myhuaweicloud.com")
 }
 
 fn image_upload_http_client(network: Option<&NetworkSettings>) -> Result<Client, String> {
@@ -555,15 +499,6 @@ fn normalize_upload_path_segments(upload_path: &str) -> Result<Vec<String>, Stri
     Ok(segments)
 }
 
-fn normalize_s3_bucket(value: &str) -> Result<String, String> {
-    let bucket = value.trim();
-    if bucket.is_empty() || bucket.contains('/') || bucket.contains('\\') {
-        return Err("S3 bucket is invalid".to_string());
-    }
-
-    Ok(bucket.to_string())
-}
-
 fn required_trimmed(value: &str, label: &str) -> Result<String, String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -672,105 +607,6 @@ fn validate_picgo_uploaded_url(value: &str) -> Result<(), String> {
     }
 
     Ok(())
-}
-
-fn s3_authorization_header(
-    upload_url: &Url,
-    content_type: &str,
-    payload_hash: &str,
-    amz_date: &str,
-    date: &str,
-    region: &str,
-    access_key_id: &str,
-    secret_access_key: &str,
-) -> Result<String, String> {
-    let host = s3_host(upload_url)?;
-    let signed_headers = "content-type;host;x-amz-content-sha256;x-amz-date";
-    let canonical_headers = format!(
-        "content-type:{content_type}\nhost:{host}\nx-amz-content-sha256:{payload_hash}\nx-amz-date:{amz_date}\n"
-    );
-    let canonical_request = format!(
-        "PUT\n{}\n\n{canonical_headers}\n{signed_headers}\n{payload_hash}",
-        upload_url.path()
-    );
-    let credential_scope = format!("{date}/{region}/s3/aws4_request");
-    let string_to_sign = format!(
-        "AWS4-HMAC-SHA256\n{amz_date}\n{credential_scope}\n{}",
-        sha256_hex(canonical_request.as_bytes())
-    );
-    let signing_key = s3_signing_key(secret_access_key, date, region);
-    let signature = hex_lower(&hmac_sha256(&signing_key, string_to_sign.as_bytes())?);
-
-    Ok(format!(
-        "AWS4-HMAC-SHA256 Credential={access_key_id}/{credential_scope}, SignedHeaders={signed_headers}, Signature={signature}"
-    ))
-}
-
-fn s3_host(url: &Url) -> Result<String, String> {
-    let host = url
-        .host_str()
-        .ok_or_else(|| "S3 endpoint host is required".to_string())?;
-
-    Ok(match url.port() {
-        Some(port) => format!("{host}:{port}"),
-        None => host.to_string(),
-    })
-}
-
-fn s3_signing_key(secret_access_key: &str, date: &str, region: &str) -> Vec<u8> {
-    let date_key = hmac_sha256_unchecked(
-        format!("AWS4{secret_access_key}").as_bytes(),
-        date.as_bytes(),
-    );
-    let date_region_key = hmac_sha256_unchecked(&date_key, region.as_bytes());
-    let date_region_service_key = hmac_sha256_unchecked(&date_region_key, b"s3");
-
-    hmac_sha256_unchecked(&date_region_service_key, b"aws4_request")
-}
-
-fn s3_amz_timestamp() -> (String, String) {
-    let now = OffsetDateTime::now_utc();
-    let date = format!(
-        "{:04}{:02}{:02}",
-        now.year(),
-        u8::from(now.month()),
-        now.day()
-    );
-    let amz_date = format!(
-        "{date}T{:02}{:02}{:02}Z",
-        now.hour(),
-        now.minute(),
-        now.second()
-    );
-
-    (amz_date, date)
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    hex_lower(&Sha256::digest(bytes))
-}
-
-fn hmac_sha256(key: &[u8], bytes: &[u8]) -> Result<Vec<u8>, String> {
-    let mut mac = HmacSha256::new_from_slice(key).map_err(|error| error.to_string())?;
-    mac.update(bytes);
-
-    Ok(mac.finalize().into_bytes().to_vec())
-}
-
-fn hmac_sha256_unchecked(key: &[u8], bytes: &[u8]) -> Vec<u8> {
-    hmac_sha256(key, bytes).unwrap_or_default()
-}
-
-fn hex_lower(bytes: &[u8]) -> String {
-    const HEX: &[u8; 16] = b"0123456789abcdef";
-    let mut output = String::with_capacity(bytes.len() * 2);
-
-    for byte in bytes {
-        output.push(HEX[(byte >> 4) as usize] as char);
-        output.push(HEX[(byte & 0x0f) as usize] as char);
-    }
-
-    output
 }
 
 #[cfg(test)]

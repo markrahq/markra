@@ -37,6 +37,8 @@ import type {
   NativePandocExportFormat,
   OpenNativeMarkdownAttachmentInput,
   ReadNativeMarkdownImageInput,
+  ReadNativeS3TextFileInput,
+  ReadNativeWebDavTextFileInput,
   SavedNativeClipboardAttachment,
   SavedNativeClipboardImage,
   SavedNativeHtmlFile,
@@ -55,7 +57,9 @@ import type {
   TrashNativeMarkdownAssetsInput,
   UploadNativePicGoImageInput,
   UploadNativeS3ImageInput,
-  UploadNativeWebDavImageInput
+  UploadNativeWebDavImageInput,
+  WriteNativeS3TextFileInput,
+  WriteNativeWebDavTextFileInput
 } from "../lib/tauri/file";
 import type {
   NativeEditorContextMenuEntryOptions,
@@ -199,6 +203,8 @@ export type AppFileRuntime = {
   readMarkdownFileHistory: (path: string, id: string) => Promise<NativeMarkdownFileHistoryFile>;
   readMarkdownImageFile: (input: ReadNativeMarkdownImageInput) => Promise<NativeMarkdownImageFile>;
   readMarkdownTemplateFile: (fileName: string) => Promise<string>;
+  readS3TextFile: (input: ReadNativeS3TextFileInput) => Promise<string>;
+  readWebDavTextFile: (input: ReadNativeWebDavTextFileInput) => Promise<string>;
   renameMarkdownTreeFile: (
     rootPath: string,
     path: string,
@@ -221,6 +227,8 @@ export type AppFileRuntime = {
   uploadPicGoImage: (input: UploadNativePicGoImageInput) => Promise<SavedNativeClipboardImage>;
   uploadS3Image: (input: UploadNativeS3ImageInput) => Promise<SavedNativeClipboardImage>;
   uploadWebDavImage: (input: UploadNativeWebDavImageInput) => Promise<SavedNativeClipboardImage>;
+  writeS3TextFile: (input: WriteNativeS3TextFileInput) => Promise<unknown>;
+  writeWebDavTextFile: (input: WriteNativeWebDavTextFileInput) => Promise<unknown>;
   watchMarkdownFile: (
     path: string,
     onChange: NativeMarkdownFileChangeHandler,
@@ -487,6 +495,8 @@ function createDefaultFileRuntime(): AppFileRuntime {
     readMarkdownFileHistory: () => unsupportedFeature("readMarkdownFileHistory"),
     readMarkdownImageFile: () => unsupportedFeature("readMarkdownImageFile"),
     readMarkdownTemplateFile: () => unsupportedFeature("readMarkdownTemplateFile"),
+    readS3TextFile: () => unsupportedFeature("readS3TextFile"),
+    readWebDavTextFile: () => unsupportedFeature("readWebDavTextFile"),
     renameMarkdownTreeFile: () => unsupportedFeature("renameMarkdownTreeFile"),
     resolveMarkdownPath: () => unsupportedFeature("resolveMarkdownPath"),
     saveClipboardAttachment: () => unsupportedFeature("saveClipboardAttachment"),
@@ -501,6 +511,8 @@ function createDefaultFileRuntime(): AppFileRuntime {
     uploadPicGoImage: () => unsupportedFeature("uploadPicGoImage"),
     uploadS3Image: () => unsupportedFeature("uploadS3Image"),
     uploadWebDavImage: () => unsupportedFeature("uploadWebDavImage"),
+    writeS3TextFile: () => unsupportedFeature("writeS3TextFile"),
+    writeWebDavTextFile: () => unsupportedFeature("writeWebDavTextFile"),
     watchMarkdownFile: async () => () => undefined,
     watchMarkdownTree: async () => () => undefined,
     writeMarkdownTemplateFile: () => unsupportedFeature("writeMarkdownTemplateFile")
@@ -668,6 +680,8 @@ export type {
   NativePandocExportFormat,
   OpenNativeMarkdownAttachmentInput,
   ReadNativeMarkdownImageInput,
+  ReadNativeS3TextFileInput,
+  ReadNativeWebDavTextFileInput,
   SavedNativeClipboardAttachment,
   SavedNativeClipboardImage,
   SavedNativeHtmlFile,
@@ -685,7 +699,9 @@ export type {
   SyncNativeMarkdownFolderInput,
   UploadNativePicGoImageInput,
   UploadNativeS3ImageInput,
-  UploadNativeWebDavImageInput
+  UploadNativeWebDavImageInput,
+  WriteNativeS3TextFileInput,
+  WriteNativeWebDavTextFileInput
 } from "../lib/tauri/file";
 export type {
   ContextMenuEntry,

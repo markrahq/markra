@@ -50,13 +50,13 @@ export function SettingsWindow() {
     exportSettings,
     fileIgnoreSettings,
     handleAddAiProvider,
+    handleBackupSettings,
     handleFetchAiProviderModels,
     handleCreateMarkdownTemplate,
     handleDeleteMarkdownTemplate,
     handleResetWelcomeDocument,
-    handleExportSettings,
+    handleRestoreSettings,
     handleApplyFileIgnoreSettings,
-    handleImportSettings,
     handleRunBackup,
     handleRunSync,
     handleInstallShellCommand,
@@ -76,6 +76,7 @@ export function SettingsWindow() {
     handleUpdateExportSettings,
     handleUpdateNetworkSettings,
     handleUpdateWebSearchSettings,
+    includeSensitiveSettingsBackup,
     markdownTemplates,
     networkSettings,
     selectedAiProvider,
@@ -83,6 +84,7 @@ export function SettingsWindow() {
     setSelectedAiProviderId,
     settingsFocusTarget,
     settingsTransferRunning,
+    setIncludeSensitiveSettingsBackup,
     testingStorageProvider,
     shellCommandRunning,
     shellCommandStatus,
@@ -282,14 +284,18 @@ export function SettingsWindow() {
           ) : null}
           {activeSettingsCategory === "storage" ? (
             <StorageSettings
+              includeSensitiveSettingsBackup={includeSensitiveSettingsBackup}
               preferences={editorPreferences}
               s3ImageUploadEnabled={appFeatures.s3ImageUpload}
               settingsTransferRunning={settingsTransferRunning}
               testingStorageProvider={testingStorageProvider}
               translate={translate}
-              onExportSettings={handleExportSettings}
-              onImportSettings={handleImportSettings}
+              onBackupSettings={handleBackupSettings}
+              onRestoreSettings={handleRestoreSettings}
               onTestStorageProvider={handleTestStorageProvider}
+              onToggleIncludeSensitiveSettingsBackup={() =>
+                setIncludeSensitiveSettingsBackup(!includeSensitiveSettingsBackup)
+              }
               onUpdatePreferences={handleUpdateEditorPreferences}
             />
           ) : null}

@@ -71,6 +71,12 @@ Desktop backups are local one-way safety copies. Backup copies notes from the cu
 
 Backup can be run manually, on exit, or on a schedule when configured.
 
+## Settings Backup
+
+Settings backup is optional and only runs when you manually choose backup or restore. Backups can use a local JSON file, WebDAV, or S3-compatible object storage. PicGo/PicList is not available for settings backup because its upload API does not provide stable file read and write operations. Device-local paths, local backup and note sync state, proxy settings, system fonts, and local template references stay on the current device.
+
+AI keys, custom provider headers, and remote storage credentials are excluded by default. If you explicitly include sensitive settings, those values are stored unencrypted in the selected backup target. Review the local file location or storage provider's access controls and retention policy before enabling that option.
+
 ## WebDAV Sync
 
 Desktop WebDAV sync is optional and disabled by default. When enabled, it keeps the current notes folder and a configured remote WebDAV folder aligned.

@@ -35,6 +35,8 @@ import {
   readNativeMarkdownFileHistory,
   readNativeMarkdownFile,
   readNativeMarkdownTemplateFile,
+  readNativeS3TextFile,
+  readNativeWebDavTextFile,
   resolveNativeMarkdownPath,
   backupNativeMarkdownFolder,
   syncNativeMarkdownFolder,
@@ -49,6 +51,8 @@ import {
   saveNativeMarkdownFile,
   searchNativeMarkdownFilesForPath,
   writeNativeMarkdownTemplateFile,
+  writeNativeS3TextFile,
+  writeNativeWebDavTextFile,
   uploadNativePicGoImage,
   uploadNativeS3Image,
   uploadNativeWebDavImage,
@@ -1369,6 +1373,124 @@ describe("native file access", () => {
         serverUrl: "https://dav.example.com/images",
         uploadPath: "notes",
         username: "ada"
+      }
+    });
+  });
+
+  it("reads and writes WebDAV text files through Tauri with app network settings", async () => {
+    mockedGetStoredNetworkSettings.mockResolvedValue({
+      bypassLocalAddresses: true,
+      proxyEnabled: true,
+      proxyUrl: "https://proxy.example.test"
+    });
+    const settings = {
+      password: "mock-password",
+      publicBaseUrl: "",
+      serverUrl: "https://dav.example.test/base",
+      uploadPath: "images",
+      username: "mock-user"
+    };
+    mockedInvoke
+      .mockResolvedValueOnce('{"format":"markra-settings-backup"}')
+      .mockResolvedValueOnce(undefined);
+
+    await expect(readNativeWebDavTextFile({
+      remotePath: "markra/settings/markra-settings.json",
+      settings
+    })).resolves.toBe('{"format":"markra-settings-backup"}');
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "read_webdav_text_file", {
+      request: {
+        network: {
+          bypassLocalAddresses: true,
+          proxyEnabled: true,
+          proxyUrl: "https://proxy.example.test"
+        },
+        password: "mock-password",
+        remotePath: "markra/settings/markra-settings.json",
+        serverUrl: "https://dav.example.test/base",
+        username: "mock-user"
+      }
+    });
+
+    await expect(writeNativeWebDavTextFile({
+      contents: '{"format":"markra-settings-backup"}',
+      remotePath: "markra/settings/markra-settings.json",
+      settings
+    })).resolves.toBeUndefined();
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "write_webdav_text_file", {
+      request: {
+        contents: '{"format":"markra-settings-backup"}',
+        network: {
+          bypassLocalAddresses: true,
+          proxyEnabled: true,
+          proxyUrl: "https://proxy.example.test"
+        },
+        password: "mock-password",
+        remotePath: "markra/settings/markra-settings.json",
+        serverUrl: "https://dav.example.test/base",
+        username: "mock-user"
+      }
+    });
+  });
+
+  it("reads and writes S3 text objects through Tauri with app network settings", async () => {
+    mockedGetStoredNetworkSettings.mockResolvedValue({
+      bypassLocalAddresses: false,
+      proxyEnabled: true,
+      proxyUrl: "https://proxy.example.test"
+    });
+    const settings = {
+      accessKeyId: "mock-access-key",
+      bucket: "mock-settings",
+      endpointUrl: "https://s3.example.test",
+      publicBaseUrl: "",
+      region: "ap-southeast-1",
+      secretAccessKey: "mock-secret",
+      uploadPath: "images"
+    };
+    mockedInvoke
+      .mockResolvedValueOnce('{"format":"markra-settings-backup"}')
+      .mockResolvedValueOnce(undefined);
+
+    await expect(readNativeS3TextFile({
+      objectKey: "markra/settings/markra-settings.json",
+      settings
+    })).resolves.toBe('{"format":"markra-settings-backup"}');
+    expect(mockedInvoke).toHaveBeenNthCalledWith(1, "read_s3_text_file", {
+      request: {
+        accessKeyId: "mock-access-key",
+        bucket: "mock-settings",
+        endpointUrl: "https://s3.example.test",
+        network: {
+          bypassLocalAddresses: false,
+          proxyEnabled: true,
+          proxyUrl: "https://proxy.example.test"
+        },
+        objectKey: "markra/settings/markra-settings.json",
+        region: "ap-southeast-1",
+        secretAccessKey: "mock-secret"
+      }
+    });
+
+    await expect(writeNativeS3TextFile({
+      contents: '{"format":"markra-settings-backup"}',
+      objectKey: "markra/settings/markra-settings.json",
+      settings
+    })).resolves.toBeUndefined();
+    expect(mockedInvoke).toHaveBeenNthCalledWith(2, "write_s3_text_file", {
+      request: {
+        accessKeyId: "mock-access-key",
+        bucket: "mock-settings",
+        contents: '{"format":"markra-settings-backup"}',
+        endpointUrl: "https://s3.example.test",
+        network: {
+          bypassLocalAddresses: false,
+          proxyEnabled: true,
+          proxyUrl: "https://proxy.example.test"
+        },
+        objectKey: "markra/settings/markra-settings.json",
+        region: "ap-southeast-1",
+        secretAccessKey: "mock-secret"
       }
     });
   });
