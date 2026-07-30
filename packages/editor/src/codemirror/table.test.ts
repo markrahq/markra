@@ -701,6 +701,37 @@ describe("tablePreviewPlugin", () => {
     ).toBe("Updated");
   });
 
+  it("keeps a visual table cell empty after deleting its last character", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| A | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td",
+    );
+
+    cell?.focus();
+    cell?.replaceChildren(document.createElement("br"));
+    cell?.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      inputType: "deleteContentBackward",
+    }));
+
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain("|  | 1 |");
+    expect(view.state.doc.toString()).not.toContain("<br>");
+    expect(
+      view.dom.querySelector<HTMLTableCellElement>(
+        ".cm-markra-table tbody td",
+      )?.textContent,
+    ).toBe("");
+  });
+
   it("commits a visual table cell after IME composition finishes", async () => {
     const doc = [
       "| Name | Value |",

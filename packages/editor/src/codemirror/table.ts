@@ -577,6 +577,14 @@ function applyWidthModeToTableControls(
 }
 
 function visualTableCellSource(cell: HTMLTableCellElement) {
+  // Browsers keep a lone <br> as the caret placeholder after the last
+  // character is deleted; visual table cells do not allow real line breaks.
+  if (
+    cell.childNodes.length === 1 &&
+    cell.firstElementChild?.tagName === "BR"
+  ) {
+    return "";
+  }
   return serializeInlineMarkdown(cell);
 }
 
