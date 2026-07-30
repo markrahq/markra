@@ -1115,6 +1115,45 @@ describe("chatCompletion", () => {
     expect(onDelta).toHaveBeenNthCalledWith(2, "answer");
   });
 
+  it("extracts inline thinking tags from the Vercel AI SDK path without a thinking toggle", async () => {
+    const onDelta = vi.fn();
+    const onThinkingDelta = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":0,"model":"MiniMax-M3","choices":[{"index":0,"delta":{"content":"<think>checking "}}]}\n\n');
+      onChunk('data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":0,"model":"MiniMax-M3","choices":[{"index":0,"delta":{"content":"the note</think>Final "}}]}\n\n');
+      onChunk('data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":0,"model":"MiniMax-M3","choices":[{"index":0,"delta":{"content":"answer"},"finish_reason":"stop"}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+
+    await expect(
+      chatCompletionStream(
+        provider({
+          apiStyle: "openai-compatible",
+          baseUrl: "https://synthetic.minimax.example/v1"
+        }),
+        "MiniMax-M3",
+        [{ content: "Translate this.", role: "user" }],
+        {
+          fallbackTransport: vi.fn(),
+          onDelta,
+          onThinkingDelta,
+          streamTransport,
+          useVercelAiSdk: true
+        }
+      )
+    ).resolves.toEqual({
+      content: "Final answer",
+      finishReason: "stop"
+    });
+
+    expect(onThinkingDelta).toHaveBeenNthCalledWith(1, "checking ");
+    expect(onThinkingDelta).toHaveBeenNthCalledWith(2, "the note");
+    expect(onDelta).toHaveBeenNthCalledWith(1, "Final ");
+    expect(onDelta).toHaveBeenNthCalledWith(2, "answer");
+  });
+
   it("replays DeepSeek V4 reasoning content through the Vercel AI SDK after a tool call", async () => {
     const streamTransport = vi.fn(async (_request, onChunk) => {
       onChunk('data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":0,"model":"deepseek-v4-pro","choices":[{"index":0,"delta":{"content":"Done"},"finish_reason":"stop"}]}\n\n');
@@ -1637,7 +1676,7 @@ describe("chatCompletion", () => {
     expect(onDelta).toHaveBeenNthCalledWith(2, "answer");
   });
 
-  it("extracts inline thinking tags from streamed content when thinking is enabled", async () => {
+  it("extracts inline thinking tags from native streamed content without a thinking toggle", async () => {
     const onDelta = vi.fn();
     const onThinkingDelta = vi.fn();
     const streamTransport = vi.fn(async (_request, onChunk) => {
@@ -1653,8 +1692,7 @@ describe("chatCompletion", () => {
       chatCompletionStream(provider(), "gpt-5.5", [{ content: "Hi", role: "user" }], {
         onDelta,
         onThinkingDelta,
-        streamTransport,
-        thinkingEnabled: true
+        streamTransport
       })
     ).resolves.toEqual({
       content: "Final answer",
@@ -1665,6 +1703,28 @@ describe("chatCompletion", () => {
     expect(onThinkingDelta).toHaveBeenNthCalledWith(2, "the note");
     expect(onDelta).toHaveBeenNthCalledWith(1, "Final ");
     expect(onDelta).toHaveBeenNthCalledWith(2, "answer");
+  });
+
+  it("preserves literal thinking tags after visible content without a thinking toggle", async () => {
+    const onThinkingDelta = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"choices":[{"delta":{"content":"Use <think>literal</think> tags."},"finish_reason":"stop"}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+
+    await expect(
+      chatCompletionStream(provider(), "gpt-5.5", [{ content: "Show the tag.", role: "user" }], {
+        onThinkingDelta,
+        streamTransport
+      })
+    ).resolves.toEqual({
+      content: "Use <think>literal</think> tags.",
+      finishReason: "stop"
+    });
+
+    expect(onThinkingDelta).not.toHaveBeenCalled();
   });
 
   it("reconstructs Responses API tool calls from function_call_arguments.done events", async () => {

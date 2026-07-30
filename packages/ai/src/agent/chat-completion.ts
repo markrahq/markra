@@ -102,7 +102,10 @@ export async function chatCompletionStream(
   const toolCalls = new Map<number, { argumentsText: string; id: string; name: string; thoughtSignature?: string }>();
   let reasoningDetails: Record<string, unknown>[] = [];
   const parser = createServerSentEventParser();
-  const inlineThinkingExtractor = thinkingEnabled ? createInlineThinkingExtractor() : null;
+  // Compatible models may emit inline reasoning tags even when their catalog entry does not expose a thinking toggle.
+  const inlineThinkingExtractor = createInlineThinkingExtractor({
+    allowAfterContent: thinkingEnabled === true
+  });
   let streamErrorMessage: string | undefined;
   const emitContentDelta = (delta: string) => {
     content += delta;
@@ -112,11 +115,6 @@ export async function chatCompletionStream(
     onThinkingDelta?.(delta);
   };
   const processContentDelta = (delta: string) => {
-    if (!inlineThinkingExtractor) {
-      emitContentDelta(delta);
-      return;
-    }
-
     const extracted = inlineThinkingExtractor.push(delta);
     if (extracted.thinkingDelta) emitThinkingDelta(extracted.thinkingDelta);
     if (extracted.contentDelta) emitContentDelta(extracted.contentDelta);
@@ -266,17 +264,17 @@ export async function chatCompletionStream(
     })) {
       let sdkOutputEmitted = false;
       try {
-        return await chatCompletionStreamWithVercelAiSdk({
+        const sdkResponse = await chatCompletionStreamWithVercelAiSdk({
           fallbackTransport,
           messages,
           model,
           onDelta: (delta) => {
             sdkOutputEmitted = true;
-            onDelta?.(delta);
+            processContentDelta(delta);
           },
           onThinkingDelta: (delta) => {
             sdkOutputEmitted = true;
-            onThinkingDelta?.(delta);
+            emitThinkingDelta(delta);
           },
           onThinkingMetadata: (metadata) => {
             sdkOutputEmitted = true;
@@ -292,6 +290,12 @@ export async function chatCompletionStream(
           tools,
           webSearchEnabled
         });
+        flushInlineThinking();
+
+        return {
+          ...sdkResponse,
+          content
+        };
       } catch (error) {
         if (sdkOutputEmitted) throw error;
         if (canFallbackToNonStream()) return runNonStreamFallback();
@@ -433,8 +437,13 @@ type InlineThinkingExtraction = {
 
 const inlineThinkingTagNames = new Set(["reasoning", "seed:think", "think", "thinking", "thought"]);
 
-function createInlineThinkingExtractor() {
+function createInlineThinkingExtractor({
+  allowAfterContent
+}: {
+  allowAfterContent: boolean;
+}) {
   let activeThinkingTag: string | null = null;
+  let visibleContentStarted = false;
   let pending = "";
 
   const append = (result: { contentDelta: string; thinkingDelta: string }, text: string) => {
@@ -443,6 +452,7 @@ function createInlineThinkingExtractor() {
       result.thinkingDelta += text;
     } else {
       result.contentDelta += text;
+      if (text.trim()) visibleContentStarted = true;
     }
   };
 
@@ -483,7 +493,7 @@ function createInlineThinkingExtractor() {
       const tag = readTag(rawTag);
       if (tag?.closing && activeThinkingTag && tag.name === activeThinkingTag) {
         activeThinkingTag = null;
-      } else if (tag && !tag.closing && !activeThinkingTag) {
+      } else if (tag && !tag.closing && !activeThinkingTag && (allowAfterContent || !visibleContentStarted)) {
         activeThinkingTag = tag.name;
       } else {
         append(result, buffer.slice(tagStart, tagEnd + 1));
