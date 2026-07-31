@@ -584,15 +584,17 @@ function applyWidthModeToTableControls(
   }
 }
 
+function visualTableCellHasPlaceholderBreak(cell: HTMLTableCellElement) {
+  return (
+    cell.childNodes.length === 1 &&
+    cell.firstElementChild?.tagName === "BR"
+  );
+}
+
 function visualTableCellSource(cell: HTMLTableCellElement) {
   // Browsers keep a lone <br> as the caret placeholder after the last
   // character is deleted; visual table cells do not allow real line breaks.
-  if (
-    cell.childNodes.length === 1 &&
-    cell.firstElementChild?.tagName === "BR"
-  ) {
-    return "";
-  }
+  if (visualTableCellHasPlaceholderBreak(cell)) return "";
   return serializeInlineMarkdown(cell);
 }
 
@@ -676,6 +678,57 @@ function activeVisualTableCell(
   );
 }
 
+function placeVisualTableCellCaret(
+  cell: HTMLTableCellElement,
+  caretOffset: number,
+) {
+  cell.focus();
+  const walker = cell.ownerDocument.createTreeWalker(
+    cell,
+    NodeFilter.SHOW_TEXT,
+  );
+  let textNode = walker.nextNode();
+  let remaining = caretOffset;
+  while (
+    textNode &&
+    remaining > (textNode.textContent?.length ?? 0)
+  ) {
+    remaining -= textNode.textContent?.length ?? 0;
+    textNode = walker.nextNode();
+  }
+  // WebKit may place input outside an empty table cell when the range is
+  // anchored on the <th>/<td> itself, so always provide a text caret host.
+  if (!textNode) {
+    textNode = cell.ownerDocument.createTextNode("");
+    if (visualTableCellHasPlaceholderBreak(cell)) {
+      cell.replaceChildren(textNode);
+    } else {
+      cell.append(textNode);
+    }
+  }
+  const selection = cell.ownerDocument.getSelection();
+  if (!selection) return;
+  const range = cell.ownerDocument.createRange();
+  range.setStart(
+    textNode,
+    Math.min(remaining, textNode.textContent?.length ?? 0),
+  );
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+function repairVisualTableCellSelection(
+  view: CodeMirrorView,
+  table: HTMLTableElement,
+) {
+  const cell = activeVisualTableCell(view, table);
+  const selectionNode = table.ownerDocument.getSelection()?.anchorNode;
+  if (cell && (!selectionNode || !cell.contains(selectionNode))) {
+    placeVisualTableCellCaret(cell, tableCellCaretOffset(cell));
+  }
+}
+
 export function focusVisualTableCell(
   view: CodeMirrorView,
   tableFrom: number,
@@ -693,36 +746,7 @@ export function focusVisualTableCell(
     );
     if (!cell) return;
 
-    cell.focus();
-    const walker = cell.ownerDocument.createTreeWalker(
-      cell,
-      NodeFilter.SHOW_TEXT,
-    );
-    let textNode = walker.nextNode();
-    let remaining = caretOffset;
-    while (
-      textNode &&
-      remaining > (textNode.textContent?.length ?? 0)
-    ) {
-      remaining -= textNode.textContent?.length ?? 0;
-      textNode = walker.nextNode();
-    }
-    // WebKit may place input outside an empty table cell when the range is
-    // anchored on the <th>/<td> itself, so always provide a text caret host.
-    if (!textNode) {
-      textNode = cell.ownerDocument.createTextNode("");
-      cell.append(textNode);
-    }
-    const selection = cell.ownerDocument.getSelection();
-    if (!selection) return;
-    const range = cell.ownerDocument.createRange();
-    range.setStart(
-      textNode,
-      Math.min(remaining, textNode.textContent?.length ?? 0),
-    );
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
+    placeVisualTableCellCaret(cell, caretOffset);
   });
 }
 
@@ -747,7 +771,8 @@ function syncVisualTableCell(
     header,
     visualTableCellSource(cell),
   );
-  if (changed) {
+  const selectionNode = cell.ownerDocument.getSelection()?.anchorNode;
+  if (changed || !selectionNode || !cell.contains(selectionNode)) {
     focusVisualTableCell(
       view,
       preview.from,
@@ -1205,8 +1230,13 @@ class TableWidget extends WidgetType {
     table.classList.toggle("markra-table-width-auto", widthMode === "auto");
     // Browsers target editing events at the shared contenteditable table host,
     // so cell-level listeners miss real input even though the cell DOM changes.
+    table.addEventListener("beforeinput", (event) => {
+      if (event instanceof InputEvent && event.isComposing) return;
+      repairVisualTableCellSelection(view, table);
+    });
     table.addEventListener("compositionstart", (event) => {
       event.stopPropagation();
+      repairVisualTableCellSelection(view, table);
       composing = true;
     });
     table.addEventListener("compositionend", (event) => {

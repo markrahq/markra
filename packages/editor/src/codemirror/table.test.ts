@@ -809,6 +809,128 @@ describe("tablePreviewPlugin", () => {
     expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
   });
 
+  it.each([
+    "deleteContentBackward",
+    "deleteContentForward",
+  ])("reanchors an empty cell after a no-op %s", async (inputType) => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "|  | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+    const cell = table?.querySelector<HTMLTableCellElement>("tbody td");
+    const row = cell?.parentElement;
+
+    cell?.focus();
+    cell?.replaceChildren(document.createElement("br"));
+    table?.focus();
+    if (row) {
+      const selection = document.getSelection();
+      const range = document.createRange();
+      range.setStart(row, 0);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    table?.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      inputType,
+    }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(document.activeElement).toBe(cell);
+    expect(cell?.contains(document.getSelection()?.anchorNode ?? null)).toBe(true);
+    expect(cell?.querySelector("br")).toBeNull();
+  });
+
+  it("repairs an escaped selection before insertion mutates the table DOM", () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "|  | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+    const cell = table?.querySelector<HTMLTableCellElement>("tbody td");
+    const row = cell?.parentElement;
+
+    cell?.focus();
+    cell?.replaceChildren(document.createElement("br"));
+    table?.focus();
+    if (row) {
+      const selection = document.getSelection();
+      const range = document.createRange();
+      range.setStart(row, 0);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    const event = new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      data: "Again",
+      inputType: "insertText",
+    });
+    table?.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(cell);
+    expect(cell?.contains(document.getSelection()?.anchorNode ?? null)).toBe(true);
+    expect(cell?.querySelector("br")).toBeNull();
+  });
+
+  it("repairs an escaped selection before IME composition", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "|  | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+    const cell = table?.querySelector<HTMLTableCellElement>("tbody td");
+    const row = cell?.parentElement;
+
+    cell?.focus();
+    table?.focus();
+    if (row) {
+      const selection = document.getSelection();
+      const range = document.createRange();
+      range.setStart(row, 0);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    table?.dispatchEvent(new CompositionEvent("compositionstart", {
+      bubbles: true,
+    }));
+
+    expect(document.activeElement).toBe(cell);
+    expect(cell?.contains(document.getSelection()?.anchorNode ?? null)).toBe(true);
+    if (cell) cell.textContent = "再次";
+    table?.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      isComposing: true,
+    }));
+    expect(view.state.doc.toString()).toBe(doc);
+
+    table?.dispatchEvent(new CompositionEvent("compositionend", {
+      bubbles: true,
+    }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain("| 再次 | 1 |");
+    expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
+  });
+
   it("commits a visual table cell after IME composition finishes", async () => {
     const doc = [
       "| Name | Value |",
