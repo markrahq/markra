@@ -6,6 +6,7 @@ import { GetEditorContextToolFactory } from "./get-editor-context";
 import { InspectDocumentStructureToolFactory } from "./inspect-document-structure";
 import { InsertContentToolFactory } from "./insert-content";
 import { ListAssetsToolFactory } from "./list-assets";
+import { LoadSkillToolFactory } from "./load-skill";
 import { LocateContentToolFactory } from "./locate-content";
 import { MoveContentToolFactory } from "./move-content";
 import { ReadDocumentToolFactory } from "./read-document";
@@ -25,6 +26,7 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
   };
   const hasWorkspaceFiles = context.workspaceFiles.length > 0;
   const hasReadableWorkspaceFiles = hasWorkspaceFiles && Boolean(context.readWorkspaceFile);
+  const hasLoadableSkills = Boolean(context.readWorkspaceFile && context.workspaceSkills?.length);
   const hasDocumentAssets = extractMarkdownImageReferences(context.documentContent).length > 0;
   const hasWorkspaceAssets = workspaceImageFiles(context.workspaceFiles).length > 0;
   const hasVisibleAssets = hasDocumentAssets || hasWorkspaceAssets;
@@ -43,6 +45,7 @@ export function createDocumentAgentTools(context: DocumentAgentToolContext): Age
     new BatchEditToolFactory(context, state),
     ...(hasWorkspaceFiles ? [new SearchWorkspaceToolFactory(context, state)] : []),
     ...(hasReadableWorkspaceFiles ? [new ReadWorkspaceFileToolFactory(context, state)] : []),
+    ...(hasLoadableSkills ? [new LoadSkillToolFactory(context, state)] : []),
     ...(hasWorkspaceFiles ? [new PrepareWorkspaceChangePlanToolFactory(context, state)] : []),
     ...(hasVisibleAssets ? [new ListAssetsToolFactory(context, state)] : []),
     ...(hasReadableDocumentAssets ? [new ViewAssetToolFactory(context, state)] : []),

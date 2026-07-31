@@ -3,6 +3,10 @@ import type { ChatImageAttachment, ChatMessage } from "../chat/types";
 import type { AiDiffTarget, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../inline";
 import type { AgentToolResult } from "../read-only-tools";
 import { formatSelectionSourceContext } from "../selection";
+import {
+  buildWorkspaceCustomizationPrompt,
+  type WorkspaceCustomization
+} from "../customization";
 import type { DocumentAiChatImage, DocumentAiHistoryMessage, DocumentAiHistoryPreview } from "./types";
 
 export type DocumentToolCallingWebSearchMode = "custom" | "native" | "none";
@@ -17,8 +21,10 @@ export function buildDocumentAgentMessages({
   sectionAnchors,
   headingAnchors,
   toolResults,
+  customization,
   webSearchMode
 }: {
+  customization?: WorkspaceCustomization;
   documentContent: string;
   documentImages: ChatImageAttachment[];
   headingAnchors?: AiHeadingAnchor[];
@@ -32,7 +38,7 @@ export function buildDocumentAgentMessages({
 }): ChatMessage[] {
   return [
     {
-      content: buildDocumentAgentSystemPrompt(),
+      content: buildDocumentAgentSystemPrompt(customization),
       role: "system"
     },
     ...history.map((message) => ({
@@ -132,8 +138,12 @@ export function buildDocumentToolCallingHistoryMessages({
     .filter((message): message is AgentMessage => message !== null);
 }
 
-export function buildDocumentToolCallingSystemPrompt(webSearchMode: DocumentToolCallingWebSearchMode) {
-  return [
+export function buildDocumentToolCallingSystemPrompt(
+  webSearchMode: DocumentToolCallingWebSearchMode,
+  customization?: WorkspaceCustomization,
+  canLoadSkills = false
+) {
+  const basePrompt = [
     "You are Markra AI, a local-first Markdown assistant.",
     "Help the user work with the current Markdown document and nearby workspace notes.",
     "Use only the context and tools available in this turn. Do not claim to have read files, viewed images, searched the web, or changed the document unless a tool result confirms it.",
@@ -151,6 +161,11 @@ export function buildDocumentToolCallingSystemPrompt(webSearchMode: DocumentTool
     "After a successful write tool call, briefly tell the user what changed. If no edit was made, say what you found or why no change was applied.",
     ...buildBasicRuntimeContext()
   ].join("\n");
+  const customizationPrompt = customization
+    ? buildWorkspaceCustomizationPrompt(customization, { canLoadSkills })
+    : "";
+
+  return [basePrompt, customizationPrompt].filter(Boolean).join("\n\n");
 }
 
 export function assistantTextFromAgentMessage(content: AgentAssistantContent[]) {
@@ -165,8 +180,8 @@ export function assistantThinkingFromAgentMessage(content: AgentAssistantContent
     .join("");
 }
 
-function buildDocumentAgentSystemPrompt() {
-  return [
+function buildDocumentAgentSystemPrompt(customization?: WorkspaceCustomization) {
+  const basePrompt = [
     "You are Markra AI, a local-first Markdown writing assistant.",
     "Help with the current document and nearby workspace notes using only the context that is provided in this turn.",
     "Be concise, practical, and explicit about what you know from the provided context.",
@@ -175,6 +190,11 @@ function buildDocumentAgentSystemPrompt() {
     "Do not claim to have searched the web or read files that were not included in the provided context.",
     ...buildBasicRuntimeContext()
   ].join("\n");
+  const customizationPrompt = customization
+    ? buildWorkspaceCustomizationPrompt(customization, { canLoadSkills: false })
+    : "";
+
+  return [basePrompt, customizationPrompt].filter(Boolean).join("\n\n");
 }
 
 function buildBasicRuntimeContext(now = new Date()) {

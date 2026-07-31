@@ -5,6 +5,7 @@ import { chatCompletionStream } from "./chat-completion";
 import { runReadOnlyAgentTools } from "./read-only-tools";
 import type { ChatImageAttachment } from "./chat/types";
 import { createDocumentAgentTools } from "./document-tools";
+import { loadWorkspaceCustomization, type WorkspaceCustomization } from "./customization";
 import { readPromptedDocumentImages } from "./document/images";
 import {
   assistantTextFromAgentMessage,
@@ -45,10 +46,17 @@ export async function runDocumentAiAgent({
   webSearchTransport,
   workspaceFiles = []
 }: RunDocumentAiAgentInput): Promise<RunDocumentAiAgentResult> {
+  const customization = await loadWorkspaceCustomization({
+    documentPath,
+    prompt,
+    readWorkspaceFile,
+    workspaceFiles
+  });
   const capabilities = getProviderCapabilities(provider.id, provider.type);
   if (capabilities.toolCalling && supportsDocumentToolCalling(provider.type) && modelSupportsTools(provider, model)) {
     return runDocumentToolCallingAgent({
       complete,
+      customization,
       documentContent,
       documentEndPosition,
       documentPath,
@@ -85,6 +93,7 @@ export async function runDocumentAiAgent({
   });
   return runDocumentChatOnlyAgent({
     complete,
+    customization,
     documentContent,
     documentPath,
     documentImages,
@@ -105,11 +114,13 @@ export async function runDocumentAiAgent({
 }
 
 type RunDocumentAiAgentRuntimeInput = RunDocumentAiAgentInput & {
+  customization?: WorkspaceCustomization;
   documentImages?: ChatImageAttachment[];
 };
 
 async function runDocumentChatOnlyAgent({
   complete = chatCompletionStream,
+  customization,
   documentContent,
   documentPath,
   documentImages = [],
@@ -136,6 +147,7 @@ async function runDocumentChatOnlyAgent({
   });
   const nativeWebSearchEnabled = webSearchEnabled && providerSupportsNativeWebSearch(provider, model);
   const messages = buildDocumentAgentMessages({
+    customization,
     documentContent,
     documentImages,
     headingAnchors,
@@ -187,6 +199,7 @@ function supportsDocumentToolCalling(
 
 async function runDocumentToolCallingAgent({
   complete = chatCompletionStream,
+  customization,
   documentContent,
   documentEndPosition = 0,
   documentPath,
@@ -221,7 +234,9 @@ async function runDocumentToolCallingAgent({
       messages: buildDocumentToolCallingHistoryMessages({ history, model, providerId: provider.id }),
       model: piAgentModel,
       systemPrompt: buildDocumentToolCallingSystemPrompt(
-        nativeWebSearchEnabled ? "native" : activeWebSearchSettings ? "custom" : "none"
+        nativeWebSearchEnabled ? "native" : activeWebSearchSettings ? "custom" : "none",
+        customization,
+        Boolean(readWorkspaceFile)
       ),
       tools: createDocumentAgentTools({
         documentContent,
@@ -238,7 +253,8 @@ async function runDocumentToolCallingAgent({
         selection,
         tableAnchors,
         webSearch: activeWebSearchSettings ? { settings: activeWebSearchSettings, transport: webSearchTransport } : undefined,
-        workspaceFiles
+        workspaceFiles,
+        workspaceSkills: customization?.skills
       })
     },
     streamFn: createNativeChatStreamFn(provider, complete, thinkingEnabled, nativeWebSearchEnabled)

@@ -1009,6 +1009,102 @@ describe("document AI agent", () => {
     });
   });
 
+  it("applies active AGENTS.md instructions and explicitly invoked skills to chat-only agents", async () => {
+    const workspaceFiles = [
+      {
+        name: "AGENTS.md",
+        path: "/vault/AGENTS.md",
+        relativePath: "AGENTS.md"
+      },
+      {
+        name: "SKILL.md",
+        path: "/vault/.agents/skills/concise/SKILL.md",
+        relativePath: ".agents/skills/concise/SKILL.md"
+      },
+      {
+        name: "example.md",
+        path: "/vault/example.md",
+        relativePath: "example.md"
+      }
+    ];
+    const contents = new Map([
+      ["/vault/AGENTS.md", "Preserve synthetic terminology."],
+      [
+        "/vault/.agents/skills/concise/SKILL.md",
+        "---\nname: concise\ndescription: Make prose concise.\n---\nRemove repeated synthetic phrases."
+      ]
+    ]);
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[]) => {
+      expect(messages[0]?.content).toContain("Workspace instructions (AGENTS.md)");
+      expect(messages[0]?.content).toContain("Preserve synthetic terminology.");
+      expect(messages[0]?.content).toContain("Activated workspace skills");
+      expect(messages[0]?.content).toContain("Remove repeated synthetic phrases.");
+
+      return {
+        content: "Customized response",
+        finishReason: "stop"
+      };
+    });
+
+    await runDocumentAiAgent({
+      complete,
+      documentContent: "# Synthetic draft",
+      documentPath: "/vault/example.md",
+      model: "local-synthetic-model",
+      prompt: "Apply $concise",
+      provider: provider({
+        id: "ollama",
+        type: "ollama"
+      }),
+      readWorkspaceFile: async (path) => contents.get(path) ?? "",
+      workspaceFiles
+    });
+
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
+  it("exposes skill metadata progressively to tool-calling agents", async () => {
+    const workspaceFiles = [
+      {
+        name: "SKILL.md",
+        path: "/vault/.agents/skills/research/SKILL.md",
+        relativePath: ".agents/skills/research/SKILL.md"
+      },
+      {
+        name: "example.md",
+        path: "/vault/example.md",
+        relativePath: "example.md"
+      }
+    ];
+    const complete = vi.fn().mockImplementationOnce(async (_provider, _model, messages: ChatMessage[], options) => {
+      expect(messages[0]?.content).toContain("Available workspace skills");
+      expect(messages[0]?.content).toContain("$research: Compare workspace notes.");
+      expect(messages[0]?.content).toContain("use load_skill to load its full SKILL.md");
+      expect(messages[0]?.content).not.toContain("Cite every synthetic note.");
+      expect(options?.tools?.map((tool: { name: string }) => tool.name)).toContain("load_skill");
+
+      return {
+        content: "Catalog available",
+        finishReason: "stop"
+      };
+    });
+
+    await runDocumentAiAgent({
+      complete,
+      documentContent: "# Synthetic draft",
+      documentPath: "/vault/example.md",
+      model: "gpt-5.5",
+      prompt: "Help with this draft",
+      provider: provider(),
+      readWorkspaceFile: async () => (
+        "---\nname: research\ndescription: Compare workspace notes.\n---\nCite every synthetic note."
+      ),
+      workspaceFiles
+    });
+
+    expect(complete).toHaveBeenCalledTimes(1);
+  });
+
   it("executes a replace-region tool call and stops for editor confirmation", async () => {
     const onPreviewResult = vi.fn();
     const complete = vi

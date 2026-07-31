@@ -31,6 +31,7 @@ AI requests are sent only to the provider endpoint you configure or select. The 
 
 - the selected text or document context needed for the action
 - chat messages and previous assistant responses in the active AI session
+- applicable workspace `AGENTS.md` instructions, available Agent Skill metadata, and activated or loaded Skill content
 - enabled AI tool results, such as document search or workspace reads
 - model, reasoning, web-search, and provider-specific request options
 

@@ -164,6 +164,80 @@ describe("documentAgentTools", () => {
     expect(toolText(result)).toContain("Useful context.");
   });
 
+  it("loads an available workspace skill by name through a dedicated tool", async () => {
+    const readWorkspaceFile = vi.fn(async () => (
+      "---\nname: concise\ndescription: Tighten synthetic prose.\n---\nPreserve every qualifier."
+    ));
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      readWorkspaceFile,
+      selection: null,
+      workspaceFiles: [
+        {
+          name: "SKILL.md",
+          path: "/vault/.agents/skills/concise/SKILL.md",
+          relativePath: ".agents/skills/concise/SKILL.md"
+        }
+      ],
+      workspaceSkills: [
+        {
+          description: "Tighten synthetic prose.",
+          name: "concise",
+          path: "/vault/.agents/skills/concise/SKILL.md",
+          relativePath: ".agents/skills/concise/SKILL.md"
+        }
+      ]
+    }).find((item) => item.name === "load_skill");
+
+    const result = await tool?.execute("tool_load_skill", {
+      name: "concise"
+    });
+
+    expect(tool).toBeTruthy();
+    expect(readWorkspaceFile).toHaveBeenCalledWith("/vault/.agents/skills/concise/SKILL.md");
+    expect(toolText(result)).toContain("Activated workspace skill: $concise");
+    expect(toolText(result)).toContain("Preserve every qualifier.");
+    expect(result?.details).toEqual(expect.objectContaining({
+      name: "concise",
+      relativePath: ".agents/skills/concise/SKILL.md"
+    }));
+  });
+
+  it("rejects skill names outside the discovered workspace scope", async () => {
+    const readWorkspaceFile = vi.fn(async () => "Private instructions.");
+    const tool = createDocumentAgentTools({
+      documentContent: "# Current",
+      documentEndPosition: 9,
+      documentPath: "/vault/current.md",
+      readWorkspaceFile,
+      selection: null,
+      workspaceFiles: [
+        {
+          name: "SKILL.md",
+          path: "/vault/.agents/skills/concise/SKILL.md",
+          relativePath: ".agents/skills/concise/SKILL.md"
+        }
+      ],
+      workspaceSkills: [
+        {
+          description: "Tighten synthetic prose.",
+          name: "concise",
+          path: "/vault/.agents/skills/concise/SKILL.md",
+          relativePath: ".agents/skills/concise/SKILL.md"
+        }
+      ]
+    }).find((item) => item.name === "load_skill");
+
+    await expect(tool?.execute("tool_load_skill", {
+      name: "private"
+    })).rejects.toThrow(
+      'Workspace skill "$private" is unavailable in the current document scope.'
+    );
+    expect(readWorkspaceFile).not.toHaveBeenCalled();
+  });
+
   it("adds a Cherry-style web search tool when web search is configured", async () => {
     const runWebSearch = vi.fn(async () => ({
       query: "current release",

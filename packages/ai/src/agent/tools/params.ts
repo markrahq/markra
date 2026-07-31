@@ -39,6 +39,10 @@ export type LocateContentArgs = {
   targetKind: LocateContentTargetKind;
 };
 
+export type LoadSkillArgs = {
+  name: string;
+};
+
 export type MoveContentArgs = {
   destinationAnchorId?: string;
   destinationText?: string;
@@ -169,6 +173,14 @@ export function typedLocateContentArgs(params: unknown): LocateContentArgs {
     headingTitle: args.headingTitle?.trim() || undefined,
     operation,
     targetKind: args.targetKind === "section" ? "section" : "region"
+  };
+}
+
+export function typedLoadSkillArgs(params: unknown): LoadSkillArgs {
+  const args = params as LoadSkillArgs;
+
+  return {
+    name: args.name.trim().toLowerCase()
   };
 }
 

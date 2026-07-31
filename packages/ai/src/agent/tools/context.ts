@@ -1,5 +1,6 @@
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../inline";
 import type { AgentWorkspaceFile } from "../read-only-tools";
+import type { WorkspaceSkill } from "../skills";
 import type { WebSearchResponse, WebSearchSettings, WebSearchTransport } from "./web-search";
 
 export type DocumentAgentToolContext = {
@@ -15,6 +16,7 @@ export type DocumentAgentToolContext = {
   tableAnchors?: AiDocumentAnchor[];
   webSearch?: DocumentAgentWebSearch;
   workspaceFiles: AgentWorkspaceFile[];
+  workspaceSkills?: WorkspaceSkill[];
 };
 
 export type DocumentAgentWebSearch = {

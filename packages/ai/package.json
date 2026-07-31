@@ -34,7 +34,8 @@
     "@markra/shared": "workspace:*",
     "@mozilla/readability": "^0.6.0",
     "ai": "6.0.184",
-    "turndown": "^7.2.4"
+    "turndown": "^7.2.4",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

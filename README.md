@@ -125,6 +125,8 @@ Markra is not trying to replace every Markdown tool. It is closest to a calm doc
 - Inline AI on selected text, or open the side panel for document-wide tasks.
 - Quick actions: polish, rewrite, continue, summarize, translate.
 - Preview every AI edit before applying — accept, reject, or copy.
+- The built-in side-panel agent follows layered `AGENTS.md` files from the workspace root to the current document directory.
+- Add repo-scoped Agent Skills at `.agents/skills/<skill-name>/SKILL.md`; the agent exposes descriptions first, then loads full instructions only for `$skill-name` invocations or tool-selected matches. A closer directory overrides the same Skill name from a broader scope.
 - Agent Client Protocol (ACP) support for compatible local AI agents, including model discovery, permission prompts, and editor write previews.
 - Sessions are searchable, renamable, and archivable.
 

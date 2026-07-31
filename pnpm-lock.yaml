@@ -208,6 +208,9 @@ importers:
       turndown:
         specifier: ^7.2.4
         version: 7.2.4
+      yaml:
+        specifier: 2.9.0
+        version: 2.9.0
     devDependencies:
       '@types/node':
         specifier: 24.10.0

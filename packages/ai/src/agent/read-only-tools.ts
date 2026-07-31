@@ -1,8 +1,10 @@
 export type AgentWorkspaceFile = {
   kind?: "asset" | "attachment" | "folder";
+  modifiedAt?: number;
   name: string;
   path: string;
   relativePath: string;
+  sizeBytes?: number;
 };
 
 export type ReadOnlyAgentToolContext = {
