@@ -1048,7 +1048,7 @@ describe("editor stylesheet", () => {
       imageNodeStart,
     );
     const imageNodeImageStart = styles.indexOf(
-      ".markdown-paper .markra-image-node > img {",
+      ".markdown-paper .markra-image-frame > img {",
       imageNodeStart,
     );
     const imageNodeImageStyles = styles.slice(
@@ -1062,6 +1062,7 @@ describe("editor stylesheet", () => {
     expect(standaloneNodeStyles).toContain("display: inline-block");
     expect(standaloneNodeStyles).toContain("vertical-align: top");
     expect(standaloneNodeStyles).toContain("width: 100%");
+    expect(imageNodeImageStart).toBeGreaterThan(imageNodeStart);
     expect(imageNodeImageStyles).toContain("@apply my-0");
     expect(imageNodeImageStyles).toContain("display: block");
   });
@@ -1210,7 +1211,7 @@ describe("editor stylesheet", () => {
     const mermaidZoomHoverStart = styles.indexOf(".markdown-paper .markra-mermaid-zoom-button:hover");
     const mermaidZoomHoverEnd = styles.indexOf("\n  }\n", mermaidZoomHoverStart) + "\n  }\n".length;
     const mermaidZoomHoverStyles = styles.slice(mermaidZoomHoverStart, mermaidZoomHoverEnd);
-    const mermaidZoomCloseHoverStart = styles.indexOf(".markra-mermaid-zoom-close-button:hover");
+    const mermaidZoomCloseHoverStart = styles.indexOf(".markra-media-viewer-close-button:hover");
     const mermaidZoomCloseHoverEnd =
       styles.indexOf("\n  }\n", mermaidZoomCloseHoverStart) + "\n  }\n".length;
     const mermaidZoomCloseHoverStyles = styles.slice(mermaidZoomCloseHoverStart, mermaidZoomCloseHoverEnd);
@@ -1235,12 +1236,12 @@ describe("editor stylesheet", () => {
     expect(mermaidZoomHoverStyles).not.toContain("box-shadow");
     expect(mermaidZoomCloseHoverStyles).not.toContain(":focus-visible");
     expect(mermaidZoomCloseHoverStyles).not.toContain("box-shadow");
-    expect(styles).toContain(".markra-mermaid-zoom-dialog");
-    expect(styles).toContain(".markra-mermaid-zoom-dialog[data-fullscreen=\"true\"]");
-    expect(styles).toContain(".markra-mermaid-zoom-toolbar");
-    expect(styles).toContain(".markra-mermaid-zoom-control-button");
-    expect(styles).toContain(".markra-mermaid-zoom-content[data-dragging=\"true\"]");
-    expect(styles).toContain(".markra-mermaid-zoom-canvas");
+    expect(styles).toContain(".markra-media-viewer-dialog");
+    expect(styles).toContain(".markra-media-viewer-dialog[data-fullscreen=\"true\"]");
+    expect(styles).toContain(".markra-media-viewer-toolbar");
+    expect(styles).toContain(".markra-media-viewer-control-button");
+    expect(styles).toContain(".markra-media-viewer-content[data-dragging=\"true\"]");
+    expect(styles).toContain(".markra-media-viewer-canvas");
     expect(styles).toContain(
       ".markdown-paper .markra-code-block[data-mermaid-mode=\"preview\"] .markra-mermaid-render"
     );
