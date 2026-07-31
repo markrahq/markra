@@ -10,7 +10,7 @@ import {
   liveMarkdown,
 } from "@markra/editor/codemirror";
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useCodeMirrorEditorController } from "./useCodeMirrorEditorController";
 
 const views: EditorView[] = [];
@@ -40,6 +40,7 @@ function createView(
 }
 
 afterEach(() => {
+  vi.restoreAllMocks();
   for (const view of views.splice(0)) view.destroy();
   document.body.replaceChildren();
 });
@@ -139,6 +140,63 @@ describe("useCodeMirrorEditorController", () => {
       expect(result.current.runEditorShortcut("X", { shiftKey: true })).toBe(true);
     });
     expect(view.state.doc.toString()).toBe("Before text after");
+  });
+
+  it.each([
+    ["bullet list", "*", "Digit8", "- "],
+    ["ordered list", "&", "Digit7", "1. "],
+  ])(
+    "normalizes synthetic shifted-digit shortcuts for %s",
+    (_label, key, code, marker) => {
+      const doc = "Alpha\n";
+      const view = createView(doc, EditorSelection.cursor(doc.length));
+      const { result } = renderHook(() => useCodeMirrorEditorController());
+      act(() => result.current.handleEditorReady(view));
+
+      act(() => {
+        expect(
+          result.current.runEditorShortcut(key, {
+            code,
+            shiftKey: true,
+          }),
+        ).toBe(true);
+      });
+
+      expect(view.state.doc.toString()).toBe(`${doc}${marker}`);
+    },
+  );
+
+  it("normalizes synthetic shifted-digit shortcuts on macOS", () => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue("MacIntel");
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    let shortcutHandled = false;
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        extensions: [
+          keymap.of([{
+            key: "Meta-Shift-8",
+            run: () => {
+              shortcutHandled = true;
+              return true;
+            },
+          }]),
+        ],
+      }),
+    });
+    views.push(view);
+    const { result } = renderHook(() => useCodeMirrorEditorController());
+    act(() => result.current.handleEditorReady(view));
+
+    act(() => {
+      expect(result.current.runEditorShortcut("*", {
+        code: "Digit8",
+        shiftKey: true,
+      })).toBe(true);
+    });
+
+    expect(shortcutHandled).toBe(true);
   });
 
   it("preserves an Alt-only shortcut when dispatching a synthetic editor event", () => {

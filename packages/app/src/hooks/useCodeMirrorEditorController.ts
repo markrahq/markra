@@ -36,7 +36,11 @@ import {
   type ReplaceCodeMirrorMarkdownOptions,
 } from "@markra/editor/codemirror";
 import type { AiDiffResult, AiSelectionContext } from "@markra/ai";
-import type { SearchRange } from "@markra/shared";
+import {
+  keyboardShortcutFromKeyboardEvent,
+  parseKeyboardShortcut,
+  type SearchRange,
+} from "@markra/shared";
 import { useCallback, useEffect, useRef } from "react";
 import type {
   SelectionFormattingAction,
@@ -262,19 +266,37 @@ export function useCodeMirrorEditorController() {
         return handled;
       }
 
-      // CodeMirror matches synthetic shifted-letter events against a lowercase
-      // key plus `shiftKey`; native menu payloads may provide the uppercase key.
-      const normalizedKey =
-        modifiers.shiftKey && /^[A-Z]$/u.test(key)
+      const { modKey = true, ...eventModifiers } = modifiers;
+      const ctrlKey = modKey && !mac;
+      const metaKey = modKey && mac;
+      const physicalShortcut = eventModifiers.code
+        ? keyboardShortcutFromKeyboardEvent({
+            altKey: Boolean(eventModifiers.altKey),
+            code: eventModifiers.code,
+            ctrlKey,
+            key,
+            metaKey,
+            shiftKey: Boolean(eventModifiers.shiftKey),
+          })
+        : null;
+      const physicalShortcutKey =
+        parseKeyboardShortcut(physicalShortcut)?.key;
+      // Synthetic events have keyCode 0, so CodeMirror cannot recover the
+      // unshifted digit or punctuation key from values such as "*" or "&".
+      const shiftedLetterKey =
+        eventModifiers.shiftKey && /^[A-Z]$/u.test(key)
           ? key.toLocaleLowerCase()
           : key;
-      const { modKey = true, ...eventModifiers } = modifiers;
+      const normalizedKey =
+        physicalShortcutKey && !/^[A-Z]$/u.test(physicalShortcutKey)
+          ? physicalShortcutKey
+          : shiftedLetterKey;
       const event = new KeyboardEvent("keydown", {
         bubbles: true,
         cancelable: true,
-        ctrlKey: modKey && !mac,
+        ctrlKey,
         key: normalizedKey,
-        metaKey: modKey && mac,
+        metaKey,
         ...eventModifiers,
       });
       const handled = runScopeHandlers(view, event, "editor");
