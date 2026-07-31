@@ -266,13 +266,14 @@ describe("NativeTitleBar", () => {
     expect(titleSlot?.getAttribute("style") ?? "").not.toContain("transform");
   });
 
-  it("uses the Windows titlebar layout for web chrome when the runtime resolves Windows", () => {
+  it("keeps the workspace sidebar toggle available in Windows web chrome", () => {
+    const toggleMarkdownFiles = vi.fn();
     const { container } = render(
       <NativeTitleBar
         aiAgentOpen={false}
         dirty={false}
         documentName="Draft.md"
-        markdownFilesOpen
+        markdownFilesOpen={false}
         markdownFilesWidth={288}
         nativeWindowChrome={false}
         platform="windows"
@@ -285,21 +286,25 @@ describe("NativeTitleBar", () => {
         onToggleAiAgent={() => {}}
         onOpenMarkdown={() => {}}
         onSaveMarkdown={() => {}}
-        onToggleMarkdownFiles={() => {}}
+        onToggleMarkdownFiles={toggleMarkdownFiles}
         onToggleTheme={() => {}}
       />
     );
 
     expect(container.querySelector(".native-titlebar")).toHaveStyle({
-      gridTemplateColumns: "minmax(0,1fr) 196px",
-      left: "289px"
+      gridTemplateColumns: "auto minmax(0,1fr) 196px"
     });
+    expect((container.querySelector(".native-titlebar") as HTMLElement).style.left).toBe("");
     expect(container.querySelector(".windows-titlebar-corner-mask")).not.toBeInTheDocument();
     expect(container.querySelector(".windows-app-chrome")).not.toBeInTheDocument();
     expect(container.querySelector(".native-titlebar")).toHaveClass("top-0");
     expect(container.querySelector(".windows-titlebar-actions")).toBeInTheDocument();
     expect(container.querySelector(".windows-window-controls")).not.toBeInTheDocument();
-    expect(container.querySelector(".titlebar-spacer")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+
+    expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 
   it("keeps macOS titlebar tabs clear of transformed actions before the AI panel", () => {

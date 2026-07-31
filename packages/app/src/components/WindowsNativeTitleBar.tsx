@@ -18,7 +18,7 @@ import {
   type ContextMenuEntry
 } from "./ContextMenu";
 import { WindowsWindowControls } from "./WindowsWindowControls";
-import { Tooltip } from "@markra/ui";
+import { IconButton, Tooltip } from "@markra/ui";
 
 type WindowsAppMenuId = "app" | "file" | "edit" | "format" | "view";
 
@@ -168,6 +168,21 @@ export function WindowsNativeTitleBar({
   const stopWindowsChromeToolMouseDown = (event: ReactMouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
   };
+  // The web runtime resolves Windows without rendering the native app chrome,
+  // so the document titlebar must keep the sidebar's only restore control.
+  const browserSidebarToggleVisible = !nativeWindowChrome && markdownFilesButtonVisible;
+  const renderBrowserSidebarToggle = () => browserSidebarToggleVisible ? (
+    <div className="titlebar-spacer relative z-20 flex h-10 items-center pl-2">
+      <IconButton
+        className="opacity-55 hover:opacity-100 focus-visible:opacity-100"
+        label={label("app.toggleMarkdownFiles")}
+        pressed={markdownFilesOpen}
+        onClick={onToggleMarkdownFiles}
+      >
+        <WindowsSidebarIcon aria-hidden="true" size={15} />
+      </IconButton>
+    </div>
+  ) : null;
   const windowsAppMenus: WindowsAppMenuConfig[] = [
     { id: "file", label: label("menu.file") },
     { id: "edit", label: label("menu.edit") },
@@ -411,6 +426,7 @@ export function WindowsNativeTitleBar({
     const windowsTitlebarStyle: CSSProperties = {
       ...(markdownFilesOpen ? { left: windowsTitlebarLeft } : {}),
       gridTemplateColumns: [
+        ...(browserSidebarToggleVisible ? ["auto"] : []),
         "minmax(0,1fr)",
         `${titlebarSideSlotWidth}px`,
         ...(windowsAiReserveWidth > 0 ? [`${windowsAiReserveWidth}px`] : [])
@@ -430,6 +446,7 @@ export function WindowsNativeTitleBar({
           {renderWindowsTitlebarCornerDivider()}
           {renderWindowsTitlebarTopDivider()}
           {renderWindowsTitlebarSidebarDivider()}
+          {renderBrowserSidebarToggle()}
           {renderTitleContent(`native-title-slot min-w-0 h-10 pr-3 ${windowsTitleSlotPaddingClassName}`)}
           <div
             className={`windows-titlebar-actions relative z-10 flex h-10 items-center justify-end gap-0.5 pr-3.5 text-(--text-secondary) opacity-40 ${windowsTitlebarActionsTransitionClassName} hover:opacity-100 focus-within:opacity-100 motion-reduce:transition-none`}
@@ -449,6 +466,7 @@ export function WindowsNativeTitleBar({
   const windowsTitlebarStyle: CSSProperties = {
     ...(markdownFilesOpen ? { left: windowsTitlebarLeft } : {}),
     gridTemplateColumns: [
+      ...(browserSidebarToggleVisible ? ["auto"] : []),
       "minmax(0,1fr)",
       `${titlebarSideSlotWidth}px`,
       ...(windowsAiReserveWidth > 0 ? [`${windowsAiReserveWidth}px`] : [])
@@ -470,6 +488,7 @@ export function WindowsNativeTitleBar({
         {renderWindowsTitlebarCornerDivider()}
         {renderWindowsTitlebarTopDivider()}
         {renderWindowsTitlebarSidebarDivider()}
+        {renderBrowserSidebarToggle()}
         {showWindowsDocumentTitle ? (
           <h1
             className={`native-title pointer-events-none m-0 flex h-10 min-w-0 items-center justify-center gap-1.5 text-[14px] leading-none font-[650] tracking-normal text-(--text-primary) motion-reduce:transition-none ${
