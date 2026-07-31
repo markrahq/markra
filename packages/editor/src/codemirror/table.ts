@@ -641,7 +641,10 @@ function tableCellCaretOffset(cell: HTMLTableCellElement) {
   return range.toString().length;
 }
 
-function activeVisualTableCell(table: HTMLTableElement) {
+function activeVisualTableCell(
+  view: CodeMirrorView,
+  table: HTMLTableElement,
+) {
   const selectionNode = table.ownerDocument.getSelection()?.anchorNode;
   const selectionElement =
     selectionNode instanceof Element ? selectionNode : selectionNode?.parentElement;
@@ -649,10 +652,28 @@ function activeVisualTableCell(table: HTMLTableElement) {
   if (selectedCell && table.contains(selectedCell)) return selectedCell;
 
   const activeElement = table.ownerDocument.activeElement;
-  return activeElement instanceof HTMLTableCellElement &&
+  if (
+    activeElement instanceof HTMLTableCellElement &&
     table.contains(activeElement)
-    ? activeElement
-    : null;
+  ) {
+    return activeElement;
+  }
+
+  // WebKit can lift the selection to the row/table after deleting the final
+  // character. The editing session still identifies the cell that must sync.
+  const session = tableEditingSessions.get(view);
+  const wrapper = table.closest<HTMLElement>(".cm-markra-table-wrap");
+  if (
+    !session ||
+    wrapper?.dataset.tableFrom !== String(session.tableFrom)
+  ) {
+    return null;
+  }
+  return table.querySelector<HTMLTableCellElement>(
+    `[data-table-row="${session.row}"]` +
+      `[data-table-column="${session.column}"]` +
+      `[data-table-header="${String(session.header)}"]`,
+  );
 }
 
 export function focusVisualTableCell(
@@ -1191,14 +1212,14 @@ class TableWidget extends WidgetType {
     table.addEventListener("compositionend", (event) => {
       event.stopPropagation();
       composing = false;
-      const cell = activeVisualTableCell(table);
+      const cell = activeVisualTableCell(view, table);
       if (cell) syncVisualTableCell(view, this.preview, cell);
     });
     table.addEventListener("input", (event) => {
       event.stopPropagation();
       // Replacing the widget mid-composition cancels native CJK input, so commit only after compositionend.
       if (composing || (event instanceof InputEvent && event.isComposing)) return;
-      const cell = activeVisualTableCell(table);
+      const cell = activeVisualTableCell(view, table);
       if (cell) syncVisualTableCell(view, this.preview, cell);
     });
 

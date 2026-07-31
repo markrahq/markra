@@ -766,6 +766,49 @@ describe("tablePreviewPlugin", () => {
     ).toBe("");
   });
 
+  it("recovers when WebKit moves an emptied cell selection to the table host", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| A | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+    const cell = table?.querySelector<HTMLTableCellElement>("tbody td");
+    const row = cell?.parentElement;
+
+    cell?.focus();
+    cell?.replaceChildren(document.createElement("br"));
+    table?.focus();
+    if (row) {
+      const selection = document.getSelection();
+      const range = document.createRange();
+      range.setStart(row, 0);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    table?.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      inputType: "deleteContentBackward",
+    }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain("|  | 1 |");
+    const updatedCell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td",
+    );
+    expect(document.activeElement).toBe(updatedCell);
+    if (updatedCell) updatedCell.textContent = "Again";
+    updatedCell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain("| Again | 1 |");
+    expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
+  });
+
   it("commits a visual table cell after IME composition finishes", async () => {
     const doc = [
       "| Name | Value |",
