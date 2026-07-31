@@ -10,7 +10,7 @@ import {
   MarkraEditorProvider,
   markraEditorReactBridge,
 } from "@markra/editor-react";
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CodeMirrorEditorFloatingMenus,
@@ -100,6 +100,46 @@ describe("CodeMirrorEditorFloatingMenus", () => {
     expect(host.container.querySelector(".markra-slash-menu")).not.toBeNull();
     act(() => heading2?.click());
     expect(view.state.doc.toString()).toBe("## ");
+  });
+
+  it("keeps the slash command list compact and scrollable", async () => {
+    const view = createView();
+    const host = render(
+      <MarkraEditorProvider view={view}>
+        <CodeMirrorEditorFloatingMenus />
+      </MarkraEditorProvider>,
+    );
+
+    await flushMeasurement();
+    expect(host.container.querySelector(".markra-slash-menu")).toHaveStyle({
+      maxHeight: "320px",
+      overflowY: "auto",
+    });
+  });
+
+  it("scrolls the keyboard-selected slash command into view", async () => {
+    const view = createView();
+    const host = render(
+      <MarkraEditorProvider view={view}>
+        <CodeMirrorEditorFloatingMenus />
+      </MarkraEditorProvider>,
+    );
+
+    await flushMeasurement();
+    const options = host.container.querySelectorAll<HTMLButtonElement>(
+      ".markra-slash-menu-option",
+    );
+    const lastOption = options.item(options.length - 1);
+    const scrollIntoView = vi.fn();
+    lastOption.scrollIntoView = scrollIntoView;
+
+    fireEvent.keyDown(view.contentDOM, { key: "ArrowUp" });
+
+    expect(lastOption).toHaveAttribute("aria-selected", "true");
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: "nearest",
+      inline: "nearest",
+    });
   });
 
   it("dismisses slash commands when the user points outside the menu", async () => {

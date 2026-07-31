@@ -38,6 +38,7 @@ interface FloatingMenuSize {
 }
 
 const floatingMenuMargin = 12;
+const slashMenuMaximumHeight = 320;
 
 export function fitCodeMirrorFloatingMenu(
   anchor: FloatingMenuPoint,
@@ -61,6 +62,7 @@ function useFloatingMenuStyle(
   open: boolean,
   fallback: FloatingMenuSize,
   revision: string,
+  maximumHeight?: number,
 ) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [size, setSize] = useState(fallback);
@@ -85,10 +87,12 @@ function useFloatingMenuStyle(
     height: window.innerHeight,
     width: window.innerWidth,
   };
+  const availableHeight = viewport.height - floatingMenuMargin * 2;
+  const maxHeight = Math.min(maximumHeight ?? availableHeight, availableHeight);
   const fitted = fitCodeMirrorFloatingMenu(
     anchor,
     {
-      height: Math.min(size.height, viewport.height - floatingMenuMargin * 2),
+      height: Math.min(size.height, maxHeight),
       width: Math.min(size.width, viewport.width - floatingMenuMargin * 2),
     },
     viewport,
@@ -97,7 +101,7 @@ function useFloatingMenuStyle(
     ref,
     style: {
       left: fitted.left,
-      maxHeight: viewport.height - floatingMenuMargin * 2,
+      maxHeight,
       overflowY: "auto",
       top: fitted.top,
     } satisfies CSSProperties,
@@ -112,6 +116,7 @@ export function CodeMirrorEditorFloatingMenus({
   const slashMenu = useMarkraEditorSlashMenu();
   const documentLinks = useMarkraEditorDocumentLinks();
   const view = useMarkraEditorView();
+  const selectedSlashOptionRef = useRef<HTMLButtonElement | null>(null);
   const slashAnchor = useMarkraEditorCaretAnchor(slashMenu.to);
   const documentLinkAnchor = useMarkraEditorCaretAnchor(documentLinks.to);
   const slashPlacement = useFloatingMenuStyle(
@@ -119,6 +124,7 @@ export function CodeMirrorEditorFloatingMenus({
     slashMenu.open,
     { height: 320, width: 240 },
     `${slashMenu.query}:${slashMenu.actions.length}`,
+    slashMenuMaximumHeight,
   );
   const documentLinkPlacement = useFloatingMenuStyle(
     documentLinkAnchor,
@@ -126,6 +132,13 @@ export function CodeMirrorEditorFloatingMenus({
     { height: 280, width: 352 },
     `${documentLinks.query}:${documentLinks.items.length}`,
   );
+
+  useEffect(() => {
+    selectedSlashOptionRef.current?.scrollIntoView?.({
+      block: "nearest",
+      inline: "nearest",
+    });
+  }, [slashMenu.open, slashMenu.query, slashMenu.selectedIndex]);
 
   useEffect(() => {
     if (!view || (!slashMenu.open && !documentLinks.open)) return;
@@ -166,6 +179,11 @@ export function CodeMirrorEditorFloatingMenus({
                   action.run();
                 }}
                 onMouseDown={keepEditorSelection}
+                ref={
+                  index === slashMenu.selectedIndex
+                    ? selectedSlashOptionRef
+                    : undefined
+                }
                 role="menuitem"
                 type="button"
               >
