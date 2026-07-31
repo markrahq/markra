@@ -17,6 +17,10 @@ import {
   type SearchRange,
 } from "@markra/shared";
 import { findCodeMirrorMathRanges } from "./math-preview.ts";
+import {
+  focusVisualTableCell,
+  tablePreviewEnabled,
+} from "./table.ts";
 
 export interface ReplaceCodeMirrorMarkdownOptions {
   addToHistory?: boolean;
@@ -579,11 +583,19 @@ export function insertCodeMirrorMarkdownTable(view: EditorView) {
   if (view.state.facet(EditorState.readOnly)) return false;
 
   const { from, to } = view.state.selection.main;
+  const visualPreview = tablePreviewEnabled(view.state);
   view.dispatch({
     changes: { from, insert: defaultMarkdownTable, to },
     scrollIntoView: true,
-    selection: EditorSelection.cursor(from + 2),
+    // A source cursor inside the table reveals the complete Markdown node.
+    // Keep it at the boundary while the visual cell owns the editing focus.
+    selection: EditorSelection.cursor(
+      from + (visualPreview ? defaultMarkdownTable.length : 2),
+    ),
   });
   view.focus();
+  if (visualPreview) {
+    focusVisualTableCell(view, from, -1, 0, true, 0);
+  }
   return true;
 }

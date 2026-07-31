@@ -9,6 +9,7 @@ import {
   openMarkraSlashMenu,
   runMarkraSlashMenuAction,
   searchMarkraUi,
+  tablePreviewPlugin,
 } from "./index.ts";
 
 import "./dom.test-support.ts";
@@ -121,6 +122,37 @@ describe("Markra slash menu", () => {
     expect(execution.state.doc.toString()).toBe("## ");
     expect(execution.state.selection.main.head).toBe(3);
     expect(getMarkraSlashMenuState(execution).open).toBe(false);
+  });
+
+  it("opens an inserted table in the visual editor", async () => {
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: "/table",
+        extensions: [
+          liveMarkdown({
+            plugins: [blocksPlugin(), tablePreviewPlugin()],
+            slashMenu: true,
+          }),
+        ],
+        selection: EditorSelection.cursor("/table".length),
+      }),
+    });
+    views.push(view);
+    view.focus();
+
+    expect(runMarkraSlashMenuAction(view, "block.table")).toBe(true);
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toBe(
+      ["|  |  |", "| --- | --- |", "|  |  |"].join("\n"),
+    );
+    expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
+    expect(document.activeElement).toBe(
+      view.dom.querySelector(".cm-markra-table thead th:first-child"),
+    );
   });
 
   it.each([

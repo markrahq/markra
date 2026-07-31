@@ -1,3 +1,4 @@
+import type { EditorState } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -17,7 +18,7 @@ import {
   type LinksPluginOptions,
 } from "./links.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
-import { markraRenderer } from "./renderers.ts";
+import { getMarkraRenderers, markraRenderer } from "./renderers.ts";
 
 export type CodeMirrorTableAlignment = "center" | "left" | "right" | null;
 export type CodeMirrorTableWidthMode = "auto" | "even";
@@ -93,8 +94,15 @@ const defaultLabels: TablePreviewLabels = {
 const tableSizePickerColumns = 8;
 const tableSizePickerRows = 10;
 const tableSizePopoverFallbackSize = { height: 248, width: 184 };
+const tablePreviewRendererId = "markra.table-preview";
 const tableWidthModeStoragePrefix = "markra:table-width-mode";
 const tableEditingSessions = new WeakMap<CodeMirrorView, TableEditingSession>();
+
+export function tablePreviewEnabled(state: EditorState) {
+  return getMarkraRenderers(state, "Table").some(
+    (renderer) => renderer.id === tablePreviewRendererId,
+  );
+}
 
 function tableWidthModeStorageKey(documentKey: string | null | undefined) {
   const normalizedKey = documentKey?.trim() || "untitled";
@@ -647,7 +655,7 @@ function activeVisualTableCell(table: HTMLTableElement) {
     : null;
 }
 
-function focusVisualTableCell(
+export function focusVisualTableCell(
   view: CodeMirrorView,
   tableFrom: number,
   rowIndex: number,
@@ -1531,10 +1539,10 @@ export function tablePreviewPlugin(
   const getDocumentKey = options.getDocumentKey ?? (() => undefined);
 
   return defineMarkraPlugin({
-    id: "markra.table-preview",
+    id: tablePreviewRendererId,
     extension: [
       markraRenderer({
-        id: "markra.table-preview",
+        id: tablePreviewRendererId,
         nodeNames: ["Table"],
         render(context) {
           if (context.revealed("node")) return true;
