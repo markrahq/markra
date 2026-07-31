@@ -28,6 +28,11 @@ import {
 } from "../mermaid.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import {
+  createMediaViewerEnlargeIcon,
+  openMediaViewer,
+  type MediaViewerHandle,
+} from "./media-viewer.ts";
+import {
   markraRenderer,
   type MarkraRendererContext,
   type MarkraSyntaxNode,
@@ -146,46 +151,6 @@ const checkIconChildren = [
     tag: "path",
     attributes: { d: "M20 6 9 17l-5-5" },
   },
-] as const;
-
-const enlargeIconChildren = [
-  { tag: "path", attributes: { d: "M15 3h6v6" } },
-  { tag: "path", attributes: { d: "m21 3-7 7" } },
-  { tag: "path", attributes: { d: "M9 21H3v-6" } },
-  { tag: "path", attributes: { d: "m3 21 7-7" } },
-] as const;
-
-const fullscreenIconChildren = [
-  { tag: "path", attributes: { d: "M8 3H5a2 2 0 0 0-2 2v3" } },
-  { tag: "path", attributes: { d: "M21 8V5a2 2 0 0 0-2-2h-3" } },
-  { tag: "path", attributes: { d: "M3 16v3a2 2 0 0 0 2 2h3" } },
-  { tag: "path", attributes: { d: "M16 21h3a2 2 0 0 0 2-2v-3" } },
-] as const;
-
-const exitFullscreenIconChildren = [
-  { tag: "path", attributes: { d: "M8 3v3a2 2 0 0 1-2 2H3" } },
-  { tag: "path", attributes: { d: "M21 8h-3a2 2 0 0 1-2-2V3" } },
-  { tag: "path", attributes: { d: "M3 16h3a2 2 0 0 1 2 2v3" } },
-  { tag: "path", attributes: { d: "M16 21v-3a2 2 0 0 1 2-2h3" } },
-] as const;
-
-const closeIconChildren = [
-  { tag: "path", attributes: { d: "M18 6 6 18" } },
-  { tag: "path", attributes: { d: "m6 6 12 12" } },
-] as const;
-
-const zoomInIconChildren = [
-  { tag: "path", attributes: { d: "M12 5v14" } },
-  { tag: "path", attributes: { d: "M5 12h14" } },
-] as const;
-
-const zoomOutIconChildren = [
-  { tag: "path", attributes: { d: "M5 12h14" } },
-] as const;
-
-const resetViewIconChildren = [
-  { tag: "path", attributes: { d: "M3 12a9 9 0 1 0 3-6.7" } },
-  { tag: "path", attributes: { d: "M3 3v6h6" } },
 ] as const;
 
 const codeBlockTheme = EditorView.baseTheme({
@@ -524,9 +489,7 @@ class CodeBlockExitWidget extends WidgetType {
 class MermaidPreviewWidget extends WidgetType {
   private observer: MutationObserver | null = null;
   private renderToken = 0;
-  private zoomDialog: HTMLElement | null = null;
-  private zoomKeyDown: ((event: KeyboardEvent) => unknown) | null = null;
-  private zoomScale = 1;
+  private mediaViewer: MediaViewerHandle | null = null;
 
   constructor(
     readonly from: number,
@@ -545,21 +508,9 @@ class MermaidPreviewWidget extends WidgetType {
     return true;
   }
 
-  private closeZoom(restoreFocus?: HTMLElement | null) {
-    const dialog = this.zoomDialog;
-    if (!dialog) return;
-    if (this.zoomKeyDown) {
-      dialog.ownerDocument.removeEventListener(
-        "keydown",
-        this.zoomKeyDown,
-        true,
-      );
-    }
-    dialog.remove();
-    this.zoomDialog = null;
-    this.zoomKeyDown = null;
-    this.zoomScale = 1;
-    restoreFocus?.focus();
+  private closeViewer() {
+    this.mediaViewer?.close({ restoreFocus: false });
+    this.mediaViewer = null;
   }
 
   private openZoom(
@@ -569,186 +520,22 @@ class MermaidPreviewWidget extends WidgetType {
   ) {
     const sourceSvg = preview.querySelector("svg");
     if (!sourceSvg) return;
-    this.closeZoom();
-
-    const document = view.dom.ownerDocument;
-    const dialog = document.createElement("div");
-    const panel = document.createElement("div");
-    const toolbar = document.createElement("div");
-    const zoomValue = document.createElement("span");
-    const content = document.createElement("div");
-    const canvas = document.createElement("div");
-    const makeButton = (
-      className: string,
-      label: string,
-      iconClassName: string,
-      iconChildren: Parameters<typeof createCodeControlIcon>[2],
-    ) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = className;
-      button.ariaLabel = label;
-      button.title = label;
-      button.append(
-        createCodeControlIcon(document, iconClassName, iconChildren),
-      );
-      return button;
-    };
-    const zoomOut = makeButton(
-      "markra-mermaid-zoom-control-button markra-mermaid-zoom-out-button",
-      "Zoom out Mermaid diagram",
-      "markra-mermaid-zoom-out-icon",
-      zoomOutIconChildren,
-    );
-    const zoomIn = makeButton(
-      "markra-mermaid-zoom-control-button markra-mermaid-zoom-in-button",
-      "Zoom in Mermaid diagram",
-      "markra-mermaid-zoom-in-icon",
-      zoomInIconChildren,
-    );
-    const reset = makeButton(
-      "markra-mermaid-zoom-control-button markra-mermaid-zoom-reset-button",
-      "Reset Mermaid diagram view",
-      "markra-mermaid-zoom-reset-icon",
-      resetViewIconChildren,
-    );
-    const fullscreen = makeButton(
-      "markra-mermaid-zoom-control-button markra-mermaid-zoom-fullscreen-button",
-      "Enter full screen",
-      "markra-mermaid-zoom-fullscreen-icon",
-      fullscreenIconChildren,
-    );
-    fullscreen.ariaPressed = "false";
-    const close = makeButton(
-      "markra-mermaid-zoom-close-button",
-      "Close enlarged Mermaid diagram",
-      "markra-mermaid-zoom-close-icon",
-      closeIconChildren,
-    );
-
-    dialog.className = "markra-mermaid-zoom-dialog";
-    dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("aria-modal", "true");
-    dialog.ariaLabel = "Enlarged Mermaid diagram";
-    panel.className = "markra-mermaid-zoom-panel";
-    toolbar.className = "markra-mermaid-zoom-toolbar";
-    zoomValue.className = "markra-mermaid-zoom-value";
-    zoomValue.setAttribute("aria-live", "polite");
-    content.className = "markra-mermaid-zoom-content";
-    content.tabIndex = 0;
-    content.ariaLabel = "Mermaid diagram viewport";
-    canvas.className = "markra-mermaid-zoom-canvas";
-    canvas.append(sourceSvg.cloneNode(true));
-
-    let translateX = 0;
-    let translateY = 0;
-    let drag: {
-      originX: number;
-      originY: number;
-      pointerId: number;
-      startX: number;
-      startY: number;
-    } | null = null;
-    const syncZoom = () => {
-      const scale = String(this.zoomScale);
-      canvas.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
-      content.dataset.zoom = scale;
-      zoomValue.textContent = `${Math.round(this.zoomScale * 100)}%`;
-    };
-    const setZoom = (scale: number) => {
-      this.zoomScale = Math.max(0.25, Math.min(6, scale));
-      syncZoom();
-    };
-    const setFullscreen = (isFullscreen: boolean) => {
-      if (isFullscreen) {
-        dialog.dataset.fullscreen = "true";
-      } else {
-        delete dialog.dataset.fullscreen;
-      }
-      const label = isFullscreen ? "Exit full screen" : "Enter full screen";
-      fullscreen.ariaLabel = label;
-      fullscreen.title = label;
-      fullscreen.ariaPressed = String(isFullscreen);
-      fullscreen.replaceChildren(
-        createCodeControlIcon(
-          document,
-          "markra-mermaid-zoom-fullscreen-icon",
-          isFullscreen ? exitFullscreenIconChildren : fullscreenIconChildren,
-        ),
-      );
-    };
-    zoomOut.addEventListener("click", () => setZoom(this.zoomScale - 0.25));
-    zoomIn.addEventListener("click", () => setZoom(this.zoomScale + 0.25));
-    reset.addEventListener("click", () => {
-      this.zoomScale = 1;
-      translateX = 0;
-      translateY = 0;
-      syncZoom();
+    this.closeViewer();
+    this.mediaViewer = openMediaViewer({
+      labels: {
+        close: "Close enlarged Mermaid diagram",
+        dialog: "Enlarged Mermaid diagram",
+        enterFullscreen: "Enter full screen",
+        exitFullscreen: "Exit full screen",
+        reset: "Reset Mermaid diagram view",
+        viewport: "Mermaid diagram viewport",
+        zoomIn: "Zoom in Mermaid diagram",
+        zoomOut: "Zoom out Mermaid diagram",
+      },
+      media: sourceSvg,
+      mount: view.dom.closest(".markdown-paper") ?? view.dom.ownerDocument.body,
+      restoreFocus: trigger,
     });
-    fullscreen.addEventListener("click", () => {
-      setFullscreen(dialog.dataset.fullscreen !== "true");
-    });
-    close.addEventListener("click", () => this.closeZoom(trigger));
-    content.addEventListener("wheel", (event) => {
-      event.preventDefault();
-      setZoom(this.zoomScale * (event.deltaY < 0 ? 1.12 : 1 / 1.12));
-    }, { passive: false });
-    content.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0) return;
-      event.preventDefault();
-      // Pointer capture keeps Windows WebView drag updates flowing after the
-      // cursor leaves the viewport while a large diagram is being panned.
-      content.setPointerCapture?.(event.pointerId);
-      content.dataset.dragging = "true";
-      drag = {
-        originX: translateX,
-        originY: translateY,
-        pointerId: event.pointerId,
-        startX: event.clientX,
-        startY: event.clientY,
-      };
-    });
-    content.addEventListener("pointermove", (event) => {
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      event.preventDefault();
-      translateX = drag.originX + event.clientX - drag.startX;
-      translateY = drag.originY + event.clientY - drag.startY;
-      syncZoom();
-    });
-    const stopDragging = (event: PointerEvent) => {
-      if (!drag || drag.pointerId !== event.pointerId) return;
-      if (content.hasPointerCapture?.(event.pointerId)) {
-        content.releasePointerCapture(event.pointerId);
-      }
-      delete content.dataset.dragging;
-      drag = null;
-    };
-    content.addEventListener("pointerup", stopDragging);
-    content.addEventListener("pointercancel", stopDragging);
-    dialog.addEventListener("mousedown", (event) => {
-      if (event.target === dialog) this.closeZoom(trigger);
-    });
-    this.zoomKeyDown = (event) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      // Preserve the enlarged view on the first Escape by restoring the
-      // regular dialog before the next Escape closes it.
-      if (dialog.dataset.fullscreen === "true") {
-        setFullscreen(false);
-        return;
-      }
-      this.closeZoom(trigger);
-    };
-    document.addEventListener("keydown", this.zoomKeyDown, true);
-
-    toolbar.append(zoomOut, zoomValue, zoomIn, reset, fullscreen, close);
-    content.append(canvas);
-    panel.append(toolbar, content);
-    dialog.append(panel);
-    (view.dom.closest(".markdown-paper") ?? document.body).append(dialog);
-    this.zoomDialog = dialog;
-    syncZoom();
-    close.focus();
   }
 
   private appendZoomButton(
@@ -763,13 +550,10 @@ class MermaidPreviewWidget extends WidgetType {
     button.className = "markra-mermaid-zoom-button";
     button.ariaLabel = "Enlarge Mermaid diagram";
     button.title = "Enlarge Mermaid diagram";
-    button.append(
-      createCodeControlIcon(
-        view.dom.ownerDocument,
-        "markra-mermaid-zoom-icon",
-        enlargeIconChildren,
-      ),
-    );
+    button.append(createMediaViewerEnlargeIcon(
+      view.dom.ownerDocument,
+      "markra-mermaid-zoom-icon",
+    ));
     button.addEventListener("mousedown", (event) => event.stopPropagation());
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -812,7 +596,7 @@ class MermaidPreviewWidget extends WidgetType {
       this.renderMermaid({ source: this.source, theme, view })
         .then((svg) => {
           if (token !== this.renderToken) return;
-          this.closeZoom();
+          this.closeViewer();
           preview.innerHTML = svg;
           this.appendZoomButton(view, preview, wrapper);
           preview.setAttribute("aria-busy", "false");
@@ -843,7 +627,7 @@ class MermaidPreviewWidget extends WidgetType {
 
   destroy() {
     this.renderToken += 1;
-    this.closeZoom();
+    this.closeViewer();
     this.observer?.disconnect();
     this.observer = null;
   }

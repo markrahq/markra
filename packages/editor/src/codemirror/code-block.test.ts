@@ -449,23 +449,23 @@ describe("codeBlockPreviewPlugin", () => {
 
     zoomButton?.click();
     const dialog = document.querySelector<HTMLElement>(
-      ".markra-mermaid-zoom-dialog",
+      ".markra-media-viewer-dialog",
     );
     expect(dialog?.getAttribute("role")).toBe("dialog");
     expect(dialog?.querySelector("svg")).not.toBeNull();
     for (const className of [
-      ".markra-mermaid-zoom-out-button",
-      ".markra-mermaid-zoom-in-button",
-      ".markra-mermaid-zoom-reset-button",
-      ".markra-mermaid-zoom-fullscreen-button",
-      ".markra-mermaid-zoom-close-button",
+      ".markra-media-viewer-zoom-out-button",
+      ".markra-media-viewer-zoom-in-button",
+      ".markra-media-viewer-reset-button",
+      ".markra-media-viewer-fullscreen-button",
+      ".markra-media-viewer-close-button",
     ]) {
       const button = dialog?.querySelector<HTMLButtonElement>(className);
       expect(button?.querySelector("svg")).not.toBeNull();
       expect(button?.textContent).toBe("");
     }
     const fullscreenIcon = dialog?.querySelector(
-      ".markra-mermaid-zoom-fullscreen-icon",
+      ".markra-media-viewer-fullscreen-icon",
     );
     expect(iconPaths(fullscreenIcon)).toEqual([
       "M8 3H5a2 2 0 0 0-2 2v3",
@@ -473,16 +473,16 @@ describe("codeBlockPreviewPlugin", () => {
       "M3 16v3a2 2 0 0 0 2 2h3",
       "M16 21h3a2 2 0 0 0 2-2v-3",
     ]);
-    dialog?.querySelector<HTMLButtonElement>(".markra-mermaid-zoom-in-button")?.click();
+    dialog?.querySelector<HTMLButtonElement>(".markra-media-viewer-zoom-in-button")?.click();
     expect(
-      dialog?.querySelector<HTMLElement>(".markra-mermaid-zoom-canvas")?.style.transform,
+      dialog?.querySelector<HTMLElement>(".markra-media-viewer-canvas")?.style.transform,
     ).toContain("scale(1.25)");
 
     const content = dialog?.querySelector<HTMLElement>(
-      ".markra-mermaid-zoom-content",
+      ".markra-media-viewer-content",
     );
     const canvas = dialog?.querySelector<HTMLElement>(
-      ".markra-mermaid-zoom-canvas",
+      ".markra-media-viewer-canvas",
     );
     content?.dispatchEvent(new PointerEvent("pointerdown", {
       bubbles: true,
@@ -506,17 +506,17 @@ describe("codeBlockPreviewPlugin", () => {
     }));
     expect(content?.dataset.dragging).toBeUndefined();
 
-    dialog?.querySelector<HTMLButtonElement>(".markra-mermaid-zoom-reset-button")?.click();
+    dialog?.querySelector<HTMLButtonElement>(".markra-media-viewer-reset-button")?.click();
     expect(canvas?.style.transform).toBe("translate(0px, 0px) scale(1)");
 
     const fullscreen = dialog?.querySelector<HTMLButtonElement>(
-      ".markra-mermaid-zoom-fullscreen-button",
+      ".markra-media-viewer-fullscreen-button",
     );
     fullscreen?.click();
     expect(dialog?.dataset.fullscreen).toBe("true");
     expect(fullscreen?.ariaPressed).toBe("true");
     expect(fullscreen?.ariaLabel).toBe("Exit full screen");
-    expect(iconPaths(dialog?.querySelector(".markra-mermaid-zoom-fullscreen-icon"))).toEqual([
+    expect(iconPaths(dialog?.querySelector(".markra-media-viewer-fullscreen-icon"))).toEqual([
       "M8 3v3a2 2 0 0 1-2 2H3",
       "M21 8h-3a2 2 0 0 1-2-2V3",
       "M3 16h3a2 2 0 0 1 2 2v3",
@@ -530,12 +530,12 @@ describe("codeBlockPreviewPlugin", () => {
 
     fullscreen?.click();
     document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
-    expect(document.querySelector(".markra-mermaid-zoom-dialog")).toBe(dialog);
+    expect(document.querySelector(".markra-media-viewer-dialog")).toBe(dialog);
     expect(dialog?.dataset.fullscreen).toBeUndefined();
     expect(fullscreen?.ariaPressed).toBe("false");
     expect(fullscreen?.ariaLabel).toBe("Enter full screen");
 
     document.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }));
-    expect(document.querySelector(".markra-mermaid-zoom-dialog")).toBeNull();
+    expect(document.querySelector(".markra-media-viewer-dialog")).toBeNull();
   });
 });

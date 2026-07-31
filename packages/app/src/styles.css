@@ -3650,11 +3650,46 @@
     box-shadow: none;
   }
 
-  .markdown-paper .markra-image-node > img {
+  .markdown-paper .markra-image-frame {
+    @apply relative inline-block max-w-full align-top;
+    line-height: 0;
+  }
+
+  .markdown-paper .markra-image-frame > img {
     @apply my-0 border-0;
     display: block;
     -webkit-user-drag: none;
     user-select: none;
+  }
+
+  .markdown-paper .markra-image-viewer-button {
+    @apply absolute top-2 right-2 z-[3] grid size-7 cursor-pointer place-items-center rounded-md border border-(--border-default) p-0 outline-none transition-[opacity,transform,color,background-color,border-color,box-shadow] duration-150 ease-out;
+    background: var(--editor-code-control-bg);
+    border-color: var(--editor-border);
+    color: var(--editor-text-secondary);
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-0.125rem);
+  }
+
+  .markdown-paper .markra-image-frame:hover .markra-image-viewer-button,
+  .markdown-paper .markra-image-viewer-button:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+
+  .markdown-paper .markra-image-viewer-button:hover {
+    background: var(--editor-bg-secondary);
+    border-color: var(--editor-border-strong);
+    color: var(--editor-text-heading);
+  }
+
+  .markdown-paper .markra-image-viewer-button:focus-visible {
+    background: var(--editor-bg-secondary);
+    border-color: var(--editor-border-strong);
+    color: var(--editor-text-heading);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
   }
 
   .markdown-paper .markra-image-upload-placeholder {
@@ -4234,12 +4269,12 @@
     text-align: left;
   }
 
-  .markra-mermaid-zoom-dialog {
+  .markra-media-viewer-dialog {
     @apply fixed inset-0 z-50 grid place-items-center p-4;
     background: color-mix(in srgb, oklch(23% 0.02 260) 72%, transparent);
   }
 
-  .markra-mermaid-zoom-panel {
+  .markra-media-viewer-panel {
     @apply relative flex max-h-[88vh] w-full flex-col overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-primary) shadow-2xl;
     background: var(--editor-paper-bg, var(--bg-primary));
     border-color: color-mix(in srgb, var(--editor-border-strong, var(--border-strong)) 82%, transparent);
@@ -4249,11 +4284,11 @@
     min-height: min(28rem, 88vh);
   }
 
-  .markra-mermaid-zoom-dialog[data-fullscreen="true"] {
+  .markra-media-viewer-dialog[data-fullscreen="true"] {
     padding: 0;
   }
 
-  .markra-mermaid-zoom-dialog[data-fullscreen="true"] .markra-mermaid-zoom-panel {
+  .markra-media-viewer-dialog[data-fullscreen="true"] .markra-media-viewer-panel {
     width: 100%;
     height: 100%;
     max-width: none;
@@ -4264,73 +4299,86 @@
     box-shadow: none;
   }
 
-  .markra-mermaid-zoom-toolbar {
+  .markra-media-viewer-toolbar {
     @apply relative z-[2] flex items-center justify-end gap-1 border-b border-(--border-default) px-3 py-2;
     background: color-mix(in srgb, var(--editor-paper-bg, var(--bg-primary)) 94%, transparent);
     border-color: color-mix(in srgb, var(--editor-border, var(--border-default)) 82%, transparent);
   }
 
-  .markra-mermaid-zoom-value {
+  .markra-media-viewer-zoom-value {
     @apply min-w-12 px-1 text-center text-[12px] leading-5 font-[650] tabular-nums text-(--text-secondary);
     color: var(--editor-text-secondary, var(--text-secondary));
   }
 
-  .markra-mermaid-zoom-control-button,
-  .markra-mermaid-zoom-close-button {
+  .markra-media-viewer-control-button,
+  .markra-media-viewer-close-button {
     @apply grid size-8 cursor-pointer place-items-center rounded-md border border-(--border-default) bg-(--bg-primary) p-0 text-(--text-secondary) outline-none transition-[color,background-color,border-color,box-shadow] duration-150 ease-out;
     background: var(--editor-code-control-bg, var(--bg-primary));
     border-color: var(--editor-border, var(--border-default));
     color: var(--editor-text-secondary, var(--text-secondary));
   }
 
-  .markra-mermaid-zoom-control-button:hover,
-  .markra-mermaid-zoom-close-button:hover {
+  .markra-media-viewer-control-button:hover,
+  .markra-media-viewer-close-button:hover {
     background: var(--editor-bg-secondary, var(--bg-hover));
     border-color: var(--editor-border-strong, var(--border-strong));
     color: var(--editor-text-heading, var(--text-heading));
   }
 
-  .markra-mermaid-zoom-control-button:focus-visible,
-  .markra-mermaid-zoom-close-button:focus-visible {
+  .markra-media-viewer-control-button:focus-visible,
+  .markra-media-viewer-close-button:focus-visible {
     background: var(--editor-bg-secondary, var(--bg-hover));
     border-color: var(--editor-border-strong, var(--border-strong));
     color: var(--editor-text-heading, var(--text-heading));
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
   }
 
-  .markra-mermaid-zoom-content {
+  .markra-media-viewer-content {
     @apply relative min-h-0 flex-1 overflow-hidden px-8 py-8 outline-none;
     cursor: grab;
     touch-action: none;
   }
 
-  .markra-mermaid-zoom-content:focus-visible {
+  .markra-media-viewer-content:focus-visible {
     box-shadow: inset 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
   }
 
-  .markra-mermaid-zoom-content[data-dragging="true"] {
+  .markra-media-viewer-content[data-dragging="true"] {
     cursor: grabbing;
   }
 
-  .markra-mermaid-zoom-canvas {
+  .markra-media-viewer-canvas {
     @apply flex min-h-full items-center justify-center;
     transform-origin: center center;
     transition: transform 90ms ease-out;
     will-change: transform;
   }
 
-  .markra-mermaid-zoom-content[data-dragging="true"] .markra-mermaid-zoom-canvas {
+  .markra-media-viewer-content[data-dragging="true"] .markra-media-viewer-canvas {
     transition: none;
   }
 
-  .markra-mermaid-zoom-svg {
+  .markra-media-viewer-media {
     display: block;
     flex: 0 0 auto;
-    width: min(100%, 72rem);
-    min-width: min(48rem, calc(100vw - 5rem));
     max-width: none;
     height: auto;
     margin: 0 auto;
+  }
+
+  .markra-media-viewer-image,
+  .markdown-paper img.markra-media-viewer-image {
+    width: auto;
+    max-width: min(100%, 72rem);
+    max-height: calc(88vh - 7rem);
+    margin: 0 auto;
+    border: 0;
+    border-radius: 0;
+    object-fit: contain;
+  }
+
+  .markra-media-viewer-dialog[data-fullscreen="true"] .markra-media-viewer-image {
+    max-height: calc(100vh - 7rem);
   }
 
   .markdown-paper .markra-code-block code {

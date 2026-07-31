@@ -7,6 +7,11 @@ import {
 } from "@codemirror/view";
 import { defineMarkraPlugin } from "./plugin.ts";
 import {
+  createMediaViewerEnlargeIcon,
+  openMediaViewer,
+  type MediaViewerHandle,
+} from "./media-viewer.ts";
+import {
   markraRenderer,
   type MarkraRendererContext,
   type MarkraSyntaxNode,
@@ -34,13 +39,16 @@ interface ImageDetails {
 }
 
 interface ImageWidgetDomState {
+  frame: HTMLSpanElement;
   image: HTMLImageElement;
   imageRecord: ImageWidgetDomRecord;
+  mediaViewer: MediaViewerHandle | null;
   onOutsideMouseDown: (event: MouseEvent) => void;
   onViewKeyDown: (event: KeyboardEvent) => void;
   selected: boolean;
   sourceInput: HTMLInputElement;
   sourceRow: HTMLSpanElement;
+  viewerButton: HTMLButtonElement;
   widget: ImageWidget;
 }
 
@@ -255,7 +263,7 @@ function showImageSource(
   ) {
     state.sourceInput.value = state.widget.details.markdown;
   }
-  if (!sourceVisible) root.insertBefore(state.sourceRow, state.image);
+  if (!sourceVisible) root.insertBefore(state.sourceRow, state.frame);
   state.selected = true;
   root.classList.add("markra-image-node-selected");
   if (!sourceVisible) {
@@ -343,13 +351,16 @@ class ImageWidget extends WidgetType {
 
   toDOM(view: CodeMirrorView) {
     const root = view.dom.ownerDocument.createElement("span");
+    const frame = view.dom.ownerDocument.createElement("span");
     const sourceRow = view.dom.ownerDocument.createElement("span");
     const sourceInput = view.dom.ownerDocument.createElement("input");
+    const viewerButton = view.dom.ownerDocument.createElement("button");
     const imageRecord = claimImageElement(root, this);
     const { image } = imageRecord;
     root.className = "markra-image-node";
     root.contentEditable = "false";
     root.draggable = false;
+    frame.className = "markra-image-frame";
     sourceRow.className = "markra-image-node-source-row";
     sourceRow.contentEditable = "true";
     sourceInput.ariaLabel = "Image markdown source";
@@ -358,15 +369,26 @@ class ImageWidget extends WidgetType {
     sourceInput.spellcheck = false;
     sourceInput.type = "text";
     sourceRow.append(createImageSourceIcon(view.dom.ownerDocument), sourceInput);
+    viewerButton.type = "button";
+    viewerButton.className = "markra-image-viewer-button";
+    viewerButton.ariaLabel = "Enlarge image";
+    viewerButton.title = "Enlarge image";
+    viewerButton.append(createMediaViewerEnlargeIcon(
+      view.dom.ownerDocument,
+      "markra-image-viewer-icon",
+    ));
     image.decoding = "async";
     image.draggable = false;
     image.loading = "lazy";
     updateImageElement(image, this);
-    root.append(image);
+    frame.append(image, viewerButton);
+    root.append(frame);
 
-    const state = {
+    const state: ImageWidgetDomState = {
+      frame,
       image,
       imageRecord,
+      mediaViewer: null,
       onOutsideMouseDown: (event: MouseEvent) => {
         if (event.target instanceof Node && root.contains(event.target)) return;
         const current = imageWidgetDomState.get(root);
@@ -416,8 +438,9 @@ class ImageWidget extends WidgetType {
       selected: false,
       sourceInput,
       sourceRow,
+      viewerButton,
       widget: this,
-    } satisfies ImageWidgetDomState;
+    };
     imageWidgetDomState.set(root, state);
 
     const selectImage = (event: MouseEvent) => {
@@ -432,6 +455,26 @@ class ImageWidget extends WidgetType {
       );
       view.dispatch({ selection: EditorSelection.cursor(anchor) });
       showImageSource(root, state);
+    };
+    const openImageViewer = (event: Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      state.mediaViewer?.close({ restoreFocus: false });
+      state.mediaViewer = openMediaViewer({
+        labels: {
+          close: "Close enlarged image",
+          dialog: "Enlarged image",
+          enterFullscreen: "Enter full screen",
+          exitFullscreen: "Exit full screen",
+          reset: "Reset image view",
+          viewport: "Image viewport",
+          zoomIn: "Zoom in image",
+          zoomOut: "Zoom out image",
+        },
+        media: image,
+        mount: view.dom.closest(".markdown-paper") ?? view.dom.ownerDocument.body,
+        restoreFocus: viewerButton,
+      });
     };
     const keepSourceFocused = (event: MouseEvent) => {
       event.stopPropagation();
@@ -469,6 +512,11 @@ class ImageWidget extends WidgetType {
 
     root.addEventListener("mousedown", selectImage);
     root.addEventListener("click", selectImage);
+    image.addEventListener("dblclick", openImageViewer);
+    viewerButton.addEventListener("mousedown", (event) => {
+      event.stopPropagation();
+    });
+    viewerButton.addEventListener("click", openImageViewer);
     sourceRow.addEventListener("mousedown", keepSourceFocused);
     sourceRow.addEventListener("click", keepSourceFocused);
     sourceInput.addEventListener("input", () => syncImageSource(root, state));
@@ -481,6 +529,10 @@ class ImageWidget extends WidgetType {
   updateDOM(dom: HTMLElement) {
     const state = imageWidgetDomState.get(dom);
     if (!state) return false;
+    if (state.widget.source !== this.source) {
+      state.mediaViewer?.close({ restoreFocus: false });
+      state.mediaViewer = null;
+    }
     state.widget = this;
     state.imageRecord.from = this.from;
     state.imageRecord.key = imageWidgetDomKey(this);
@@ -510,6 +562,7 @@ class ImageWidget extends WidgetType {
       state.onViewKeyDown,
       true,
     );
+    state.mediaViewer?.close({ restoreFocus: false });
     if (state.imageRecord.root === dom) {
       const { view } = state.widget;
       const releaseRecord = () => {

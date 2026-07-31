@@ -14,6 +14,7 @@ const views: EditorView[] = [];
 function createView(
   doc: string,
   plugin: ReturnType<typeof imagePreviewPlugin> | null = imagePreviewPlugin(),
+  readOnly = false,
 ) {
   const parent = document.createElement("div");
   document.body.append(parent);
@@ -21,7 +22,10 @@ function createView(
     parent,
     state: EditorState.create({
       doc,
-      extensions: [liveMarkdown({ plugins: plugin ? [plugin] : [] })],
+      extensions: [
+        EditorState.readOnly.of(readOnly),
+        liveMarkdown({ plugins: plugin ? [plugin] : [] }),
+      ],
       selection: { anchor: doc.length },
     }),
   });
@@ -168,6 +172,141 @@ describe("imagePreviewPlugin", () => {
         ?.value,
     ).toBe("![Synthetic alt](./assets/mock.png)");
     expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("opens an image in the shared media viewer from the enlarge button or a double click", () => {
+    const doc =
+      '![Synthetic detail](https://example.test/detail.png "Detailed preview")\n\nEdit';
+    const view = createView(doc);
+    const image = view.dom.querySelector<HTMLImageElement>(".cm-markra-image");
+    const enlargeButton = view.dom.querySelector<HTMLButtonElement>(
+      ".markra-image-viewer-button",
+    );
+
+    expect(image).not.toBeNull();
+    expect(enlargeButton?.ariaLabel).toBe("Enlarge image");
+    expect(enlargeButton?.querySelector("svg")).not.toBeNull();
+    expect(image?.parentElement).toBe(enlargeButton?.parentElement);
+    expect(image?.parentElement?.classList).toContain("markra-image-frame");
+
+    enlargeButton?.click();
+    let dialog = document.querySelector<HTMLElement>(
+      ".markra-media-viewer-dialog",
+    );
+    let enlargedImage = dialog?.querySelector<HTMLImageElement>(
+      ".markra-media-viewer-image",
+    );
+
+    expect(dialog?.getAttribute("role")).toBe("dialog");
+    expect(dialog?.ariaLabel).toBe("Enlarged image");
+    expect(enlargedImage?.getAttribute("src")).toBe(
+      "https://example.test/detail.png",
+    );
+    expect(enlargedImage?.alt).toBe("Synthetic detail");
+    expect(
+      dialog?.querySelector(".markra-media-viewer-zoom-in-button"),
+    ).not.toBeNull();
+
+    dialog
+      ?.querySelector<HTMLButtonElement>(".markra-media-viewer-close-button")
+      ?.click();
+    expect(document.querySelector(".markra-media-viewer-dialog")).toBeNull();
+
+    image?.dispatchEvent(new MouseEvent("dblclick", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    dialog = document.querySelector<HTMLElement>(
+      ".markra-media-viewer-dialog",
+    );
+    enlargedImage = dialog?.querySelector<HTMLImageElement>(
+      ".markra-media-viewer-image",
+    );
+
+    expect(dialog).not.toBeNull();
+    expect(enlargedImage?.getAttribute("src")).toBe(
+      "https://example.test/detail.png",
+    );
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("opens the viewer in read-only mode without revealing editable source", () => {
+    const doc = "![Synthetic detail](https://example.test/detail.png)";
+    const view = createView(doc, imagePreviewPlugin(), true);
+    const image = view.dom.querySelector<HTMLImageElement>(".cm-markra-image");
+
+    image?.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    expect(view.dom.querySelector(".markra-image-node-source")).toBeNull();
+
+    image?.dispatchEvent(new MouseEvent("dblclick", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    expect(document.querySelector(".markra-media-viewer-dialog")).not.toBeNull();
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("keeps one active viewer and closes it when the shown image changes", () => {
+    const firstSource = "https://example.test/first.png";
+    const secondSource = "https://example.test/second.png";
+    const doc = [
+      `![First synthetic image](${firstSource})`,
+      "",
+      `![Second synthetic image](${secondSource})`,
+    ].join("\n");
+    const view = createView(doc);
+    const images = view.dom.querySelectorAll<HTMLImageElement>(
+      ".cm-markra-image",
+    );
+
+    images[0]?.dispatchEvent(new MouseEvent("dblclick", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    expect(
+      document.querySelector<HTMLImageElement>(".markra-media-viewer-image")
+        ?.getAttribute("src"),
+    ).toBe(firstSource);
+
+    images[1]?.dispatchEvent(new MouseEvent("dblclick", {
+      bubbles: true,
+      cancelable: true,
+    }));
+    expect(document.querySelectorAll(".markra-media-viewer-dialog")).toHaveLength(1);
+    expect(
+      document.querySelector<HTMLImageElement>(".markra-media-viewer-image")
+        ?.getAttribute("src"),
+    ).toBe(secondSource);
+
+    const sourceFrom = view.state.doc.toString().indexOf(secondSource);
+    view.dispatch({
+      changes: {
+        from: sourceFrom,
+        to: sourceFrom + secondSource.length,
+        insert: "https://example.test/updated.png",
+      },
+      userEvent: "input",
+    });
+
+    expect(document.querySelector(".markra-media-viewer-dialog")).toBeNull();
+  });
+
+  it("closes an active viewer when its editor is destroyed", () => {
+    const view = createView(
+      "![Synthetic detail](https://example.test/detail.png)",
+    );
+    view.dom.querySelector<HTMLImageElement>(".cm-markra-image")?.dispatchEvent(
+      new MouseEvent("dblclick", { bubbles: true, cancelable: true }),
+    );
+    expect(document.querySelector(".markra-media-viewer-dialog")).not.toBeNull();
+
+    view.destroy();
+    views.splice(views.indexOf(view), 1);
+
+    expect(document.querySelector(".markra-media-viewer-dialog")).toBeNull();
   });
 
   it("updates and deletes an image through its inline Markdown source", () => {
