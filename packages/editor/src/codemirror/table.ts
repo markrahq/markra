@@ -686,7 +686,12 @@ export function focusVisualTableCell(
       remaining -= textNode.textContent?.length ?? 0;
       textNode = walker.nextNode();
     }
-    if (!textNode) return;
+    // WebKit may place input outside an empty table cell when the range is
+    // anchored on the <th>/<td> itself, so always provide a text caret host.
+    if (!textNode) {
+      textNode = cell.ownerDocument.createTextNode("");
+      cell.append(textNode);
+    }
     const selection = cell.ownerDocument.getSelection();
     if (!selection) return;
     const range = cell.ownerDocument.createRange();

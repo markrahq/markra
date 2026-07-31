@@ -124,7 +124,7 @@ describe("Markra slash menu", () => {
     expect(getMarkraSlashMenuState(execution).open).toBe(false);
   });
 
-  it("opens an inserted table in the visual editor", async () => {
+  it("keeps an inserted table visual while editing its first cell", async () => {
     const parent = document.createElement("div");
     document.body.append(parent);
     const view = new EditorView({
@@ -148,6 +148,22 @@ describe("Markra slash menu", () => {
 
     expect(view.state.doc.toString()).toBe(
       ["|  |  |", "| --- | --- |", "|  |  |"].join("\n"),
+    );
+    expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
+    const firstCell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table thead th:first-child",
+    );
+    expect(document.activeElement).toBe(firstCell);
+    expect(
+      firstCell?.contains(document.getSelection()?.anchorNode ?? null),
+    ).toBe(true);
+
+    if (firstCell) firstCell.textContent = "Name";
+    firstCell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toBe(
+      ["| Name |  |", "| --- | --- |", "|  |  |"].join("\n"),
     );
     expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
     expect(document.activeElement).toBe(

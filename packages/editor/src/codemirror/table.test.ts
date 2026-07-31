@@ -2,7 +2,10 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { liveMarkdown } from "./index.ts";
-import { tablePreviewPlugin } from "./table.ts";
+import {
+  focusVisualTableCell,
+  tablePreviewPlugin,
+} from "./table.ts";
 import "./dom.test-support.ts";
 
 const views: EditorView[] = [];
@@ -89,6 +92,37 @@ describe("tablePreviewPlugin", () => {
     expect(table?.getAttribute("contenteditable")).toBe("true");
     expect(cells).not.toHaveLength(0);
     expect(cells.every((cell) => !cell.hasAttribute("contenteditable"))).toBe(true);
+  });
+
+  it("places the native caret inside an empty visual table cell", async () => {
+    const doc = ["|  |  |", "| --- | --- |", "|  |  |"].join("\n");
+    const view = createView(doc);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table thead th:first-child",
+    );
+    const outside = document.createTextNode("Outside");
+    document.body.append(outside);
+    const nativeFocus = cell?.focus.bind(cell);
+
+    if (cell && nativeFocus) {
+      vi.spyOn(cell, "focus").mockImplementation(() => {
+        nativeFocus();
+        const selection = document.getSelection();
+        const range = document.createRange();
+        range.setStart(outside, 0);
+        range.collapse(true);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      });
+    }
+
+    focusVisualTableCell(view, 0, -1, 0, true, 0);
+    await Promise.resolve();
+
+    expect(document.activeElement).toBe(cell);
+    expect(document.getSelection()?.anchorNode?.nodeType).toBe(Node.TEXT_NODE);
+    expect(document.getSelection()?.anchorNode?.parentNode).toBe(cell);
+    expect(document.getSelection()?.anchorOffset).toBe(0);
   });
 
   it("renders inline Markdown inside visual table cells", () => {
