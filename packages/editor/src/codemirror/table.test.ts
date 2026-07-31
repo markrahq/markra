@@ -886,6 +886,79 @@ describe("tablePreviewPlugin", () => {
     expect(cell?.querySelector("br")).toBeNull();
   });
 
+  it.each([
+    {
+      expectedRow: "| Alpha | Forward |",
+      name: "Tab",
+      sourceSelector: "tbody td:first-child",
+      targetSelector: "tbody td:nth-child(2)",
+      targetValue: "Forward",
+      shiftKey: false,
+    },
+    {
+      expectedRow: "| Backward | 1 |",
+      name: "Shift+Tab",
+      sourceSelector: "tbody td:nth-child(2)",
+      targetSelector: "tbody td:first-child",
+      targetValue: "Backward",
+      shiftKey: true,
+    },
+  ])("moves the caret before typing in the cell reached by $name", async ({
+    expectedRow,
+    sourceSelector,
+    targetSelector,
+    targetValue,
+    shiftKey,
+  }) => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+    const sourceCell =
+      table?.querySelector<HTMLTableCellElement>(sourceSelector);
+    const targetCell =
+      table?.querySelector<HTMLTableCellElement>(targetSelector);
+    const sourceText = sourceCell?.firstChild;
+
+    sourceCell?.focus();
+    if (sourceText) {
+      const selection = document.getSelection();
+      const range = document.createRange();
+      range.setStart(sourceText, sourceText.textContent?.length ?? 0);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    const event = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Tab",
+      shiftKey,
+    });
+    sourceCell?.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(targetCell);
+    expect(
+      targetCell?.contains(document.getSelection()?.anchorNode ?? null),
+    ).toBe(true);
+    if (targetCell) targetCell.textContent = targetValue;
+    targetCell?.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      data: targetValue,
+      inputType: "insertText",
+    }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain(expectedRow);
+    expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
+  });
+
   it("repairs an escaped selection before IME composition", async () => {
     const doc = [
       "| Name | Value |",

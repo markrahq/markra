@@ -647,19 +647,21 @@ function activeVisualTableCell(
   view: CodeMirrorView,
   table: HTMLTableElement,
 ) {
-  const selectionNode = table.ownerDocument.getSelection()?.anchorNode;
-  const selectionElement =
-    selectionNode instanceof Element ? selectionNode : selectionNode?.parentElement;
-  const selectedCell = selectionElement?.closest<HTMLTableCellElement>("th, td");
-  if (selectedCell && table.contains(selectedCell)) return selectedCell;
-
   const activeElement = table.ownerDocument.activeElement;
   if (
     activeElement instanceof HTMLTableCellElement &&
     table.contains(activeElement)
   ) {
+    // Safari can leave its native range in the prior cell after Tab moves
+    // focus, so the focused cell is the authoritative input destination.
     return activeElement;
   }
+
+  const selectionNode = table.ownerDocument.getSelection()?.anchorNode;
+  const selectionElement =
+    selectionNode instanceof Element ? selectionNode : selectionNode?.parentElement;
+  const selectedCell = selectionElement?.closest<HTMLTableCellElement>("th, td");
+  if (selectedCell && table.contains(selectedCell)) return selectedCell;
 
   // WebKit can lift the selection to the row/table after deleting the final
   // character. The editing session still identifies the cell that must sync.
@@ -727,6 +729,24 @@ function repairVisualTableCellSelection(
   if (cell && (!selectionNode || !cell.contains(selectionNode))) {
     placeVisualTableCellCaret(cell, tableCellCaretOffset(cell));
   }
+}
+
+function moveVisualTableCellFocus(
+  view: CodeMirrorView,
+  table: HTMLTableElement,
+  backward: boolean,
+) {
+  const cell = activeVisualTableCell(view, table);
+  if (!cell) return false;
+
+  const cells = Array.from(
+    table.querySelectorAll<HTMLTableCellElement>("th, td"),
+  );
+  const target = cells[cells.indexOf(cell) + (backward ? -1 : 1)];
+  if (!target) return false;
+
+  placeVisualTableCellCaret(target, tableCellCaretOffset(target));
+  return true;
 }
 
 export function focusVisualTableCell(
@@ -1228,6 +1248,21 @@ class TableWidget extends WidgetType {
     table.dataset.tableAlignment = tableAlignment;
     table.dataset.widthMode = widthMode;
     table.classList.toggle("markra-table-width-auto", widthMode === "auto");
+    table.addEventListener("keydown", (event) => {
+      if (
+        event.key !== "Tab" ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        !moveVisualTableCellFocus(view, table, event.shiftKey)
+      ) {
+        return;
+      }
+      // WebKit preserves the old editing position during native Tab focus
+      // navigation, so move the caret before its next insertion begins.
+      event.preventDefault();
+      event.stopPropagation();
+    });
     // Browsers target editing events at the shared contenteditable table host,
     // so cell-level listeners miss real input even though the cell DOM changes.
     table.addEventListener("beforeinput", (event) => {
