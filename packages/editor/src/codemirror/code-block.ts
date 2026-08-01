@@ -292,12 +292,14 @@ function codeBlockTopGapDecorations(state: EditorState) {
       const firstLine = state.doc.lineAt(node.from);
       const lastLine = state.doc.lineAt(node.to);
       if (firstLine.number === lastLine.number) return;
+      // Fenced code may be indented by up to three spaces. Block widgets
+      // anchored after that indentation split the folded header in WebKit.
       gaps.push(
         Decoration.widget({
           block: true,
           side: -100,
           widget: new CodeBlockTopGapWidget(),
-        }).range(node.from),
+        }).range(firstLine.from),
       );
     },
   });
@@ -997,7 +999,7 @@ export function codeBlockPreviewPlugin(
                   languages,
                   parts.openingMarkTo,
                 ),
-              }).range(node.from, firstLine.to),
+              }).range(firstLine.from, firstLine.to),
             );
           }
           if (

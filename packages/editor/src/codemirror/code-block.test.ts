@@ -106,6 +106,21 @@ describe("codeBlockPreviewPlugin", () => {
     expect(view.state.doc.toString()).toBe(source);
   });
 
+  it("keeps indented fence chrome on the folded opening line", () => {
+    const source = [
+      "  ```",
+      "  https://example.test/folder/database.kdbx",
+      "  ```",
+    ].join("\n");
+    const view = createView(source);
+    const headerLine = view.dom.querySelector(".cm-markra-code-header-line");
+    const language = view.dom.querySelector(".markra-code-language-select");
+
+    expect(language?.closest(".cm-markra-code-header-line")).toBe(headerLine);
+    expect(headerLine?.textContent).not.toContain("  ");
+    expect(view.state.doc.toString()).toBe(source);
+  });
+
   it("keeps a lone unfinished opening fence editable until Enter", () => {
     const source = "```";
     const view = createView(source);
