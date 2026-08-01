@@ -63,7 +63,13 @@ macOS 用户也可以通过 Homebrew 安装：
 brew install --cask markrahq/tap/markra
 ```
 
-从 [GitHub Releases](https://github.com/markrahq/markra/releases/latest) 下载最新桌面版：macOS Apple Silicon/Intel、Windows 安装包/便携包和 Linux AppImage。
+从 [GitHub Releases](https://github.com/markrahq/markra/releases/latest) 下载最新桌面版：macOS Apple Silicon/Intel、Windows 安装包/便携包，以及 Linux AppImage、DEB、RPM 和 Arch Linux 安装包。
+
+在 Arch Linux 上，下载 x64 安装包后运行：
+
+```sh
+sudo pacman -U ./Markra_<版本号>_linux_x64.pkg.tar.zst
+```
 
 ## 演示
 

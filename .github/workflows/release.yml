@@ -421,6 +421,7 @@ jobs:
               ".dmg",
               ".exe",
               ".msi",
+              ".pkg.tar.zst",
               ".rpm",
               ".sig",
               ".tar.gz",
@@ -561,6 +562,37 @@ jobs:
         with:
           pattern: ${{ env.APP_SLUG }}-*-bundles
           path: release-assets
+
+      - name: Prepare Arch Linux package
+        env:
+          ARCH_PACKAGE_DIR: generated/arch
+          RELEASE_ASSETS_ROOT: release-assets
+          RELEASE_VERSION: ${{ env.RELEASE_TAG }}
+        run: node .release-scripts/scripts/release/prepare-arch-package.mjs
+
+      - name: Build Arch Linux package
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          docker run --rm \
+            --platform linux/amd64 \
+            --user "$(id -u):$(id -g)" \
+            --env HOME=/tmp \
+            --volume "${PWD}/generated/arch:/pkg" \
+            --workdir /pkg \
+            archlinux:base-devel \
+            makepkg --noconfirm --nodeps
+
+          package_path="$(find generated/arch -maxdepth 1 -type f -name 'markra-*.pkg.tar.zst' -print -quit)"
+
+          if [[ -z "${package_path}" ]]; then
+            echo "Arch Linux package was not created." >&2
+            exit 1
+          fi
+
+          version="${RELEASE_TAG#v}"
+          cp "${package_path}" "release-assets/Markra_${version}_linux_x64.pkg.tar.zst"
 
       - name: Generate updater manifest
         env:

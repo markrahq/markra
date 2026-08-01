@@ -63,7 +63,13 @@ On macOS, install with Homebrew:
 brew install --cask markrahq/tap/markra
 ```
 
-Download the latest desktop builds from [GitHub Releases](https://github.com/markrahq/markra/releases/latest): macOS Apple Silicon/Intel, Windows installer/portable, and Linux AppImage.
+Download the latest desktop builds from [GitHub Releases](https://github.com/markrahq/markra/releases/latest): macOS Apple Silicon/Intel, Windows installer/portable, and Linux AppImage/DEB/RPM/Arch Linux packages.
+
+On Arch Linux, download the x64 package from the release and install it with:
+
+```sh
+sudo pacman -U ./Markra_<version>_linux_x64.pkg.tar.zst
+```
 
 ## Demo
 

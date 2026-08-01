@@ -31,3 +31,14 @@ test("release workflow excludes deb package internals from GitHub release assets
   assert.match(workflow, /! -name 'control\.tar\.gz'/);
   assert.match(workflow, /! -name 'data\.tar\.gz'/);
 });
+
+test("release workflow builds and publishes an Arch Linux package from the x64 deb", () => {
+  const workflow = fs.readFileSync(workflowPath, "utf8");
+
+  assert.match(workflow, /name: Prepare Arch Linux package/);
+  assert.match(workflow, /prepare-arch-package\.mjs/);
+  assert.match(workflow, /archlinux:base-devel/);
+  assert.match(workflow, /makepkg --noconfirm --nodeps/);
+  assert.match(workflow, /Markra_\$\{version\}_linux_x64\.pkg\.tar\.zst/);
+  assert.match(workflow, /"\.pkg\.tar\.zst"/);
+});
