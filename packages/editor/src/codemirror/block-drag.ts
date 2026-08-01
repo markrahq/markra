@@ -157,6 +157,14 @@ function listMarkerMatch(state: CodeMirrorState, block: CodeMirrorBlockRange) {
   );
 }
 
+function markdownColumnWidth(value: string) {
+  let column = 0;
+  for (const character of value) {
+    column += character === "\t" ? 4 - column % 4 : 1;
+  }
+  return column;
+}
+
 function findLastListBlockAtDepth(
   blocks: readonly CodeMirrorBlockRange[],
   depth: number,
@@ -211,7 +219,9 @@ function normalizedListDrop(
       depth,
       // Ordered markers need wider child indentation than `- `, so align to
       // the parent's actual content column instead of assuming two spaces.
-      indentation: " ".repeat(parentMarker[0].length),
+      // Markdown expands tabs to four-column stops, so string length would
+      // under-indent pasted tab-indented lists and break their parsed depth.
+      indentation: " ".repeat(markdownColumnWidth(parentMarker[0])),
     };
   }
 
@@ -258,15 +268,19 @@ export function moveCodeMirrorBlock(
     : null;
   let sourceMarkdown = document.slice(source.from, source.to);
   if (source.name === "ListItem" && drop) {
-    const sourceIndentation = /^\s*/u.exec(sourceMarkdown)?.[0].length ?? 0;
-    const indentationDelta = drop.indentation.length - sourceIndentation;
+    const sourceIndentation = /^[\t ]*/u.exec(sourceMarkdown)?.[0] ?? "";
+    const indentationDelta = markdownColumnWidth(drop.indentation) -
+      markdownColumnWidth(sourceIndentation);
     if (indentationDelta !== 0) {
       sourceMarkdown = sourceMarkdown
         .split("\n")
         .map((line) => {
-          const indentation = /^\s*/u.exec(line)?.[0].length ?? 0;
-          const nextIndentation = Math.max(0, indentation + indentationDelta);
-          return `${" ".repeat(nextIndentation)}${line.slice(indentation)}`;
+          const indentation = /^[\t ]*/u.exec(line)?.[0] ?? "";
+          const nextIndentation = Math.max(
+            0,
+            markdownColumnWidth(indentation) + indentationDelta,
+          );
+          return `${" ".repeat(nextIndentation)}${line.slice(indentation.length)}`;
         })
         .join("\n");
     }

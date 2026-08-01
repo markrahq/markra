@@ -855,6 +855,41 @@ describe("liveMarkdown", () => {
     expect(lines[1]?.textContent).toBe("Second item");
   });
 
+  it("marks hidden list markers whose source is included in a range selection", () => {
+    const doc = "- First item\n- Second item\n\nTail";
+    const view = createView({
+      doc,
+      selection: EditorSelection.range(0, doc.length),
+    });
+    const listLines = () => [
+      ...view.dom.querySelectorAll<HTMLElement>(".cm-markra-list-item"),
+    ];
+
+    expect(
+      listLines().map((line) =>
+        line.getAttribute("data-markra-list-marker-selected")
+      ),
+    ).toEqual(["true", "true"]);
+
+    view.dispatch({
+      selection: EditorSelection.range(doc.indexOf("First"), doc.length),
+    });
+
+    expect(
+      listLines().map((line) =>
+        line.getAttribute("data-markra-list-marker-selected")
+      ),
+    ).toEqual([null, "true"]);
+
+    view.dispatch({ selection: EditorSelection.cursor(doc.length) });
+
+    expect(
+      listLines().map((line) =>
+        line.getAttribute("data-markra-list-marker-selected")
+      ),
+    ).toEqual([null, null]);
+  });
+
   it("preserves visual list depth without leaving source indentation in preview text", () => {
     const doc = [
       "- First bullet",

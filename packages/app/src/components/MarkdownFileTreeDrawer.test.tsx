@@ -1263,8 +1263,8 @@ describe("MarkdownFileTreeDrawer", () => {
     const toolbar = container.querySelector(".markdown-file-tree-toolbar") as HTMLElement;
     const root = container.querySelector(".markdown-file-tree-root") as HTMLElement;
 
-    expect(toolbar).toHaveClass("h-8", "justify-start", "pl-2.5", "pr-4");
-    expect(toolbar).not.toHaveClass("px-4");
+    expect(toolbar).toHaveClass("h-8", "justify-start", "gap-0", "px-2");
+    expect(toolbar).not.toHaveClass("gap-1", "pl-2.5", "pr-4");
     expect(toolbar).not.toHaveClass("absolute", "top-0");
     expect(root).toHaveClass("h-8", "pl-4", "pr-2");
     expect(root).not.toHaveClass("px-4");

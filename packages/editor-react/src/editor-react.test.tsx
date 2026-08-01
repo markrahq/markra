@@ -176,9 +176,9 @@ describe("@markra/editor-react", () => {
     const host = render(view, <SlashProbe />);
 
     expect(host.querySelector("section")?.getAttribute("data-open")).toBe("true");
-    expect(host.querySelectorAll("button")).toHaveLength(13);
+    expect(host.querySelectorAll("button")).toHaveLength(14);
     expect([...host.querySelectorAll("button")].map((button) => button.textContent)).toEqual(
-      expect.arrayContaining(["Callout", "Table"]),
+      expect.arrayContaining(["Task list", "Callout", "Table"]),
     );
 
     act(() => {

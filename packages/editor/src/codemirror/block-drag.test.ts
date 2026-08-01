@@ -196,6 +196,51 @@ describe("codeMirrorBlockDragPlugin", () => {
     expect(movedLine?.getAttribute("data-markra-list-source")).toBe("hidden");
   });
 
+  it("preserves tab-expanded columns when nesting a second-level item deeper", () => {
+    const view = createView([
+      "- Parent",
+      "\t- First child",
+      "\t- Second child",
+      "\t\t- Grandchild",
+      "- Tail",
+    ].join("\n"));
+    const blocks = readCodeMirrorBlockRanges(view.state);
+    const firstChild = blocks.find((block) =>
+      view.state.sliceDoc(block.from, block.to).startsWith("\t- First child")
+    );
+    const secondChild = blocks.find((block) =>
+      view.state.sliceDoc(block.from, block.to).startsWith("\t- Second child")
+    );
+
+    expect(firstChild?.depth).toBe(1);
+    expect(secondChild?.depth).toBe(1);
+    expect(
+      secondChild && firstChild && moveCodeMirrorBlock(
+        view,
+        secondChild.from,
+        firstChild.from,
+        "after",
+        2,
+      ),
+    ).toBe(true);
+    expect(view.state.doc.toString()).toBe([
+      "- Parent",
+      "\t- First child",
+      "      - Second child",
+      "          - Grandchild",
+      "- Tail",
+    ].join("\n"));
+    const movedBlocks = readCodeMirrorBlockRanges(view.state);
+    const moved = movedBlocks.find((block) =>
+      view.state.doc.lineAt(block.from).text.includes("Second child")
+    );
+    const grandchild = movedBlocks.find((block) =>
+      view.state.doc.lineAt(block.from).text.includes("Grandchild")
+    );
+    expect(moved?.depth).toBe(2);
+    expect(grandchild?.depth).toBe(3);
+  });
+
   it("turns a paragraph dropped as a child into a nested list item", () => {
     const view = createView("- Parent\n\nChild paragraph\n\nAfter");
     const [parent, child] = readCodeMirrorBlockRanges(view.state);
@@ -335,6 +380,62 @@ describe("codeMirrorBlockDragPlugin", () => {
     );
     expect(view.dom.querySelector(".markra-block-drag-source")).toBeNull();
     expect(view.dom.querySelector(".markra-block-drop-indicator")).toBeNull();
+  });
+
+  it("nests a second-level item as a third-level item through pointer dragging", () => {
+    const view = createView([
+      "- Parent",
+      "  - First child",
+      "  - Second child",
+      "- Tail",
+    ].join("\n"));
+    const blocks = readCodeMirrorBlockRanges(view.state);
+    const firstChild = blocks.find((block) =>
+      view.state.sliceDoc(block.from, block.to).startsWith("  - First child")
+    );
+    const secondChild = blocks.find((block) =>
+      view.state.sliceDoc(block.from, block.to).startsWith("  - Second child")
+    );
+    const handle = view.dom.querySelector<HTMLElement>(
+      `[data-block-from="${secondChild?.from}"] .markra-block-drag-handle`,
+    );
+    const target = view.dom.querySelector<HTMLElement>(
+      `.cm-line[data-markra-block-from="${firstChild?.from}"]`,
+    );
+
+    handle?.dispatchEvent(new PointerEvent("pointerdown", {
+      bubbles: true,
+      button: 0,
+      buttons: 1,
+      clientX: 44,
+      clientY: 10,
+      pointerId: 2,
+    }));
+    target?.dispatchEvent(new PointerEvent("pointermove", {
+      bubbles: true,
+      buttons: 1,
+      clientX: 66,
+      clientY: 40,
+      pointerId: 2,
+    }));
+    target?.dispatchEvent(new PointerEvent("pointerup", {
+      bubbles: true,
+      button: 0,
+      clientX: 66,
+      clientY: 40,
+      pointerId: 2,
+    }));
+
+    expect(view.state.doc.toString()).toBe([
+      "- Parent",
+      "  - First child",
+      "    - Second child",
+      "- Tail",
+    ].join("\n"));
+    const moved = readCodeMirrorBlockRanges(view.state).find((block) =>
+      view.state.sliceDoc(block.from, block.to).startsWith("    - Second child")
+    );
+    expect(moved?.depth).toBe(2);
   });
 
   it("adds an editable blank block below and opens the virtual slash menu", () => {
