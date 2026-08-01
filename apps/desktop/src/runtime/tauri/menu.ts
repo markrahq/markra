@@ -226,7 +226,8 @@ export async function installNativeEditorContextMenu(
         handlers,
         language,
         withNativeClipboardText(options),
-        desktopContextMenuIdPrefixes
+        desktopContextMenuIdPrefixes,
+        element
       ),
       position: contextMenuPositionFromEvent(mouseEvent)
     });

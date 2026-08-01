@@ -415,6 +415,45 @@ describe("native menu", () => {
     expect(execCommand).toHaveBeenNthCalledWith(1, "insertText", false, "native clipboard text");
   });
 
+  it("pastes into the editor that opened the native context menu", async () => {
+    const target = document.createElement("main");
+    const mainPaper = document.createElement("article");
+    const sidePaper = document.createElement("article");
+    const mainContent = document.createElement("div");
+    const sideContent = document.createElement("div");
+    const mainPaste = vi.fn();
+    const sidePaste = vi.fn((event: Event) => event.preventDefault());
+    const execCommand = vi.fn().mockReturnValue(false);
+    mainPaper.className = "markdown-paper";
+    sidePaper.className = "markdown-paper";
+    mainContent.className = "cm-content";
+    sideContent.className = "cm-content";
+    mainPaper.append(mainContent);
+    sidePaper.append(sideContent);
+    target.append(mainPaper, sidePaper);
+    document.body.append(target);
+    mainContent.addEventListener("paste", mainPaste);
+    sideContent.addEventListener("paste", sidePaste);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand
+    });
+    mockedInvoke.mockImplementation(async (command) => {
+      if (command === "read_clipboard_text") return "side clipboard text";
+
+      return undefined;
+    });
+
+    await installNativeEditorContextMenu(target, {}, "en");
+
+    sideContent.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    domMenuItemById("markra:context:paste").click();
+    await vi.waitFor(() => expect(sidePaste).toHaveBeenCalledTimes(1));
+
+    expect(mainPaste).not.toHaveBeenCalled();
+    expect(execCommand).not.toHaveBeenCalled();
+  });
+
   it("passes customized app shortcuts to the native application menu", async () => {
     await installNativeApplicationMenu({}, "en", {
       openQuickOpen: "Alt+1",

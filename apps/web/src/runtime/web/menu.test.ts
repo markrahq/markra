@@ -217,6 +217,49 @@ describe("web editor context menu", () => {
     expect(getMenu()).toBeNull();
   });
 
+  it("pastes into the editor that opened the web context menu", async () => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB
+    });
+    const execCommand = vi.fn().mockReturnValue(false);
+    const mainPaste = vi.fn();
+    const sidePaste = vi.fn((event: Event) => event.preventDefault());
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText: vi.fn().mockResolvedValue("side clipboard text")
+      }
+    });
+    document.body.innerHTML = `
+      <main>
+        <article class="markdown-paper"><div class="cm-content" data-editor="main"></div></article>
+        <article class="markdown-paper"><div class="cm-content" data-editor="side"></div></article>
+      </main>
+    `;
+    const mainContent = document.querySelector<HTMLElement>("[data-editor='main']");
+    const sideContent = document.querySelector<HTMLElement>("[data-editor='side']");
+    if (!mainContent || !sideContent) throw new Error("Editor content was not rendered");
+    mainContent.addEventListener("paste", mainPaste);
+    sideContent.addEventListener("paste", sidePaste);
+
+    await runtime.menu.installEditorContextMenu(document, {}, "en");
+
+    sideContent.dispatchEvent(new MouseEvent("contextmenu", {
+      bubbles: true,
+      cancelable: true
+    }));
+    getMenuItem("Paste").click();
+    await vi.waitFor(() => expect(sidePaste).toHaveBeenCalledTimes(1));
+
+    expect(mainPaste).not.toHaveBeenCalled();
+    expect(execCommand).toHaveBeenCalledTimes(1);
+    expect(execCommand).toHaveBeenCalledWith("paste");
+  });
+
   it("shows file tree context actions in the browser", async () => {
     const runtime = createWebRuntime({
       indexedDB: new FakeIndexedDbFactory().indexedDB

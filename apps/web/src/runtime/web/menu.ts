@@ -52,7 +52,8 @@ export function createWebMenuRuntime(
             handlers,
             language,
             menuOptions,
-            webContextMenuIdPrefixes
+            webContextMenuIdPrefixes,
+            element
           ),
           position: contextMenuPositionFromEvent(mouseEvent)
         });

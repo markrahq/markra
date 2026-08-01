@@ -1,8 +1,35 @@
+import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import { history, undo } from "@codemirror/commands";
+import { liveMarkdown } from "@markra/editor/codemirror";
 import {
   createEditorContextMenuEntries,
+  createEditorContextMenuEntriesFromOptions,
   createMarkdownFileTreeContextMenuEntries
 } from "./context-menu-items";
 import type { ContextMenuEntry, ContextMenuItem } from "../components/ContextMenu";
+
+const editorViews: EditorView[] = [];
+
+function createEditor(
+  doc: string,
+  selection: EditorSelection | { anchor: number; head?: number },
+  extensions: Extension[] = []
+) {
+  const paper = document.createElement("article");
+  paper.className = "markdown-paper";
+  document.body.append(paper);
+  const view = new EditorView({
+    parent: paper,
+    state: EditorState.create({
+      doc,
+      extensions,
+      selection
+    })
+  });
+  editorViews.push(view);
+  return { paper, view };
+}
 
 function menuItemById(entries: ContextMenuEntry[], id: string): ContextMenuItem {
   const item = entries.find((entry) => entry.kind === "item" && entry.id === id);
@@ -11,9 +38,81 @@ function menuItemById(entries: ContextMenuEntry[], id: string): ContextMenuItem 
   return item;
 }
 
+function clipboardPasteItem(target: Element, text: string) {
+  return menuItemById(
+    createEditorContextMenuEntriesFromOptions(
+      {},
+      "en",
+      { readClipboardText: () => text },
+      {},
+      target
+    ),
+    "markra:context:paste"
+  );
+}
+
 describe("editor context menu entries", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    for (const view of editorViews.splice(0)) view.destroy();
+    document.body.replaceChildren();
+  });
+
+  it("pastes through the originating editor with CodeMirror clipboard semantics", async () => {
+    const main = createEditor("Main", EditorSelection.cursor(4));
+    const side = createEditor(
+      "one\ntwo",
+      EditorSelection.create([
+        EditorSelection.cursor(0),
+        EditorSelection.cursor(4)
+      ]),
+      [
+        EditorState.allowMultipleSelections.of(true),
+        EditorView.clipboardInputFilter.of((text) => text.toUpperCase())
+      ]
+    );
+
+    await Promise.resolve(clipboardPasteItem(side.paper, "alpha\nbeta").onSelect?.());
+    expect(main.view.state.doc.toString()).toBe("Main");
+    expect(side.view.state.doc.toString()).toBe("ALPHAone\nBETAtwo");
+  });
+
+  it("keeps pasted text inside an empty live-preview list item", async () => {
+    const doc = "- Alpha\n- ";
+    const editor = createEditor(
+      doc,
+      EditorSelection.cursor(doc.length),
+      [history(), liveMarkdown()]
+    );
+
+    await Promise.resolve(clipboardPasteItem(editor.paper, "Pasted item").onSelect?.());
+    expect(editor.view.state.doc.toString()).toBe("- Alpha\n- Pasted item");
+    expect(editor.view.state.selection.main.head).toBe("- Alpha\n- Pasted item".length);
+    expect(undo(editor.view)).toBe(true);
+    expect(editor.view.state.doc.toString()).toBe(doc);
+  });
+
+  it("does not change a read-only editor", async () => {
+    const doc = "Read only";
+    const editor = createEditor(
+      doc,
+      EditorSelection.cursor(doc.length),
+      [EditorState.readOnly.of(true)]
+    );
+
+    await Promise.resolve(clipboardPasteItem(editor.paper, " blocked").onSelect?.());
+    expect(editor.view.state.doc.toString()).toBe(doc);
+  });
+
+  it("does not retarget paste after the originating editor is removed", async () => {
+    const main = createEditor("Main", EditorSelection.cursor(4));
+    const side = createEditor("Side", EditorSelection.cursor(4));
+    const paste = clipboardPasteItem(side.paper, " clipboard text");
+    side.paper.remove();
+
+    await Promise.resolve(paste.onSelect?.());
+    expect(main.view.state.doc.toString()).toBe("Main");
+    expect(side.view.state.doc.toString()).toBe("Side");
   });
 
   it("offers local image and file import as separate editor commands", () => {
@@ -117,6 +216,38 @@ describe("editor context menu entries", () => {
     expect(readText).not.toHaveBeenCalled();
     expect(execCommand).toHaveBeenCalledTimes(1);
     expect(execCommand).toHaveBeenNthCalledWith(1, "insertText", false, "platform clipboard text");
+  });
+
+  it("inserts injected clipboard text through the editor before DOM commands", async () => {
+    const execCommand = vi.fn().mockReturnValue(true);
+    const readText = vi.fn().mockResolvedValue("browser clipboard text");
+    const readClipboardText = vi.fn().mockResolvedValue("platform clipboard text");
+    const insertClipboardText = vi.fn().mockReturnValue(true);
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: execCommand
+    });
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText
+      }
+    });
+
+    const paste = menuItemById(
+      createEditorContextMenuEntries({}, "en", {
+        insertClipboardText,
+        readClipboardText
+      }),
+      "markra:context:paste"
+    );
+
+    await Promise.resolve(paste.onSelect?.());
+
+    expect(readClipboardText).toHaveBeenCalledTimes(1);
+    expect(insertClipboardText).toHaveBeenCalledWith("platform clipboard text");
+    expect(readText).not.toHaveBeenCalled();
+    expect(execCommand).not.toHaveBeenCalled();
   });
 
   it("falls back to the browser paste command when injected clipboard text is unavailable", async () => {
