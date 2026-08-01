@@ -258,6 +258,23 @@ const codeBlockTheme = EditorView.baseTheme({
     position: "relative",
     textAlign: "center",
   },
+  // This widget is emitted through a view plugin, so CodeMirror requires an
+  // inline replacement. An inline-block avoids the empty line boxes produced
+  // by placing a block element between CodeMirror's inline widget buffers.
+  ".markra-code-block[data-mermaid-mode='preview']": {
+    boxSizing: "border-box",
+    display: "inline-block",
+    margin: "0",
+    maxWidth: "100%",
+    verticalAlign: "top",
+    width: "100%",
+  },
+  ".markra-code-block[data-mermaid-mode='preview'] .markra-mermaid-render": {
+    background: "transparent",
+    border: "0",
+    margin: "0",
+    padding: "0",
+  },
   ".markra-mermaid-render svg": {
     height: "auto",
     maxWidth: "100%",
