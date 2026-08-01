@@ -1062,7 +1062,7 @@ describe("tablePreviewPlugin", () => {
     expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
   });
 
-  it("keeps line breaks out of visual table cells", () => {
+  it("uses Enter to finish editing a visual table cell", () => {
     const doc = [
       "| Name | Value |",
       "| --- | --- |",
@@ -1084,6 +1084,87 @@ describe("tablePreviewPlugin", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
+  });
+
+  it("inserts an HTML line break with Shift+Enter in a visual table cell", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td",
+    );
+    const text = cell?.firstChild;
+
+    cell?.focus();
+    if (text) {
+      const selection = document.getSelection();
+      const range = document.createRange();
+      range.setStart(text, 2);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    const event = new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Enter",
+      shiftKey: true,
+    });
+    cell?.dispatchEvent(event);
+    await Promise.resolve();
+
+    const updatedCell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td",
+    );
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toContain("| Al<br>pha | 1 |");
+    const lineBreak = updatedCell?.querySelector("br");
+    expect(lineBreak).not.toBeNull();
+    expect(document.activeElement).toBe(updatedCell);
+    expect(document.getSelection()?.anchorNode?.parentNode).toBe(
+      lineBreak?.nextSibling,
+    );
+    expect(document.getSelection()?.anchorOffset).toBe(1);
+
+    const caretText = document.getSelection()?.anchorNode;
+    if (caretText) caretText.textContent = "\u200bNext";
+    updatedCell?.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      data: "Next",
+      inputType: "insertText",
+    }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain("| Al<br>Nextpha | 1 |");
+    expect(view.state.doc.toString()).not.toContain("\u200b");
+  });
+
+  it("does not mistake a persisted line break for an empty-cell placeholder", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| <br> | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td",
+    );
+
+    expect(
+      cell?.querySelector('br[data-markra-source-break="true"]'),
+    ).not.toBeNull();
+    cell?.focus();
+    cell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toBe(doc);
   });
 
   it("adds rows and columns and keeps editing in the new visual cells", async () => {

@@ -58,6 +58,16 @@ interface TableCellPreview {
   readonly to: number;
 }
 
+const TABLE_CARET_PLACEHOLDER = "\u200b";
+
+function createVisualTableCaretHost(ownerDocument: Document) {
+  const host = ownerDocument.createElement("span");
+  host.dataset.markraTableCaretHost = "true";
+  const text = ownerDocument.createTextNode(TABLE_CARET_PLACEHOLDER);
+  host.append(text);
+  return { host, text };
+}
+
 interface TablePreview {
   readonly alignments: readonly CodeMirrorTableAlignment[];
   readonly from: number;
@@ -587,13 +597,15 @@ function applyWidthModeToTableControls(
 function visualTableCellHasPlaceholderBreak(cell: HTMLTableCellElement) {
   return (
     cell.childNodes.length === 1 &&
-    cell.firstElementChild?.tagName === "BR"
+    cell.firstElementChild?.tagName === "BR" &&
+    cell.firstElementChild.getAttribute("data-markra-source-break") !== "true"
   );
 }
 
 function visualTableCellSource(cell: HTMLTableCellElement) {
   // Browsers keep a lone <br> as the caret placeholder after the last
-  // character is deleted; visual table cells do not allow real line breaks.
+  // character is deleted. Persisted line breaks are tagged during rendering,
+  // so only the browser-owned placeholder represents an empty cell.
   if (visualTableCellHasPlaceholderBreak(cell)) return "";
   return serializeInlineMarkdown(cell);
 }
@@ -640,7 +652,7 @@ function tableCellCaretOffset(cell: HTMLTableCellElement) {
   const range = cell.ownerDocument.createRange();
   range.selectNodeContents(cell);
   range.setEnd(anchorNode, selection.anchorOffset);
-  return range.toString().length;
+  return range.toString().replaceAll(TABLE_CARET_PLACEHOLDER, "").length;
 }
 
 function activeVisualTableCell(
@@ -756,6 +768,7 @@ export function focusVisualTableCell(
   columnIndex: number,
   header: boolean,
   caretOffset: number,
+  lineBreakIndex?: number,
 ) {
   queueMicrotask(() => {
     if (!view.dom.isConnected) return;
@@ -766,8 +779,80 @@ export function focusVisualTableCell(
     );
     if (!cell) return;
 
-    placeVisualTableCellCaret(cell, caretOffset);
+    const lineBreak = lineBreakIndex === undefined
+      ? undefined
+      : cell.querySelectorAll<HTMLBRElement>(
+          'br[data-markra-source-break="true"]',
+        )[lineBreakIndex];
+    if (!lineBreak) {
+      placeVisualTableCellCaret(cell, caretOffset);
+      return;
+    }
+
+    cell.focus();
+    const caretHost = createVisualTableCaretHost(cell.ownerDocument);
+    lineBreak.after(caretHost.host);
+    const selection = cell.ownerDocument.getSelection();
+    if (!selection) return;
+    const range = cell.ownerDocument.createRange();
+    range.setStart(caretHost.text, TABLE_CARET_PLACEHOLDER.length);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
   });
+}
+
+function insertVisualTableCellLineBreak(
+  view: CodeMirrorView,
+  preview: TablePreview,
+  cell: HTMLTableCellElement,
+  rowIndex: number,
+  columnIndex: number,
+  header: boolean,
+) {
+  const selection = cell.ownerDocument.getSelection();
+  let range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  if (!range || !cell.contains(range.commonAncestorContainer)) {
+    placeVisualTableCellCaret(cell, tableCellCaretOffset(cell));
+    range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  }
+  if (!selection || !range) return;
+
+  range.deleteContents();
+  const lineBreak = cell.ownerDocument.createElement("br");
+  lineBreak.dataset.markraSourceBreak = "true";
+  range.insertNode(lineBreak);
+  const caretHost = createVisualTableCaretHost(cell.ownerDocument);
+  lineBreak.after(caretHost.host);
+  range.setStart(caretHost.text, TABLE_CARET_PLACEHOLDER.length);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+
+  const lineBreakIndex = Array.from(
+    cell.querySelectorAll<HTMLBRElement>(
+      'br[data-markra-source-break="true"]',
+    ),
+  ).indexOf(lineBreak);
+  const changed = replaceVisualTableCell(
+    view,
+    preview,
+    rowIndex,
+    columnIndex,
+    header,
+    visualTableCellSource(cell),
+  );
+  if (changed) {
+    focusVisualTableCell(
+      view,
+      preview.from,
+      rowIndex,
+      columnIndex,
+      header,
+      0,
+      lineBreakIndex,
+    );
+  }
 }
 
 function syncVisualTableCell(
@@ -981,6 +1066,19 @@ function appendCell(
     }, 0);
   });
   cell.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && event.shiftKey) {
+      event.preventDefault();
+      event.stopPropagation();
+      insertVisualTableCellLineBreak(
+        view,
+        preview,
+        cell,
+        rowIndex,
+        columnIndex,
+        header,
+      );
+      return;
+    }
     if (event.key === "Enter") {
       event.preventDefault();
       event.stopPropagation();

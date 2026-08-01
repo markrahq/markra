@@ -11,6 +11,7 @@ const inlineParser = parser.configure([GFM, markraHighlight]);
 type InlineNode = ReturnType<typeof inlineParser.parse>["topNode"];
 
 const markdownEscape = /\\([\\`*{}\[\]()#+\-.!_|>~])/gu;
+const htmlLineBreak = /^<br\s*\/?>$/iu;
 const markerNodes = new Set([
   "CodeMark",
   "EmphasisMark",
@@ -317,7 +318,21 @@ function renderNode(
       renderAutolink(parent, ownerDocument, source, node, options);
       return;
     case "HardBreak":
-      parent.appendChild(ownerDocument.createElement("br"));
+      {
+        const lineBreak = ownerDocument.createElement("br");
+        lineBreak.dataset.markraSourceBreak = "true";
+        parent.appendChild(lineBreak);
+      }
+      return;
+    case "HTMLBlock":
+    case "HTMLTag":
+      if (htmlLineBreak.test(source.slice(from, to))) {
+        const lineBreak = ownerDocument.createElement("br");
+        lineBreak.dataset.markraSourceBreak = "true";
+        parent.appendChild(lineBreak);
+      } else {
+        appendText(parent, source, from, to);
+      }
       return;
     case "Escape":
       {
@@ -404,6 +419,9 @@ function serializeNode(node: Node): string {
       return node.dataset.markraImageMarkdown ??
         `![${node.getAttribute("alt") ?? ""}](${node.getAttribute("src") ?? ""})`;
     case "SPAN":
+      if (node.dataset.markraTableCaretHost === "true") {
+        return content.replace(/^\u200b/u, "");
+      }
       if (
         node.dataset.markraEscapeMarkdown &&
         node.textContent === node.dataset.markraEscapeText
