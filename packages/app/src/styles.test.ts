@@ -364,6 +364,24 @@ describe("editor stylesheet", () => {
     expect(styles).not.toContain(emptyLineBreakRule);
   });
 
+  it("keeps empty lines full-height and applies spacing after paragraphs", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    expect(styles).not.toContain(
+      ".markdown-paper .cm-line.cm-markra-empty-line {",
+    );
+    expect(styles).toContain(
+      ".markdown-paper .cm-line.cm-markra-paragraph-end {",
+    );
+    expect(styles).toContain(
+      "padding-block-end: var(--editor-paragraph-spacing) !important;",
+    );
+    expect(styles).not.toContain("cm-markra-paragraph-separator");
+    expect(styles).not.toContain(
+      '.cm-markra-empty-line[data-markra-empty-source="hidden"] {',
+    );
+  });
+
   it("keeps CodeMirror block rhythm aligned with the original visual editor", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 

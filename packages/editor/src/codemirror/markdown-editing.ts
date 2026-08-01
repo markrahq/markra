@@ -5,6 +5,7 @@ import {
   Prec,
   type ChangeSpec,
   type SelectionRange,
+  type Transaction,
 } from "@codemirror/state";
 import { keymap, type EditorView } from "@codemirror/view";
 import { defineMarkraPlugin } from "./plugin.ts";
@@ -92,6 +93,57 @@ function handleShiftTab(view: EditorView) {
   return indentList(view, true);
 }
 
+function keepJoinedLineCaretsAfterText(transaction: Transaction) {
+  if (!transaction.docChanged || !transaction.isUserEvent("delete.backward")) {
+    return transaction;
+  }
+
+  const affectedPositions = new Set<number>();
+  for (const range of transaction.startState.selection.ranges) {
+    if (!range.empty || range.head === 0) continue;
+    const line = transaction.startState.doc.lineAt(range.head);
+    if (
+      line.from === range.head &&
+      transaction.startState.doc.lineAt(range.head - 1).length === 0
+    ) {
+      affectedPositions.add(transaction.changes.mapPos(range.head, -1));
+    }
+  }
+  if (affectedPositions.size === 0) return transaction;
+
+  let corrected = false;
+  const selection = EditorSelection.create(
+    transaction.newSelection.ranges.map((range) => {
+      if (
+        range.empty &&
+        range.assoc !== 1 &&
+        affectedPositions.has(range.head)
+      ) {
+        corrected = true;
+        return EditorSelection.cursor(
+          range.head,
+          1,
+          range.bidiLevel ?? undefined,
+          range.goalColumn ?? undefined,
+        );
+      }
+      return range;
+    }),
+    transaction.newSelection.mainIndex,
+  );
+  if (!corrected) return transaction;
+
+  // Apply affinity in the deleting transaction. A later selection-only
+  // update is treated as an equivalent DOM boundary beside inline widgets.
+  return [
+    transaction,
+    {
+      selection,
+      sequential: true,
+    },
+  ];
+}
+
 function confirmIncompleteInlineDestination(view: EditorView) {
   if (!isEditable(view)) return false;
   const { ranges } = view.state.selection;
@@ -154,10 +206,13 @@ function insertContextualHardBreak(view: EditorView) {
 export function markdownEditingPlugin() {
   return defineMarkraPlugin({
     id: "markra.markdown-editing",
-    extension: Prec.high(keymap.of([
-      { key: "Enter", run: confirmIncompleteInlineDestination },
-      { key: "Tab", run: handleTab, shift: handleShiftTab },
-      { key: "Shift-Enter", run: insertContextualHardBreak },
-    ])),
+    extension: [
+      EditorState.transactionFilter.of(keepJoinedLineCaretsAfterText),
+      Prec.high(keymap.of([
+        { key: "Enter", run: confirmIncompleteInlineDestination },
+        { key: "Tab", run: handleTab, shift: handleShiftTab },
+        { key: "Shift-Enter", run: insertContextualHardBreak },
+      ])),
+    ],
   });
 }

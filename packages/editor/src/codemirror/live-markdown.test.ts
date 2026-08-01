@@ -85,6 +85,20 @@ function renderedLines(view: EditorView) {
   );
 }
 
+function paragraphSeparatorStates(view: EditorView) {
+  return Array.from(
+    view.dom.querySelectorAll(".cm-markra-empty-line"),
+    (line) => line.classList.contains("cm-markra-paragraph-separator"),
+  );
+}
+
+function paragraphEndStates(view: EditorView) {
+  return Array.from(
+    view.dom.querySelectorAll(".cm-markra-paragraph"),
+    (line) => line.classList.contains("cm-markra-paragraph-end"),
+  );
+}
+
 afterEach(() => {
   for (const view of views.splice(0)) view.destroy();
   document.body.replaceChildren();
@@ -492,11 +506,56 @@ describe("liveMarkdown", () => {
     view.dispatch({ selection: EditorSelection.range(0, doc.length) });
 
     expect(renderedLines(view)).toEqual(before);
-    expect(
-      view.dom
-        .querySelector(".cm-markra-empty-line")
-        ?.getAttribute("data-markra-empty-source"),
-    ).toBe("hidden");
+    const emptyLine = view.dom.querySelector(".cm-markra-empty-line");
+    expect(emptyLine?.hasAttribute("data-markra-empty-source")).toBe(false);
+    expect(paragraphSeparatorStates(view)).toEqual([false]);
+    expect(paragraphEndStates(view)).toEqual([true, false]);
+  });
+
+  it("keeps empty-line rendering stable when the cursor enters a separator", () => {
+    const doc = "Before\n\nAfter";
+    const view = createView({ doc, anchor: doc.length });
+    const emptyLine = view.dom.querySelector<HTMLElement>(
+      ".cm-markra-empty-line",
+    );
+
+    expect(emptyLine?.hasAttribute("data-markra-empty-source")).toBe(false);
+    expect(paragraphSeparatorStates(view)).toEqual([false]);
+    expect(paragraphEndStates(view)).toEqual([true, false]);
+
+    view.dispatch({ selection: EditorSelection.cursor("Before\n".length) });
+
+    expect(view.state.doc.toString()).toBe(doc);
+    const activeEmptyLine = view.dom.querySelector(".cm-markra-empty-line");
+    expect(activeEmptyLine?.hasAttribute("data-markra-empty-source")).toBe(
+      false,
+    );
+    expect(paragraphSeparatorStates(view)).toEqual([false]);
+    expect(paragraphEndStates(view)).toEqual([true, false]);
+  });
+
+  it("marks paragraph ends separately from full-height empty lines", () => {
+    const view = createView({ doc: "First\nSecond\n\n\nAfter" });
+
+    expect(paragraphSeparatorStates(view)).toEqual([false, false]);
+    expect(paragraphEndStates(view)).toEqual([false, true, false]);
+  });
+
+  it("keeps a trailing editing line free from paragraph spacing", () => {
+    const doc = "Before\n";
+    const view = createView({ doc });
+
+    expect(paragraphEndStates(view)).toEqual([false]);
+
+    view.dispatch({ changes: { from: doc.length, insert: " " } });
+
+    expect(paragraphEndStates(view)).toEqual([false]);
+
+    view.dispatch({
+      changes: { from: view.state.doc.length, insert: "After" },
+    });
+
+    expect(paragraphEndStates(view)).toEqual([false, false]);
   });
 
   it("does not rebuild preview decorations while a range endpoint moves", () => {

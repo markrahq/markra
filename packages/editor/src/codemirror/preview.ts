@@ -346,12 +346,27 @@ function buildDecorations(
       if (blockClass) {
         const firstLine = state.doc.lineAt(visibleNodeFrom).number;
         const lastLine = state.doc.lineAt(visibleNodeTo - 1).number;
+        const sourceAfterNode = state.sliceDoc(node.to);
+        // A whitespace-only trailing line is still being edited. Only a
+        // following block or a second newline establishes stable block rhythm.
+        const isSpacedParagraph = node.name === "Paragraph" &&
+          listDepth(node.node as MarkraSyntaxNode) === 0 &&
+          (
+            /\S/u.test(sourceAfterNode) ||
+            /\n[^\S\n]*\n/u.test(sourceAfterNode)
+          );
+        const paragraphEndLine = isSpacedParagraph
+          ? state.doc.lineAt(node.to - 1).number
+          : null;
         for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
           const line = state.doc.line(lineNumber);
           const key = `${blockClass}:${line.from}`;
           if (!decoratedBlockLines.has(key)) {
             decoratedBlockLines.add(key);
-            ranges.push(Decoration.line({ class: blockClass }).range(line.from));
+            const className = lineNumber === paragraphEndLine
+              ? `${blockClass} cm-markra-paragraph-end`
+              : blockClass;
+            ranges.push(Decoration.line({ class: className }).range(line.from));
           }
         }
       }
@@ -703,18 +718,6 @@ function buildDecorations(
         decoratedEmptyLines.add(line.from);
         ranges.push(
           Decoration.line({
-            attributes: {
-              "data-markra-empty-source": isRevealed({
-                view,
-                state,
-                from: line.from,
-                to: line.to,
-                nodeName: "EmptyLine",
-                scope: "line",
-              })
-                ? "visible"
-                : "hidden",
-            },
             class: "cm-markra-empty-line",
           }).range(line.from),
         );

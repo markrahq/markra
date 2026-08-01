@@ -1057,13 +1057,10 @@
     color: var(--editor-text-primary);
   }
 
-  /* Keep CodeMirror's child <br> in layout. WebKit uses it to map a drag
-     endpoint through the visual gap instead of falling back to document end. */
-  .markdown-paper .cm-line.cm-markra-empty-line[data-markra-empty-source="hidden"] {
-    height: var(--editor-paragraph-spacing);
-    min-height: var(--editor-paragraph-spacing);
-    font-size: 0;
-    line-height: var(--editor-paragraph-spacing);
+  /* Paragraph spacing is extra rhythm after content, not a replacement for
+     an authored blank line, which must retain the editor's normal line height. */
+  .markdown-paper .cm-line.cm-markra-paragraph-end {
+    padding-block-end: var(--editor-paragraph-spacing) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-list-item {
