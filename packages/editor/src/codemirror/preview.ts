@@ -346,18 +346,21 @@ function buildDecorations(
       if (blockClass) {
         const firstLine = state.doc.lineAt(visibleNodeFrom).number;
         const lastLine = state.doc.lineAt(visibleNodeTo - 1).number;
-        const sourceAfterNode = state.sliceDoc(node.to);
-        // A whitespace-only trailing line is still being edited. Only a
-        // following block or a second newline establishes stable block rhythm.
-        const isSpacedParagraph = node.name === "Paragraph" &&
-          listDepth(node.node as MarkraSyntaxNode) === 0 &&
-          (
-            /\S/u.test(sourceAfterNode) ||
-            /\n[^\S\n]*\n/u.test(sourceAfterNode)
-          );
-        const paragraphEndLine = isSpacedParagraph
-          ? state.doc.lineAt(node.to - 1).number
-          : null;
+        let paragraphEndLine: number | null = null;
+        if (
+          node.name === "Paragraph" &&
+          listDepth(node.node as MarkraSyntaxNode) === 0
+        ) {
+          const endLine = state.doc.lineAt(node.to - 1).number;
+          // An authored blank line already provides full-height block rhythm.
+          // Extra spacing is only needed when another block starts directly.
+          if (
+            endLine < state.doc.lines &&
+            state.doc.line(endLine + 1).text.trim().length > 0
+          ) {
+            paragraphEndLine = endLine;
+          }
+        }
         for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
           const line = state.doc.line(lineNumber);
           const key = `${blockClass}:${line.from}`;

@@ -509,7 +509,7 @@ describe("liveMarkdown", () => {
     const emptyLine = view.dom.querySelector(".cm-markra-empty-line");
     expect(emptyLine?.hasAttribute("data-markra-empty-source")).toBe(false);
     expect(paragraphSeparatorStates(view)).toEqual([false]);
-    expect(paragraphEndStates(view)).toEqual([true, false]);
+    expect(paragraphEndStates(view)).toEqual([false, false]);
   });
 
   it("keeps empty-line rendering stable when the cursor enters a separator", () => {
@@ -521,7 +521,7 @@ describe("liveMarkdown", () => {
 
     expect(emptyLine?.hasAttribute("data-markra-empty-source")).toBe(false);
     expect(paragraphSeparatorStates(view)).toEqual([false]);
-    expect(paragraphEndStates(view)).toEqual([true, false]);
+    expect(paragraphEndStates(view)).toEqual([false, false]);
 
     view.dispatch({ selection: EditorSelection.cursor("Before\n".length) });
 
@@ -531,14 +531,20 @@ describe("liveMarkdown", () => {
       false,
     );
     expect(paragraphSeparatorStates(view)).toEqual([false]);
-    expect(paragraphEndStates(view)).toEqual([true, false]);
+    expect(paragraphEndStates(view)).toEqual([false, false]);
   });
 
-  it("marks paragraph ends separately from full-height empty lines", () => {
+  it("keeps authored blank lines separate from paragraph-end spacing", () => {
     const view = createView({ doc: "First\nSecond\n\n\nAfter" });
 
     expect(paragraphSeparatorStates(view)).toEqual([false, false]);
-    expect(paragraphEndStates(view)).toEqual([false, true, false]);
+    expect(paragraphEndStates(view)).toEqual([false, false, false]);
+  });
+
+  it("adds paragraph spacing when another block starts directly", () => {
+    const view = createView({ doc: "Before\n# Heading" });
+
+    expect(paragraphEndStates(view)).toEqual([true]);
   });
 
   it("keeps a trailing editing line free from paragraph spacing", () => {
@@ -556,6 +562,22 @@ describe("liveMarkdown", () => {
     });
 
     expect(paragraphEndStates(view)).toEqual([false, false]);
+  });
+
+  it("keeps an authored blank line stable while text is entered", () => {
+    const doc = "Before\n\nAfter";
+    const position = "Before\n".length;
+    const view = createView({ doc, anchor: position });
+
+    expect(paragraphEndStates(view)).toEqual([false, false]);
+
+    view.dispatch({
+      changes: { from: position, insert: "Middle" },
+      selection: EditorSelection.cursor(position + "Middle".length),
+    });
+
+    expect(view.state.doc.toString()).toBe("Before\nMiddle\nAfter");
+    expect(paragraphEndStates(view)).toEqual([false, false, false]);
   });
 
   it("does not rebuild preview decorations while a range endpoint moves", () => {
