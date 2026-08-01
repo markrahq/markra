@@ -61,6 +61,20 @@ function press(
   );
 }
 
+function expectFullHeightEmptyLines(view: EditorView, count: number) {
+  const emptyLines = Array.from(
+    view.dom.querySelectorAll(
+      ".cm-markra-empty-line:not(.cm-markra-layout-separator)",
+    ),
+  );
+  expect(emptyLines).toHaveLength(count);
+  expect(
+    emptyLines.every((line) =>
+      !line.hasAttribute("data-markra-empty-source")
+    ),
+  ).toBe(true);
+}
+
 afterEach(() => {
   for (const view of views.splice(0)) view.destroy();
   document.body.replaceChildren();
@@ -75,6 +89,154 @@ describe("markdownEditingPlugin", () => {
     expect(press(view, "Enter")).toBe(true);
     expect(view.state.doc.toString()).toBe("MockBefore\nMockAfter");
     expect(view.state.selection.main.head).toBe(position + 1);
+  });
+
+  it("keeps the caret with text when inserting empty lines before it", () => {
+    const doc = "Before\nAfter";
+    const position = "Before\n".length;
+    const view = createView(doc, position);
+    view.focus();
+
+    expect(press(view, "Enter")).toBe(true);
+    expect(view.state.doc.toString()).toBe("Before\n\n\nAfter");
+    expect(view.state.selection.main.head).toBe(position + 2);
+    expectFullHeightEmptyLines(view, 1);
+
+    view.dispatch({
+      changes: { from: position + 2, insert: "Middle" },
+      selection: EditorSelection.cursor(position + 2 + "Middle".length),
+      userEvent: "input.type",
+    });
+
+    expect(view.state.doc.toString()).toBe("Before\n\n\nMiddleAfter");
+    expectFullHeightEmptyLines(view, 1);
+  });
+
+  it("adds one editable blank line when a Markdown separator already exists", () => {
+    const doc = "Before\n\nAfter";
+    const position = "Before\n\n".length;
+    const view = createView(doc, position);
+    view.focus();
+
+    expect(press(view, "Enter")).toBe(true);
+    expect(view.state.doc.toString()).toBe("Before\n\n\nAfter");
+    expect(view.state.selection.main.head).toBe(position + 1);
+    expectFullHeightEmptyLines(view, 1);
+  });
+
+  it("adds one editable blank line after the final character before the next line", () => {
+    const doc = "Before\nAfter";
+    const position = "Before".length;
+    const view = createView(doc, position);
+    view.focus();
+
+    expect(press(view, "Enter")).toBe(true);
+    expect(view.state.doc.toString()).toBe("Before\n\n\nAfter");
+    expect(view.state.selection.main.head).toBe(position + 2);
+    expectFullHeightEmptyLines(view, 1);
+  });
+
+  it("keeps a single native newline at the end of the document", () => {
+    const doc = "Before";
+    const view = createView(doc, doc.length);
+    view.focus();
+
+    expect(press(view, "Enter")).toBe(true);
+    expect(view.state.doc.toString()).toBe("Before\n");
+    expect(view.state.selection.main.head).toBe(doc.length + 1);
+    expectFullHeightEmptyLines(view, 1);
+  });
+
+  it("moves the caret with text across repeated Enter presses", () => {
+    const before = "MockBefore";
+    const after = "MockAfter";
+    const view = createView(`${before}${after}`, before.length);
+    view.focus();
+
+    for (let presses = 1; presses <= 4; presses += 1) {
+      expect(press(view, "Enter")).toBe(true);
+      const lineBreaks = presses === 1 ? 1 : presses + 1;
+      expect(view.state.doc.toString()).toBe(
+        `${before}${"\n".repeat(lineBreaks)}${after}`,
+      );
+      expect(view.state.selection.main.head).toBe(before.length + lineBreaks);
+    }
+
+    expectFullHeightEmptyLines(view, 3);
+
+    const position = view.state.selection.main.head;
+    view.dispatch({
+      changes: { from: position, insert: "Typed" },
+      selection: EditorSelection.cursor(position + "Typed".length),
+      userEvent: "input.type",
+    });
+
+    expect(view.state.doc.toString()).toBe(
+      `${before}\n\n\n\n\nTyped${after}`,
+    );
+    expectFullHeightEmptyLines(view, 3);
+
+    view.dispatch({
+      selection: EditorSelection.cursor(0),
+      userEvent: "select.pointer",
+    });
+    expectFullHeightEmptyLines(view, 3);
+  });
+
+  it("keeps surviving blank lines full height during backward deletion", () => {
+    const before = "MockBefore";
+    const after = "MockAfter";
+    const view = createView(`${before}${after}`, before.length);
+    view.focus();
+
+    for (let presses = 0; presses < 4; presses += 1) {
+      expect(press(view, "Enter")).toBe(true);
+    }
+
+    view.contentDOM.blur();
+    expect(view.hasFocus).toBe(false);
+    expectFullHeightEmptyLines(view, 3);
+
+    view.focus();
+    view.dispatch({
+      selection: EditorSelection.cursor(view.state.doc.line(4).from),
+      userEvent: "select.pointer",
+    });
+    expect(press(view, "Backspace")).toBe(true);
+    expect(view.state.doc.toString()).toBe(`${before}\n\n\n\n${after}`);
+    expectFullHeightEmptyLines(view, 2);
+
+    expect(press(view, "Backspace")).toBe(true);
+    expect(view.state.doc.toString()).toBe(`${before}\n\n\n${after}`);
+    expectFullHeightEmptyLines(view, 1);
+
+    expect(press(view, "Backspace")).toBe(true);
+    expect(view.state.doc.toString()).toBe(`${before}\n\n${after}`);
+    expect(
+      view.dom.querySelector(
+        ".cm-markra-empty-line:not(.cm-markra-layout-separator)",
+      ),
+    ).toBeNull();
+  });
+
+  it("keeps multiple inserted empty lines full height", () => {
+    const doc = "One\nTwo";
+    const view = createView(
+      doc,
+      EditorSelection.create([
+        EditorSelection.cursor(0),
+        EditorSelection.cursor("One\n".length),
+      ]),
+    );
+    view.focus();
+
+    expect(press(view, "Enter")).toBe(true);
+    expect(view.state.doc.toString()).toBe("\nOne\n\n\nTwo");
+    expect(view.state.selection.ranges.map((range) => range.head)).toEqual([
+      1,
+      "\nOne\n".length + 2,
+    ]);
+    expectFullHeightEmptyLines(view, 2);
   });
 
   it("keeps the caret associated with text after joining lines backward", () => {

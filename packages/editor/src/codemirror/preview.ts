@@ -30,6 +30,10 @@ import {
 } from "./links.ts";
 import { unescapeMarkdown } from "./syntax.ts";
 import { createTaskDecoration } from "./tasks.ts";
+import {
+  blankLineLayout,
+  isInsidePreformattedBlock,
+} from "./blank-lines.ts";
 
 const HEADING_CLASSES: Readonly<Record<string, string>> = {
   ATXHeading1: "cm-markra-h1",
@@ -94,14 +98,6 @@ const INLINE_WRAPPERS = new Set([
   "Strikethrough",
   "StrongEmphasis",
 ]);
-const PREFORMATTED_BLOCKS = new Set([
-  "BlockMath",
-  "CodeBlock",
-  "FencedCode",
-  "Frontmatter",
-  "HTMLBlock",
-]);
-
 const LIST_ITEM_PATTERN = /^([\t ]*)([-+*]|\d+[.)])[\t ]+(\[[ xX]\](?:[\t ]+|$))?/u;
 const EMPTY_TASK_ITEM_PATTERN =
   /^([\t ]*)([-+*]|\d+[.)])([\t ]+)(\[[ xX]\])[\t ]*$/u;
@@ -209,19 +205,6 @@ function listDepth(node: MarkraSyntaxNode) {
     parent = parent.parent;
   }
   return depth;
-}
-
-function isInsidePreformattedBlock(
-  tree: ReturnType<typeof syntaxTree>,
-  position: number,
-) {
-  let node: ReturnType<typeof tree.resolveInner> | null =
-    tree.resolveInner(position, 1);
-  while (node) {
-    if (PREFORMATTED_BLOCKS.has(node.name)) return true;
-    node = node.parent;
-  }
-  return false;
 }
 
 function hasUnclosedInlineDestination(
@@ -416,11 +399,12 @@ function buildDecorations(
           listDepth(node.node as MarkraSyntaxNode) === 0
         ) {
           const endLine = state.doc.lineAt(node.to - 1).number;
-          // An authored blank line already provides full-height block rhythm.
-          // Extra spacing is only needed when another block starts directly.
+          const nextLine = endLine + 1;
+          // A source blank already owns a stable block-gap widget. Paragraph
+          // padding is only needed for directly adjacent Markdown blocks.
           if (
-            endLine < state.doc.lines &&
-            state.doc.line(endLine + 1).text.trim().length > 0
+            nextLine <= state.doc.lines &&
+            state.doc.line(nextLine).text.trim().length > 0
           ) {
             paragraphEndLine = endLine;
           }
@@ -780,7 +764,7 @@ function buildDecorations(
       if (
         line.length === 0 &&
         !decoratedEmptyLines.has(line.from) &&
-        !isInsidePreformattedBlock(tree, line.from)
+        !isInsidePreformattedBlock(state, line.from)
       ) {
         decoratedEmptyLines.add(line.from);
         ranges.push(
@@ -917,6 +901,7 @@ function previewPlugin(config: LivePreviewConfig): Extension {
 export function livePreview(config: LivePreviewConfig = {}): Extension {
   return [
     sourceDragSelectionExtension,
+    blankLineLayout(),
     previewPlugin(config),
     listMarkerSelectionPlugin,
   ];

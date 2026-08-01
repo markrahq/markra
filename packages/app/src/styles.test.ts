@@ -367,9 +367,19 @@ describe("editor stylesheet", () => {
     expect(styles).not.toContain(emptyLineBreakRule);
   });
 
-  it("keeps empty lines full-height and applies spacing after paragraphs", () => {
+  it("keeps editable lines full-height and uses a stable structural gap", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 
+    expect(styles).toContain(
+      ".markdown-paper .cm-line.cm-markra-layout-separator {",
+    );
+    expect(styles).toContain("display: none !important;");
+    expect(styles).toContain(
+      ".markdown-paper .cm-markra-block-gap {",
+    );
+    expect(styles).toContain(
+      "height: var(--editor-paragraph-spacing) !important;",
+    );
     expect(styles).not.toContain(
       ".markdown-paper .cm-line.cm-markra-empty-line {",
     );
@@ -382,6 +392,9 @@ describe("editor stylesheet", () => {
     expect(styles).not.toContain("cm-markra-paragraph-separator");
     expect(styles).not.toContain(
       '.cm-markra-empty-line[data-markra-empty-source="hidden"] {',
+    );
+    expect(styles).not.toMatch(
+      /cm-markra-layout-separator[^}]+(?:height|line-height):/su,
     );
   });
 

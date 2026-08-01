@@ -42,6 +42,19 @@ This document only defines engineering conventions for this repository.
 - Do not use the TypeScript `void` keyword or operator. Use `unknown`, omit explicit callback return annotations when practical, or call promises directly with their own error handling.
 - Do not revert user changes unless explicitly requested.
 
+## CodeMirror Editor Invariants
+
+- Treat the Markdown document, `EditorState`, and explicit editor configuration as the source of truth. Do not use DOM shape, focus state, selection state, component lifetime, or session-local maps to decide persistent document semantics or steady-state layout.
+- Structural preview output must be deterministic: recreating the editor with the same document and configuration must produce the same decorations, visible rows, and vertical geometry. Test recreation whenever a change classifies, hides, replaces, folds, or resizes source lines.
+- Keep transient state limited to transient interaction UI such as marker reveal, hover controls, drag feedback, and IME composition. Transient state must not change the settled height or ownership of Markdown lines after blur, click, mode switch, or reopen.
+- Use CodeMirror transactions, `StateField`, facets, view plugins, decorations, and widgets for editor behavior. Do not directly mutate CodeMirror-managed DOM or read it back as application state.
+- CSS that changes CodeMirror geometry requires editor-level review. Avoid generic `height`, `line-height`, `display`, margin, or padding rules on `.cm-line`, `.cm-content`, generated `<br>` elements, or other CodeMirror-managed nodes. If a source line must be hidden or collapsed, preserve measurable layout with an explicit CodeMirror decoration or block widget and verify caret hit testing and selection mapping.
+- Keep authored blank-line height separate from semantic block spacing. Paragraph or block spacing tokens must not be used to resize editable source lines; represent non-editable structural spacing independently.
+- Decorations and widgets must not mutate document text. Source changes belong in explicit editing commands, and one keyboard action must have a predictable source transformation and selection result.
+- Before classifying blank lines or block boundaries, account for preformatted and renderer-owned regions, including frontmatter, fenced and indented code, Mermaid, HTML, math, tables, images, lists, blockquotes, headings, and horizontal rules as applicable.
+- Any change to line visibility, vertical spacing, Enter, Backspace, or caret movement must test the relevant matrix: line start/end and repeated input, typing after blank lines, one-step deletion, range and multi-cursor selection, focus/blur, pointer clicks, editor recreation, file reopen, and Preview/Source/Split transitions.
+- For visual geometry changes, supplement unit tests with runtime browser or desktop QA. Verify both rendered layout and the underlying Markdown text; DOM snapshots or CSS string assertions alone are not sufficient evidence.
+
 ## Testing Boundaries
 
 - Add or update focused tests when changing business logic, user-facing behavior, editor behavior, file reliability, AI flows, or other product functionality.

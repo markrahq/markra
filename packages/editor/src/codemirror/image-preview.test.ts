@@ -361,7 +361,10 @@ describe("imagePreviewPlugin", () => {
       key: "Enter",
     }));
 
-    expect(view.state.selection.main.head).toBe(doc.indexOf("\n") + 1);
+    expect(view.state.doc.toString()).toBe(
+      "![Synthetic alt](./assets/mock.png)\n\n\nEdit",
+    );
+    expect(view.state.selection.main.head).toBe(doc.indexOf("\n") + 2);
     expect(view.dom.querySelector(".markra-image-node-source")).toBeNull();
   });
 

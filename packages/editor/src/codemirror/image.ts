@@ -16,6 +16,7 @@ import {
   type MarkraRendererContext,
   type MarkraSyntaxNode,
 } from "./renderers.ts";
+import { moveToEditableLine } from "./blank-lines.ts";
 import { unescapeMarkdown, unquoteMarkdownTitle } from "./syntax.ts";
 
 export interface MarkraImageSourceContext {
@@ -506,7 +507,7 @@ class ImageWidget extends WidgetType {
         view.state.doc.length,
       );
       hideImageSource(root, state);
-      view.dispatch({ selection: EditorSelection.cursor(anchor) });
+      moveToEditableLine(view, anchor);
       view.focus();
     };
 
