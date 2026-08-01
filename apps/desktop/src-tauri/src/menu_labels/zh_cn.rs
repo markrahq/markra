@@ -19,6 +19,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     export: "导出",
     export_pdf: "导出 PDF",
     export_html: "导出 HTML",
+    export_markdown: "导出 Markdown（收集附件）",
     export_docx: "导出 DOCX",
     export_epub: "导出 EPUB",
     export_latex: "导出 LaTeX",

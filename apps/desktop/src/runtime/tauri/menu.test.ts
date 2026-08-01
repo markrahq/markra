@@ -488,6 +488,7 @@ describe("native menu", () => {
       exportEpub: vi.fn(),
       exportHtml: vi.fn(),
       exportLatex: vi.fn(),
+      exportMarkdown: vi.fn(),
       exportPdf: vi.fn(),
       formatBold: vi.fn(),
       formatCodeBlock: vi.fn(),
@@ -522,6 +523,7 @@ describe("native menu", () => {
     expect(domMenuItemById("markra:context:export").textContent).toContain("Export");
     expect(domSubmenuById("markra:context:export").textContent).toContain("Export PDF");
     expect(domSubmenuById("markra:context:export").textContent).toContain("Export HTML");
+    expect(domSubmenuById("markra:context:export").textContent).toContain("Export Markdown with attachments");
     expect(domSubmenuById("markra:context:export").textContent).toContain("Export DOCX");
     expect(domSubmenuById("markra:context:export").textContent).toContain("Export EPUB");
     expect(domSubmenuById("markra:context:export").textContent).toContain("Export LaTeX");
@@ -536,6 +538,8 @@ describe("native menu", () => {
     openMenu();
     domMenuItemById("markra:context:export-html").click();
     openMenu();
+    domMenuItemById("markra:context:export-markdown").click();
+    openMenu();
     domMenuItemById("markra:context:export-docx").click();
     openMenu();
     domMenuItemById("markra:context:export-epub").click();
@@ -547,6 +551,7 @@ describe("native menu", () => {
     expect(handlers.insertImage).toHaveBeenCalledTimes(1);
     expect(handlers.exportPdf).toHaveBeenCalledTimes(1);
     expect(handlers.exportHtml).toHaveBeenCalledTimes(1);
+    expect(handlers.exportMarkdown).toHaveBeenCalledTimes(1);
     expect(handlers.exportDocx).toHaveBeenCalledTimes(1);
     expect(handlers.exportEpub).toHaveBeenCalledTimes(1);
     expect(handlers.exportLatex).toHaveBeenCalledTimes(1);

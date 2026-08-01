@@ -564,6 +564,7 @@ describe("NativeTitleBar", () => {
     const saveMarkdown = vi.fn();
     const saveMarkdownAs = vi.fn();
     const syncNow = vi.fn();
+    const exportMarkdown = vi.fn();
     const exportPdf = vi.fn();
     const openSettings = vi.fn();
     const showAbout = vi.fn();
@@ -600,6 +601,7 @@ describe("NativeTitleBar", () => {
         onToggleTheme={() => {}}
         menuHandlers={{
           checkForUpdates,
+          exportMarkdown,
           exportPdf,
           formatBold,
           aiPolish: runAiPolish,
@@ -663,6 +665,14 @@ describe("NativeTitleBar", () => {
     expect(exportPdfItem).not.toBeDisabled();
     fireEvent.click(exportPdfItem);
     expect(exportPdf).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    const reopenedExportMenuItem = screen.getByRole("menuitem", { name: "Export" });
+    fireEvent.pointerEnter(reopenedExportMenuItem);
+    const exportMarkdownItem = screen.getByRole("menuitem", { name: "Export Markdown with attachments" });
+    expect(exportMarkdownItem).not.toBeDisabled();
+    fireEvent.click(exportMarkdownItem);
+    expect(exportMarkdown).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
 

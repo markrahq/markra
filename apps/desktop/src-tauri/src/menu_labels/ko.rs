@@ -19,6 +19,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     export: "내보내기",
     export_pdf: "PDF 내보내기",
     export_html: "HTML 내보내기",
+    export_markdown: "첨부 파일과 함께 Markdown 내보내기",
     export_docx: "DOCX 내보내기",
     export_epub: "EPUB 내보내기",
     export_latex: "LaTeX 내보내기",

@@ -43,8 +43,8 @@ use image_upload::{upload_picgo_image, upload_s3_image, upload_webdav_image};
 use markdown_files::{
     cancel_markdown_files_load, check_pandoc_available, create_markdown_tree_file,
     create_markdown_tree_folder, delete_markdown_template_file, delete_markdown_tree_file,
-    detect_pandoc_path, export_pandoc_file, export_pdf_file, import_local_file,
-    list_markdown_file_history, list_markdown_files_for_path,
+    detect_pandoc_path, export_markdown_file, export_pandoc_file, export_pdf_file,
+    import_local_file, list_markdown_file_history, list_markdown_files_for_path,
     list_markdown_reference_files_for_path, load_markdown_files_for_path, move_markdown_tree_file,
     open_containing_folder, open_markdown_attachment, open_markdown_file_in_new_window,
     open_markdown_folder_in_new_window, open_markdown_path, read_local_image_file,
@@ -324,6 +324,7 @@ pub fn run() {
             upload_webdav_image,
             write_markdown_file,
             write_text_file,
+            export_markdown_file,
             export_pdf_file,
             check_pandoc_available,
             detect_pandoc_path,

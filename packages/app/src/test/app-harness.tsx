@@ -39,6 +39,7 @@ import {
   saveNativeClipboardImage,
   saveNativeClipboardAttachment,
   saveNativeHtmlFile,
+  saveNativeMarkdownBundleFile,
   saveNativeMarkdownFile,
   saveNativePandocFile,
   saveNativePdfFile,
@@ -194,6 +195,7 @@ vi.mock("../lib/tauri", () => ({
   saveNativeClipboardImage: vi.fn(),
   saveNativeClipboardAttachment: vi.fn(),
   saveNativeHtmlFile: vi.fn(),
+  saveNativeMarkdownBundleFile: vi.fn(),
   saveNativeMarkdownFile: vi.fn(),
   saveNativePandocFile: vi.fn(),
   saveNativePdfFile: vi.fn(),
@@ -908,6 +910,7 @@ export const mockedResolveNativeMarkdownPath = vi.mocked(resolveNativeMarkdownPa
 export const mockedSaveNativeClipboardImage = vi.mocked(saveNativeClipboardImage);
 export const mockedSaveNativeClipboardAttachment = vi.mocked(saveNativeClipboardAttachment);
 export const mockedSaveNativeHtmlFile = vi.mocked(saveNativeHtmlFile);
+export const mockedSaveNativeMarkdownBundleFile = vi.mocked(saveNativeMarkdownBundleFile);
 export const mockedSaveNativeMarkdownFile = vi.mocked(saveNativeMarkdownFile);
 export const mockedSaveNativePandocFile = vi.mocked(saveNativePandocFile);
 export const mockedSaveNativePdfFile = vi.mocked(saveNativePdfFile);
@@ -1111,6 +1114,7 @@ export function installAppTestHarness() {
     mockedReadNativeMarkdownTemplateFile.mockReset();
     mockedResolveNativeMarkdownPath.mockReset();
     mockedSaveNativeHtmlFile.mockReset();
+    mockedSaveNativeMarkdownBundleFile.mockReset();
     mockedSaveNativePandocFile.mockReset();
     mockedSaveNativePdfFile.mockReset();
     mockedSearchNativeMarkdownFilesForPath.mockReset();
@@ -1321,6 +1325,10 @@ export function installAppTestHarness() {
     mockedSaveNativeHtmlFile.mockResolvedValue({
       name: "Untitled.html",
       path: "/mock-files/Untitled.html"
+    });
+    mockedSaveNativeMarkdownBundleFile.mockResolvedValue({
+      name: "Untitled.md",
+      path: "/mock-exports/Untitled.md"
     });
     mockedSaveNativePdfFile.mockResolvedValue({
       name: "Untitled.pdf",

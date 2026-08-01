@@ -193,6 +193,22 @@ export type SaveNativeHtmlFileInput = {
   contents: string;
 };
 
+export type NativeMarkdownExportReference = {
+  from: number;
+  href: string;
+  rawHref: string;
+  to: number;
+};
+
+export type SaveNativeMarkdownBundleFileInput = {
+  documentPath: string | null;
+  folder: string;
+  markdown: string;
+  references: NativeMarkdownExportReference[];
+  rootPath: string | null;
+  suggestedName: string;
+};
+
 export type SaveNativePdfFileInput = {
   suggestedName: string;
   contents: string;
@@ -1291,6 +1307,41 @@ export async function saveNativeHtmlFile({
   await invokeNative("write_markdown_file", {
     path: targetPath,
     contents
+  });
+
+  return {
+    path: targetPath,
+    name: fileNameFromPath(targetPath)
+  };
+}
+
+export async function saveNativeMarkdownBundleFile({
+  documentPath,
+  folder,
+  markdown,
+  references,
+  rootPath,
+  suggestedName
+}: SaveNativeMarkdownBundleFileInput): Promise<SavedNativeMarkdownFile | null> {
+  if (!documentPath) throw new Error("Current document must be a saved Markdown file.");
+
+  const directoryPath = await open({
+    directory: true,
+    fileAccessMode: "scoped",
+    multiple: false,
+    recursive: true
+  });
+
+  if (!directoryPath || Array.isArray(directoryPath)) return null;
+
+  const targetPath = await invokeNative<string>("export_markdown_file", {
+    documentPath,
+    folder,
+    markdown,
+    parentPath: directoryPath,
+    references,
+    rootPath,
+    suggestedName
   });
 
   return {

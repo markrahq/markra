@@ -240,6 +240,7 @@ export function WindowsNativeTitleBar({
         contextMenuSubmenu("export", label("menu.export"), [
           windowsMenuItem("exportPdf", label("menu.exportPdf"), "Ctrl+Alt+P", menuHandlers?.exportPdf),
           windowsMenuItem("exportHtml", label("menu.exportHtml"), "Ctrl+Shift+E", menuHandlers?.exportHtml),
+          windowsMenuItem("exportMarkdown", label("menu.exportMarkdown"), undefined, menuHandlers?.exportMarkdown),
           windowsMenuItem("exportDocx", label("menu.exportDocx"), undefined, menuHandlers?.exportDocx),
           windowsMenuItem("exportEpub", label("menu.exportEpub"), undefined, menuHandlers?.exportEpub),
           windowsMenuItem("exportLatex", label("menu.exportLatex"), undefined, menuHandlers?.exportLatex)

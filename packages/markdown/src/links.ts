@@ -58,6 +58,13 @@ export type MarkdownAssetReference = {
   kind: "definition" | "html" | "image" | "link" | "text" | "wiki";
 };
 
+export type MarkdownLocalResourceReference = {
+  from: number;
+  href: string;
+  kind: "definition" | "image" | "link";
+  to: number;
+};
+
 export type MarkdownMentionCandidate = {
   id: string;
   title: string;
@@ -106,6 +113,24 @@ function isLocalMarkdownAssetHref(href: string) {
 
   try {
     return markdownAssetExtensionPattern.test(decodeURI(path));
+  } catch {
+    return false;
+  }
+}
+
+function isLocalMarkdownResourceHref(href: string) {
+  const unwrapped = unwrappedMarkdownHref(href);
+  if (!unwrapped || unwrapped.startsWith("#") || unwrapped.startsWith("//")) return false;
+
+  const windowsAbsolutePath = /^[a-z]:[\\/]/iu.test(unwrapped);
+  const scheme = windowsAbsolutePath ? null : /^([a-z][a-z\d+.-]*):/iu.exec(unwrapped)?.[1]?.toLowerCase();
+  if (scheme && scheme !== "file") return false;
+
+  const path = unwrapped.split(/[?#]/u)[0] ?? "";
+  if (!path) return false;
+
+  try {
+    return !markdownDocumentExtensionPattern.test(decodeURI(path));
   } catch {
     return false;
   }
@@ -660,6 +685,31 @@ export function parseMarkdownAssetReferences(markdown: string): MarkdownAssetRef
   }
 
   return references;
+}
+
+export function parseMarkdownLocalResourceReferences(markdown: string): MarkdownLocalResourceReference[] {
+  const references: MarkdownLocalResourceReference[] = [];
+
+  traverseMarkdownNode(parseMarkdown(markdown), (node) => {
+    if (
+      (node.type !== "link" && node.type !== "image" && node.type !== "definition") ||
+      typeof node.url !== "string" ||
+      !isLocalMarkdownResourceHref(node.url)
+    ) {
+      return;
+    }
+
+    const range = markdownDestinationRange(markdown, node);
+    if (!range) return;
+
+    references.push({
+      ...range,
+      href: node.url,
+      kind: node.type
+    });
+  });
+
+  return references.sort((left, right) => left.from - right.from);
 }
 
 export function rebaseMarkdownLocalLinks(

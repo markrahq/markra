@@ -49,6 +49,7 @@ import type {
   SaveNativeClipboardAttachmentInput,
   SaveNativeClipboardImageInput,
   SaveNativeHtmlFileInput,
+  SaveNativeMarkdownBundleFileInput,
   SaveNativeMarkdownFileInput,
   SaveNativePandocFileInput,
   SaveNativePdfFileInput,
@@ -214,6 +215,9 @@ export type AppFileRuntime = {
   saveClipboardImage: (input: SaveNativeClipboardImageInput) => Promise<SavedNativeClipboardImage>;
   saveClipboardAttachment: (input: SaveNativeClipboardAttachmentInput) => Promise<SavedNativeClipboardAttachment>;
   saveHtmlFile: (input: SaveNativeHtmlFileInput) => Promise<SavedNativeHtmlFile | null>;
+  saveMarkdownBundleFile?: (
+    input: SaveNativeMarkdownBundleFileInput
+  ) => Promise<SavedNativeMarkdownFile | null>;
   saveMarkdownFile: (input: SaveNativeMarkdownFileInput) => Promise<SavedNativeMarkdownFile | null>;
   savePandocFile: (input: SaveNativePandocFileInput) => Promise<SavedNativePandocFile | null>;
   savePdfFile: (input: SaveNativePdfFileInput) => Promise<SavedNativePdfFile | null>;
@@ -366,6 +370,7 @@ export type AppSpellcheckRuntime = {
 export type AppFeatureRuntime = {
   ai: boolean;
   export: boolean;
+  markdownBundle?: boolean;
   nativeWindowChrome: boolean;
   networkProxy: boolean;
   pandoc: boolean;
@@ -692,6 +697,7 @@ export type {
   SaveNativeClipboardAttachmentInput,
   SaveNativeClipboardImageInput,
   SaveNativeHtmlFileInput,
+  SaveNativeMarkdownBundleFileInput,
   SaveNativeMarkdownFileInput,
   SaveNativePandocFileInput,
   SaveNativePdfFileInput,

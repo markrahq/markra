@@ -44,6 +44,7 @@ import {
   saveNativeClipboardAttachment,
   saveNativeClipboardImage,
   saveNativeHtmlFile,
+  saveNativeMarkdownBundleFile,
   saveNativePandocFile,
   saveNativePdfFile,
   renameNativeMarkdownTreeFile,
@@ -989,6 +990,80 @@ describe("native file access", () => {
       path: "/mock-files/draft.html",
       contents: "<!doctype html><html><body><h1>Draft</h1></body></html>"
     });
+  });
+
+  it("exports markdown and its local resource references through one native command", async () => {
+    const markdown = "# Draft\n\n![Chart](assets/chart.png)";
+    const href = "assets/chart.png";
+    const from = markdown.indexOf(href);
+    const references = [{ from, href, rawHref: href, to: from + href.length }];
+    mockedOpen.mockResolvedValue("/mock-exports");
+    mockedInvoke.mockResolvedValue("/mock-exports/draft/draft.md");
+
+    await expect(
+      saveNativeMarkdownBundleFile({
+        documentPath: "/mock-files/vault/notes/draft.md",
+        folder: "assets",
+        markdown,
+        references,
+        rootPath: "/mock-files/vault",
+        suggestedName: "draft.md"
+      })
+    ).resolves.toEqual({
+      path: "/mock-exports/draft/draft.md",
+      name: "draft.md"
+    });
+
+    expect(mockedOpen).toHaveBeenCalledWith({
+      directory: true,
+      fileAccessMode: "scoped",
+      multiple: false,
+      recursive: true
+    });
+    expect(mockedInvoke).toHaveBeenCalledWith("export_markdown_file", {
+      documentPath: "/mock-files/vault/notes/draft.md",
+      folder: "assets",
+      markdown,
+      parentPath: "/mock-exports",
+      references,
+      rootPath: "/mock-files/vault",
+      suggestedName: "draft.md"
+    });
+    expect(mockedSave).not.toHaveBeenCalled();
+  });
+
+  it("requires a saved source document before choosing a bundled markdown export target", async () => {
+    await expect(
+      saveNativeMarkdownBundleFile({
+        documentPath: null,
+        folder: "assets",
+        markdown: "# Unsaved",
+        references: [],
+        rootPath: null,
+        suggestedName: "Unsaved.md"
+      })
+    ).rejects.toThrow("Current document must be a saved Markdown file.");
+
+    expect(mockedOpen).not.toHaveBeenCalled();
+    expect(mockedInvoke).not.toHaveBeenCalled();
+  });
+
+  it("does not create a markdown export folder when directory selection is canceled", async () => {
+    mockedOpen.mockResolvedValue(null);
+
+    await expect(
+      saveNativeMarkdownBundleFile({
+        documentPath: "/mock-files/vault/draft.md",
+        folder: "assets",
+        markdown: "# Draft",
+        references: [],
+        rootPath: "/mock-files/vault",
+        suggestedName: "draft.md"
+      })
+    ).resolves.toBeNull();
+
+    expect(mockedInvoke).not.toHaveBeenCalled();
+    expect(mockedSave).not.toHaveBeenCalled();
   });
 
   it("does not write an HTML export when the save dialog is canceled", async () => {

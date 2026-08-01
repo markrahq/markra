@@ -19,6 +19,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     export: "Export",
     export_pdf: "Export PDF",
     export_html: "Export HTML",
+    export_markdown: "Export Markdown with attachments",
     export_docx: "Export DOCX",
     export_epub: "Export EPUB",
     export_latex: "Export LaTeX",

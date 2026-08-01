@@ -736,6 +736,8 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
     )?;
     let export_pdf = app_menu_item(app, "exportPdf", labels.export_pdf, "CmdOrCtrl+Alt+P")?;
     let export_html = app_menu_item(app, "exportHtml", labels.export_html, "CmdOrCtrl+Shift+E")?;
+    let export_markdown =
+        app_menu_item_without_accelerator(app, "exportMarkdown", labels.export_markdown)?;
     let export_docx = app_menu_item_without_accelerator(app, "exportDocx", labels.export_docx)?;
     let export_epub = app_menu_item_without_accelerator(app, "exportEpub", labels.export_epub)?;
     let export_latex = app_menu_item_without_accelerator(app, "exportLatex", labels.export_latex)?;
@@ -743,6 +745,7 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         .items(&[
             &export_pdf,
             &export_html,
+            &export_markdown,
             &export_docx,
             &export_epub,
             &export_latex,
@@ -1057,6 +1060,7 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
             | "syncNow"
             | "exportPdf"
             | "exportHtml"
+            | "exportMarkdown"
             | "exportDocx"
             | "exportEpub"
             | "exportLatex"
@@ -1122,6 +1126,7 @@ mod tests {
         assert!(is_frontend_menu_command("syncNow"));
         assert!(is_frontend_menu_command("exportPdf"));
         assert!(is_frontend_menu_command("exportHtml"));
+        assert!(is_frontend_menu_command("exportMarkdown"));
         assert!(is_frontend_menu_command("exportDocx"));
         assert!(is_frontend_menu_command("exportEpub"));
         assert!(is_frontend_menu_command("exportLatex"));

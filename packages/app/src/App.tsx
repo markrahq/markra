@@ -103,7 +103,11 @@ import {
 } from "@markra/shared";
 import { showAppToast } from "./lib/app-toast";
 import { appVersion } from "./lib/app-version";
-import { createMarkdownImageSrcResolver, getWordCount } from "@markra/markdown";
+import {
+  createMarkdownImageSrcResolver,
+  getWordCount,
+  parseMarkdownLocalResourceReferences
+} from "@markra/markdown";
 import { buildMarkdownHtmlDocument, exportDocumentFileName, localFileUrlFromPath } from "./lib/document-export";
 import {
   generateCrashDiagnosticsReport,
@@ -208,6 +212,7 @@ import {
   readNativeMarkdownTemplateFile,
   saveNativeClipboardAttachment,
   saveNativeHtmlFile,
+  saveNativeMarkdownBundleFile,
   saveNativeMarkdownFile,
   saveNativePandocFile,
   saveNativePdfFile,
@@ -421,6 +426,7 @@ function WorkspaceApp() {
   );
   const aiFeatureEnabled = appFeatures.ai;
   const exportFeatureEnabled = appFeatures.export;
+  const markdownBundleFeatureEnabled = exportFeatureEnabled && appFeatures.markdownBundle === true;
   const nativeWindowChromeEnabled = appFeatures.nativeWindowChrome && desktopPlatform !== "linux";
   const windowsSelfDrawnChromeEnabled = nativeWindowChromeEnabled && desktopPlatform === "windows";
   const pandocFeatureEnabled = appFeatures.pandoc;
@@ -3702,6 +3708,46 @@ function WorkspaceApp() {
   }, [appLanguage.language, clearExportSnapshot, exportFeatureEnabled, exportSettings.settings, exportSnapshot?.id]);
   const exportHtmlDocument = useCallback(() => beginDocumentExport("html"), [beginDocumentExport]);
   const exportPdfDocument = useCallback(() => beginDocumentExport("pdf"), [beginDocumentExport]);
+  const exportMarkdownDocument = useCallback(() => {
+    if (!markdownBundleFeatureEnabled) return;
+
+    const context = exportContextRef.current;
+    if (!context.hasOpenDocument || context.activeImageFile) return;
+    if (!context.path) {
+      showAppToast({
+        message: translate("app.markdownExportRequiresSavedDocument"),
+        status: "error"
+      });
+      return;
+    }
+
+    const markdown = readCurrentMarkdownForDocument(context.content);
+    const references = parseMarkdownLocalResourceReferences(markdown).map(({ from, href, to }) => ({
+      from,
+      href,
+      rawHref: markdown.slice(from, to),
+      to
+    }));
+    saveNativeMarkdownBundleFile({
+      documentPath: context.path,
+      folder: editorPreferences.preferences.clipboardImageFolder,
+      markdown,
+      references,
+      rootPath: fileTree.sourcePath ?? context.path,
+      suggestedName: exportDocumentFileName(context.name, "markdown")
+    }).catch(() => {
+      showAppToast({
+        message: translate("app.markdownExportFailed"),
+        status: "error"
+      });
+    });
+  }, [
+    editorPreferences.preferences.clipboardImageFolder,
+    fileTree.sourcePath,
+    markdownBundleFeatureEnabled,
+    readCurrentMarkdownForDocument,
+    translate
+  ]);
   const exportPandocDocument = useCallback((format: NativePandocExportFormat) => {
     if (!exportFeatureEnabled || !pandocFeatureEnabled) return;
 
@@ -3826,6 +3872,7 @@ function WorkspaceApp() {
     exportEpub: exportFeatureEnabled && pandocFeatureEnabled ? exportEpubDocument : undefined,
     exportHtml: exportFeatureEnabled ? exportHtmlDocument : undefined,
     exportLatex: exportFeatureEnabled && pandocFeatureEnabled ? exportLatexDocument : undefined,
+    exportMarkdown: markdownBundleFeatureEnabled ? exportMarkdownDocument : undefined,
     exportPdf: exportFeatureEnabled ? exportPdfDocument : undefined,
     importLocalFiles: handleImportLocalFiles,
     importLocalImages: handleImportLocalImages,

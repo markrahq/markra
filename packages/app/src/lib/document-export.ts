@@ -2,7 +2,7 @@ import katexStyles from "katex/dist/katex.css?raw";
 import { isMarkraMathMacroDefinitionSource } from "@markra/editor";
 import { normalizeSystemFontFamilyName, systemFontFamilyCssValue } from "./editor-font";
 
-export type ExportDocumentFormat = "html" | "pdf" | "docx" | "epub" | "latex";
+export type ExportDocumentFormat = "html" | "pdf" | "docx" | "epub" | "latex" | "markdown";
 
 const defaultPdfMarginMm = 18;
 const defaultPdfPageHeightMm = 297;
@@ -467,7 +467,7 @@ export function exportDocumentFileName(documentName: string, format: ExportDocum
   const baseName = (trimmedName || "Untitled")
     .replace(/\.(?:md|markdown|txt)$/iu, "")
     .trim() || "Untitled";
-  const extension = format === "latex" ? "tex" : format;
+  const extension = format === "latex" ? "tex" : format === "markdown" ? "md" : format;
 
   return `${baseName}.${extension}`;
 }

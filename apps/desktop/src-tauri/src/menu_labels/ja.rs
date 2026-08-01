@@ -19,6 +19,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     export: "書き出し",
     export_pdf: "PDF に書き出す",
     export_html: "HTML に書き出す",
+    export_markdown: "添付ファイル付きで Markdown を書き出す",
     export_docx: "DOCX に書き出す",
     export_epub: "EPUB に書き出す",
     export_latex: "LaTeX に書き出す",

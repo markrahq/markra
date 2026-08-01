@@ -53,6 +53,7 @@ export type NativeStaticMenuCommand =
   | "syncNow"
   | "exportPdf"
   | "exportHtml"
+  | "exportMarkdown"
   | "exportDocx"
   | "exportEpub"
   | "exportLatex"

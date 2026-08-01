@@ -703,6 +703,22 @@ fn forbid_asset_directory(app: &tauri::AppHandle, root: &Path) -> Result<(), Str
         .map_err(|error| error.to_string())
 }
 
+pub(super) fn import_local_file_for_document(
+    app: &tauri::AppHandle,
+    document_path: &Path,
+    folder: &str,
+    source_path: &Path,
+) -> Result<ClipboardAttachmentFile, String> {
+    import_local_file_with_asset_scope_and_hook(
+        document_path.to_string_lossy().to_string(),
+        folder.to_string(),
+        source_path.to_string_lossy().to_string(),
+        |root| allow_asset_directory(app, root),
+        |root| forbid_asset_directory(app, root),
+        || Ok(()),
+    )
+}
+
 #[tauri::command]
 pub(crate) fn save_clipboard_attachment(
     app: tauri::AppHandle,
@@ -729,13 +745,11 @@ pub(crate) async fn import_local_file(
     source_path: String,
 ) -> Result<ClipboardAttachmentFile, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        import_local_file_with_asset_scope_and_hook(
-            document_path,
-            folder,
-            source_path,
-            |root| allow_asset_directory(&app, root),
-            |root| forbid_asset_directory(&app, root),
-            || Ok(()),
+        import_local_file_for_document(
+            &app,
+            Path::new(&document_path),
+            &folder,
+            Path::new(&source_path),
         )
     })
     .await

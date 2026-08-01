@@ -74,6 +74,7 @@ export const desktopRuntime = {
   features: {
     ai: true,
     export: true,
+    markdownBundle: true,
     nativeWindowChrome: true,
     networkProxy: true,
     pandoc: true,
@@ -121,6 +122,7 @@ export const desktopRuntime = {
     saveClipboardAttachment: files.saveNativeClipboardAttachment,
     saveClipboardImage: files.saveNativeClipboardImage,
     saveHtmlFile: files.saveNativeHtmlFile,
+    saveMarkdownBundleFile: files.saveNativeMarkdownBundleFile,
     saveMarkdownFile: files.saveNativeMarkdownFile,
     savePandocFile: files.saveNativePandocFile,
     savePdfFile: files.saveNativePdfFile,

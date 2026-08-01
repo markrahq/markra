@@ -263,6 +263,7 @@ export function createEditorContextMenuEntries(
   const exportMenu = contextMenuSubmenu(editorId("export"), label("menu.export"), [
     contextMenuItem(editorId("export-pdf"), label("menu.exportPdf"), "CmdOrCtrl+Alt+P", handlers.exportPdf),
     contextMenuItem(editorId("export-html"), label("menu.exportHtml"), "CmdOrCtrl+Shift+E", handlers.exportHtml),
+    contextMenuItem(editorId("export-markdown"), label("menu.exportMarkdown"), undefined, handlers.exportMarkdown),
     contextMenuItem(editorId("export-docx"), label("menu.exportDocx"), undefined, handlers.exportDocx),
     contextMenuItem(editorId("export-epub"), label("menu.exportEpub"), undefined, handlers.exportEpub),
     contextMenuItem(editorId("export-latex"), label("menu.exportLatex"), undefined, handlers.exportLatex)

@@ -2,11 +2,69 @@ import {
   findMarkdownUnlinkedMentions,
   parseMarkdownAssetReferences,
   parseMarkdownLinkReferences,
+  parseMarkdownLocalResourceReferences,
   parseMarkdownMentionRanges,
   rebaseMarkdownLocalLinks
 } from "./links";
 
 describe("markdown links", () => {
+  it("locates portable local resource destinations without touching document links or code", () => {
+    const markdown = [
+      "![Inline](<assets/inline image.png>)",
+      "[Download](files/reference.pdf?raw=1#page=2)",
+      "![Reference][diagram]",
+      "",
+      "[diagram]: <assets/reference diagram.jpg> \"Wide diagram\"",
+      "[Note](./notes/related.md)",
+      "[Remote](https://example.test/reference.pdf)",
+      "[Section](#details)",
+      "`[Code](files/ignored.zip)`",
+      "```markdown",
+      "![Fence](assets/ignored.png)",
+      "```"
+    ].join("\n");
+
+    const references = parseMarkdownLocalResourceReferences(markdown);
+
+    expect(references.map(({ from, href, kind, to }) => ({
+      destination: markdown.slice(from, to),
+      href,
+      kind
+    }))).toEqual([
+      {
+        destination: "assets/inline image.png",
+        href: "assets/inline image.png",
+        kind: "image"
+      },
+      {
+        destination: "files/reference.pdf?raw=1#page=2",
+        href: "files/reference.pdf?raw=1#page=2",
+        kind: "link"
+      },
+      {
+        destination: "assets/reference diagram.jpg",
+        href: "assets/reference diagram.jpg",
+        kind: "definition"
+      }
+    ]);
+  });
+
+  it("keeps every local resource occurrence so each destination can be rewritten", () => {
+    const markdown = [
+      "![First](assets/shared.png)",
+      "![Second](assets/shared.png)"
+    ].join("\n");
+
+    const references = parseMarkdownLocalResourceReferences(markdown);
+
+    expect(references).toHaveLength(2);
+    expect(references.map((reference) => reference.href)).toEqual([
+      "assets/shared.png",
+      "assets/shared.png"
+    ]);
+    expect(references.every((reference) => markdown.slice(reference.from, reference.to) === reference.href)).toBe(true);
+  });
+
   it("extracts local image references from supported Markdown forms", () => {
     const references = parseMarkdownAssetReferences([
       "![Inline](assets/inline.png)",
