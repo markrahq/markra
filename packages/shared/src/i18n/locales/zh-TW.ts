@@ -726,6 +726,8 @@ const messages: LocaleMessages = {
   "settings.editor.hideHeadingMarkersOnFocusDescription": "游標位於標題文字中時，自動隱藏 Markdown 標題標記；游標移至標記處時仍會顯示。",
   "settings.editor.showLineNumbers": "顯示原始碼行號",
   "settings.editor.showLineNumbersDescription": "在原始碼模式中顯示 Markdown 檔案的實際行號。",
+  "settings.editor.showCodeBlockLineNumbers": "顯示程式碼區塊行號",
+  "settings.editor.showCodeBlockLineNumbersDescription": "在所見即所得模式的圍欄程式碼區塊旁顯示行號。",
   "settings.editor.typewriterMode": "打字機模式",
   "settings.editor.typewriterModeDescription": "在書寫和移動游標時，讓游標所在行保持在編輯區中央。",
   "settings.editor.vimMode": "Vim 模式",

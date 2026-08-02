@@ -703,6 +703,23 @@ export function EditorSettings({
           }
         />
         <SettingsRow
+          title={translate("settings.editor.showCodeBlockLineNumbers")}
+          description={translate("settings.editor.showCodeBlockLineNumbersDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.showCodeBlockLineNumbers}
+              label={translate("settings.editor.showCodeBlockLineNumbers")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  showCodeBlockLineNumbers:
+                    !preferences.showCodeBlockLineNumbers
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.editor.showWordCount")}
           description={translate("settings.editor.showWordCountDescription")}
           action={

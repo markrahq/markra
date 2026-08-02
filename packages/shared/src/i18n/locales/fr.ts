@@ -726,6 +726,8 @@ const messages: LocaleMessages = {
   "settings.editor.hideHeadingMarkersOnFocusDescription": "Masque le marqueur Markdown d’un titre lorsque le curseur se trouve dans son texte. Le marqueur reste visible lorsque le curseur l’atteint.",
   "settings.editor.showLineNumbers": "Afficher les numéros de ligne source",
   "settings.editor.showLineNumbersDescription": "Affiche les numéros de ligne Markdown réels en mode source.",
+  "settings.editor.showCodeBlockLineNumbers": "Afficher les numéros de ligne des blocs de code",
+  "settings.editor.showCodeBlockLineNumbersDescription": "Affiche les numéros de ligne à côté des blocs de code délimités en mode visuel.",
   "settings.editor.typewriterMode": "Mode machine à écrire",
   "settings.editor.typewriterModeDescription": "Maintient la ligne du curseur au centre pendant la saisie et la navigation.",
   "settings.editor.vimMode": "Mode Vim",

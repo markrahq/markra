@@ -111,6 +111,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       hideHeadingMarkersOnFocus: false,
+      showCodeBlockLineNumbers: true,
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
@@ -267,6 +268,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       hideHeadingMarkersOnFocus: false,
+      showCodeBlockLineNumbers: true,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
@@ -407,6 +409,13 @@ describe("editor preferences", () => {
     expect(normalizeEditorPreferences({}).wrapCodeBlocks).toBe(true);
     expect(normalizeEditorPreferences({ wrapCodeBlocks: false }).wrapCodeBlocks).toBe(false);
     expect(normalizeEditorPreferences({ wrapCodeBlocks: "no" }).wrapCodeBlocks).toBe(true);
+  });
+
+  it("normalizes the code block line number preference", () => {
+    expect(defaultEditorPreferences.showCodeBlockLineNumbers).toBe(true);
+    expect(normalizeEditorPreferences({}).showCodeBlockLineNumbers).toBe(true);
+    expect(normalizeEditorPreferences({ showCodeBlockLineNumbers: false }).showCodeBlockLineNumbers).toBe(false);
+    expect(normalizeEditorPreferences({ showCodeBlockLineNumbers: "no" }).showCodeBlockLineNumbers).toBe(true);
   });
 
   it("migrates the old AI selection display mode into independent switches", () => {
@@ -806,6 +815,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       hideHeadingMarkersOnFocus: false,
+      showCodeBlockLineNumbers: true,
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
@@ -912,6 +922,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       hideHeadingMarkersOnFocus: true,
+      showCodeBlockLineNumbers: true,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,
@@ -1016,6 +1027,7 @@ describe("editor preferences", () => {
         wordCount: "visible"
       },
       hideHeadingMarkersOnFocus: true,
+      showCodeBlockLineNumbers: true,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,

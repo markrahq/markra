@@ -33,6 +33,7 @@ type SideDocumentPaneProps = {
   revision: number;
   sizeBytes?: number;
   hideHeadingMarkersOnFocus?: boolean;
+  showCodeBlockLineNumbers?: boolean;
   showLineNumbers?: boolean;
   spellcheckEnabled?: boolean;
   spellcheckIgnoredWords?: readonly string[];
@@ -78,6 +79,7 @@ export function SideDocumentPane({
   revision,
   sizeBytes,
   hideHeadingMarkersOnFocus = false,
+  showCodeBlockLineNumbers = true,
   showLineNumbers = false,
   spellcheckEnabled = false,
   spellcheckIgnoredWords,
@@ -154,6 +156,7 @@ export function SideDocumentPane({
           resolveImageSrc={resolveImageSrc}
           revision={revision}
           hideHeadingMarkersOnFocus={hideHeadingMarkersOnFocus}
+          showCodeBlockLineNumbers={showCodeBlockLineNumbers}
           spellcheckEnabled={spellcheckEnabled}
           spellcheckIgnoredWords={spellcheckIgnoredWords}
           spellchecker={spellchecker}

@@ -58,6 +58,7 @@ export interface CodeBlockPreviewPluginOptions {
   labels?: Partial<CodeBlockPreviewLabels>;
   languages?: readonly MarkraCodeLanguageOption[];
   plainTextLabel?: string;
+  showLineNumbers?: boolean;
   renderMermaid?: (
     context: CodeBlockMermaidContext,
   ) => Promise<string>;
@@ -214,7 +215,7 @@ const codeBlockTheme = EditorView.baseTheme({
     borderLeft: "1px solid color-mix(in srgb, currentColor 10%, transparent)",
     borderRight: "1px solid color-mix(in srgb, currentColor 10%, transparent)",
   },
-  ".cm-markra-code-content-line::before": {
+  ".cm-markra-code-content-line[data-code-line-number]::before": {
     color: "color-mix(in srgb, currentColor 38%, transparent)",
     content: "attr(data-code-line-number)",
     display: "inline-block",
@@ -701,14 +702,21 @@ function lineIntersects(
   return line.from < range.to && line.to >= range.from;
 }
 
-function fencedCodeAt(view: CodeMirrorView) {
+function fencedCodeAtPosition(state: EditorState, position: number) {
   let node: ReturnType<typeof syntaxTree>["topNode"] | null =
-    syntaxTree(view.state).resolveInner(view.state.selection.main.head, -1);
+    syntaxTree(state).resolveInner(position, -1);
   while (node) {
     if (node.name === "FencedCode") return node as MarkraSyntaxNode;
     node = node.parent;
   }
   return null;
+}
+
+function fencedCodeAt(view: CodeMirrorView) {
+  return fencedCodeAtPosition(
+    view.state,
+    view.state.selection.main.head,
+  );
 }
 
 function selectCurrentCodeBlockContent(view: CodeMirrorView) {
@@ -722,6 +730,59 @@ function selectCurrentCodeBlockContent(view: CodeMirrorView) {
     scrollIntoView: true,
     selection: EditorSelection.range(code.from, code.to),
   });
+  return true;
+}
+
+function unwrapCodeBlockBackward(view: CodeMirrorView) {
+  if (
+    view.state.readOnly ||
+    view.state.selection.ranges.some((selection) => !selection.empty)
+  ) {
+    return false;
+  }
+
+  const unwrapped = view.state.selection.ranges.map((selection) => {
+    const node = fencedCodeAtPosition(view.state, selection.head);
+    if (!node) return null;
+    const parts = codeBlockParts(view.state, node);
+    if (!parts.codeNode || selection.head !== parts.codeNode.from) return null;
+
+    const openingLine = view.state.doc.lineAt(node.from);
+    const firstCodeLine = view.state.doc.lineAt(parts.codeNode.from);
+    const changes = [{
+      from: openingLine.from,
+      to: firstCodeLine.from,
+    }];
+    if (parts.hasClosingFence) {
+      const closingLine = view.state.doc.lineAt(node.to);
+      changes.push({
+        // Delete the separator before the closing fence so unwrapping keeps
+        // exactly the paragraph break that originally followed the block.
+        from: closingLine.from - 1,
+        to: closingLine.to,
+      });
+    }
+    return { changes, cursor: openingLine.from };
+  });
+  if (unwrapped.some((candidate) => candidate === null)) return false;
+
+  const codeBlocks = unwrapped.filter((candidate) => candidate !== null);
+  const changeSet = view.state.changes(
+    codeBlocks.flatMap((codeBlock) => codeBlock.changes),
+  );
+
+  view.dispatch({
+    changes: changeSet,
+    scrollIntoView: true,
+    selection: EditorSelection.create(
+      codeBlocks.map((codeBlock) =>
+        EditorSelection.cursor(changeSet.mapPos(codeBlock.cursor, 1))
+      ),
+      view.state.selection.mainIndex,
+    ),
+    userEvent: "delete.backward",
+  });
+  view.focus();
   return true;
 }
 
@@ -817,6 +878,7 @@ function exitMermaidSource(view: CodeMirrorView) {
 
 const codeBlockKeymap = Prec.high(
   keymap.of([
+    { key: "Backspace", run: unwrapCodeBlockBackward },
     { key: "Enter", run: handleCodeBlockEnter },
     { key: "Mod-a", run: selectCurrentCodeBlockContent },
     { key: "Escape", run: exitMermaidSource },
@@ -847,6 +909,7 @@ export function codeBlockPreviewPlugin(
   const plainTextLabel = options.plainTextLabel?.trim() || "Plain text";
   const labels = { ...defaultLabels, ...options.labels };
   const languages = options.languages ?? markraCodeLanguageOptions;
+  const showLineNumbers = options.showLineNumbers ?? true;
   const highlight = options.highlight ?? ((context: CodeBlockHighlightContext) =>
     highlightMarkraCode(context.language, context.code));
   const renderMermaid = options.renderMermaid ?? ((context: CodeBlockMermaidContext) =>
@@ -990,7 +1053,7 @@ export function codeBlockPreviewPlugin(
             if (codeContentLine) codeLineNumber += 1;
             context.add(
               Decoration.line({
-                attributes: codeContentLine
+                attributes: codeContentLine && showLineNumbers
                   ? { "data-code-line-number": String(codeLineNumber) }
                   : roleClass === "cm-markra-code-closing-line"
                     ? {

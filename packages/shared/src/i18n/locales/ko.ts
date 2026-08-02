@@ -726,6 +726,8 @@ const messages: LocaleMessages = {
   "settings.editor.hideHeadingMarkersOnFocusDescription": "커서가 제목 텍스트 안에 있을 때 Markdown 제목 표시를 숨깁니다. 커서가 표시에 도달하면 다시 보여 줍니다.",
   "settings.editor.showLineNumbers": "소스 줄 번호 표시",
   "settings.editor.showLineNumbersDescription": "소스 모드에서 Markdown 파일의 실제 줄 번호를 표시합니다.",
+  "settings.editor.showCodeBlockLineNumbers": "코드 블록 줄 번호 표시",
+  "settings.editor.showCodeBlockLineNumbersDescription": "비주얼 모드에서 펜스 코드 블록 옆에 줄 번호를 표시합니다.",
   "settings.editor.typewriterMode": "타자기 모드",
   "settings.editor.typewriterModeDescription": "입력하거나 커서를 이동할 때 현재 줄을 편집 영역 중앙에 유지합니다.",
   "settings.editor.vimMode": "Vim 모드",

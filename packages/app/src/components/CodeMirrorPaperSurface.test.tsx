@@ -122,6 +122,38 @@ describe("CodeMirrorPaperSurface", () => {
     );
   });
 
+  it("reconfigures code block line numbers without recreating the editor view", () => {
+    const content = "```ts\nconst synthetic = true;\n```";
+    const onEditorReady = vi.fn();
+    const { rerender } = render(
+      <CodeMirrorPaperSurface
+        initialContent={content}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        showCodeBlockLineNumbers={false}
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    expect(
+      view.dom.querySelector(".cm-markra-code-content-line"),
+    ).not.toHaveAttribute("data-code-line-number");
+
+    rerender(
+      <CodeMirrorPaperSurface
+        initialContent={content}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        showCodeBlockLineNumbers
+      />,
+    );
+
+    expect(onEditorReady).toHaveBeenCalledTimes(1);
+    expect(
+      view.dom.querySelector(".cm-markra-code-content-line"),
+    ).toHaveAttribute("data-code-line-number", "1");
+  });
+
   it("reconfigures typewriter mode without recreating the editor view", () => {
     const onEditorReady = vi.fn();
     const { rerender } = render(

@@ -250,6 +250,7 @@ describe("settings events", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showCodeBlockLineNumbers: true,
       showLineNumbers: false,
       showWordCount: false,
       typewriterModeEnabled: false,

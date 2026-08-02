@@ -431,6 +431,7 @@ function createStoredEditorPreferences(
       { id: "save", visible: true },
       { id: "theme", visible: true }
     ],
+    showCodeBlockLineNumbers: overrides.showCodeBlockLineNumbers ?? true,
     showLineNumbers: overrides.showLineNumbers ?? false,
     showWordCount: true,
     typewriterModeEnabled: overrides.typewriterModeEnabled ?? false,
@@ -1497,6 +1498,7 @@ describe("Markra workspace", () => {
           viewModeToggle: "visible",
           wordCount: "visible"
         },
+        showCodeBlockLineNumbers: true,
         showLineNumbers: false,
         showWordCount: true,
         typewriterModeEnabled: false,
@@ -1568,6 +1570,7 @@ describe("Markra workspace", () => {
           viewModeToggle: "visible",
           wordCount: "visible"
         },
+        showCodeBlockLineNumbers: true,
         showLineNumbers: false,
         showWordCount: true,
         typewriterModeEnabled: false,
@@ -2827,6 +2830,7 @@ describe("Markra workspace", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showCodeBlockLineNumbers: true,
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
@@ -5752,6 +5756,7 @@ describe("Markra workspace", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showCodeBlockLineNumbers: true,
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,
@@ -5922,6 +5927,7 @@ describe("Markra workspace", () => {
         viewModeToggle: "visible",
         wordCount: "visible"
       },
+      showCodeBlockLineNumbers: true,
       showLineNumbers: false,
       showWordCount: true,
       typewriterModeEnabled: false,

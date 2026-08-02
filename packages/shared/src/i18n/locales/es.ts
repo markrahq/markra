@@ -726,6 +726,8 @@ const messages: LocaleMessages = {
   "settings.editor.hideHeadingMarkersOnFocusDescription": "Oculta el marcador Markdown de un encabezado cuando el cursor está dentro de su texto. El marcador sigue visible cuando el cursor llega a él.",
   "settings.editor.showLineNumbers": "Mostrar números de línea del código fuente",
   "settings.editor.showLineNumbersDescription": "Muestra los números de línea reales de Markdown en el modo de código fuente.",
+  "settings.editor.showCodeBlockLineNumbers": "Mostrar números de línea en bloques de código",
+  "settings.editor.showCodeBlockLineNumbersDescription": "Muestra números de línea junto a los bloques de código delimitados en el modo visual.",
   "settings.editor.typewriterMode": "Modo máquina de escribir",
   "settings.editor.typewriterModeDescription": "Mantiene centrada la línea actual del cursor al escribir y navegar.",
   "settings.editor.vimMode": "Modo Vim",

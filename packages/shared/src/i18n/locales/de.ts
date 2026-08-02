@@ -726,6 +726,8 @@ const messages: LocaleMessages = {
   "settings.editor.hideHeadingMarkersOnFocusDescription": "Blendet die Markdown-Markierung einer Überschrift aus, wenn sich der Cursor in ihrem Text befindet. An der Markierung bleibt sie sichtbar.",
   "settings.editor.showLineNumbers": "Quellcode-Zeilennummern anzeigen",
   "settings.editor.showLineNumbersDescription": "Zeigt die tatsächlichen Markdown-Zeilennummern im Quelltextmodus an.",
+  "settings.editor.showCodeBlockLineNumbers": "Zeilennummern in Codeblöcken anzeigen",
+  "settings.editor.showCodeBlockLineNumbersDescription": "Zeigt im visuellen Modus Zeilennummern neben umgrenzten Codeblöcken an.",
   "settings.editor.typewriterMode": "Schreibmaschinenmodus",
   "settings.editor.typewriterModeDescription": "Hält die aktuelle Cursorzeile beim Schreiben und Navigieren in der Mitte.",
   "settings.editor.vimMode": "Vim-Modus",

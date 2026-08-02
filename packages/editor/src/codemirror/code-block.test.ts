@@ -1,4 +1,4 @@
-import { EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { codeBlockPreviewPlugin, liveMarkdown } from "./index.ts";
@@ -20,7 +20,10 @@ function createView(
     parent,
     state: EditorState.create({
       doc,
-      extensions: [liveMarkdown({ plugins: [plugin] })],
+      extensions: [
+        EditorState.allowMultipleSelections.of(true),
+        liveMarkdown({ plugins: [plugin] }),
+      ],
       selection: { anchor: doc.length },
     }),
   });
@@ -158,6 +161,56 @@ describe("codeBlockPreviewPlugin", () => {
     }), "editor")).toBe(true);
     expect(view.state.doc.toString()).toBe("```sh\n\n```");
     expect(view.state.selection.main.head).toBe(source.length + 1);
+  });
+
+  it("unwraps a fenced block without joining its first code line backward", () => {
+    const view = createView();
+    const codeStart = codeDocument.indexOf("const answer");
+    view.dispatch({ selection: { anchor: codeStart } });
+
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "Backspace",
+    }), "editor")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      "Before\n\nconst answer = 42;\nreturn answer;\n\nEdit",
+    );
+    expect(view.state.selection.main.head).toBe("Before\n\n".length);
+  });
+
+  it("unwraps multiple fenced blocks when every caret is at the first code line", () => {
+    const source = "```ts\nfirst\n```\n\n```js\nsecond\n```";
+    const view = createView(source);
+    view.dispatch({
+      selection: EditorSelection.create([
+        EditorSelection.cursor(source.indexOf("first")),
+        EditorSelection.cursor(source.indexOf("second")),
+      ]),
+    });
+
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "Backspace",
+    }), "editor")).toBe(true);
+    expect(view.state.doc.toString()).toBe("first\n\nsecond");
+    expect(view.state.selection.ranges.map((range) => range.head)).toEqual([
+      0,
+      "first\n\n".length,
+    ]);
+  });
+
+  it("leaves a selected code range to the standard Backspace behavior", () => {
+    const view = createView();
+    const codeStart = codeDocument.indexOf("const answer");
+    view.dispatch({
+      selection: EditorSelection.range(codeStart, codeStart + "const".length),
+    });
+
+    expect(runScopeHandlers(view, new KeyboardEvent("keydown", {
+      bubbles: true,
+      key: "Backspace",
+    }), "editor")).toBe(false);
+    expect(view.state.doc.toString()).toBe(codeDocument);
   });
 
   it("exits after Enter on the trailing empty code line", () => {
@@ -363,6 +416,19 @@ describe("codeBlockPreviewPlugin", () => {
       expect(copy?.dataset.copied).toBe("true");
       expect(copy?.textContent).toBe("");
     });
+  });
+
+  it("can hide visual code block line numbers", () => {
+    const view = createView(
+      codeDocument,
+      codeBlockPreviewPlugin({ showLineNumbers: false }),
+    );
+
+    expect(
+      [...view.dom.querySelectorAll(".cm-markra-code-content-line")].map(
+        (line) => line.getAttribute("data-code-line-number"),
+      ),
+    ).toEqual([null, null]);
   });
 
   it("renders Mermaid as a preview and reveals its unchanged source on activation", async () => {

@@ -200,6 +200,34 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("toggles code block line numbers from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          showCodeBlockLineNumbers: true
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const lineNumbersSwitch = screen.getByRole("switch", {
+      name: "Show code block line numbers"
+    });
+
+    expect(lineNumbersSwitch).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(lineNumbersSwitch);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      showCodeBlockLineNumbers: false
+    });
+  });
+
   it("toggles automatic heading marker hiding from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

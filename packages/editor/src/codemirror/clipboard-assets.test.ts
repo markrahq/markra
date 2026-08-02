@@ -221,6 +221,25 @@ describe("codeMirrorClipboardAssetsPlugin", () => {
     expect(view.state.doc.toString()).toBe(`\`\`\`javascript\n${code}\n\`\`\``);
   });
 
+  it("preserves a code block inside mixed rich HTML", () => {
+    const code = "print('synthetic')";
+    const view = createView("");
+
+    const event = paste(view, {
+      html: [
+        "<p>Mock introduction</p>",
+        `<pre><code class="language-python">${code}</code></pre>`,
+        "<p>Mock conclusion</p>",
+      ].join(""),
+      text: `Mock introduction\n\n${code}\n\nMock conclusion`,
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      `Mock introduction\n\n\`\`\`python\n${code}\n\`\`\`\n\nMock conclusion`,
+    );
+  });
+
   it("wraps high-confidence plain text code at a block boundary", () => {
     const code = [
       "const mockValue = items[0];",

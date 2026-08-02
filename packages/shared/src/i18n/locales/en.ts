@@ -325,6 +325,8 @@ const messages: BaseLocaleMessages = {
   "settings.editor.hideHeadingMarkersOnFocusDescription": "Hide a heading's Markdown marker while the cursor is inside its text. The marker remains visible when the cursor reaches it.",
   "settings.editor.showLineNumbers": "Show source line numbers",
   "settings.editor.showLineNumbersDescription": "Show actual Markdown line numbers in source mode.",
+  "settings.editor.showCodeBlockLineNumbers": "Show code block line numbers",
+  "settings.editor.showCodeBlockLineNumbersDescription": "Show line numbers beside fenced code in visual mode.",
   "settings.editor.typewriterMode": "Typewriter mode",
   "settings.editor.typewriterModeDescription": "Keep the current cursor line centered while writing and navigating.",
   "settings.editor.vimMode": "Vim mode",

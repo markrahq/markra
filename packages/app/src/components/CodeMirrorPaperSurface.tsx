@@ -105,6 +105,7 @@ export interface CodeMirrorPaperSurfaceProps {
   readOnly?: boolean;
   resolveImageSrc?: (src: string) => string;
   hideHeadingMarkersOnFocus?: boolean;
+  showCodeBlockLineNumbers?: boolean;
   spellcheckEnabled?: boolean;
   spellcheckIgnoredWords?: readonly string[];
   spellchecker?: Spellchecker;
@@ -138,6 +139,7 @@ interface MarkdownExtensionOptions {
   openSpellcheckSuggestions: (view: EditorView) => boolean;
   resolveImageSrc: (source: string) => string | undefined;
   hideHeadingMarkersOnFocus: boolean;
+  showCodeBlockLineNumbers: boolean;
   plugins: readonly MarkraPlugin[];
   shortcuts?: MarkdownShortcutMap;
   tableColumnWidthMode: TableColumnWidthModePreference;
@@ -153,6 +155,7 @@ function markdownExtension({
   openSpellcheckSuggestions,
   resolveImageSrc,
   hideHeadingMarkersOnFocus,
+  showCodeBlockLineNumbers,
   plugins,
   shortcuts,
   tableColumnWidthMode,
@@ -217,7 +220,7 @@ function markdownExtension({
       calloutPreviewPlugin({
         enabled: extendedSyntax?.githubAlerts ?? true,
       }),
-      codeBlockPreviewPlugin(),
+      codeBlockPreviewPlugin({ showLineNumbers: showCodeBlockLineNumbers }),
       documentLinksPlugin({
         items: ({ query }) =>
           documentLinkCompletionFiles(
@@ -350,6 +353,7 @@ export function CodeMirrorPaperSurface({
   readOnly = false,
   resolveImageSrc,
   hideHeadingMarkersOnFocus = false,
+  showCodeBlockLineNumbers = true,
   spellcheckEnabled = false,
   spellcheckIgnoredWords = [],
   spellchecker,
@@ -524,6 +528,7 @@ export function CodeMirrorPaperSurface({
               openSpellcheckSuggestions: openSpellcheckSuggestionMenu,
               resolveImageSrc: (source) => resolveImageSrcRef.current?.(source),
               hideHeadingMarkersOnFocus,
+              showCodeBlockLineNumbers,
               plugins,
               shortcuts: markdownShortcuts,
               tableColumnWidthMode,
@@ -655,6 +660,7 @@ export function CodeMirrorPaperSurface({
           openSpellcheckSuggestions: openSpellcheckSuggestionMenu,
           resolveImageSrc: (source) => resolveImageSrcRef.current?.(source),
           hideHeadingMarkersOnFocus,
+          showCodeBlockLineNumbers,
           plugins,
           shortcuts: markdownShortcuts,
           tableColumnWidthMode,
@@ -671,6 +677,7 @@ export function CodeMirrorPaperSurface({
     openSpellcheckSuggestionMenu,
     plugins,
     hideHeadingMarkersOnFocus,
+    showCodeBlockLineNumbers,
     tableColumnWidthMode,
   ]);
 

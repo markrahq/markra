@@ -726,6 +726,8 @@ const messages: LocaleMessages = {
   "settings.editor.hideHeadingMarkersOnFocusDescription": "カーソルが見出しのテキスト内にあるとき、Markdown の見出し記号を隠します。カーソルが記号に移動すると表示されます。",
   "settings.editor.showLineNumbers": "ソースの行番号を表示",
   "settings.editor.showLineNumbersDescription": "ソースモードで Markdown ファイルの実際の行番号を表示します。",
+  "settings.editor.showCodeBlockLineNumbers": "コードブロックの行番号を表示",
+  "settings.editor.showCodeBlockLineNumbersDescription": "ビジュアルモードでフェンス付きコードブロックの横に行番号を表示します。",
   "settings.editor.typewriterMode": "タイプライターモード",
   "settings.editor.typewriterModeDescription": "入力やカーソル移動時に現在の行を編集領域の中央に保ちます。",
   "settings.editor.vimMode": "Vim モード",

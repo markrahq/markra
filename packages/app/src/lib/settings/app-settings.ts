@@ -411,6 +411,7 @@ export type EditorPreferences = {
   viewMode: ViewMode;
   viewModeCustomizations: ViewModeCustomizations;
   hideHeadingMarkersOnFocus: boolean;
+  showCodeBlockLineNumbers: boolean;
   showLineNumbers: boolean;
   showWordCount: boolean;
   typewriterModeEnabled: boolean;
@@ -571,6 +572,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   viewMode: "daily",
   viewModeCustomizations: { ...defaultViewModeCustomizations },
   hideHeadingMarkersOnFocus: false,
+  showCodeBlockLineNumbers: true,
   showLineNumbers: false,
   showWordCount: true,
   typewriterModeEnabled: false,
@@ -1770,6 +1772,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
         : typeof preferences.revealMarkdownMarkersOnFocus === "boolean"
           ? !preferences.revealMarkdownMarkersOnFocus
           : defaultEditorPreferences.hideHeadingMarkersOnFocus,
+    showCodeBlockLineNumbers:
+      typeof preferences.showCodeBlockLineNumbers === "boolean"
+        ? preferences.showCodeBlockLineNumbers
+        : defaultEditorPreferences.showCodeBlockLineNumbers,
     showLineNumbers:
       typeof preferences.showLineNumbers === "boolean"
         ? preferences.showLineNumbers

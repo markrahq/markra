@@ -65,9 +65,9 @@ function languageFromClassName(className: string) {
   return "";
 }
 
-function htmlCodeDetails(html: string | undefined) {
+function htmlCodeDetails(html: string | undefined, plainText: string) {
   if (!html?.trim() || typeof DOMParser === "undefined") {
-    return { explicit: false, language: "", styled: false };
+    return { explicit: false, language: "", mixed: false, styled: false };
   }
   const document = new DOMParser().parseFromString(html, "text/html");
   const pre = document.querySelector("pre");
@@ -76,14 +76,29 @@ function htmlCodeDetails(html: string | undefined) {
     ? languageFromClassName(code.getAttribute("class") ?? "")
     : "";
   const styledCode = Array.from(document.querySelectorAll<HTMLElement>("[style]"))
-    .some((element) => {
+    .filter((element) => {
       const style = element.getAttribute("style") ?? "";
       return codeFontPattern.test(style) || preformattedWhitespacePattern.test(style);
     });
+  const normalizedPlainText = normalizeCode(plainText);
+  const structuredCode = pre ?? code;
+  const explicit = structuredCode !== null &&
+    normalizeCode(structuredCode.textContent ?? "") === normalizedPlainText;
+  const meaningfulTopLevelNodes = Array.from(document.body.childNodes).filter(
+    (node) => node.nodeType === 1 ||
+      (node.nodeType === 3 && Boolean(node.textContent?.trim())),
+  );
+  const styled = styledCode.some(
+    (element) => meaningfulTopLevelNodes.every(
+      (node) => node === element || element.contains(node),
+    ),
+  );
   return {
-    explicit: pre !== null || code !== null,
+    explicit,
     language,
-    styled: styledCode,
+    mixed: (structuredCode !== null || styledCode.length > 0) &&
+      !explicit && !styled,
+    styled,
   };
 }
 
@@ -155,7 +170,8 @@ export function detectCodePaste(source: CodePasteSource): DetectedCodePaste | nu
   if (!code.trim()) return null;
 
   const editor = editorCodeDetails(source.editorData);
-  const html = htmlCodeDetails(source.html);
+  const html = htmlCodeDetails(source.html, code);
+  if (html.mixed && !editor.explicit) return null;
   const language = editor.language || html.language || scoredLanguage(code);
   const score = genericCodeScore(code);
   // Rich articles often contain one inline monospace span; styled HTML alone

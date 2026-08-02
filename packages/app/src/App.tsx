@@ -4345,6 +4345,7 @@ function WorkspaceApp() {
               onScroll={tabActive ? handleVisualPaneScroll : undefined}
               scrollRef={tabActive ? visualScrollRef : undefined}
               hideHeadingMarkersOnFocus={editorPreferences.preferences.hideHeadingMarkersOnFocus}
+              showCodeBlockLineNumbers={editorPreferences.preferences.showCodeBlockLineNumbers}
               spellcheckEnabled={spellcheckFeatureEnabled && editorPreferences.preferences.spellcheckEnabled}
               spellcheckIgnoredWords={editorPreferences.preferences.spellcheckIgnoredWords}
               spellchecker={appSpellchecker}
@@ -4842,6 +4843,7 @@ function WorkspaceApp() {
                         revision={sideDocumentTab.revision}
                         sizeBytes={sideDocumentTab.sizeBytes}
                         hideHeadingMarkersOnFocus={editorPreferences.preferences.hideHeadingMarkersOnFocus}
+                        showCodeBlockLineNumbers={editorPreferences.preferences.showCodeBlockLineNumbers}
                         showLineNumbers={editorPreferences.preferences.showLineNumbers}
                         spellcheckEnabled={spellcheckFeatureEnabled && editorPreferences.preferences.spellcheckEnabled}
                         spellcheckIgnoredWords={editorPreferences.preferences.spellcheckIgnoredWords}

@@ -354,6 +354,8 @@ export type I18nKey =
   | "settings.editor.hideHeadingMarkersOnFocusDescription"
   | "settings.editor.showLineNumbers"
   | "settings.editor.showLineNumbersDescription"
+  | "settings.editor.showCodeBlockLineNumbers"
+  | "settings.editor.showCodeBlockLineNumbersDescription"
   | "settings.editor.typewriterMode"
   | "settings.editor.typewriterModeDescription"
   | "settings.editor.vimMode"
