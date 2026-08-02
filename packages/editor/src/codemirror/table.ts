@@ -855,6 +855,45 @@ function insertVisualTableCellLineBreak(
   }
 }
 
+function handleVisualTableCellEnter(
+  view: CodeMirrorView,
+  preview: TablePreview,
+  cell: HTMLTableCellElement,
+  event: KeyboardEvent,
+  rowIndex: number,
+  columnIndex: number,
+  header: boolean,
+  images: ImagePreviewPluginOptions | undefined,
+  links: LinksPluginOptions | undefined,
+) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.shiftKey) {
+    insertVisualTableCellLineBreak(
+      view,
+      preview,
+      cell,
+      rowIndex,
+      columnIndex,
+      header,
+    );
+    return;
+  }
+
+  const session = tableEditingSessions.get(view);
+  tableEditingSessions.delete(view);
+  if (session?.inlineSourceVisible) {
+    renderVisualTableCell(
+      view,
+      cell,
+      visualTableCellSource(cell),
+      images,
+      links,
+    );
+  }
+  view.focus();
+}
+
 function syncVisualTableCell(
   view: CodeMirrorView,
   preview: TablePreview,
@@ -1066,34 +1105,18 @@ function appendCell(
     }, 0);
   });
   cell.addEventListener("keydown", (event) => {
-    if (event.key === "Enter" && event.shiftKey) {
-      event.preventDefault();
-      event.stopPropagation();
-      insertVisualTableCellLineBreak(
+    if (event.key === "Enter") {
+      handleVisualTableCellEnter(
         view,
         preview,
         cell,
+        event,
         rowIndex,
         columnIndex,
         header,
+        images,
+        links,
       );
-      return;
-    }
-    if (event.key === "Enter") {
-      event.preventDefault();
-      event.stopPropagation();
-      const session = tableEditingSessions.get(view);
-      tableEditingSessions.delete(view);
-      if (session?.inlineSourceVisible) {
-        renderVisualTableCell(
-          view,
-          cell,
-          visualTableCellSource(cell),
-          images,
-          links,
-        );
-      }
-      view.focus();
       return;
     }
     if (event.key !== "Escape") return;
@@ -1347,6 +1370,30 @@ class TableWidget extends WidgetType {
     table.dataset.widthMode = widthMode;
     table.classList.toggle("markra-table-width-auto", widthMode === "auto");
     table.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        const cell = activeVisualTableCell(view, table);
+        if (!cell) return;
+        const rowIndex = Number(cell.dataset.tableRow);
+        const columnIndex = Number(cell.dataset.tableColumn);
+        const header = cell.dataset.tableHeader === "true";
+        if (!Number.isInteger(rowIndex) || !Number.isInteger(columnIndex)) {
+          return;
+        }
+        // Safari targets keyboard events at the shared contenteditable table
+        // instead of the focused cell, so route both targets through one path.
+        handleVisualTableCellEnter(
+          view,
+          this.preview,
+          cell,
+          event,
+          rowIndex,
+          columnIndex,
+          header,
+          this.images,
+          this.links,
+        );
+        return;
+      }
       if (
         event.key !== "Tab" ||
         event.altKey ||
@@ -1364,6 +1411,18 @@ class TableWidget extends WidgetType {
     // Browsers target editing events at the shared contenteditable table host,
     // so cell-level listeners miss real input even though the cell DOM changes.
     table.addEventListener("beforeinput", (event) => {
+      if (
+        event instanceof InputEvent &&
+        (event.inputType === "insertLineBreak" ||
+          event.inputType === "insertParagraph")
+      ) {
+        // Enter is handled by the controlled keydown path. WebKit may still
+        // deliver this native event after keydown was canceled, which would
+        // otherwise rewrite the controlled <br> or add a second break.
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       if (event instanceof InputEvent && event.isComposing) return;
       repairVisualTableCellSelection(view, table);
     });
