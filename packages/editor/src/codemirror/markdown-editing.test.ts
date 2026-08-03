@@ -63,9 +63,7 @@ function press(
 
 function expectFullHeightEmptyLines(view: EditorView, count: number) {
   const emptyLines = Array.from(
-    view.dom.querySelectorAll(
-      ".cm-markra-empty-line:not(.cm-markra-layout-separator)",
-    ),
+    view.dom.querySelectorAll(".cm-markra-empty-line"),
   );
   expect(emptyLines).toHaveLength(count);
   expect(
@@ -91,24 +89,24 @@ describe("markdownEditingPlugin", () => {
     expect(view.state.selection.main.head).toBe(position + 1);
   });
 
-  it("keeps the caret with text when inserting empty lines before it", () => {
+  it("keeps the caret on a new blank line before text", () => {
     const doc = "Before\nAfter";
     const position = "Before\n".length;
     const view = createView(doc, position);
     view.focus();
 
     expect(press(view, "Enter")).toBe(true);
-    expect(view.state.doc.toString()).toBe("Before\n\n\nAfter");
-    expect(view.state.selection.main.head).toBe(position + 2);
+    expect(view.state.doc.toString()).toBe("Before\n\nAfter");
+    expect(view.state.selection.main.head).toBe(position + 1);
     expectFullHeightEmptyLines(view, 1);
 
     view.dispatch({
-      changes: { from: position + 2, insert: "Middle" },
-      selection: EditorSelection.cursor(position + 2 + "Middle".length),
+      changes: { from: position + 1, insert: "Middle" },
+      selection: EditorSelection.cursor(position + 1 + "Middle".length),
       userEvent: "input.type",
     });
 
-    expect(view.state.doc.toString()).toBe("Before\n\n\nMiddleAfter");
+    expect(view.state.doc.toString()).toBe("Before\n\nMiddleAfter");
     expectFullHeightEmptyLines(view, 1);
   });
 
@@ -121,7 +119,7 @@ describe("markdownEditingPlugin", () => {
     expect(press(view, "Enter")).toBe(true);
     expect(view.state.doc.toString()).toBe("Before\n\n\nAfter");
     expect(view.state.selection.main.head).toBe(position + 1);
-    expectFullHeightEmptyLines(view, 1);
+    expectFullHeightEmptyLines(view, 2);
   });
 
   it("adds one editable blank line after the final character before the next line", () => {
@@ -131,8 +129,8 @@ describe("markdownEditingPlugin", () => {
     view.focus();
 
     expect(press(view, "Enter")).toBe(true);
-    expect(view.state.doc.toString()).toBe("Before\n\n\nAfter");
-    expect(view.state.selection.main.head).toBe(position + 2);
+    expect(view.state.doc.toString()).toBe("Before\n\nAfter");
+    expect(view.state.selection.main.head).toBe(position + 1);
     expectFullHeightEmptyLines(view, 1);
   });
 
@@ -155,7 +153,7 @@ describe("markdownEditingPlugin", () => {
 
     for (let presses = 1; presses <= 4; presses += 1) {
       expect(press(view, "Enter")).toBe(true);
-      const lineBreaks = presses === 1 ? 1 : presses + 1;
+      const lineBreaks = presses;
       expect(view.state.doc.toString()).toBe(
         `${before}${"\n".repeat(lineBreaks)}${after}`,
       );
@@ -172,7 +170,7 @@ describe("markdownEditingPlugin", () => {
     });
 
     expect(view.state.doc.toString()).toBe(
-      `${before}\n\n\n\n\nTyped${after}`,
+      `${before}\n\n\n\nTyped${after}`,
     );
     expectFullHeightEmptyLines(view, 3);
 
@@ -203,19 +201,17 @@ describe("markdownEditingPlugin", () => {
       userEvent: "select.pointer",
     });
     expect(press(view, "Backspace")).toBe(true);
-    expect(view.state.doc.toString()).toBe(`${before}\n\n\n\n${after}`);
+    expect(view.state.doc.toString()).toBe(`${before}\n\n\n${after}`);
     expectFullHeightEmptyLines(view, 2);
 
     expect(press(view, "Backspace")).toBe(true);
-    expect(view.state.doc.toString()).toBe(`${before}\n\n\n${after}`);
+    expect(view.state.doc.toString()).toBe(`${before}\n\n${after}`);
     expectFullHeightEmptyLines(view, 1);
 
     expect(press(view, "Backspace")).toBe(true);
-    expect(view.state.doc.toString()).toBe(`${before}\n\n${after}`);
+    expect(view.state.doc.toString()).toBe(`${before}\n${after}`);
     expect(
-      view.dom.querySelector(
-        ".cm-markra-empty-line:not(.cm-markra-layout-separator)",
-      ),
+      view.dom.querySelector(".cm-markra-empty-line"),
     ).toBeNull();
   });
 
@@ -231,10 +227,10 @@ describe("markdownEditingPlugin", () => {
     view.focus();
 
     expect(press(view, "Enter")).toBe(true);
-    expect(view.state.doc.toString()).toBe("\nOne\n\n\nTwo");
+    expect(view.state.doc.toString()).toBe("\nOne\n\nTwo");
     expect(view.state.selection.ranges.map((range) => range.head)).toEqual([
       1,
-      "\nOne\n".length + 2,
+      "\nOne\n".length + 1,
     ]);
     expectFullHeightEmptyLines(view, 2);
   });

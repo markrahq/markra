@@ -6509,7 +6509,7 @@ describe("Markra workspace", () => {
   });
 
   it("switches between the visual editor and markdown source mode", async () => {
-    renderApp();
+    const { container } = renderApp();
 
     await expectVisibleMarkdownText("Welcome to Markra");
 
@@ -6528,6 +6528,7 @@ describe("Markra workspace", () => {
     expect(await screen.findByRole("heading", { name: "Source edit" })).toBeInTheDocument();
     expect(screen.getByText("Updated from source mode.")).toBeInTheDocument();
     expect(screen.getByLabelText("Markdown editor")).toHaveAttribute("data-editor-engine", "codemirror");
+    expect(container.querySelectorAll(".cm-markra-empty-line")).toHaveLength(1);
   });
 
   it("commits pending visual IME content before source mode mounts", async () => {

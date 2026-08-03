@@ -344,7 +344,7 @@ describe("imagePreviewPlugin", () => {
     expect(view.dom.querySelector(".cm-markra-image")).toBeNull();
   });
 
-  it("moves into the paragraph after an edited image on Enter", () => {
+  it("moves into the blank line after an edited image on Enter", () => {
     const doc = "![Synthetic alt](./assets/mock.png)\n\nEdit";
     const view = createView(doc);
     view.dom.querySelector<HTMLImageElement>(".cm-markra-image")?.dispatchEvent(
@@ -361,10 +361,8 @@ describe("imagePreviewPlugin", () => {
       key: "Enter",
     }));
 
-    expect(view.state.doc.toString()).toBe(
-      "![Synthetic alt](./assets/mock.png)\n\n\nEdit",
-    );
-    expect(view.state.selection.main.head).toBe(doc.indexOf("\n") + 2);
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(view.state.selection.main.head).toBe(doc.indexOf("\n") + 1);
     expect(view.dom.querySelector(".markra-image-node-source")).toBeNull();
   });
 

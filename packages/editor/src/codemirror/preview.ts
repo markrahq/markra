@@ -30,10 +30,7 @@ import {
 } from "./links.ts";
 import { unescapeMarkdown } from "./syntax.ts";
 import { createTaskDecoration } from "./tasks.ts";
-import {
-  blankLineLayout,
-  isInsidePreformattedBlock,
-} from "./blank-lines.ts";
+import { isInsidePreformattedBlock } from "./blank-lines.ts";
 
 const HEADING_CLASSES: Readonly<Record<string, string>> = {
   ATXHeading1: "cm-markra-h1",
@@ -766,6 +763,8 @@ function buildDecorations(
         !decoratedEmptyLines.has(line.from) &&
         !isInsidePreformattedBlock(state, line.from)
       ) {
+        // Keep every authored blank as a normal CodeMirror row. Folding one
+        // based on surrounding text makes its height change while typing.
         decoratedEmptyLines.add(line.from);
         ranges.push(
           Decoration.line({
@@ -901,7 +900,6 @@ function previewPlugin(config: LivePreviewConfig): Extension {
 export function livePreview(config: LivePreviewConfig = {}): Extension {
   return [
     sourceDragSelectionExtension,
-    blankLineLayout(),
     previewPlugin(config),
     listMarkerSelectionPlugin,
   ];

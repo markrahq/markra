@@ -9,7 +9,6 @@ import {
 } from "@codemirror/state";
 import { keymap, type EditorView } from "@codemirror/view";
 import { defineMarkraPlugin } from "./plugin.ts";
-import { isInsidePreformattedBlock } from "./blank-lines.ts";
 
 const indentation = "  ";
 const listMarkerPattern = /^((?:[\t ]*>[\t ]*)*)([\t ]*)(?:[-+*]|\d+[.)])[\t ]+/u;
@@ -175,56 +174,6 @@ function removeLeadingEmptyLineBackward(view: EditorView) {
   return true;
 }
 
-function insertVisibleBlankLineBeforeText(view: EditorView) {
-  if (!isEditable(view)) return false;
-  const { ranges } = view.state.selection;
-  if (ranges.some((range) => !range.empty)) return false;
-
-  const insertions = ranges.map((range) => {
-    const line = view.state.doc.lineAt(range.head);
-    const previousLine = line.number > 1
-      ? view.state.doc.line(line.number - 1)
-      : null;
-    const nextLine = line.number < view.state.doc.lines
-      ? view.state.doc.line(line.number + 1)
-      : null;
-    const insertsBeforeText =
-      range.head === line.from &&
-      line.length > 0 &&
-      previousLine !== null &&
-      previousLine.text.trim().length > 0 &&
-      !isInsidePreformattedBlock(view.state, line.from) &&
-      !isInsidePreformattedBlock(view.state, previousLine.from);
-    const insertsAfterText =
-      range.head === line.to &&
-      line.length > 0 &&
-      nextLine !== null &&
-      nextLine.text.trim().length > 0 &&
-      !isInsidePreformattedBlock(view.state, line.from) &&
-      !isInsidePreformattedBlock(view.state, nextLine.from);
-    return insertsBeforeText || insertsAfterText ? "\n\n" : "\n";
-  });
-  if (insertions.every((insertion) => insertion.length === 1)) return false;
-
-  const changes = view.state.changes(
-    ranges.map((range, index) => ({
-      from: range.head,
-      insert: insertions[index] ?? "\n",
-    })),
-  );
-  view.dispatch({
-    changes,
-    selection: EditorSelection.create(
-      ranges.map((range) =>
-        EditorSelection.cursor(changes.mapPos(range.head, 1), 1)
-      ),
-      view.state.selection.mainIndex,
-    ),
-    userEvent: "input",
-  });
-  return true;
-}
-
 function confirmIncompleteInlineDestination(view: EditorView) {
   if (!isEditable(view)) return false;
   const { ranges } = view.state.selection;
@@ -293,9 +242,7 @@ export function markdownEditingPlugin() {
         { key: "Backspace", run: removeLeadingEmptyLineBackward },
         {
           key: "Enter",
-          run: (view) =>
-            confirmIncompleteInlineDestination(view) ||
-            insertVisibleBlankLineBeforeText(view),
+          run: confirmIncompleteInlineDestination,
         },
         { key: "Tab", run: handleTab, shift: handleShiftTab },
         { key: "Shift-Enter", run: insertContextualHardBreak },

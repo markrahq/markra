@@ -1057,22 +1057,6 @@
     color: var(--editor-text-primary);
   }
 
-  /* Keep the source line in CodeMirror's document model while removing one
-     stable Markdown-only separator from visual layout. */
-  .markdown-paper .cm-line.cm-markra-layout-separator {
-    display: none !important;
-  }
-
-  /* The hidden source separator still represents a Markdown block boundary.
-     Keep its visual rhythm in a non-editable CodeMirror block widget so every
-     block pairing is measured consistently. */
-  .markdown-paper .cm-markra-block-gap {
-    box-sizing: border-box;
-    width: 100% !important;
-    height: var(--editor-paragraph-spacing) !important;
-    pointer-events: none;
-  }
-
   /* Paragraph spacing is extra rhythm after content, not a replacement for
      an authored blank line, which must retain the editor's normal line height. */
   .markdown-paper .cm-line.cm-markra-paragraph-end {

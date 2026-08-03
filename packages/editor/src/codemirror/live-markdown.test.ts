@@ -85,13 +85,6 @@ function renderedLines(view: EditorView) {
   );
 }
 
-function layoutSeparatorStates(view: EditorView) {
-  return Array.from(
-    view.dom.querySelectorAll(".cm-markra-empty-line"),
-    (line) => line.classList.contains("cm-markra-layout-separator"),
-  );
-}
-
 function paragraphEndStates(view: EditorView) {
   return Array.from(
     view.dom.querySelectorAll(".cm-markra-paragraph"),
@@ -494,7 +487,7 @@ describe("liveMarkdown", () => {
     );
   });
 
-  it("keeps preview text and empty-line state stable during a range selection", () => {
+  it("keeps preview text and blank rows stable during a range selection", () => {
     const doc = [
       "Before **bold** and [label](https://example.test/long-target) after",
       "",
@@ -506,72 +499,46 @@ describe("liveMarkdown", () => {
     view.dispatch({ selection: EditorSelection.range(0, doc.length) });
 
     expect(renderedLines(view)).toEqual(before);
-    const emptyLine = view.dom.querySelector(".cm-markra-empty-line");
-    expect(emptyLine?.getAttribute("data-markra-empty-source")).toBe(
-      "separator",
-    );
-    expect(layoutSeparatorStates(view)).toEqual([true]);
+    expect(view.dom.querySelectorAll(".cm-markra-empty-line")).toHaveLength(1);
     expect(paragraphEndStates(view)).toEqual([false, false]);
   });
 
-  it("keeps one layout separator and additional empty lines stable across recreation", () => {
+  it("keeps all empty lines stable across recreation", () => {
     const doc = "Before\n\n\nAfter";
-    const emptyLineStates = (view: EditorView) => Array.from(
-      view.dom.querySelectorAll(".cm-markra-empty-line"),
-      (line) => line.getAttribute("data-markra-empty-source"),
-    );
+    const emptyLineCount = (view: EditorView) =>
+      view.dom.querySelectorAll(".cm-markra-empty-line").length;
     const firstView = createView({ doc, anchor: 0 });
 
-    expect(emptyLineStates(firstView)).toEqual(["separator", null]);
+    expect(emptyLineCount(firstView)).toBe(2);
 
     firstView.dispatch({
       selection: EditorSelection.cursor("Before\n".length),
       userEvent: "select.pointer",
     });
-    expect(emptyLineStates(firstView)).toEqual(["separator", null]);
+    expect(emptyLineCount(firstView)).toBe(2);
 
     const recreatedView = createView({ doc, anchor: doc.length });
-    expect(emptyLineStates(recreatedView)).toEqual(["separator", null]);
+    expect(emptyLineCount(recreatedView)).toBe(2);
   });
 
-  it("redirects the cursor out of a layout separator without changing layout", () => {
+  it("allows the cursor to remain on an internal blank line", () => {
     const doc = "Before\n\nAfter";
     const view = createView({ doc, anchor: doc.length });
-    const emptyLine = view.dom.querySelector<HTMLElement>(
-      ".cm-markra-empty-line",
-    );
-
-    expect(emptyLine?.getAttribute("data-markra-empty-source")).toBe(
-      "separator",
-    );
-    expect(layoutSeparatorStates(view)).toEqual([true]);
     expect(paragraphEndStates(view)).toEqual([false, false]);
 
     view.dispatch({ selection: EditorSelection.cursor("Before\n".length) });
 
     expect(view.state.doc.toString()).toBe(doc);
-    expect(view.state.selection.main.head).toBe("Before\n\n".length);
-    const activeEmptyLine = view.dom.querySelector(".cm-markra-empty-line");
-    expect(activeEmptyLine?.getAttribute("data-markra-empty-source")).toBe(
-      "separator",
-    );
-    expect(layoutSeparatorStates(view)).toEqual([true]);
+    expect(view.state.selection.main.head).toBe("Before\n".length);
+    expect(view.dom.querySelectorAll(".cm-markra-empty-line")).toHaveLength(1);
     expect(paragraphEndStates(view)).toEqual([false, false]);
   });
 
-  it("applies paragraph spacing separately from additional editable blank lines", () => {
+  it("keeps paragraph spacing separate from authored blank lines", () => {
     const view = createView({ doc: "First\nSecond\n\n\nAfter" });
 
-    expect(layoutSeparatorStates(view)).toEqual([true, false]);
+    expect(view.dom.querySelectorAll(".cm-markra-empty-line")).toHaveLength(2);
     expect(paragraphEndStates(view)).toEqual([false, false, false]);
-  });
-
-  it("does not duplicate paragraph spacing when a structural gap exists", () => {
-    const view = createView({ doc: "Before\n\nAfter" });
-
-    expect(layoutSeparatorStates(view)).toEqual([true]);
-    expect(paragraphEndStates(view)).toEqual([false, false]);
-    expect(view.dom.querySelectorAll(".cm-markra-block-gap")).toHaveLength(1);
   });
 
   it("adds paragraph spacing when another block starts directly", () => {
@@ -597,7 +564,7 @@ describe("liveMarkdown", () => {
     expect(paragraphEndStates(view)).toEqual([false, false]);
   });
 
-  it("updates paragraph spacing when a layout separator becomes content", () => {
+  it("updates paragraph layout when a blank line becomes content", () => {
     const doc = "Before\n\nAfter";
     const position = "Before\n".length;
     const view = createView({ doc, anchor: position });

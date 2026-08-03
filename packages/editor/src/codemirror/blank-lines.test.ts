@@ -23,21 +23,13 @@ function createView(doc: string, anchor = doc.length) {
 
 function renderedLines(view: EditorView) {
   return Array.from(
-    view.dom.querySelectorAll(
-      ".cm-line:not(.cm-markra-layout-separator)",
-    ),
+    view.dom.querySelectorAll(".cm-line"),
     (line) => line.textContent ?? "",
   );
 }
 
 function editableEmptyLines(view: EditorView) {
-  return view.dom.querySelectorAll(
-    ".cm-markra-empty-line:not(.cm-markra-layout-separator)",
-  );
-}
-
-function blockGaps(view: EditorView) {
-  return view.dom.querySelectorAll(".cm-markra-block-gap");
+  return view.dom.querySelectorAll(".cm-markra-empty-line");
 }
 
 afterEach(() => {
@@ -45,37 +37,58 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-describe("blank line layout", () => {
-  it("does not render a single internal Markdown separator as an editable line", () => {
+describe("blank line rendering", () => {
+  it("renders a single internal Markdown blank as an editable line", () => {
     const doc = "# Synthetic heading\n\n- Synthetic item";
     const view = createView(doc);
 
     expect(renderedLines(view)).toEqual([
       "Synthetic heading",
+      "",
       "Synthetic item",
     ]);
-    expect(
-      view.dom.querySelector(".cm-markra-layout-separator"),
-    ).not.toBeNull();
-    expect(blockGaps(view)).toHaveLength(1);
+    expect(editableEmptyLines(view)).toHaveLength(1);
     expect(view.state.doc.toString()).toBe(doc);
   });
 
-  it("keeps additional internal blank lines at normal editable height", () => {
+  it("keeps every internal blank line at normal editable height", () => {
     const doc = "Synthetic before\n\n\nSynthetic after";
     const view = createView(doc);
 
     expect(renderedLines(view)).toEqual([
       "Synthetic before",
       "",
+      "",
       "Synthetic after",
     ]);
-    expect(editableEmptyLines(view)).toHaveLength(1);
-    expect(blockGaps(view)).toHaveLength(1);
+    expect(editableEmptyLines(view)).toHaveLength(2);
     expect(view.state.doc.toString()).toBe(doc);
   });
 
-  it("uses the same stable gap between different Markdown block types", () => {
+  it("keeps a trailing blank line full height after text is entered below it", () => {
+    const initialDoc = "Synthetic first\n\n";
+    const view = createView(initialDoc);
+
+    view.dispatch({
+      changes: { from: initialDoc.length, insert: "Synthetic second" },
+      selection: EditorSelection.cursor(
+        initialDoc.length + "Synthetic second".length,
+      ),
+      userEvent: "input.type",
+    });
+
+    expect(view.state.doc.toString()).toBe(
+      "Synthetic first\n\nSynthetic second",
+    );
+    expect(renderedLines(view)).toEqual([
+      "Synthetic first",
+      "",
+      "Synthetic second",
+    ]);
+    expect(editableEmptyLines(view)).toHaveLength(1);
+  });
+
+  it("keeps authored blank lines between different Markdown block types", () => {
     const doc = [
       "# Synthetic heading",
       "",
@@ -91,12 +104,7 @@ describe("blank line layout", () => {
     ].join("\n");
     const view = createView(doc);
 
-    expect(blockGaps(view)).toHaveLength(4);
-    expect(
-      Array.from(blockGaps(view)).every((gap) =>
-        gap.getAttribute("aria-hidden") === "true"
-      ),
-    ).toBe(true);
+    expect(editableEmptyLines(view)).toHaveLength(4);
   });
 
   it("keeps leading and trailing blank lines editable", () => {
@@ -107,12 +115,13 @@ describe("blank line layout", () => {
     expect(editableEmptyLines(view)).toHaveLength(2);
   });
 
-  it("collapses whitespace-only Markdown separators without changing source", () => {
+  it("keeps whitespace-only Markdown lines visible without changing source", () => {
     const doc = "Synthetic before\n \t\nSynthetic after";
     const view = createView(doc);
 
     expect(renderedLines(view)).toEqual([
       "Synthetic before",
+      " \t",
       "Synthetic after",
     ]);
     expect(view.state.doc.toString()).toBe(doc);
@@ -135,10 +144,9 @@ describe("blank line layout", () => {
       "synthetic-after",
       "",
     ]);
-    expect(blockGaps(view)).toHaveLength(0);
   });
 
-  it("separates fenced blocks without treating their internal blanks as gaps", () => {
+  it("keeps blank lines around fenced blocks editable", () => {
     const doc = [
       "Synthetic before",
       "",
@@ -154,18 +162,19 @@ describe("blank line layout", () => {
     ].join("\n");
     const view = createView(doc);
 
-    expect(blockGaps(view)).toHaveLength(2);
+    expect(editableEmptyLines(view)).toHaveLength(2);
   });
 
-  it("keeps separator layout stable across selection, focus, and recreation", () => {
+  it("keeps blank rows stable across selection, focus, and recreation", () => {
     const doc = "Synthetic before\n\nSynthetic after";
     const firstView = createView(doc, 0);
 
     expect(renderedLines(firstView)).toEqual([
       "Synthetic before",
+      "",
       "Synthetic after",
     ]);
-    expect(blockGaps(firstView)).toHaveLength(1);
+    expect(editableEmptyLines(firstView)).toHaveLength(1);
     firstView.focus();
     firstView.dispatch({
       selection: EditorSelection.cursor("Synthetic before\n".length),
@@ -174,15 +183,17 @@ describe("blank line layout", () => {
     firstView.contentDOM.blur();
     expect(renderedLines(firstView)).toEqual([
       "Synthetic before",
+      "",
       "Synthetic after",
     ]);
-    expect(blockGaps(firstView)).toHaveLength(1);
+    expect(editableEmptyLines(firstView)).toHaveLength(1);
 
     const recreatedView = createView(doc);
     expect(renderedLines(recreatedView)).toEqual([
       "Synthetic before",
+      "",
       "Synthetic after",
     ]);
-    expect(blockGaps(recreatedView)).toHaveLength(1);
+    expect(editableEmptyLines(recreatedView)).toHaveLength(1);
   });
 });
