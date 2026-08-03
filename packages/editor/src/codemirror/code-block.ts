@@ -2,15 +2,17 @@ import { syntaxTree } from "@codemirror/language";
 import {
   EditorSelection,
   Prec,
+  StateEffect,
   StateField,
   type Range,
   type EditorState,
-  type Text,
+  type Transaction,
 } from "@codemirror/state";
 import {
   Decoration,
   EditorView,
   keymap,
+  ViewPlugin,
   WidgetType,
   type DecorationSet,
   type EditorView as CodeMirrorView,
@@ -259,9 +261,8 @@ const codeBlockTheme = EditorView.baseTheme({
     position: "relative",
     textAlign: "center",
   },
-  // This widget is emitted through a view plugin, so CodeMirror requires an
-  // inline replacement. An inline-block avoids the empty line boxes produced
-  // by placing a block element between CodeMirror's inline widget buffers.
+  // An inline-block avoids the empty line boxes WebKit can produce around
+  // CodeMirror's widget buffers while still letting the preview fill the row.
   ".markra-code-block[data-mermaid-mode='preview']": {
     boxSizing: "border-box",
     display: "inline-block",
@@ -279,9 +280,6 @@ const codeBlockTheme = EditorView.baseTheme({
   ".markra-mermaid-render svg": {
     height: "auto",
     maxWidth: "100%",
-  },
-  ".cm-markra-mermaid-hidden-line": {
-    display: "none",
   },
 });
 
@@ -322,6 +320,11 @@ function codeBlockTopGapDecorations(
       const firstLine = state.doc.lineAt(node.from);
       const lastLine = state.doc.lineAt(node.to);
       if (firstLine.number === lastLine.number) return;
+      const fencedLanguage = /^\s*(?:`{3,}|~{3,})\s*([^\s`]*)/u
+        .exec(firstLine.text)?.[1] ?? "";
+      if (isMermaidLanguage(normalizeMarkraCodeLanguage(fencedLanguage))) {
+        return;
+      }
       // Fenced code may be indented by up to three spaces. Block widgets
       // anchored after that indentation split the folded header in WebKit.
       gaps.push(
@@ -520,13 +523,37 @@ class CodeBlockExitWidget extends WidgetType {
   }
 }
 
-class MermaidPreviewWidget extends WidgetType {
-  private observer: MutationObserver | null = null;
-  private renderToken = 0;
-  private mediaViewer: MediaViewerHandle | null = null;
+interface MermaidPreviewRuntime {
+  mediaViewer: MediaViewerHandle | null;
+  observer: MutationObserver | null;
+  renderToken: number;
+}
 
+const mermaidPreviewRuntimes = new WeakMap<
+  HTMLElement,
+  MermaidPreviewRuntime
+>();
+
+function removeEmptyMermaidLabels(preview: HTMLElement) {
+  for (const emptyLabel of preview.querySelectorAll(
+    'foreignObject[width="0"][height="0"]',
+  )) {
+    const label = emptyLabel.parentElement;
+    if (
+      label?.classList.contains("label") &&
+      label.childElementCount === 1 &&
+      !label.textContent?.trim()
+    ) {
+      label.remove();
+      continue;
+    }
+    emptyLabel.remove();
+  }
+}
+
+class MermaidPreviewWidget extends WidgetType {
   constructor(
-    readonly from: number,
+    readonly sourceOffset: number,
     readonly labels: CodeBlockPreviewLabels,
     readonly renderMermaid: NonNullable<CodeBlockPreviewPluginOptions["renderMermaid"]>,
     readonly source: string,
@@ -535,27 +562,31 @@ class MermaidPreviewWidget extends WidgetType {
   }
 
   eq(other: MermaidPreviewWidget) {
-    return this.from === other.from && this.source === other.source;
+    return (
+      this.source === other.source &&
+      this.sourceOffset === other.sourceOffset
+    );
   }
 
   ignoreEvent() {
     return true;
   }
 
-  private closeViewer() {
-    this.mediaViewer?.close({ restoreFocus: false });
-    this.mediaViewer = null;
+  private closeViewer(runtime: MermaidPreviewRuntime) {
+    runtime.mediaViewer?.close({ restoreFocus: false });
+    runtime.mediaViewer = null;
   }
 
   private openZoom(
+    runtime: MermaidPreviewRuntime,
     view: CodeMirrorView,
     preview: HTMLElement,
     trigger: HTMLButtonElement,
   ) {
     const sourceSvg = preview.querySelector("svg");
     if (!sourceSvg) return;
-    this.closeViewer();
-    this.mediaViewer = openMediaViewer({
+    this.closeViewer(runtime);
+    runtime.mediaViewer = openMediaViewer({
       labels: {
         close: "Close enlarged Mermaid diagram",
         dialog: "Enlarged Mermaid diagram",
@@ -573,6 +604,7 @@ class MermaidPreviewWidget extends WidgetType {
   }
 
   private appendZoomButton(
+    runtime: MermaidPreviewRuntime,
     view: CodeMirrorView,
     preview: HTMLElement,
     wrapper: HTMLElement,
@@ -592,7 +624,7 @@ class MermaidPreviewWidget extends WidgetType {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      this.openZoom(view, preview, button);
+      this.openZoom(runtime, view, preview, button);
     });
     wrapper.append(button);
   }
@@ -601,6 +633,12 @@ class MermaidPreviewWidget extends WidgetType {
     const document = view.dom.ownerDocument;
     const wrapper = document.createElement("div");
     const preview = document.createElement("div");
+    const runtime: MermaidPreviewRuntime = {
+      mediaViewer: null,
+      observer: null,
+      renderToken: 0,
+    };
+    mermaidPreviewRuntimes.set(wrapper, runtime);
     wrapper.className = "markra-code-block";
     wrapper.dataset.mermaidMode = "preview";
     preview.className = "markra-mermaid-render";
@@ -611,9 +649,17 @@ class MermaidPreviewWidget extends WidgetType {
     const revealSource = (event: Event) => {
       event.preventDefault();
       event.stopPropagation();
+      let anchor = this.sourceOffset;
+      try {
+        // The widget may move when text is inserted before an unchanged
+        // diagram. Resolve its current document position from the reused DOM.
+        anchor = view.posAtDOM(wrapper) + this.sourceOffset;
+      } catch {
+        // Fall back to the creation position if the DOM was already detached.
+      }
       view.dispatch({
         scrollIntoView: true,
-        selection: { anchor: this.from },
+        selection: { anchor },
       });
       view.focus();
     };
@@ -623,20 +669,21 @@ class MermaidPreviewWidget extends WidgetType {
     });
 
     const render = () => {
-      this.renderToken += 1;
-      const token = this.renderToken;
+      runtime.renderToken += 1;
+      const token = runtime.renderToken;
       const theme = mermaidThemeFromElement(preview);
       preview.setAttribute("aria-busy", "true");
       this.renderMermaid({ source: this.source, theme, view })
         .then((svg) => {
-          if (token !== this.renderToken) return;
-          this.closeViewer();
+          if (token !== runtime.renderToken) return;
+          this.closeViewer(runtime);
           preview.innerHTML = svg;
-          this.appendZoomButton(view, preview, wrapper);
+          removeEmptyMermaidLabels(preview);
+          this.appendZoomButton(runtime, view, preview, wrapper);
           preview.setAttribute("aria-busy", "false");
         })
         .catch(() => {
-          if (token !== this.renderToken) return;
+          if (token !== runtime.renderToken) return;
           preview.textContent = this.labels.mermaidError;
           preview.dataset.error = "true";
           preview.setAttribute("aria-busy", "false");
@@ -646,24 +693,28 @@ class MermaidPreviewWidget extends WidgetType {
 
     const MutationObserverConstructor = document.defaultView?.MutationObserver;
     if (MutationObserverConstructor) {
-      this.observer = new MutationObserverConstructor(render);
+      runtime.observer = new MutationObserverConstructor(render);
       const options = {
         attributeFilter: ["data-editor-theme", "data-theme"],
         attributes: true,
       };
       const paper = view.dom.closest(".markdown-paper");
-      if (paper) this.observer.observe(paper, options);
-      this.observer.observe(document.documentElement, options);
+      if (paper) runtime.observer.observe(paper, options);
+      runtime.observer.observe(document.documentElement, options);
     }
     wrapper.append(preview);
     return wrapper;
   }
 
-  destroy() {
-    this.renderToken += 1;
-    this.closeViewer();
-    this.observer?.disconnect();
-    this.observer = null;
+  destroy(dom: HTMLElement) {
+    const runtime = mermaidPreviewRuntimes.get(dom);
+    if (!runtime) return;
+
+    runtime.renderToken += 1;
+    this.closeViewer(runtime);
+    runtime.observer?.disconnect();
+    runtime.observer = null;
+    mermaidPreviewRuntimes.delete(dom);
   }
 }
 
@@ -687,6 +738,280 @@ function codeBlockParts(
     languageTo: infoNode ? infoNode.from + rawLanguage.length : openingMark?.to ?? node.from,
     openingMarkTo: openingMark?.to ?? node.from,
   };
+}
+
+const setMermaidPreviewFocusedEffect = StateEffect.define<boolean>();
+
+interface MermaidPreviewState {
+  readonly blocks: readonly MermaidPreviewBlock[];
+  readonly decorations: DecorationSet;
+  readonly focused: boolean;
+}
+
+interface MermaidPreviewBlock {
+  readonly from: number;
+  readonly source: string;
+  readonly sourceOffset: number;
+  readonly to: number;
+}
+
+function mermaidSourceRevealed(
+  state: EditorState,
+  from: number,
+  to: number,
+  focused: boolean,
+) {
+  if (!focused) return false;
+  return state.selection.ranges.some((selection) =>
+    selection.empty
+      ? selection.head > from && selection.head <= to
+      : selection.anchor > from && selection.anchor <= to
+  );
+}
+
+function readMermaidPreviewBlocks(state: EditorState) {
+  const blocks: MermaidPreviewBlock[] = [];
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (node.type.name !== "FencedCode") return;
+      const parts = codeBlockParts(state, node.node as MarkraSyntaxNode);
+      if (
+        !parts.codeNode ||
+        !parts.code.trim() ||
+        !isMermaidLanguage(parts.language)
+      ) {
+        return;
+      }
+      blocks.push({
+        from: node.from,
+        source: parts.code,
+        sourceOffset: parts.codeNode.from - node.from,
+        to: node.to,
+      });
+    },
+  });
+  return blocks;
+}
+
+function mermaidPreviewDecorationsFromBlocks(
+  state: EditorState,
+  focused: boolean,
+  blocks: readonly MermaidPreviewBlock[],
+  labels: CodeBlockPreviewLabels,
+  renderMermaid: NonNullable<CodeBlockPreviewPluginOptions["renderMermaid"]>,
+) {
+  const previews: Range<Decoration>[] = [];
+  for (const block of blocks) {
+    if (mermaidSourceRevealed(state, block.from, block.to, focused)) continue;
+    // Replace the complete fence with one block widget. Splitting the preview
+    // across a first-line widget and hidden source lines makes CodeMirror
+    // remount the expensive SVG while it reconciles the block's height map.
+    previews.push(
+      Decoration.replace({
+        block: true,
+        widget: new MermaidPreviewWidget(
+          block.sourceOffset,
+          labels,
+          renderMermaid,
+          block.source,
+        ),
+      }).range(block.from, block.to),
+    );
+  }
+  return Decoration.set(previews, true);
+}
+
+function createMermaidPreviewState(
+  state: EditorState,
+  focused: boolean,
+  labels: CodeBlockPreviewLabels,
+  renderMermaid: NonNullable<CodeBlockPreviewPluginOptions["renderMermaid"]>,
+): MermaidPreviewState {
+  const blocks = readMermaidPreviewBlocks(state);
+  return {
+    blocks,
+    decorations: mermaidPreviewDecorationsFromBlocks(
+      state,
+      focused,
+      blocks,
+      labels,
+      renderMermaid,
+    ),
+    focused,
+  };
+}
+
+function mapMermaidPreviewBlocks(
+  blocks: readonly MermaidPreviewBlock[],
+  transaction: Transaction,
+) {
+  return blocks.map((block) => ({
+    ...block,
+    from: transaction.changes.mapPos(block.from, 1),
+    to: transaction.changes.mapPos(block.to, -1),
+  }));
+}
+
+function changesTouchMermaidBlocks(
+  transaction: Transaction,
+  blocks: readonly MermaidPreviewBlock[],
+) {
+  let touched = false;
+  transaction.changes.iterChangedRanges((fromA, toA) => {
+    touched ||= blocks.some((block) =>
+      fromA === toA
+        ? fromA > block.from && fromA < block.to
+        : fromA < block.to && toA > block.from
+    );
+  });
+  return touched;
+}
+
+function changesMayAffectMermaidFences(transaction: Transaction) {
+  let mayAffect = false;
+  transaction.changes.iterChanges(
+    (fromA, toA, fromB, _toB, inserted) => {
+      if (fromA < toA || /[`~\r\n]/u.test(inserted.toString())) {
+        mayAffect = true;
+        return;
+      }
+      const line = transaction.state.doc.lineAt(fromB);
+      mayAffect ||= /^\s*(?:`{3,}|~{3,})/u.test(line.text);
+    },
+  );
+  return mayAffect;
+}
+
+function revealedMermaidBlocksKey(
+  state: EditorState,
+  focused: boolean,
+  blocks: readonly MermaidPreviewBlock[],
+) {
+  return blocks.map((block) =>
+    mermaidSourceRevealed(state, block.from, block.to, focused) ? "1" : "0"
+  ).join("");
+}
+
+function createMermaidPreviewField(
+  labels: CodeBlockPreviewLabels,
+  renderMermaid: NonNullable<CodeBlockPreviewPluginOptions["renderMermaid"]>,
+) {
+  const field = StateField.define<MermaidPreviewState>({
+    create(state) {
+      return createMermaidPreviewState(
+        state,
+        true,
+        labels,
+        renderMermaid,
+      );
+    },
+    update(previous, transaction) {
+      const focusEffect = transaction.effects.find((effect) =>
+        effect.is(setMermaidPreviewFocusedEffect)
+      );
+      const focused = focusEffect?.value ?? previous.focused;
+      if (!transaction.docChanged) {
+        const revealChanged =
+          revealedMermaidBlocksKey(
+            transaction.startState,
+            previous.focused,
+            previous.blocks,
+          ) !== revealedMermaidBlocksKey(
+            transaction.state,
+            focused,
+            previous.blocks,
+          );
+        return {
+          ...previous,
+          decorations: revealChanged
+            ? mermaidPreviewDecorationsFromBlocks(
+                transaction.state,
+                focused,
+                previous.blocks,
+                labels,
+                renderMermaid,
+              )
+            : previous.decorations,
+          focused,
+        };
+      }
+
+      if (
+        changesTouchMermaidBlocks(transaction, previous.blocks) ||
+        changesMayAffectMermaidFences(transaction)
+      ) {
+        return createMermaidPreviewState(
+          transaction.state,
+          focused,
+          labels,
+          renderMermaid,
+        );
+      }
+
+      const blocks = mapMermaidPreviewBlocks(previous.blocks, transaction);
+      const revealChanged = revealedMermaidBlocksKey(
+        transaction.startState,
+        previous.focused,
+        previous.blocks,
+      ) !== revealedMermaidBlocksKey(
+        transaction.state,
+        focused,
+        blocks,
+      );
+      return {
+        blocks,
+        decorations: revealChanged
+          ? mermaidPreviewDecorationsFromBlocks(
+              transaction.state,
+              focused,
+              blocks,
+              labels,
+              renderMermaid,
+            )
+          : previous.decorations.map(transaction.changes),
+        focused,
+      };
+    },
+    provide: (mermaidField) => EditorView.decorations.from(
+      mermaidField,
+      (value) => value.decorations,
+    ),
+  });
+  const mountedViews = new WeakSet<CodeMirrorView>();
+  const lifecycle = ViewPlugin.define((view) => {
+    mountedViews.add(view);
+    return {
+      destroy() {
+        mountedViews.delete(view);
+      },
+    };
+  });
+
+  const syncFocusedState = (view: CodeMirrorView) => {
+    // Focus events can fire inside toolbar and widget handlers that already
+    // dispatch a transaction. Defer this independent UI state update so it
+    // cannot interrupt the originating command or its React subscribers.
+    queueMicrotask(() => {
+      if (!mountedViews.has(view)) return;
+      const focused = view.hasFocus;
+      const previewState = view.state.field(field, false);
+      if (!previewState || previewState.focused === focused) return;
+      view.dispatch({ effects: setMermaidPreviewFocusedEffect.of(focused) });
+    });
+  };
+
+  return [
+    Prec.highest(field),
+    lifecycle,
+    EditorView.domEventHandlers({
+      blur(_event, view) {
+        syncFocusedState(view);
+      },
+      focus(_event, view) {
+        syncFocusedState(view);
+      },
+    }),
+  ];
 }
 
 function normalizeHighlights(
@@ -931,24 +1256,30 @@ export function codeBlockPreviewPlugin(
       idPrefix: "markra-codemirror-mermaid",
       theme: context.theme,
     }));
-  const highlightCache = new WeakMap<
-    Text,
-    Map<string, readonly CodeBlockHighlightSpan[]>
-  >();
+  const highlightCache: Array<{
+    code: string;
+    highlighted: readonly CodeBlockHighlightSpan[];
+    language: string;
+  }> = [];
+  let cachedCodeCharacters = 0;
+  const maxCachedCodeBlocks = 16;
+  const maxCachedCodeCharacters = 1_000_000;
 
   const highlightsFor = (
     context: MarkraRendererContext,
     parts: CodeBlockParts,
   ) => {
     if (!parts.codeNode) return [];
-    let documentCache = highlightCache.get(context.state.doc);
-    if (!documentCache) {
-      documentCache = new Map();
-      highlightCache.set(context.state.doc, documentCache);
+    const cachedIndex = highlightCache.findIndex(
+      (entry) =>
+        entry.language === parts.language && entry.code === parts.code,
+    );
+    const cached = highlightCache[cachedIndex];
+    if (cached) {
+      highlightCache.splice(cachedIndex, 1);
+      highlightCache.push(cached);
+      return cached.highlighted;
     }
-    const key = `${context.node.from}:${context.node.to}:${parts.language}`;
-    const cached = documentCache.get(key);
-    if (cached) return cached;
 
     let highlighted: readonly CodeBlockHighlightSpan[] = [];
     try {
@@ -964,7 +1295,23 @@ export function codeBlockPreviewPlugin(
     } catch {
       highlighted = [];
     }
-    documentCache.set(key, highlighted);
+
+    // Edits outside a fenced block create a new EditorState while leaving its
+    // source unchanged. Cache by the actual highlighter inputs so that common
+    // typing does not synchronously re-highlight untouched blocks.
+    highlightCache.push({
+      code: parts.code,
+      highlighted,
+      language: parts.language,
+    });
+    cachedCodeCharacters += parts.code.length;
+    while (
+      highlightCache.length > maxCachedCodeBlocks ||
+      cachedCodeCharacters > maxCachedCodeCharacters
+    ) {
+      const removed = highlightCache.shift();
+      cachedCodeCharacters -= removed?.code.length ?? 0;
+    }
     return highlighted;
   };
 
@@ -975,6 +1322,7 @@ export function codeBlockPreviewPlugin(
       // CodeMirror's height map in every WebView. State-field block widgets
       // are measured explicitly, so repeated blocks cannot accumulate a
       // pointer-to-caret offset.
+      createMermaidPreviewField(labels, renderMermaid),
       createCodeBlockTopGapField(showLineNumbers),
       markraRenderer({
         id: "markra.code-block-preview",
@@ -1015,29 +1363,6 @@ export function codeBlockPreviewPlugin(
             parts.code.trim() &&
             isMermaidLanguage(parts.language)
           ) {
-            const firstLine = state.doc.lineAt(node.from);
-            const lastLine = state.doc.lineAt(node.to);
-            context.add(
-              Decoration.replace({
-                widget: new MermaidPreviewWidget(
-                  parts.codeNode.from,
-                  labels,
-                  renderMermaid,
-                  parts.code,
-                ),
-              }).range(firstLine.from, firstLine.to),
-            );
-            for (
-              let lineNumber = firstLine.number + 1;
-              lineNumber <= lastLine.number;
-              lineNumber += 1
-            ) {
-              context.add(
-                Decoration.line({
-                  class: "cm-markra-mermaid-hidden-line",
-                }).range(state.doc.line(lineNumber).from),
-              );
-            }
             return false;
           }
           const visibleFrom = Math.max(node.from, visibleRange.from);

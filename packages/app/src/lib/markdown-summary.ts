@@ -1,7 +1,9 @@
 import { shouldBlockLargeMarkdownVisual } from "./large-markdown";
 
-export const markdownSummaryDeferredLimitBytes = 256_000;
-export const markdownSummaryDeferredLimitChars = 256_000;
+// Outline parsing and Unicode word counting run synchronously. Keep them off
+// the input path once a document is large enough to consume a visible frame.
+export const markdownSummaryDeferredLimitBytes = 64_000;
+export const markdownSummaryDeferredLimitChars = 64_000;
 
 type MarkdownSummaryMetadata = {
   sizeBytes?: number | null;

@@ -4217,6 +4217,9 @@
     background: transparent;
     border-color: transparent;
     box-shadow: none;
+    contain: layout paint style;
+    transform: translateZ(0);
+    will-change: transform;
   }
 
   .markdown-paper .cm-markra-code-top-gap:has(+ .cm-line .markra-code-block[data-mermaid-mode="preview"]) {

@@ -1,5 +1,6 @@
 import { syntaxTree } from "@codemirror/language";
 import {
+  type ChangeSet,
   EditorSelection,
   EditorState,
   Transaction,
@@ -214,6 +215,62 @@ export function readCodeMirrorHeadingAnchors(
   });
 
   return headings;
+}
+
+const atxHeadingLinePattern = /^[\t ]{0,3}#{1,6}(?:[\t ]+|$)/u;
+const setextHeadingLinePattern = /^[\t ]{0,3}(?:=+|-+)[\t ]*$/u;
+
+function lineNeighborhoodMayContainHeading(
+  state: EditorState,
+  from: number,
+  to: number,
+) {
+  const boundedFrom = Math.max(0, Math.min(from, state.doc.length));
+  const boundedTo = Math.max(0, Math.min(to, state.doc.length));
+  // Setext headings are owned jointly by a title line and its underline, so
+  // edits must inspect one neighboring line on either side.
+  const firstLine = Math.max(1, state.doc.lineAt(boundedFrom).number - 1);
+  const lastLine = Math.min(
+    state.doc.lines,
+    state.doc.lineAt(boundedTo).number + 1,
+  );
+
+  for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+    const source = state.doc.line(lineNumber).text;
+    if (
+      atxHeadingLinePattern.test(source) ||
+      setextHeadingLinePattern.test(source)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function updateCodeMirrorHeadingAnchors(
+  headings: readonly AiHeadingAnchor[],
+  startState: EditorState,
+  state: EditorState,
+  changes: ChangeSet,
+): AiHeadingAnchor[] {
+  let refresh = false;
+  changes.iterChangedRanges((fromA, toA, fromB, toB) => {
+    if (
+      lineNeighborhoodMayContainHeading(startState, fromA, toA) ||
+      lineNeighborhoodMayContainHeading(state, fromB, toB)
+    ) {
+      refresh = true;
+    }
+  });
+  if (refresh) return readCodeMirrorHeadingAnchors(state);
+
+  return headings.map((heading) => {
+    const from = changes.mapPos(heading.from, 1);
+    const to = changes.mapPos(heading.to, -1);
+    return from === heading.from && to === heading.to
+      ? heading
+      : { ...heading, from, to };
+  });
 }
 
 export function readCodeMirrorSectionAnchors(

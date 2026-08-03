@@ -4,6 +4,29 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { liveMarkdown, rawHtmlPreviewPlugin } from "./index.ts";
 import "./dom.test-support.ts";
 
+const syntaxTreeIterations = vi.hoisted(() => [] as Array<unknown>);
+
+vi.mock("@codemirror/language", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@codemirror/language")>();
+  return {
+    ...actual,
+    syntaxTree(state: Parameters<typeof actual.syntaxTree>[0]) {
+      const tree = actual.syntaxTree(state);
+      return new Proxy(tree, {
+        get(target, property, receiver) {
+          if (property !== "iterate") {
+            return Reflect.get(target, property, receiver);
+          }
+          return (spec: Parameters<typeof tree.iterate>[0]) => {
+            syntaxTreeIterations.push(spec);
+            return target.iterate(spec);
+          };
+        },
+      });
+    },
+  };
+});
+
 const views: EditorView[] = [];
 
 function createView(
@@ -49,6 +72,29 @@ describe("rawHtmlPreviewPlugin", () => {
     expect(preview?.firstElementChild?.hasAttribute("onclick")).toBe(false);
     expect(preview?.querySelector("script")).toBeNull();
     expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("maps rendered HTML when plain text is typed after its last range", () => {
+    const doc = [
+      "<div>",
+      "Synthetic HTML",
+      "</div>",
+      "",
+      "Edit here",
+    ].join("\n");
+    const view = createView(doc);
+
+    syntaxTreeIterations.splice(0);
+    view.dispatch({
+      changes: { from: doc.length, insert: "字" },
+      selection: EditorSelection.cursor(doc.length + 1),
+      userEvent: "input.type",
+    });
+
+    expect(syntaxTreeIterations).toHaveLength(0);
+    expect(view.dom.querySelector(".markra-html-node")?.textContent).toContain(
+      "Synthetic HTML",
+    );
   });
 
   it("renders inline HTML and reveals its source when activated", () => {

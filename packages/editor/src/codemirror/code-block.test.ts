@@ -297,7 +297,7 @@ describe("codeBlockPreviewPlugin", () => {
     )).toBe("const answer = 42;\nreturn answer;");
   });
 
-  it("accepts a cached host highlighter without bundling one", () => {
+  it("reuses cached highlighting when editing outside the code block", () => {
     const highlight = vi.fn(({ code, language }) => {
       expect(language).toBe("ts");
       expect(code).toContain("const answer");
@@ -316,6 +316,13 @@ describe("codeBlockPreviewPlugin", () => {
     expect(highlight).toHaveBeenCalledOnce();
 
     view.dispatch({ selection: { anchor: codeDocument.length - 2 } });
+    expect(highlight).toHaveBeenCalledOnce();
+
+    view.dispatch({
+      changes: { from: codeDocument.length, insert: "!" },
+      selection: { anchor: codeDocument.length + 1 },
+      userEvent: "input",
+    });
     expect(highlight).toHaveBeenCalledOnce();
   });
 
@@ -495,6 +502,91 @@ describe("codeBlockPreviewPlugin", () => {
     expect(view.dom.querySelector(".markra-mermaid-render")).toBeNull();
     expect(renderedLines(view)).toContain("```mermaid");
     expect(view.state.doc.toString()).toBe(source);
+  });
+
+  it("removes empty zero-size Mermaid label nodes", async () => {
+    const source = "```mermaid\nflowchart TD\n  A --> B\n```\n\nEdit";
+    const view = createView(
+      source,
+      codeBlockPreviewPlugin({
+        renderMermaid: async () => [
+          "<svg>",
+          '<g class="label"><foreignObject width="0" height="0"></foreignObject></g>',
+          '<g class="label"><foreignObject width="32" height="24"><div>Visible</div></foreignObject></g>',
+          "</svg>",
+        ].join(""),
+      }),
+    );
+
+    await vi.waitFor(() => {
+      expect(view.dom.querySelector(".markra-mermaid-render svg")).not.toBeNull();
+    });
+
+    expect(
+      view.dom.querySelector(
+        '.markra-mermaid-render foreignObject[width="0"][height="0"]',
+      ),
+    ).toBeNull();
+    expect(view.dom.querySelector(".markra-mermaid-render")?.textContent)
+      .toContain("Visible");
+  });
+
+  it("keeps an unchanged Mermaid preview mounted when editing after it", async () => {
+    const source = "```mermaid\nflowchart TD\n  A --> B\n```\n\nEdit";
+    const renderMermaid = vi.fn().mockResolvedValue(
+      '<svg aria-label="Synthetic diagram"></svg>',
+    );
+    const view = createView(
+      source,
+      codeBlockPreviewPlugin({ renderMermaid }),
+    );
+
+    await vi.waitFor(() => {
+      expect(view.dom.querySelector(".markra-mermaid-render svg")).not.toBeNull();
+    });
+    const preview = view.dom.querySelector(".markra-mermaid-render");
+    expect(renderMermaid).toHaveBeenCalledOnce();
+
+    view.dispatch({
+      changes: { from: source.length, insert: "!" },
+      selection: { anchor: source.length + 1 },
+      userEvent: "input",
+    });
+
+    await Promise.resolve();
+    expect(renderMermaid).toHaveBeenCalledOnce();
+    expect(view.dom.querySelector(".markra-mermaid-render")).toBe(preview);
+  });
+
+  it("keeps an unchanged Mermaid preview mounted when editing before it", async () => {
+    const source = "Before\n\n```mermaid\nflowchart TD\n  A --> B\n```\n\nAfter";
+    const renderMermaid = vi.fn().mockResolvedValue(
+      '<svg aria-label="Synthetic diagram"></svg>',
+    );
+    const view = createView(
+      source,
+      codeBlockPreviewPlugin({ renderMermaid }),
+    );
+
+    await vi.waitFor(() => {
+      expect(view.dom.querySelector(".markra-mermaid-render svg")).not.toBeNull();
+    });
+    const preview = view.dom.querySelector(".markra-mermaid-render");
+    expect(renderMermaid).toHaveBeenCalledOnce();
+
+    const inserted = "Expanded synthetic prefix. ";
+    view.dispatch({
+      changes: { from: 0, insert: inserted },
+      selection: { anchor: inserted.length },
+      userEvent: "input",
+    });
+
+    await Promise.resolve();
+    expect(renderMermaid).toHaveBeenCalledOnce();
+    expect(view.dom.querySelector(".markra-mermaid-render")).toBe(preview);
+
+    view.dom.querySelector<HTMLElement>(".markra-mermaid-render")?.click();
+    expect(view.dom.querySelector(".markra-mermaid-render")).toBeNull();
   });
 
   it("returns active Mermaid source to preview mode with Escape", async () => {

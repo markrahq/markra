@@ -1143,12 +1143,28 @@ function appendCell(
   row.append(cell);
 }
 
+interface TableWidgetRuntime {
+  documentMouseDownHandler: ((event: MouseEvent) => void) | null;
+  preview: TablePreview;
+  sizeButton: HTMLButtonElement | null;
+  sizePopover: HTMLElement | null;
+}
+
+function tablePreviewContentKey(preview: TablePreview) {
+  return JSON.stringify({
+    alignments: preview.alignments,
+    header: preview.header.map((cell) => cell.source),
+    rows: preview.rows.map((row) => row.map((cell) => cell.source)),
+  });
+}
+
 class TableWidget extends WidgetType {
-  private sizeButton: HTMLButtonElement | null = null;
-  private sizePopover: HTMLElement | null = null;
+  private readonly contentKey: string;
+  private readonly labelsKey: string;
+  private runtime: TableWidgetRuntime;
 
   constructor(
-    readonly preview: TablePreview,
+    preview: TablePreview,
     readonly labels: TablePreviewLabels,
     readonly defaultWidthMode: CodeMirrorTableWidthMode,
     readonly getDocumentKey: () => string | null | undefined,
@@ -1156,16 +1172,56 @@ class TableWidget extends WidgetType {
     readonly links: LinksPluginOptions | undefined,
   ) {
     super();
+    this.contentKey = tablePreviewContentKey(preview);
+    this.labelsKey = JSON.stringify(labels);
+    this.runtime = {
+      documentMouseDownHandler: null,
+      preview,
+      sizeButton: null,
+      sizePopover: null,
+    };
+  }
+
+  private get preview() {
+    return this.runtime.preview;
+  }
+
+  private hasSameContent(other: TableWidget) {
+    return (
+      this.contentKey === other.contentKey &&
+      this.defaultWidthMode === other.defaultWidthMode &&
+      this.getDocumentKey === other.getDocumentKey &&
+      this.images === other.images &&
+      this.links === other.links &&
+      this.labelsKey === other.labelsKey
+    );
   }
 
   eq(other: TableWidget) {
-    return (
-      JSON.stringify(this.preview) === JSON.stringify(other.preview) &&
-      this.defaultWidthMode === other.defaultWidthMode &&
-      this.images === other.images &&
-      this.links === other.links &&
-      JSON.stringify(this.labels) === JSON.stringify(other.labels)
-    );
+    if (!this.hasSameContent(other)) return false;
+    if (
+      this.preview.from !== other.preview.from ||
+      this.preview.to !== other.preview.to
+    ) {
+      return false;
+    }
+
+    const nextPreview = other.preview;
+    other.runtime = this.runtime;
+    this.runtime.preview = nextPreview;
+    return true;
+  }
+
+  updateDOM(dom: HTMLElement, _view: CodeMirrorView, from: this) {
+    if (!this.hasSameContent(from)) return false;
+
+    const nextPreview = this.preview;
+    // Reused DOM listeners close over the previous widget, so both widget
+    // generations must share the latest document positions and popup state.
+    this.runtime = from.runtime;
+    this.runtime.preview = nextPreview;
+    dom.dataset.tableFrom = String(nextPreview.from);
+    return true;
   }
 
   ignoreEvent() {
@@ -1173,22 +1229,26 @@ class TableWidget extends WidgetType {
   }
 
   private closeSizePicker = () => {
-    const document = this.sizePopover?.ownerDocument;
-    this.sizePopover?.remove();
-    this.sizePopover = null;
-    if (this.sizeButton) this.sizeButton.ariaExpanded = "false";
-    document?.removeEventListener(
-      "mousedown",
-      this.handleDocumentMouseDown,
-      true,
-    );
+    const document = this.runtime.sizePopover?.ownerDocument;
+    this.runtime.sizePopover?.remove();
+    this.runtime.sizePopover = null;
+    if (this.runtime.sizeButton) this.runtime.sizeButton.ariaExpanded = "false";
+    if (this.runtime.documentMouseDownHandler) {
+      document?.removeEventListener(
+        "mousedown",
+        this.runtime.documentMouseDownHandler,
+        true,
+      );
+      this.runtime.documentMouseDownHandler = null;
+    }
   };
 
   private handleDocumentMouseDown = (event: MouseEvent) => {
     const target = event.target;
     if (
       target instanceof Node &&
-      (this.sizeButton?.contains(target) || this.sizePopover?.contains(target))
+      (this.runtime.sizeButton?.contains(target) ||
+        this.runtime.sizePopover?.contains(target))
     ) {
       return;
     }
@@ -1199,7 +1259,7 @@ class TableWidget extends WidgetType {
     view: CodeMirrorView,
     anchor: HTMLButtonElement,
   ) {
-    if (this.sizePopover) {
+    if (this.runtime.sizePopover) {
       this.closeSizePicker();
       return;
     }
@@ -1319,16 +1379,16 @@ class TableWidget extends WidgetType {
     popover.style.position = "fixed";
     popover.style.top = `${position.top}px`;
     anchor.ariaExpanded = "true";
-    document.addEventListener("mousedown", this.handleDocumentMouseDown, true);
-    this.sizePopover = popover;
-  }
-
-  destroy(dom: HTMLElement) {
-    dom.ownerDocument.removeEventListener(
+    this.runtime.documentMouseDownHandler = this.handleDocumentMouseDown;
+    document.addEventListener(
       "mousedown",
-      this.handleDocumentMouseDown,
+      this.runtime.documentMouseDownHandler,
       true,
     );
+    this.runtime.sizePopover = popover;
+  }
+
+  destroy() {
     this.closeSizePicker();
   }
 
@@ -1463,7 +1523,7 @@ class TableWidget extends WidgetType {
       event.stopPropagation();
       this.openSizePicker(view, sizeButton);
     });
-    this.sizeButton = sizeButton;
+    this.runtime.sizeButton = sizeButton;
 
     const alignButtons = (["left", "center", "right"] as const).map(
       (alignment) => {

@@ -11,6 +11,7 @@ import {
 } from "@codemirror/view";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { cursorInsideRange, selectionChangeAffectsReveal } from "./policy.ts";
+import { updateChangesStayAfter } from "./changes.ts";
 
 interface FootnoteDefinition {
   readonly content: string;
@@ -245,7 +246,12 @@ class FootnoteDefinitionLabelWidget extends WidgetType {
   }
 }
 
-function buildFootnoteDecorations(view: CodeMirrorView) {
+interface FootnoteDecorationState {
+  readonly decorations: DecorationSet;
+  readonly lastRangeTo: number;
+}
+
+function buildFootnoteDecorations(view: CodeMirrorView): FootnoteDecorationState {
   const ranges: Range<Decoration>[] = [];
   const definitions = readFootnoteDefinitions(view.state);
   const references = readFootnoteReferences(view.state, definitions);
@@ -278,7 +284,14 @@ function buildFootnoteDecorations(view: CodeMirrorView) {
     );
   }
 
-  return Decoration.set(ranges, true);
+  return {
+    decorations: Decoration.set(ranges, true),
+    lastRangeTo: Math.max(
+      -1,
+      ...definitions.map((definition) => definition.to),
+      ...references.map((reference) => reference.to),
+    ),
+  };
 }
 
 const footnoteTheme = EditorView.baseTheme({
@@ -332,19 +345,34 @@ export function footnotePreviewPlugin() {
       ViewPlugin.fromClass(
         class {
           decorations: DecorationSet;
+          lastRangeTo: number;
 
           constructor(view: CodeMirrorView) {
-            this.decorations = buildFootnoteDecorations(view);
+            const state = buildFootnoteDecorations(view);
+            this.decorations = state.decorations;
+            this.lastRangeTo = state.lastRangeTo;
           }
 
           update(update: ViewUpdate) {
+            if (
+              updateChangesStayAfter(
+                update,
+                this.lastRangeTo,
+                (source) => /[\[\]^:`~\n]/u.test(source),
+              )
+            ) {
+              this.decorations = this.decorations.map(update.changes);
+              return;
+            }
             if (
               update.docChanged ||
               selectionChangeAffectsReveal(update) ||
               update.focusChanged ||
               update.viewportChanged
             ) {
-              this.decorations = buildFootnoteDecorations(update.view);
+              const state = buildFootnoteDecorations(update.view);
+              this.decorations = state.decorations;
+              this.lastRangeTo = state.lastRangeTo;
             }
           }
         },

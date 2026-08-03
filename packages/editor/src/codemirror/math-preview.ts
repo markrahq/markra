@@ -18,6 +18,7 @@ import {
 } from "../math-render.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { cursorInsideRange, selectionChangeAffectsReveal } from "./policy.ts";
+import { updateChangesStayAfter } from "./changes.ts";
 
 export interface CodeMirrorMathRange {
   readonly from: number;
@@ -332,11 +333,17 @@ function renderMath(
   return renderMarkraMathToString(range.tex, range.kind, macros);
 }
 
-function buildMathDecorations(view: CodeMirrorView) {
+interface MathDecorationState {
+  readonly decorations: DecorationSet;
+  readonly lastRangeTo: number;
+}
+
+function buildMathDecorations(view: CodeMirrorView): MathDecorationState {
   const ranges: Range<Decoration>[] = [];
   const macros = createMarkraMathMacros();
+  const mathRanges = findCodeMirrorMathRanges(view.state);
 
-  for (const range of findCodeMirrorMathRanges(view.state)) {
+  for (const range of mathRanges) {
     const macroDefinitionOnly =
       range.kind === "display" && isMarkraMathMacroDefinitionSource(range.tex);
     const active = cursorInsideRange(view, range.from, range.to);
@@ -382,7 +389,10 @@ function buildMathDecorations(view: CodeMirrorView) {
     }
   }
 
-  return Decoration.set(ranges, true);
+  return {
+    decorations: Decoration.set(ranges, true),
+    lastRangeTo: Math.max(-1, ...mathRanges.map((range) => range.to)),
+  };
 }
 
 const mathTheme = EditorView.baseTheme({
@@ -410,19 +420,34 @@ export function mathPreviewPlugin() {
       ViewPlugin.fromClass(
         class {
           decorations: DecorationSet;
+          lastRangeTo: number;
 
           constructor(view: CodeMirrorView) {
-            this.decorations = buildMathDecorations(view);
+            const state = buildMathDecorations(view);
+            this.decorations = state.decorations;
+            this.lastRangeTo = state.lastRangeTo;
           }
 
           update(update: ViewUpdate) {
+            if (
+              updateChangesStayAfter(
+                update,
+                this.lastRangeTo,
+                (source) => /[$\\`~\n]/u.test(source),
+              )
+            ) {
+              this.decorations = this.decorations.map(update.changes);
+              return;
+            }
             if (
               update.docChanged ||
               selectionChangeAffectsReveal(update) ||
               update.focusChanged ||
               update.viewportChanged
             ) {
-              this.decorations = buildMathDecorations(update.view);
+              const state = buildMathDecorations(update.view);
+              this.decorations = state.decorations;
+              this.lastRangeTo = state.lastRangeTo;
             }
           }
         },

@@ -1358,6 +1358,9 @@ describe("editor stylesheet", () => {
     expect(mermaidFoldStyles).toContain("display: none");
     expect(mermaidFoldStyles).toContain("background: transparent");
     expect(mermaidFoldStyles).toContain("border-color: transparent");
+    expect(mermaidFoldStyles).toContain("contain: layout paint style");
+    expect(mermaidFoldStyles).toContain("will-change: transform");
+    expect(mermaidFoldStyles).toContain("transform: translateZ(0)");
     expect(mermaidFoldStyles).toContain(".markra-code-language-control");
     expect(styles).toContain(
       ".markdown-paper .cm-markra-code-top-gap:has(+ .cm-line .markra-code-block[data-mermaid-mode=\"preview\"]) {\n" +

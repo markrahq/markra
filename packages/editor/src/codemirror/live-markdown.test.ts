@@ -593,6 +593,39 @@ describe("liveMarkdown", () => {
     expect(syntaxTreeIterations).toHaveLength(0);
   });
 
+  it("maps existing preview decorations while typing plain text", () => {
+    const doc = [
+      "# Synthetic heading",
+      "",
+      "- Synthetic list item",
+      "",
+      "Edit here",
+    ].join("\n");
+    const view = createView({ doc, anchor: doc.length });
+
+    syntaxTreeIterations.splice(0);
+    view.dispatch({
+      changes: { from: doc.length, insert: "字" },
+      selection: EditorSelection.cursor(doc.length + 1),
+      userEvent: "input.type",
+    });
+
+    expect(syntaxTreeIterations).toHaveLength(0);
+    expect(view.dom.querySelector(".cm-markra-h1")?.textContent).toBe(
+      "Synthetic heading",
+    );
+    expect(renderedLines(view).at(-1)).toBe("Edit here字");
+
+    syntaxTreeIterations.splice(0);
+    view.dispatch({
+      changes: { from: view.state.doc.length, insert: "*" },
+      selection: EditorSelection.cursor(view.state.doc.length + 1),
+      userEvent: "input.type",
+    });
+
+    expect(syntaxTreeIterations.length).toBeGreaterThan(0);
+  });
+
   it("reveals heading source at every heading cursor in a multi-selection", () => {
     const doc = "# One\n\n# Two\n\nRest";
     const selection = EditorSelection.create([

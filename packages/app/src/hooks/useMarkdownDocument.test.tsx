@@ -636,6 +636,45 @@ describe("useMarkdownDocument", () => {
     expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({ name: "source.md" }));
   });
 
+  it("skips live editor equivalence checks after the document is already dirty", async () => {
+    const isCurrentMarkdownEquivalent = vi.fn(() => false);
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content: "Original clean source.",
+      name: "performance.md",
+      path: "/mock-files/performance.md"
+    });
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        isCurrentMarkdownEquivalent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "performance.md",
+        path: "/mock-files/performance.md",
+        relativePath: "performance.md"
+      });
+    });
+
+    act(() => {
+      result.current.handleMarkdownChange("First user edit.", { surface: "source" });
+    });
+    expect(result.current.document.dirty).toBe(true);
+    isCurrentMarkdownEquivalent.mockClear();
+
+    act(() => {
+      result.current.handleMarkdownChange("Second user edit.", { surface: "source" });
+    });
+
+    expect(isCurrentMarkdownEquivalent).not.toHaveBeenCalled();
+  });
+
   it("does not ask to discard a clean file when the visual editor tightens callout list spacing", async () => {
     let closeRequestHandler: ((event: MockWindowCloseRequestEvent) => unknown | Promise<unknown>) | null = null;
     let editorMarkdown = [
@@ -3104,6 +3143,50 @@ describe("useMarkdownDocument", () => {
         }
       ]
     });
+  });
+
+  it("coalesces repeated persistence after a document is already dirty", async () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() =>
+        useMarkdownDocument({
+          getCurrentMarkdown: (fallbackContent) => fallbackContent,
+          onTreeRootFromFilePath: vi.fn(),
+          onTreeRootFromFolderPath: vi.fn(),
+          preferencesReady: false,
+          restoreWorkspaceOnStartup: false,
+        })
+      );
+
+      act(() => {
+        result.current.handleMarkdownChange("First edit");
+      });
+      expect(result.current.document.dirty).toBe(true);
+      mockedSaveStoredWorkspaceState.mockClear();
+
+      act(() => {
+        result.current.handleMarkdownChange("Second edit");
+      });
+      act(() => {
+        result.current.handleMarkdownChange("Latest edit");
+      });
+
+      expect(mockedSaveStoredWorkspaceState).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+
+      expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledTimes(1);
+      expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledWith({
+        activeDraftId: "untitled:0",
+        draftTabs: [
+          expect.objectContaining({ content: "Latest edit" }),
+        ],
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps an untitled edit visible when save starts before the tab state flushes", async () => {

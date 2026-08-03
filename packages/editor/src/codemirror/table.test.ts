@@ -37,6 +37,41 @@ afterEach(() => {
 });
 
 describe("tablePreviewPlugin", () => {
+  it("keeps an unchanged visual table mounted when editing before it", async () => {
+    const doc = [
+      "Before",
+      "",
+      "| Name | Value |",
+      "| --- | ---: |",
+      "| Alpha | 1 |",
+      "",
+      "After",
+    ].join("\n");
+    const view = createView(doc);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+
+    expect(table).not.toBeNull();
+
+    const inserted = "Expanded synthetic prefix. ";
+    view.dispatch({
+      changes: { from: 0, insert: inserted },
+      selection: { anchor: inserted.length },
+      userEvent: "input",
+    });
+
+    expect(view.dom.querySelector(".cm-markra-table")).toBe(table);
+    expect(table?.closest<HTMLElement>(".cm-markra-table-wrap")?.dataset.tableFrom)
+      .toBe(String(inserted.length + doc.indexOf("| Name")));
+
+    view.dom
+      .querySelector<HTMLButtonElement>('[aria-label="Add row below"]')
+      ?.click();
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain(`${inserted}Before`);
+    expect(view.state.doc.toString()).toContain("|  |  |\n\nAfter");
+  });
+
   it("renders a GFM table without changing its Markdown source", () => {
     const doc = [
       "| Name | Value |",

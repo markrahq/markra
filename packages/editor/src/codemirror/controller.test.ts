@@ -18,6 +18,7 @@ import {
   replaceAllCodeMirrorSearchMatches,
   replaceCodeMirrorMarkdown,
   replaceCodeMirrorSearchMatch,
+  updateCodeMirrorHeadingAnchors,
 } from "./controller.ts";
 import { markraLanguage } from "./index.ts";
 import "./dom.test-support.ts";
@@ -188,6 +189,46 @@ describe("CodeMirror editor controller", () => {
       },
     ]);
     expect(sections[0]?.text).toBe(doc.slice(0, doc.indexOf("# Three")));
+  });
+
+  it("reuses heading anchors when an edit cannot affect headings", () => {
+    const doc = "# Synthetic heading\n\nBody";
+    const view = createView(doc);
+    const anchors = readCodeMirrorHeadingAnchors(view.state);
+    const transaction = view.state.update({
+      changes: { from: doc.length, insert: " text" },
+    });
+
+    const updated = updateCodeMirrorHeadingAnchors(
+      anchors,
+      transaction.startState,
+      transaction.state,
+      transaction.changes,
+    );
+
+    expect(updated).toEqual(anchors);
+    expect(updated[0]).toBe(anchors[0]);
+  });
+
+  it("refreshes heading anchors when heading source changes", () => {
+    const doc = "# Before\n\nBody";
+    const view = createView(doc);
+    const anchors = readCodeMirrorHeadingAnchors(view.state);
+    const titleFrom = "# ".length;
+    const transaction = view.state.update({
+      changes: { from: titleFrom, to: "# Before".length, insert: "After" },
+    });
+
+    expect(
+      updateCodeMirrorHeadingAnchors(
+        anchors,
+        transaction.startState,
+        transaction.state,
+        transaction.changes,
+      ),
+    ).toEqual([
+      { from: 0, level: 1, title: "After", to: "# After".length },
+    ]);
   });
 
   it("extracts GFM table anchors under their current heading", () => {

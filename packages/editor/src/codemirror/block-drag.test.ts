@@ -455,6 +455,31 @@ describe("codeMirrorBlockDragPlugin", () => {
     expect(view.dom.querySelectorAll(".markra-block-add-button")).toHaveLength(4);
   });
 
+  it("keeps later block controls mounted while typing plain text before them", () => {
+    const doc = "Edit here\n\n## Later block";
+    const view = createView(doc);
+    const laterFrom = doc.indexOf("## Later block");
+    const laterToolbar = view.dom.querySelector<HTMLElement>(
+      `[data-block-from="${laterFrom}"]`,
+    );
+
+    view.dispatch({
+      changes: { from: "Edit here".length, insert: "字" },
+      selection: EditorSelection.cursor("Edit here字".length),
+      userEvent: "input.type",
+    });
+
+    const nextLaterFrom = laterFrom + 1;
+    expect(
+      view.dom.querySelector(`[data-block-from="${nextLaterFrom}"]`),
+    ).toBe(laterToolbar);
+    expect(
+      view.dom.querySelector(
+        `.cm-line[data-markra-block-from="${nextLaterFrom}"]`,
+      ),
+    ).not.toBeNull();
+  });
+
   it("does not render mutation controls in a read-only editor", () => {
     const view = createView("First\n\nSecond", true);
 

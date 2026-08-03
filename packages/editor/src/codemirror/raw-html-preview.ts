@@ -15,6 +15,7 @@ import {
 } from "../raw-html-sanitize.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { cursorInsideRange, selectionChangeAffectsReveal } from "./policy.ts";
+import { updateChangesStayAfter } from "./changes.ts";
 
 export interface RawHtmlPreviewPluginOptions {
   resolveImageSrc?: ResolveRawHtmlSrc;
@@ -277,7 +278,29 @@ function buildRawHtmlDecorations(
     }
   }
 
-  return Decoration.set(ranges, true);
+  return {
+    decorations: Decoration.set(ranges, true),
+    lastRangeTo: Math.max(-1, ...htmlRanges.map((range) => range.to)),
+  };
+}
+
+function changedLinesMayContainRawHtml(update: ViewUpdate) {
+  let mayContainHtml = false;
+  update.changes.iterChangedRanges((_fromA, _toA, fromB, toB) => {
+    const firstLine = update.state.doc.lineAt(fromB).number;
+    const lastLine = update.state.doc.lineAt(toB).number;
+    for (
+      let lineNumber = firstLine;
+      lineNumber <= lastLine;
+      lineNumber += 1
+    ) {
+      if (/[<>]/u.test(update.state.doc.line(lineNumber).text)) {
+        mayContainHtml = true;
+        return;
+      }
+    }
+  });
+  return mayContainHtml;
 }
 
 const rawHtmlTheme = EditorView.baseTheme({
@@ -305,19 +328,35 @@ export function rawHtmlPreviewPlugin(
       ViewPlugin.fromClass(
         class {
           decorations: DecorationSet;
+          lastRangeTo: number;
 
           constructor(view: CodeMirrorView) {
-            this.decorations = buildRawHtmlDecorations(view, options);
+            const state = buildRawHtmlDecorations(view, options);
+            this.decorations = state.decorations;
+            this.lastRangeTo = state.lastRangeTo;
           }
 
           update(update: ViewUpdate) {
+            if (
+              !changedLinesMayContainRawHtml(update) &&
+              updateChangesStayAfter(
+                update,
+                this.lastRangeTo,
+                (source) => /[<>\n]/u.test(source),
+              )
+            ) {
+              this.decorations = this.decorations.map(update.changes);
+              return;
+            }
             if (
               update.docChanged ||
               selectionChangeAffectsReveal(update) ||
               update.focusChanged ||
               update.viewportChanged
             ) {
-              this.decorations = buildRawHtmlDecorations(update.view, options);
+              const state = buildRawHtmlDecorations(update.view, options);
+              this.decorations = state.decorations;
+              this.lastRangeTo = state.lastRangeTo;
             }
           }
         },

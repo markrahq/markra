@@ -195,6 +195,7 @@ type OpenMarkdownFileOptions = {
 };
 
 let pendingWorkspaceStateSave: Promise<unknown> | null = null;
+const DRAFT_WORKSPACE_PERSIST_DELAY_MS = 250;
 
 function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
   // Workspace writes are read-modify-write operations; keep draft snapshots ordered.
@@ -293,6 +294,7 @@ export function useMarkdownDocument({
   const nativeWindowCloseAllowedRef = useRef(false);
   const nativeWindowCloseScheduledRef = useRef(false);
   const dirtyFileSavePromiseRef = useRef<Promise<unknown> | null>(null);
+  const draftWorkspacePersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorSyncStateRef = useRef<EditorSyncState | null>(null);
   if (editorSyncStateRef.current === null) editorSyncStateRef.current = createEditorSyncState();
   const editorSyncState = editorSyncStateRef.current;
@@ -482,6 +484,24 @@ export function useMarkdownDocument({
     });
   }, []);
 
+  const scheduleDraftWorkspacePersistence = useCallback(() => {
+    if (draftWorkspacePersistTimeoutRef.current !== null) {
+      clearTimeout(draftWorkspacePersistTimeoutRef.current);
+    }
+
+    draftWorkspacePersistTimeoutRef.current = setTimeout(() => {
+      draftWorkspacePersistTimeoutRef.current = null;
+      persistWorkspaceState(draftWorkspacePatchFromTabs(tabsRef.current, activeTabIdRef.current));
+    }, DRAFT_WORKSPACE_PERSIST_DELAY_MS);
+  }, []);
+
+  useEffect(() => () => {
+    if (draftWorkspacePersistTimeoutRef.current === null) return;
+
+    clearTimeout(draftWorkspacePersistTimeoutRef.current);
+    draftWorkspacePersistTimeoutRef.current = null;
+  }, []);
+
   const setActiveTabState = useCallback((nextTabs: MarkdownDocumentTab[], nextActiveTabId: string | null) => {
     const activeTab = nextTabs.find((tab) => tab.id === nextActiveTabId) ?? null;
     const nextDocument = activeTab
@@ -646,7 +666,9 @@ export function useMarkdownDocument({
       return;
     }
     const canKeepEquivalentMarkdownClean = options.surface !== "source";
-    const editorContentEquivalent = isActiveEditorMarkdownEquivalent(current.content);
+    const editorContentEquivalent = current.dirty
+      ? undefined
+      : isActiveEditorMarkdownEquivalent(current.content);
     if (
       !current.dirty &&
       options.surface === "visual" &&
@@ -671,11 +693,18 @@ export function useMarkdownDocument({
       ? tabsRef.current.map((tab) => tab.id === currentActiveTabId ? createDocumentTab(nextDocument, tab.id) : tab)
       : tabsRef.current;
     setActiveDocument(nextDocument);
-    persistWorkspaceState(draftWorkspacePatchFromTabs(nextTabs, currentActiveTabId));
+    // Persist the first dirty snapshot immediately for recovery, then coalesce
+    // continuous typing so desktop storage I/O does not compete with keystrokes.
+    if (current.dirty) {
+      scheduleDraftWorkspacePersistence();
+    } else {
+      persistWorkspaceState(draftWorkspacePatchFromTabs(nextTabs, currentActiveTabId));
+    }
   }, [
     editorSyncState,
     editorReady,
     isActiveEditorMarkdownEquivalent,
+    scheduleDraftWorkspacePersistence,
     setActiveDocument
   ]);
 

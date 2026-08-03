@@ -1,8 +1,32 @@
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { footnotePreviewPlugin, liveMarkdown } from "./index.ts";
 import "./dom.test-support.ts";
+
+const syntaxTreeIterations = vi.hoisted(
+  (): Array<{ from: number | undefined; to: number | undefined }> => [],
+);
+
+vi.mock("@codemirror/language", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@codemirror/language")>();
+
+  return {
+    ...actual,
+    syntaxTree(state: Parameters<typeof actual.syntaxTree>[0]) {
+      const tree = actual.syntaxTree(state);
+      return new Proxy(tree, {
+        get(target, property, receiver) {
+          if (property !== "iterate") return Reflect.get(target, property, receiver);
+          return (spec: Parameters<typeof tree.iterate>[0]) => {
+            syntaxTreeIterations.push({ from: spec.from, to: spec.to });
+            return target.iterate(spec);
+          };
+        },
+      });
+    },
+  };
+});
 
 const views: EditorView[] = [];
 
@@ -29,6 +53,40 @@ afterEach(() => {
 });
 
 describe("footnotePreviewPlugin", () => {
+  it("does not rescan footnotes when plain text changes after them", () => {
+    const doc = "Alpha[^one]\n\n[^one]: Synthetic detail.\n\nEdit";
+    const view = createView(doc);
+    syntaxTreeIterations.splice(0);
+
+    view.dispatch({
+      changes: { from: doc.length, insert: "!" },
+      selection: { anchor: doc.length + 1 },
+      userEvent: "input",
+    });
+
+    expect(
+      syntaxTreeIterations.filter(
+        ({ from, to }) => from === undefined && to === undefined,
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("rescans when removing a code fence exposes footnote syntax", () => {
+    const doc = "```\nAlpha[^one]\n\n[^one]: Synthetic detail.\n```\n\nEdit";
+    const view = createView(doc);
+    const closingFenceFrom = doc.lastIndexOf("```");
+
+    expect(view.dom.querySelector(".cm-markra-footnote-reference")).toBeNull();
+    view.dispatch({
+      changes: [
+        { from: 0, to: "```\n".length },
+        { from: closingFenceFrom, to: closingFenceFrom + "```\n".length },
+      ],
+    });
+
+    expect(view.dom.querySelector(".cm-markra-footnote-reference")).not.toBeNull();
+  });
+
   it("renders references and definition labels without changing Markdown", () => {
     const doc = "Alpha[^one]\n\n[^one]: Synthetic detail.\n\nEdit";
     const view = createView(doc);

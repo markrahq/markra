@@ -35,6 +35,7 @@ import {
   tableFragmentMergePlugin,
   tablePreviewPlugin,
   trailingSpacePlugin,
+  updateCodeMirrorHeadingAnchors,
   updateCodeMirrorSpellcheckOptions,
   type MarkraPlugin,
 } from "@markra/editor/codemirror";
@@ -510,6 +511,9 @@ export function CodeMirrorPaperSurface({
     const container = containerRef.current;
     if (!container || viewRef.current) return;
 
+    let headingAnchors: ReturnType<typeof readCodeMirrorHeadingAnchors> | null =
+      null;
+
     const view = new EditorView({
       parent: container,
       state: EditorState.create({
@@ -605,9 +609,18 @@ export function CodeMirrorPaperSurface({
                 );
               }
 
-              const headings = readCodeMirrorHeadingAnchors(update.state);
+              if (headingAnchors === null) {
+                headingAnchors = readCodeMirrorHeadingAnchors(update.state);
+              } else if (update.docChanged) {
+                headingAnchors = updateCodeMirrorHeadingAnchors(
+                  headingAnchors,
+                  update.startState,
+                  update.state,
+                  update.changes,
+                );
+              }
               let activeOutlineIndex: number | null = null;
-              for (const [index, heading] of headings.entries()) {
+              for (const [index, heading] of headingAnchors.entries()) {
                 if (heading.from > selection.head) break;
                 activeOutlineIndex = index;
               }

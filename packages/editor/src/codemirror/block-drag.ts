@@ -16,6 +16,7 @@ import {
 import { readCodeMirrorFrontmatter } from "./frontmatter-preview.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { openMarkraSlashMenu } from "./slash-menu.ts";
+import { updateOnlyInsertsPlainText } from "./changes.ts";
 
 export interface CodeMirrorBlockRange {
   readonly depth?: number;
@@ -390,17 +391,38 @@ function blockControl(
   return button;
 }
 
+interface BlockToolbarRuntime {
+  blockFrom: number;
+  toolbar: HTMLElement | null;
+}
+
 class BlockToolbarWidget extends WidgetType {
+  private runtime: BlockToolbarRuntime;
+  private readonly labelsKey: string;
+
   constructor(
-    readonly blockFrom: number,
+    blockFrom: number,
     readonly labels: CodeMirrorBlockDragLabels,
   ) {
     super();
+    this.labelsKey = JSON.stringify(labels);
+    this.runtime = { blockFrom, toolbar: null };
+  }
+
+  private get blockFrom() {
+    return this.runtime.blockFrom;
   }
 
   eq(other: BlockToolbarWidget) {
-    return this.blockFrom === other.blockFrom &&
-      JSON.stringify(this.labels) === JSON.stringify(other.labels);
+    if (this.labelsKey !== other.labelsKey) return false;
+
+    const nextBlockFrom = other.blockFrom;
+    other.runtime = this.runtime;
+    this.runtime.blockFrom = nextBlockFrom;
+    if (this.runtime.toolbar) {
+      this.runtime.toolbar.dataset.blockFrom = String(nextBlockFrom);
+    }
+    return true;
   }
 
   ignoreEvent() {
@@ -422,6 +444,7 @@ class BlockToolbarWidget extends WidgetType {
     );
     toolbar.className = "cm-markra-block-toolbar markra-block-toolbar";
     toolbar.dataset.blockFrom = String(this.blockFrom);
+    this.runtime.toolbar = toolbar;
     for (let index = 0; index < 6; index += 1) {
       const dot = document.createElement("span");
       dot.className = "markra-block-drag-dot";
@@ -453,12 +476,11 @@ class BlockToolbarWidget extends WidgetType {
   }
 }
 
-function blockDecorations(
-  state: CodeMirrorState,
+function blockDecorationsFromRanges(
+  blocks: readonly CodeMirrorBlockRange[],
   labels: CodeMirrorBlockDragLabels,
-): DecorationSet {
-  if (state.facet(EditorState.readOnly)) return Decoration.none;
-  const decorations = readCodeMirrorBlockRanges(state).flatMap((block) => [
+) {
+  const decorations = blocks.flatMap((block) => [
     Decoration.line({
       attributes: { "data-markra-block-from": String(block.from) },
     }).range(block.from),
@@ -471,6 +493,34 @@ function blockDecorations(
     }).range(block.from),
   ]);
   return Decoration.set(decorations, true);
+}
+
+function plainTextInputStaysInsideBlocks(
+  update: ViewUpdate,
+  blocks: readonly CodeMirrorBlockRange[],
+) {
+  if (!updateOnlyInsertsPlainText(update)) return false;
+
+  let insideExistingBlock = true;
+  update.changes.iterChangedRanges((fromA, toA) => {
+    insideExistingBlock &&= fromA === toA && blocks.some((block) =>
+      block.name === "Paragraph" &&
+      fromA >= block.from &&
+      fromA <= block.to
+    );
+  });
+  return insideExistingBlock;
+}
+
+function mapBlockRanges(
+  blocks: readonly CodeMirrorBlockRange[],
+  update: ViewUpdate,
+) {
+  return blocks.map((block) => ({
+    ...block,
+    from: update.changes.mapPos(block.from, -1),
+    to: update.changes.mapPos(block.to, 1),
+  }));
 }
 
 function eventElement(event: Event) {
@@ -666,18 +716,36 @@ function draggedBlockFrom(event: DragEvent) {
 }
 
 class BlockDragViewPlugin {
+  blocks: readonly CodeMirrorBlockRange[];
   decorations: DecorationSet;
 
   constructor(view: CodeMirrorView, readonly labels: CodeMirrorBlockDragLabels) {
-    this.decorations = blockDecorations(view.state, labels);
+    this.blocks = view.state.facet(EditorState.readOnly)
+      ? []
+      : readCodeMirrorBlockRanges(view.state);
+    this.decorations = blockDecorationsFromRanges(this.blocks, labels);
   }
 
   update(update: ViewUpdate) {
+    const readOnlyChanged =
+      update.startState.readOnly !== update.state.readOnly;
+    if (
+      !readOnlyChanged &&
+      plainTextInputStaysInsideBlocks(update, this.blocks)
+    ) {
+      this.blocks = mapBlockRanges(this.blocks, update);
+      this.decorations = blockDecorationsFromRanges(this.blocks, this.labels);
+      return;
+    }
+
     if (
       update.docChanged ||
-      update.startState.readOnly !== update.state.readOnly
+      readOnlyChanged
     ) {
-      this.decorations = blockDecorations(update.state, this.labels);
+      this.blocks = update.state.facet(EditorState.readOnly)
+        ? []
+        : readCodeMirrorBlockRanges(update.state);
+      this.decorations = blockDecorationsFromRanges(this.blocks, this.labels);
     }
   }
 }
