@@ -1220,13 +1220,17 @@
     border-right: 1px solid var(--editor-border);
     border-left: 1px solid var(--editor-border);
     border-radius: 4px 4px 0 0;
+    background: var(--editor-code-bg);
+    pointer-events: none;
+  }
+
+  .markdown-paper .cm-markra-code-top-gap[data-code-line-numbers="true"] {
     background: linear-gradient(
       90deg,
       var(--editor-code-line-bg) 0 43px,
       var(--editor-border) 43px 44px,
       var(--editor-code-bg) 44px 100%
     );
-    pointer-events: none;
   }
 
   .markdown-paper .cm-markra-code-header {
@@ -1283,20 +1287,25 @@
   .markdown-paper .cm-line.cm-markra-code-content-line {
     position: relative;
     box-sizing: border-box;
-    /* The inline line-number marker only occupies the first visual row.
-       A hanging indent keeps soft-wrapped continuations out of the gutter. */
-    padding-inline: 59px 16px !important;
+    padding-inline: 16px 16px !important;
     /* WebKit and CodeMirror disagree about pointer coordinates when selected
        editable lines add vertical padding. Keep every code row geometrically
        uniform so a click and its rendered caret stay on the same line. */
     padding-block: 0 !important;
-    text-indent: -59px;
+    text-indent: 0;
     border: 0 !important;
     background: transparent !important;
     color: var(--editor-code-text) !important;
     font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace !important;
     font-size: 14.4px !important;
     line-height: 24px !important;
+  }
+
+  .markdown-paper .cm-line.cm-markra-code-content-line[data-code-line-numbers="true"] {
+    /* The inline line-number marker only occupies the first visual row.
+       A hanging indent keeps soft-wrapped continuations out of the gutter. */
+    padding-inline: 59px 16px !important;
+    text-indent: -59px;
   }
 
   /* CodeMirror draws selections at z-index -1. Keeping the code surface at
@@ -1308,19 +1317,23 @@
     box-sizing: border-box;
     border-right: 1px solid var(--editor-border);
     border-left: 1px solid var(--editor-border);
+    background: var(--editor-code-bg);
+    content: "";
+    pointer-events: none;
+  }
+
+  .markdown-paper .cm-line.cm-markra-code-content-line[data-code-line-numbers="true"]::after {
     background: linear-gradient(
       90deg,
       var(--editor-code-line-bg) 0 43px,
       var(--editor-border) 43px 44px,
       var(--editor-code-bg) 44px 100%
     );
-    content: "";
-    pointer-events: none;
   }
 
   /* The backdrop owns the continuous gutter divider. Keep this pseudo-element
      inside the number column so it cannot cover that divider on text rows. */
-  .markdown-paper .cm-line.cm-markra-code-content-line::before {
+  .markdown-paper .cm-line.cm-markra-code-content-line[data-code-line-number]::before {
     position: relative;
     z-index: 1;
     box-sizing: border-box;
@@ -1350,14 +1363,18 @@
     border-bottom: 1px solid var(--editor-border) !important;
     border-left: 1px solid var(--editor-border) !important;
     border-radius: 0 0 4px 4px !important;
+    background: var(--editor-code-bg) !important;
+    line-height: 12px !important;
+    overflow: visible !important;
+  }
+
+  .markdown-paper .cm-line.cm-markra-code-closing-line[data-code-line-numbers="true"] {
     background: linear-gradient(
       90deg,
       var(--editor-code-line-bg) 0 43px,
       var(--editor-border) 43px 44px,
       var(--editor-code-bg) 44px 100%
     ) !important;
-    line-height: 12px !important;
-    overflow: visible !important;
   }
 
   .markdown-paper .cm-markra-code-exit-wrap {

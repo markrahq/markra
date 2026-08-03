@@ -286,8 +286,13 @@ const codeBlockTheme = EditorView.baseTheme({
 });
 
 class CodeBlockTopGapWidget extends WidgetType {
-  eq() {
-    return true;
+  constructor(readonly showLineNumbers: boolean) {
+    super();
+  }
+
+  eq(other: WidgetType) {
+    return other instanceof CodeBlockTopGapWidget &&
+      other.showLineNumbers === this.showLineNumbers;
   }
 
   get estimatedHeight() {
@@ -298,11 +303,18 @@ class CodeBlockTopGapWidget extends WidgetType {
     const gap = view.dom.ownerDocument.createElement("div");
     gap.className = "cm-markra-code-top-gap";
     gap.setAttribute("aria-hidden", "true");
+    gap.setAttribute(
+      "data-code-line-numbers",
+      String(this.showLineNumbers),
+    );
     return gap;
   }
 }
 
-function codeBlockTopGapDecorations(state: EditorState) {
+function codeBlockTopGapDecorations(
+  state: EditorState,
+  showLineNumbers: boolean,
+) {
   const gaps: Range<Decoration>[] = [];
   syntaxTree(state).iterate({
     enter(node) {
@@ -316,7 +328,7 @@ function codeBlockTopGapDecorations(state: EditorState) {
         Decoration.widget({
           block: true,
           side: -100,
-          widget: new CodeBlockTopGapWidget(),
+          widget: new CodeBlockTopGapWidget(showLineNumbers),
         }).range(firstLine.from),
       );
     },
@@ -324,15 +336,17 @@ function codeBlockTopGapDecorations(state: EditorState) {
   return Decoration.set(gaps, true);
 }
 
-const codeBlockTopGapField = StateField.define<DecorationSet>({
-  create: codeBlockTopGapDecorations,
-  update(gaps, transaction) {
-    return transaction.docChanged
-      ? codeBlockTopGapDecorations(transaction.state)
-      : gaps;
-  },
-  provide: (field) => EditorView.decorations.from(field),
-});
+function createCodeBlockTopGapField(showLineNumbers: boolean) {
+  return StateField.define<DecorationSet>({
+    create: (state) => codeBlockTopGapDecorations(state, showLineNumbers),
+    update(gaps, transaction) {
+      return transaction.docChanged
+        ? codeBlockTopGapDecorations(transaction.state, showLineNumbers)
+        : gaps;
+    },
+    provide: (field) => EditorView.decorations.from(field),
+  });
+}
 
 class CodeBlockHeaderWidget extends WidgetType {
   constructor(
@@ -961,7 +975,7 @@ export function codeBlockPreviewPlugin(
       // CodeMirror's height map in every WebView. State-field block widgets
       // are measured explicitly, so repeated blocks cannot accumulate a
       // pointer-to-caret offset.
-      codeBlockTopGapField,
+      createCodeBlockTopGapField(showLineNumbers),
       markraRenderer({
         id: "markra.code-block-preview",
         nodeNames: ["FencedCode"],
@@ -1051,12 +1065,21 @@ export function codeBlockPreviewPlugin(
                   : "cm-markra-code-content-line";
             const codeContentLine = roleClass === "cm-markra-code-content-line";
             if (codeContentLine) codeLineNumber += 1;
+            const lineNumberVisibility = {
+              "data-code-line-numbers": String(showLineNumbers),
+            };
             context.add(
               Decoration.line({
-                attributes: codeContentLine && showLineNumbers
-                  ? { "data-code-line-number": String(codeLineNumber) }
+                attributes: codeContentLine
+                  ? {
+                      ...lineNumberVisibility,
+                      ...(showLineNumbers
+                        ? { "data-code-line-number": String(codeLineNumber) }
+                        : {}),
+                    }
                   : roleClass === "cm-markra-code-closing-line"
                     ? {
+                        ...lineNumberVisibility,
                         "data-code-block-active": String(revealed),
                         "data-code-block-end": String(node.to),
                       }

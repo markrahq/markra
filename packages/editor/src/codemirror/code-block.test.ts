@@ -398,6 +398,21 @@ describe("codeBlockPreviewPlugin", () => {
         (line) => line.getAttribute("data-code-line-number"),
       ),
     ).toEqual(["1", "2"]);
+    expect(
+      [...view.dom.querySelectorAll(".cm-markra-code-content-line")].map(
+        (line) => line.getAttribute("data-code-line-numbers"),
+      ),
+    ).toEqual(["true", "true"]);
+    expect(
+      view.dom
+        .querySelector(".cm-markra-code-top-gap")
+        ?.getAttribute("data-code-line-numbers"),
+    ).toBe("true");
+    expect(
+      view.dom
+        .querySelector(".cm-markra-code-closing-line")
+        ?.getAttribute("data-code-line-numbers"),
+    ).toBe("true");
     expect(copy?.textContent).toBe("");
     expect(copy?.querySelector(".markra-code-copy-icon")).not.toBeNull();
     expect(copy?.querySelector(".markra-code-copy-check-icon")).not.toBeNull();
@@ -424,11 +439,26 @@ describe("codeBlockPreviewPlugin", () => {
       codeBlockPreviewPlugin({ showLineNumbers: false }),
     );
 
+    const contentLines = [
+      ...view.dom.querySelectorAll(".cm-markra-code-content-line"),
+    ];
+
+    expect(contentLines.map(
+      (line) => line.getAttribute("data-code-line-number"),
+    )).toEqual([null, null]);
+    expect(contentLines.map(
+      (line) => line.getAttribute("data-code-line-numbers"),
+    )).toEqual(["false", "false"]);
     expect(
-      [...view.dom.querySelectorAll(".cm-markra-code-content-line")].map(
-        (line) => line.getAttribute("data-code-line-number"),
-      ),
-    ).toEqual([null, null]);
+      view.dom
+        .querySelector(".cm-markra-code-top-gap")
+        ?.getAttribute("data-code-line-numbers"),
+    ).toBe("false");
+    expect(
+      view.dom
+        .querySelector(".cm-markra-code-closing-line")
+        ?.getAttribute("data-code-line-numbers"),
+    ).toBe("false");
   });
 
   it("renders Mermaid as a preview and reveals its unchanged source on activation", async () => {
