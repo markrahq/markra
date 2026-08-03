@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { highlightMarkraCode } from "./code-support.ts";
 
 describe("code highlighting", () => {
-  it("treats missing and unsupported languages as plain text", () => {
+  it("auto-detects missing and unsupported languages", () => {
     const source = "const syntheticValue = 42;";
 
-    expect(highlightMarkraCode("", source)).toEqual([]);
-    expect(highlightMarkraCode("synthetic-unknown-language", source)).toEqual(
-      [],
-    );
+    expect(highlightMarkraCode("", source)).not.toEqual([]);
+    expect(
+      highlightMarkraCode("synthetic-unknown-language", source),
+    ).not.toEqual([]);
   });
 
   it("highlights explicitly supported languages", () => {
