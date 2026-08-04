@@ -10,6 +10,8 @@ import {
   showContextMenu,
   type ContextMenuEntry,
   type ContextMenuIdPrefixes,
+  type NativeClipboardContent,
+  type NativeClipboardContentReader,
   type RecentMarkdownFile
 } from "@markra/app/runtime";
 import type { MarkdownShortcutMap } from "@markra/editor";
@@ -44,12 +46,14 @@ export type NativeClipboardTextReader = () => string | null | undefined | Promis
 export type NativeEditorContextMenuOptions = {
   getAiCommandsAvailable?: () => boolean;
   markdownShortcuts?: MarkdownShortcutMap;
+  readClipboardContent?: NativeClipboardContentReader;
   readClipboardText?: NativeClipboardTextReader;
 };
 
 export type NativeEditorContextMenuEntryOptions = {
   aiCommandsAvailable?: boolean;
   markdownShortcuts?: MarkdownShortcutMap;
+  readClipboardContent?: NativeClipboardContentReader;
   readClipboardText?: NativeClipboardTextReader;
 };
 
@@ -191,10 +195,28 @@ export async function readNativeClipboardText() {
   }
 }
 
-function withNativeClipboardText<TOptions extends { readClipboardText?: NativeClipboardTextReader }>(options: TOptions) {
+export async function readNativeClipboardContent() {
+  try {
+    const content = await invokeNative<NativeClipboardContent | null>(
+      "read_clipboard_content"
+    );
+    if (!content || (typeof content.html !== "string" && typeof content.text !== "string")) {
+      return null;
+    }
+
+    return content;
+  } catch {
+    return null;
+  }
+}
+
+function withNativeClipboardContent<
+  TOptions extends { readClipboardContent?: NativeClipboardContentReader }
+>(options: TOptions) {
   return {
     ...options,
-    readClipboardText: options.readClipboardText ?? readNativeClipboardText
+    readClipboardContent:
+      options.readClipboardContent ?? readNativeClipboardContent
   };
 }
 
@@ -203,7 +225,7 @@ export function createNativeEditorContextMenuItems(
   language: AppLanguage = "en",
   options: NativeEditorContextMenuEntryOptions = {}
 ): ContextMenuEntry[] {
-  return createEditorContextMenuEntries(handlers, language, withNativeClipboardText(options), desktopContextMenuIdPrefixes);
+  return createEditorContextMenuEntries(handlers, language, withNativeClipboardContent(options), desktopContextMenuIdPrefixes);
 }
 
 export async function installNativeEditorContextMenu(
@@ -226,7 +248,7 @@ export async function installNativeEditorContextMenu(
       entries: createEditorContextMenuEntriesFromOptions(
         handlers,
         language,
-        withNativeClipboardText(options),
+        withNativeClipboardContent(options),
         desktopContextMenuIdPrefixes,
         element
       ),

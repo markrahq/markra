@@ -1,7 +1,10 @@
 import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { history, undo } from "@codemirror/commands";
-import { liveMarkdown } from "@markra/editor/codemirror";
+import {
+  codeMirrorClipboardAssetsPlugin,
+  liveMarkdown
+} from "@markra/editor/codemirror";
 import {
   createEditorContextMenuEntries,
   createEditorContextMenuEntriesFromOptions,
@@ -51,6 +54,22 @@ function clipboardPasteItem(target: Element, text: string) {
   );
 }
 
+function clipboardContentPasteItem(
+  target: Element,
+  content: { html: string; text: string }
+) {
+  return menuItemById(
+    createEditorContextMenuEntriesFromOptions(
+      {},
+      "en",
+      { readClipboardContent: () => content },
+      {},
+      target
+    ),
+    "markra:context:paste"
+  );
+}
+
 describe("editor context menu entries", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -90,6 +109,41 @@ describe("editor context menu entries", () => {
     expect(editor.view.state.selection.main.head).toBe("- Alpha\n- Pasted item".length);
     expect(undo(editor.view)).toBe(true);
     expect(editor.view.state.doc.toString()).toBe(doc);
+  });
+
+  it("preserves native rich clipboard content through the editor paste pipeline", async () => {
+    const editor = createEditor(
+      "",
+      EditorSelection.cursor(0),
+      [
+        liveMarkdown({
+          plugins: [codeMirrorClipboardAssetsPlugin()]
+        })
+      ]
+    );
+
+    await Promise.resolve(clipboardContentPasteItem(editor.paper, {
+      html: [
+        "<p>Mock summary</p>",
+        "<ol><li>First <code>choice</code></li><li>Second choice</li></ol>",
+        '<p>See <a href="https://example.test/mock-docs">mock docs</a>.</p>'
+      ].join(""),
+      text: [
+        "Mock summary",
+        "First choice",
+        "Second choice",
+        "See [mock docs](https://example.test/mock-docs)."
+      ].join("\n")
+    }).onSelect?.());
+
+    expect(editor.view.state.doc.toString()).toBe([
+      "Mock summary",
+      "",
+      "1.  First `choice`",
+      "2.  Second choice",
+      "",
+      "See [mock docs](https://example.test/mock-docs)."
+    ].join("\n"));
   });
 
   it("does not change a read-only editor", async () => {

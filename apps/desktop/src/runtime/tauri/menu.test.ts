@@ -379,7 +379,7 @@ describe("native menu", () => {
     expect(domMenuItemById("markra:context:table").textContent).toContain("Cmd/Ctrl+Shift+T");
   });
 
-  it("uses the native clipboard command for editor context menu paste", async () => {
+  it("uses the native rich clipboard command for editor context menu paste", async () => {
     const target = document.createElement("main");
     const paper = document.createElement("article");
     const execCommand = vi.fn((command: string) => command !== "paste");
@@ -397,7 +397,12 @@ describe("native menu", () => {
       }
     });
     mockedInvoke.mockImplementation(async (command) => {
-      if (command === "read_clipboard_text") return "native clipboard text";
+      if (command === "read_clipboard_content") {
+        return {
+          html: "<p><strong>native clipboard text</strong></p>",
+          text: "native clipboard text"
+        };
+      }
 
       return undefined;
     });
@@ -409,7 +414,7 @@ describe("native menu", () => {
     await flushNativeMenuPopup();
     await flushNativeMenuPopup();
 
-    expect(mockedInvoke).toHaveBeenCalledWith("read_clipboard_text");
+    expect(mockedInvoke).toHaveBeenCalledWith("read_clipboard_content");
     expect(browserReadText).not.toHaveBeenCalled();
     expect(execCommand).toHaveBeenCalledTimes(1);
     expect(execCommand).toHaveBeenNthCalledWith(1, "insertText", false, "native clipboard text");
@@ -439,7 +444,12 @@ describe("native menu", () => {
       value: execCommand
     });
     mockedInvoke.mockImplementation(async (command) => {
-      if (command === "read_clipboard_text") return "side clipboard text";
+      if (command === "read_clipboard_content") {
+        return {
+          html: "<p><strong>side clipboard text</strong></p>",
+          text: "side clipboard text"
+        };
+      }
 
       return undefined;
     });
@@ -451,6 +461,13 @@ describe("native menu", () => {
     await vi.waitFor(() => expect(sidePaste).toHaveBeenCalledTimes(1));
 
     expect(mainPaste).not.toHaveBeenCalled();
+    const clipboardEvent = sidePaste.mock.calls[0]?.[0] as ClipboardEvent;
+    expect(clipboardEvent.clipboardData?.getData("text/html")).toBe(
+      "<p><strong>side clipboard text</strong></p>"
+    );
+    expect(clipboardEvent.clipboardData?.getData("text/plain")).toBe(
+      "side clipboard text"
+    );
     expect(execCommand).not.toHaveBeenCalled();
   });
 

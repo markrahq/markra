@@ -28,15 +28,28 @@ export type NativeMarkdownFileTreeContextMenuHandlers = {
 
 export type NativeClipboardTextReader = () => string | null | undefined | Promise<string | null | undefined>;
 
+export type NativeClipboardContent = {
+  html?: string | null;
+  text?: string | null;
+};
+
+export type NativeClipboardContentReader = () =>
+  | NativeClipboardContent
+  | null
+  | undefined
+  | Promise<NativeClipboardContent | null | undefined>;
+
 export type NativeEditorContextMenuOptions = {
   getAiCommandsAvailable?: () => boolean;
   markdownShortcuts?: MarkdownShortcutMap;
+  readClipboardContent?: NativeClipboardContentReader;
   readClipboardText?: NativeClipboardTextReader;
 };
 
 export type NativeEditorContextMenuEntryOptions = {
   aiCommandsAvailable?: boolean;
   markdownShortcuts?: MarkdownShortcutMap;
+  readClipboardContent?: NativeClipboardContentReader;
   readClipboardText?: NativeClipboardTextReader;
 };
 

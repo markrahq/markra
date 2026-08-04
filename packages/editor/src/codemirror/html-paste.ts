@@ -4,29 +4,128 @@ import type { RemoteClipboardImage } from "../clipboard-asset-types.ts";
 export interface CodeMirrorHtmlPaste {
   readonly markdown: string;
   readonly remoteImages: readonly RemoteClipboardImage[];
+  readonly structured: boolean;
 }
 
 const codeFontPattern = /(?:monospace|menlo|monaco|consolas|courier|sfmono|fira code|jetbrains mono|cascadia code|source code pro)/iu;
 const preformattedWhitespacePattern = /white-space\s*:\s*(?:pre|pre-wrap|break-spaces)/iu;
+const richTextSelector = [
+  "a[href]",
+  "b",
+  "blockquote",
+  "del",
+  "em",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "hr",
+  "i",
+  "img",
+  "ol",
+  "s",
+  "strike",
+  "strong",
+  "sub",
+  "sup",
+  "table",
+  "ul",
+].join(",");
+const preformattedBlockNames = new Set(["DIV", "P", "PRE"]);
+
+function preformattedStyle(element: Element) {
+  const style = element.getAttribute("style") ?? "";
+  return codeFontPattern.test(style) || preformattedWhitespacePattern.test(style);
+}
+
+function preformattedElements(document: Document) {
+  return Array.from(document.querySelectorAll<HTMLElement>("pre, [style]"))
+    .filter((element) => element.tagName === "PRE" || preformattedStyle(element));
+}
+
+function meaningfulBodyNodes(document: Document) {
+  return Array.from(document.body.childNodes).filter(
+    (node) => node.nodeType === 1 ||
+      (node.nodeType === 3 && Boolean(node.textContent?.trim())),
+  );
+}
+
+function hasMixedPreformattedContent(document: Document) {
+  const bodyNodes = meaningfulBodyNodes(document);
+  return preformattedElements(document).some(
+    (element) => bodyNodes.some(
+      (node) => node !== element && !element.contains(node),
+    ),
+  );
+}
+
+function hasStructuredHtml(document: Document) {
+  return document.querySelector(richTextSelector) !== null ||
+    hasMixedPreformattedContent(document);
+}
 
 function syntaxHighlightedPlainText(
   document: Document,
   plainText: string,
 ) {
   if (!plainText || document.querySelector("pre > code")) return null;
-  const preformatted = document.querySelector("pre") !== null ||
-    Array.from(document.querySelectorAll<HTMLElement>("[style]")).some(
-      (element) => {
-        const style = element.getAttribute("style") ?? "";
-        return codeFontPattern.test(style) ||
-          preformattedWhitespacePattern.test(style);
-      },
-    );
-  if (!preformatted) return null;
+  if (preformattedElements(document).length === 0 || hasStructuredHtml(document)) {
+    return null;
+  }
 
   // Syntax-highlighted clipboard HTML represents punctuation as ordinary text.
   // Turndown would escape it as Markdown, so preserve the accompanying source.
   return plainText.replace(/\r\n?/gu, "\n");
+}
+
+function preformattedNodeText(node: Node): string {
+  if (node.nodeType === 3) return node.textContent ?? "";
+  if (node.nodeType !== 1) return "";
+  const element = node as Element;
+  if (element.tagName === "BR") return "\n";
+
+  const text = Array.from(element.childNodes)
+    .map((child) => preformattedNodeText(child))
+    .join("");
+  if (!preformattedBlockNames.has(element.tagName)) return text;
+  return `${text.replace(/\n+$/u, "")}\n`;
+}
+
+function codeLanguageClass(element: Element) {
+  const candidates = [element, ...Array.from(element.querySelectorAll("[class]"))];
+  for (const candidate of candidates) {
+    for (const className of candidate.classList) {
+      const match = /^(?:lang(?:uage)?)-(.+)$/iu.exec(className);
+      if (match?.[1]) return `language-${match[1]}`;
+    }
+  }
+
+  return "";
+}
+
+function normalizeStyledCodeBlocks(document: Document) {
+  for (const element of preformattedElements(document)) {
+    if (!preformattedBlockNames.has(element.tagName)) continue;
+    if (element.tagName === "PRE" && element.querySelector(":scope > code")) {
+      continue;
+    }
+    const parent = element.parentElement;
+    if (parent && preformattedStyle(parent)) continue;
+
+    const codeText = preformattedNodeText(element)
+      .replace(/\r\n?/gu, "\n")
+      .replace(/\n+$/u, "");
+    if (!codeText) continue;
+    const pre = document.createElement("pre");
+    const code = document.createElement("code");
+    const languageClass = codeLanguageClass(element);
+    if (languageClass) code.classList.add(languageClass);
+    code.textContent = codeText;
+    pre.append(code);
+    element.replaceWith(pre);
+  }
 }
 
 function normalizedCellMarkdown(service: TurndownService, cell: Element) {
@@ -105,7 +204,11 @@ export function convertCodeMirrorClipboardHtml(
   if (!html.trim() || typeof DOMParser === "undefined") return null;
   const document = new DOMParser().parseFromString(html, "text/html");
   const service = createTurndownService();
+  const structured = hasStructuredHtml(document);
   const code = syntaxHighlightedPlainText(document, plainText);
+  // Turndown collapses whitespace in ordinary styled elements before applying
+  // rules, so semanticize code containers while their authored line breaks remain.
+  if (!code) normalizeStyledCodeBlocks(document);
   const markdown = code ?? service
     .turndown(document.body.innerHTML)
     .replace(/\r\n?/gu, "\n")
@@ -119,5 +222,6 @@ export function convertCodeMirrorClipboardHtml(
       const remote = remoteImage(image);
       return remote ? [remote] : [];
     }),
+    structured,
   };
 }

@@ -14,6 +14,7 @@ import {
   type ContextMenuEntry
 } from "../components/ContextMenu";
 import type {
+  NativeClipboardContent,
   NativeEditorContextMenuEntryOptions,
   NativeEditorContextMenuOptions,
   NativeMarkdownFileTreeContextMenuHandlers,
@@ -25,8 +26,12 @@ import type { NativeMarkdownFolderFile } from "../lib/tauri/file";
 type BrowserEditCommand = "copy" | "cut" | "paste" | "selectAll";
 
 type ClipboardTextInserter = (text: string) => boolean | Promise<boolean>;
+type ClipboardContentInserter = (
+  content: NativeClipboardContent
+) => boolean | Promise<boolean>;
 
 type EditorContextMenuEntryOptions = NativeEditorContextMenuEntryOptions & {
+  insertClipboardContent?: ClipboardContentInserter;
   insertClipboardText?: ClipboardTextInserter;
 };
 
@@ -120,21 +125,32 @@ async function readBrowserClipboardText(documentTarget: Document) {
   return readText.call(clipboard);
 }
 
-function clipboardTextData(text: string) {
+function clipboardContentData(content: NativeClipboardContent) {
+  const html = typeof content.html === "string" ? content.html : "";
+  const text = typeof content.text === "string" ? content.text : "";
   return {
     files: Object.assign([], {
       item: () => null
     }),
-    getData: (type: string) => type === "text/plain" ? text : ""
+    getData: (type: string) => {
+      if (type === "text/html") return html;
+      if (type === "text/plain") return text;
+
+      return "";
+    },
+    types: [
+      ...(html ? ["text/html"] : []),
+      ...(text ? ["text/plain"] : [])
+    ]
   };
 }
 
-function createClipboardTextInserter(target: Element) {
+function createClipboardContentInserter(target: Element) {
   const paper = target.closest(".markdown-paper");
   const content = paper?.querySelector<HTMLElement>(".cm-content");
   if (!content) return undefined;
 
-  return (text: string) => {
+  return (clipboardContent: NativeClipboardContent) => {
     // Native clipboard reads are asynchronous. If the originating editor was
     // removed meanwhile, consume the paste instead of retargeting another tab.
     if (!content.isConnected) return true;
@@ -145,11 +161,44 @@ function createClipboardTextInserter(target: Element) {
       cancelable: true
     });
     Object.defineProperty(event, "clipboardData", {
-      value: clipboardTextData(text)
+      value: clipboardContentData(clipboardContent)
     });
     content.dispatchEvent(event);
     return true;
   };
+}
+
+function createClipboardTextInserter(
+  insertContent: ClipboardContentInserter | undefined
+) {
+  return insertContent ? (text: string) => insertContent({ text }) : undefined;
+}
+
+function normalizeClipboardContent(
+  content: NativeClipboardContent | null | undefined
+) {
+  const html = typeof content?.html === "string" ? content.html : "";
+  const text = typeof content?.text === "string" ? content.text : "";
+  return html || text ? { html, text } : null;
+}
+
+async function pasteClipboardContent(
+  documentTarget: Document,
+  readClipboardContent: NonNullable<NativeEditorContextMenuOptions["readClipboardContent"]>,
+  insertClipboardContent?: ClipboardContentInserter
+) {
+  try {
+    const content = normalizeClipboardContent(await readClipboardContent());
+    if (!content) return false;
+    if (insertClipboardContent && await insertClipboardContent(content)) {
+      return true;
+    }
+    if (!content.text) return false;
+
+    return runDocumentEditCommand(documentTarget, "insertText", false, content.text);
+  } catch {
+    return false;
+  }
 }
 
 async function pasteClipboardText(
@@ -158,18 +207,21 @@ async function pasteClipboardText(
   insertClipboardText?: ClipboardTextInserter
 ) {
   const readText = readClipboardText ?? (() => readBrowserClipboardText(documentTarget));
+  // Keep the fallback on the editor pipeline because live preview can hide
+  // Markdown markers that make direct DOM insertion target the wrong offset.
+  return pasteClipboardContent(
+    documentTarget,
+    async () => {
+      const text = await readText();
 
-  try {
-    const text = await readText();
-    if (!text) return false;
-    // Live preview replaces Markdown markers in the DOM, so DOM insertion can
-    // map pasted text before a hidden list marker instead of after it.
-    if (insertClipboardText && await insertClipboardText(text)) return true;
-
-    return runDocumentEditCommand(documentTarget, "insertText", false, text);
-  } catch {
-    return false;
-  }
+      return text ? { text } : null;
+    },
+    insertClipboardText
+      ? (content) => content.text
+        ? insertClipboardText(content.text)
+        : false
+      : undefined
+  );
 }
 
 async function runInjectedClipboardPasteCommand(
@@ -185,10 +237,24 @@ async function runInjectedClipboardPasteCommand(
 
 function runBrowserEditCommand(
   command: BrowserEditCommand,
-  options: Pick<EditorContextMenuEntryOptions, "insertClipboardText" | "readClipboardText"> = {}
+  options: Pick<
+    EditorContextMenuEntryOptions,
+    | "insertClipboardContent"
+    | "insertClipboardText"
+    | "readClipboardContent"
+    | "readClipboardText"
+  > = {}
 ) {
   const documentTarget = typeof document === "undefined" ? null : document;
   if (!documentTarget) return false;
+
+  if (command === "paste" && options.readClipboardContent) {
+    return pasteClipboardContent(
+      documentTarget,
+      options.readClipboardContent,
+      options.insertClipboardContent
+    ).then((handled) => handled || runDocumentEditCommand(documentTarget, "paste"));
+  }
 
   if (command === "paste" && options.readClipboardText) {
     return runInjectedClipboardPasteCommand(
@@ -209,7 +275,13 @@ function browserItem(
   label: string,
   accelerator: string,
   command: BrowserEditCommand,
-  options: Pick<EditorContextMenuEntryOptions, "insertClipboardText" | "readClipboardText"> = {}
+  options: Pick<
+    EditorContextMenuEntryOptions,
+    | "insertClipboardContent"
+    | "insertClipboardText"
+    | "readClipboardContent"
+    | "readClipboardText"
+  > = {}
 ) {
   return contextMenuItem(id, label, accelerator, () => runBrowserEditCommand(command, options), false);
 }
@@ -310,13 +382,18 @@ export function createEditorContextMenuEntriesFromOptions(
   idPrefixes?: Partial<ContextMenuIdPrefixes>,
   target?: Element
 ) {
+  const insertClipboardContent = target
+    ? createClipboardContentInserter(target)
+    : undefined;
   return createEditorContextMenuEntries(
     handlers,
     language,
     {
       aiCommandsAvailable: readAiCommandsAvailable(options),
-      insertClipboardText: target ? createClipboardTextInserter(target) : undefined,
+      insertClipboardContent,
+      insertClipboardText: createClipboardTextInserter(insertClipboardContent),
       markdownShortcuts: options.markdownShortcuts,
+      readClipboardContent: options.readClipboardContent,
       readClipboardText: options.readClipboardText
     },
     idPrefixes

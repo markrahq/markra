@@ -431,9 +431,11 @@ function insertHtmlPaste(
   const html = event.clipboardData?.getData("text/html") ?? "";
   if (!html) return false;
   const plainText = event.clipboardData?.getData("text/plain") ?? "";
-  if (looksLikeMarkdownSource(plainText)) return false;
   const converted = convertCodeMirrorClipboardHtml(html, plainText);
   if (!converted) return false;
+  // Rendered rich text can contain an incidental Markdown-looking fragment.
+  // Only preserve the raw source when the HTML has no authored document structure.
+  if (looksLikeMarkdownSource(plainText) && !converted.structured) return false;
 
   const { from, to } = view.state.selection.main;
   const replacements = saveRemoteImage

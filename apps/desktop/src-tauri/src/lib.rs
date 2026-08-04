@@ -36,7 +36,7 @@ use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat
 use app_exit::handle_app_exit_requested;
 use app_logs::open_log_folder;
 use backup::backup_markdown_folder;
-use clipboard::read_clipboard_text;
+use clipboard::{read_clipboard_content, read_clipboard_text};
 use external_urls::open_external_url;
 use fonts::list_system_font_families;
 use image_upload::{upload_picgo_image, upload_s3_image, upload_webdav_image};
@@ -297,6 +297,7 @@ pub fn run() {
             delete_markdown_template_file,
             save_clipboard_attachment,
             save_clipboard_image,
+            read_clipboard_content,
             read_clipboard_text,
             minimize_current_window,
             open_blank_editor_window,
