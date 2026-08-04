@@ -1,4 +1,5 @@
 import { EditorSelection, EditorState } from "@codemirror/state";
+import { forceParsing } from "@codemirror/language";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { codeBlockPreviewPlugin, liveMarkdown } from "./index.ts";
@@ -39,6 +40,18 @@ function renderedLines(view: EditorView) {
   return [...view.dom.querySelectorAll(".cm-line")].map(
     (line) => line.textContent ?? "",
   );
+}
+
+function decorationWidgetNames(view: EditorView) {
+  const names: string[] = [];
+  for (const source of view.state.facet(EditorView.decorations)) {
+    if (typeof source === "function") continue;
+    source.between(0, view.state.doc.length, (_from, _to, decoration) => {
+      const name = decoration.spec.widget?.constructor.name;
+      if (name) names.push(name);
+    });
+  }
+  return names;
 }
 
 afterEach(() => {
@@ -106,6 +119,19 @@ describe("codeBlockPreviewPlugin", () => {
       "12px",
       "12px",
     ]);
+    expect(view.state.doc.toString()).toBe(source);
+  });
+
+  it("adds code block top chrome when background parsing catches up", () => {
+    const prefix = Array.from(
+      { length: 400 },
+      (_, index) => `Synthetic paragraph ${index}.`,
+    ).join("\n\n");
+    const source = `${prefix}\n\n\`\`\`text\nSynthetic code\n\`\`\``;
+    const view = createView(source);
+
+    expect(forceParsing(view, source.length, 1_000)).toBe(true);
+    expect(decorationWidgetNames(view)).toContain("CodeBlockTopGapWidget");
     expect(view.state.doc.toString()).toBe(source);
   });
 
@@ -501,6 +527,25 @@ describe("codeBlockPreviewPlugin", () => {
 
     expect(view.dom.querySelector(".markra-mermaid-render")).toBeNull();
     expect(renderedLines(view)).toContain("```mermaid");
+    expect(view.state.doc.toString()).toBe(source);
+  });
+
+  it("registers Mermaid preview when background parsing catches up", () => {
+    const prefix = Array.from(
+      { length: 400 },
+      (_, index) => `Synthetic paragraph ${index}.`,
+    ).join("\n\n");
+    const source = `${prefix}\n\n\`\`\`mermaid\nflowchart TD\n  A --> B\n\`\`\`\n\nEdit`;
+    const renderMermaid = vi.fn().mockResolvedValue(
+      '<svg aria-label="Synthetic diagram"></svg>',
+    );
+    const view = createView(
+      source,
+      codeBlockPreviewPlugin({ renderMermaid }),
+    );
+
+    expect(forceParsing(view, source.length, 1_000)).toBe(true);
+    expect(decorationWidgetNames(view)).toContain("MermaidPreviewWidget");
     expect(view.state.doc.toString()).toBe(source);
   });
 
