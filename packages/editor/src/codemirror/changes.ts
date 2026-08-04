@@ -1,4 +1,15 @@
+import { syntaxTree } from "@codemirror/language";
+import type { EditorState } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
+
+export function syntaxTreeChanged(
+  startState: EditorState,
+  state: EditorState,
+) {
+  // CodeMirror can advance parsing in a document-neutral transaction. Cached
+  // syntax-derived UI must compare tree identity instead of only docChanged.
+  return syntaxTree(startState) !== syntaxTree(state);
+}
 
 export function updateOnlyInsertsPlainText(update: ViewUpdate) {
   if (

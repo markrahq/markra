@@ -10,6 +10,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { parseGfmTableFragment } from "@markra/markdown";
+import { syntaxTreeChanged } from "./changes.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { readCodeMirrorTableShape } from "./table.ts";
 
@@ -206,7 +207,8 @@ class TableFragmentMergeViewPlugin {
   update(update: ViewUpdate) {
     if (
       update.docChanged ||
-      update.startState.readOnly !== update.state.readOnly
+      update.startState.readOnly !== update.state.readOnly ||
+      syntaxTreeChanged(update.startState, update.state)
     ) {
       this.decorations = mergeDecorations(update.state, this.label);
     }

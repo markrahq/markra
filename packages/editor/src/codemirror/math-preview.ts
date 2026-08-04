@@ -18,7 +18,7 @@ import {
 } from "../math-render.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { cursorInsideRange, selectionChangeAffectsReveal } from "./policy.ts";
-import { updateChangesStayAfter } from "./changes.ts";
+import { syntaxTreeChanged, updateChangesStayAfter } from "./changes.ts";
 
 export interface CodeMirrorMathRange {
   readonly from: number;
@@ -443,7 +443,8 @@ export function mathPreviewPlugin() {
               update.docChanged ||
               selectionChangeAffectsReveal(update) ||
               update.focusChanged ||
-              update.viewportChanged
+              update.viewportChanged ||
+              syntaxTreeChanged(update.startState, update.state)
             ) {
               const state = buildMathDecorations(update.view);
               this.decorations = state.decorations;

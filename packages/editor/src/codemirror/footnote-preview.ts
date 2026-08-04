@@ -11,7 +11,7 @@ import {
 } from "@codemirror/view";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { cursorInsideRange, selectionChangeAffectsReveal } from "./policy.ts";
-import { updateChangesStayAfter } from "./changes.ts";
+import { syntaxTreeChanged, updateChangesStayAfter } from "./changes.ts";
 
 interface FootnoteDefinition {
   readonly content: string;
@@ -368,7 +368,8 @@ export function footnotePreviewPlugin() {
               update.docChanged ||
               selectionChangeAffectsReveal(update) ||
               update.focusChanged ||
-              update.viewportChanged
+              update.viewportChanged ||
+              syntaxTreeChanged(update.startState, update.state)
             ) {
               const state = buildFootnoteDecorations(update.view);
               this.decorations = state.decorations;

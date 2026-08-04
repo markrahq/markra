@@ -9,6 +9,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import type { BlockLabels } from "./blocks.ts";
+import { syntaxTreeChanged } from "./changes.ts";
 import { runMarkraCommand } from "./plugin.ts";
 
 interface ActiveHeading {
@@ -223,7 +224,8 @@ class HeadingLevelViewPlugin {
       update.docChanged ||
       update.selectionSet ||
       update.focusChanged ||
-      update.transactions.some((transaction) => transaction.effects.length > 0)
+      update.transactions.some((transaction) => transaction.effects.length > 0) ||
+      syntaxTreeChanged(update.startState, update.state)
     ) {
       this.decorations = headingDecorations(
         update.view,

@@ -20,6 +20,7 @@ import {
   type SpellcheckOptions,
   type Spellchecker,
 } from "../spellcheck.ts";
+import { syntaxTreeChanged } from "./changes.ts";
 
 export interface CodeMirrorSpellcheckState {
   readonly decorations: DecorationSet;
@@ -298,7 +299,8 @@ const spellcheckView = ViewPlugin.fromClass(
         update.docChanged ||
         configChanged ||
         state.enabled !== previous.enabled ||
-        state.ignoredWords !== previous.ignoredWords
+        state.ignoredWords !== previous.ignoredWords ||
+        syntaxTreeChanged(update.startState, update.state)
       ) {
         this.schedule();
       }

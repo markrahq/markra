@@ -31,7 +31,7 @@ import {
 import { unescapeMarkdown } from "./syntax.ts";
 import { createTaskDecoration } from "./tasks.ts";
 import { isInsidePreformattedBlock } from "./blank-lines.ts";
-import { updateOnlyInsertsPlainText } from "./changes.ts";
+import { syntaxTreeChanged, updateOnlyInsertsPlainText } from "./changes.ts";
 
 const HEADING_CLASSES: Readonly<Record<string, string>> = {
   ATXHeading1: "cm-markra-h1",
@@ -887,10 +887,10 @@ function previewPlugin(config: LivePreviewConfig): Extension {
         const reconfigured = update.transactions.some(
           (transaction) => transaction.reconfigured,
         );
-        const syntaxTreeChanged =
+        const treeChanged =
           !update.selectionSet &&
           update.transactions.length > 0 &&
-          syntaxTree(update.startState) !== syntaxTree(update.state);
+          syntaxTreeChanged(update.startState, update.state);
 
         if (
           compositionEnded ||
@@ -899,7 +899,7 @@ function previewPlugin(config: LivePreviewConfig): Extension {
           update.focusChanged ||
           update.viewportChanged ||
           reconfigured ||
-          syntaxTreeChanged
+          treeChanged
         ) {
           this.decorations = buildDecorations(
             update.view,

@@ -16,7 +16,10 @@ import {
 import { readCodeMirrorFrontmatter } from "./frontmatter-preview.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { openMarkraSlashMenu } from "./slash-menu.ts";
-import { updateOnlyInsertsPlainText } from "./changes.ts";
+import {
+  syntaxTreeChanged,
+  updateOnlyInsertsPlainText,
+} from "./changes.ts";
 
 export interface CodeMirrorBlockRange {
   readonly depth?: number;
@@ -740,7 +743,8 @@ class BlockDragViewPlugin {
 
     if (
       update.docChanged ||
-      readOnlyChanged
+      readOnlyChanged ||
+      syntaxTreeChanged(update.startState, update.state)
     ) {
       this.blocks = update.state.facet(EditorState.readOnly)
         ? []

@@ -15,7 +15,7 @@ import {
 } from "../raw-html-sanitize.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { cursorInsideRange, selectionChangeAffectsReveal } from "./policy.ts";
-import { updateChangesStayAfter } from "./changes.ts";
+import { syntaxTreeChanged, updateChangesStayAfter } from "./changes.ts";
 
 export interface RawHtmlPreviewPluginOptions {
   resolveImageSrc?: ResolveRawHtmlSrc;
@@ -352,7 +352,8 @@ export function rawHtmlPreviewPlugin(
               update.docChanged ||
               selectionChangeAffectsReveal(update) ||
               update.focusChanged ||
-              update.viewportChanged
+              update.viewportChanged ||
+              syntaxTreeChanged(update.startState, update.state)
             ) {
               const state = buildRawHtmlDecorations(update.view, options);
               this.decorations = state.decorations;

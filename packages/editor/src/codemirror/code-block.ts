@@ -28,6 +28,7 @@ import {
   mermaidThemeFromElement,
   renderMermaidToSvg,
 } from "../mermaid.ts";
+import { syntaxTreeChanged } from "./changes.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import {
   createMediaViewerEnlargeIcon,
@@ -345,9 +346,11 @@ function createCodeBlockTopGapField(showLineNumbers: boolean) {
     update(gaps, transaction) {
       // Background parsing commits a new tree without changing Markdown.
       // Re-scan so blocks discovered after initial load receive their chrome.
-      const syntaxTreeChanged =
-        syntaxTree(transaction.startState) !== syntaxTree(transaction.state);
-      return transaction.docChanged || syntaxTreeChanged
+      const treeChanged = syntaxTreeChanged(
+        transaction.startState,
+        transaction.state,
+      );
+      return transaction.docChanged || treeChanged
         ? codeBlockTopGapDecorations(transaction.state, showLineNumbers)
         : gaps;
     },
@@ -912,14 +915,16 @@ function createMermaidPreviewField(
     update(previous, transaction) {
       // A long document can finish parsing in a later, document-neutral
       // transaction. Rebuild so newly discovered Mermaid fences get previews.
-      const syntaxTreeChanged =
-        syntaxTree(transaction.startState) !== syntaxTree(transaction.state);
+      const treeChanged = syntaxTreeChanged(
+        transaction.startState,
+        transaction.state,
+      );
       const focusEffect = transaction.effects.find((effect) =>
         effect.is(setMermaidPreviewFocusedEffect)
       );
       const focused = focusEffect?.value ?? previous.focused;
       if (!transaction.docChanged) {
-        if (syntaxTreeChanged) {
+        if (treeChanged) {
           return createMermaidPreviewState(
             transaction.state,
             focused,
@@ -953,7 +958,7 @@ function createMermaidPreviewField(
       }
 
       if (
-        syntaxTreeChanged ||
+        treeChanged ||
         changesTouchMermaidBlocks(transaction, previous.blocks) ||
         changesMayAffectMermaidFences(transaction)
       ) {

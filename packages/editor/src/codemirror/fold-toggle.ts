@@ -15,6 +15,7 @@ import {
   type EditorView as CodeMirrorView,
   type ViewUpdate,
 } from "@codemirror/view";
+import { syntaxTreeChanged } from "./changes.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 
 export interface FoldToggleLabels {
@@ -193,7 +194,8 @@ class FoldToggleViewPlugin {
   update(update: ViewUpdate) {
     if (
       update.docChanged ||
-      update.transactions.some((transaction) => transaction.effects.length > 0)
+      update.transactions.some((transaction) => transaction.effects.length > 0) ||
+      syntaxTreeChanged(update.startState, update.state)
     ) {
       this.decorations = toggleDecorations(update.state, this.labels);
     }
