@@ -224,6 +224,35 @@ describe("codeMirrorClipboardAssetsPlugin", () => {
     ].join("\n"));
   });
 
+  it("keeps styled file badges as inline links", () => {
+    const view = createView("");
+    const expected = [
+      "Mock changes: ",
+      "[example-a.ts (line 108)](/mock-project/src/example-a.ts:108), ",
+      "[example-b.ts (line 438)](/mock-project/src/example-b.ts:438).",
+    ].join("");
+
+    const event = paste(view, {
+      html: [
+        "<p>Mock changes: ",
+        '<a href="/mock-project/src/example-a.ts:108">',
+        '<div style="font-family: Menlo, monospace; white-space: pre-wrap">',
+        "example-a.ts (line 108)",
+        "</div>",
+        "</a>, ",
+        '<a href="/mock-project/src/example-b.ts:438">',
+        '<div style="font-family: Menlo, monospace; white-space: pre-wrap">',
+        "example-b.ts (line 438)",
+        "</div>",
+        "</a>.</p>",
+      ].join(""),
+      text: expected,
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe(expected);
+  });
+
   it("preserves Markdown-looking lines inside a styled mixed-content code block", () => {
     const view = createView("");
     const code = [

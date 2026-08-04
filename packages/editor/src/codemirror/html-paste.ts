@@ -34,6 +34,8 @@ const richTextSelector = [
   "ul",
 ].join(",");
 const preformattedBlockNames = new Set(["DIV", "P", "PRE"]);
+const anchorMarkupPattern = /<a\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/a\s*>/giu;
+const anchorBlockPattern = /<(\/?)(?:div|p|pre)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/giu;
 
 function preformattedStyle(element: Element) {
   const style = element.getAttribute("style") ?? "";
@@ -43,6 +45,17 @@ function preformattedStyle(element: Element) {
 function preformattedElements(document: Document) {
   return Array.from(document.querySelectorAll<HTMLElement>("pre, [style]"))
     .filter((element) => element.tagName === "PRE" || preformattedStyle(element));
+}
+
+function normalizeAnchorBlockMarkup(html: string) {
+  // A block wrapper inside a paragraph link makes the HTML parser split one
+  // authored anchor into empty and duplicate links before Turndown sees it.
+  return html.replace(anchorMarkupPattern, (anchor) =>
+    anchor.replace(
+      anchorBlockPattern,
+      (_tag, closing: string, attributes: string) => `<${closing}span${attributes}>`,
+    )
+  );
 }
 
 function meaningfulBodyNodes(document: Document) {
@@ -202,7 +215,10 @@ export function convertCodeMirrorClipboardHtml(
   plainText = "",
 ): CodeMirrorHtmlPaste | null {
   if (!html.trim() || typeof DOMParser === "undefined") return null;
-  const document = new DOMParser().parseFromString(html, "text/html");
+  const document = new DOMParser().parseFromString(
+    normalizeAnchorBlockMarkup(html),
+    "text/html",
+  );
   const service = createTurndownService();
   const structured = hasStructuredHtml(document);
   const code = syntaxHighlightedPlainText(document, plainText);
