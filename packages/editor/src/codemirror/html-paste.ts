@@ -35,7 +35,6 @@ const richTextSelector = [
 ].join(",");
 const preformattedBlockNames = new Set(["DIV", "P", "PRE"]);
 const anchorMarkupPattern = /<a\b(?:[^>"']|"[^"]*"|'[^']*')*>[\s\S]*?<\/a\s*>/giu;
-const anchorBlockPattern = /<(\/?)(?:div|p|pre)\b((?:[^>"']|"[^"]*"|'[^']*')*)>/giu;
 
 function preformattedStyle(element: Element) {
   const style = element.getAttribute("style") ?? "";
@@ -47,15 +46,48 @@ function preformattedElements(document: Document) {
     .filter((element) => element.tagName === "PRE" || preformattedStyle(element));
 }
 
-function normalizeAnchorBlockMarkup(html: string) {
+function styledInlineLinkMarkup(link: HTMLAnchorElement) {
+  const blocks = Array.from(link.querySelectorAll<HTMLElement>("div, p"));
+  // Only flatten compact preformatted wrappers; semantic or multiline content
+  // must stay on the normal code/link conversion path.
+  if (blocks.length === 0 ||
+    link.querySelector("br, code, pre") !== null ||
+    /[\r\n]/u.test(link.textContent ?? "") ||
+    ![link, ...Array.from(link.querySelectorAll<HTMLElement>("[style]"))]
+      .some((element) => preformattedStyle(element))) {
+    return null;
+  }
+
+  const blockSet = new Set(blocks);
+  const blocksWithFollowingBlock = new Set(blocks.filter(
+    (block) => Boolean(
+      block.nextElementSibling && blockSet.has(block.nextElementSibling as HTMLElement),
+    ),
+  ));
+  for (const block of blocks.reverse()) {
+    const span = link.ownerDocument.createElement("span");
+    for (const attribute of Array.from(block.attributes)) {
+      span.setAttribute(attribute.name, attribute.value);
+    }
+    span.append(...Array.from(block.childNodes));
+    block.replaceWith(span);
+    if (blocksWithFollowingBlock.has(block)) span.after(" ");
+  }
+
+  return link.outerHTML;
+}
+
+function normalizeAnchorBlockMarkup(html: string, parser: DOMParser) {
   // A block wrapper inside a paragraph link makes the HTML parser split one
   // authored anchor into empty and duplicate links before Turndown sees it.
-  return html.replace(anchorMarkupPattern, (anchor) =>
-    anchor.replace(
-      anchorBlockPattern,
-      (_tag, closing: string, attributes: string) => `<${closing}span${attributes}>`,
-    )
-  );
+  return html.replace(anchorMarkupPattern, (anchor) => {
+    if (!codeFontPattern.test(anchor) && !preformattedWhitespacePattern.test(anchor)) {
+      return anchor;
+    }
+    const fragment = parser.parseFromString(anchor, "text/html");
+    const link = fragment.body.querySelector<HTMLAnchorElement>("a[href]");
+    return link ? styledInlineLinkMarkup(link) ?? anchor : anchor;
+  });
 }
 
 function meaningfulBodyNodes(document: Document) {
@@ -215,8 +247,9 @@ export function convertCodeMirrorClipboardHtml(
   plainText = "",
 ): CodeMirrorHtmlPaste | null {
   if (!html.trim() || typeof DOMParser === "undefined") return null;
-  const document = new DOMParser().parseFromString(
-    normalizeAnchorBlockMarkup(html),
+  const parser = new DOMParser();
+  const document = parser.parseFromString(
+    normalizeAnchorBlockMarkup(html, parser),
     "text/html",
   );
   const service = createTurndownService();

@@ -229,7 +229,8 @@ describe("codeMirrorClipboardAssetsPlugin", () => {
     const expected = [
       "Mock changes: ",
       "[example-a.ts (line 108)](/mock-project/src/example-a.ts:108), ",
-      "[example-b.ts (line 438)](/mock-project/src/example-b.ts:438).",
+      "[example-b.ts (line 438)](C:/mock-project/src/example-b.ts:438), ",
+      "[example-c.ts (line 7)](https://example.test/mock-file#L7).",
     ].join("");
 
     const event = paste(view, {
@@ -240,10 +241,13 @@ describe("codeMirrorClipboardAssetsPlugin", () => {
         "example-a.ts (line 108)",
         "</div>",
         "</a>, ",
-        '<a href="/mock-project/src/example-b.ts:438">',
-        '<div style="font-family: Menlo, monospace; white-space: pre-wrap">',
-        "example-b.ts (line 438)",
-        "</div>",
+        '<a href="C:/mock-project/src/example-b.ts:438" ',
+        'style="font-family: Menlo, monospace; white-space: pre-wrap">',
+        "<div>example-b.ts</div>",
+        "<div>(line 438)</div>",
+        "</a>, ",
+        '<a href="https://example.test/mock-file#L7">',
+        '<p style="font-family: Menlo, monospace">example-c.ts (line 7)</p>',
         "</a>.</p>",
       ].join(""),
       text: expected,
@@ -251,6 +255,52 @@ describe("codeMirrorClipboardAssetsPlugin", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(view.state.doc.toString()).toBe(expected);
+  });
+
+  it("does not merge ordinary linked card blocks", () => {
+    const view = createView("");
+    const href = "https://example.test/mock-card";
+
+    paste(view, {
+      html: [
+        '<p>See <a href="https://example.test/mock-card">',
+        "<div>Mock title</div>",
+        "<div>Mock subtitle</div>",
+        "</a>.</p>",
+      ].join(""),
+      text: "See Mock title Mock subtitle.",
+    });
+
+    const markdown = view.state.doc.toString();
+    expect(markdown).toContain(`[Mock title](${href})`);
+    expect(markdown).toContain(`[Mock subtitle](${href})`);
+    expect(markdown).not.toContain("Mock titleMock subtitle");
+  });
+
+  it("does not flatten semantic or multiline linked code", () => {
+    const semanticView = createView("");
+    const multilineView = createView("");
+
+    paste(semanticView, {
+      html: [
+        '<p>See <a href="https://example.test/mock-code">',
+        '<pre style="font-family: Menlo, monospace"><code>const mock = 1;</code></pre>',
+        "</a>.</p>",
+      ].join(""),
+      text: "See const mock = 1;.",
+    });
+    paste(multilineView, {
+      html: [
+        '<p>See <a href="https://example.test/mock-lines">',
+        '<div style="font-family: Menlo, monospace; white-space: pre-wrap">',
+        "Mock line one<br>Mock line two",
+        "</div></a>.</p>",
+      ].join(""),
+      text: "See Mock line one\nMock line two.",
+    });
+
+    expect(semanticView.state.doc.toString()).toContain("```\nconst mock = 1;\n```");
+    expect(multilineView.state.doc.toString()).toContain("```\nMock line one\nMock line two\n```");
   });
 
   it("preserves Markdown-looking lines inside a styled mixed-content code block", () => {
