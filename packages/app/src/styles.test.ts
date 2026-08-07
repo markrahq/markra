@@ -571,46 +571,81 @@ describe("editor stylesheet", () => {
     expect(revealRule).toContain("pointer-events: auto");
   });
 
-  it("keeps heading block tools in a separate slot from fold and level controls", () => {
+  it("keeps terminal heading tools centered and in separate horizontal slots", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
-    const headingToolbarRuleStart = styles.indexOf(
-      ".markdown-paper .markra-heading-toggle-heading > .cm-markra-block-toolbar {",
+    const terminalHeadingToolbarRuleStart = styles.indexOf(
+      ".markdown-paper .cm-line.cm-markra-h1 > .cm-markra-block-toolbar,",
     );
-    const headingToolbarRuleEnd = styles.indexOf("\n  }", headingToolbarRuleStart);
-    const headingToolbarRule = styles.slice(
-      headingToolbarRuleStart,
-      headingToolbarRuleEnd,
+    const terminalHeadingToolbarRuleEnd = styles.indexOf(
+      "\n  }",
+      terminalHeadingToolbarRuleStart,
+    );
+    const terminalHeadingToolbarRule = styles.slice(
+      terminalHeadingToolbarRuleStart,
+      terminalHeadingToolbarRuleEnd,
     );
 
-    expect(headingToolbarRuleStart).toBeGreaterThanOrEqual(0);
-    expect(headingToolbarRule).toContain("position: absolute !important");
-    expect(headingToolbarRule).toContain("left: -104px");
-    expect(headingToolbarRule).toContain("margin: 0 !important");
-    expect(headingToolbarRule).toContain(
-      "top: calc(50% + var(--markra-heading-toggle-center-offset))",
+    expect(terminalHeadingToolbarRuleStart).toBeGreaterThanOrEqual(0);
+    expect(terminalHeadingToolbarRule).toContain(
+      ".markdown-paper .cm-line.cm-markra-h6 > .cm-markra-block-toolbar",
     );
-    expect(headingToolbarRule).toContain("transform: translateY(-50%)");
-    expect(styles).toContain(
-      ".markdown-paper .markra-heading-toggle-heading > .cm-markra-block-toolbar::after",
+    expect(terminalHeadingToolbarRule).toContain(
+      "top: calc(50% + var(--markra-heading-control-center-offset));",
     );
-    expect(styles).toContain(
-      ".markdown-paper .cm-line.cm-markra-h2.markra-heading-toggle-heading {\n" +
-      "    --markra-heading-toggle-center-offset: 8px;",
+    expect(terminalHeadingToolbarRule).toContain(
+      "inset-inline-start: var(--markra-heading-toolbar-inline-start);",
     );
     expect(styles).toContain(
-      ".markdown-paper .cm-line.cm-markra-h3.markra-heading-toggle-heading {\n" +
-      "    --markra-heading-toggle-center-offset: 9px;",
+      "--markra-heading-toolbar-inline-start: -78px;",
     );
     expect(styles).toContain(
-      ".markdown-paper .cm-line.cm-markra-h4.markra-heading-toggle-heading {\n" +
-      "    --markra-heading-toggle-center-offset: 8px;",
+      ".markdown-paper .cm-line.cm-markra-h6 > .cm-markra-block-toolbar::after {",
     );
     expect(styles).toContain(
-      ".markdown-paper .cm-line.cm-markra-h5.markra-heading-toggle-heading,\n" +
-      "  .markdown-paper h6.markra-heading-toggle-heading,\n" +
-      "  .markdown-paper .cm-line.cm-markra-h6.markra-heading-toggle-heading {",
+      ".markdown-paper .cm-line.cm-markra-h1 {\n" +
+      "    --markra-heading-control-center-offset: -5.5px;",
     );
-    expect(styles).toContain("--markra-heading-toggle-center-offset: 7px;");
+    expect(styles).toContain(
+      ".markdown-paper .cm-line.cm-markra-h2 {\n" +
+      "    --markra-heading-control-center-offset: 8px;",
+    );
+    expect(styles).toContain(
+      ".markdown-paper .cm-line.cm-markra-h3 {\n" +
+      "    --markra-heading-control-center-offset: 9px;",
+    );
+    expect(styles).toContain(
+      ".markdown-paper .cm-line.cm-markra-h4 {\n" +
+      "    --markra-heading-control-center-offset: 8px;",
+    );
+    expect(styles).toContain(
+      "--markra-heading-control-center-offset: 7px;\n" +
+      "    padding-block-start: 14px !important;",
+    );
+    expect(styles).not.toContain(
+      ".cm-line.cm-markra-h3.markra-heading-toggle-heading {\n" +
+      "    --markra-heading-control-center-offset:",
+    );
+  });
+
+  it("reserves a third heading-control slot when folding is available", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const foldableHeadingRuleStart = styles.indexOf(
+      ".markdown-paper .cm-line.markra-heading-toggle-heading {",
+    );
+    const foldableHeadingRuleEnd = styles.indexOf(
+      "\n  }",
+      foldableHeadingRuleStart,
+    );
+    const foldableHeadingRule = styles.slice(
+      foldableHeadingRuleStart,
+      foldableHeadingRuleEnd,
+    );
+
+    expect(foldableHeadingRuleStart).toBeGreaterThanOrEqual(0);
+    expect(foldableHeadingRule).toContain(
+      "--markra-heading-toolbar-inline-start: -104px",
+    );
+    expect(foldableHeadingRule).not.toContain("top:");
   });
 
   it("forces a grabbing cursor during document tab pointer drags", () => {
@@ -811,7 +846,7 @@ describe("editor stylesheet", () => {
     expect(labelStyles).toContain("left: -28px");
     expect(labelStyles).toContain("margin: 0");
     expect(labelStyles).toContain(
-      "top: calc(50% + var(--markra-heading-toggle-center-offset))",
+      "top: calc(50% + var(--markra-heading-control-center-offset))",
     );
     expect(labelStyles).toContain("transform: translateY(-50%)");
     expect(labelStyles).toContain(".markdown-paper .markra-heading-level-list");
