@@ -269,6 +269,40 @@ describe("CodeMirror editor controller", () => {
     expect(view.state.doc.toString()).toBe("A B A beta");
   });
 
+  it("finds regular expressions and expands capture groups while replacing", () => {
+    const view = createView("first:last next:item");
+    const query = "(?<first>\\w+):(?<last>\\w+)";
+    const options = { caseSensitive: true, regularExpression: true };
+    const matches = findCodeMirrorSearchMatches(view.state, query, options);
+
+    expect(matches).toEqual([
+      { from: 0, to: 10 },
+      { from: 11, to: 20 },
+    ]);
+    expect(replaceAllCodeMirrorSearchMatches(
+      view,
+      matches,
+      "$<last>-$1",
+      query,
+      options,
+    )).toBe(true);
+    expect(view.state.doc.toString()).toBe("last-first item-next");
+  });
+
+  it("replaces zero-width regular expression matches", () => {
+    const view = createView("alpha\nbeta");
+    const query = "^";
+    const options = { caseSensitive: true, regularExpression: true };
+    const matches = findCodeMirrorSearchMatches(view.state, query, options);
+
+    expect(matches).toEqual([
+      { from: 0, to: 0 },
+      { from: 6, to: 6 },
+    ]);
+    expect(replaceAllCodeMirrorSearchMatches(view, matches, "> ", query, options)).toBe(true);
+    expect(view.state.doc.toString()).toBe("> alpha\n> beta");
+  });
+
   it("does not expose hidden display-math source as visual search text", () => {
     const doc = ["# Visible c", "", "$$", String.raw`z &= csa`, "$$"].join("\n");
     const view = createView(doc);

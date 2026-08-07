@@ -85,10 +85,21 @@ export function replaceTextRange(content: string, range: SearchRange, replacemen
   return `${content.slice(0, range.from)}${replacement}${content.slice(range.to)}`;
 }
 
-export function replaceTextRanges(content: string, ranges: SearchRange[], replacement: string) {
+export function replaceTextRanges(
+  content: string,
+  ranges: SearchRange[],
+  replacement: string | ((range: SearchRange) => string)
+) {
   return [...ranges]
     .sort((left, right) => right.from - left.from)
-    .reduce((nextContent, range) => replaceTextRange(nextContent, range, replacement), content);
+    .reduce(
+      (nextContent, range) => replaceTextRange(
+        nextContent,
+        range,
+        typeof replacement === "function" ? replacement(range) : replacement
+      ),
+      content
+    );
 }
 
 export function restoreElementScrollTop(element: HTMLElement, scrollTop: number) {

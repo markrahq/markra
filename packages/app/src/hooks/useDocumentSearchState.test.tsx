@@ -52,6 +52,29 @@ describe("useDocumentSearchState", () => {
     expect(result.current.activeMatch).toEqual({ from: 7, to: 13 });
   });
 
+  it("tracks regular expression mode and invalid patterns", () => {
+    const { result } = renderHook(() => useDocumentSearchState({
+      available: true,
+      sourceContent: "alpha-12 beta-345",
+      surface: "source"
+    }));
+
+    act(() => {
+      result.current.openSearch();
+      result.current.setQuery("alpha-\\d+");
+      result.current.setRegularExpression(true);
+    });
+
+    expect(result.current.regularExpression).toBe(true);
+    expect(result.current.queryValid).toBe(true);
+    expect(result.current.matches).toEqual([{ from: 0, to: 8 }]);
+
+    act(() => result.current.setQuery("["));
+
+    expect(result.current.queryValid).toBe(false);
+    expect(result.current.matches).toEqual([]);
+  });
+
   it("switches between source and visual matches", () => {
     const { result, rerender } = renderHook(
       ({ surface }) => useDocumentSearchState({
@@ -75,6 +98,57 @@ describe("useDocumentSearchState", () => {
 
     expect(result.current.matches).toEqual([{ from: 100, to: 105 }]);
     expect(result.current.visibleSourceMatches).toEqual([]);
+  });
+
+  it("starts a newly populated visual search at the first match", () => {
+    const { result } = renderHook(() => useDocumentSearchState({
+      available: true,
+      sourceContent: "item-1 item-2 item-3",
+      surface: "visual"
+    }));
+
+    act(() => {
+      result.current.openReplace();
+      result.current.setRegularExpression(true);
+      result.current.setQuery("(\\w+)-(\\d+)");
+    });
+
+    act(() => {
+      result.current.setVisualMatches([
+        { from: 0, to: 6 },
+        { from: 7, to: 13 },
+        { from: 14, to: 20 }
+      ]);
+    });
+
+    expect(result.current.activeIndex).toBe(0);
+    expect(result.current.activeMatch).toEqual({ from: 0, to: 6 });
+  });
+
+  it("does not expose visual matches from an earlier regular expression", () => {
+    const { result } = renderHook(() => useDocumentSearchState({
+      available: true,
+      sourceContent: "item-1 other-2",
+      surface: "visual"
+    }));
+
+    act(() => {
+      result.current.openReplace();
+      result.current.setRegularExpression(true);
+      result.current.setQuery("item-(\\d+)");
+    });
+    act(() => {
+      result.current.setVisualMatches([{ from: 0, to: 6 }]);
+    });
+
+    expect(result.current.matchCount).toBe(1);
+
+    act(() => {
+      result.current.setQuery("other-(\\d+)");
+    });
+
+    expect(result.current.matches).toEqual([]);
+    expect(result.current.activeMatch).toBeNull();
   });
 
   it("normalizes navigation and tracks reveal revisions", () => {

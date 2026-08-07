@@ -1,5 +1,5 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
-import { CaseSensitive, ChevronDown, ChevronUp, Replace, Search, X } from "lucide-react";
+import { CaseSensitive, ChevronDown, ChevronUp, Regex, Replace, Search, X } from "lucide-react";
 import { t, type AppLanguage } from "@markra/shared";
 import { Tooltip } from "@markra/ui";
 
@@ -9,7 +9,9 @@ type DocumentSearchBarProps = {
   language?: AppLanguage;
   matchCount: number;
   query: string;
+  queryValid: boolean;
   readOnly?: boolean;
+  regularExpression: boolean;
   replaceOpen: boolean;
   replacement: string;
   onCaseSensitiveChange: (caseSensitive: boolean) => unknown;
@@ -17,6 +19,7 @@ type DocumentSearchBarProps = {
   onNext: () => unknown;
   onPrevious: () => unknown;
   onQueryChange: (query: string) => unknown;
+  onRegularExpressionChange: (regularExpression: boolean) => unknown;
   onReplace: () => unknown;
   onReplaceAll: () => unknown;
   onReplaceOpenChange: (open: boolean) => unknown;
@@ -27,44 +30,52 @@ const labels: Record<string, {
   caseSensitive: string;
   close: string;
   findInDocument: string;
+  invalidRegularExpression: string;
   next: string;
   previous: string;
   replace: string;
   replaceAll: string;
   replacePlaceholder: string;
+  regularExpression: string;
   toggleReplace: string;
 }> = {
   en: {
     caseSensitive: "Case sensitive",
     close: "Close search",
     findInDocument: "Find in document",
+    invalidRegularExpression: "Invalid regular expression",
     next: "Next match",
     previous: "Previous match",
     replace: "Replace",
     replaceAll: "All",
     replacePlaceholder: "Replace",
+    regularExpression: "Use regular expression",
     toggleReplace: "Show replace"
   },
   "zh-CN": {
     caseSensitive: "区分大小写",
     close: "关闭搜索",
     findInDocument: "文档内搜索",
+    invalidRegularExpression: "无效的正则表达式",
     next: "下一个匹配",
     previous: "上一个匹配",
     replace: "替换",
     replaceAll: "全部",
     replacePlaceholder: "替换为",
+    regularExpression: "使用正则表达式",
     toggleReplace: "显示替换"
   },
   "zh-TW": {
     caseSensitive: "區分大小寫",
     close: "關閉搜尋",
     findInDocument: "文件內搜尋",
+    invalidRegularExpression: "無效的規則運算式",
     next: "下一個相符項目",
     previous: "上一個相符項目",
     replace: "取代",
     replaceAll: "全部",
     replacePlaceholder: "取代為",
+    regularExpression: "使用規則運算式",
     toggleReplace: "顯示取代"
   }
 };
@@ -79,7 +90,9 @@ export function DocumentSearchBar({
   language = "en",
   matchCount,
   query,
+  queryValid,
   readOnly = false,
+  regularExpression,
   replaceOpen,
   replacement,
   onCaseSensitiveChange,
@@ -87,6 +100,7 @@ export function DocumentSearchBar({
   onNext,
   onPrevious,
   onQueryChange,
+  onRegularExpressionChange,
   onReplace,
   onReplaceAll,
   onReplaceOpenChange,
@@ -111,6 +125,7 @@ export function DocumentSearchBar({
     if (event.key !== "Enter") return;
 
     event.preventDefault();
+    if (!queryValid) return;
     if (event.shiftKey) {
       onPrevious();
     } else {
@@ -128,11 +143,12 @@ export function DocumentSearchBar({
     if (event.key !== "Enter") return;
 
     event.preventDefault();
+    if (!queryValid) return;
     onReplace();
   };
 
-  const navigationDisabled = matchCount === 0;
-  const replaceDisabled = readOnly || matchCount === 0;
+  const navigationDisabled = !queryValid || matchCount === 0;
+  const replaceDisabled = !queryValid || readOnly || matchCount === 0;
 
   return (
     <div
@@ -144,6 +160,8 @@ export function DocumentSearchBar({
         <Search aria-hidden="true" className="shrink-0 text-(--text-secondary)" size={14} />
         <input
           className="h-8 min-w-0 flex-1 rounded-sm border border-(--border-default) bg-(--bg-primary) px-2 text-[12px] text-(--text-heading) outline-none transition-[border-color,box-shadow] duration-150 placeholder:text-(--text-secondary) focus:border-(--accent) focus:shadow-[0_0_0_2px_var(--accent-soft)]"
+          aria-describedby={!queryValid ? "document-search-query-error" : undefined}
+          aria-invalid={!queryValid || undefined}
           aria-label={label.findInDocument}
           autoCapitalize="none"
           autoComplete="off"
@@ -186,6 +204,17 @@ export function DocumentSearchBar({
             <CaseSensitive aria-hidden="true" size={14} />
           </button>
         </Tooltip>
+        <Tooltip content={label.regularExpression}>
+          <button
+            className="document-search-icon-button"
+            aria-label={label.regularExpression}
+            aria-pressed={regularExpression}
+            type="button"
+            onClick={() => onRegularExpressionChange(!regularExpression)}
+          >
+            <Regex aria-hidden="true" size={14} />
+          </button>
+        </Tooltip>
         <button
           className="document-search-icon-button"
           aria-label={label.toggleReplace}
@@ -204,6 +233,15 @@ export function DocumentSearchBar({
           <X aria-hidden="true" size={14} />
         </button>
       </div>
+      {!queryValid ? (
+        <p
+          className="pl-5 text-[11px] text-(--danger)"
+          id="document-search-query-error"
+          role="alert"
+        >
+          {label.invalidRegularExpression}
+        </p>
+      ) : null}
       {replaceOpen ? (
         <div className="flex min-w-0 items-center gap-1.5 pl-5">
           <input

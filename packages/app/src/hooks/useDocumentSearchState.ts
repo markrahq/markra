@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   findSearchRanges,
+  isValidSearchQuery,
   normalizeSearchIndex,
   type SearchRange
 } from "@markra/shared";
@@ -23,16 +24,18 @@ export function useDocumentSearchState({
   const [query, setQueryState] = useState("");
   const [replacement, setReplacement] = useState("");
   const [caseSensitive, setCaseSensitiveState] = useState(false);
+  const [regularExpression, setRegularExpressionState] = useState(false);
   const [activeIndexState, setActiveIndexState] = useState(0);
   const [revealRevision, setRevealRevision] = useState(0);
   const [visualMatches, setVisualMatches] = useState<SearchRange[]>([]);
+  const queryValid = isValidSearchQuery(query, { caseSensitive, regularExpression });
 
   const sourceMatches = useMemo(
     () =>
       open && surface === "source"
-        ? findSearchRanges(sourceContent, query, { caseSensitive })
+        ? findSearchRanges(sourceContent, query, { caseSensitive, regularExpression })
         : [],
-    [caseSensitive, open, query, sourceContent, surface]
+    [caseSensitive, open, query, regularExpression, sourceContent, surface]
   );
   const matches = surface === "source" ? sourceMatches : visualMatches;
   const matchCount = matches.length;
@@ -45,6 +48,7 @@ export function useDocumentSearchState({
 
     setOpen(true);
     setReplaceOpen(false);
+    setVisualMatches([]);
     setActiveIndexState(0);
   }, [available]);
 
@@ -53,6 +57,7 @@ export function useDocumentSearchState({
 
     setOpen(true);
     setReplaceOpen(true);
+    setVisualMatches([]);
     setActiveIndexState(0);
   }, [available]);
 
@@ -68,11 +73,20 @@ export function useDocumentSearchState({
 
   const setQuery = useCallback((nextQuery: string) => {
     setQueryState(nextQuery);
+    // Visual matches refresh after render; invalidate them now so Replace cannot use the previous pattern's ranges.
+    setVisualMatches([]);
     setActiveIndexState(0);
   }, []);
 
   const setCaseSensitive = useCallback((nextCaseSensitive: boolean) => {
     setCaseSensitiveState(nextCaseSensitive);
+    setVisualMatches([]);
+    setActiveIndexState(0);
+  }, []);
+
+  const setRegularExpression = useCallback((nextRegularExpression: boolean) => {
+    setRegularExpressionState(nextRegularExpression);
+    setVisualMatches([]);
     setActiveIndexState(0);
   }, []);
 
@@ -102,7 +116,10 @@ export function useDocumentSearchState({
   }, [available]);
 
   useEffect(() => {
-    const nextIndex = normalizeSearchIndex(activeIndexState, matchCount);
+    // Keep the stored index at the first result while visual matches recompute; -1 would wrap to the last result.
+    const nextIndex = matchCount <= 0
+      ? 0
+      : normalizeSearchIndex(activeIndexState, matchCount);
     if (nextIndex !== activeIndexState) setActiveIndexState(nextIndex);
   }, [activeIndexState, matchCount]);
 
@@ -119,6 +136,8 @@ export function useDocumentSearchState({
     openReplace,
     openSearch,
     query,
+    queryValid,
+    regularExpression,
     replacement,
     replaceOpen,
     resetActiveIndex,
@@ -128,6 +147,7 @@ export function useDocumentSearchState({
     setReplacement,
     setReplaceOpen,
     setQuery,
+    setRegularExpression,
     setVisualMatches,
     visibleSourceMatches,
     visualMatches

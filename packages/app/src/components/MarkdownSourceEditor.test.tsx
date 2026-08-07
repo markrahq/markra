@@ -492,6 +492,24 @@ describe("MarkdownSourceEditor", () => {
     });
   });
 
+  it("renders and selects zero-width search matches in source mode", async () => {
+    const { container } = render(
+      <MarkdownSourceEditor
+        content="alpha\nbeta"
+        searchMatches={[{ from: 6, to: 6 }]}
+        searchActiveIndex={0}
+        onChange={() => {}}
+      />
+    );
+    const view = getMarkdownSourceView(container);
+
+    await waitFor(() => {
+      expect(view.state.selection.main.from).toBe(6);
+      expect(view.state.selection.main.to).toBe(6);
+      expect(container.querySelector(".markra-cm-source-search-zero-width")).toBeInTheDocument();
+    });
+  });
+
   it("updates the selected source search match when active index changes", async () => {
     const { container, rerender } = render(
       <MarkdownSourceEditor

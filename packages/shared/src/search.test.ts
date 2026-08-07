@@ -1,4 +1,8 @@
-import { findSearchRanges } from "./search";
+import {
+  findSearchRanges,
+  isValidSearchQuery,
+  resolveSearchReplacement
+} from "./search";
 
 describe("document search", () => {
   it("matches punctuation exactly without width normalization", () => {
@@ -31,5 +35,47 @@ describe("document search", () => {
       { from: 0, to: 5 },
       { from: 11, to: 16 }
     ]);
+  });
+
+  it("matches regular expressions with multiline and case-sensitive options", () => {
+    const text = "Alpha-12\nalpha-345\nbeta-9";
+
+    expect(findSearchRanges(text, "^alpha-\\d+$", { regularExpression: true })).toEqual([
+      { from: 0, to: 8 },
+      { from: 9, to: 18 }
+    ]);
+    expect(findSearchRanges(text, "^alpha-\\d+$", {
+      caseSensitive: true,
+      regularExpression: true
+    })).toEqual([{ from: 9, to: 18 }]);
+  });
+
+  it("handles zero-width regular expression matches without looping", () => {
+    expect(findSearchRanges("alpha\nbeta", "^", { regularExpression: true })).toEqual([
+      { from: 0, to: 0 },
+      { from: 6, to: 6 }
+    ]);
+  });
+
+  it("reports invalid regular expressions without affecting literal queries", () => {
+    expect(isValidSearchQuery("[", { regularExpression: true })).toBe(false);
+    expect(isValidSearchQuery("[", { regularExpression: false })).toBe(true);
+    expect(findSearchRanges("[", "[", { regularExpression: true })).toEqual([]);
+  });
+
+  it("expands numbered and named capture groups in replacements", () => {
+    const text = "first:last";
+    const [range] = findSearchRanges(text, "(?<first>\\w+):(?<last>\\w+)", {
+      caseSensitive: true,
+      regularExpression: true
+    });
+
+    expect(resolveSearchReplacement(
+      text,
+      range,
+      "(?<first>\\w+):(?<last>\\w+)",
+      "$<last>, $1 ($$)",
+      { caseSensitive: true, regularExpression: true }
+    )).toBe("last, first ($)");
   });
 });
