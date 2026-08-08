@@ -1,5 +1,5 @@
 import { syntaxTree } from "@codemirror/language";
-import type { EditorState } from "@codemirror/state";
+import type { EditorState, Transaction } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 
 export function syntaxTreeChanged(
@@ -35,30 +35,57 @@ export function updateOnlyInsertsPlainText(update: ViewUpdate) {
   return plainInsertion;
 }
 
-export function updateChangesStayAfter(
-  update: ViewUpdate,
+function changesStayAfter(
+  change: Pick<
+    Transaction,
+    "changes" | "docChanged" | "startState" | "state"
+  >,
   position: number,
   insertedMayAffectSyntax: (source: string) => boolean,
 ) {
-  if (!update.docChanged || update.focusChanged) return false;
+  if (!change.docChanged) return false;
   if (
-    [...update.startState.selection.ranges, ...update.state.selection.ranges]
+    [...change.startState.selection.ranges, ...change.state.selection.ranges]
       .some((range) => range.from <= position)
   ) {
     return false;
   }
 
   let staysAfter = true;
-  update.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+  change.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
     // Removing delimiters can expose syntax that was previously inside code,
     // so both deleted and inserted source participate in invalidation.
     if (
       fromA <= position ||
-      insertedMayAffectSyntax(update.startState.sliceDoc(fromA, toA)) ||
+      insertedMayAffectSyntax(change.startState.sliceDoc(fromA, toA)) ||
       insertedMayAffectSyntax(inserted.toString())
     ) {
       staysAfter = false;
     }
   });
   return staysAfter;
+}
+
+export function transactionChangesStayAfter(
+  transaction: Transaction,
+  position: number,
+  insertedMayAffectSyntax: (source: string) => boolean,
+) {
+  return changesStayAfter(
+    transaction,
+    position,
+    insertedMayAffectSyntax,
+  );
+}
+
+export function updateChangesStayAfter(
+  update: ViewUpdate,
+  position: number,
+  insertedMayAffectSyntax: (source: string) => boolean,
+) {
+  return !update.focusChanged && changesStayAfter(
+    update,
+    position,
+    insertedMayAffectSyntax,
+  );
 }

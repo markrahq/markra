@@ -2,12 +2,14 @@ import { EditorSelection, EditorState, type Extension } from "@codemirror/state"
 import { EditorView, ViewUpdate, type PluginValue, type ViewPlugin } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { liveMarkdown, mathPreviewPlugin } from "./index.ts";
+import { codeMirrorVimModeChangedEffect } from "./vim.ts";
 import "./dom.test-support.ts";
 
 const syntaxTreeIterations = vi.hoisted(
   (): Array<{ from: number | undefined; to: number | undefined }> => [],
 );
 const syntaxTreeProxies = vi.hoisted(() => new WeakMap<object, object>());
+const mathRenderCalls = vi.hoisted((): string[] => []);
 
 vi.mock("@codemirror/language", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@codemirror/language")>();
@@ -34,7 +36,42 @@ vi.mock("@codemirror/language", async (importOriginal) => {
   };
 });
 
+vi.mock("../math-render.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../math-render.ts")>();
+  return {
+    ...actual,
+    renderMarkraMathToString(
+      ...args: Parameters<typeof actual.renderMarkraMathToString>
+    ) {
+      mathRenderCalls.push(args[0]);
+      return actual.renderMarkraMathToString(...args);
+    },
+  };
+});
+
 const views: EditorView[] = [];
+
+function decorationRanges(view: EditorView, widgetName: string) {
+  const ranges: Array<{
+    block: boolean;
+    estimatedHeight: number;
+    from: number;
+    to: number;
+  }> = [];
+  for (const source of view.state.facet(EditorView.decorations)) {
+    if (typeof source === "function") continue;
+    source.between(0, view.state.doc.length, (from, to, decoration) => {
+      if (decoration.spec.widget?.constructor.name !== widgetName) return;
+      ranges.push({
+        block: decoration.spec.block === true,
+        estimatedHeight: decoration.spec.widget.estimatedHeight,
+        from,
+        to,
+      });
+    });
+  }
+  return ranges;
+}
 
 function createView(
   doc: string,
@@ -59,10 +96,34 @@ function createView(
 
 afterEach(() => {
   for (const view of views.splice(0)) view.destroy();
+  mathRenderCalls.splice(0);
   document.body.replaceChildren();
 });
 
 describe("mathPreviewPlugin", () => {
+  it("replaces multiline display math with one block decoration", () => {
+    const source = [
+      "Before",
+      "",
+      "$$",
+      String.raw`\frac{x + y}{z}`,
+      "$$",
+      "",
+      "After",
+    ].join("\n");
+    const mathFrom = source.indexOf("$$");
+    const mathTo = source.lastIndexOf("$$") + 2;
+    const view = createView(source);
+
+    expect(decorationRanges(view, "MathWidget")).toContainEqual({
+      block: true,
+      estimatedHeight: 78,
+      from: mathFrom,
+      to: mathTo,
+    });
+    expect(view.dom.querySelector(".cm-markra-math-hidden-line")).toBeNull();
+  });
+
   it("does not rebuild every math decoration for viewport-only updates", () => {
     const doc = Array.from(
       { length: 200 },
@@ -90,6 +151,20 @@ describe("mathPreviewPlugin", () => {
         ({ from, to }) => from === undefined && to === undefined,
       ),
     ).toHaveLength(0);
+  });
+
+  it("reuses rendered formulas for selection-only reveal updates", () => {
+    const doc = Array.from(
+      { length: 200 },
+      (_, index) => `Synthetic formula ${index}: $x_${index}$.`,
+    ).join("\n\n");
+    const firstFormula = doc.indexOf("$x_0$") + 1;
+    const view = createView(doc);
+    mathRenderCalls.splice(0);
+
+    view.dispatch({ selection: EditorSelection.cursor(firstFormula) });
+
+    expect(mathRenderCalls).toHaveLength(0);
   });
 
   it("does not rescan math when plain text changes after it", () => {
@@ -172,7 +247,10 @@ describe("mathPreviewPlugin", () => {
     const view = createView(doc);
 
     view.scrollDOM.classList.add("cm-vimMode");
-    view.dispatch({ selection: EditorSelection.cursor(0) });
+    view.dispatch({
+      effects: codeMirrorVimModeChangedEffect.of(true),
+      selection: EditorSelection.cursor(0),
+    });
 
     expect(view.dom.querySelector(".markra-math-render-inline")).toBeNull();
     expect(view.dom.textContent).toContain(doc);
@@ -184,6 +262,7 @@ describe("mathPreviewPlugin", () => {
 
     view.scrollDOM.classList.add("cm-vimMode");
     view.dispatch({
+      effects: codeMirrorVimModeChangedEffect.of(true),
       selection: EditorSelection.cursor(doc.indexOf(" tail")),
     });
 

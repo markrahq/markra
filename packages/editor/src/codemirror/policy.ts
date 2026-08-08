@@ -87,16 +87,31 @@ export function cursorInsideRange(
   from: number,
   to: number,
 ) {
-  const includeCursorBoundaries = codeMirrorVimNormalModeActive(view);
+  return selectionRevealsRange(
+    view.state,
+    view.hasFocus,
+    codeMirrorVimNormalModeActive(view),
+    from,
+    to,
+  );
+}
+
+export function selectionRevealsRange(
+  state: EditorState,
+  focused: boolean,
+  includeCursorBoundaries: boolean,
+  from: number,
+  to: number,
+) {
   return (
-    view.hasFocus &&
-    view.state.selection.ranges.some(
+    focused &&
+    state.selection.ranges.some(
       (selection) =>
         selection.empty
           ? includeCursorBoundaries
             ? selection.head >= from && selection.head < to
             : selection.head > from && selection.head < to
-          : sourceDragStartedInsideRange(view.state, from, to),
+          : sourceDragStartedInsideRange(state, from, to),
     )
   );
 }

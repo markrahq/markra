@@ -1,5 +1,10 @@
 import { syntaxTree } from "@codemirror/language";
-import type { EditorState, Range } from "@codemirror/state";
+import {
+  StateEffect,
+  StateField,
+  type EditorState,
+  type Range,
+} from "@codemirror/state";
 import {
   Decoration,
   EditorView,
@@ -17,8 +22,12 @@ import {
   type MarkraMathMacros,
 } from "../math-render.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
-import { cursorInsideRange, selectionChangeAffectsReveal } from "./policy.ts";
-import { syntaxTreeChanged, updateChangesStayAfter } from "./changes.ts";
+import { selectionRevealsRange } from "./policy.ts";
+import {
+  syntaxTreeChanged,
+  transactionChangesStayAfter,
+} from "./changes.ts";
+import { codeMirrorVimModeChangedEffect } from "./vim.ts";
 
 export interface CodeMirrorMathRange {
   readonly from: number;
@@ -231,6 +240,8 @@ function activateMath(view: CodeMirrorView, range: CodeMirrorMathRange) {
   view.focus();
 }
 
+const estimatedEditorLineHeight = 26;
+
 class MathWidget extends WidgetType {
   constructor(
     readonly range: CodeMirrorMathRange,
@@ -245,6 +256,16 @@ class MathWidget extends WidgetType {
       other.range.source === this.range.source &&
       other.html === this.html &&
       other.className === this.className
+    );
+  }
+
+  get estimatedHeight() {
+    if (this.range.kind !== "display") return -1;
+    // Preserve roughly the source block's footprint until CodeMirror measures
+    // the rendered formula, limiting scroll jumps for offscreen replacements.
+    return Math.max(
+      48,
+      this.range.source.split("\n").length * estimatedEditorLineHeight,
     );
   }
 
@@ -281,6 +302,10 @@ class MacroFoldWidget extends WidgetType {
     return other.range.source === this.range.source;
   }
 
+  get estimatedHeight() {
+    return this.range.source.includes("\n") ? 32 : -1;
+  }
+
   ignoreEvent() {
     return false;
   }
@@ -299,31 +324,17 @@ class MacroFoldWidget extends WidgetType {
   }
 }
 
-function addMultilineReplacement(
-  state: EditorState,
+function addMathReplacement(
   ranges: Range<Decoration>[],
   range: CodeMirrorMathRange,
   widget: WidgetType,
 ) {
-  const firstLine = state.doc.lineAt(range.from);
-  const lastLine = state.doc.lineAt(range.to);
-  const firstTo = Math.min(firstLine.to, range.to);
-  ranges.push(Decoration.replace({ widget }).range(range.from, firstTo));
-
-  for (let lineNumber = firstLine.number + 1; lineNumber <= lastLine.number; lineNumber += 1) {
-    const line = state.doc.line(lineNumber);
-    const segmentFrom = line.from;
-    const segmentTo = Math.min(line.to, range.to);
-    if (segmentFrom >= segmentTo) continue;
-
-    if (segmentFrom === line.from && segmentTo === line.to) {
-      ranges.push(
-        Decoration.line({ class: "cm-markra-math-hidden-line" }).range(line.from),
-      );
-    } else {
-      ranges.push(Decoration.replace({}).range(segmentFrom, segmentTo));
-    }
-  }
+  ranges.push(
+    Decoration.replace({
+      block: range.source.includes("\n"),
+      widget,
+    }).range(range.from, range.to),
+  );
 }
 
 function renderMath(
@@ -333,26 +344,53 @@ function renderMath(
   return renderMarkraMathToString(range.tex, range.kind, macros);
 }
 
+interface MathRenderEntry {
+  readonly html: string;
+  readonly macroDefinitionOnly: boolean;
+  readonly range: CodeMirrorMathRange;
+}
+
+interface MathPreviewContext {
+  readonly focused: boolean;
+  readonly vimNormalMode: boolean;
+}
+
 interface MathDecorationState {
   readonly decorations: DecorationSet;
+  readonly entries: readonly MathRenderEntry[];
+  readonly context: MathPreviewContext;
   readonly lastRangeTo: number;
 }
 
-function buildMathDecorations(view: CodeMirrorView): MathDecorationState {
-  const ranges: Range<Decoration>[] = [];
+function buildMathRenderEntries(state: EditorState) {
   const macros = createMarkraMathMacros();
-  const mathRanges = findCodeMirrorMathRanges(view.state);
+  return findCodeMirrorMathRanges(state).map((range): MathRenderEntry => ({
+    html: renderMath(range, macros),
+    macroDefinitionOnly:
+      range.kind === "display" && isMarkraMathMacroDefinitionSource(range.tex),
+    range,
+  }));
+}
 
-  for (const range of mathRanges) {
-    const macroDefinitionOnly =
-      range.kind === "display" && isMarkraMathMacroDefinitionSource(range.tex);
-    const active = cursorInsideRange(view, range.from, range.to);
+function buildMathDecorations(
+  state: EditorState,
+  entries: readonly MathRenderEntry[],
+  context: MathPreviewContext,
+) {
+  const ranges: Range<Decoration>[] = [];
+
+  for (const { html, macroDefinitionOnly, range } of entries) {
+    const active = selectionRevealsRange(
+      state,
+      context.focused,
+      context.vimNormalMode,
+      range.from,
+      range.to,
+    );
 
     if (macroDefinitionOnly) {
-      renderMath(range, macros);
       if (active) continue;
-      addMultilineReplacement(
-        view.state,
+      addMathReplacement(
         ranges,
         range,
         new MacroFoldWidget(range),
@@ -360,11 +398,11 @@ function buildMathDecorations(view: CodeMirrorView): MathDecorationState {
       continue;
     }
 
-    const html = renderMath(range, macros);
     if (active) {
       if (range.kind === "display") {
         ranges.push(
           Decoration.widget({
+            block: range.source.includes("\n"),
             side: 1,
             widget: new MathWidget(
               range,
@@ -377,28 +415,50 @@ function buildMathDecorations(view: CodeMirrorView): MathDecorationState {
       continue;
     }
 
-    const widget = new MathWidget(
+    addMathReplacement(
+      ranges,
       range,
-      html,
-      `markra-math-render markra-math-render-${range.kind}`,
+      new MathWidget(
+        range,
+        html,
+        `markra-math-render markra-math-render-${range.kind}`,
+      ),
     );
-    if (range.source.includes("\n")) {
-      addMultilineReplacement(view.state, ranges, range, widget);
-    } else {
-      ranges.push(Decoration.replace({ widget }).range(range.from, range.to));
-    }
   }
 
+  return Decoration.set(ranges, true);
+}
+
+function createMathDecorationState(
+  state: EditorState,
+  context: MathPreviewContext,
+): MathDecorationState {
+  const entries = buildMathRenderEntries(state);
   return {
-    decorations: Decoration.set(ranges, true),
-    lastRangeTo: Math.max(-1, ...mathRanges.map((range) => range.to)),
+    context,
+    decorations: buildMathDecorations(state, entries, context),
+    entries,
+    lastRangeTo: Math.max(-1, ...entries.map(({ range }) => range.to)),
   };
 }
 
+function revealedMathRangesKey(
+  state: EditorState,
+  context: MathPreviewContext,
+  entries: readonly MathRenderEntry[],
+) {
+  return entries.map(({ range }) =>
+    selectionRevealsRange(
+      state,
+      context.focused,
+      context.vimNormalMode,
+      range.from,
+      range.to,
+    ) ? "1" : "0"
+  ).join("");
+}
+
 const mathTheme = EditorView.baseTheme({
-  ".cm-markra-math-hidden-line": {
-    display: "none",
-  },
   ".markra-math-render": {
     cursor: "text",
   },
@@ -413,53 +473,127 @@ const mathTheme = EditorView.baseTheme({
   },
 });
 
+const setMathPreviewFocusedEffect = StateEffect.define<boolean>();
+
+function createMathPreviewExtension() {
+  const initialContext: MathPreviewContext = {
+    focused: true,
+    vimNormalMode: false,
+  };
+  const field = StateField.define<MathDecorationState>({
+    create(state) {
+      return createMathDecorationState(state, initialContext);
+    },
+    update(previous, transaction) {
+      const focusEffect = transaction.effects.find((effect) =>
+        effect.is(setMathPreviewFocusedEffect)
+      );
+      const vimEffect = transaction.effects.find((effect) =>
+        effect.is(codeMirrorVimModeChangedEffect)
+      );
+      const context = {
+        focused: focusEffect?.value ?? previous.context.focused,
+        vimNormalMode: vimEffect?.value ?? previous.context.vimNormalMode,
+      };
+      const contextChanged =
+        context.focused !== previous.context.focused ||
+        context.vimNormalMode !== previous.context.vimNormalMode;
+
+      if (
+        !contextChanged &&
+        transactionChangesStayAfter(
+          transaction,
+          previous.lastRangeTo,
+          (source) => /[$\\`~\n]/u.test(source),
+        )
+      ) {
+        return {
+          ...previous,
+          decorations: previous.decorations.map(transaction.changes),
+        };
+      }
+
+      if (
+        transaction.docChanged ||
+        syntaxTreeChanged(transaction.startState, transaction.state)
+      ) {
+        return createMathDecorationState(transaction.state, context);
+      }
+
+      const revealChanged =
+        revealedMathRangesKey(
+          transaction.startState,
+          previous.context,
+          previous.entries,
+        ) !== revealedMathRangesKey(
+          transaction.state,
+          context,
+          previous.entries,
+        );
+      if (!contextChanged && !revealChanged) return previous;
+
+      return {
+        ...previous,
+        context,
+        decorations: buildMathDecorations(
+          transaction.state,
+          previous.entries,
+          context,
+        ),
+      };
+    },
+    // Layout-changing block replacements must come directly from editor state
+    // so CodeMirror can keep its virtualized height map synchronized.
+    provide: (mathField) => EditorView.decorations.from(
+      mathField,
+      (value) => value.decorations,
+    ),
+  });
+  const mountedViews = new WeakSet<CodeMirrorView>();
+  const syncFocusedState = (view: CodeMirrorView) => {
+    queueMicrotask(() => {
+      if (!mountedViews.has(view)) return;
+      const previewState = view.state.field(field, false);
+      if (!previewState || previewState.context.focused === view.hasFocus) return;
+      view.dispatch({ effects: setMathPreviewFocusedEffect.of(view.hasFocus) });
+    });
+  };
+  const lifecycle = ViewPlugin.fromClass(
+    class {
+      constructor(readonly view: CodeMirrorView) {
+        mountedViews.add(view);
+        syncFocusedState(view);
+      }
+
+      update(update: ViewUpdate) {
+        if (update.focusChanged) syncFocusedState(update.view);
+      }
+
+      destroy() {
+        mountedViews.delete(this.view);
+      }
+    },
+  );
+
+  return [
+    lifecycle,
+    field,
+    EditorView.domEventHandlers({
+      blur(_event, view) {
+        syncFocusedState(view);
+      },
+      focus(_event, view) {
+        syncFocusedState(view);
+      },
+    }),
+  ];
+}
+
 export function mathPreviewPlugin() {
   return defineMarkraPlugin({
     id: "markra.math-preview",
     extension: [
-      ViewPlugin.fromClass(
-        class {
-          decorations: DecorationSet;
-          lastRangeTo: number;
-
-          constructor(view: CodeMirrorView) {
-            const state = buildMathDecorations(view);
-            this.decorations = state.decorations;
-            this.lastRangeTo = state.lastRangeTo;
-          }
-
-          update(update: ViewUpdate) {
-            if (
-              updateChangesStayAfter(
-                update,
-                this.lastRangeTo,
-                (source) => /[$\\`~\n]/u.test(source),
-              )
-            ) {
-              this.decorations = this.decorations.map(update.changes);
-              return;
-            }
-            const treeChanged = syntaxTreeChanged(
-              update.startState,
-              update.state,
-            );
-            // Math decorations already cover the entire document. Rebuilding
-            // them for viewport-only updates would rerender every formula on
-            // each scroll frame; deferred parser progress is covered below.
-            if (
-              update.docChanged ||
-              selectionChangeAffectsReveal(update) ||
-              update.focusChanged ||
-              treeChanged
-            ) {
-              const state = buildMathDecorations(update.view);
-              this.decorations = state.decorations;
-              this.lastRangeTo = state.lastRangeTo;
-            }
-          }
-        },
-        { decorations: (plugin) => plugin.decorations },
-      ),
+      ...createMathPreviewExtension(),
       mathTheme,
     ],
   });

@@ -26,7 +26,7 @@ let vimModulePromise:
   | Promise<typeof import("@replit/codemirror-vim")>
   | null = null;
 
-export const codeMirrorVimModeChangedEffect = StateEffect.define<null>();
+export const codeMirrorVimModeChangedEffect = StateEffect.define<boolean>();
 
 function isVimWordCharacter(character: string) {
   return /[\p{L}\p{N}_]/u.test(character);
@@ -210,7 +210,11 @@ export function codeMirrorVimNormalModeActive(view: EditorView) {
 function notifyCodeMirrorVimModeChanged(view: EditorView) {
   // Vim applies its Normal-mode class while the compartment settles. Preview
   // plugins need a follow-up transaction so they read the final mode.
-  view.dispatch({ effects: codeMirrorVimModeChangedEffect.of(null) });
+  view.dispatch({
+    effects: codeMirrorVimModeChangedEffect.of(
+      codeMirrorVimNormalModeActive(view),
+    ),
+  });
 }
 
 export function reconfigureCodeMirrorVimMode(
