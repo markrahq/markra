@@ -28,7 +28,10 @@ import {
   type MarkdownExportSnapshot
 } from "./components/MarkdownExportDocument";
 import { MarkdownPaper } from "./components/MarkdownPaper";
-import { LazyMarkdownSourceEditor } from "./components/LazyMarkdownSourceEditor";
+import {
+  LazyMarkdownSourceEditor,
+  scheduleMarkdownSourceEditorPreload
+} from "./components/LazyMarkdownSourceEditor";
 import {
   MarkdownTabsBar,
   markdownTabDragDataType,
@@ -2997,6 +3000,13 @@ function WorkspaceApp() {
   const titleDocumentKind = activeImageFile ? "image" : hasOpenDocument ? "file" : "folder";
   const sourceModeAvailable = hasOpenDocument && !activeImageFile;
   const supportsAiThinking = selectedInlineAiModel?.capabilities.includes("reasoning") ?? false;
+  useEffect(() => {
+    if (editorMode !== "visual" || !sourceModeAvailable || !activeTabId) return;
+    // Keep visual editor setup on the startup path; warm the source chunk only after it is usable.
+    if (!mainVisualEditorsRef.current.has(activeTabId)) return;
+
+    return scheduleMarkdownSourceEditorPreload();
+  }, [activeTabId, editorMode, sourceModeAvailable, visualEditorReadySequence]);
   useEffect(() => {
     if (activeEditorSurface !== "source") return;
 

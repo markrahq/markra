@@ -116,6 +116,17 @@ import { configureAppRuntime, createDefaultAppRuntime, resetAppRuntimeForTests }
 import { showAppToast } from "./lib/app-toast";
 import { createShardedTest } from "./test/shard";
 
+const scheduleMarkdownSourceEditorPreloadMock = vi.hoisted(() => vi.fn(() => vi.fn()));
+
+vi.mock("./components/LazyMarkdownSourceEditor", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./components/LazyMarkdownSourceEditor")>();
+
+  return {
+    ...actual,
+    scheduleMarkdownSourceEditorPreload: scheduleMarkdownSourceEditorPreloadMock
+  };
+});
+
 installAppTestHarness();
 
 // Vitest shards files only, so CI needs a local registration boundary to split this monolithic suite by test title.
@@ -615,6 +626,15 @@ describe("Markra workspace", () => {
     expect(shell).toHaveClass("bg-(--bg-primary)");
     expect(shell).toHaveClass("grid-rows-[minmax(0,1fr)]");
     expect(shell).toHaveClass("overscroll-none");
+  });
+
+  it("schedules source editor preloading after the visual editor is ready", async () => {
+    scheduleMarkdownSourceEditorPreloadMock.mockClear();
+
+    const { container } = renderApp();
+
+    await waitFor(() => expect(container.querySelector(".cm-editor")).toBeInTheDocument());
+    await waitFor(() => expect(scheduleMarkdownSourceEditorPreloadMock).toHaveBeenCalled());
   });
 
   it("imports local images through the native file menu without replacing manual image insertion", async () => {

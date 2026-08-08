@@ -6,8 +6,61 @@ import {
 import { editorFontFamilyCssValue } from "../lib/editor-font";
 import type { MarkdownSourceEditorProps } from "./MarkdownSourceEditor";
 
+type MarkdownSourceEditorModule = typeof import("./MarkdownSourceEditor");
+type MarkdownSourceEditorPreloadTarget = {
+  cancelIdleCallback?: (handle: number) => unknown;
+  clearTimeout: (handle: number) => unknown;
+  requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+  setTimeout: (callback: () => void, delay: number) => number;
+};
+
+const markdownSourceEditorPreloadIdleTimeoutMs = 1_500;
+const markdownSourceEditorPreloadFallbackDelayMs = 800;
+let markdownSourceEditorModulePromise: Promise<MarkdownSourceEditorModule> | null = null;
+
+function loadMarkdownSourceEditor() {
+  if (markdownSourceEditorModulePromise) return markdownSourceEditorModulePromise;
+
+  const modulePromise = import("./MarkdownSourceEditor");
+  markdownSourceEditorModulePromise = modulePromise;
+  void modulePromise.catch(() => {
+    if (markdownSourceEditorModulePromise === modulePromise) markdownSourceEditorModulePromise = null;
+  });
+
+  return modulePromise;
+}
+
+export function preloadMarkdownSourceEditor() {
+  return loadMarkdownSourceEditor();
+}
+
+export function scheduleMarkdownSourceEditorPreload(
+  target: MarkdownSourceEditorPreloadTarget = window
+): () => void {
+  if (markdownSourceEditorModulePromise) return () => {};
+
+  const startPreload = () => {
+    void preloadMarkdownSourceEditor().catch(() => {});
+  };
+  if (target.requestIdleCallback) {
+    const handle = target.requestIdleCallback(startPreload, {
+      timeout: markdownSourceEditorPreloadIdleTimeoutMs
+    });
+
+    return () => {
+      target.cancelIdleCallback?.(handle);
+    };
+  }
+
+  const handle = target.setTimeout(startPreload, markdownSourceEditorPreloadFallbackDelayMs);
+
+  return () => {
+    target.clearTimeout(handle);
+  };
+}
+
 const MarkdownSourceEditor = lazy(async () => {
-  const module = await import("./MarkdownSourceEditor");
+  const module = await loadMarkdownSourceEditor();
 
   return { default: module.MarkdownSourceEditor };
 });
