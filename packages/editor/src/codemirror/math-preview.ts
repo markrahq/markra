@@ -439,12 +439,18 @@ export function mathPreviewPlugin() {
               this.decorations = this.decorations.map(update.changes);
               return;
             }
+            const treeChanged = syntaxTreeChanged(
+              update.startState,
+              update.state,
+            );
+            // Math decorations already cover the entire document. Rebuilding
+            // them for viewport-only updates would rerender every formula on
+            // each scroll frame; deferred parser progress is covered below.
             if (
               update.docChanged ||
               selectionChangeAffectsReveal(update) ||
               update.focusChanged ||
-              update.viewportChanged ||
-              syntaxTreeChanged(update.startState, update.state)
+              treeChanged
             ) {
               const state = buildMathDecorations(update.view);
               this.decorations = state.decorations;

@@ -1,5 +1,5 @@
-import { EditorSelection, EditorState } from "@codemirror/state";
-import { EditorView } from "@codemirror/view";
+import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
+import { EditorView, ViewUpdate, type PluginValue, type ViewPlugin } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { liveMarkdown, mathPreviewPlugin } from "./index.ts";
 import "./dom.test-support.ts";
@@ -7,6 +7,7 @@ import "./dom.test-support.ts";
 const syntaxTreeIterations = vi.hoisted(
   (): Array<{ from: number | undefined; to: number | undefined }> => [],
 );
+const syntaxTreeProxies = vi.hoisted(() => new WeakMap<object, object>());
 
 vi.mock("@codemirror/language", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@codemirror/language")>();
@@ -15,7 +16,10 @@ vi.mock("@codemirror/language", async (importOriginal) => {
     ...actual,
     syntaxTree(state: Parameters<typeof actual.syntaxTree>[0]) {
       const tree = actual.syntaxTree(state);
-      return new Proxy(tree, {
+      const cached = syntaxTreeProxies.get(tree);
+      if (cached) return cached as typeof tree;
+
+      const proxy = new Proxy(tree, {
         get(target, property, receiver) {
           if (property !== "iterate") return Reflect.get(target, property, receiver);
           return (spec: Parameters<typeof tree.iterate>[0]) => {
@@ -24,20 +28,26 @@ vi.mock("@codemirror/language", async (importOriginal) => {
           };
         },
       });
+      syntaxTreeProxies.set(tree, proxy);
+      return proxy;
     },
   };
 });
 
 const views: EditorView[] = [];
 
-function createView(doc: string, anchor = doc.length) {
+function createView(
+  doc: string,
+  anchor = doc.length,
+  plugin = mathPreviewPlugin(),
+) {
   const parent = document.createElement("div");
   document.body.append(parent);
   const view = new EditorView({
     parent,
     state: EditorState.create({
       doc,
-      extensions: [liveMarkdown({ plugins: [mathPreviewPlugin()] })],
+      extensions: [liveMarkdown({ plugins: [plugin] })],
       selection: EditorSelection.cursor(anchor),
     }),
   });
@@ -53,6 +63,35 @@ afterEach(() => {
 });
 
 describe("mathPreviewPlugin", () => {
+  it("does not rebuild every math decoration for viewport-only updates", () => {
+    const doc = Array.from(
+      { length: 200 },
+      (_, index) => `Synthetic formula ${index}: $x_${index}$.`,
+    ).join("\n\n");
+    const plugin = mathPreviewPlugin();
+    const view = createView(doc, doc.length, plugin);
+    const [viewPlugin] = plugin.extension as readonly Extension[];
+    const pluginValue = view.plugin(
+      viewPlugin as ViewPlugin<PluginValue & { update(update: ViewUpdate): unknown }>,
+    );
+    const ViewUpdateConstructor = ViewUpdate as unknown as new (
+      view: EditorView,
+      state: EditorState,
+      transactions: readonly [],
+    ) => ViewUpdate;
+    const viewportUpdate = new ViewUpdateConstructor(view, view.state, []);
+    (viewportUpdate as unknown as { flags: number }).flags = 4;
+    syntaxTreeIterations.splice(0);
+
+    pluginValue?.update(viewportUpdate);
+
+    expect(
+      syntaxTreeIterations.filter(
+        ({ from, to }) => from === undefined && to === undefined,
+      ),
+    ).toHaveLength(0);
+  });
+
   it("does not rescan math when plain text changes after it", () => {
     const doc = "Before $x + y$ after\n\nEdit";
     const view = createView(doc);
