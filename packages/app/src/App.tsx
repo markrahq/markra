@@ -90,6 +90,7 @@ import {
   useSettingsWindowShortcut
 } from "./hooks/useNativeBindings";
 import type { EditorView } from "@codemirror/view";
+import { EditorSelection } from "@codemirror/state";
 import {
   aiTranslationLanguageName,
   clampNumber,
@@ -289,7 +290,15 @@ export async function refreshImportedAttachmentTree(refreshTree: () => Promise<u
 type AiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 type EditorMode = "source" | "split" | "visual";
 type EditorSurface = "source" | "visual";
+type EditorSelectionSnapshot = {
+  mainIndex: number;
+  ranges: Array<{
+    anchor: number;
+    head: number;
+  }>;
+};
 type DocumentTabViewState = {
+  selection?: EditorSelectionSnapshot;
   sourceScrollTop?: number;
   visualScrollTop?: number;
 };
@@ -298,6 +307,29 @@ type PendingEditorModeScroll = {
   tabId: string;
   targetSurface: EditorSurface;
 };
+type PendingEditorModeSelection = {
+  selection: EditorSelectionSnapshot;
+  tabId: string;
+  targetSurface: EditorSurface;
+};
+
+function boundedEditorSelection(selection: EditorSelectionSnapshot, documentLength: number) {
+  const ranges = selection.ranges.length > 0
+    ? selection.ranges.map((range) => EditorSelection.range(
+        Math.max(0, Math.min(documentLength, range.anchor)),
+        Math.max(0, Math.min(documentLength, range.head))
+      ))
+    : [EditorSelection.cursor(0)];
+
+  return EditorSelection.create(ranges, Math.max(0, Math.min(ranges.length - 1, selection.mainIndex)));
+}
+
+function editorSelectionSnapshot(selection: EditorSelection): EditorSelectionSnapshot {
+  return {
+    mainIndex: selection.mainIndex,
+    ranges: selection.ranges.map(({ anchor, head }) => ({ anchor, head }))
+  };
+}
 
 export { runEditorLinkCommand } from "./app/editor-link-command";
 export { globalSearchDebounceMs } from "./hooks/useWorkspaceSearch";
@@ -481,6 +513,7 @@ function WorkspaceApp() {
   const [splitVisualPanePercent, setSplitVisualPanePercent] = useState(defaultSplitVisualPanePercent);
   const [sideDocumentMainPanePercent, setSideDocumentMainPanePercent] = useState(defaultSideDocumentMainPanePercent);
   const [editorTabDropTargetActive, setEditorTabDropTargetActive] = useState(false);
+  const [sourceEditorReadySequence, setSourceEditorReadySequence] = useState(0);
   const [visualEditorReadySequence, setVisualEditorReadySequence] = useState(0);
   const [exportSnapshot, setExportSnapshot] = useState<MarkdownExportSnapshot | null>(null);
   const sourceMode = editorMode === "source";
@@ -505,10 +538,12 @@ function WorkspaceApp() {
   });
   const largeMarkdownVisualBlockedRef = useRef(false);
   const mainDocumentPaneRef = useRef<HTMLDivElement | null>(null);
+  const sourceEditorRef = useRef<EditorView | null>(null);
   const sourceScrollRef = useRef<HTMLElement | null>(null);
   const visualScrollRef = useRef<HTMLElement | null>(null);
   const mainVisualEditorsRef = useRef(new Map<string, EditorView>());
   const documentTabViewStatesRef = useRef(new Map<string, DocumentTabViewState>());
+  const pendingEditorModeSelectionRef = useRef<PendingEditorModeSelection | null>(null);
   const pendingEditorModeScrollRef = useRef<PendingEditorModeScroll | null>(null);
   const splitSurfaceRef = useRef<HTMLDivElement | null>(null);
   const sideDocumentSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -902,6 +937,14 @@ function WorkspaceApp() {
     handleVisualEditorReady,
     rememberMarkdownTabVisualBaseline
   ]);
+  const handleSourceEditorReady = useCallback((readyEditor: EditorView | null, disposedEditor?: EditorView) => {
+    if (readyEditor) {
+      sourceEditorRef.current = readyEditor;
+      setSourceEditorReadySequence((current) => current + 1);
+    } else if (sourceEditorRef.current === disposedEditor) {
+      sourceEditorRef.current = null;
+    }
+  }, []);
   useEffect(() => {
     if (!activeTabId) {
       handleVisualEditorReady(null);
@@ -1285,6 +1328,16 @@ function WorkspaceApp() {
     if (activeImageFile || !activeTabId) return;
 
     const nextState: DocumentTabViewState = {};
+    const activeEditor = editorMode === "source"
+      ? sourceEditorRef.current
+      : editorMode === "visual"
+        ? mainVisualEditorsRef.current.get(activeTabId) ?? null
+        : activeEditorSurface === "source"
+          ? sourceEditorRef.current
+          : mainVisualEditorsRef.current.get(activeTabId) ?? null;
+    if (activeEditor) {
+      nextState.selection = editorSelectionSnapshot(activeEditor.state.selection);
+    }
     if (editorMode === "visual" && visualScrollRef.current) {
       nextState.visualScrollTop = visualScrollRef.current.scrollTop;
     } else if (editorMode === "source" && sourceScrollRef.current) {
@@ -1297,7 +1350,20 @@ function WorkspaceApp() {
       }
     }
     if (Object.keys(nextState).length > 0) saveDocumentTabViewState(activeTabId, nextState);
+    return nextState.selection;
   }, [activeEditorSurface, activeImageFile, activeTabId, editorMode, saveDocumentTabViewState]);
+  const queueEditorModeSelection = useCallback((
+    targetSurface: EditorSurface,
+    selection: EditorSelectionSnapshot | undefined
+  ) => {
+    if (!activeTabId || !selection) return;
+
+    pendingEditorModeSelectionRef.current = {
+      selection,
+      tabId: activeTabId,
+      targetSurface
+    };
+  }, [activeTabId]);
   const queueEditorModeScroll = useCallback((targetSurface: EditorSurface) => {
     if (!activeTabId) return;
 
@@ -3568,7 +3634,7 @@ function WorkspaceApp() {
     if (!sourceModeAvailable) return;
     if (nextMode === editorMode) return;
 
-    captureActiveDocumentViewState();
+    const selection = captureActiveDocumentViewState();
     // IME changes can still be pending in the visual surface when source mode
     // mounts, so snapshot the originating editor before changing surfaces.
     commitActiveVisualMarkdown();
@@ -3576,6 +3642,7 @@ function WorkspaceApp() {
     if (nextMode === "visual") {
       if (sourceMode) syncSourceEditsToVisualHistory();
       queueEditorModeScroll("visual");
+      queueEditorModeSelection("visual", selection);
       setEditorMode("visual");
       setActiveEditorSurface("visual");
       return;
@@ -3585,6 +3652,7 @@ function WorkspaceApp() {
       updateActiveAiSelection(null);
       handleAiCommandClose();
       queueEditorModeScroll("source");
+      queueEditorModeSelection("source", selection);
       setEditorMode("source");
       setActiveEditorSurface("source");
       return;
@@ -3593,6 +3661,7 @@ function WorkspaceApp() {
     updateActiveAiSelection(null);
     handleAiCommandClose();
     if (sideDocumentGroup) clearSideDocumentGroup();
+    queueEditorModeSelection(sourceMode ? "source" : "visual", selection);
     setEditorMode("split");
     setActiveEditorSurface(sourceMode ? "source" : "visual");
   }, [
@@ -3602,6 +3671,7 @@ function WorkspaceApp() {
     editorMode,
     handleAiCommandClose,
     queueEditorModeScroll,
+    queueEditorModeSelection,
     sideDocumentGroup,
     sourceMode,
     sourceModeAvailable,
@@ -3827,6 +3897,23 @@ function WorkspaceApp() {
       )) {
         pendingEditorModeScrollRef.current = null;
       }
+
+      const pendingSelection = pendingEditorModeSelectionRef.current;
+      const targetSurface = editorMode === "split" ? activeEditorSurface : editorMode;
+      if (pendingSelection?.tabId === activeTabId && pendingSelection.targetSurface === targetSurface) {
+        const targetEditor = targetSurface === "source"
+          ? sourceEditorRef.current
+          : mainVisualEditorsRef.current.get(activeTabId) ?? null;
+        if (targetEditor) {
+          const selection = boundedEditorSelection(pendingSelection.selection, targetEditor.state.doc.length);
+          // CodeMirror may measure while its visual surface is hidden; refresh it only after React reveals the target.
+          targetEditor.requestMeasure();
+          targetEditor.dispatch({ selection, scrollIntoView: true });
+          targetEditor.focus();
+          saveDocumentTabViewState(activeTabId, { selection: editorSelectionSnapshot(selection) });
+          pendingEditorModeSelectionRef.current = null;
+        }
+      }
     });
 
     return () => {
@@ -3834,11 +3921,13 @@ function WorkspaceApp() {
     };
   }, [
     activeImageFile,
+    activeEditorSurface,
     activeTabId,
     document.revision,
     editorMode,
     hasOpenDocument,
     saveDocumentTabViewState,
+    sourceEditorReadySequence,
     visualEditorReadySequence
   ]);
   const aiAgentContext = useMemo(() => ({
@@ -4267,6 +4356,13 @@ function WorkspaceApp() {
     ]
   );
   const mainVisualEditorTabs = documentTabs.filter((tab) => tab.open);
+  const pendingSourceSelection = pendingEditorModeSelectionRef.current;
+  const activeSourceInitialSelection = pendingSourceSelection?.tabId === activeTabId
+    && pendingSourceSelection.targetSurface === "source"
+    ? pendingSourceSelection.selection
+    : activeTabId
+      ? documentTabViewStatesRef.current.get(activeTabId)?.selection
+      : undefined;
   const mainVisualEditors = (
     <>
       {mainVisualEditorTabs.map((tab) => {
@@ -4727,6 +4823,7 @@ function WorkspaceApp() {
                           contentWidthPx={activeEditorContentWidthPx}
                           editorFontFamily={editorPreferences.preferences.editorFontFamily}
                           extendedSyntax={editorPreferences.preferences.extendedSyntax}
+                          initialSelection={activeSourceInitialSelection}
                           language={appLanguage.language}
                           lineHeight={editorPreferences.preferences.lineHeight}
                           onChange={(content) => handleSourceMarkdownTabChange(
@@ -4738,6 +4835,7 @@ function WorkspaceApp() {
                           )}
                           onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
                           onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
+                          onEditorReady={handleSourceEditorReady}
                           onScroll={handleSourcePaneScroll}
                           onSelectionTextChange={updateSelectedWordCount}
                           readOnly={readOnlyMode}
@@ -4765,6 +4863,7 @@ function WorkspaceApp() {
                           contentWidthPx={activeEditorContentWidthPx}
                           editorFontFamily={editorPreferences.preferences.editorFontFamily}
                           extendedSyntax={editorPreferences.preferences.extendedSyntax}
+                          initialSelection={activeSourceInitialSelection}
                           language={appLanguage.language}
                           lineHeight={editorPreferences.preferences.lineHeight}
                           onChange={(content) => handleSourceMarkdownTabChange(
@@ -4776,6 +4875,7 @@ function WorkspaceApp() {
                           )}
                           onContentWidthChange={editorWidthResizerVisible ? handleEditorContentWidthChange : undefined}
                           onContentWidthResizeEnd={editorWidthResizerVisible ? handleEditorContentWidthResizeEnd : undefined}
+                          onEditorReady={handleSourceEditorReady}
                           onScroll={handleSourcePaneScroll}
                           onSelectionTextChange={updateSelectedWordCount}
                           readOnly={readOnlyMode}

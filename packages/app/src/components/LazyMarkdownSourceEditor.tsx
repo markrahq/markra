@@ -56,7 +56,16 @@ function MarkdownSourceEditorFallback({
         className={`markdown-source-paper relative mx-auto min-h-screen w-full max-w-215 px-18 ${markdownSourceTopInsetClassName(topInset)} text-[16px] leading-[1.65] text-(--text-primary) max-[900px]:px-5.25`}
         data-editor-engine="source-loading"
         style={paperStyle}
-      />
+      >
+        <div className="flex flex-col gap-3 pt-1 opacity-70">
+          <span className="h-3 w-2/5 rounded-sm bg-(--bg-active)" data-source-loading-line />
+          <span className="h-3 w-4/5 rounded-sm bg-(--bg-active)" data-source-loading-line />
+          <span className="h-3 w-3/5 rounded-sm bg-(--bg-active)" data-source-loading-line />
+          <span className="h-3 w-5/6 rounded-sm bg-(--bg-active)" data-source-loading-line />
+          <span className="h-3 w-1/2 rounded-sm bg-(--bg-active)" data-source-loading-line />
+          <span className="h-3 w-3/4 rounded-sm bg-(--bg-active)" data-source-loading-line />
+        </div>
+      </article>
     </section>
   );
 }

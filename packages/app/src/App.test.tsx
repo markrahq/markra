@@ -6531,6 +6531,53 @@ describe("Markra workspace", () => {
     expect(container.querySelectorAll(".cm-markra-empty-line")).toHaveLength(1);
   });
 
+  it("preserves the active selection and editor focus across visual and source modes", async () => {
+    const syntheticContent = "# Synthetic cursor\n\nalpha beta gamma\n\nomega";
+    mockOpenMarkdownFile({
+      content: syntheticContent,
+      name: "synthetic.md",
+      path: mockNativePath
+    });
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await expectVisibleMarkdownText("Synthetic cursor");
+
+    const visualEditor = screen.getByRole("textbox", { name: "Markdown document" });
+    const visualView = getMarkdownSourceView(visualEditor);
+    const visualCursor = syntheticContent.indexOf("beta") + 2;
+    const visualSelection = EditorSelection.single(visualCursor, syntheticContent.indexOf("alpha"));
+    act(() => {
+      visualView.dispatch({ selection: visualSelection });
+    });
+
+    await selectEditorViewMode("Source code");
+
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    const sourceView = getMarkdownSourceView(sourceEditor);
+    await waitFor(() => {
+      expect(sourceView.state.selection.eq(visualSelection)).toBe(true);
+      expect(sourceEditor).toHaveFocus();
+    });
+
+    const sourceCursor = syntheticContent.indexOf("omega") + 3;
+    const sourceSelection = EditorSelection.single(sourceCursor, syntheticContent.indexOf("gamma"));
+    act(() => {
+      sourceView.dispatch({ selection: sourceSelection });
+    });
+    const requestMeasureSpy = vi.spyOn(visualView, "requestMeasure");
+    requestMeasureSpy.mockClear();
+
+    await selectEditorViewMode("Preview");
+
+    await waitFor(() => {
+      expect(visualView.state.selection.eq(sourceSelection)).toBe(true);
+      expect(visualEditor).toHaveFocus();
+      expect(requestMeasureSpy).toHaveBeenCalled();
+    });
+    requestMeasureSpy.mockRestore();
+  });
+
   it("commits pending visual IME content before source mode mounts", async () => {
     renderApp();
 

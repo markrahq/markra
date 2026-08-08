@@ -36,12 +36,20 @@ export type MarkdownSourceEditorProps = {
   contentWidthPx?: number | null;
   editorFontFamily?: EditorFontFamilyPreference;
   extendedSyntax?: ExtendedSyntaxPreferences;
+  initialSelection?: {
+    mainIndex: number;
+    ranges: Array<{
+      anchor: number;
+      head: number;
+    }>;
+  };
   language?: AppLanguage;
   lineHeight?: number;
   onChange: (content: string) => unknown;
   onContentWidthChange?: (width: number) => unknown;
   onContentWidthResizeEnd?: () => unknown;
   onContentWidthResizeStart?: () => unknown;
+  onEditorReady?: (view: EditorView | null, disposedView?: EditorView) => unknown;
   onScroll?: (event: UIEvent<HTMLElement>) => unknown;
   onRedo?: () => unknown;
   onSelectionTextChange?: (text: string | null) => unknown;
@@ -59,6 +67,20 @@ export type MarkdownSourceEditorProps = {
 type MarkdownSourcePaperStyle = CSSProperties & {
   "--source-editor-font-family"?: string;
 };
+
+function boundedInitialSelection(
+  selection: NonNullable<MarkdownSourceEditorProps["initialSelection"]>,
+  documentLength: number
+) {
+  const ranges = selection.ranges.length > 0
+    ? selection.ranges.map((range) => EditorSelection.range(
+        Math.max(0, Math.min(documentLength, range.anchor)),
+        Math.max(0, Math.min(documentLength, range.head))
+      ))
+    : [EditorSelection.cursor(0)];
+
+  return EditorSelection.create(ranges, Math.max(0, Math.min(ranges.length - 1, selection.mainIndex)));
+}
 
 const externalSourceUpdate = Annotation.define<boolean>();
 
@@ -203,12 +225,14 @@ export function MarkdownSourceEditor({
   contentWidthMin = editorCustomContentWidthMin,
   contentWidthPx = null,
   editorFontFamily = { family: null, source: "theme" },
+  initialSelection,
   language = "en",
   lineHeight = 1.65,
   onChange,
   onContentWidthChange,
   onContentWidthResizeEnd,
   onContentWidthResizeStart,
+  onEditorReady,
   onScroll,
   onRedo,
   onSelectionTextChange,
@@ -224,7 +248,9 @@ export function MarkdownSourceEditor({
 }: MarkdownSourceEditorProps) {
   const editorContainerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef(content);
+  const initialSelectionRef = useRef(initialSelection);
   const onChangeRef = useRef(onChange);
+  const onEditorReadyRef = useRef(onEditorReady);
   const onRedoRef = useRef(onRedo);
   const onSelectionTextChangeRef = useRef(onSelectionTextChange);
   const onUndoRef = useRef(onUndo);
@@ -257,6 +283,10 @@ export function MarkdownSourceEditor({
   useEffect(() => {
     onChangeRef.current = onChange;
   }, [onChange]);
+
+  useEffect(() => {
+    onEditorReadyRef.current = onEditorReady;
+  }, [onEditorReady]);
 
   useEffect(() => {
     onRedoRef.current = onRedo;
@@ -329,17 +359,24 @@ export function MarkdownSourceEditor({
       parent: container,
       state: EditorState.create({
         doc: contentRef.current,
-        extensions
+        extensions,
+        ...(initialSelectionRef.current
+          ? {
+              selection: boundedInitialSelection(initialSelectionRef.current, contentRef.current.length)
+            }
+          : {})
       })
     });
 
     viewRef.current = view;
+    onEditorReadyRef.current?.(view);
     if (autoFocus) view.focus();
 
     return () => {
       onSelectionTextChangeRef.current?.(null);
       view.destroy();
       viewRef.current = null;
+      onEditorReadyRef.current?.(null, view);
     };
   }, [extensions]);
 
