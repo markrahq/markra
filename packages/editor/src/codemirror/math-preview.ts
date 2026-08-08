@@ -12,7 +12,6 @@ import {
   WidgetType,
   type DecorationSet,
   type EditorView as CodeMirrorView,
-  type ViewUpdate,
 } from "@codemirror/view";
 import {
   createMarkraMathMacros,
@@ -236,8 +235,8 @@ function activateMath(view: CodeMirrorView, range: CodeMirrorMathRange) {
   const offset = range.source.startsWith("$$") || range.source.startsWith(String.raw`\[`)
     ? 2
     : 1;
-  view.dispatch({ selection: { anchor: Math.min(range.to - 1, range.from + offset) } });
   view.focus();
+  view.dispatch({ selection: { anchor: Math.min(range.to - 1, range.from + offset) } });
 }
 
 const estimatedEditorLineHeight = 26;
@@ -550,40 +549,38 @@ function createMathPreviewExtension() {
     ),
   });
   const mountedViews = new WeakSet<CodeMirrorView>();
-  const syncFocusedState = (view: CodeMirrorView) => {
-    queueMicrotask(() => {
-      if (!mountedViews.has(view)) return;
-      const previewState = view.state.field(field, false);
-      if (!previewState || previewState.context.focused === view.hasFocus) return;
-      view.dispatch({ effects: setMathPreviewFocusedEffect.of(view.hasFocus) });
-    });
+  const syncFocusedState = (view: CodeMirrorView, focused: boolean) => {
+    // Focus can move while an IME owns the editable DOM. Rebuilding block
+    // decorations then can interrupt the active composition.
+    if (!mountedViews.has(view) || view.compositionStarted) return;
+    const previewState = view.state.field(field, false);
+    if (!previewState || previewState.context.focused === focused) return;
+    view.dispatch({ effects: setMathPreviewFocusedEffect.of(focused) });
   };
-  const lifecycle = ViewPlugin.fromClass(
-    class {
-      constructor(readonly view: CodeMirrorView) {
-        mountedViews.add(view);
-        syncFocusedState(view);
-      }
-
-      update(update: ViewUpdate) {
-        if (update.focusChanged) syncFocusedState(update.view);
-      }
-
+  const initializeFocus = ViewPlugin.define((view) => {
+    mountedViews.add(view);
+    queueMicrotask(() => {
+      if (!view.hasFocus) syncFocusedState(view, false);
+    });
+    return {
       destroy() {
-        mountedViews.delete(this.view);
-      }
-    },
-  );
+        mountedViews.delete(view);
+      },
+    };
+  });
 
   return [
-    lifecycle,
     field,
+    initializeFocus,
     EditorView.domEventHandlers({
       blur(_event, view) {
-        syncFocusedState(view);
+        syncFocusedState(view, false);
       },
       focus(_event, view) {
-        syncFocusedState(view);
+        syncFocusedState(view, true);
+      },
+      compositionend(_event, view) {
+        syncFocusedState(view, view.hasFocus);
       },
     }),
   ];

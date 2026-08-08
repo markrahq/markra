@@ -1,5 +1,5 @@
-import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
-import { EditorView, ViewUpdate, type PluginValue, type ViewPlugin } from "@codemirror/view";
+import { EditorSelection, EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { liveMarkdown, mathPreviewPlugin } from "./index.ts";
 import { codeMirrorVimModeChangedEffect } from "./vim.ts";
@@ -124,28 +124,19 @@ describe("mathPreviewPlugin", () => {
     expect(view.dom.querySelector(".cm-markra-math-hidden-line")).toBeNull();
   });
 
-  it("does not rebuild every math decoration for viewport-only updates", () => {
+  it("does not rebuild every math decoration when the viewport scrolls", async () => {
     const doc = Array.from(
       { length: 200 },
       (_, index) => `Synthetic formula ${index}: $x_${index}$.`,
     ).join("\n\n");
-    const plugin = mathPreviewPlugin();
-    const view = createView(doc, doc.length, plugin);
-    const [viewPlugin] = plugin.extension as readonly Extension[];
-    const pluginValue = view.plugin(
-      viewPlugin as ViewPlugin<PluginValue & { update(update: ViewUpdate): unknown }>,
-    );
-    const ViewUpdateConstructor = ViewUpdate as unknown as new (
-      view: EditorView,
-      state: EditorState,
-      transactions: readonly [],
-    ) => ViewUpdate;
-    const viewportUpdate = new ViewUpdateConstructor(view, view.state, []);
-    (viewportUpdate as unknown as { flags: number }).flags = 4;
+    const view = createView(doc);
+    mathRenderCalls.splice(0);
     syntaxTreeIterations.splice(0);
 
-    pluginValue?.update(viewportUpdate);
+    view.scrollDOM.dispatchEvent(new Event("scroll"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
 
+    expect(mathRenderCalls).toHaveLength(0);
     expect(
       syntaxTreeIterations.filter(
         ({ from, to }) => from === undefined && to === undefined,
