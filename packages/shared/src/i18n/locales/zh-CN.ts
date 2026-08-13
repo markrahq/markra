@@ -463,6 +463,8 @@ const messages: LocaleMessages = {
   "settings.ai.providerDeleted": "服务商已删除。",
   "settings.ai.addModel": "添加模型",
   "settings.ai.addModelToProvider": "添加到服务商",
+  "settings.ai.selectAllModels": "全选模型",
+  "settings.ai.deselectAllModels": "取消全选模型",
   "settings.ai.cancelAddModel": "取消",
   "settings.ai.editModel": "编辑模型",
   "settings.ai.cancelEditModel": "取消",

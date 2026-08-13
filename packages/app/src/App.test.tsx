@@ -2988,6 +2988,16 @@ describe("Markra workspace", () => {
     expect(screen.getAllByText("GPT Image 1").length).toBeGreaterThan(0);
     await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent("Model list updated."));
 
+    fireEvent.click(screen.getByRole("button", { name: "Deselect all models" }));
+    expect(screen.getByRole("switch", { name: "GPT-5" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "GPT Image 1" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "GPT-5.5 Thinking Updated" })).toHaveAttribute("aria-checked", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "Select all models" }));
+    expect(screen.getByRole("switch", { name: "GPT-5" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: "GPT Image 1" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("switch", { name: "GPT-5.5 Thinking Updated" })).toHaveAttribute("aria-checked", "true");
+
     fireEvent.click(screen.getByRole("button", { name: "Save AI providers" }));
 
     await waitFor(() =>

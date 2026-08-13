@@ -463,6 +463,8 @@ const messages: BaseLocaleMessages = {
   "settings.ai.providerDeleted": "Provider deleted.",
   "settings.ai.addModel": "Add model",
   "settings.ai.addModelToProvider": "Add model to provider",
+  "settings.ai.selectAllModels": "Select all models",
+  "settings.ai.deselectAllModels": "Deselect all models",
   "settings.ai.cancelAddModel": "Cancel",
   "settings.ai.editModel": "Edit model",
   "settings.ai.cancelEditModel": "Cancel",

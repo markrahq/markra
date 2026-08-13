@@ -66,6 +66,11 @@ export function AiProviderModelsSection({
   setModelDraft: Dispatch<SetStateAction<AiProviderModelDraft>>;
   updateSelectedProvider: (updater: (provider: AiProviderConfig) => AiProviderConfig) => unknown;
 }) {
+  const allModelsEnabled = modelOptions.length > 0 && modelOptions.every((model) => model.enabled);
+  const toggleAllModelsLabel = translate(
+    allModelsEnabled ? "settings.ai.deselectAllModels" : "settings.ai.selectAllModels"
+  );
+
   return (
     <AiSettingsSection label={translate("settings.sections.aiModels")}>
       <div className="grid gap-4 py-2">
@@ -95,7 +100,23 @@ export function AiProviderModelsSection({
             <p className="m-0 text-[12px] leading-5 font-bold text-(--text-secondary)">
               {translate("settings.ai.availableModels")}
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <AiSettingsActionButton
+                label={toggleAllModelsLabel}
+                disabled={modelOptions.length === 0}
+                onClick={() =>
+                  updateSelectedProvider((provider) => {
+                    const enabled = !provider.models.every((model) => model.enabled);
+
+                    return {
+                      ...provider,
+                      models: provider.models.map((model) => ({ ...model, enabled }))
+                    };
+                  })
+                }
+              >
+                {toggleAllModelsLabel}
+              </AiSettingsActionButton>
               <AiSettingsActionButton label={translate("settings.ai.addModel")} onClick={onStartAddModel}>
                 <Plus aria-hidden="true" size={14} />
                 {translate("settings.ai.addModel")}

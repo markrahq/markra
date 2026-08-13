@@ -474,6 +474,8 @@ export type I18nKey =
   | "settings.ai.providerDeleted"
   | "settings.ai.addModel"
   | "settings.ai.addModelToProvider"
+  | "settings.ai.selectAllModels"
+  | "settings.ai.deselectAllModels"
   | "settings.ai.cancelAddModel"
   | "settings.ai.editModel"
   | "settings.ai.cancelEditModel"

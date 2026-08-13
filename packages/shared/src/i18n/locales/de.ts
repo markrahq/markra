@@ -118,6 +118,8 @@ const messages: LocaleMessages = {
   "settings.ai.providerDeleted": "Anbieter gelöscht.",
   "settings.ai.addModel": "Modell hinzufügen",
   "settings.ai.addModelToProvider": "Zum Anbieter hinzufügen",
+  "settings.ai.selectAllModels": "Alle Modelle auswählen",
+  "settings.ai.deselectAllModels": "Auswahl aller Modelle aufheben",
   "settings.ai.cancelAddModel": "Abbrechen",
   "settings.ai.editModel": "Modell bearbeiten",
   "settings.ai.cancelEditModel": "Abbrechen",

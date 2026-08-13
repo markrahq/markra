@@ -118,6 +118,8 @@ const messages: LocaleMessages = {
   "settings.ai.providerDeleted": "제공자를 삭제했습니다.",
   "settings.ai.addModel": "모델 추가",
   "settings.ai.addModelToProvider": "제공자에 추가",
+  "settings.ai.selectAllModels": "모든 모델 선택",
+  "settings.ai.deselectAllModels": "모든 모델 선택 해제",
   "settings.ai.cancelAddModel": "취소",
   "settings.ai.editModel": "모델 편집",
   "settings.ai.cancelEditModel": "취소",
