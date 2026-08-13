@@ -146,18 +146,25 @@ describe("AI settings", () => {
     expect(settings.providers[0]?.type).toBe("openai-compatible");
   });
 
-  it("refreshes stale built-in AI provider model defaults from stored settings", async () => {
+  it("adds current built-in models without overwriting stored models or defaults", async () => {
     store.get.mockResolvedValue({
-      defaultModelId: "gpt-4o",
+      defaultModelId: "gpt-5.5",
       defaultProviderId: "openai",
       providers: [
         {
           apiKey: "",
           baseUrl: "",
-          defaultModelId: "gpt-4o",
+          defaultModelId: "gpt-5.5",
           enabled: false,
           id: "openai",
-          models: [{ capability: "text", enabled: true, id: "gpt-4o", name: "GPT-4o" }],
+          models: [
+            { capability: "reasoning", enabled: false, id: "gpt-5.5", name: "My GPT-5.5" },
+            { capability: "reasoning", enabled: true, id: "gpt-5.4", name: "GPT-5.4" },
+            { capability: "reasoning", enabled: true, id: "gpt-5.4-mini", name: "GPT-5.4 mini" },
+            { capability: "reasoning", enabled: true, id: "gpt-5.4-nano", name: "GPT-5.4 nano" },
+            { capability: "image", enabled: true, id: "gpt-image-2", name: "GPT Image 2" },
+            { capabilities: ["text", "tools"], enabled: true, id: "gpt-custom", name: "My custom model" }
+          ],
           name: "OpenAI",
           type: "openai"
         },
@@ -183,9 +190,32 @@ describe("AI settings", () => {
 
     expect(settings.defaultModelId).toBe("gpt-5.5");
     expect(openai?.defaultModelId).toBe("gpt-5.5");
-    expect(openai?.models.map((model) => model.id)).toEqual(["gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-image-2"]);
-    expect(deepseek?.defaultModelId).toBe("deepseek-v4-pro");
-    expect(deepseek?.models.map((model) => model.id)).toEqual(["deepseek-v4-pro", "deepseek-v4-flash"]);
+    expect(openai?.models.map((model) => model.id)).toEqual([
+      "gpt-5.5",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.4-nano",
+      "gpt-image-2",
+      "gpt-custom",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna"
+    ]);
+    expect(openai?.models.find((model) => model.id === "gpt-5.5")).toMatchObject({
+      enabled: false,
+      name: "My GPT-5.5"
+    });
+    expect(openai?.models.find((model) => model.id === "gpt-custom")).toMatchObject({
+      capabilities: ["text", "tools"],
+      name: "My custom model"
+    });
+    expect(deepseek?.defaultModelId).toBe("deepseek-chat");
+    expect(deepseek?.models.map((model) => model.id)).toEqual([
+      "deepseek-chat",
+      "deepseek-reasoner",
+      "deepseek-v4-pro",
+      "deepseek-v4-flash"
+    ]);
   });
 
   it("preserves user-added AI provider models during normalization", async () => {
@@ -199,7 +229,10 @@ describe("AI settings", () => {
           defaultModelId: "gpt-custom",
           enabled: true,
           id: "openai",
-          models: [{ capability: "text", enabled: true, id: "gpt-custom", name: "GPT Custom" }],
+          models: [
+            { capability: "reasoning", enabled: false, id: "gpt-5.5", name: "My GPT-5.5" },
+            { capability: "text", enabled: true, id: "gpt-custom", name: "GPT Custom" }
+          ],
           name: "OpenAI",
           type: "openai"
         },
@@ -219,7 +252,10 @@ describe("AI settings", () => {
     const settings = await getStoredAiSettings();
 
     expect(settings.defaultModelId).toBe("gpt-custom");
-    expect(settings.providers.find((provider) => provider.id === "openai")?.models.map((model) => model.id)).toEqual(["gpt-custom"]);
+    expect(settings.providers.find((provider) => provider.id === "openai")?.models.map((model) => model.id)).toEqual([
+      "gpt-5.5",
+      "gpt-custom"
+    ]);
     expect(settings.providers.find((provider) => provider.id === "custom-provider-1")?.models.map((model) => model.id)).toEqual([
       "writer-model"
     ]);

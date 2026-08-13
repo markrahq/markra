@@ -24,6 +24,8 @@ describe("AI provider requests", () => {
   it("ships mainstream providers by default", () => {
     const settings = createDefaultAiSettings();
     const providerIds = settings.providers.map((item) => item.id);
+    const findModelIds = (providerId: string) =>
+      settings.providers.find((item) => item.id === providerId)?.models.map((model) => model.id);
     const findModelCapabilities = (providerId: string, modelId: string) =>
       settings.providers.find((item) => item.id === providerId)?.models.find((model) => model.id === modelId)?.capabilities;
 
@@ -45,48 +47,124 @@ describe("AI provider requests", () => {
       ])
     );
     expect(providerIds).not.toContain("openai-compatible");
-    expect(settings.defaultModelId).toBe("gpt-5.5");
+    expect(settings.defaultModelId).toBe("gpt-5.6-sol");
     expect(settings.providers).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ defaultModelId: "gpt-5.5", id: "openai" }),
-        expect.objectContaining({ defaultModelId: "claude-opus-4-7", id: "anthropic" }),
-        expect.objectContaining({ defaultModelId: "gemini-3.1-pro-preview", id: "google" }),
+        expect.objectContaining({ defaultModelId: "gpt-5.6-sol", id: "openai" }),
+        expect.objectContaining({ defaultModelId: "claude-opus-5", id: "anthropic" }),
+        expect.objectContaining({ defaultModelId: "gemini-3.6-flash", id: "google" }),
         expect.objectContaining({ defaultModelId: "deepseek-v4-pro", id: "deepseek" }),
-        expect.objectContaining({ defaultModelId: "mistral-medium-latest", id: "mistral" }),
+        expect.objectContaining({ defaultModelId: "mistral-medium-3-5", id: "mistral" }),
         expect.objectContaining({ defaultModelId: "groq/compound", id: "groq" }),
         expect.objectContaining({ defaultModelId: "openrouter/auto", id: "openrouter" }),
-        expect.objectContaining({ defaultModelId: "moonshotai/Kimi-K2.5", id: "together" }),
-        expect.objectContaining({ defaultModelId: "qwen3.6-plus", id: "aliyun-bailian", type: "openai-compatible" }),
+        expect.objectContaining({ defaultModelId: "moonshotai/Kimi-K2.6", id: "together" }),
+        expect.objectContaining({ defaultModelId: "qwen3.8-max", id: "aliyun-bailian", type: "openai-compatible" }),
         expect.objectContaining({
           baseUrl: "https://api.xiaomimimo.com/v1",
           defaultModelId: "mimo-v2.5-pro",
           id: "xiaomi-mimo",
           type: "openai-compatible"
         }),
-        expect.objectContaining({ defaultModelId: "doubao-seed-1-6-flash-250715", id: "volcengine", type: "openai-compatible" }),
-        expect.objectContaining({ defaultModelId: "grok-4.3", id: "xai" }),
-        expect.objectContaining({ defaultModelId: "gpt-5.4", id: "azure-openai" }),
-        expect.objectContaining({ defaultModelId: "llama3.3", id: "ollama" })
+        expect.objectContaining({ defaultModelId: "doubao-seed-evolving", id: "volcengine", type: "openai-compatible" }),
+        expect.objectContaining({ defaultModelId: "grok-4.5", id: "xai" }),
+        expect.objectContaining({ defaultModelId: "gpt-5.6-sol", id: "azure-openai" }),
+        expect.objectContaining({ defaultModelId: "qwen3.5", id: "ollama" })
       ])
     );
-    expect(settings.providers.find((item) => item.id === "openai")?.models.map((model) => model.id)).toEqual([
+    expect(findModelIds("openai")).toEqual([
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
       "gpt-5.5",
       "gpt-5.4",
       "gpt-5.4-mini",
       "gpt-5.4-nano",
       "gpt-image-2"
     ]);
+    expect(findModelIds("anthropic")).toEqual([
+      "claude-opus-5",
+      "claude-fable-5",
+      "claude-sonnet-5",
+      "claude-opus-4-7",
+      "claude-sonnet-4-6",
+      "claude-haiku-4-5"
+    ]);
+    expect(findModelIds("google")).toEqual([
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-pro-preview",
+      "gemini-3-flash-preview",
+      "gemini-3.1-flash-lite-preview"
+    ]);
+    expect(findModelIds("mistral")).toEqual([
+      "mistral-medium-3-5",
+      "mistral-small-2603",
+      "mistral-large-2512",
+      "mistral-medium-latest",
+      "mistral-small-latest",
+      "mistral-large-latest",
+      "devstral-latest"
+    ]);
+    expect(findModelIds("openrouter")).toEqual([
+      "openrouter/auto",
+      "openai/gpt-5.6-sol",
+      "anthropic/claude-fable-5",
+      "anthropic/claude-opus-5",
+      "anthropic/claude-sonnet-5",
+      "google/gemini-3.6-flash",
+      "openai/gpt-5.5",
+      "anthropic/claude-opus-4.7",
+      "anthropic/claude-sonnet-4.6",
+      "google/gemini-3.1-pro-preview"
+    ]);
+    expect(findModelIds("together")).toEqual([
+      "moonshotai/Kimi-K2.6",
+      "zai-org/GLM-5.1",
+      "openai/gpt-oss-120b",
+      "deepseek-ai/DeepSeek-V4-Pro",
+      "moonshotai/Kimi-K2.5",
+      "deepseek-ai/DeepSeek-R1"
+    ]);
+    expect(findModelIds("aliyun-bailian")).toEqual([
+      "qwen3.8-max",
+      "qwen3.7-plus",
+      "qwen3.7-flash",
+      "qwen3.6-plus",
+      "qwen3-max",
+      "qwen3-coder-plus",
+      "qwen3.5-flash"
+    ]);
+    expect(findModelIds("volcengine")).toEqual([
+      "doubao-seed-evolving",
+      "doubao-seed-2-1-pro-260628",
+      "doubao-seed-2-1-turbo-260628",
+      "doubao-seed-1-6-flash-250715",
+      "doubao-seed-1-6-thinking-250715",
+      "deepseek-v3-2-250915",
+      "deepseek-r1-250528"
+    ]);
+    expect(findModelIds("xai")).toEqual(["grok-4.5", "grok-4.3", "grok-4.3-fast"]);
+    expect(findModelIds("azure-openai")).toEqual([
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+      "gpt-5.4",
+      "gpt-5.4-mini",
+      "gpt-5.4-nano"
+    ]);
+    expect(findModelIds("ollama")).toEqual(["qwen3.5", "gemma4:12b", "gpt-oss:20b", "llama3.3", "qwen3:32b"]);
     expect(settings.providers.find((item) => item.id === "deepseek")?.models.map((model) => model.id)).not.toContain(
       "deepseek-chat"
     );
-    expect(findModelCapabilities("openai", "gpt-5.5")).toEqual(["text", "vision", "reasoning", "tools", "web"]);
+    expect(findModelCapabilities("openai", "gpt-5.6-sol")).toEqual(["text", "vision", "reasoning", "tools", "web"]);
     expect(findModelCapabilities("anthropic", "claude-haiku-4-5")).toEqual([
       "text",
       "vision",
       "reasoning",
       "tools"
     ]);
-    expect(findModelCapabilities("google", "gemini-3-flash-preview")).toEqual([
+    expect(findModelCapabilities("google", "gemini-3.6-flash")).toEqual([
       "text",
       "vision",
       "reasoning",
@@ -94,14 +172,14 @@ describe("AI provider requests", () => {
       "web"
     ]);
     expect(findModelCapabilities("deepseek", "deepseek-v4-pro")).toEqual(["text", "reasoning", "tools"]);
-    expect(findModelCapabilities("mistral", "mistral-large-latest")).toEqual(["text", "vision", "tools"]);
-    expect(findModelCapabilities("together", "moonshotai/Kimi-K2.5")).toEqual([
+    expect(findModelCapabilities("mistral", "mistral-large-2512")).toEqual(["text", "vision", "tools"]);
+    expect(findModelCapabilities("together", "moonshotai/Kimi-K2.6")).toEqual([
       "text",
       "vision",
       "reasoning",
       "tools"
     ]);
-    expect(findModelCapabilities("aliyun-bailian", "qwen3.6-plus")).toEqual([
+    expect(findModelCapabilities("aliyun-bailian", "qwen3.8-max")).toEqual([
       "text",
       "vision",
       "reasoning",
@@ -117,29 +195,17 @@ describe("AI provider requests", () => {
     ]);
     expect(findModelCapabilities("xiaomi-mimo", "mimo-v2.5-pro")).toContain("web");
     expect(findModelCapabilities("xiaomi-mimo", "mimo-v2.5-flash")).toContain("web");
-    expect(findModelCapabilities("volcengine", "doubao-seed-1-6-flash-250715")).toEqual([
+    expect(findModelCapabilities("volcengine", "doubao-seed-evolving")).toEqual([
       "text",
       "vision",
       "reasoning",
       "tools",
       "web"
     ]);
-    expect(settings.providers.find((item) => item.id === "aliyun-bailian")?.models.map((model) => model.id)).toEqual([
-      "qwen3.6-plus",
-      "qwen3-max",
-      "qwen3-coder-plus",
-      "qwen3.5-flash"
-    ]);
     expect(settings.providers.find((item) => item.id === "xiaomi-mimo")?.models.map((model) => model.id)).toEqual([
       "mimo-v2.5-pro",
       "mimo-v2.5",
       "mimo-v2.5-flash"
-    ]);
-    expect(settings.providers.find((item) => item.id === "volcengine")?.models.map((model) => model.id)).toEqual([
-      "doubao-seed-1-6-flash-250715",
-      "doubao-seed-1-6-thinking-250715",
-      "deepseek-v3-2-250915",
-      "deepseek-r1-250528"
     ]);
   });
 

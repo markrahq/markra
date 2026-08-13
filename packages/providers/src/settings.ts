@@ -4,6 +4,7 @@ import {
   defaultApiUrlForStoredProvider,
   defaultProviderTemplateForProviderId,
   defaultProviderTemplates,
+  previousDefaultModelIdsByProviderId,
   staleDefaultModelIdsByProviderId
 } from "./catalog";
 import { enrichAiProviderModelCapabilities, readModelCapabilities } from "./capabilities";
@@ -22,11 +23,11 @@ const legacyBuiltInProviderIds = new Set(["openai-compatible"]);
 
 export function createDefaultAiSettings(): AiProviderSettings {
   return {
-    agentDefaultModelId: "gpt-5.5",
+    agentDefaultModelId: "gpt-5.6-sol",
     agentDefaultProviderId: "openai",
-    defaultModelId: "gpt-5.5",
+    defaultModelId: "gpt-5.6-sol",
     defaultProviderId: "openai",
-    inlineDefaultModelId: "gpt-5.5",
+    inlineDefaultModelId: "gpt-5.6-sol",
     inlineDefaultProviderId: "openai",
     providers: defaultProviderTemplates.map(cloneProvider)
   };
@@ -110,7 +111,7 @@ function normalizeProvider(value: unknown): AiProviderConfig | null {
   const shouldRefreshDefaultModels = shouldRefreshStoredDefaultModels(providerId, storedModels);
   const models =
     shouldRefreshDefaultModels && defaultProvider
-      ? defaultProvider.models.map(cloneModel)
+      ? mergeDefaultModels(storedModels, defaultProvider.models)
       : storedModels.length > 0
         ? storedModels
         : defaultProvider?.models.map(cloneModel) ?? [
@@ -146,9 +147,19 @@ function shouldRefreshStoredDefaultModels(providerId: string, models: AiProvider
   if (!staleModelIds || models.length === 0 || providerId.startsWith("custom-provider-")) return false;
 
   const staleModelIdSet = new Set(staleModelIds);
+  const storedModelIdSet = new Set(models.map((model) => model.id));
+  const previousDefaultModelIds = previousDefaultModelIdsByProviderId[providerId];
+  const containsPreviousDefaults = previousDefaultModelIds?.every((modelId) => storedModelIdSet.has(modelId)) ?? false;
 
-  // Only auto-upgrade lists that still look exactly like Markra's older built-in seeds.
-  return models.every((model) => staleModelIdSet.has(model.id));
+  // A complete previous seed may also contain user-added models; merging keeps those entries intact.
+  return containsPreviousDefaults || models.every((model) => staleModelIdSet.has(model.id));
+}
+
+function mergeDefaultModels(storedModels: AiProviderModel[], defaultModels: AiProviderModelSeed[]) {
+  const storedModelIds = new Set(storedModels.map((model) => model.id));
+
+  // Keep stored entries and their order; only append built-in models that are missing.
+  return [...storedModels, ...defaultModels.filter((model) => !storedModelIds.has(model.id)).map(cloneModel)];
 }
 
 function normalizeModel(value: unknown): AiProviderModel | null {
