@@ -614,11 +614,7 @@ mod tests {
         let max_file_size_call = [".max", "_file_size(DESKTOP_LOG_MAX_FILE_SIZE_BYTES)"].concat();
         let rotation_strategy_type = ["tauri_plugin_log::RotationStrategy::", "KeepSome"].concat();
         let archived_count_name = ["DESKTOP_LOG_ARCHIVED", "_FILE_COUNT"].concat();
-        let debug_level_call = [
-            ".level(tauri_plugin_log::log::LevelFilter::",
-            "Debug)",
-        ]
-        .concat();
+        let debug_level_call = [".level(tauri_plugin_log::log::LevelFilter::", "Debug)"].concat();
 
         assert_eq!(crate::DESKTOP_LOG_MAX_FILE_SIZE_BYTES, 2 * 1024 * 1024);
         assert_eq!(crate::DESKTOP_LOG_MAX_FILE_COUNT, 5);
