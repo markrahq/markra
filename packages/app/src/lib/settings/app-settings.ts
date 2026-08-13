@@ -34,6 +34,10 @@ import {
   type SpellcheckLanguage
 } from "../spellcheck-languages";
 import {
+  normalizeAppLogLevel,
+  type AppLogLevel
+} from "../log-level";
+import {
   defaultViewModeCustomizations,
   isViewMode,
   normalizeViewModeCustomizations,
@@ -189,6 +193,7 @@ const customThemeCssKey = "customThemeCss";
 const lightCustomThemeCssKey = "lightCustomThemeCss";
 const darkCustomThemeCssKey = "darkCustomThemeCss";
 const languageKey = "language";
+const logLevelKey = "logLevel";
 const acpAgentSettingsKey = "acpAgentSettings";
 const aiProvidersKey = "aiProviders";
 const aiAgentPreferencesKey = "aiAgentPreferences";
@@ -359,6 +364,7 @@ export type PortableStoredAppSettings = {
   fileIgnoreSettings: FileIgnoreSettings;
   language: AppLanguage;
   lightTheme: LightEditorTheme;
+  logLevel: AppLogLevel;
   network: NetworkSettings;
   syncSettings: SyncSettings;
   webSearch: WebSearchSettings;
@@ -419,6 +425,7 @@ export type EditorPreferences = {
   wrapCodeBlocks: boolean;
 };
 export type { AppLanguage };
+export type { AppLogLevel };
 export type { EditorContentWidth };
 export type { EditorFontFamilyPreference };
 
@@ -676,6 +683,7 @@ export function normalizePortableStoredAppSettings(value: Record<string, unknown
     fileIgnoreSettings: normalizeFileIgnoreSettings(value.fileIgnoreSettings),
     language: isAppLanguage(value.language) ? value.language : "en",
     lightTheme: themePreferences.lightTheme,
+    logLevel: normalizeAppLogLevel(value.logLevel),
     network: normalizeNetworkSettings(value.network),
     syncSettings: normalizeSyncSettings(value.syncSettings),
     webSearch: normalizeWebSearchSettings(value.webSearch)
@@ -700,6 +708,7 @@ export async function readPortableStoredAppSettings(): Promise<PortableStoredApp
     light: await store.get<string>(lightCustomThemeCssKey) ?? legacyCustomThemeCss
   });
   const language = await store.get<AppLanguage>(languageKey);
+  const logLevel = await store.get<AppLogLevel>(logLevelKey);
   const acpAgentSettings = await store.get<Partial<AcpAgentSettings>>(acpAgentSettingsKey);
   const aiProviders = await store.get<AiProviderSettings>(aiProvidersKey);
   const aiAgentPreferences = await store.get<Partial<AiAgentPreferences>>(aiAgentPreferencesKey);
@@ -725,6 +734,7 @@ export async function readPortableStoredAppSettings(): Promise<PortableStoredApp
     fileIgnoreSettings: normalizeFileIgnoreSettings(fileIgnoreSettings),
     language: isAppLanguage(language) ? language : "en",
     lightTheme: themePreferences.lightTheme,
+    logLevel: normalizeAppLogLevel(logLevel),
     network: normalizeNetworkSettings(network),
     syncSettings: normalizeSyncSettings(syncSettings),
     webSearch: normalizeWebSearchSettings(webSearch)
@@ -748,6 +758,7 @@ export async function writePortableStoredAppSettings(settings: PortableStoredApp
   await store.set(languageKey, settings.language);
   await store.set(lightCustomThemeCssKey, settings.customThemeCss.light);
   await store.set(lightThemeKey, settings.lightTheme);
+  await store.set(logLevelKey, normalizeAppLogLevel(settings.logLevel));
   await store.set(networkKey, settings.network);
   await store.set(syncSettingsKey, settings.syncSettings);
   await store.set(webSearchKey, settings.webSearch);
@@ -1002,6 +1013,20 @@ export async function saveStoredLanguage(language: AppLanguage) {
   const store = await loadSettingsStore();
 
   await store.set(languageKey, language);
+  await store.save();
+}
+
+export async function getStoredLogLevel(): Promise<AppLogLevel> {
+  const store = await loadSettingsStore();
+  const level = await store.get<AppLogLevel>(logLevelKey);
+
+  return normalizeAppLogLevel(level);
+}
+
+export async function saveStoredLogLevel(level: AppLogLevel) {
+  const store = await loadSettingsStore();
+
+  await store.set(logLevelKey, normalizeAppLogLevel(level));
   await store.save();
 }
 

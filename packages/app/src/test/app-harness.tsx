@@ -85,6 +85,7 @@ import {
   getStoredExportSettings,
   getStoredFileIgnoreSettings,
   getStoredLanguage,
+  getStoredLogLevel,
   getStoredNetworkSettings,
   getStoredRecentMarkdownFiles,
   getStoredRecentMarkdownFolders,
@@ -109,6 +110,7 @@ import {
   saveStoredExportSettings,
   saveStoredFileIgnoreSettings,
   saveStoredLanguage,
+  saveStoredLogLevel,
   saveStoredNetworkSettings,
   saveStoredRecentMarkdownFile,
   saveStoredRecentMarkdownFolder,
@@ -133,6 +135,7 @@ import {
   listenAppExportSettingsChanged,
   listenAppFileIgnoreSettingsChanged,
   listenAppLanguageChanged,
+  listenAppLogLevelChanged,
   listenAppThemeChanged,
   listenAppWebSearchSettingsChanged,
   notifyAppAcpAgentSettingsChanged,
@@ -144,6 +147,7 @@ import {
   notifyAppExportSettingsChanged,
   notifyAppFileIgnoreSettingsChanged,
   notifyAppLanguageChanged,
+  notifyAppLogLevelChanged,
   notifyAppThemeChanged,
   notifyAppWebSearchSettingsChanged
 } from "../lib/settings/settings-events";
@@ -578,6 +582,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   getStoredFileIgnoreSettings: vi.fn(),
   getStoredFileTreeSortByWorkspace: vi.fn(async () => ({})),
   getStoredLanguage: vi.fn(),
+  getStoredLogLevel: vi.fn(),
   getStoredNetworkSettings: vi.fn(),
   getStoredRecentMarkdownFiles: vi.fn(),
   getStoredRecentMarkdownFolders: vi.fn(),
@@ -830,6 +835,7 @@ vi.mock("../lib/settings/app-settings", () => ({
   saveStoredFileIgnoreSettings: vi.fn(),
   saveStoredFileTreeSortForWorkspace: vi.fn(async () => {}),
   saveStoredLanguage: vi.fn(),
+  saveStoredLogLevel: vi.fn(),
   saveStoredNetworkSettings: vi.fn(),
   saveStoredRecentMarkdownFile: vi.fn(),
   saveStoredRecentMarkdownFolder: vi.fn(),
@@ -850,6 +856,7 @@ vi.mock("../lib/settings/settings-events", () => ({
   listenAppExportSettingsChanged: vi.fn(),
   listenAppFileIgnoreSettingsChanged: vi.fn(),
   listenAppLanguageChanged: vi.fn(),
+  listenAppLogLevelChanged: vi.fn(),
   listenAppThemeChanged: vi.fn(),
   listenAppWebSearchSettingsChanged: vi.fn(),
   notifyAppAcpAgentSettingsChanged: vi.fn(),
@@ -861,6 +868,7 @@ vi.mock("../lib/settings/settings-events", () => ({
   notifyAppExportSettingsChanged: vi.fn(),
   notifyAppFileIgnoreSettingsChanged: vi.fn(),
   notifyAppLanguageChanged: vi.fn(),
+  notifyAppLogLevelChanged: vi.fn(),
   notifyAppThemeChanged: vi.fn(),
   notifyAppWebSearchSettingsChanged: vi.fn()
 }));
@@ -966,6 +974,7 @@ export const mockedGetStoredEditorPreferences = vi.mocked(getStoredEditorPrefere
 export const mockedGetStoredExportSettings = vi.mocked(getStoredExportSettings);
 export const mockedGetStoredFileIgnoreSettings = vi.mocked(getStoredFileIgnoreSettings);
 export const mockedGetStoredLanguage = vi.mocked(getStoredLanguage);
+export const mockedGetStoredLogLevel = vi.mocked(getStoredLogLevel);
 export const mockedGetStoredNetworkSettings = vi.mocked(getStoredNetworkSettings);
 export const mockedGetStoredRecentMarkdownFiles = vi.mocked(getStoredRecentMarkdownFiles);
 export const mockedGetStoredRecentMarkdownFolders = vi.mocked(getStoredRecentMarkdownFolders);
@@ -991,6 +1000,7 @@ export const mockedSaveStoredEditorPreferences = vi.mocked(saveStoredEditorPrefe
 export const mockedSaveStoredExportSettings = vi.mocked(saveStoredExportSettings);
 export const mockedSaveStoredFileIgnoreSettings = vi.mocked(saveStoredFileIgnoreSettings);
 export const mockedSaveStoredLanguage = vi.mocked(saveStoredLanguage);
+export const mockedSaveStoredLogLevel = vi.mocked(saveStoredLogLevel);
 export const mockedSaveStoredNetworkSettings = vi.mocked(saveStoredNetworkSettings);
 export const mockedSaveStoredRecentMarkdownFile = vi.mocked(saveStoredRecentMarkdownFile);
 export const mockedSaveStoredRecentMarkdownFolder = vi.mocked(saveStoredRecentMarkdownFolder);
@@ -1011,6 +1021,7 @@ export const mockedListenAppEditorPreferencesChanged = vi.mocked(listenAppEditor
 export const mockedListenAppExportSettingsChanged = vi.mocked(listenAppExportSettingsChanged);
 export const mockedListenAppFileIgnoreSettingsChanged = vi.mocked(listenAppFileIgnoreSettingsChanged);
 export const mockedListenAppLanguageChanged = vi.mocked(listenAppLanguageChanged);
+export const mockedListenAppLogLevelChanged = vi.mocked(listenAppLogLevelChanged);
 export const mockedListenAppThemeChanged = vi.mocked(listenAppThemeChanged);
 export const mockedListenAppWebSearchSettingsChanged = vi.mocked(listenAppWebSearchSettingsChanged);
 export const mockedNotifyAppAcpAgentSettingsChanged = vi.mocked(notifyAppAcpAgentSettingsChanged);
@@ -1022,6 +1033,7 @@ export const mockedNotifyAppEditorPreferencesChanged = vi.mocked(notifyAppEditor
 export const mockedNotifyAppExportSettingsChanged = vi.mocked(notifyAppExportSettingsChanged);
 export const mockedNotifyAppFileIgnoreSettingsChanged = vi.mocked(notifyAppFileIgnoreSettingsChanged);
 export const mockedNotifyAppLanguageChanged = vi.mocked(notifyAppLanguageChanged);
+export const mockedNotifyAppLogLevelChanged = vi.mocked(notifyAppLogLevelChanged);
 export const mockedNotifyAppThemeChanged = vi.mocked(notifyAppThemeChanged);
 export const mockedNotifyAppWebSearchSettingsChanged = vi.mocked(notifyAppWebSearchSettingsChanged);
 export const mockedFetchAiProviderModels = vi.mocked(fetchAiProviderModels);
@@ -1153,6 +1165,7 @@ export function installAppTestHarness() {
     mockedOpenSettingsWindow.mockReset();
     mockedPrewarmSettingsWindow.mockReset();
     mockedGetStoredLanguage.mockReset();
+    mockedGetStoredLogLevel.mockReset();
     mockedGetStoredRecentMarkdownFiles.mockReset();
     mockedGetStoredRecentMarkdownFolders.mockReset();
     mockedGetStoredBackupSettings.mockReset();
@@ -1192,6 +1205,7 @@ export function installAppTestHarness() {
     mockedSaveStoredExportSettings.mockReset();
     mockedSaveStoredFileIgnoreSettings.mockReset();
     mockedSaveStoredLanguage.mockReset();
+    mockedSaveStoredLogLevel.mockReset();
     mockedSaveStoredNetworkSettings.mockReset();
     mockedSaveStoredRecentMarkdownFile.mockReset();
     mockedSaveStoredRecentMarkdownFolder.mockReset();
@@ -1208,6 +1222,7 @@ export function installAppTestHarness() {
     mockedListenAppExportSettingsChanged.mockReset();
     mockedListenAppFileIgnoreSettingsChanged.mockReset();
     mockedListenAppLanguageChanged.mockReset();
+    mockedListenAppLogLevelChanged.mockReset();
     mockedListenAppThemeChanged.mockReset();
     mockedNotifyAppAcpAgentSettingsChanged.mockReset();
     mockedNotifyAppAiSettingsChanged.mockReset();
@@ -1218,6 +1233,7 @@ export function installAppTestHarness() {
     mockedNotifyAppExportSettingsChanged.mockReset();
     mockedNotifyAppFileIgnoreSettingsChanged.mockReset();
     mockedNotifyAppLanguageChanged.mockReset();
+    mockedNotifyAppLogLevelChanged.mockReset();
     mockedNotifyAppThemeChanged.mockReset();
     mockedFetchAiProviderModels.mockReset();
     mockedTestAiProviderConnection.mockReset();
@@ -1568,6 +1584,7 @@ export function installAppTestHarness() {
       ]
     });
     mockedGetStoredLanguage.mockResolvedValue("en");
+    mockedGetStoredLogLevel.mockResolvedValue("info");
     mockedGetStoredRecentMarkdownFiles.mockResolvedValue([]);
     mockedGetStoredRecentMarkdownFolders.mockResolvedValue([]);
     mockedGetStoredBackupSettings.mockResolvedValue({
@@ -1660,6 +1677,7 @@ export function installAppTestHarness() {
     mockedSaveStoredAiAgentSessionTitle.mockResolvedValue(undefined);
     mockedSaveStoredAiSettings.mockResolvedValue(undefined);
     mockedSaveStoredLanguage.mockResolvedValue(undefined);
+    mockedSaveStoredLogLevel.mockResolvedValue(undefined);
     mockedSaveStoredNetworkSettings.mockResolvedValue(undefined);
     mockedSaveStoredRecentMarkdownFile.mockResolvedValue([]);
     mockedSaveStoredRecentMarkdownFolder.mockResolvedValue([]);
@@ -1668,8 +1686,10 @@ export function installAppTestHarness() {
     mockedSaveStoredWorkspaceState.mockResolvedValue(undefined);
     mockedSetStoredAiAgentSessionArchived.mockResolvedValue(undefined);
     mockedListenAppLanguageChanged.mockResolvedValue(() => {});
+    mockedListenAppLogLevelChanged.mockResolvedValue(() => {});
     mockedListenAppThemeChanged.mockResolvedValue(() => {});
     mockedNotifyAppLanguageChanged.mockResolvedValue(undefined);
+    mockedNotifyAppLogLevelChanged.mockResolvedValue(undefined);
     mockedNotifyAppCustomThemeCssChanged.mockResolvedValue(undefined);
     mockedNotifyAppThemeChanged.mockResolvedValue(undefined);
     mockedNotifyAppSyncSettingsChanged.mockResolvedValue(undefined);

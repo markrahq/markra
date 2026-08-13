@@ -332,7 +332,7 @@ function isRuntimeLogArea(value: unknown): value is RuntimeLogArea {
 }
 
 function isRuntimeLogLevel(value: unknown): value is RuntimeLogLevel {
-  return value === "error" || value === "info" || value === "warn";
+  return value === "debug" || value === "error" || value === "info" || value === "warn";
 }
 
 function releaseRuntimeLogCapture() {

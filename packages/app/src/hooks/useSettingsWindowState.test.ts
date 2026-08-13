@@ -91,6 +91,7 @@ describe("settings window import and export", () => {
 
   it("imports settings from a selected Markra settings file and refreshes the panel state", async () => {
     const defaultRuntime = createDefaultAppRuntime();
+    const emit = vi.fn(async () => undefined);
     const importedSettings = {
       format: "markra-settings",
       version: 1,
@@ -100,7 +101,8 @@ describe("settings window import and export", () => {
           ...defaultEditorPreferences,
           bodyFontSize: 20
         },
-        language: "zh-CN"
+        language: "zh-CN",
+        logLevel: "error"
       }
     };
     const openSettingsFile = vi.fn(async () => ({
@@ -110,6 +112,11 @@ describe("settings window import and export", () => {
     }));
     configureAppRuntime({
       ...defaultRuntime,
+      events: {
+        emit,
+        isAvailable: () => true,
+        listen: async () => () => undefined
+      },
       files: {
         ...defaultRuntime.files,
         openSettingsFile
@@ -129,6 +136,7 @@ describe("settings window import and export", () => {
       message: "Settings imported.",
       status: "success"
     });
+    expect(emit).toHaveBeenCalledWith("markra://log-level-changed", { level: "error" });
   });
 
   it("backs up and restores portable settings through the selected remote storage", async () => {

@@ -1,9 +1,10 @@
-import { error, info, warn } from "@tauri-apps/plugin-log";
+import { debug, error, info, warn } from "@tauri-apps/plugin-log";
 import type { AppLogEvent } from "@markra/app/runtime";
 import { invokeNative } from "./invoke";
 import { isNativeLoggingAvailable, openNativeLogFolder, writeNativeLog } from "./logs";
 
 vi.mock("@tauri-apps/plugin-log", () => ({
+  debug: vi.fn(),
   error: vi.fn(),
   info: vi.fn(),
   warn: vi.fn()
@@ -14,6 +15,7 @@ vi.mock("./invoke", () => ({
 }));
 
 const mockedInfo = vi.mocked(info);
+const mockedDebug = vi.mocked(debug);
 const mockedWarn = vi.mocked(warn);
 const mockedError = vi.mocked(error);
 const mockedInvokeNative = vi.mocked(invokeNative);
@@ -35,6 +37,7 @@ function createLogEvent(overrides: Partial<AppLogEvent> = {}): AppLogEvent {
 
 describe("native log runtime", () => {
   beforeEach(() => {
+    mockedDebug.mockReset();
     mockedInfo.mockReset();
     mockedWarn.mockReset();
     mockedError.mockReset();
@@ -45,11 +48,13 @@ describe("native log runtime", () => {
     expect(isNativeLoggingAvailable()).toBe(true);
   });
 
-  it("maps info, warn, and error events to the Tauri log plugin", async () => {
+  it("maps debug, info, warn, and error events to the Tauri log plugin", async () => {
+    await writeNativeLog(createLogEvent({ level: "debug", message: "Debug event" }));
     await writeNativeLog(createLogEvent({ level: "info", message: "Info event" }));
     await writeNativeLog(createLogEvent({ level: "warn", message: "Warn event" }));
     await writeNativeLog(createLogEvent({ level: "error", message: "Error event" }));
 
+    expect(mockedDebug).toHaveBeenCalledWith(expect.stringContaining("DEBUG update Debug event"));
     expect(mockedInfo).toHaveBeenCalledWith(expect.stringContaining("INFO update Info event"));
     expect(mockedWarn).toHaveBeenCalledWith(expect.stringContaining("WARN update Warn event"));
     expect(mockedError).toHaveBeenCalledWith(expect.stringContaining("ERROR update Error event"));

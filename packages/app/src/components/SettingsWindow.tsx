@@ -21,6 +21,7 @@ import {
 import { SettingsContent, SettingsSidebar } from "./SettingsShell";
 import { useSettingsWindowState } from "../hooks/useSettingsWindowState";
 import { useAutoUpdater } from "../hooks/useAutoUpdater";
+import { useAppLogLevel } from "../hooks/useAppLogLevel";
 import { useDefaultContextMenuBlocker } from "../hooks/useDefaultContextMenuBlocker";
 import { useRuntimeLogCapture } from "../hooks/useRuntimeLogCapture";
 import { useRuntimeLogEntries } from "../hooks/useRuntimeLogEntries";
@@ -36,6 +37,7 @@ import type { SettingsCategory } from "../hooks/useSettingsWindowState";
 
 export function SettingsWindow() {
   const settingsState = useSettingsWindowState();
+  const appLogLevel = useAppLogLevel();
   const runtimeLog = useRuntimeLogEntries();
   const {
     acpAgentSettings,
@@ -321,9 +323,11 @@ export function SettingsWindow() {
           {activeSettingsCategory === "logs" ? (
             <RuntimeLogSettings
               entries={runtimeLog.entries}
+              level={appLogLevel.level}
               translate={translate}
               onClearLogs={runtimeLog.clearEntries}
               onCopyLogs={handleCopyRuntimeLogs}
+              onLevelChange={appLogLevel.selectLevel}
               onOpenLogFolder={handleOpenRuntimeLogFolder}
             />
           ) : null}

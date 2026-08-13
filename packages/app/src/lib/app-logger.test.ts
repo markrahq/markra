@@ -1,16 +1,50 @@
 import { clearRuntimeLogEntries, formatRuntimeLogEntries, listRuntimeLogEntries } from "./runtime-log";
-import { appLogger, resetAppLogBackendWriterForTests, setAppLogBackendWriter, type AppLogEvent } from "./app-logger";
+import {
+  appLogger,
+  resetAppLogBackendWriterForTests,
+  resetAppLogLevelForTests,
+  setAppLogBackendWriter,
+  setAppLogLevel,
+  type AppLogEvent
+} from "./app-logger";
 
 describe("app logger", () => {
   beforeEach(() => {
     resetAppLogBackendWriterForTests();
+    resetAppLogLevelForTests();
     window.localStorage.clear();
   });
 
   afterEach(() => {
     resetAppLogBackendWriterForTests();
+    resetAppLogLevelForTests();
     clearRuntimeLogEntries();
     vi.restoreAllMocks();
+  });
+
+  it("writes only events at or above the configured minimum level", () => {
+    const backendEvents: AppLogEvent[] = [];
+    setAppLogBackendWriter((event) => {
+      backendEvents.push(event);
+    });
+
+    setAppLogLevel("debug");
+    appLogger.debug("system", "Verbose command trace");
+    setAppLogLevel("warn");
+    appLogger.info("update", "Update check completed");
+    appLogger.warn("sync", "Sync skipped");
+    appLogger.error("file", "Markdown save failed");
+
+    expect(listRuntimeLogEntries().map((entry) => entry.level)).toEqual([
+      "debug",
+      "warn",
+      "error"
+    ]);
+    expect(backendEvents.map((event) => event.level)).toEqual([
+      "debug",
+      "warn",
+      "error"
+    ]);
   });
 
   it("writes info, warn, and error entries to the runtime log", () => {

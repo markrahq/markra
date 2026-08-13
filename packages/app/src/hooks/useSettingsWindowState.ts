@@ -79,6 +79,7 @@ import {
   notifyAppExportSettingsChanged,
   notifyAppFileIgnoreSettingsChanged,
   notifyAppLanguageChanged,
+  notifyAppLogLevelChanged,
   notifyAppThemeChanged,
   notifyAppWebSearchSettingsChanged,
   notifyAppSyncSettingsChanged
@@ -738,6 +739,7 @@ export function useSettingsWindowState() {
     notifyAppFileIgnoreSettingsChanged(settings.fileIgnoreSettings).catch(() => {});
     notifyAppWebSearchSettingsChanged(settings.webSearch).catch(() => {});
     notifyAppLanguageChanged(settings.language).catch(() => {});
+    notifyAppLogLevelChanged(settings.logLevel).catch(() => {});
     notifyAppThemeChanged({
       appearanceMode: settings.appearanceMode,
       darkTheme: settings.darkTheme,

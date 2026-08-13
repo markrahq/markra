@@ -25,10 +25,12 @@ import {
 } from "./app-settings";
 import { isAppLanguage, type AppLanguage } from "@markra/shared";
 import { getAppRuntime } from "../../runtime";
+import { isAppLogLevel, type AppLogLevel } from "../log-level";
 
 const themeChangedEvent = "markra://theme-changed";
 const customThemeCssChangedEvent = "markra://custom-theme-css-changed";
 const languageChangedEvent = "markra://language-changed";
+const logLevelChangedEvent = "markra://log-level-changed";
 const editorPreferencesChangedEvent = "markra://editor-preferences-changed";
 const exportSettingsChangedEvent = "markra://export-settings-changed";
 const fileIgnoreSettingsChangedEvent = "markra://file-ignore-settings-changed";
@@ -52,6 +54,10 @@ type CustomThemeCssChangedPayload = {
 
 type LanguageChangedPayload = {
   language: AppLanguage;
+};
+
+type LogLevelChangedPayload = {
+  level: AppLogLevel;
 };
 
 type EditorPreferencesChangedPayload = {
@@ -160,6 +166,22 @@ export async function listenAppLanguageChanged(onLanguageChanged: (language: App
   return getAppRuntime().events.listen<LanguageChangedPayload>(languageChangedEvent, (event) => {
     if (isAppLanguage(event.payload.language)) {
       onLanguageChanged(event.payload.language);
+    }
+  });
+}
+
+export async function notifyAppLogLevelChanged(level: AppLogLevel) {
+  if (!getAppRuntime().events.isAvailable()) return;
+
+  await getAppRuntime().events.emit(logLevelChangedEvent, { level });
+}
+
+export async function listenAppLogLevelChanged(onLogLevelChanged: (level: AppLogLevel) => unknown) {
+  if (!getAppRuntime().events.isAvailable()) return () => {};
+
+  return getAppRuntime().events.listen<LogLevelChangedPayload>(logLevelChangedEvent, (event) => {
+    if (isAppLogLevel(event.payload.level)) {
+      onLogLevelChanged(event.payload.level);
     }
   });
 }

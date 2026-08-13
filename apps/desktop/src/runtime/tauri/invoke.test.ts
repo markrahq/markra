@@ -8,6 +8,7 @@ vi.mock("@tauri-apps/api/core", () => ({
 
 vi.mock("@markra/app/runtime", () => ({
   appLogger: {
+    debug: vi.fn(),
     error: vi.fn(),
     info: vi.fn(),
     warn: vi.fn()
@@ -19,6 +20,7 @@ const mockedAppLogger = vi.mocked(appLogger);
 
 describe("invokeNative", () => {
   beforeEach(() => {
+    mockedAppLogger.debug.mockReset();
     mockedInvoke.mockReset();
     mockedAppLogger.error.mockReset();
     mockedAppLogger.info.mockReset();
@@ -31,12 +33,12 @@ describe("invokeNative", () => {
     await expect(invokeNative("mock_command", { value: 1 })).resolves.toEqual({ ok: true });
 
     expect(mockedInvoke).toHaveBeenCalledWith("mock_command", { value: 1 });
-    expect(mockedAppLogger.info).toHaveBeenCalledWith("system", "Native command started", {
+    expect(mockedAppLogger.debug).toHaveBeenCalledWith("system", "Native command started", {
       argumentKeys: "value",
       command: "mock_command",
       hasArgs: true
     });
-    expect(mockedAppLogger.info).toHaveBeenCalledWith("system", "Native command completed", expect.objectContaining({
+    expect(mockedAppLogger.debug).toHaveBeenCalledWith("system", "Native command completed", expect.objectContaining({
       argumentKeys: "value",
       command: "mock_command",
       durationMs: expect.any(Number),
@@ -50,11 +52,11 @@ describe("invokeNative", () => {
     await expect(invokeNative("mock_command")).resolves.toBeUndefined();
 
     expect(mockedInvoke).toHaveBeenCalledWith("mock_command");
-    expect(mockedAppLogger.info).toHaveBeenCalledWith("system", "Native command started", {
+    expect(mockedAppLogger.debug).toHaveBeenCalledWith("system", "Native command started", {
       command: "mock_command",
       hasArgs: false
     });
-    expect(mockedAppLogger.info).toHaveBeenCalledWith("system", "Native command completed", expect.objectContaining({
+    expect(mockedAppLogger.debug).toHaveBeenCalledWith("system", "Native command completed", expect.objectContaining({
       command: "mock_command",
       durationMs: expect.any(Number),
       hasArgs: false

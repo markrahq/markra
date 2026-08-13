@@ -7,6 +7,7 @@ import {
   defaultEditorPreferences,
   exportStoredAppSettings,
   getStoredAcpAgentSettings,
+  getStoredLogLevel,
   getStoredThemePreferences,
   appThemeOptions,
   consumeWelcomeDocumentState,
@@ -27,6 +28,7 @@ import {
   saveStoredAcpAgentSettings,
   saveStoredCustomThemeCss,
   saveStoredLanguage,
+  saveStoredLogLevel,
   saveStoredTheme,
   saveStoredThemePreferences
 } from "./app-settings";
@@ -108,6 +110,23 @@ describe("app settings", () => {
 
     expect(store.set).toHaveBeenCalledWith("theme", "system");
     expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads and persists the minimum app log level", async () => {
+    store.get.mockResolvedValue("warn");
+
+    await expect(getStoredLogLevel()).resolves.toBe("warn");
+    await saveStoredLogLevel("error");
+
+    expect(store.get).toHaveBeenCalledWith("logLevel");
+    expect(store.set).toHaveBeenCalledWith("logLevel", "error");
+    expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to info when the stored log level is invalid", async () => {
+    store.get.mockResolvedValue("trace");
+
+    await expect(getStoredLogLevel()).resolves.toBe("info");
   });
 
   it("falls back to the system theme preference when the stored theme is missing or invalid", async () => {
@@ -377,6 +396,7 @@ describe("app settings", () => {
   it("exports portable app settings without workspace-local state", async () => {
     store.get.mockImplementation(async (key: string) => {
       if (key === "language") return "zh-CN";
+      if (key === "logLevel") return "warn";
       if (key === "appearanceMode") return "dark";
       if (key === "lightTheme") return "minimal";
       if (key === "darkTheme") return "night";
@@ -431,6 +451,7 @@ describe("app settings", () => {
           }
         },
         language: "zh-CN",
+        logLevel: "warn",
         lightTheme: "minimal"
       }
     });
@@ -458,6 +479,7 @@ describe("app settings", () => {
           bodyFontSize: 20
         },
         language: "zh-CN",
+        logLevel: "error",
         lightTheme: "minimal",
         recentMarkdownFiles: [{ name: "example.md", path: "/private/example.md" }],
         workspace: {
@@ -472,10 +494,12 @@ describe("app settings", () => {
       appearanceMode: "dark",
       darkTheme: "night",
       language: "zh-CN",
+      logLevel: "error",
       lightTheme: "minimal"
     });
     expect(mockedLoadStore).toHaveBeenCalledWith("settings.json", { autoSave: false, defaults: {} });
     expect(store.set).toHaveBeenCalledWith("language", "zh-CN");
+    expect(store.set).toHaveBeenCalledWith("logLevel", "error");
     expect(store.set).toHaveBeenCalledWith("appearanceMode", "dark");
     expect(store.set).toHaveBeenCalledWith("lightTheme", "minimal");
     expect(store.set).toHaveBeenCalledWith("darkTheme", "night");

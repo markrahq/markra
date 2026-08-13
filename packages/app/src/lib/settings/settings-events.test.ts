@@ -9,6 +9,7 @@ import {
   listenAppExportSettingsChanged,
   listenAppFileIgnoreSettingsChanged,
   listenAppLanguageChanged,
+  listenAppLogLevelChanged,
   listenAppThemeChanged,
   listenAppSyncSettingsChanged,
   notifyAppCustomThemeCssChanged,
@@ -18,6 +19,7 @@ import {
   notifyAppExportSettingsChanged,
   notifyAppFileIgnoreSettingsChanged,
   notifyAppLanguageChanged,
+  notifyAppLogLevelChanged,
   notifyAppSyncSettingsChanged,
   notifyAppThemeChanged
 } from "./settings-events";
@@ -148,6 +150,27 @@ describe("settings events", () => {
     expect(mockedEmit).toHaveBeenCalledWith("markra://language-changed", { language: "fr" });
     expect(onLanguageChanged).toHaveBeenCalledWith("fr");
     expect(onLanguageChanged).toHaveBeenCalledTimes(1);
+    expect(unlisten).toHaveBeenCalledTimes(1);
+  });
+
+  it("emits and listens for log level changes inside Tauri", async () => {
+    const unlisten = vi.fn();
+    const onLogLevelChanged = vi.fn();
+    eventsAvailable = true;
+    mockedListen.mockResolvedValue(unlisten);
+
+    const cleanup = await listenAppLogLevelChanged(onLogLevelChanged);
+    const listener = mockedListen.mock.calls[0]?.[1];
+
+    await notifyAppLogLevelChanged("warn");
+    listener?.({ payload: { level: "error" } } as Parameters<NonNullable<typeof listener>>[0]);
+    listener?.({ payload: { level: "trace" } } as Parameters<NonNullable<typeof listener>>[0]);
+    cleanup();
+
+    expect(mockedListen).toHaveBeenCalledWith("markra://log-level-changed", expect.any(Function));
+    expect(mockedEmit).toHaveBeenCalledWith("markra://log-level-changed", { level: "warn" });
+    expect(onLogLevelChanged).toHaveBeenCalledWith("error");
+    expect(onLogLevelChanged).toHaveBeenCalledTimes(1);
     expect(unlisten).toHaveBeenCalledTimes(1);
   });
 

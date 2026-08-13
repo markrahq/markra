@@ -99,6 +99,7 @@ function portableSettings(): PortableStoredAppSettings {
     },
     language: "en",
     lightTheme: "github",
+    logLevel: "info",
     network: {
       bypassLocalAddresses: false,
       proxyEnabled: true,

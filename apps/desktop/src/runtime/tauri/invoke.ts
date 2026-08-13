@@ -9,7 +9,7 @@ export async function invokeNative<T>(command: string, args?: NativeInvokeArgs):
   const startedAt = Date.now();
   const area = nativeCommandArea(command);
   const details = nativeCommandDetails(command, args);
-  appLogger.info(area, "Native command started", details);
+  appLogger.debug(area, "Native command started", details);
 
   try {
     // Keep no-arg commands as one-argument calls so the wrapper does not reshape native command boundaries.
@@ -17,7 +17,7 @@ export async function invokeNative<T>(command: string, args?: NativeInvokeArgs):
       ? await tauriInvoke<T>(command)
       : await tauriInvoke<T>(command, args);
 
-    appLogger.info(area, "Native command completed", {
+    appLogger.debug(area, "Native command completed", {
       ...details,
       durationMs: Math.max(0, Date.now() - startedAt)
     });

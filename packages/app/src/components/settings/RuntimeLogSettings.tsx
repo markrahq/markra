@@ -4,28 +4,45 @@ import {
   type RuntimeLogEntry
 } from "../../lib/runtime-log";
 import {
+  appLogLevelOptions,
+  isAppLogLevel,
+  type AppLogLevel
+} from "../../lib/log-level";
+import {
   SettingsButton,
   SettingsCallout,
+  SettingsRow,
+  SettingsSelect,
   SettingsSection
 } from "./SettingsControls";
 import type { SettingsTranslate } from "./translate";
 
 export function RuntimeLogSettings({
   entries,
+  level,
   onClearLogs,
   onCopyLogs,
+  onLevelChange,
   onOpenLogFolder,
   translate
 }: {
   entries: readonly RuntimeLogEntry[];
+  level: AppLogLevel;
   onClearLogs: () => unknown;
   onCopyLogs: (contents: string) => unknown;
+  onLevelChange: (level: AppLogLevel) => unknown;
   onOpenLogFolder?: () => unknown;
   translate: SettingsTranslate;
 }) {
   const hasEntries = entries.length > 0;
   const formattedEntries = formatRuntimeLogEntries(entries);
   const formattedEntryRows = formattedEntries ? formattedEntries.split("\n") : [];
+  const levelLabels: Record<AppLogLevel, string> = {
+    debug: translate("settings.logs.level.debug"),
+    error: translate("settings.logs.level.error"),
+    info: translate("settings.logs.level.info"),
+    warn: translate("settings.logs.level.warn")
+  };
 
   return (
     <SettingsSection
@@ -38,6 +55,23 @@ export function RuntimeLogSettings({
         />
       }
     >
+      <SettingsRow
+        title={translate("settings.logs.minimumLevel")}
+        description={translate("settings.logs.minimumLevelDescription")}
+        action={
+          <SettingsSelect
+            label={translate("settings.logs.minimumLevel")}
+            options={appLogLevelOptions.map((option) => ({
+              label: levelLabels[option],
+              value: option
+            }))}
+            value={level}
+            onChange={(value) => {
+              if (isAppLogLevel(value)) onLevelChange(value);
+            }}
+          />
+        }
+      />
       <div className="settings-row block min-h-0 py-4">
         <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
           {onOpenLogFolder ? (

@@ -3,8 +3,13 @@ import {
   sanitizeDiagnosticText,
   type DiagnosticDetailValue
 } from "@markra/shared";
+import {
+  appLogLevelAllows,
+  defaultAppLogLevel,
+  type AppLogLevel
+} from "./log-level";
 
-export type AppLogLevel = "error" | "info" | "warn";
+export type { AppLogLevel } from "./log-level";
 export type AppLogArea =
   | "ai"
   | "backup"
@@ -38,8 +43,12 @@ type AppLogSink = (event: AppLogEvent) => unknown;
 const appLogSinks = new Set<AppLogSink>();
 let appLogBackendWriter: AppLogWriter | null = null;
 let appLogBackendDispatchDepth = 0;
+let minimumAppLogLevel = defaultAppLogLevel;
 
 export const appLogger = {
+  debug(area: AppLogArea, message: string, details?: Record<string, unknown>) {
+    return logAppEvent({ area, details, level: "debug", message });
+  },
   error(area: AppLogArea, message: string, details?: Record<string, unknown>) {
     return logAppEvent({ area, details, level: "error", message });
   },
@@ -55,6 +64,8 @@ export const appLogger = {
 };
 
 export function logAppEvent(input: AppLogInput) {
+  if (!appLogLevelAllows(input.level, minimumAppLogLevel)) return null;
+
   const event = sanitizeAppLogEvent(input);
   dispatchAppLogSinks(event);
   dispatchAppLogBackend(event);
@@ -74,8 +85,20 @@ export function setAppLogBackendWriter(writer: AppLogWriter | null) {
   appLogBackendWriter = writer;
 }
 
+export function getAppLogLevel() {
+  return minimumAppLogLevel;
+}
+
+export function setAppLogLevel(level: AppLogLevel) {
+  minimumAppLogLevel = level;
+}
+
 export function resetAppLogBackendWriterForTests() {
   appLogBackendWriter = null;
+}
+
+export function resetAppLogLevelForTests() {
+  minimumAppLogLevel = defaultAppLogLevel;
 }
 
 function sanitizeAppLogEvent(input: AppLogInput): AppLogEvent {

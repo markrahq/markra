@@ -35,14 +35,17 @@ describe("RuntimeLogSettings", () => {
     render(
       <RuntimeLogSettings
         entries={entries}
+        level="info"
         translate={translate}
         onClearLogs={onClearLogs}
         onCopyLogs={onCopyLogs}
+        onLevelChange={vi.fn()}
         onOpenLogFolder={onOpenLogFolder}
       />
     );
 
     expect(screen.getByRole("heading", { name: "Logs" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Minimum log level" })).toHaveValue("info");
     const logOutput = screen.getByRole("log", { name: "Runtime log entries" });
     expect(logOutput.tagName.toLowerCase()).toBe("ol");
     expect(logOutput).toHaveClass("overflow-auto");
@@ -67,16 +70,23 @@ describe("RuntimeLogSettings", () => {
   });
 
   it("shows an empty state and disables actions when no logs exist", () => {
+    const onLevelChange = vi.fn();
     render(
       <RuntimeLogSettings
         entries={[]}
+        level="warn"
         translate={translate}
         onClearLogs={vi.fn()}
         onCopyLogs={vi.fn()}
+        onLevelChange={onLevelChange}
       />
     );
 
-    expect(screen.getByText("No logs yet. Warnings, errors, and uncaught exceptions will appear here."))
+    fireEvent.change(screen.getByRole("combobox", { name: "Minimum log level" }), {
+      target: { value: "error" }
+    });
+    expect(onLevelChange).toHaveBeenCalledWith("error");
+    expect(screen.getByText("No logs yet. Events at or above the selected level will appear here."))
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Copy logs" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Clear logs" })).toBeDisabled();

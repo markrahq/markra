@@ -44,6 +44,7 @@ import { SideDocumentPane } from "./components/SideDocumentPane";
 import { WorkspaceLayout } from "./components/WorkspaceLayout";
 import { WorkspaceOperationOverlay } from "./components/WorkspaceOperationOverlay";
 import { useAppLanguage } from "./hooks/useAppLanguage";
+import { useAppLogLevel } from "./hooks/useAppLogLevel";
 import { useAppTheme } from "./hooks/useAppTheme";
 import { useAiCommandUi } from "./hooks/useAiCommandUi";
 import {
@@ -470,6 +471,7 @@ function WorkspaceApp() {
   const updaterFeatureEnabled = appFeatures.updater;
   const appTheme = useAppTheme();
   const appLanguage = useAppLanguage();
+  useAppLogLevel();
   useRuntimeLogCapture();
   useRuntimeErrorDiagnostics(appLanguage.language);
   const acpAgentSettings = useAcpAgentSettings();

@@ -1,4 +1,9 @@
-import { error as logError, info as logInfo, warn as logWarn } from "@tauri-apps/plugin-log";
+import {
+  debug as logDebug,
+  error as logError,
+  info as logInfo,
+  warn as logWarn
+} from "@tauri-apps/plugin-log";
 import { sanitizeDiagnosticDetails, sanitizeDiagnosticText } from "@markra/shared";
 import type { AppLogEvent } from "@markra/app/runtime";
 import { invokeNative } from "./invoke";
@@ -11,6 +16,11 @@ export async function writeNativeLog(event: AppLogEvent) {
   const message = formatNativeLogMessage(event);
 
   try {
+    if (event.level === "debug") {
+      await logDebug(message);
+      return;
+    }
+
     if (event.level === "error") {
       await logError(message);
       return;

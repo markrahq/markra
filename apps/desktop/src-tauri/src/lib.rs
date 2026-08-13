@@ -217,6 +217,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_log::Builder::new()
+                .level(tauri_plugin_log::log::LevelFilter::Debug)
                 .max_file_size(DESKTOP_LOG_MAX_FILE_SIZE_BYTES)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(
                     DESKTOP_LOG_ARCHIVED_FILE_COUNT,
@@ -613,6 +614,11 @@ mod tests {
         let max_file_size_call = [".max", "_file_size(DESKTOP_LOG_MAX_FILE_SIZE_BYTES)"].concat();
         let rotation_strategy_type = ["tauri_plugin_log::RotationStrategy::", "KeepSome"].concat();
         let archived_count_name = ["DESKTOP_LOG_ARCHIVED", "_FILE_COUNT"].concat();
+        let debug_level_call = [
+            ".level(tauri_plugin_log::log::LevelFilter::",
+            "Debug)",
+        ]
+        .concat();
 
         assert_eq!(crate::DESKTOP_LOG_MAX_FILE_SIZE_BYTES, 2 * 1024 * 1024);
         assert_eq!(crate::DESKTOP_LOG_MAX_FILE_COUNT, 5);
@@ -639,6 +645,10 @@ mod tests {
         assert!(
             lib_source[rotation_strategy_index..].contains(&archived_count_name),
             "desktop log plugin should keep only the configured number of archived files"
+        );
+        assert!(
+            lib_source.contains(&debug_level_call),
+            "desktop log plugin should accept debug events before the app-level filter"
         );
     }
 
