@@ -5,6 +5,7 @@ import { Decoration, EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { t, type AppLanguage, type SearchRange } from "@markra/shared";
 import {
+  codeMirrorLocationCue,
   codeMirrorTypewriterMode,
   markdownSourceSyntaxHighlighting,
   markdownSyntaxHighlighting,
@@ -332,6 +333,7 @@ export function MarkdownSourceEditor({
       editableCompartmentRef.current.of(EditorView.editable.of(!readOnly)),
       lineNumbersCompartmentRef.current.of(showLineNumbers ? lineNumbers() : []),
       searchCompartmentRef.current.of(markdownSourceSearchExtension(searchMatches, searchActiveIndex)),
+      codeMirrorLocationCue(),
       typewriterModeCompartmentRef.current.of(
         codeMirrorTypewriterMode({ enabled: typewriterModeEnabled })
       ),

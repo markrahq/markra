@@ -400,6 +400,7 @@ export type EditorPreferences = {
   lineHeight: number;
   markdownShortcuts: MarkdownShortcutBindings;
   markdownTemplates: MarkdownTemplateEntry[];
+  modeSwitchHighlightEnabled: boolean;
   openDroppedFilesInTabs: boolean;
   paragraphSpacingPx: number;
   restoreWorkspaceOnStartup: boolean;
@@ -562,6 +563,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   lineHeight: 1.65,
   markdownShortcuts: defaultMarkdownShortcuts,
   markdownTemplates: [],
+  modeSwitchHighlightEnabled: true,
   openDroppedFilesInTabs: false,
   paragraphSpacingPx: 8,
   restoreWorkspaceOnStartup: true,
@@ -1758,6 +1760,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       : defaultEditorPreferences.lineHeight,
     markdownShortcuts: normalizeMarkdownShortcuts(preferences.markdownShortcuts),
     markdownTemplates: normalizeMarkdownTemplateEntries(preferences.markdownTemplates),
+    modeSwitchHighlightEnabled:
+      typeof preferences.modeSwitchHighlightEnabled === "boolean"
+        ? preferences.modeSwitchHighlightEnabled
+        : defaultEditorPreferences.modeSwitchHighlightEnabled,
     openDroppedFilesInTabs:
       typeof preferences.openDroppedFilesInTabs === "boolean"
         ? preferences.openDroppedFilesInTabs

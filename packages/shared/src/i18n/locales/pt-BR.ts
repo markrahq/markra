@@ -736,6 +736,8 @@ const messages: LocaleMessages = {
   "settings.editor.showLineNumbersDescription": "Mostra os números de linha reais do Markdown no modo de código-fonte.",
   "settings.editor.showCodeBlockLineNumbers": "Mostrar números de linha nos blocos de código",
   "settings.editor.showCodeBlockLineNumbersDescription": "Mostra números de linha ao lado de blocos de código delimitados no modo visual.",
+  "settings.editor.modeSwitchHighlight": "Destacar a posição após alternar a visualização",
+  "settings.editor.modeSwitchHighlightDescription": "Destaca brevemente a linha do cursor ao alternar entre a pré-visualização e o código-fonte.",
   "settings.editor.typewriterMode": "Modo máquina de escrever",
   "settings.editor.typewriterModeDescription": "Mantém a linha atual do cursor centralizada ao escrever e navegar.",
   "settings.editor.vimMode": "Modo Vim",

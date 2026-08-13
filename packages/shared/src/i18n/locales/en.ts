@@ -333,6 +333,8 @@ const messages: BaseLocaleMessages = {
   "settings.editor.showLineNumbersDescription": "Show actual Markdown line numbers in source mode.",
   "settings.editor.showCodeBlockLineNumbers": "Show code block line numbers",
   "settings.editor.showCodeBlockLineNumbersDescription": "Show line numbers beside fenced code in visual mode.",
+  "settings.editor.modeSwitchHighlight": "Highlight location after switching editor views",
+  "settings.editor.modeSwitchHighlightDescription": "Briefly highlight the cursor line after switching between Preview and Source code.",
   "settings.editor.typewriterMode": "Typewriter mode",
   "settings.editor.typewriterModeDescription": "Keep the current cursor line centered while writing and navigating.",
   "settings.editor.vimMode": "Vim mode",

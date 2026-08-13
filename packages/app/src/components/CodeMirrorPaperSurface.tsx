@@ -9,6 +9,7 @@ import {
   codeMirrorSearchPlugin,
   codeMirrorSelectionIsInsideFencedCode,
   codeMirrorSpellcheckPlugin,
+  codeMirrorLocationCue,
   codeMirrorTypewriterMode,
   documentLinksPlugin,
   footnotePreviewPlugin,
@@ -554,6 +555,7 @@ export function CodeMirrorPaperSurface({
           codeMirrorAiSelectionHoldPlugin(),
           markraEditorReactBridge,
           codeMirrorSearchPlugin(),
+          codeMirrorLocationCue(),
           spellcheckCompartmentRef.current.of(
             codeMirrorSpellcheckPlugin({
               enabled: spellcheckEnabled,

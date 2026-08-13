@@ -233,6 +233,7 @@ describe("settings events", () => {
       lineHeight: 1.8,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,

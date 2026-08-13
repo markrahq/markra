@@ -736,6 +736,8 @@ const messages: LocaleMessages = {
   "settings.editor.showLineNumbersDescription": "Показывает фактические номера строк Markdown в режиме исходного текста.",
   "settings.editor.showCodeBlockLineNumbers": "Показывать номера строк в блоках кода",
   "settings.editor.showCodeBlockLineNumbersDescription": "Показывает номера строк рядом с ограждёнными блоками кода в визуальном режиме.",
+  "settings.editor.modeSwitchHighlight": "Подсвечивать позицию после смены режима",
+  "settings.editor.modeSwitchHighlightDescription": "Кратковременно подсвечивает строку курсора после переключения между предпросмотром и исходным кодом.",
   "settings.editor.typewriterMode": "Режим пишущей машинки",
   "settings.editor.typewriterModeDescription": "Удерживает текущую строку курсора по центру при вводе и навигации.",
   "settings.editor.vimMode": "Режим Vim",

@@ -362,6 +362,8 @@ export type I18nKey =
   | "settings.editor.showLineNumbersDescription"
   | "settings.editor.showCodeBlockLineNumbers"
   | "settings.editor.showCodeBlockLineNumbersDescription"
+  | "settings.editor.modeSwitchHighlight"
+  | "settings.editor.modeSwitchHighlightDescription"
   | "settings.editor.typewriterMode"
   | "settings.editor.typewriterModeDescription"
   | "settings.editor.vimMode"

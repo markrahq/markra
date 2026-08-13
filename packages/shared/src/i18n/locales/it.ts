@@ -736,6 +736,8 @@ const messages: LocaleMessages = {
   "settings.editor.showLineNumbersDescription": "Mostra i numeri di riga Markdown effettivi in modalità sorgente.",
   "settings.editor.showCodeBlockLineNumbers": "Mostra i numeri di riga nei blocchi di codice",
   "settings.editor.showCodeBlockLineNumbersDescription": "Mostra i numeri di riga accanto ai blocchi di codice delimitati in modalità visuale.",
+  "settings.editor.modeSwitchHighlight": "Evidenzia la posizione dopo il cambio di vista",
+  "settings.editor.modeSwitchHighlightDescription": "Evidenzia brevemente la riga del cursore passando tra anteprima e codice sorgente.",
   "settings.editor.typewriterMode": "Modalità macchina da scrivere",
   "settings.editor.typewriterModeDescription": "Mantiene centrata la riga del cursore durante la scrittura e la navigazione.",
   "settings.editor.vimMode": "Modalità Vim",

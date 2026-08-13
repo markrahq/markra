@@ -736,6 +736,22 @@ export function EditorSettings({
           }
         />
         <SettingsRow
+          title={translate("settings.editor.modeSwitchHighlight")}
+          description={translate("settings.editor.modeSwitchHighlightDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.modeSwitchHighlightEnabled}
+              label={translate("settings.editor.modeSwitchHighlight")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  modeSwitchHighlightEnabled: !preferences.modeSwitchHighlightEnabled
+                })
+              }
+            />
+          }
+        />
+        <SettingsRow
           title={translate("settings.editor.typewriterMode")}
           description={translate("settings.editor.typewriterModeDescription")}
           action={

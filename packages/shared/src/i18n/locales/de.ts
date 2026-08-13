@@ -736,6 +736,8 @@ const messages: LocaleMessages = {
   "settings.editor.showLineNumbersDescription": "Zeigt die tatsächlichen Markdown-Zeilennummern im Quelltextmodus an.",
   "settings.editor.showCodeBlockLineNumbers": "Zeilennummern in Codeblöcken anzeigen",
   "settings.editor.showCodeBlockLineNumbersDescription": "Zeigt im visuellen Modus Zeilennummern neben umgrenzten Codeblöcken an.",
+  "settings.editor.modeSwitchHighlight": "Cursorposition nach Ansichtswechsel hervorheben",
+  "settings.editor.modeSwitchHighlightDescription": "Hebt die Cursorzeile nach dem Wechsel zwischen Vorschau und Quellcode kurz hervor.",
   "settings.editor.typewriterMode": "Schreibmaschinenmodus",
   "settings.editor.typewriterModeDescription": "Hält die aktuelle Cursorzeile beim Schreiben und Navigieren in der Mitte.",
   "settings.editor.vimMode": "Vim-Modus",

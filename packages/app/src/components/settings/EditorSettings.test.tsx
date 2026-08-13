@@ -282,6 +282,34 @@ describe("EditorSettings", () => {
     });
   });
 
+  it("toggles editor mode switch highlighting from the editor settings", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={{
+          ...defaultEditorPreferences,
+          modeSwitchHighlightEnabled: true
+        }}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const highlightSwitch = screen.getByRole("switch", {
+      name: "Highlight location after switching editor views"
+    });
+
+    expect(highlightSwitch).toHaveAttribute("aria-checked", "true");
+
+    fireEvent.click(highlightSwitch);
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      modeSwitchHighlightEnabled: false
+    });
+  });
+
   it("toggles Vim mode from the editor settings", () => {
     const onUpdatePreferences = vi.fn();
 

@@ -71,6 +71,7 @@ describe("editor preferences", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
@@ -228,6 +229,7 @@ describe("editor preferences", () => {
           suggestedName: "{{date}} standup"
         }
       ],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,
@@ -289,6 +291,13 @@ describe("editor preferences", () => {
     expect((normalizeEditorPreferences({ typewriterModeEnabled: true }) as Record<string, unknown>).typewriterModeEnabled).toBe(true);
     expect((normalizeEditorPreferences({ typewriterModeEnabled: false }) as Record<string, unknown>).typewriterModeEnabled).toBe(false);
     expect((normalizeEditorPreferences({ typewriterModeEnabled: "yes" }) as Record<string, unknown>).typewriterModeEnabled).toBe(false);
+  });
+
+  it("normalizes the editor mode switch highlight preference", () => {
+    expect(defaultEditorPreferences.modeSwitchHighlightEnabled).toBe(true);
+    expect(normalizeEditorPreferences({}).modeSwitchHighlightEnabled).toBe(true);
+    expect(normalizeEditorPreferences({ modeSwitchHighlightEnabled: false }).modeSwitchHighlightEnabled).toBe(false);
+    expect(normalizeEditorPreferences({ modeSwitchHighlightEnabled: "no" }).modeSwitchHighlightEnabled).toBe(true);
   });
 
   it("normalizes and migrates the automatic heading marker hiding preference", () => {
@@ -775,6 +784,7 @@ describe("editor preferences", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
@@ -882,6 +892,7 @@ describe("editor preferences", () => {
           suggestedName: "{{date}} weekly"
         }
       ],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,
@@ -987,6 +998,7 @@ describe("editor preferences", () => {
           suggestedName: "{{date}} weekly"
         }
       ],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: false,

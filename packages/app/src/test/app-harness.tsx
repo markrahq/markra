@@ -338,6 +338,7 @@ vi.mock("../lib/settings/app-settings", () => ({
       quote: "Mod+Shift+B",
       strikethrough: "Mod+Shift+X"
     },
+    modeSwitchHighlightEnabled: true,
     paragraphSpacingPx: 8,
     restoreWorkspaceOnStartup: true,
     showAiQuickInputOnSelection: true,
@@ -1482,6 +1483,7 @@ export function installAppTestHarness() {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,

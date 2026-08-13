@@ -422,6 +422,7 @@ function createStoredEditorPreferences(
     lineHeight: 1.65,
     markdownShortcuts: defaultMarkdownShortcuts,
     markdownTemplates: [],
+    modeSwitchHighlightEnabled: overrides.modeSwitchHighlightEnabled ?? true,
     openDroppedFilesInTabs: overrides.openDroppedFilesInTabs ?? false,
     paragraphSpacingPx: 8,
     restoreWorkspaceOnStartup: true,
@@ -1479,6 +1480,7 @@ describe("Markra workspace", () => {
         lineHeight: 1.65,
         markdownShortcuts: defaultMarkdownShortcuts,
         markdownTemplates: [],
+        modeSwitchHighlightEnabled: true,
         openDroppedFilesInTabs: false,
         paragraphSpacingPx: 8,
         restoreWorkspaceOnStartup: true,
@@ -1551,6 +1553,7 @@ describe("Markra workspace", () => {
         lineHeight: 1.65,
         markdownShortcuts: defaultMarkdownShortcuts,
         markdownTemplates: [],
+        modeSwitchHighlightEnabled: true,
         openDroppedFilesInTabs: false,
         paragraphSpacingPx: 8,
         restoreWorkspaceOnStartup: true,
@@ -2812,6 +2815,7 @@ describe("Markra workspace", () => {
         bold: "Mod+Alt+B"
       },
       markdownTemplates: [],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
@@ -5748,6 +5752,7 @@ describe("Markra workspace", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
@@ -5919,6 +5924,7 @@ describe("Markra workspace", () => {
       lineHeight: 1.65,
       markdownShortcuts: defaultMarkdownShortcuts,
       markdownTemplates: [],
+      modeSwitchHighlightEnabled: true,
       openDroppedFilesInTabs: false,
       paragraphSpacingPx: 8,
       restoreWorkspaceOnStartup: true,
@@ -6800,6 +6806,49 @@ describe("Markra workspace", () => {
       "data-typewriter-mode",
       "true"
     );
+  });
+
+  it("highlights the restored cursor line after switching editor views", async () => {
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+    const visualView = getVisibleCodeMirrorView(container);
+    const cursor = visualView.state.doc.toString().indexOf("Welcome");
+    act(() => {
+      visualView.dispatch({ selection: EditorSelection.cursor(cursor) });
+    });
+
+    await selectEditorViewMode("Source code");
+
+    const sourceCue = await waitFor(() => {
+      const cue = container.querySelector<HTMLElement>(
+        ".markdown-source-editor .cm-markra-location-cue"
+      );
+      expect(cue).not.toBeNull();
+      return cue!;
+    });
+    expect(sourceCue).toHaveTextContent("Welcome");
+
+    await selectEditorViewMode("Preview");
+
+    await waitFor(() => {
+      const cue = container.querySelector<HTMLElement>(
+        ".markdown-paper .cm-markra-location-cue"
+      );
+      expect(cue).toHaveTextContent("Welcome");
+    });
+  });
+
+  it("does not highlight the restored cursor line when the preference is disabled", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      modeSwitchHighlightEnabled: false
+    }));
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+    await selectEditorViewMode("Source code");
+
+    expect(container.querySelector(".cm-markra-location-cue")).not.toBeInTheDocument();
   });
 
   it("toggles and persists typewriter mode from the keyboard shortcut", async () => {

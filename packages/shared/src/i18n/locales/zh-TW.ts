@@ -736,6 +736,8 @@ const messages: LocaleMessages = {
   "settings.editor.showLineNumbersDescription": "在原始碼模式中顯示 Markdown 檔案的實際行號。",
   "settings.editor.showCodeBlockLineNumbers": "顯示程式碼區塊行號",
   "settings.editor.showCodeBlockLineNumbersDescription": "在所見即所得模式的圍欄程式碼區塊旁顯示行號。",
+  "settings.editor.modeSwitchHighlight": "切換編輯檢視後醒目提示游標位置",
+  "settings.editor.modeSwitchHighlightDescription": "在預覽與原始碼檢視之間切換時，短暫醒目提示游標所在行。",
   "settings.editor.typewriterMode": "打字機模式",
   "settings.editor.typewriterModeDescription": "在書寫和移動游標時，讓游標所在行保持在編輯區中央。",
   "settings.editor.vimMode": "Vim 模式",

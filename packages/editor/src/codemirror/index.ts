@@ -144,6 +144,12 @@ export {
   markraHighlight,
 } from "./highlight.ts";
 export { horizontalRulePlugin } from "./horizontal-rule.ts";
+export {
+  clearCodeMirrorLocationCue,
+  codeMirrorLocationCue,
+  locationCueDurationMs,
+  showCodeMirrorLocationCue,
+} from "./location-cue.ts";
 export type {
   InsertionCommandId,
   InsertionLabels,
