@@ -1285,6 +1285,47 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(toolbar.compareDocumentPosition(root) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("keeps the create menu inside the viewport when its toolbar trigger is near the drawer edge", () => {
+    render(
+      <MarkdownFileTreeDrawer
+        currentPath={null}
+        files={[]}
+        folderOpen={false}
+        open
+        outlineItems={[]}
+        platform="windows"
+        rootName="No folder"
+        width={288}
+        onCreateFile={() => {}}
+        onOpenFile={() => {}}
+        onOpenFolder={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+    const sidebar = screen.getByRole("complementary", { name: "Markdown file tree" });
+    const createButton = screen.getByRole("button", { name: "New" });
+
+    vi.spyOn(createButton, "getBoundingClientRect").mockReturnValue({
+      bottom: 60,
+      height: 28,
+      left: 92,
+      right: 120,
+      top: 32,
+      width: 28,
+      x: 92,
+      y: 32,
+      toJSON: () => ({})
+    } as DOMRect);
+
+    fireEvent.click(createButton);
+
+    const createMenu = screen.getByRole("menu", { name: "New" });
+
+    expect(sidebar).not.toContainElement(createMenu);
+    expect(createMenu).toHaveClass("fixed");
+    expect(createMenu).toHaveStyle({ left: "8px" });
+  });
+
   it("keeps folder creation unavailable until a folder root is open", () => {
     const createFile = vi.fn();
     const createFolder = vi.fn();

@@ -2,9 +2,11 @@ import {
   useCallback,
   useDeferredValue,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type DragEvent as ReactDragEvent,
   type Dispatch,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -14,6 +16,7 @@ import {
   type SetStateAction,
   type UIEvent as ReactUIEvent
 } from "react";
+import { createPortal } from "react-dom";
 import {
   DndContext,
   DragOverlay,
@@ -58,13 +61,14 @@ import {
   writeMarkdownImageDragPayload,
   type AppLanguage
 } from "@markra/shared";
-import { IconButton, Tooltip } from "@markra/ui";
+import { IconButton, PopoverSurface, Tooltip } from "@markra/ui";
 import { markraHighlightRemarkPlugin, type MarkdownOutlineItem } from "@markra/markdown";
 import { DocumentLinksPanel } from "./DocumentLinksPanel";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
 import { normalizeMovedPath, sameNativePath } from "../lib/path-move";
 import { readNativeClipboardText, showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
+import { anchoredPopoverStyle } from "../lib/anchored-popover";
 import type { RecentMarkdownFolder, SidebarLayoutMode } from "../lib/settings/app-settings";
 import {
   workspaceBacklinksForPath,
@@ -516,6 +520,8 @@ export function MarkdownFileTreeDrawer({
   const fileTreeScrollNodeRef = useRef<HTMLDivElement | null>(null);
   const fileTreeSortMenuRef = useRef<HTMLDivElement | null>(null);
   const createMenuRef = useRef<HTMLDivElement | null>(null);
+  const createMenuAnchorRef = useRef<HTMLButtonElement | null>(null);
+  const createMenuSurfaceRef = useRef<HTMLDivElement | null>(null);
   const outlineLevelMenuRef = useRef<HTMLDivElement | null>(null);
   const imageAssetDragImageRef = useRef<HTMLDivElement | null>(null);
   const imageAssetDragTrackerRef = useRef<ImageAssetDragTracker | null>(null);
@@ -550,6 +556,7 @@ export function MarkdownFileTreeDrawer({
   const [outlineLevelMenuOpen, setOutlineLevelMenuOpen] = useState(false);
   const [outlineLevelFilter, setOutlineLevelFilter] = useState<OutlineLevelFilter>("all");
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [createMenuStyle, setCreateMenuStyle] = useState<CSSProperties | null>(null);
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
   const [renameFileName, setRenameFileName] = useState("");
   const renamingPathRef = useRef<string | null>(null);
@@ -788,6 +795,19 @@ export function MarkdownFileTreeDrawer({
     return null;
   }, [currentPath, normalizeTreeCreateParentPath, rootPath]);
   const activeCreateParentPath = selectedCreateParentPath ?? currentDocumentCreateParentPath;
+  const positionCreateMenu = useCallback((anchor: HTMLButtonElement) => {
+    setCreateMenuStyle(
+      anchoredPopoverStyle(anchor, createMenuSurfaceRef.current, {
+        align: "end",
+        fallbackSize: {
+          height: 96 + availableMarkdownTemplates.length * 28,
+          width: 176
+        },
+        gap: 4,
+        placement: "bottom"
+      })
+    );
+  }, [availableMarkdownTemplates.length]);
   const recentFolderChoices = useMemo(() => recentFolders.slice(0, 5), [recentFolders]);
   const duplicateRecentFolderNames = useMemo(
     () => duplicateRecentFolderNameKeys(recentFolderChoices),
@@ -994,6 +1014,7 @@ export function MarkdownFileTreeDrawer({
       const openMenuRoots = [
         fileTreeSortMenuOpen ? fileTreeSortMenuRef.current : null,
         createMenuOpen ? createMenuRef.current : null,
+        createMenuOpen ? createMenuSurfaceRef.current : null,
         outlineLevelMenuOpen ? outlineLevelMenuRef.current : null
       ];
 
@@ -1010,6 +1031,30 @@ export function MarkdownFileTreeDrawer({
       window.removeEventListener("pointerdown", handlePointerDown);
     };
   }, [createMenuOpen, fileTreeSortMenuOpen, outlineLevelMenuOpen]);
+
+  useLayoutEffect(() => {
+    if (!createMenuOpen) return;
+
+    const anchor = createMenuAnchorRef.current;
+    if (anchor) positionCreateMenu(anchor);
+  }, [createMenuOpen, positionCreateMenu]);
+
+  useEffect(() => {
+    if (!createMenuOpen) return;
+
+    const repositionCreateMenu = () => {
+      const anchor = createMenuAnchorRef.current;
+      if (anchor) positionCreateMenu(anchor);
+    };
+
+    window.addEventListener("resize", repositionCreateMenu);
+    window.addEventListener("scroll", repositionCreateMenu, true);
+
+    return () => {
+      window.removeEventListener("resize", repositionCreateMenu);
+      window.removeEventListener("scroll", repositionCreateMenu, true);
+    };
+  }, [createMenuOpen, positionCreateMenu]);
 
   useEffect(() => {
     const validKeys = new Set(collapsibleOutlineKeys);
@@ -2538,6 +2583,55 @@ export function MarkdownFileTreeDrawer({
     </button>
   );
 
+  const createMenu =
+    createMenuOpen && createMenuStyle && typeof document !== "undefined"
+      ? createPortal(
+          // Keep the menu outside the drawer's overflow boundary while preserving viewport-aware positioning.
+          <PopoverSurface
+            ref={createMenuSurfaceRef}
+            className="fixed z-40 min-w-44 rounded-md py-1 shadow-[0_12px_30px_color-mix(in_srgb,var(--text-heading)_14%,transparent)]"
+            style={createMenuStyle}
+            open
+            role="menu"
+            aria-label={label("app.newMarkdownItem")}
+          >
+            {fileCreationAvailable ? renderCreateMenuItem(
+              label("app.newMarkdownFile"),
+              <FileText size={13} />,
+              () => startCreatingFile(activeCreateParentPath)
+            ) : null}
+            {folderCreationAvailable ? renderCreateMenuItem(
+              label("app.newMarkdownFolder"),
+              <Folder size={13} />,
+              () => startCreatingFolder(activeCreateParentPath)
+            ) : null}
+            {fileCreationAvailable ? (
+              <>
+                <div className="my-1 h-px bg-(--border-default)" role="separator" />
+                <div className="px-2.5 pt-0.5 pb-1 text-[11px] leading-none font-[560] text-(--text-secondary)">
+                  {label("app.newMarkdownFileFromTemplate")}
+                </div>
+                {availableMarkdownTemplates.map((template, index) => (
+                  <button
+                    key={`${template.id}-${index}`}
+                    className="flex h-7 w-full items-center gap-2 border-0 bg-transparent px-2.5 text-left text-[12px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
+                    role="menuitem"
+                    type="button"
+                    onClick={() => startCreatingFile(activeCreateParentPath, template)}
+                  >
+                    <span className="flex w-3.5 justify-center" aria-hidden="true">
+                      <LayoutTemplate size={13} />
+                    </span>
+                    <span>{template.name}</span>
+                  </button>
+                ))}
+              </>
+            ) : null}
+          </PopoverSurface>,
+          document.body
+        )
+      : null;
+
   const renderFolderAccessArea = () => (
     recentFolderAreaVisible ? (
       <div className={`shrink-0 border-b border-(--border-default) ${fileTreeSurfaceClassName}`}>
@@ -2771,12 +2865,18 @@ export function MarkdownFileTreeDrawer({
               className={actionButtonClassName}
               label={label("app.newMarkdownItem")}
               pressed={createMenuOpen}
-              onClick={() => {
-                setCreateMenuOpen((open) => {
-                  const nextOpen = !open;
-                  if (nextOpen) setFileTreeSortMenuOpen(false);
-                  return nextOpen;
-                });
+              aria-expanded={createMenuOpen}
+              aria-haspopup="menu"
+              onClick={(event) => {
+                const nextOpen = !createMenuOpen;
+                createMenuAnchorRef.current = event.currentTarget;
+
+                if (nextOpen) {
+                  positionCreateMenu(event.currentTarget);
+                  setFileTreeSortMenuOpen(false);
+                }
+
+                setCreateMenuOpen(nextOpen);
               }}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
@@ -2787,46 +2887,6 @@ export function MarkdownFileTreeDrawer({
             >
               <Plus aria-hidden="true" size={14} />
             </IconButton>
-            {createMenuOpen ? (
-              <div
-                className="absolute top-8 right-0 z-40 min-w-44 rounded-md border border-(--border-default) bg-(--bg-primary) py-1 shadow-[0_12px_30px_color-mix(in_srgb,var(--text-heading)_14%,transparent)]"
-                role="menu"
-                aria-label={label("app.newMarkdownItem")}
-              >
-                {fileCreationAvailable ? renderCreateMenuItem(
-                  label("app.newMarkdownFile"),
-                  <FileText size={13} />,
-                  () => startCreatingFile(activeCreateParentPath)
-                ) : null}
-                {folderCreationAvailable ? renderCreateMenuItem(
-                  label("app.newMarkdownFolder"),
-                  <Folder size={13} />,
-                  () => startCreatingFolder(activeCreateParentPath)
-                ) : null}
-                {fileCreationAvailable ? (
-                  <>
-                    <div className="my-1 h-px bg-(--border-default)" role="separator" />
-                    <div className="px-2.5 pt-0.5 pb-1 text-[11px] leading-none font-[560] text-(--text-secondary)">
-                      {label("app.newMarkdownFileFromTemplate")}
-                    </div>
-                    {availableMarkdownTemplates.map((template, index) => (
-                      <button
-                        key={`${template.id}-${index}`}
-                        className="flex h-7 w-full items-center gap-2 border-0 bg-transparent px-2.5 text-left text-[12px] leading-none text-(--text-secondary) hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none"
-                        role="menuitem"
-                        type="button"
-                        onClick={() => startCreatingFile(activeCreateParentPath, template)}
-                      >
-                        <span className="flex w-3.5 justify-center" aria-hidden="true">
-                          <LayoutTemplate size={13} />
-                        </span>
-                        <span>{template.name}</span>
-                      </button>
-                    ))}
-                  </>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         ) : null}
       </div>
@@ -3196,6 +3256,7 @@ export function MarkdownFileTreeDrawer({
         ) : null}
         </div>
       </aside>
+      {createMenu}
     </>
   );
 }
