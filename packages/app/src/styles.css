@@ -1237,10 +1237,18 @@
     display: flex !important;
     align-items: center;
     gap: 6px;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(-2px);
+    transition: opacity 150ms ease-out, transform 150ms ease-out;
+  }
+
+  .markdown-paper .cm-line.cm-markra-code-header-line[data-code-block-hovered="true"]
+    .cm-markra-code-header-actions,
+  .markdown-paper .cm-markra-code-header-actions:focus-within {
     opacity: 1 !important;
     pointer-events: auto !important;
     transform: none;
-    transition: opacity 150ms ease-out, transform 150ms ease-out;
   }
 
   .markdown-paper .cm-markra-code-header-actions .markra-code-language-control {
@@ -1253,13 +1261,31 @@
   }
 
   .markdown-paper .cm-markra-code-header-actions .markra-code-language-select {
+    -webkit-appearance: none;
+    appearance: none;
     height: 24px !important;
     min-height: 24px !important;
     min-width: 160px !important;
     width: 160px !important;
-    padding: 0 10px !important;
+    padding: 0 28px !important;
     font-size: 13px !important;
     line-height: 1 !important;
+    text-align: center;
+    text-align-last: center;
+  }
+
+  .markdown-paper .cm-markra-code-header-actions .markra-code-language-control::after {
+    position: absolute;
+    top: 50%;
+    right: 10px;
+    width: 0;
+    height: 0;
+    border-top: 4px solid currentColor;
+    border-right: 4px solid transparent;
+    border-left: 4px solid transparent;
+    content: "";
+    pointer-events: none;
+    transform: translateY(-25%);
   }
 
   .markdown-paper .cm-markra-code-header-actions .markra-code-copy-button {
@@ -1763,7 +1789,7 @@
     --editor-code-bg: var(--bg-code);
     --editor-code-line-bg: color-mix(in srgb, var(--bg-secondary) 72%, var(--bg-code));
     --editor-code-text: var(--text-primary);
-    --editor-code-control-bg: color-mix(in srgb, var(--bg-primary) 94%, transparent);
+    --editor-code-control-bg: color-mix(in srgb, var(--editor-code-bg) 82%, var(--editor-paper-bg));
     --editor-link-color: var(--link-color);
     --editor-hl-keyword: oklch(43% 0.17 283);
     --editor-hl-string: oklch(42% 0.13 151);
@@ -4174,6 +4200,8 @@
 
   .markdown-paper .markra-code-language-select:focus {
     @apply border-(--border-focus) bg-(--bg-primary) text-(--text-primary);
+    background: var(--editor-code-control-bg);
+    color: var(--editor-text-primary);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--border-focus) 18%, transparent);
   }
 

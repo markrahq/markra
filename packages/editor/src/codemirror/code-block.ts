@@ -1075,6 +1075,69 @@ function fencedCodeAtPosition(state: EditorState, position: number) {
   return null;
 }
 
+function fencedCodeStartingAt(state: EditorState, from: number) {
+  const position = Math.min(state.doc.length, from + 1);
+  const node = fencedCodeAtPosition(state, position);
+  return node?.from === from ? node : null;
+}
+
+interface HoveredCodeBlockState {
+  readonly decorations: DecorationSet;
+  readonly from: number | null;
+}
+
+// Keep hover block-scoped in editor state: a container-level CSS hover would
+// reveal every code toolbar, while this line decoration leaves CM geometry alone.
+const setHoveredCodeBlockEffect = StateEffect.define<number | null>({
+  map(value, changes) {
+    return value === null ? null : changes.mapPos(value, 1);
+  },
+});
+
+function hoveredCodeBlockState(
+  state: EditorState,
+  from: number | null,
+): HoveredCodeBlockState {
+  if (from === null) {
+    return { decorations: Decoration.none, from: null };
+  }
+  const node = fencedCodeStartingAt(state, from);
+  if (!node) return { decorations: Decoration.none, from: null };
+  const firstLine = state.doc.lineAt(node.from);
+  return {
+    decorations: Decoration.set([
+      Decoration.line({
+        attributes: { "data-code-block-hovered": "true" },
+      }).range(firstLine.from),
+    ]),
+    from: node.from,
+  };
+}
+
+const hoveredCodeBlockField = StateField.define<HoveredCodeBlockState>({
+  create(state) {
+    return hoveredCodeBlockState(state, null);
+  },
+  update(previous, transaction) {
+    let from = transaction.docChanged && previous.from !== null
+      ? transaction.changes.mapPos(previous.from, 1)
+      : previous.from;
+    for (const effect of transaction.effects) {
+      if (effect.is(setHoveredCodeBlockEffect)) from = effect.value;
+    }
+    if (
+      !transaction.docChanged &&
+      !syntaxTreeChanged(transaction.startState, transaction.state) &&
+      from === previous.from
+    ) return previous;
+    return hoveredCodeBlockState(transaction.state, from);
+  },
+  provide: (field) => EditorView.decorations.from(
+    field,
+    (value) => value.decorations,
+  ),
+});
+
 function fencedCodeAt(view: CodeMirrorView) {
   return fencedCodeAtPosition(
     view.state,
@@ -1248,7 +1311,53 @@ const codeBlockKeymap = Prec.high(
   ]),
 );
 
+function codeBlockFromPointer(
+  event: MouseEvent,
+  view: CodeMirrorView,
+) {
+  const target = event.target instanceof Element ? event.target : null;
+  const rawFrom = target
+    ?.closest<HTMLElement>("[data-code-block-from]")
+    ?.dataset.codeBlockFrom;
+  const targetFrom = rawFrom === undefined ? null : Number(rawFrom);
+  if (
+    targetFrom !== null &&
+    Number.isInteger(targetFrom) &&
+    fencedCodeStartingAt(view.state, targetFrom)
+  ) {
+    return targetFrom;
+  }
+
+  try {
+    const position = view.posAtCoords({
+      x: event.clientX,
+      y: event.clientY,
+    });
+    return position === null
+      ? null
+      : fencedCodeAtPosition(view.state, position)?.from ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function syncHoveredCodeBlock(
+  view: CodeMirrorView,
+  from: number | null,
+) {
+  if (view.state.field(hoveredCodeBlockField).from === from) return;
+  view.dispatch({ effects: setHoveredCodeBlockEffect.of(from) });
+}
+
 const codeBlockPointerHandlers = EditorView.domEventHandlers({
+  mouseleave(_event, view) {
+    syncHoveredCodeBlock(view, null);
+    return false;
+  },
+  mousemove(event, view) {
+    syncHoveredCodeBlock(view, codeBlockFromPointer(event, view));
+    return false;
+  },
   mousedown(event, view) {
     if (event.button !== 0 || !(event.target instanceof Element)) return false;
     const closingLine = event.target.closest<HTMLElement>(
@@ -1348,6 +1457,7 @@ export function codeBlockPreviewPlugin(
       // pointer-to-caret offset.
       createMermaidPreviewField(labels, renderMermaid),
       createCodeBlockTopGapField(showLineNumbers),
+      hoveredCodeBlockField,
       markraRenderer({
         id: "markra.code-block-preview",
         nodeNames: ["FencedCode"],
@@ -1414,6 +1524,9 @@ export function codeBlockPreviewPlugin(
                   : "cm-markra-code-content-line";
             const codeContentLine = roleClass === "cm-markra-code-content-line";
             if (codeContentLine) codeLineNumber += 1;
+            const codeBlockIdentity = {
+              "data-code-block-from": String(node.from),
+            };
             const lineNumberVisibility = {
               "data-code-line-numbers": String(showLineNumbers),
             };
@@ -1421,6 +1534,7 @@ export function codeBlockPreviewPlugin(
               Decoration.line({
                 attributes: codeContentLine
                   ? {
+                      ...codeBlockIdentity,
                       ...lineNumberVisibility,
                       ...(showLineNumbers
                         ? { "data-code-line-number": String(codeLineNumber) }
@@ -1428,11 +1542,12 @@ export function codeBlockPreviewPlugin(
                     }
                   : roleClass === "cm-markra-code-closing-line"
                     ? {
+                        ...codeBlockIdentity,
                         ...lineNumberVisibility,
                         "data-code-block-active": String(revealed),
                         "data-code-block-end": String(node.to),
                       }
-                    : undefined,
+                    : codeBlockIdentity,
                 class: `cm-markra-code-line ${roleClass}`,
               }).range(line.from),
             );

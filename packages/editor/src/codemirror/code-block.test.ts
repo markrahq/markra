@@ -96,7 +96,52 @@ describe("codeBlockPreviewPlugin", () => {
         .querySelector(".cm-markra-code-closing-line")
         ?.getAttribute("data-code-block-active"),
     ).toBe("true");
+    expect(
+      view.dom
+        .querySelector(".cm-markra-code-header-line")
+        ?.getAttribute("data-code-block-active"),
+    ).toBeNull();
     expect(view.dom.querySelector(".markra-code-language-select")).not.toBeNull();
+  });
+
+  it("marks only the hovered code block for progressive control reveal", () => {
+    const source = [
+      "```sh",
+      "first_command",
+      "```",
+      "",
+      "Between blocks",
+      "",
+      "```python",
+      "second_value = 2",
+      "```",
+    ].join("\n");
+    const view = createView(source);
+    const headers = [
+      ...view.dom.querySelectorAll<HTMLElement>(
+        ".cm-markra-code-header-line",
+      ),
+    ];
+    const secondCodeLine = [
+      ...view.dom.querySelectorAll<HTMLElement>(
+        ".cm-markra-code-content-line",
+      ),
+    ].find((line) => line.textContent?.includes("second_value"));
+    const paragraphLine = [...view.dom.querySelectorAll<HTMLElement>(".cm-line")]
+      .find((line) => line.textContent === "Between blocks");
+
+    secondCodeLine?.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+
+    expect(headers).toHaveLength(2);
+    expect(headers[0]?.dataset.codeBlockHovered).toBeUndefined();
+    expect(headers[1]?.dataset.codeBlockHovered).toBe("true");
+
+    paragraphLine?.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+
+    expect(headers.every((header) =>
+      header.dataset.codeBlockHovered === undefined
+    )).toBe(true);
+    expect(view.state.doc.toString()).toBe(source);
   });
 
   it("uses measured top gaps for consecutive code blocks", () => {

@@ -283,7 +283,7 @@ describe("editor stylesheet", () => {
     );
   });
 
-  it("overlays code block controls without inserting a blank header line", () => {
+  it("progressively reveals themed code block controls without inserting a blank header line", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const headerLineStart = styles.indexOf(
       ".markdown-paper .cm-line.cm-markra-code-header-line {",
@@ -308,6 +308,13 @@ describe("editor stylesheet", () => {
       headerActionsStart,
       headerActionsEnd,
     );
+    const hoveredHeaderSelector =
+      '.markdown-paper .cm-line.cm-markra-code-header-line[data-code-block-hovered="true"]\n' +
+      "    .cm-markra-code-header-actions,";
+    const activeHeaderSelector =
+      '.markdown-paper .cm-line.cm-markra-code-header-line[data-code-block-active="true"]';
+    const focusedHeaderSelector =
+      ".markdown-paper .cm-markra-code-header-actions:focus-within {";
     const closingLineStart = styles.indexOf(
       ".markdown-paper .cm-line.cm-markra-code-closing-line {",
     );
@@ -328,6 +335,17 @@ describe("editor stylesheet", () => {
     const languageSelectRule = styles.slice(
       languageSelectStart,
       languageSelectEnd,
+    );
+    const languageSelectFocusStart = styles.indexOf(
+      ".markdown-paper .markra-code-language-select:focus {",
+    );
+    const languageSelectFocusEnd = styles.indexOf(
+      "\n  }",
+      languageSelectFocusStart,
+    );
+    const languageSelectFocusRule = styles.slice(
+      languageSelectFocusStart,
+      languageSelectFocusEnd,
     );
     const copyButtonStart = styles.indexOf(
       ".markdown-paper .cm-markra-code-header-actions .markra-code-copy-button {",
@@ -374,10 +392,13 @@ describe("editor stylesheet", () => {
     );
     expect(topGapRule).toContain("border-radius: 4px 4px 0 0");
     expect(topGapRule).toContain("background: var(--editor-code-bg)");
-    expect(headerActionsRule).toContain("opacity: 1 !important");
-    expect(headerActionsRule).toContain("pointer-events: auto !important");
-    expect(headerActionsRule).toContain("transform: none");
+    expect(headerActionsRule).toContain("opacity: 0 !important");
+    expect(headerActionsRule).toContain("pointer-events: none !important");
+    expect(headerActionsRule).toContain("transform: translateY(-2px)");
     expect(headerActionsRule).toContain("top: 0");
+    expect(styles).toContain(hoveredHeaderSelector);
+    expect(styles).not.toContain(activeHeaderSelector);
+    expect(styles).toContain(focusedHeaderSelector);
     expect(closingLineRule).toContain("position: relative");
     expect(closingLineRule).toContain("height: 12px");
     expect(closingLineRule).toContain("min-height: 12px");
@@ -389,6 +410,16 @@ describe("editor stylesheet", () => {
     expect(languageSelectRule).toContain("width: 160px !important");
     expect(languageSelectRule).toContain("height: 24px !important");
     expect(languageSelectRule).toContain("min-height: 24px !important");
+    expect(languageSelectRule).toContain("appearance: none");
+    expect(languageSelectRule).toContain("-webkit-appearance: none");
+    expect(languageSelectRule).toContain("text-align: center");
+    expect(languageSelectRule).toContain("text-align-last: center");
+    expect(languageSelectFocusRule).toContain(
+      "background: var(--editor-code-control-bg)",
+    );
+    expect(languageSelectFocusRule).toContain(
+      "color: var(--editor-text-primary)",
+    );
     expect(copyButtonRule).toContain("width: 24px !important");
     expect(copyButtonRule).toContain("height: 24px !important");
     expect(firstContentLineStart).toBeGreaterThanOrEqual(0);
@@ -404,6 +435,9 @@ describe("editor stylesheet", () => {
     expect(closingLineRule).toContain("border-radius: 0 0 4px 4px");
     expect(closingLineRule).toContain(
       "background: var(--editor-code-bg) !important",
+    );
+    expect(styles).toContain(
+      "--editor-code-control-bg: color-mix(in srgb, var(--editor-code-bg)",
     );
     expect(styles).not.toContain(
       ".markdown-paper .cm-line.cm-markra-code-content-line:has(+ .cm-markra-code-closing-line) {\n" +
