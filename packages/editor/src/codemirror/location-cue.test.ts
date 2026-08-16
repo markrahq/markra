@@ -87,6 +87,13 @@ describe("CodeMirror location cue", () => {
     expect(cueLines(view)).toHaveLength(0);
   });
 
+  it("ignores non-finite requested positions", () => {
+    const view = createView();
+
+    expect(() => showCodeMirrorLocationCue(view, Number.NaN)).not.toThrow();
+    expect(cueLines(view)).toHaveLength(0);
+  });
+
   it("clears the cue when the user moves the selection or edits the document", () => {
     const view = createView();
 

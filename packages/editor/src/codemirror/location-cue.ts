@@ -147,6 +147,8 @@ export function codeMirrorLocationCue(): Extension {
 }
 
 export function showCodeMirrorLocationCue(view: EditorView, position: number) {
+  if (!Number.isFinite(position)) return;
+
   view.dispatch({
     effects: showLocationCueEffect.of({
       position,

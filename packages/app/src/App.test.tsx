@@ -6851,6 +6851,62 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".cm-markra-location-cue")).not.toBeInTheDocument();
   });
 
+  it("discards a pending mode-switch highlight after changing document tabs", async () => {
+    const guidePath = "/mock-files/vault/guide.md";
+    const notesPath = "/mock-files/vault/notes.md";
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "session-mode-switch-tabs",
+      filePath: notesPath,
+      fileTreeOpen: false,
+      folderName: null,
+      folderPath: null,
+      openFilePaths: [guidePath, notesPath]
+    });
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => path === guidePath
+      ? { content: "# Guide", name: "guide.md", path }
+      : { content: "# Notes", name: "notes.md", path });
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Notes");
+
+    let nextFrameId = 1;
+    const pendingFrames = new Map<number, FrameRequestCallback>();
+    const requestAnimationFrameSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      const frameId = nextFrameId++;
+      pendingFrames.set(frameId, callback);
+      return frameId;
+    });
+    const cancelAnimationFrameSpy = vi.spyOn(window, "cancelAnimationFrame").mockImplementation((frameId) => {
+      pendingFrames.delete(frameId);
+    });
+    const flushFrames = () => {
+      for (let pass = 0; pass < 10 && pendingFrames.size > 0; pass += 1) {
+        const callbacks = [...pendingFrames.values()];
+        pendingFrames.clear();
+        callbacks.forEach((callback) => callback(0));
+      }
+    };
+
+    try {
+      await selectEditorViewMode("Source code");
+      fireEvent.click(screen.getByRole("tab", { name: /guide\.md/ }));
+      await waitFor(() => expect(readMarkdownSource(
+        screen.getByRole("textbox", { name: "Markdown source" })
+      )).toContain("# Guide"));
+
+      fireEvent.click(screen.getByRole("tab", { name: /notes\.md/ }));
+      await waitFor(() => expect(readMarkdownSource(
+        screen.getByRole("textbox", { name: "Markdown source" })
+      )).toContain("# Notes"));
+      act(flushFrames);
+
+      expect(container.querySelector(".cm-markra-location-cue")).not.toBeInTheDocument();
+    } finally {
+      requestAnimationFrameSpy.mockRestore();
+      cancelAnimationFrameSpy.mockRestore();
+    }
+  });
+
   it("toggles and persists typewriter mode from the keyboard shortcut", async () => {
     const { container } = renderApp();
 

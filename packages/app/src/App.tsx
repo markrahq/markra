@@ -1364,7 +1364,10 @@ function WorkspaceApp() {
     selection: EditorSelectionSnapshot | undefined,
     showLocationCue = false
   ) => {
-    if (!activeTabId || !selection) return;
+    if (!activeTabId || !selection) {
+      pendingEditorModeSelectionRef.current = null;
+      return;
+    }
 
     pendingEditorModeSelectionRef.current = {
       selection,
@@ -1373,6 +1376,16 @@ function WorkspaceApp() {
       targetSurface
     };
   }, [activeTabId]);
+  useEffect(() => {
+    const pendingSelection = pendingEditorModeSelectionRef.current;
+    if (!pendingSelection) return;
+
+    // A mode-switch restore belongs to the document that queued it. Keeping it
+    // after leaving that context can replay an old selection and cue on return.
+    if (activeImageFile || pendingSelection.tabId !== activeTabId) {
+      pendingEditorModeSelectionRef.current = null;
+    }
+  }, [activeImageFile, activeTabId]);
   const queueEditorModeScroll = useCallback((targetSurface: EditorSurface) => {
     if (!activeTabId) return;
 
