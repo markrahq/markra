@@ -1411,13 +1411,16 @@
   .markdown-paper .cm-markra-table-wrap {
     display: block !important;
     margin: 0 !important;
-    padding: 20px 36px 12px 0 !important;
+    padding: 28px 36px 12px 0 !important;
     overflow: visible !important;
     font-size: 16px !important;
     line-height: 26.4px !important;
   }
 
   .markdown-paper .cm-line:has(> .cm-markra-table-wrap) {
+    /* The source line has zero height, so center block tools inside the
+       reserved 24px table-control row instead of the preceding block. */
+    --markra-block-toolbar-block-offset: 12px;
     font-size: 0 !important;
     line-height: 0 !important;
   }
@@ -1464,8 +1467,8 @@
 
   .markdown-paper[data-editor-theme="github"] .cm-markra-table-wrap,
   .markdown-paper[data-editor-theme="github-dark"] .cm-markra-table-wrap {
-    margin: 16px 0 !important;
-    padding: 0 !important;
+    margin: 0 0 16px !important;
+    padding: 28px 0 0 !important;
   }
 
   .markdown-paper[data-editor-theme="github"] .cm-markra-table th,
@@ -1551,7 +1554,7 @@
     /* Keep block tools anchored to the shared line gutter. List and callout
        padding must move content without pulling controls into the block. */
     position: absolute !important;
-    inset-inline-start: -54px;
+    inset-inline-start: var(--markra-block-toolbar-inline-start, -54px);
     top: calc(0.5lh + var(--markra-block-toolbar-block-offset, 0px));
     z-index: 5;
     display: inline-flex !important;
@@ -2517,13 +2520,16 @@
   }
 
   .markdown-paper .markra-list-toggle-item {
+    /* Reserve the toolbar, its 12px hover bridge, and a 4px gap before the
+       fold button so invisible hit areas cannot cover either control. */
+    --markra-block-toolbar-inline-start: -94px;
     position: relative;
   }
 
   .markdown-paper .markra-list-toggle-button {
     @apply absolute inline-flex size-4 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0 outline-none transition-[opacity,color,background-color] duration-150 ease-out focus-visible:bg-(--bg-hover) focus-visible:outline-none;
     color: color-mix(in srgb, var(--editor-text-secondary) 62%, transparent);
-    left: -2.2em;
+    inset-inline-start: -36px;
     display: inline-flex !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -3238,7 +3244,8 @@
 
   .markdown-paper .markra-table-align-controls {
     @apply absolute left-1.5 z-10 flex items-center gap-0.5;
-    top: -12px !important;
+    height: 24px;
+    top: 0 !important;
   }
 
   .markdown-paper .markra-table-size-controls {

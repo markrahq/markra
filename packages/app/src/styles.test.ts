@@ -498,7 +498,7 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .cm-markra-code-header-actions");
     expect(styles).toContain("opacity: 0 !important");
     expect(styles).toContain(".markdown-paper .cm-markra-table-wrap");
-    expect(styles).toContain("padding: 20px 36px 12px 0 !important");
+    expect(styles).toContain("padding: 28px 36px 12px 0 !important");
     expect(styles).toContain(
       ".markdown-paper .cm-line:has(> .cm-markra-table-wrap)",
     );
@@ -587,7 +587,9 @@ describe("editor stylesheet", () => {
     expect(blockLineRule).toContain("position: relative");
     expect(toolbarRuleStart).toBeGreaterThanOrEqual(0);
     expect(toolbarRule).toContain("position: absolute !important");
-    expect(toolbarRule).toContain("inset-inline-start: -54px");
+    expect(toolbarRule).toContain(
+      "inset-inline-start: var(--markra-block-toolbar-inline-start, -54px)",
+    );
     expect(toolbarRule).toContain(
       "top: calc(0.5lh + var(--markra-block-toolbar-block-offset, 0px))",
     );
@@ -603,6 +605,28 @@ describe("editor stylesheet", () => {
     expect(revealRuleStart).toBeGreaterThanOrEqual(0);
     expect(revealRule).toContain("opacity: 0.58 !important");
     expect(revealRule).toContain("pointer-events: auto");
+  });
+
+  it("keeps foldable list controls in separate gutter slots", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const listItemRuleStart = styles.indexOf(
+      ".markdown-paper .markra-list-toggle-item {",
+    );
+    const listItemRuleEnd = styles.indexOf("\n  }", listItemRuleStart);
+    const listItemRule = styles.slice(listItemRuleStart, listItemRuleEnd);
+    const listButtonRuleStart = styles.indexOf(
+      ".markdown-paper .markra-list-toggle-button {",
+    );
+    const listButtonRuleEnd = styles.indexOf("\n  }", listButtonRuleStart);
+    const listButtonRule = styles.slice(listButtonRuleStart, listButtonRuleEnd);
+
+    expect(listItemRuleStart).toBeGreaterThanOrEqual(0);
+    expect(listItemRule).toContain(
+      "--markra-block-toolbar-inline-start: -94px",
+    );
+    expect(listButtonRuleStart).toBeGreaterThanOrEqual(0);
+    expect(listButtonRule).toContain("inset-inline-start: -36px");
+    expect(listButtonRule).not.toContain("left:");
   });
 
   it("keeps terminal heading tools centered and in separate horizontal slots", () => {
@@ -831,7 +855,7 @@ describe("editor stylesheet", () => {
     const buttonStyles = styles.slice(buttonStart, buttonEnd);
 
     expect(styles).toContain(".markdown-paper .markra-list-toggle-item");
-    expect(buttonStyles).toContain("left: -2.2em");
+    expect(buttonStyles).toContain("inset-inline-start: -36px");
     expect(buttonStyles).toContain("top: calc((1lh - 1rem) / 2);");
     expect(styles).toContain(".markdown-paper .markra-list-toggle-item:hover > .markra-list-toggle-button");
     expect(styles).toContain(".markdown-paper .markra-list-collapsed-content");
@@ -892,6 +916,21 @@ describe("editor stylesheet", () => {
 
   it("keeps table add controls hidden until table hover or focus", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const tableLineStart = styles.indexOf(
+      ".markdown-paper .cm-line:has(> .cm-markra-table-wrap) {",
+    );
+    const tableLineEnd = styles.indexOf("\n  }", tableLineStart);
+    const tableLineStyles = styles.slice(tableLineStart, tableLineEnd);
+    const tableAlignStart = styles.indexOf(
+      ".markdown-paper .markra-table-align-controls {",
+    );
+    const tableAlignEnd = styles.indexOf("\n  }", tableAlignStart);
+    const tableAlignStyles = styles.slice(tableAlignStart, tableAlignEnd);
+    const githubTableStart = styles.indexOf(
+      '.markdown-paper[data-editor-theme="github"] .cm-markra-table-wrap,',
+    );
+    const githubTableEnd = styles.indexOf("\n  }", githubTableStart);
+    const githubTableStyles = styles.slice(githubTableStart, githubTableEnd);
     const tableControlStart = styles.indexOf(".markdown-paper .markra-table-control {");
     const tableControlEnd = styles.indexOf(".markdown-paper .markra-table-add-column");
     const tableControlStyles = styles.slice(tableControlStart, tableControlEnd);
@@ -905,6 +944,18 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .markra-table-add-column");
     expect(styles).toContain(".markdown-paper .markra-table-add-row");
     expect(styles).toContain(".markdown-paper .markra-table-align-controls");
+    expect(tableLineStyles).toContain(
+      "--markra-block-toolbar-block-offset: 12px",
+    );
+    expect(tableAlignStyles).toContain("top: 0 !important");
+    expect(tableAlignStyles).toContain("height: 24px");
+    expect(tableAlignStyles).not.toContain("top: -12px");
+    expect(githubTableStyles).toContain(
+      "padding: 28px 0 0 !important",
+    );
+    expect(githubTableStyles).toContain(
+      "margin: 0 0 16px !important",
+    );
     expect(styles).toContain(".markdown-paper .markra-table-size-controls");
     expect(styles).toContain(".markdown-paper .markra-table-size-button[aria-expanded=\"true\"]");
     expect(styles).toContain(".markdown-paper .markra-table-width-button");
