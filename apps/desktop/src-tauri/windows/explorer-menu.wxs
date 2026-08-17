@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <DirectoryRef Id="INSTALLDIR">
+      <Component
+        Id="MarkraExplorerMenu"
+        Guid="{EE048FC5-8263-4AE0-BE5B-1F4E4F930D13}"
+        Win64="$(var.Win64)"
+      >
+        <!-- Markdown associations already provide their own Open with Markra verb. -->
+        <RegistryValue Root="HKLM" Key="Software\Classes\SystemFileAssociations\.txt\shell\Markra.open" Type="string" Value="Open with Markra" KeyPath="yes" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\SystemFileAssociations\.txt\shell\Markra.open" Name="Icon" Type="string" Value="&quot;[#Path]&quot;,0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\SystemFileAssociations\.txt\shell\Markra.open\command" Type="string" Value="&quot;[#Path]&quot; &quot;%1&quot;" />
+
+        <RegistryValue Root="HKLM" Key="Software\Classes\Directory\shell\Markra.open" Type="string" Value="Open with Markra" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Directory\shell\Markra.open" Name="Icon" Type="string" Value="&quot;[#Path]&quot;,0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Directory\shell\Markra.open\command" Type="string" Value="&quot;[#Path]&quot; &quot;%1&quot;" />
+
+        <RegistryValue Root="HKLM" Key="Software\Classes\Directory\Background\shell\Markra.open" Type="string" Value="Open with Markra" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Directory\Background\shell\Markra.open" Name="Icon" Type="string" Value="&quot;[#Path]&quot;,0" />
+        <RegistryValue Root="HKLM" Key="Software\Classes\Directory\Background\shell\Markra.open\command" Type="string" Value="&quot;[#Path]&quot; &quot;%V&quot;" />
+
+        <RemoveRegistryKey Id="RemoveTextMenu" Root="HKLM" Key="Software\Classes\SystemFileAssociations\.txt\shell\Markra.open" Action="uninstall" />
+        <RemoveRegistryKey Id="RemoveDirectoryMenu" Root="HKLM" Key="Software\Classes\Directory\shell\Markra.open" Action="uninstall" />
+        <RemoveRegistryKey Id="RemoveBackgroundMenu" Root="HKLM" Key="Software\Classes\Directory\Background\shell\Markra.open" Action="uninstall" />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

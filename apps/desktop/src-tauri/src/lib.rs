@@ -417,6 +417,75 @@ mod tests {
     }
 
     #[test]
+    fn windows_installers_register_explorer_context_menus() {
+        let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json"))
+            .expect("Tauri config should be valid JSON");
+
+        assert_eq!(
+            config
+                .pointer("/bundle/windows/nsis/installerHooks")
+                .and_then(serde_json::Value::as_str),
+            Some("./windows/explorer-menu.nsh")
+        );
+        assert!(
+            config
+                .pointer("/bundle/windows/wix/fragmentPaths")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|paths| {
+                    paths
+                        .iter()
+                        .any(|path| path.as_str() == Some("./windows/explorer-menu.wxs"))
+                }),
+            "WiX should include the Explorer menu registry fragment"
+        );
+        assert!(
+            config
+                .pointer("/bundle/windows/wix/componentRefs")
+                .and_then(serde_json::Value::as_array)
+                .is_some_and(|components| {
+                    components
+                        .iter()
+                        .any(|component| component.as_str() == Some("MarkraExplorerMenu"))
+                }),
+            "WiX should install the Explorer menu registry component"
+        );
+
+        let windows_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("windows");
+        let nsis_hooks = std::fs::read_to_string(windows_dir.join("explorer-menu.nsh"))
+            .expect("NSIS Explorer menu hooks should exist");
+        assert!(nsis_hooks.contains("NSIS_HOOK_POSTINSTALL"));
+        assert!(nsis_hooks.contains("NSIS_HOOK_PREUNINSTALL"));
+        assert!(nsis_hooks.contains(r"Software\Classes\${OBJECT}\shell\Markra.open"));
+        assert!(nsis_hooks.contains(r#""SystemFileAssociations\.txt""#));
+        assert!(nsis_hooks.contains(r#""Directory""#));
+        assert!(nsis_hooks.contains(r#""Directory\Background""#));
+        assert!(nsis_hooks.contains(r#"$\"${ARGUMENT}$\""#));
+        assert!(nsis_hooks.contains(r#""%1""#));
+        assert!(nsis_hooks.contains(r#""%V""#));
+        assert!(nsis_hooks.contains("ReadRegStr"));
+        assert!(nsis_hooks.contains("DeleteRegKey"));
+
+        let wix_fragment = std::fs::read_to_string(windows_dir.join("explorer-menu.wxs"))
+            .expect("WiX Explorer menu fragment should exist");
+        assert!(wix_fragment.contains("MarkraExplorerMenu"));
+        assert!(wix_fragment.contains(r"SystemFileAssociations\.txt\shell\Markra.open"));
+        assert!(wix_fragment.contains(r"Directory\shell\Markra.open"));
+        assert!(wix_fragment.contains(r"Directory\Background\shell\Markra.open"));
+        assert!(wix_fragment.contains("&quot;%1&quot;"));
+        assert!(wix_fragment.contains("&quot;%V&quot;"));
+        assert_eq!(wix_fragment.matches("<RemoveRegistryKey").count(), 3);
+
+        let mut reader = quick_xml::Reader::from_str(&wix_fragment);
+        loop {
+            match reader.read_event() {
+                Ok(quick_xml::events::Event::Eof) => break,
+                Ok(_) => {}
+                Err(error) => panic!("WiX Explorer menu fragment should be valid XML: {error}"),
+            }
+        }
+    }
+
+    #[test]
     fn desktop_registers_window_state_restore_plugin() {
         let manifest = include_str!("../Cargo.toml");
         assert!(

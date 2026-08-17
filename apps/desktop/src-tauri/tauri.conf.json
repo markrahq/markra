@@ -58,6 +58,19 @@
         "role": "Editor"
       }
     ],
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/explorer-menu.nsh"
+      },
+      "wix": {
+        "fragmentPaths": [
+          "./windows/explorer-menu.wxs"
+        ],
+        "componentRefs": [
+          "MarkraExplorerMenu"
+        ]
+      }
+    },
     "macOS": {
       "files": {
         "Resources/Assets.car": "icons/generated/Assets.car",
