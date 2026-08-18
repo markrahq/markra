@@ -500,7 +500,7 @@ describe("liveMarkdown", () => {
 
     expect(renderedLines(view)).toEqual(before);
     expect(view.dom.querySelectorAll(".cm-markra-empty-line")).toHaveLength(1);
-    expect(paragraphEndStates(view)).toEqual([false, false]);
+    expect(paragraphEndStates(view)).toEqual([true, false]);
   });
 
   it("keeps all empty lines stable across recreation", () => {
@@ -524,21 +524,21 @@ describe("liveMarkdown", () => {
   it("allows the cursor to remain on an internal blank line", () => {
     const doc = "Before\n\nAfter";
     const view = createView({ doc, anchor: doc.length });
-    expect(paragraphEndStates(view)).toEqual([false, false]);
+    expect(paragraphEndStates(view)).toEqual([true, false]);
 
     view.dispatch({ selection: EditorSelection.cursor("Before\n".length) });
 
     expect(view.state.doc.toString()).toBe(doc);
     expect(view.state.selection.main.head).toBe("Before\n".length);
     expect(view.dom.querySelectorAll(".cm-markra-empty-line")).toHaveLength(1);
-    expect(paragraphEndStates(view)).toEqual([false, false]);
+    expect(paragraphEndStates(view)).toEqual([true, false]);
   });
 
-  it("keeps paragraph spacing separate from authored blank lines", () => {
+  it("adds paragraph spacing without resizing authored blank lines", () => {
     const view = createView({ doc: "First\nSecond\n\n\nAfter" });
 
     expect(view.dom.querySelectorAll(".cm-markra-empty-line")).toHaveLength(2);
-    expect(paragraphEndStates(view)).toEqual([false, false, false]);
+    expect(paragraphEndStates(view)).toEqual([false, true, false]);
   });
 
   it("adds paragraph spacing when another block starts directly", () => {
@@ -569,7 +569,7 @@ describe("liveMarkdown", () => {
     const position = "Before\n".length;
     const view = createView({ doc, anchor: position });
 
-    expect(paragraphEndStates(view)).toEqual([false, false]);
+    expect(paragraphEndStates(view)).toEqual([true, false]);
 
     view.dispatch({
       changes: { from: position, insert: "Middle" },

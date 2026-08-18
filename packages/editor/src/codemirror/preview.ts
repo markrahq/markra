@@ -397,13 +397,16 @@ function buildDecorations(
           listDepth(node.node as MarkraSyntaxNode) === 0
         ) {
           const endLine = state.doc.lineAt(node.to - 1).number;
-          const nextLine = endLine + 1;
-          // A source blank already owns a stable block-gap widget. Paragraph
-          // padding is only needed for directly adjacent Markdown blocks.
-          if (
-            nextLine <= state.doc.lines &&
-            state.doc.line(nextLine).text.trim().length > 0
+          let nextContentLine = endLine + 1;
+          while (
+            nextContentLine <= state.doc.lines &&
+            state.doc.line(nextContentLine).text.trim().length === 0
           ) {
+            nextContentLine += 1;
+          }
+          // Authored blank lines stay full-height and editable. Add semantic
+          // paragraph rhythm to the content line only when another block follows.
+          if (nextContentLine <= state.doc.lines) {
             paragraphEndLine = endLine;
           }
         }
