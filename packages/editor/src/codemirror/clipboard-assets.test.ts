@@ -50,6 +50,7 @@ function paste(
     editorData?: string;
     files?: readonly File[];
     html?: string;
+    plainTextPaste?: boolean;
     text?: string;
   },
 ) {
@@ -58,11 +59,17 @@ function paste(
     value: {
       files: fileList(options.files ?? []),
       getData: (type: string) => {
+        if (type === "application/x-markra-plain-text-paste") {
+          return options.plainTextPaste ? "true" : "";
+        }
         if (type === "text/html") return options.html ?? "";
         if (type === "text/plain") return options.text ?? "";
         if (type === "vscode-editor-data") return options.editorData ?? "";
         return "";
       },
+      types: options.plainTextPaste
+        ? ["application/x-markra-plain-text-paste", "text/plain"]
+        : [],
     },
   });
   view.contentDOM.dispatchEvent(event);
@@ -194,6 +201,26 @@ describe("codeMirrorClipboardAssetsPlugin", () => {
     await vi.waitFor(() => expect(view.state.doc.toString()).toContain("![Kitten](assets/kitten.png)"));
     expect(view.state.doc.toString()).toContain("Intro");
     expect(view.state.doc.toString()).toContain("Outro");
+  });
+
+  it("leaves explicitly plain text paste data unformatted", () => {
+    const code = [
+      "const mockValue = items[0];",
+      "if (mockValue) {",
+      "  console.log(mockValue);",
+      "}",
+    ].join("\n");
+    const view = createView("");
+
+    const event = paste(view, {
+      editorData: JSON.stringify({ mode: "javascript", version: 1 }),
+      html: `<pre><code>${code}</code></pre>`,
+      plainTextPaste: true,
+      text: code,
+    });
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe(code);
   });
 
   it("prefers structured rich HTML over Markdown-looking fallback text", () => {

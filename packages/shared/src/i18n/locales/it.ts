@@ -934,6 +934,7 @@ const messages: LocaleMessages = {
   "menu.cut": "Taglia",
   "menu.copy": "Copia",
   "menu.paste": "Incolla",
+  "menu.pastePlainText": "Incolla come testo normale",
   "menu.selectAll": "Seleziona tutto",
   "menu.closeWindow": "Chiudi finestra",
   "menu.maximizeWindow": "Ingrandisci/ripristina finestra",

@@ -9,6 +9,7 @@ import {
 import { EditorSelection, Transaction } from "@codemirror/state";
 import { EditorView, runScopeHandlers } from "@codemirror/view";
 import { markraEditorReactBridge } from "@markra/editor-react";
+import { defaultMarkdownShortcuts } from "@markra/editor";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -54,6 +55,41 @@ describe("CodeMirrorPaperSurface", () => {
 
     unmount();
     expect(onEditorReady).toHaveBeenLastCalledWith(null, view);
+  });
+
+  it("uses the configured shortcut to paste clipboard text without formatting", async () => {
+    const code = [
+      "const mockValue = items[0];",
+      "if (mockValue) {",
+      "  console.log(mockValue);",
+      "}",
+    ].join("\n");
+    const onEditorReady = vi.fn();
+    const readClipboardText = vi.fn().mockResolvedValue(code);
+    render(
+      <CodeMirrorPaperSurface
+        initialContent=""
+        markdownShortcuts={{
+          ...defaultMarkdownShortcuts,
+          pastePlainText: "Mod+Alt+G",
+        }}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        readClipboardText={readClipboardText}
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    const handled = fireEvent.keyDown(view.contentDOM, {
+      altKey: true,
+      code: "KeyG",
+      ctrlKey: true,
+      key: "g",
+    });
+
+    expect(handled).toBe(false);
+    await waitFor(() => expect(view.state.doc.toString()).toBe(code));
+    expect(readClipboardText).toHaveBeenCalledTimes(1);
   });
 
   it("reconfigures read-only state without recreating the editor view", () => {

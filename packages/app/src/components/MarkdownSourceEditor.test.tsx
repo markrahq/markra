@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { redo, undo } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
+import { defaultMarkdownShortcuts } from "@markra/editor";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 
 function getMarkdownSourceView(container: HTMLElement) {
@@ -43,6 +44,39 @@ function readVimMode(view: EditorView) {
 }
 
 describe("MarkdownSourceEditor", () => {
+  it("uses the configured shortcut to paste clipboard text", async () => {
+    const onChange = vi.fn();
+    const readClipboardText = vi.fn().mockResolvedValue("**raw markdown**");
+    const { container } = render(
+      <MarkdownSourceEditor
+        content="Before "
+        markdownShortcuts={{
+          ...defaultMarkdownShortcuts,
+          pastePlainText: "Mod+Alt+G"
+        }}
+        onChange={onChange}
+        readClipboardText={readClipboardText}
+      />
+    );
+    const view = getMarkdownSourceView(container);
+    act(() => {
+      view.dispatch({ selection: { anchor: view.state.doc.length } });
+    });
+
+    const handled = fireEvent.keyDown(view.contentDOM, {
+      altKey: true,
+      code: "KeyG",
+      ctrlKey: true,
+      key: "g"
+    });
+
+    expect(handled).toBe(false);
+    await waitFor(() => {
+      expect(view.state.doc.toString()).toBe("Before **raw markdown**");
+    });
+    expect(readClipboardText).toHaveBeenCalledTimes(1);
+  });
+
   it("renders editable markdown with lightweight CodeMirror source highlighting", async () => {
     const content = [
       "# Title",

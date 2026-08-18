@@ -934,6 +934,7 @@ const messages: LocaleMessages = {
   "menu.cut": "剪切",
   "menu.copy": "复制",
   "menu.paste": "粘贴",
+  "menu.pastePlainText": "粘贴为纯文本",
   "menu.selectAll": "全选",
   "menu.closeWindow": "关闭窗口",
   "menu.maximizeWindow": "最大化/还原窗口",

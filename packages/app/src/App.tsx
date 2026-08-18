@@ -4866,6 +4866,7 @@ function WorkspaceApp() {
                           initialSelection={activeSourceInitialSelection}
                           language={appLanguage.language}
                           lineHeight={editorPreferences.preferences.lineHeight}
+                          markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
                           onChange={(content) => handleSourceMarkdownTabChange(
                             activeTabId ?? "untitled:0",
                             content,
@@ -4906,6 +4907,7 @@ function WorkspaceApp() {
                           initialSelection={activeSourceInitialSelection}
                           language={appLanguage.language}
                           lineHeight={editorPreferences.preferences.lineHeight}
+                          markdownShortcuts={editorPreferences.preferences.markdownShortcuts}
                           onChange={(content) => handleSourceMarkdownTabChange(
                             activeTabId ?? "untitled:0",
                             content,

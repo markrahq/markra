@@ -14,6 +14,7 @@ export const keyboardShortcutActions = [
   "toggleReadOnlyMode",
   "toggleTypewriterMode",
   "toggleVimMode",
+  "pastePlainText",
   "bold",
   "italic",
   "strikethrough",
@@ -65,6 +66,7 @@ export const defaultKeyboardShortcuts: KeyboardShortcutBindings = {
   italic: "Mod+I",
   link: "Mod+K",
   orderedList: "Mod+Shift+7",
+  pastePlainText: "Mod+Shift+V",
   paragraph: "Mod+Alt+0",
   openQuickOpen: "Mod+P",
   quote: "Mod+Shift+B",
@@ -125,7 +127,6 @@ const reservedKeyboardShortcutChords = new Set([
   "Mod+Shift+F",
   "Mod+Shift+O",
   "Mod+Shift+S",
-  "Mod+Shift+V",
   "Mod+Shift+Z"
 ]);
 

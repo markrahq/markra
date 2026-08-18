@@ -70,6 +70,23 @@ function clipboardContentPasteItem(
   );
 }
 
+function plainTextPasteItem(
+  target: Element,
+  text: string,
+  shortcuts = { pastePlainText: "Mod+Alt+G" }
+) {
+  return menuItemById(
+    createEditorContextMenuEntriesFromOptions(
+      {},
+      "en",
+      { markdownShortcuts: shortcuts, readClipboardText: () => text },
+      {},
+      target
+    ),
+    "markra:context:paste-plain-text"
+  );
+}
+
 describe("editor context menu entries", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -144,6 +161,27 @@ describe("editor context menu entries", () => {
       "",
       "See [mock docs](https://example.test/mock-docs)."
     ].join("\n"));
+  });
+
+  it("pastes plain text without rich text or code conversion", async () => {
+    const code = [
+      "const mockValue = items[0];",
+      "if (mockValue) {",
+      "  console.log(mockValue);",
+      "}"
+    ].join("\n");
+    const editor = createEditor(
+      "",
+      EditorSelection.cursor(0),
+      [liveMarkdown({ plugins: [codeMirrorClipboardAssetsPlugin()] })]
+    );
+    const paste = plainTextPasteItem(editor.paper, code);
+
+    expect(paste.label).toBe("Paste as Plain Text");
+    expect(paste.accelerator).toBe("CmdOrCtrl+Alt+G");
+    await Promise.resolve(paste.onSelect?.());
+
+    expect(editor.view.state.doc.toString()).toBe(code);
   });
 
   it("does not change a read-only editor", async () => {

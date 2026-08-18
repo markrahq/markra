@@ -945,6 +945,7 @@ export type I18nKey =
   | "menu.cut"
   | "menu.copy"
   | "menu.paste"
+  | "menu.pastePlainText"
   | "menu.selectAll"
   | "menu.closeWindow"
   | "menu.maximizeWindow"

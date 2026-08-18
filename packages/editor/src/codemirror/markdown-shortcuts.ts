@@ -16,7 +16,9 @@ import { toggleAllCodeMirrorFolds } from "./folding.ts";
 import { defineMarkraPlugin, runMarkraCommand } from "./plugin.ts";
 
 export interface MarkdownShortcutsPluginOptions {
+  actions?: readonly KeyboardShortcutAction[];
   openSpellcheckSuggestions?: (view: EditorView) => boolean;
+  pastePlainText?: (view: EditorView) => boolean;
   shortcuts?: KeyboardShortcutMap;
   toggleAllFolds?: (view: EditorView) => boolean;
 }
@@ -49,6 +51,8 @@ function runShortcutAction(
       return insertCodeMirrorMarkdownImage(view);
     case "link":
       return insertCodeMirrorMarkdownLink(view);
+    case "pastePlainText":
+      return options.pastePlainText?.(view) ?? false;
     case "table":
       return insertCodeMirrorMarkdownTable(view);
     case "toggleAllFolds":
@@ -71,7 +75,8 @@ export function markdownShortcutsPlugin(
   options: MarkdownShortcutsPluginOptions = {},
 ) {
   const shortcuts = normalizeKeyboardShortcuts(options.shortcuts);
-  const altOnlyActions = keyboardShortcutActions.filter(
+  const actions = options.actions ?? keyboardShortcutActions;
+  const altOnlyActions = actions.filter(
     (action) => parseKeyboardShortcut(shortcuts[action])?.mod === false,
   );
   return defineMarkraPlugin({
@@ -88,7 +93,7 @@ export function markdownShortcutsPlugin(
         },
       }),
       keymap.of(
-        keyboardShortcutActions.map((action) => ({
+        actions.map((action) => ({
           key: codeMirrorShortcut(shortcuts[action]),
           run: (view) => runShortcutAction(view, action, options),
         })),

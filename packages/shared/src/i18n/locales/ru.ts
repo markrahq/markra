@@ -934,6 +934,7 @@ const messages: LocaleMessages = {
   "menu.cut": "Вырезать",
   "menu.copy": "Копировать",
   "menu.paste": "Вставить",
+  "menu.pastePlainText": "Вставить как обычный текст",
   "menu.selectAll": "Выбрать все",
   "menu.closeWindow": "Закрыть окно",
   "menu.maximizeWindow": "Развернуть/восстановить окно",

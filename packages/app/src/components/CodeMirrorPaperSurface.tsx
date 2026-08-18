@@ -73,6 +73,11 @@ import {
   mergeSpellcheckIgnoredWords,
   spellcheckMenuPosition,
 } from "../lib/spellcheck-menu";
+import {
+  pasteCodeMirrorPlainText,
+  readAppClipboardText,
+  type ClipboardTextReader,
+} from "../lib/plain-text-paste";
 import { codeMirrorVimLabels } from "../lib/vim-labels";
 import { CodeMirrorEditorFloatingMenus } from "./CodeMirrorEditorFloatingMenus";
 import { CodeMirrorPluginUi } from "./CodeMirrorPluginUi";
@@ -104,6 +109,7 @@ export interface CodeMirrorPaperSurfaceProps {
   openExternalUrl?: (url: string) => unknown;
   openLocalAttachment?: (src: string) => unknown;
   plugins?: readonly MarkraPlugin[];
+  readClipboardText?: ClipboardTextReader;
   readOnly?: boolean;
   resolveImageSrc?: (src: string) => string;
   hideHeadingMarkersOnFocus?: boolean;
@@ -143,6 +149,7 @@ interface MarkdownExtensionOptions {
   hideHeadingMarkersOnFocus: boolean;
   showCodeBlockLineNumbers: boolean;
   plugins: readonly MarkraPlugin[];
+  pastePlainText: (view: EditorView) => boolean;
   shortcuts?: MarkdownShortcutMap;
   tableColumnWidthMode: TableColumnWidthModePreference;
   workspaceFiles: () => MarkdownDocumentLinkFile[];
@@ -159,6 +166,7 @@ function markdownExtension({
   hideHeadingMarkersOnFocus,
   showCodeBlockLineNumbers,
   plugins,
+  pastePlainText,
   shortcuts,
   tableColumnWidthMode,
   workspaceFiles,
@@ -270,6 +278,7 @@ function markdownExtension({
       markdownEditingPlugin(),
       markdownShortcutsPlugin({
         openSpellcheckSuggestions,
+        pastePlainText,
         shortcuts,
       }),
       rawHtmlPreviewPlugin({
@@ -352,6 +361,7 @@ export function CodeMirrorPaperSurface({
   openExternalUrl,
   openLocalAttachment,
   plugins = emptyPlugins,
+  readClipboardText = readAppClipboardText,
   readOnly = false,
   resolveImageSrc,
   hideHeadingMarkersOnFocus = false,
@@ -535,6 +545,8 @@ export function CodeMirrorPaperSurface({
               hideHeadingMarkersOnFocus,
               showCodeBlockLineNumbers,
               plugins,
+              pastePlainText: (shortcutView) =>
+                pasteCodeMirrorPlainText(shortcutView, readClipboardText),
               shortcuts: markdownShortcuts,
               tableColumnWidthMode,
               workspaceFiles: () => workspaceFilesRef.current,
@@ -677,6 +689,8 @@ export function CodeMirrorPaperSurface({
           hideHeadingMarkersOnFocus,
           showCodeBlockLineNumbers,
           plugins,
+          pastePlainText: (shortcutView) =>
+            pasteCodeMirrorPlainText(shortcutView, readClipboardText),
           shortcuts: markdownShortcuts,
           tableColumnWidthMode,
           workspaceFiles: () => workspaceFilesRef.current,
@@ -691,6 +705,7 @@ export function CodeMirrorPaperSurface({
     Boolean(openLocalAttachment),
     openSpellcheckSuggestionMenu,
     plugins,
+    readClipboardText,
     hideHeadingMarkersOnFocus,
     showCodeBlockLineNumbers,
     tableColumnWidthMode,

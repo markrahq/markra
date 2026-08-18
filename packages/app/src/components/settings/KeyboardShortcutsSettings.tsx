@@ -33,6 +33,7 @@ const markdownShortcutLabelKeys: Record<MarkdownShortcutAction, I18nKey> = {
   openQuickOpen: "app.quickOpen",
   openSpellcheckSuggestions: "editor.spellcheckSuggestions",
   orderedList: "menu.orderedList",
+  pastePlainText: "menu.pastePlainText",
   paragraph: "menu.paragraph",
   quote: "menu.quote",
   syncNow: "settings.sync.run",
@@ -71,6 +72,7 @@ const keyboardShortcutSections: Array<{
   {
     labelKey: "settings.categories.editor",
     actions: [
+      "pastePlainText",
       "bold",
       "italic",
       "strikethrough",

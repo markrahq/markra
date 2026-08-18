@@ -117,6 +117,7 @@ export function SideDocumentPane({
           extendedSyntax={extendedSyntax}
           language={language}
           lineHeight={lineHeight}
+          markdownShortcuts={markdownShortcuts}
           onChange={onChange}
           onContentWidthChange={onContentWidthChange}
           onContentWidthResizeEnd={onContentWidthResizeEnd}

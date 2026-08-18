@@ -420,6 +420,45 @@ describe("native menu", () => {
     expect(execCommand).toHaveBeenNthCalledWith(1, "insertText", false, "native clipboard text");
   });
 
+  it("uses the native text clipboard command for plain text paste", async () => {
+    const target = document.createElement("main");
+    const paper = document.createElement("article");
+    const content = document.createElement("div");
+    const paste = vi.fn((event: Event) => event.preventDefault());
+    const browserReadText = vi.fn().mockResolvedValue("browser clipboard text");
+    paper.className = "markdown-paper";
+    content.className = "cm-content";
+    content.addEventListener("paste", paste);
+    paper.append(content);
+    target.append(paper);
+    document.body.append(target);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: {
+        readText: browserReadText
+      }
+    });
+    mockedInvoke.mockImplementation(async (command) => {
+      if (command === "read_clipboard_text") return "native clipboard text";
+
+      return undefined;
+    });
+
+    await installNativeEditorContextMenu(target, {}, "en");
+
+    content.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    domMenuItemById("markra:context:paste-plain-text").click();
+    await vi.waitFor(() => expect(paste).toHaveBeenCalledTimes(1));
+
+    expect(mockedInvoke).toHaveBeenCalledWith("read_clipboard_text");
+    expect(browserReadText).not.toHaveBeenCalled();
+    const clipboardEvent = paste.mock.calls[0]?.[0] as ClipboardEvent;
+    expect(clipboardEvent.clipboardData?.getData("text/plain")).toBe(
+      "native clipboard text"
+    );
+    expect(clipboardEvent.clipboardData?.getData("application/x-markra-plain-text-paste")).toBe("true");
+  });
+
   it("pastes into the editor that opened the native context menu", async () => {
     const target = document.createElement("main");
     const mainPaper = document.createElement("article");

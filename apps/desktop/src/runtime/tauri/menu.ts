@@ -210,13 +210,18 @@ export async function readNativeClipboardContent() {
   }
 }
 
-function withNativeClipboardContent<
-  TOptions extends { readClipboardContent?: NativeClipboardContentReader }
+function withNativeClipboardReaders<
+  TOptions extends {
+    readClipboardContent?: NativeClipboardContentReader;
+    readClipboardText?: NativeClipboardTextReader;
+  }
 >(options: TOptions) {
   return {
     ...options,
     readClipboardContent:
-      options.readClipboardContent ?? readNativeClipboardContent
+      options.readClipboardContent ?? readNativeClipboardContent,
+    readClipboardText:
+      options.readClipboardText ?? readNativeClipboardText
   };
 }
 
@@ -225,7 +230,7 @@ export function createNativeEditorContextMenuItems(
   language: AppLanguage = "en",
   options: NativeEditorContextMenuEntryOptions = {}
 ): ContextMenuEntry[] {
-  return createEditorContextMenuEntries(handlers, language, withNativeClipboardContent(options), desktopContextMenuIdPrefixes);
+  return createEditorContextMenuEntries(handlers, language, withNativeClipboardReaders(options), desktopContextMenuIdPrefixes);
 }
 
 export async function installNativeEditorContextMenu(
@@ -248,7 +253,7 @@ export async function installNativeEditorContextMenu(
       entries: createEditorContextMenuEntriesFromOptions(
         handlers,
         language,
-        withNativeClipboardContent(options),
+        withNativeClipboardReaders(options),
         desktopContextMenuIdPrefixes,
         element
       ),

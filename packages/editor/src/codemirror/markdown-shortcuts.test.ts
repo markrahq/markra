@@ -68,6 +68,32 @@ afterEach(() => {
 });
 
 describe("markdownShortcutsPlugin", () => {
+  it("delegates the configured plain text paste shortcut to the host", () => {
+    const pastePlainText = vi.fn(() => true);
+    const parent = document.createElement("div");
+    document.body.append(parent);
+    const view = new EditorView({
+      parent,
+      state: EditorState.create({
+        doc: "Synthetic",
+        extensions: [
+          liveMarkdown({
+            plugins: [
+              markdownShortcutsPlugin({
+                pastePlainText,
+                shortcuts: { pastePlainText: "Mod+Alt+G" },
+              }),
+            ],
+          }),
+        ],
+      }),
+    });
+    views.push(view);
+
+    expect(shortcut(view, "g")).toBe(true);
+    expect(pastePlainText).toHaveBeenCalledWith(view);
+  });
+
   it("uses the configured formatting shortcut instead of the default chord", () => {
     const view = createView();
     const defaultEvent = new KeyboardEvent("keydown", {

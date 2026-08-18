@@ -934,6 +934,7 @@ const messages: BaseLocaleMessages = {
   "menu.cut": "Cut",
   "menu.copy": "Copy",
   "menu.paste": "Paste",
+  "menu.pastePlainText": "Paste as Plain Text",
   "menu.selectAll": "Select All",
   "menu.closeWindow": "Close Window",
   "menu.maximizeWindow": "Maximize/Restore Window",

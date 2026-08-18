@@ -11,6 +11,15 @@ import {
 } from "./keyboard-shortcuts";
 
 describe("keyboard shortcuts", () => {
+  it("provides a configurable plain text paste shortcut", () => {
+    expect(keyboardShortcutActions).toContain("pastePlainText");
+    expect(defaultKeyboardShortcuts.pastePlainText).toBe("Mod+Shift+V");
+    expect(normalizeKeyboardShortcuts({
+      ...defaultKeyboardShortcuts,
+      pastePlainText: "Mod+Alt+G"
+    }).pastePlainText).toBe("Mod+Alt+G");
+  });
+
   it("keeps default application and editor shortcuts unique", () => {
     const shortcuts = Object.values(defaultKeyboardShortcuts);
 

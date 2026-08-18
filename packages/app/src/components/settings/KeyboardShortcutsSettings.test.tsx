@@ -45,6 +45,7 @@ describe("KeyboardShortcutsSettings", () => {
     expect(screen.getByRole("button", { name: "Typewriter mode shortcut" })).toHaveTextContent("⌘+⇧+Y");
     expect(screen.getByRole("button", { name: "Vim mode shortcut" })).toHaveTextContent("⌘+⌥+V");
     expect(screen.getByRole("button", { name: "Spelling suggestions shortcut" })).toHaveTextContent("⌘+.");
+    expect(screen.getByRole("button", { name: "Paste as Plain Text shortcut" })).toHaveTextContent("⌘+⇧+V");
     expect(screen.getByRole("button", { name: "Link shortcut" })).toHaveTextContent("⌘+K");
     expect(screen.getByRole("button", { name: "Bold shortcut" })).toHaveTextContent("⌘+B");
     expect(screen.queryByText("Mod+B")).not.toBeInTheDocument();
@@ -70,6 +71,39 @@ describe("KeyboardShortcutsSettings", () => {
     expect(onUpdatePreferences).toHaveBeenLastCalledWith({
       ...preferences,
       markdownShortcuts: defaultMarkdownShortcuts
+    });
+  });
+
+  it("records a custom plain text paste shortcut", () => {
+    const onUpdatePreferences = vi.fn();
+    const preferences: EditorPreferences = {
+      ...defaultEditorPreferences,
+      markdownShortcuts: defaultMarkdownShortcuts
+    };
+
+    render(
+      <KeyboardShortcutsSettings
+        preferences={preferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const pasteShortcut = screen.getByRole("button", { name: "Paste as Plain Text shortcut" });
+    fireEvent.click(pasteShortcut);
+    fireEvent.keyDown(window, {
+      altKey: true,
+      code: "KeyG",
+      key: "g",
+      metaKey: true
+    });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...preferences,
+      markdownShortcuts: {
+        ...defaultMarkdownShortcuts,
+        pastePlainText: "Mod+Alt+G"
+      }
     });
   });
 

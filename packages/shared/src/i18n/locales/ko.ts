@@ -934,6 +934,7 @@ const messages: LocaleMessages = {
   "menu.cut": "잘라내기",
   "menu.copy": "복사",
   "menu.paste": "붙여넣기",
+  "menu.pastePlainText": "일반 텍스트로 붙여넣기",
   "menu.selectAll": "모두 선택",
   "menu.closeWindow": "윈도우 닫기",
   "menu.maximizeWindow": "창 최대화/복원",

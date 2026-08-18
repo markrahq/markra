@@ -3,6 +3,7 @@ export * from "./clipboard-asset-types.ts";
 export * from "./code-support.ts";
 export * from "./hugo-math.ts";
 export * from "./markdown-source-detection.ts";
+export * from "./plain-text-paste.ts";
 export * from "./math-render.ts";
 export * from "./mermaid.ts";
 export * from "./raw-html-sanitize.ts";

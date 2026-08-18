@@ -1,5 +1,6 @@
 import {
   defaultMarkdownShortcuts,
+  dispatchPlainTextPaste,
   markdownShortcutToNativeAccelerator,
   normalizeMarkdownShortcuts,
   type MarkdownShortcutAction,
@@ -33,6 +34,7 @@ type ClipboardContentInserter = (
 type EditorContextMenuEntryOptions = NativeEditorContextMenuEntryOptions & {
   insertClipboardContent?: ClipboardContentInserter;
   insertClipboardText?: ClipboardTextInserter;
+  insertPlainText?: ClipboardTextInserter;
 };
 
 export type ContextMenuIdPrefixes = {
@@ -145,9 +147,13 @@ function clipboardContentData(content: NativeClipboardContent) {
   };
 }
 
-function createClipboardContentInserter(target: Element) {
+function editorContentForTarget(target: Element) {
   const paper = target.closest(".markdown-paper");
-  const content = paper?.querySelector<HTMLElement>(".cm-content");
+  return paper?.querySelector<HTMLElement>(".cm-content") ?? undefined;
+}
+
+function createClipboardContentInserter(target: Element) {
+  const content = editorContentForTarget(target);
   if (!content) return undefined;
 
   return (clipboardContent: NativeClipboardContent) => {
@@ -172,6 +178,19 @@ function createClipboardTextInserter(
   insertContent: ClipboardContentInserter | undefined
 ) {
   return insertContent ? (text: string) => insertContent({ text }) : undefined;
+}
+
+function createPlainTextInserter(target: Element) {
+  const content = editorContentForTarget(target);
+  if (!content) return undefined;
+
+  return (text: string) => {
+    // Clipboard reads are asynchronous. Never retarget a paste when its editor closed meanwhile.
+    if (!content.isConnected) return true;
+
+    dispatchPlainTextPaste(content, text);
+    return true;
+  };
 }
 
 function normalizeClipboardContent(
@@ -286,6 +305,28 @@ function browserItem(
   return contextMenuItem(id, label, accelerator, () => runBrowserEditCommand(command, options), false);
 }
 
+function plainTextPasteItem(
+  id: string,
+  label: string,
+  accelerator: string | undefined,
+  options: Pick<
+    EditorContextMenuEntryOptions,
+    | "insertPlainText"
+    | "readClipboardText"
+  > = {}
+) {
+  return contextMenuItem(id, label, accelerator, () => {
+    const documentTarget = typeof document === "undefined" ? null : document;
+    if (!documentTarget) return false;
+
+    return pasteClipboardText(
+      documentTarget,
+      options.readClipboardText,
+      options.insertPlainText
+    );
+  }, false);
+}
+
 function readAiCommandsAvailable(options: NativeEditorContextMenuOptions) {
   try {
     return Boolean(options.getAiCommandsAvailable?.());
@@ -344,6 +385,12 @@ export function createEditorContextMenuEntries(
     browserItem(editorId("cut"), label("menu.cut"), "CmdOrCtrl+X", "cut", options),
     browserItem(editorId("copy"), label("menu.copy"), "CmdOrCtrl+C", "copy", options),
     browserItem(editorId("paste"), label("menu.paste"), "CmdOrCtrl+V", "paste", options),
+    plainTextPasteItem(
+      editorId("paste-plain-text"),
+      label("menu.pastePlainText"),
+      shortcutAccelerator(options.markdownShortcuts, "pastePlainText"),
+      options
+    ),
     browserItem(editorId("select-all"), label("menu.selectAll"), "CmdOrCtrl+A", "selectAll", options),
     contextMenuSeparator(),
     contextMenuSubmenu(editorId("format"), label("menu.format"), formatItems),
@@ -392,6 +439,7 @@ export function createEditorContextMenuEntriesFromOptions(
       aiCommandsAvailable: readAiCommandsAvailable(options),
       insertClipboardContent,
       insertClipboardText: createClipboardTextInserter(insertClipboardContent),
+      insertPlainText: target ? createPlainTextInserter(target) : undefined,
       markdownShortcuts: options.markdownShortcuts,
       readClipboardContent: options.readClipboardContent,
       readClipboardText: options.readClipboardText

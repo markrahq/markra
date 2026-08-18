@@ -7,11 +7,13 @@ import { t, type AppLanguage, type SearchRange } from "@markra/shared";
 import {
   codeMirrorLocationCue,
   codeMirrorTypewriterMode,
+  markdownShortcutsPlugin,
   markdownSourceSyntaxHighlighting,
   markdownSyntaxHighlighting,
   markraHighlight,
   reconfigureCodeMirrorVimMode
 } from "@markra/editor/codemirror";
+import type { MarkdownShortcutMap } from "@markra/editor";
 import {
   editorContentWidthPixels,
   editorCustomContentWidthMax,
@@ -23,6 +25,11 @@ import {
   type EditorFontFamilyPreference
 } from "../lib/editor-font";
 import type { ExtendedSyntaxPreferences } from "../lib/settings/app-settings";
+import {
+  pasteCodeMirrorPlainText,
+  readAppClipboardText,
+  type ClipboardTextReader
+} from "../lib/plain-text-paste";
 import { codeMirrorVimLabels } from "../lib/vim-labels";
 import { EditorWidthResizer } from "./EditorWidthResizer";
 
@@ -46,6 +53,7 @@ export type MarkdownSourceEditorProps = {
   };
   language?: AppLanguage;
   lineHeight?: number;
+  markdownShortcuts?: MarkdownShortcutMap;
   onChange: (content: string) => unknown;
   onContentWidthChange?: (width: number) => unknown;
   onContentWidthResizeEnd?: () => unknown;
@@ -55,6 +63,7 @@ export type MarkdownSourceEditorProps = {
   onRedo?: () => unknown;
   onSelectionTextChange?: (text: string | null) => unknown;
   onUndo?: () => unknown;
+  readClipboardText?: ClipboardTextReader;
   readOnly?: boolean;
   searchActiveIndex?: number;
   searchMatches?: SearchRange[];
@@ -127,6 +136,17 @@ function markdownSourceSharedHistoryExtension(
       run: runRedo
     }
   ]));
+}
+
+function markdownSourcePlainTextPasteExtension(
+  shortcuts: MarkdownShortcutMap | undefined,
+  readClipboardText: ClipboardTextReader,
+): Extension {
+  return markdownShortcutsPlugin({
+    actions: ["pastePlainText"],
+    pastePlainText: (view) => pasteCodeMirrorPlainText(view, readClipboardText),
+    shortcuts,
+  }).extension ?? [];
 }
 
 function clampSearchRange(match: SearchRange, documentLength: number) {
@@ -229,6 +249,7 @@ export function MarkdownSourceEditor({
   initialSelection,
   language = "en",
   lineHeight = 1.65,
+  markdownShortcuts,
   onChange,
   onContentWidthChange,
   onContentWidthResizeEnd,
@@ -238,6 +259,7 @@ export function MarkdownSourceEditor({
   onRedo,
   onSelectionTextChange,
   onUndo,
+  readClipboardText = readAppClipboardText,
   readOnly = false,
   searchActiveIndex = -1,
   searchMatches = [],
@@ -260,6 +282,7 @@ export function MarkdownSourceEditor({
   const editableCompartmentRef = useRef(new Compartment());
   const lineNumbersCompartmentRef = useRef(new Compartment());
   const searchCompartmentRef = useRef(new Compartment());
+  const shortcutsCompartmentRef = useRef(new Compartment());
   const typewriterModeCompartmentRef = useRef(new Compartment());
   const vimModeCompartmentRef = useRef(new Compartment());
   const externalContentScrollSuppressedRef = useRef(false);
@@ -333,6 +356,9 @@ export function MarkdownSourceEditor({
       editableCompartmentRef.current.of(EditorView.editable.of(!readOnly)),
       lineNumbersCompartmentRef.current.of(showLineNumbers ? lineNumbers() : []),
       searchCompartmentRef.current.of(markdownSourceSearchExtension(searchMatches, searchActiveIndex)),
+      shortcutsCompartmentRef.current.of(
+        markdownSourcePlainTextPasteExtension(markdownShortcuts, readClipboardText)
+      ),
       codeMirrorLocationCue(),
       typewriterModeCompartmentRef.current.of(
         codeMirrorTypewriterMode({ enabled: typewriterModeEnabled })
@@ -408,6 +434,17 @@ export function MarkdownSourceEditor({
       effects: lineNumbersCompartmentRef.current.reconfigure(showLineNumbers ? lineNumbers() : [])
     });
   }, [showLineNumbers]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+
+    view.dispatch({
+      effects: shortcutsCompartmentRef.current.reconfigure(
+        markdownSourcePlainTextPasteExtension(markdownShortcuts, readClipboardText)
+      )
+    });
+  }, [markdownShortcuts, readClipboardText]);
 
   useEffect(() => {
     const view = viewRef.current;

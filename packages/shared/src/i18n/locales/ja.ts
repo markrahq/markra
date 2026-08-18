@@ -934,6 +934,7 @@ const messages: LocaleMessages = {
   "menu.cut": "カット",
   "menu.copy": "コピー",
   "menu.paste": "ペースト",
+  "menu.pastePlainText": "プレーンテキストとしてペースト",
   "menu.selectAll": "すべて選択",
   "menu.closeWindow": "ウインドウを閉じる",
   "menu.maximizeWindow": "ウインドウを最大化/元に戻す",
