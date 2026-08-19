@@ -131,8 +131,9 @@ describe("CodeMirrorPaperSurface", () => {
     });
     view.contentDOM.dispatchEvent(pasteEvent);
 
-    expect(handled).toBe(false);
-    expect(readClipboardText).toHaveBeenCalledTimes(1);
+    expect(handled).toBe(true);
+    expect(pasteEvent.defaultPrevented).toBe(true);
+    expect(readClipboardText).not.toHaveBeenCalled();
     await waitFor(() => expect(view.state.doc.toString()).toBe(
       "\\#\\#\\# Mock heading\n\nClick test: after heading",
     ));

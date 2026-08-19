@@ -20,10 +20,14 @@ const markdownDelimiterNodeNames = new Set([
 ]);
 
 type PlainTextPasteTarget = HTMLElement & {
-  [pendingPlainTextPasteProperty]?: number;
+  [pendingPlainTextPasteProperty]?: {
+    markedAt: number;
+    mode: PlainTextPasteIntent;
+  };
 };
 
 type PlainTextInputTarget = HTMLInputElement | HTMLTextAreaElement;
+type PlainTextPasteIntent = "suppress-native" | "use-native-text";
 
 function plainTextClipboardData(text: string) {
   const escapedText = escapePlainTextMarkdown(text);
@@ -161,17 +165,25 @@ export function isPlainTextPaste(event: ClipboardEvent) {
   return event.clipboardData?.getData(plainTextPasteMime) === "true";
 }
 
-export function markNextPlainTextPaste(target: HTMLElement) {
-  (target as PlainTextPasteTarget)[pendingPlainTextPasteProperty] = Date.now();
+export function markNextPlainTextPaste(
+  target: HTMLElement,
+  mode: PlainTextPasteIntent = "suppress-native",
+) {
+  (target as PlainTextPasteTarget)[pendingPlainTextPasteProperty] = {
+    markedAt: Date.now(),
+    mode,
+  };
 }
 
 export function consumeNextPlainTextPaste(target: HTMLElement) {
   const pasteTarget = target as PlainTextPasteTarget;
-  const markedAt = pasteTarget[pendingPlainTextPasteProperty];
+  const pending = pasteTarget[pendingPlainTextPasteProperty];
   delete pasteTarget[pendingPlainTextPasteProperty];
-  if (markedAt === undefined) return false;
+  if (!pending) return null;
 
-  return Date.now() - markedAt <= plainTextPasteIntentDurationMs;
+  return Date.now() - pending.markedAt <= plainTextPasteIntentDurationMs
+    ? pending.mode
+    : null;
 }
 
 function editablePlainTextTarget(target: HTMLElement) {
@@ -219,17 +231,41 @@ function createPlainTextContentEditableInserter(target: HTMLElement) {
   if (!selection || !range || !target.contains(range.commonAncestorContainer)) {
     return null;
   }
+  const startElement = range.startContainer instanceof Element
+    ? range.startContainer
+    : range.startContainer.parentElement;
+  const endElement = range.endContainer instanceof Element
+    ? range.endContainer
+    : range.endContainer.parentElement;
+  const startCell = startElement?.closest("th, td");
+  const endCell = endElement?.closest("th, td");
   const capturedRange = range.cloneRange();
+  if (startCell && endCell && startCell !== endCell) {
+    // Deleting a DOM Range across cells can remove table structure. Keep all cells intact and
+    // use the range's start boundary as the deterministic paste destination.
+    capturedRange.collapse(true);
+  }
 
   return (text: string) => {
     if (!target.isConnected) return false;
 
     capturedRange.deleteContents();
-    const inserted = target.ownerDocument.createTextNode(
-      escapePlainTextMarkdown(text),
-    );
-    capturedRange.insertNode(inserted);
-    capturedRange.setStartAfter(inserted);
+    const fragment = target.ownerDocument.createDocumentFragment();
+    const lines = escapePlainTextMarkdown(text).split(/\r\n?|\n/u);
+    let inserted: Node | null = null;
+    for (const [index, line] of lines.entries()) {
+      if (index > 0) {
+        const lineBreak = target.ownerDocument.createElement("br");
+        lineBreak.dataset.markraSourceBreak = "true";
+        fragment.append(lineBreak);
+        inserted = lineBreak;
+      }
+      const textNode = target.ownerDocument.createTextNode(line);
+      fragment.append(textNode);
+      inserted = textNode;
+    }
+    capturedRange.insertNode(fragment);
+    if (inserted) capturedRange.setStartAfter(inserted);
     capturedRange.collapse(true);
     selection.removeAllRanges();
     selection.addRange(capturedRange);
@@ -268,4 +304,23 @@ export function dispatchPlainTextPaste(target: HTMLElement, text: string) {
   const insert = createPlainTextPasteInserter(target);
 
   return insert?.(text) ?? false;
+}
+
+export function handlePendingPlainTextPasteEvent(
+  event: ClipboardEvent,
+  intentTarget: HTMLElement,
+) {
+  const intent = consumeNextPlainTextPaste(intentTarget);
+  if (!intent) return false;
+
+  event.preventDefault();
+  if (intent === "use-native-text") {
+    const text = event.clipboardData?.getData("text/plain") ?? "";
+    const eventTarget = event.target instanceof HTMLElement &&
+      intentTarget.contains(event.target)
+      ? event.target
+      : intentTarget;
+    if (text) dispatchPlainTextPaste(eventTarget, text);
+  }
+  return true;
 }

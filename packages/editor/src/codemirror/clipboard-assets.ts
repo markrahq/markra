@@ -27,7 +27,7 @@ import type {
 } from "../clipboard-asset-types.ts";
 import { looksLikeMarkdownSource } from "../markdown-source-detection.ts";
 import {
-  consumeNextPlainTextPaste,
+  handlePendingPlainTextPasteEvent,
   isPlainTextPaste,
 } from "../plain-text-paste.ts";
 import {
@@ -587,10 +587,7 @@ export function codeMirrorClipboardAssetsPlugin(
           // The shortcut dispatches its own marked paste before WebKit's native paste arrives.
           // Never let the native-event suppression marker consume that synthetic plain-text event.
           if (isPlainTextPaste(event)) return false;
-          if (consumeNextPlainTextPaste(view.contentDOM)) {
-            event.preventDefault();
-            return true;
-          }
+          if (handlePendingPlainTextPasteEvent(event, view.contentDOM)) return true;
           const images = imageFiles(event.clipboardData);
           if (
             images.length > 0 &&

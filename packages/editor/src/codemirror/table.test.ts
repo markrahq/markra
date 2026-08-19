@@ -1,6 +1,7 @@
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { dispatchPlainTextPaste } from "../plain-text-paste.ts";
 import { liveMarkdown } from "./index.ts";
 import {
   focusVisualTableCell,
@@ -742,6 +743,63 @@ describe("tablePreviewPlugin", () => {
         ".cm-markra-table tbody td",
       ),
     );
+  });
+
+  it("serializes multiline plain text paste inside a visual table cell", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | Before |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    )!;
+    cell.focus();
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    range.collapse(false);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(range);
+
+    expect(dispatchPlainTextPaste(view.contentDOM, "Line one\nLine two"))
+      .toBe(true);
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain(
+      "| Alpha | BeforeLine one<br>Line two |",
+    );
+    expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
+  });
+
+  it("keeps visual table structure when plain text selection spans cells", async () => {
+    const doc = [
+      "| First | Second |",
+      "| --- | --- |",
+      "| Alpha | Beta |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const cells = view.dom.querySelectorAll<HTMLTableCellElement>(
+      ".cm-markra-table tbody td",
+    );
+    const first = cells[0]!;
+    const second = cells[1]!;
+    first.focus();
+    const range = document.createRange();
+    range.setStart(first.firstChild!, first.textContent!.length);
+    range.setEnd(second.firstChild!, second.textContent!.length);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(range);
+
+    expect(dispatchPlainTextPaste(view.contentDOM, "PASTED")).toBe(true);
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain("| AlphaPASTED | Beta |");
+    expect(view.dom.querySelectorAll(".cm-markra-table tbody td")).toHaveLength(2);
   });
 
   it("updates Markdown when input targets the shared table editing host", async () => {

@@ -21,6 +21,7 @@ export function pasteCodeMirrorPlainText(
   readClipboardText: ClipboardTextReader,
   shortcut: string,
   options: {
+    preferNativePaste?: boolean;
     suppressNextNativePaste?: boolean;
     target?: EventTarget | null;
   } = {},
@@ -28,12 +29,20 @@ export function pasteCodeMirrorPlainText(
   if (view.state.readOnly) return false;
 
   const parsedShortcut = parseMarkdownShortcut(shortcut);
-  if (
-    options.suppressNextNativePaste !== false &&
-    parsedShortcut?.mod &&
+  const usesNativePlainTextPasteChord = parsedShortcut?.mod &&
     parsedShortcut.shift &&
     !parsedShortcut.alt &&
-    parsedShortcut.key.toLowerCase() === "v"
+    parsedShortcut.key.toLowerCase() === "v";
+  const preferNativePaste = options.preferNativePaste ??
+    !getAppRuntime().events.isAvailable();
+  if (preferNativePaste && usesNativePlainTextPasteChord) {
+    markNextPlainTextPaste(view.contentDOM, "use-native-text");
+    return false;
+  }
+
+  if (
+    options.suppressNextNativePaste !== false &&
+    usesNativePlainTextPasteChord
   ) {
     // WebKit still dispatches the native paste event after this keydown. Mark that event instead
     // so the asynchronous text read cannot race with rich conversion or produce a duplicate paste.

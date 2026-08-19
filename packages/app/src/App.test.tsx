@@ -594,6 +594,10 @@ describe("Markra workspace", () => {
     const runtime = createDefaultAppRuntime();
     configureAppRuntime({
       ...runtime,
+      events: {
+        ...runtime.events,
+        isAvailable: () => true
+      },
       menu: {
         ...runtime.menu,
         readClipboardText
@@ -665,6 +669,24 @@ describe("Markra workspace", () => {
 
     await Promise.resolve();
     expect(readClipboardText).not.toHaveBeenCalled();
+    expect(view.state.doc.toString()).toBe(markdownBeforePaste);
+  });
+
+  it("leaves the default plain text paste shortcut to the browser runtime", async () => {
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+    const view = getVisibleCodeMirrorView(container);
+    const markdownBeforePaste = view.state.doc.toString();
+
+    const handled = fireEvent.keyDown(view.contentDOM, {
+      code: "KeyV",
+      ctrlKey: true,
+      key: "V",
+      shiftKey: true
+    });
+
+    expect(handled).toBe(true);
     expect(view.state.doc.toString()).toBe(markdownBeforePaste);
   });
 
@@ -4703,6 +4725,69 @@ describe("Markra workspace", () => {
     expect(sideStatus).toHaveTextContent("saved");
   });
 
+  it("keeps native plain text paste targeted at a blurred side editor", async () => {
+    const mainPath = "/mock-files/vault/main.md";
+    const sidePath = "/mock-files/vault/side.md";
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      events: {
+        ...runtime.events,
+        isAvailable: () => true
+      },
+      menu: {
+        ...runtime.menu,
+        readClipboardText: async () => " SIDE-PASTE"
+      }
+    });
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "folder",
+      folder: { path: mockFolderPath, name: "vault" }
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "main.md", path: mainPath, relativePath: "main.md" },
+      { name: "side.md", path: sidePath, relativePath: "side.md" }
+    ]);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => ({
+      content: path === mainPath ? "Main" : "Side",
+      name: path === mainPath ? "main.md" : "side.md",
+      path
+    }));
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    fireEvent.click(await screen.findByRole("button", { name: "main.md" }));
+    await expectVisibleCodeMirrorText(container, "Main");
+    fireEvent.click(await screen.findByRole("button", { name: "side.md" }));
+    await expectVisibleCodeMirrorText(container, "Side");
+    fireEvent.click(screen.getByRole("tab", { name: /main\.md/ }));
+    await expectVisibleCodeMirrorText(container, "Main");
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /side\.md/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Open to side" }));
+    const mainPane = container.querySelector(
+      ".editor-side-by-side-surface > div:first-child"
+    ) as HTMLElement;
+    const sidePane = container.querySelector(".side-document-pane") as HTMLElement;
+    const mainEditor = within(mainPane).getByRole("textbox", { name: "Markdown document" });
+    const sideEditor = within(sidePane).getByRole("textbox", { name: "Markdown document" });
+    const mainView = EditorView.findFromDOM(mainEditor)!;
+    const sideView = EditorView.findFromDOM(sideEditor)!;
+    act(() => {
+      sideView.dispatch({ selection: EditorSelection.cursor(sideView.state.doc.length) });
+      sideView.focus();
+      sideView.contentDOM.blur();
+    });
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    act(() => {
+      menuHandlers.pastePlainText?.();
+    });
+
+    await waitFor(() => expect(sideView.state.doc.toString()).toBe("Side SIDE-PASTE"));
+    expect(mainView.state.doc.toString()).toBe("Main");
+  });
+
   it("reloads a clean side document when its native watcher reports an external change", async () => {
     const mainPath = "/mock-files/vault/main.md";
     const sidePath = "/mock-files/vault/side.md";
@@ -8439,6 +8524,10 @@ describe("Markra workspace", () => {
     const runtime = createDefaultAppRuntime();
     configureAppRuntime({
       ...runtime,
+      events: {
+        ...runtime.events,
+        isAvailable: () => true
+      },
       menu: {
         ...runtime.menu,
         readClipboardText

@@ -116,4 +116,53 @@ describe("escapePlainTextMarkdown", () => {
     expect(input.value).toBe("Beforehttps://example.test/image.png");
     expect(onInput).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps cross-cell selections structurally intact", () => {
+    const content = document.createElement("div");
+    const table = document.createElement("table");
+    const row = table.insertRow();
+    const first = row.insertCell();
+    const second = row.insertCell();
+    content.className = "cm-content";
+    content.setAttribute("contenteditable", "true");
+    table.setAttribute("contenteditable", "true");
+    first.textContent = "First";
+    second.textContent = "Second";
+    content.append(table);
+    document.body.append(content);
+    const range = document.createRange();
+    range.setStart(first.firstChild!, first.textContent.length);
+    range.setEnd(second.firstChild!, second.textContent.length);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(range);
+
+    expect(dispatchPlainTextPaste(content, "PASTED")).toBe(true);
+
+    expect(table.rows).toHaveLength(1);
+    expect(row.cells).toHaveLength(2);
+    expect(first.textContent).toBe("FirstPASTED");
+    expect(second.textContent).toBe("Second");
+  });
+
+  it("uses controlled line breaks for multiline nested paste", () => {
+    const content = document.createElement("div");
+    const table = document.createElement("table");
+    const cell = table.insertRow().insertCell();
+    content.className = "cm-content";
+    content.setAttribute("contenteditable", "true");
+    table.setAttribute("contenteditable", "true");
+    cell.textContent = "Before";
+    content.append(table);
+    document.body.append(content);
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    range.collapse(false);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(range);
+
+    expect(dispatchPlainTextPaste(content, "Line one\nLine two")).toBe(true);
+
+    expect(cell.textContent).toBe("BeforeLine oneLine two");
+    expect(cell.querySelector('br[data-markra-source-break="true"]')).not.toBeNull();
+  });
 });

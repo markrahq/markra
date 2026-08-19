@@ -554,6 +554,7 @@ function WorkspaceApp() {
   const sourceScrollRef = useRef<HTMLElement | null>(null);
   const visualScrollRef = useRef<HTMLElement | null>(null);
   const mainVisualEditorsRef = useRef(new Map<string, EditorView>());
+  const lastFocusedEditorContentRef = useRef<HTMLElement | null>(null);
   const documentTabViewStatesRef = useRef(new Map<string, DocumentTabViewState>());
   const pendingEditorModeSelectionRef = useRef<PendingEditorModeSelection | null>(null);
   const pendingEditorModeScrollRef = useRef<PendingEditorModeScroll | null>(null);
@@ -598,6 +599,19 @@ function WorkspaceApp() {
 
     delete root.dataset.webkitScrollWorkaround;
   }, [webKitScrollWorkaround]);
+
+  useEffect(() => {
+    const rememberFocusedEditor = (event: FocusEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const content = target?.closest<HTMLElement>(".cm-content") ?? null;
+      if (content) lastFocusedEditorContentRef.current = content;
+    };
+
+    globalThis.document.addEventListener("focusin", rememberFocusedEditor, true);
+    return () => {
+      globalThis.document.removeEventListener("focusin", rememberFocusedEditor, true);
+    };
+  }, []);
 
   const translate = useCallback((key: I18nKey) => t(appLanguage.language, key), [appLanguage.language]);
   const clearAiSelectionToolbarCopySuccess = useCallback(() => {
@@ -3484,11 +3498,20 @@ function WorkspaceApp() {
       : null;
     const editableTarget = editableTextControlFromTarget(requestedElement);
     if (editableTarget && !activeContent) return false;
-    // Native menus temporarily move DOM focus out of the WebView. Prefer the last CodeMirror focus
-    // marker, then fall back to the active main surface so the menu accelerator keeps its target.
+    const selectionNode = globalThis.document.getSelection()?.anchorNode;
+    const selectionElement = selectionNode instanceof Element
+      ? selectionNode
+      : selectionNode?.parentElement;
+    const selectionContent = selectionElement?.closest<HTMLElement>(".cm-content") ?? null;
+    const lastFocusedContent = lastFocusedEditorContentRef.current?.isConnected &&
+      !lastFocusedEditorContentRef.current.closest("[hidden]")
+      ? lastFocusedEditorContentRef.current
+      : null;
+    // Native menus temporarily move DOM focus out of the WebView. Preserve the last focused
+    // CodeMirror surface before falling back to the active main editor.
     const content = activeContent ?? globalThis.document.querySelector<HTMLElement>(
       ".cm-editor.cm-focused .cm-content",
-    );
+    ) ?? lastFocusedContent ?? selectionContent;
     const view = (content ? EditorView.findFromDOM(content) : null) ??
       (sourceSurfaceActive
         ? sourceEditorRef.current
