@@ -31,6 +31,8 @@ interface FormattingSpec {
   icon: string;
   key: string;
   marker: string;
+  markerNode: string;
+  node: string;
   order: number;
 }
 
@@ -48,6 +50,8 @@ const formattingSpecs: readonly FormattingSpec[] = [
     icon: "bold",
     key: "Mod-b",
     marker: "**",
+    markerNode: "EmphasisMark",
+    node: "StrongEmphasis",
     order: 10,
   },
   {
@@ -55,6 +59,8 @@ const formattingSpecs: readonly FormattingSpec[] = [
     icon: "italic",
     key: "Mod-i",
     marker: "*",
+    markerNode: "EmphasisMark",
+    node: "Emphasis",
     order: 20,
   },
   {
@@ -62,6 +68,8 @@ const formattingSpecs: readonly FormattingSpec[] = [
     icon: "strikethrough",
     key: "Mod-Shift-x",
     marker: "~~",
+    markerNode: "StrikethroughMark",
+    node: "Strikethrough",
     order: 30,
   },
   {
@@ -69,6 +77,8 @@ const formattingSpecs: readonly FormattingSpec[] = [
     icon: "code",
     key: "Mod-e",
     marker: "`",
+    markerNode: "CodeMark",
+    node: "InlineCode",
     order: 40,
   },
   {
@@ -76,43 +86,68 @@ const formattingSpecs: readonly FormattingSpec[] = [
     icon: "highlighter",
     key: "Mod-Shift-h",
     marker: "==",
+    markerNode: "HighlightMark",
+    node: "Highlight",
     order: 50,
   },
 ];
 
 const clearableInlineMarkers = ["**", "~~", "==", "`", "*"] as const;
 
+type SyntaxTreeNode = ReturnType<typeof syntaxTree>["topNode"];
+
+function formattingMarkers(node: SyntaxTreeNode, spec: FormattingSpec) {
+  const markers: Array<{ from: number; to: number }> = [];
+  let child = node.firstChild;
+  while (child) {
+    if (child.name === spec.markerNode) {
+      markers.push({ from: child.from, to: child.to });
+    }
+    child = child.nextSibling;
+  }
+  return markers;
+}
+
+function visitFormattingNodes(
+  state: EditorState,
+  spec: FormattingSpec,
+  from: number,
+  to: number,
+  visit: (node: SyntaxTreeNode) => unknown,
+) {
+  const walk = (node: SyntaxTreeNode) => {
+    if (node.to <= from || node.from >= to) return;
+    if (node.name === spec.node) visit(node);
+
+    let child = node.firstChild;
+    while (child) {
+      walk(child);
+      child = child.nextSibling;
+    }
+  };
+
+  walk(syntaxTree(state).topNode);
+}
+
 function rangeHasMarker(
   state: EditorState,
   range: SelectionRange,
-  marker: string,
+  spec: FormattingSpec,
 ) {
+  const { marker } = spec;
   if (range.from < marker.length) return false;
   if (range.to + marker.length > state.doc.length) return false;
   const hasMarker = (
     state.sliceDoc(range.from - marker.length, range.from) === marker &&
     state.sliceDoc(range.to, range.to + marker.length) === marker
   );
-  if (!hasMarker || marker !== "*") return hasMarker;
+  if (!hasMarker) return false;
 
-  const starRunLength = (position: number, direction: -1 | 1) => {
-    let length = 0;
-    let cursor = position;
-    while (direction < 0 ? cursor > 0 : cursor < state.doc.length) {
-      const from = direction < 0 ? cursor - 1 : cursor;
-      if (state.sliceDoc(from, from + 1) !== "*") break;
-      length += 1;
-      cursor += direction;
-    }
-    return length;
-  };
-
-  // A two-star delimiter is bold only; odd-length runs carry an italic layer
-  // as well (`*text*` or `***text***`).
-  return (
-    starRunLength(range.from, -1) % 2 === 1 &&
-    starRunLength(range.to, 1) % 2 === 1
-  );
+  let contained = false;
+  visitFormattingNodes(state, spec, range.from, range.to, (node) => {
+    if (node.from <= range.from && node.to >= range.to) contained = true;
+  });
+  return contained;
 }
 
 function selectionCanBeFormatted(view: EditorView) {
@@ -122,11 +157,11 @@ function selectionCanBeFormatted(view: EditorView) {
   );
 }
 
-function selectionHasMarker(view: EditorView, marker: string) {
+function selectionHasMarker(view: EditorView, spec: FormattingSpec) {
   const { state } = view;
   return (
     state.selection.ranges.length > 0 &&
-    state.selection.ranges.every((range) => rangeHasMarker(state, range, marker))
+    state.selection.ranges.every((range) => rangeHasMarker(state, range, spec))
   );
 }
 
@@ -140,11 +175,42 @@ function mappedSelectionRange(
     : EditorSelection.range(to, from);
 }
 
-function toggleMarker(view: EditorView, marker: string) {
+function formattingNormalization(
+  state: EditorState,
+  range: SelectionRange,
+  spec: FormattingSpec,
+) {
+  const changes: ChangeSpec[] = [];
+  let from = range.from;
+  let to = range.to;
+  visitFormattingNodes(state, spec, range.from, range.to, (node) => {
+    const markers = formattingMarkers(node, spec);
+    const opening = markers[0];
+    const closing = markers.at(-1);
+    if (
+      opening &&
+      closing &&
+      opening.to <= range.to &&
+      closing.from >= range.from
+    ) {
+      from = Math.min(from, node.from);
+      to = Math.max(to, node.to);
+      changes.push(
+        { from: opening.from, to: opening.to },
+        { from: closing.from, to: closing.to },
+      );
+    }
+  });
+
+  return { changes, from, to };
+}
+
+function toggleMarker(view: EditorView, spec: FormattingSpec) {
   if (!selectionCanBeFormatted(view)) return false;
 
   const { state } = view;
-  const removeMarker = selectionHasMarker(view, marker);
+  const { marker } = spec;
+  const removeMarker = selectionHasMarker(view, spec);
   const changes: ChangeSpec[] = [];
 
   for (const range of state.selection.ranges) {
@@ -153,10 +219,15 @@ function toggleMarker(view: EditorView, marker: string) {
         { from: range.from - marker.length, to: range.from },
         { from: range.to, to: range.to + marker.length },
       );
-    } else if (!rangeHasMarker(state, range, marker)) {
+    } else if (!rangeHasMarker(state, range, spec)) {
+      const normalization = formattingNormalization(state, range, spec);
+      // Mixed selections must first collapse same-format spans. Otherwise the
+      // new outer wrapper only gets removed on the next toggle and the original
+      // formatting survives. Syntax nodes keep literal marker text untouched.
       changes.push(
-        { from: range.from, insert: marker },
-        { from: range.to, insert: marker },
+        { from: normalization.from, insert: marker },
+        ...normalization.changes,
+        { from: normalization.to, insert: marker },
       );
     }
   }
@@ -188,9 +259,9 @@ function formattingCommand(
     keybindings: keybindings
       ? [{ key: spec.key, preventDefault: true }]
       : undefined,
-    isActive: (view) => selectionHasMarker(view, spec.marker),
+    isActive: (view) => selectionHasMarker(view, spec),
     isEnabled: selectionCanBeFormatted,
-    run: (view) => toggleMarker(view, spec.marker),
+    run: (view) => toggleMarker(view, spec),
   };
 }
 

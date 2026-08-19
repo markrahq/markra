@@ -105,6 +105,101 @@ describe("formattingPlugin", () => {
     ).toBe("text");
   });
 
+  it.each([
+    ["bold", "format.bold", "**"],
+    ["italic", "format.italic", "*"],
+    ["strikethrough", "format.strikethrough", "~~"],
+    ["inline code", "format.code", "`"],
+    ["highlight", "format.highlight", "=="],
+  ] as const)(
+    "normalizes mixed %s formatting before toggling it off",
+    (_label, command, marker) => {
+      const selected = `plain ${marker}marked${marker} tail`;
+      const view = createView({
+        doc: `Before ${selected} after`,
+        from: "Before ".length,
+        to: "Before ".length + selected.length,
+      });
+
+      expect(runMarkraCommand(view, command)).toBe(true);
+      expect(view.state.doc.toString()).toBe(
+        `Before ${marker}plain marked tail${marker} after`,
+      );
+      expect(
+        view.state.sliceDoc(
+          view.state.selection.main.from,
+          view.state.selection.main.to,
+        ),
+      ).toBe("plain marked tail");
+
+      expect(runMarkraCommand(view, command)).toBe(true);
+      expect(view.state.doc.toString()).toBe(
+        "Before plain marked tail after",
+      );
+    },
+  );
+
+  it("preserves nested italic formatting while normalizing mixed bold", () => {
+    const selected = "plain ***marked*** tail";
+    const view = createView({
+      doc: `Before ${selected} after`,
+      from: "Before ".length,
+      to: "Before ".length + selected.length,
+    });
+
+    expect(runMarkraCommand(view, "format.bold")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      "Before **plain *marked* tail** after",
+    );
+
+    expect(runMarkraCommand(view, "format.bold")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      "Before plain *marked* tail after",
+    );
+  });
+
+  it("merges bold spans that cross both selection boundaries", () => {
+    const doc = "Before **start** plain **end** after";
+    const from = doc.indexOf("start");
+    const to = doc.indexOf("end") + "end".length;
+    const view = createView({ doc, from, to });
+
+    expect(runMarkraCommand(view, "format.bold")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      "Before **start plain end** after",
+    );
+    expect(
+      view.state.sliceDoc(
+        view.state.selection.main.from,
+        view.state.selection.main.to,
+      ),
+    ).toBe("start plain end");
+
+    expect(runMarkraCommand(view, "format.bold")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      "Before start plain end after",
+    );
+  });
+
+  it("preserves escaped marker text while normalizing italic", () => {
+    const selected = String.raw`plain \*literal\* and *italic* tail`;
+    const view = createView({
+      doc: `Before ${selected} after`,
+      from: "Before ".length,
+      to: "Before ".length + selected.length,
+    });
+
+    expect(runMarkraCommand(view, "format.italic")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      String.raw`Before *plain \*literal\* and italic tail* after`,
+    );
+
+    expect(runMarkraCommand(view, "format.italic")).toBe(true);
+    expect(view.state.doc.toString()).toBe(
+      String.raw`Before plain \*literal\* and italic tail after`,
+    );
+  });
+
   it("tracks and toggles nested bold and italic markers independently", () => {
     const view = createView();
 
