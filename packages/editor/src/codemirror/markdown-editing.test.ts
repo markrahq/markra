@@ -79,6 +79,49 @@ afterEach(() => {
 });
 
 describe("markdownEditingPlugin", () => {
+  it("keeps the trailing line break when replacing a triple-clicked line", () => {
+    const firstLine = "Mock selected line";
+    const secondLine = "Mock next line";
+    const view = createView(`${firstLine}\n${secondLine}`, 0);
+    view.focus();
+
+    view.contentDOM.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      clientX: 0,
+      clientY: 0,
+      detail: 3,
+    }));
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+    expect(view.state.selection.main.from).toBe(0);
+    expect(view.state.selection.main.to).toBe(firstLine.length);
+
+    view.dispatch(
+      view.state.replaceSelection("Replacement"),
+      { userEvent: "input.type" },
+    );
+
+    expect(view.state.doc.toString()).toBe(`Replacement\n${secondLine}`);
+  });
+
+  it("keeps CodeMirror's double-click word selection behavior", () => {
+    const view = createView("Mock selected line\nMock next line", 0);
+    view.focus();
+
+    view.contentDOM.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      clientX: 0,
+      clientY: 0,
+      detail: 2,
+    }));
+    document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+    expect(view.state.selection.main.from).toBe(0);
+    expect(view.state.selection.main.to).toBe("Mock".length);
+  });
+
   it("keeps CodeMirror's native Enter behavior in a paragraph", () => {
     const doc = "MockBeforeMockAfter";
     const position = "MockBefore".length;
