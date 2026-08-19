@@ -637,6 +637,37 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(view.state.doc.toString()).toContain("FOLLOW-UP"));
   });
 
+  it("does not retarget native plain text paste from search inputs into the document", async () => {
+    const readClipboardText = vi.fn(async () => "SEARCH-PASTE");
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      menu: {
+        ...runtime.menu,
+        readClipboardText
+      }
+    });
+
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+    const view = getVisibleCodeMirrorView(container);
+    const markdownBeforePaste = view.state.doc.toString();
+    fireEvent.keyDown(window, { key: "f", metaKey: true });
+    const search = screen.getByRole("searchbox", { name: "Find in document" });
+    search.focus();
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    act(() => {
+      menuHandlers.pastePlainText?.();
+    });
+
+    await Promise.resolve();
+    expect(readClipboardText).not.toHaveBeenCalled();
+    expect(view.state.doc.toString()).toBe(markdownBeforePaste);
+  });
+
   it("includes upload error details in pasted image save failures", () => {
     expect(clipboardImageSaveFailureDescription(new Error("S3 image upload failed: HTTP 403"))).toBe(
       "S3 image upload failed: HTTP 403"
@@ -8401,6 +8432,58 @@ describe("Markra workspace", () => {
         })
       )
     );
+  });
+
+  it("pastes plain text inside the focused visual table cell", async () => {
+    const readClipboardText = vi.fn(async () => "PASTED");
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      menu: {
+        ...runtime.menu,
+        readClipboardText
+      }
+    });
+    mockOpenMarkdownFile({
+      content: ["| Field | Value |", "| --- | --- |", "| Name | Before |"].join("\n"),
+      name: "table.md",
+      path: mockNativePath
+    });
+    const { container } = renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await selectEditorViewMode("Preview + Source");
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+    const cell = await waitFor(() => {
+      const nextCell = container.querySelector<HTMLTableCellElement>(
+        ".cm-markra-table tbody td:nth-child(2)"
+      );
+      expect(nextCell).toHaveTextContent("Before");
+      return nextCell!;
+    });
+    cell.focus();
+    const selection = document.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    range.collapse(false);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+    fireEvent.keyDown(cell, {
+      code: "KeyV",
+      ctrlKey: true,
+      key: "V",
+      shiftKey: true
+    });
+
+    await waitFor(() => expect(readClipboardText).toHaveBeenCalledTimes(1));
+    await waitFor(() => {
+      expect(container.querySelector(".cm-markra-table tbody td:nth-child(2)"))
+        .toHaveTextContent("BeforePASTED");
+    });
+    await waitFor(() => {
+      expect(readMarkdownSource(sourceEditor)).toContain("| Name | BeforePASTED |");
+    });
+    expect(readMarkdownSource(sourceEditor)).not.toContain("PASTED| Field");
   });
 
   it("keeps a clean file unmodified when toggling markdown source mode without edits", async () => {

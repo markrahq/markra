@@ -23,6 +23,8 @@ type PlainTextPasteTarget = HTMLElement & {
   [pendingPlainTextPasteProperty]?: number;
 };
 
+type PlainTextInputTarget = HTMLInputElement | HTMLTextAreaElement;
+
 function plainTextClipboardData(text: string) {
   const escapedText = escapePlainTextMarkdown(text);
 
@@ -44,6 +46,7 @@ export function escapePlainTextMarkdown(text: string) {
   // Escape only parser-owned Markdown marks. Visual mode hides these standard escape slashes,
   // while source mode keeps explicit, portable Markdown instead of invisible document characters.
   const backslashPositions = new Set<number>();
+  const invisibleInsertionPositions = new Set<number>();
   const addPunctuation = (from: number, to: number) => {
     for (let position = from; position < to; position += 1) {
       if (isAsciiPunctuation(text[position] ?? "")) {
@@ -55,6 +58,18 @@ export function escapePlainTextMarkdown(text: string) {
   for (let position = 0; position < text.length; position += 1) {
     if (text[position] === "\\" || text[position] === "$") {
       backslashPositions.add(position);
+    }
+  }
+  for (const match of text.matchAll(/^[ \t]*\[\^[^\]\n]+\]:/gmu)) {
+    const definitionColon = match[0].lastIndexOf(":");
+    if (match.index !== undefined && definitionColon >= 0) {
+      invisibleInsertionPositions.add(match.index + definitionColon);
+    }
+  }
+  for (const match of text.matchAll(/\[\^[^\]\n]+\]/gu)) {
+    if (match.index !== undefined) {
+      invisibleInsertionPositions.add(match.index + 1);
+      backslashPositions.add(match.index + match[0].length - 1);
     }
   }
 
@@ -69,6 +84,22 @@ export function escapePlainTextMarkdown(text: string) {
     }
 
     const source = text.slice(cursor.from, cursor.to);
+    if (cursor.name === "LinkReference") {
+      const definitionColon = source.indexOf("]:");
+      if (definitionColon >= 0) {
+        backslashPositions.add(cursor.from + definitionColon);
+        invisibleInsertionPositions.add(cursor.from + definitionColon + 1);
+      }
+      continue;
+    }
+    if (cursor.name === "CodeBlock") {
+      // Markdown has no backslash escape for four-space code blocks. A word joiner keeps the
+      // visible indentation intact while making the line start with a non-whitespace character.
+      invisibleInsertionPositions.add(
+        text.lastIndexOf("\n", cursor.from - 1) + 1,
+      );
+      continue;
+    }
     if (cursor.name === "LinkMark") {
       for (let offset = 0; offset < source.length; offset += 1) {
         const position = cursor.from + offset;
@@ -98,11 +129,17 @@ export function escapePlainTextMarkdown(text: string) {
     }
   } while (cursor.next());
 
-  const escaped = Array.from(backslashPositions)
-    .sort((first, second) => second - first)
+  const escaped = [
+    ...Array.from(backslashPositions, (position) => ({ position, prefix: "\\" })),
+    ...Array.from(invisibleInsertionPositions, (position) => ({
+      position,
+      prefix: markdownLiteralJoiner,
+    })),
+  ]
+    .sort((first, second) => second.position - first.position)
     .reduce(
-      (result, position) =>
-        `${result.slice(0, position)}\\${result.slice(position)}`,
+      (result, insertion) =>
+        `${result.slice(0, insertion.position)}${insertion.prefix}${result.slice(insertion.position)}`,
       text,
     );
 
@@ -137,16 +174,98 @@ export function consumeNextPlainTextPaste(target: HTMLElement) {
   return Date.now() - markedAt <= plainTextPasteIntentDurationMs;
 }
 
-export function dispatchPlainTextPaste(target: HTMLElement, text: string) {
-  const EventConstructor = target.ownerDocument.defaultView?.Event ?? Event;
-  const event = new EventConstructor("paste", {
-    bubbles: true,
-    cancelable: true,
-  });
-  Object.defineProperty(event, "clipboardData", {
-    value: plainTextClipboardData(text),
-  });
-  target.dispatchEvent(event);
+function editablePlainTextTarget(target: HTMLElement) {
+  const selectionNode = target.classList.contains("cm-content")
+    ? target.ownerDocument.getSelection()?.anchorNode
+    : null;
+  const selectionElement = selectionNode instanceof Element
+    ? selectionNode
+    : selectionNode?.parentElement;
+  const origin = selectionElement && target.contains(selectionElement)
+    ? selectionElement
+    : target;
+  const editable = origin.closest("input, textarea, [contenteditable]");
+  if (editable instanceof HTMLInputElement || editable instanceof HTMLTextAreaElement) {
+    return editable.disabled ? null : editable;
+  }
+  if (!(editable instanceof HTMLElement)) return null;
 
-  return event.defaultPrevented;
+  return editable.getAttribute("contenteditable")?.toLowerCase() === "false"
+    ? null
+    : editable;
+}
+
+function dispatchPlainTextInputEvent(target: HTMLElement) {
+  const EventConstructor = target.ownerDocument.defaultView?.Event ?? Event;
+  target.dispatchEvent(new EventConstructor("input", { bubbles: true }));
+}
+
+function createPlainTextInputInserter(target: PlainTextInputTarget) {
+  const from = target.selectionStart ?? target.value.length;
+  const to = target.selectionEnd ?? from;
+
+  return (text: string) => {
+    if (!target.isConnected) return false;
+
+    target.setRangeText(text, from, to, "end");
+    dispatchPlainTextInputEvent(target);
+    return true;
+  };
+}
+
+function createPlainTextContentEditableInserter(target: HTMLElement) {
+  const selection = target.ownerDocument.getSelection();
+  const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  if (!selection || !range || !target.contains(range.commonAncestorContainer)) {
+    return null;
+  }
+  const capturedRange = range.cloneRange();
+
+  return (text: string) => {
+    if (!target.isConnected) return false;
+
+    capturedRange.deleteContents();
+    const inserted = target.ownerDocument.createTextNode(
+      escapePlainTextMarkdown(text),
+    );
+    capturedRange.insertNode(inserted);
+    capturedRange.setStartAfter(inserted);
+    capturedRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(capturedRange);
+    dispatchPlainTextInputEvent(target);
+    return true;
+  };
+}
+
+export function createPlainTextPasteInserter(target: HTMLElement) {
+  const editableTarget = editablePlainTextTarget(target);
+  if (editableTarget && !editableTarget.classList.contains("cm-content")) {
+    return editableTarget instanceof HTMLInputElement ||
+      editableTarget instanceof HTMLTextAreaElement
+      ? createPlainTextInputInserter(editableTarget)
+      : createPlainTextContentEditableInserter(editableTarget);
+  }
+
+  return (text: string) => {
+    if (!target.isConnected) return false;
+
+    const EventConstructor = target.ownerDocument.defaultView?.Event ?? Event;
+    const event = new EventConstructor("paste", {
+      bubbles: true,
+      cancelable: true,
+    });
+    Object.defineProperty(event, "clipboardData", {
+      value: plainTextClipboardData(text),
+    });
+    target.dispatchEvent(event);
+
+    return event.defaultPrevented;
+  };
+}
+
+export function dispatchPlainTextPaste(target: HTMLElement, text: string) {
+  const insert = createPlainTextPasteInserter(target);
+
+  return insert?.(text) ?? false;
 }

@@ -68,6 +68,7 @@ import { useExportSettings } from "./hooks/useExportSettings";
 import { useFileIgnoreSettings } from "./hooks/useFileIgnoreSettings";
 import { useCodeMirrorEditorController } from "./hooks/useCodeMirrorEditorController";
 import { shouldFocusEditorOnReady } from "./lib/editor-focus";
+import { editableTextControlFromTarget } from "./lib/editable-target";
 import {
   pasteCodeMirrorPlainText,
   readAppClipboardText,
@@ -3472,13 +3473,17 @@ function WorkspaceApp() {
     syncVisualMarkdownAfterEditorCommand();
     return handled;
   }, [readOnlyMode, runEditorShortcut, syncVisualMarkdownAfterEditorCommand]);
-  const handlePastePlainText = useCallback(() => {
-    if (readOnlyMode) return;
+  const handlePastePlainText = useCallback((target?: EventTarget | null) => {
+    if (readOnlyMode) return false;
 
-    const activeElement = globalThis.document.activeElement;
-    const activeContent = activeElement instanceof HTMLElement
-      ? activeElement.closest<HTMLElement>(".cm-content")
+    const requestedElement = target instanceof Element
+      ? target
+      : globalThis.document.activeElement;
+    const activeContent = requestedElement instanceof HTMLElement
+      ? requestedElement.closest<HTMLElement>(".cm-content")
       : null;
+    const editableTarget = editableTextControlFromTarget(requestedElement);
+    if (editableTarget && !activeContent) return false;
     // Native menus temporarily move DOM focus out of the WebView. Prefer the last CodeMirror focus
     // marker, then fall back to the active main surface so the menu accelerator keeps its target.
     const content = activeContent ?? globalThis.document.querySelector<HTMLElement>(
@@ -3490,13 +3495,16 @@ function WorkspaceApp() {
         : activeTabId
           ? mainVisualEditorsRef.current.get(activeTabId) ?? null
           : null);
-    if (!view) return;
+    if (!view) return false;
 
-    pasteCodeMirrorPlainText(
+    return pasteCodeMirrorPlainText(
       view,
       readAppClipboardText,
       editorPreferences.preferences.markdownShortcuts.pastePlainText,
-      { suppressNextNativePaste: false },
+      {
+        suppressNextNativePaste: false,
+        target: requestedElement,
+      },
     );
   }, [
     activeTabId,

@@ -457,7 +457,7 @@ describe("useApplicationShortcuts", () => {
   });
 
   it("routes plain text paste from the application capture layer", () => {
-    const pastePlainText = vi.fn();
+    const pastePlainText = vi.fn(() => true);
     renderHook(() =>
       useApplicationShortcuts({
         ...baseOptions,
@@ -471,9 +471,40 @@ describe("useApplicationShortcuts", () => {
       key: "V",
       shiftKey: true
     });
+    fireEvent.keyDown(window, {
+      code: "KeyV",
+      ctrlKey: true,
+      key: "V",
+      repeat: true,
+      shiftKey: true
+    });
 
     expect(handled).toBe(false);
     expect(pastePlainText).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves plain text paste shortcuts to focused non-editor inputs", () => {
+    const pastePlainText = vi.fn(() => true);
+    const input = document.createElement("input");
+    document.body.append(input);
+    input.focus();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        pastePlainText
+      })
+    );
+
+    const handled = fireEvent.keyDown(input, {
+      code: "KeyV",
+      ctrlKey: true,
+      key: "V",
+      shiftKey: true
+    });
+
+    expect(handled).toBe(true);
+    expect(pastePlainText).not.toHaveBeenCalled();
+    input.remove();
   });
 
   it("routes Alt-only configurable app shortcuts without accepting Mod+Alt", () => {

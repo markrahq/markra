@@ -1,6 +1,6 @@
 import {
+  createPlainTextPasteInserter,
   defaultMarkdownShortcuts,
-  dispatchPlainTextPaste,
   markdownShortcutToNativeAccelerator,
   normalizeMarkdownShortcuts,
   type MarkdownShortcutAction,
@@ -184,12 +184,16 @@ function createClipboardTextInserter(
 function createPlainTextInserter(target: Element) {
   const content = editorContentForTarget(target);
   if (!content) return undefined;
+  const pasteTarget = target instanceof HTMLElement && target.closest(".cm-content")
+    ? target
+    : content;
+  const insertPlainText = createPlainTextPasteInserter(pasteTarget);
 
   return (text: string) => {
     // Clipboard reads are asynchronous. Never retarget a paste when its editor closed meanwhile.
-    if (!content.isConnected) return true;
+    if (!content.isConnected || !pasteTarget.isConnected) return true;
 
-    dispatchPlainTextPaste(content, text);
+    insertPlainText?.(text);
     return true;
   };
 }

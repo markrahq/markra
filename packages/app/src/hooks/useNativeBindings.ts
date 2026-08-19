@@ -22,7 +22,10 @@ import {
 } from "@markra/shared";
 import { defaultAiQuickActionPrompt } from "../lib/ai-actions";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
-import { focusedEditableTextInput } from "../lib/editable-target";
+import {
+  editableTextControlFromTarget,
+  focusedEditableTextInput
+} from "../lib/editable-target";
 
 type NativeAiQuickActionIntent = Exclude<AiEditIntent, "custom">;
 
@@ -47,7 +50,7 @@ type NativeMenuHandlerOptions = {
   openDocument: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
   openQuickOpen?: () => unknown | Promise<unknown>;
-  pastePlainText?: () => unknown | Promise<unknown>;
+  pastePlainText?: (target?: EventTarget | null) => unknown | Promise<unknown>;
   openRecentFile?: (file: RecentMarkdownFile) => unknown | Promise<unknown>;
   runAiQuickAction?: (intent: NativeAiQuickActionIntent, prompt: string) => unknown | Promise<unknown>;
   runEditorShortcut: (
@@ -79,7 +82,7 @@ type ApplicationShortcutOptions = {
   openWorkspaceSearch?: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
   openQuickOpen?: () => unknown | Promise<unknown>;
-  pastePlainText?: () => unknown | Promise<unknown>;
+  pastePlainText?: (target?: EventTarget | null) => boolean;
   platform?: DesktopPlatform;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
@@ -479,6 +482,19 @@ export function useApplicationShortcuts({
       const isModKey = isKeyboardShortcutModKey(event);
       if (event.defaultPrevented) return;
 
+      if (
+        pastePlainText &&
+        matchesKeyboardShortcutEvent(event, normalizedMarkdownShortcuts.pastePlainText)
+      ) {
+        const editableTarget = editableTextControlFromTarget(event.target);
+        if (editableTarget && !editableTarget.closest(".cm-content")) return;
+        if (!event.repeat && !pastePlainText(event.target)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
+
       // Alt-only configurable bindings must be checked before the Mod guard
       // that still protects all fixed application shortcuts below.
       const configurableActions: Array<[string, (() => unknown | Promise<unknown>) | undefined]> = [
@@ -491,8 +507,7 @@ export function useApplicationShortcuts({
         [normalizedMarkdownShortcuts.toggleSourceMode, toggleSourceMode],
         [normalizedMarkdownShortcuts.toggleReadOnlyMode, toggleReadOnlyMode],
         [normalizedMarkdownShortcuts.toggleTypewriterMode, toggleTypewriterMode],
-        [normalizedMarkdownShortcuts.toggleVimMode, toggleVimMode],
-        [normalizedMarkdownShortcuts.pastePlainText, pastePlainText]
+        [normalizedMarkdownShortcuts.toggleVimMode, toggleVimMode]
       ];
 
       for (const [shortcut, handler] of configurableActions) {

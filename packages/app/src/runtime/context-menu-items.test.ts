@@ -184,6 +184,33 @@ describe("editor context menu entries", () => {
     expect(editor.view.state.doc.toString()).toBe(code);
   });
 
+  it("keeps context-menu plain text paste inside a nested editable target", async () => {
+    const editor = createEditor("", EditorSelection.cursor(0));
+    const nestedContent = document.createElement("div");
+    const table = document.createElement("table");
+    const cell = table.insertRow().insertCell();
+    const input = vi.fn();
+    table.setAttribute("contenteditable", "true");
+    cell.textContent = "Before";
+    nestedContent.className = "cm-content";
+    nestedContent.append(table);
+    editor.paper.append(nestedContent);
+    table.addEventListener("input", input);
+    cell.focus();
+    const range = document.createRange();
+    range.selectNodeContents(cell);
+    range.collapse(false);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(range);
+    const paste = plainTextPasteItem(cell, "PASTED");
+
+    await Promise.resolve(paste.onSelect?.());
+
+    expect(cell.textContent).toBe("BeforePASTED");
+    expect(input).toHaveBeenCalledTimes(1);
+    expect(editor.view.state.doc.toString()).toBe("");
+  });
+
   it("does not change a read-only editor", async () => {
     const doc = "Read only";
     const editor = createEditor(
