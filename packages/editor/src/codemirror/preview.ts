@@ -467,6 +467,18 @@ function buildDecorations(
       }
     }
 
+    if (node.name === "Escape" && node.from < node.to) {
+      // Visual mode renders the escaped character literally; the backslash remains available in
+      // source mode and in the document model, so pasted plain text stays portable Markdown.
+      pushHiddenRange(
+        ranges,
+        state.doc,
+        node.from,
+        Math.min(node.from + 1, node.to),
+      );
+      return false;
+    }
+
     if (node.name === "ListItem") {
       const line = state.doc.lineAt(node.from);
       const listAttributes = listLineAttributes(line.text);

@@ -31,9 +31,8 @@ export function pasteCodeMirrorPlainText(
     parsedShortcut.key.toLowerCase() === "v"
   ) {
     // WebKit still dispatches the native paste event after this keydown. Mark that event instead
-    // of racing it with an asynchronous clipboard read, which would allow rich conversion first.
+    // so the asynchronous text read cannot race with rich conversion or produce a duplicate paste.
     markNextPlainTextPaste(view.contentDOM);
-    return false;
   }
 
   try {

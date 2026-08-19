@@ -14,6 +14,9 @@ import {
 } from "./controller.ts";
 import { toggleAllCodeMirrorFolds } from "./folding.ts";
 import { defineMarkraPlugin, runMarkraCommand } from "./plugin.ts";
+import {
+  consumeNextPlainTextPaste,
+} from "../plain-text-paste.ts";
 
 export interface MarkdownShortcutsPluginOptions {
   actions?: readonly KeyboardShortcutAction[];
@@ -107,6 +110,12 @@ export function markdownShortcutsPlugin(
           return action
             ? runShortcutAction(view, action, options, shortcuts[action])
             : false;
+        },
+        paste: (event, view) => {
+          if (!consumeNextPlainTextPaste(view.contentDOM)) return false;
+
+          event.preventDefault();
+          return true;
         },
       }),
       keymap.of(

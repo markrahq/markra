@@ -165,7 +165,7 @@ describe("editor context menu entries", () => {
 
   it("pastes plain text without rich text or code conversion", async () => {
     const code = [
-      "const mockValue = items[0];",
+      "const mockValue = items.at(0);",
       "if (mockValue) {",
       "  console.log(mockValue);",
       "}"

@@ -584,12 +584,11 @@ export function codeMirrorClipboardAssetsPlugin(
       EditorView.domEventHandlers({
         paste(event, view) {
           if (view.state.readOnly) return false;
-          if (
-            consumeNextPlainTextPaste(view.contentDOM) ||
-            isPlainTextPaste(event)
-          ) {
-            return false;
+          if (consumeNextPlainTextPaste(view.contentDOM)) {
+            event.preventDefault();
+            return true;
           }
+          if (isPlainTextPaste(event)) return false;
           const images = imageFiles(event.clipboardData);
           if (
             images.length > 0 &&

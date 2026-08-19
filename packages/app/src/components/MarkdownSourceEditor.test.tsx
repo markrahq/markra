@@ -72,7 +72,9 @@ describe("MarkdownSourceEditor", () => {
 
     expect(handled).toBe(false);
     await waitFor(() => {
-      expect(view.state.doc.toString()).toBe("Before **raw markdown**");
+      expect(view.state.doc.toString()).toBe(
+        "Before \\*\\*raw markdown\\*\\*",
+      );
     });
     expect(readClipboardText).toHaveBeenCalledTimes(1);
   });

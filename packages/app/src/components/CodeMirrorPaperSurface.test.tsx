@@ -59,7 +59,7 @@ describe("CodeMirrorPaperSurface", () => {
 
   it("uses the configured shortcut to paste clipboard text without formatting", async () => {
     const code = [
-      "const mockValue = items[0];",
+      "const mockValue = items.at(0);",
       "if (mockValue) {",
       "  console.log(mockValue);",
       "}",
@@ -90,11 +90,15 @@ describe("CodeMirrorPaperSurface", () => {
     expect(handled).toBe(false);
     await waitFor(() => expect(view.state.doc.toString()).toBe(code));
     expect(readClipboardText).toHaveBeenCalledTimes(1);
+    expect(view.dom.querySelector(".markra-math-render")).toBeNull();
+    expect(view.contentDOM.textContent).toContain("const mockValue = items.at(0);");
   });
 
   it("lets the native V paste event provide plain text without rich conversion", async () => {
     const onEditorReady = vi.fn();
-    const readClipboardText = vi.fn().mockResolvedValue("fallback text");
+    const readClipboardText = vi.fn().mockResolvedValue(
+      "### Mock heading\n\nClick test: after heading",
+    );
     render(
       <CodeMirrorPaperSurface
         initialContent=""
@@ -117,8 +121,8 @@ describe("CodeMirrorPaperSurface", () => {
       value: {
         files: Object.assign([], { item: () => null }),
         getData: (type: string) => {
-          if (type === "text/html") return "<p><strong>Mock strong</strong></p>";
-          if (type === "text/plain") return "Mock strong";
+          if (type === "text/html") return "<h3>Mock heading</h3><p>Click test: after heading</p>";
+          if (type === "text/plain") return "### Mock heading\n\nClick test: after heading";
 
           return "";
         },
@@ -127,9 +131,13 @@ describe("CodeMirrorPaperSurface", () => {
     });
     view.contentDOM.dispatchEvent(pasteEvent);
 
-    expect(handled).toBe(true);
-    expect(readClipboardText).not.toHaveBeenCalled();
-    await waitFor(() => expect(view.state.doc.toString()).toBe("Mock strong"));
+    expect(handled).toBe(false);
+    expect(readClipboardText).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(view.state.doc.toString()).toBe(
+      "\\#\\#\\# Mock heading\n\nClick test: after heading",
+    ));
+    expect(view.dom.querySelector('[role="heading"]')).toBeNull();
+    expect(view.contentDOM.textContent).toContain("### Mock heading");
   });
 
   it("reconfigures read-only state without recreating the editor view", () => {
