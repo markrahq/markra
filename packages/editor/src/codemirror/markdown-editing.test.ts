@@ -79,10 +79,56 @@ afterEach(() => {
 });
 
 describe("markdownEditingPlugin", () => {
-  it("keeps the trailing line break when replacing a triple-clicked line", () => {
+  it.each([3, 4])(
+    "keeps the trailing line break when replacing a line after click count %s",
+    (detail) => {
+      const firstLine = "Mock selected line";
+      const secondLine = "Mock next line";
+      const view = createView(`${firstLine}\n${secondLine}`, 0);
+      view.focus();
+
+      view.contentDOM.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        clientX: 0,
+        clientY: 0,
+        detail,
+      }));
+      document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+
+      expect(view.state.selection.main.from).toBe(0);
+      expect(view.state.selection.main.to).toBe(firstLine.length);
+
+      view.dispatch(
+        view.state.replaceSelection("Replacement"),
+        { userEvent: "input.type" },
+      );
+
+      expect(view.state.doc.toString()).toBe(`Replacement\n${secondLine}`);
+    },
+  );
+
+  it("keeps the trailing line break when replacing a keyboard-selected line", () => {
     const firstLine = "Mock selected line";
     const secondLine = "Mock next line";
     const view = createView(`${firstLine}\n${secondLine}`, 0);
+    view.focus();
+
+    expect(press(view, "l", { altKey: true })).toBe(true);
+    expect(view.state.selection.main.from).toBe(0);
+    expect(view.state.selection.main.to).toBe(firstLine.length);
+
+    view.dispatch(
+      view.state.replaceSelection("Replacement"),
+      { userEvent: "input.type" },
+    );
+
+    expect(view.state.doc.toString()).toBe(`Replacement\n${secondLine}`);
+  });
+
+  it("inserts into a triple-clicked empty line without removing it", () => {
+    const secondLine = "Mock next line";
+    const view = createView(`\n${secondLine}`, 0);
     view.focus();
 
     view.contentDOM.dispatchEvent(new MouseEvent("mousedown", {
@@ -94,15 +140,70 @@ describe("markdownEditingPlugin", () => {
     }));
     document.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
 
-    expect(view.state.selection.main.from).toBe(0);
-    expect(view.state.selection.main.to).toBe(firstLine.length);
-
+    expect(view.state.selection.main.empty).toBe(true);
     view.dispatch(
       view.state.replaceSelection("Replacement"),
       { userEvent: "input.type" },
     );
 
     expect(view.state.doc.toString()).toBe(`Replacement\n${secondLine}`);
+  });
+
+  it("keeps internal line breaks in a keyboard-selected line range", () => {
+    const firstLine = "Mock first line";
+    const secondLine = "Mock second line";
+    const thirdLine = "Mock third line";
+    const doc = `${firstLine}\n${secondLine}\n${thirdLine}`;
+    const view = createView(
+      doc,
+      EditorSelection.create([
+        EditorSelection.range(2, firstLine.length + 1 + 4),
+      ]),
+    );
+
+    expect(press(view, "l", { altKey: true })).toBe(true);
+    expect(view.state.selection.main.from).toBe(0);
+    expect(view.state.selection.main.to).toBe(
+      firstLine.length + 1 + secondLine.length,
+    );
+
+    view.dispatch(
+      view.state.replaceSelection("Replacement"),
+      { userEvent: "input.type" },
+    );
+
+    expect(view.state.doc.toString()).toBe(`Replacement\n${thirdLine}`);
+  });
+
+  it("selects multiple complete lines without their trailing breaks", () => {
+    const firstLine = "Mock first line";
+    const middleLine = "Mock middle line";
+    const lastLine = "Mock last line";
+    const doc = `${firstLine}\n${middleLine}\n${lastLine}`;
+    const lastLineFrom = firstLine.length + 1 + middleLine.length + 1;
+    const view = createView(
+      doc,
+      EditorSelection.create([
+        EditorSelection.cursor(2),
+        EditorSelection.cursor(lastLineFrom + 2),
+      ]),
+    );
+
+    expect(press(view, "l", { altKey: true })).toBe(true);
+    expect(view.state.selection.ranges.map(({ from, to }) => ({ from, to })))
+      .toEqual([
+        { from: 0, to: firstLine.length },
+        { from: lastLineFrom, to: doc.length },
+      ]);
+
+    view.dispatch(
+      view.state.replaceSelection("Replacement"),
+      { userEvent: "input.type" },
+    );
+
+    expect(view.state.doc.toString()).toBe(
+      `Replacement\n${middleLine}\nReplacement`,
+    );
   });
 
   it("keeps CodeMirror's double-click word selection behavior", () => {

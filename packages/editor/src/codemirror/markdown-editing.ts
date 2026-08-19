@@ -94,7 +94,7 @@ function handleShiftTab(view: EditorView) {
 }
 
 function selectTripleClickedLine(view: EditorView, event: MouseEvent) {
-  if (event.button !== 0 || event.detail !== 3) return null;
+  if (event.button !== 0 || event.detail < 3) return null;
 
   const clickedPosition = view.posAtCoords({
     x: event.clientX,
@@ -130,6 +130,37 @@ function selectTripleClickedLine(view: EditorView, event: MouseEvent) {
       startSelection = startSelection.map(update.changes);
     },
   };
+}
+
+function selectLinesWithoutTrailingBreak(view: EditorView) {
+  const blocks: Array<{ from: number; to: number }> = [];
+  let coveredThroughLine = -1;
+
+  for (const range of view.state.selection.ranges) {
+    const startLine = view.state.doc.lineAt(range.from);
+    let endLine = view.state.doc.lineAt(range.to);
+    if (!range.empty && range.to === endLine.from) {
+      endLine = view.state.doc.lineAt(range.to - 1);
+    }
+
+    if (coveredThroughLine >= startLine.number) {
+      // Adjacent line selections would touch across their shared line break,
+      // so keep them in one valid CodeMirror selection range.
+      const previous = blocks[blocks.length - 1];
+      if (previous) previous.to = Math.max(previous.to, endLine.to);
+    } else {
+      blocks.push({ from: startLine.from, to: endLine.to });
+    }
+    coveredThroughLine = Math.max(coveredThroughLine, endLine.number + 1);
+  }
+
+  view.dispatch({
+    selection: EditorSelection.create(
+      blocks.map(({ from, to }) => EditorSelection.range(from, to)),
+    ),
+    userEvent: "select",
+  });
+  return true;
 }
 
 function keepJoinedLineCaretsAfterText(transaction: Transaction) {
@@ -283,6 +314,11 @@ export function markdownEditingPlugin() {
         {
           key: "Enter",
           run: confirmIncompleteInlineDestination,
+        },
+        {
+          key: "Alt-l",
+          mac: "Ctrl-l",
+          run: selectLinesWithoutTrailingBreak,
         },
         { key: "Tab", run: handleTab, shift: handleShiftTab },
         { key: "Shift-Enter", run: insertContextualHardBreak },
