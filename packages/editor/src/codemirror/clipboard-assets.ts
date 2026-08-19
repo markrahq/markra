@@ -26,7 +26,10 @@ import type {
   SaveRemoteClipboardImage,
 } from "../clipboard-asset-types.ts";
 import { looksLikeMarkdownSource } from "../markdown-source-detection.ts";
-import { isPlainTextPaste } from "../plain-text-paste.ts";
+import {
+  consumeNextPlainTextPaste,
+  isPlainTextPaste,
+} from "../plain-text-paste.ts";
 import {
   codeMirrorSelectionIsInsideFencedCode,
   serializeCodeMirrorMarkdownImage,
@@ -581,7 +584,12 @@ export function codeMirrorClipboardAssetsPlugin(
       EditorView.domEventHandlers({
         paste(event, view) {
           if (view.state.readOnly) return false;
-          if (isPlainTextPaste(event)) return false;
+          if (
+            consumeNextPlainTextPaste(view.contentDOM) ||
+            isPlainTextPaste(event)
+          ) {
+            return false;
+          }
           const images = imageFiles(event.clipboardData);
           if (
             images.length > 0 &&

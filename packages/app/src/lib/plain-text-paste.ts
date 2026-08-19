@@ -1,5 +1,9 @@
 import type { EditorView } from "@codemirror/view";
-import { dispatchPlainTextPaste } from "@markra/editor";
+import {
+  dispatchPlainTextPaste,
+  markNextPlainTextPaste,
+  parseMarkdownShortcut,
+} from "@markra/editor";
 import { getAppRuntime } from "../runtime";
 
 export type ClipboardTextReader = () =>
@@ -15,8 +19,22 @@ export function readAppClipboardText() {
 export function pasteCodeMirrorPlainText(
   view: EditorView,
   readClipboardText: ClipboardTextReader,
+  shortcut: string,
 ) {
   if (view.state.readOnly) return false;
+
+  const parsedShortcut = parseMarkdownShortcut(shortcut);
+  if (
+    parsedShortcut?.mod &&
+    parsedShortcut.shift &&
+    !parsedShortcut.alt &&
+    parsedShortcut.key.toLowerCase() === "v"
+  ) {
+    // WebKit still dispatches the native paste event after this keydown. Mark that event instead
+    // of racing it with an asynchronous clipboard read, which would allow rich conversion first.
+    markNextPlainTextPaste(view.contentDOM);
+    return false;
+  }
 
   try {
     Promise.resolve(readClipboardText()).then((text) => {

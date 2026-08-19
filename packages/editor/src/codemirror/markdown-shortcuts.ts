@@ -18,7 +18,7 @@ import { defineMarkraPlugin, runMarkraCommand } from "./plugin.ts";
 export interface MarkdownShortcutsPluginOptions {
   actions?: readonly KeyboardShortcutAction[];
   openSpellcheckSuggestions?: (view: EditorView) => boolean;
-  pastePlainText?: (view: EditorView) => boolean;
+  pastePlainText?: (view: EditorView, shortcut: string) => boolean;
   shortcuts?: KeyboardShortcutMap;
   toggleAllFolds?: (view: EditorView) => boolean;
 }
@@ -42,6 +42,7 @@ function runShortcutAction(
   view: EditorView,
   action: KeyboardShortcutAction,
   options: MarkdownShortcutsPluginOptions,
+  shortcut: string,
 ) {
   const command = commandByAction[action];
   if (command) return runMarkraCommand(view, command);
@@ -52,7 +53,7 @@ function runShortcutAction(
     case "link":
       return insertCodeMirrorMarkdownLink(view);
     case "pastePlainText":
-      return options.pastePlainText?.(view) ?? false;
+      return options.pastePlainText?.(view, shortcut) ?? false;
     case "table":
       return insertCodeMirrorMarkdownTable(view);
     case "toggleAllFolds":
@@ -76,7 +77,9 @@ export function markdownShortcutsPlugin(
 ) {
   const shortcuts = normalizeKeyboardShortcuts(options.shortcuts);
   const actions = options.actions ?? keyboardShortcutActions;
-  const altOnlyActions = actions.filter(
+  const pastePlainTextEnabled = actions.includes("pastePlainText");
+  const keymapActions = actions.filter((action) => action !== "pastePlainText");
+  const altOnlyActions = keymapActions.filter(
     (action) => parseKeyboardShortcut(shortcuts[action])?.mod === false,
   );
   return defineMarkraPlugin({
@@ -86,16 +89,31 @@ export function markdownShortcutsPlugin(
       // Match Alt-only shortcuts by physical code before CodeMirror's character keymap.
       EditorView.domEventHandlers({
         keydown: (event, view) => {
+          if (
+            pastePlainTextEnabled &&
+            matchesKeyboardShortcutEvent(event, shortcuts.pastePlainText)
+          ) {
+            return runShortcutAction(
+              view,
+              "pastePlainText",
+              options,
+              shortcuts.pastePlainText,
+            );
+          }
+
           const action = altOnlyActions.find((candidate) =>
             matchesKeyboardShortcutEvent(event, shortcuts[candidate])
           );
-          return action ? runShortcutAction(view, action, options) : false;
+          return action
+            ? runShortcutAction(view, action, options, shortcuts[action])
+            : false;
         },
       }),
       keymap.of(
-        actions.map((action) => ({
+        keymapActions.map((action) => ({
           key: codeMirrorShortcut(shortcuts[action]),
-          run: (view) => runShortcutAction(view, action, options),
+          run: (view) =>
+            runShortcutAction(view, action, options, shortcuts[action]),
         })),
       ),
     ],

@@ -92,6 +92,46 @@ describe("CodeMirrorPaperSurface", () => {
     expect(readClipboardText).toHaveBeenCalledTimes(1);
   });
 
+  it("lets the native V paste event provide plain text without rich conversion", async () => {
+    const onEditorReady = vi.fn();
+    const readClipboardText = vi.fn().mockResolvedValue("fallback text");
+    render(
+      <CodeMirrorPaperSurface
+        initialContent=""
+        markdownShortcuts={defaultMarkdownShortcuts}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        readClipboardText={readClipboardText}
+      />,
+    );
+    const view = onEditorReady.mock.calls[0]?.[0] as EditorView;
+
+    const handled = fireEvent.keyDown(view.contentDOM, {
+      code: "KeyV",
+      ctrlKey: true,
+      key: "V",
+      shiftKey: true,
+    });
+    const pasteEvent = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(pasteEvent, "clipboardData", {
+      value: {
+        files: Object.assign([], { item: () => null }),
+        getData: (type: string) => {
+          if (type === "text/html") return "<p><strong>Mock strong</strong></p>";
+          if (type === "text/plain") return "Mock strong";
+
+          return "";
+        },
+        types: ["text/html", "text/plain"],
+      },
+    });
+    view.contentDOM.dispatchEvent(pasteEvent);
+
+    expect(handled).toBe(true);
+    expect(readClipboardText).not.toHaveBeenCalled();
+    await waitFor(() => expect(view.state.doc.toString()).toBe("Mock strong"));
+  });
+
   it("reconfigures read-only state without recreating the editor view", () => {
     const onEditorReady = vi.fn();
     const { rerender } = render(

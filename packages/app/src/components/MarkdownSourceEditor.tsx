@@ -144,7 +144,8 @@ function markdownSourcePlainTextPasteExtension(
 ): Extension {
   return markdownShortcutsPlugin({
     actions: ["pastePlainText"],
-    pastePlainText: (view) => pasteCodeMirrorPlainText(view, readClipboardText),
+    pastePlainText: (view, shortcut) =>
+      pasteCodeMirrorPlainText(view, readClipboardText, shortcut),
     shortcuts,
   }).extension ?? [];
 }

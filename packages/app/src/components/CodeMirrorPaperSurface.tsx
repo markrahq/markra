@@ -149,7 +149,7 @@ interface MarkdownExtensionOptions {
   hideHeadingMarkersOnFocus: boolean;
   showCodeBlockLineNumbers: boolean;
   plugins: readonly MarkraPlugin[];
-  pastePlainText: (view: EditorView) => boolean;
+  pastePlainText: (view: EditorView, shortcut: string) => boolean;
   shortcuts?: MarkdownShortcutMap;
   tableColumnWidthMode: TableColumnWidthModePreference;
   workspaceFiles: () => MarkdownDocumentLinkFile[];
@@ -545,8 +545,12 @@ export function CodeMirrorPaperSurface({
               hideHeadingMarkersOnFocus,
               showCodeBlockLineNumbers,
               plugins,
-              pastePlainText: (shortcutView) =>
-                pasteCodeMirrorPlainText(shortcutView, readClipboardText),
+              pastePlainText: (shortcutView, shortcut) =>
+                pasteCodeMirrorPlainText(
+                  shortcutView,
+                  readClipboardText,
+                  shortcut,
+                ),
               shortcuts: markdownShortcuts,
               tableColumnWidthMode,
               workspaceFiles: () => workspaceFilesRef.current,
@@ -689,8 +693,12 @@ export function CodeMirrorPaperSurface({
           hideHeadingMarkersOnFocus,
           showCodeBlockLineNumbers,
           plugins,
-          pastePlainText: (shortcutView) =>
-            pasteCodeMirrorPlainText(shortcutView, readClipboardText),
+          pastePlainText: (shortcutView, shortcut) =>
+            pasteCodeMirrorPlainText(
+              shortcutView,
+              readClipboardText,
+              shortcut,
+            ),
           shortcuts: markdownShortcuts,
           tableColumnWidthMode,
           workspaceFiles: () => workspaceFilesRef.current,

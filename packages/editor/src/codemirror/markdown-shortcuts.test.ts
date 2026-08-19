@@ -90,8 +90,18 @@ describe("markdownShortcutsPlugin", () => {
     });
     views.push(view);
 
-    expect(shortcut(view, "g")).toBe(true);
-    expect(pastePlainText).toHaveBeenCalledWith(view);
+    const event = new KeyboardEvent("keydown", {
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+      code: "KeyG",
+      ctrlKey: true,
+      key: "g",
+    });
+    view.contentDOM.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(pastePlainText).toHaveBeenCalledWith(view, "Mod+Alt+G");
   });
 
   it("uses the configured formatting shortcut instead of the default chord", () => {

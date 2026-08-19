@@ -1,4 +1,10 @@
 export const plainTextPasteMime = "application/x-markra-plain-text-paste";
+const pendingPlainTextPasteProperty = "__markraPendingPlainTextPasteAt";
+const plainTextPasteIntentDurationMs = 1_500;
+
+type PlainTextPasteTarget = HTMLElement & {
+  [pendingPlainTextPasteProperty]?: number;
+};
 
 function plainTextClipboardData(text: string) {
   return {
@@ -17,6 +23,19 @@ function plainTextClipboardData(text: string) {
 
 export function isPlainTextPaste(event: ClipboardEvent) {
   return event.clipboardData?.getData(plainTextPasteMime) === "true";
+}
+
+export function markNextPlainTextPaste(target: HTMLElement) {
+  (target as PlainTextPasteTarget)[pendingPlainTextPasteProperty] = Date.now();
+}
+
+export function consumeNextPlainTextPaste(target: HTMLElement) {
+  const pasteTarget = target as PlainTextPasteTarget;
+  const markedAt = pasteTarget[pendingPlainTextPasteProperty];
+  delete pasteTarget[pendingPlainTextPasteProperty];
+  if (markedAt === undefined) return false;
+
+  return Date.now() - markedAt <= plainTextPasteIntentDurationMs;
 }
 
 export function dispatchPlainTextPaste(target: HTMLElement, text: string) {
