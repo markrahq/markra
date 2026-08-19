@@ -584,11 +584,13 @@ export function codeMirrorClipboardAssetsPlugin(
       EditorView.domEventHandlers({
         paste(event, view) {
           if (view.state.readOnly) return false;
+          // The shortcut dispatches its own marked paste before WebKit's native paste arrives.
+          // Never let the native-event suppression marker consume that synthetic plain-text event.
+          if (isPlainTextPaste(event)) return false;
           if (consumeNextPlainTextPaste(view.contentDOM)) {
             event.preventDefault();
             return true;
           }
-          if (isPlainTextPaste(event)) return false;
           const images = imageFiles(event.clipboardData);
           if (
             images.length > 0 &&

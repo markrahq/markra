@@ -2,6 +2,7 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { markdownImageDragMime } from "@markra/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { markNextPlainTextPaste } from "../plain-text-paste.ts";
 import { codeMirrorClipboardAssetsPlugin } from "./clipboard-assets.ts";
 import { liveMarkdown } from "./index.ts";
 import "./dom.test-support.ts";
@@ -221,6 +222,21 @@ describe("codeMirrorClipboardAssetsPlugin", () => {
 
     expect(event.defaultPrevented).toBe(true);
     expect(view.state.doc.toString()).toBe(code);
+  });
+
+  it("inserts the marked synthetic plain-text event before suppressing the native duplicate", () => {
+    const view = createView("");
+    markNextPlainTextPaste(view.contentDOM);
+
+    const syntheticEvent = paste(view, {
+      plainTextPaste: true,
+      text: "### Synthetic heading",
+    });
+    const nativeEvent = paste(view, { text: "Duplicate native paste" });
+
+    expect(syntheticEvent.defaultPrevented).toBe(true);
+    expect(nativeEvent.defaultPrevented).toBe(true);
+    expect(view.state.doc.toString()).toBe("### Synthetic heading");
   });
 
   it("prefers structured rich HTML over Markdown-looking fallback text", () => {

@@ -59,6 +59,7 @@ const nativeMarkdownShortcutCommands: Partial<Record<MarkdownShortcutAction, Nat
   italic: "formatItalic",
   link: "insertLink",
   openQuickOpen: "openQuickOpen",
+  pastePlainText: "pastePlainText",
   orderedList: "formatOrderedList",
   paragraph: "formatParagraph",
   quote: "formatQuote",

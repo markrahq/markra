@@ -64,6 +64,7 @@ export type NativeStaticMenuCommand =
   | "openDocument"
   | "openFolder"
   | "openQuickOpen"
+  | "pastePlainText"
   | "closeDocument"
   | "saveDocument"
   | "saveDocumentAs"

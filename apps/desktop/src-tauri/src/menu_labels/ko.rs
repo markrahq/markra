@@ -30,6 +30,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     cut: "잘라내기",
     copy: "복사",
     paste: "붙여넣기",
+    paste_plain_text: "일반 텍스트로 붙여넣기",
     select_all: "모두 선택",
     hide: "Markra 가리기",
     hide_others: "기타 가리기",

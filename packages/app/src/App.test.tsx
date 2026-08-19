@@ -588,6 +588,55 @@ describe("Markra workspace", () => {
     expect(syncAiSelectionToolbarFormattingState).toHaveBeenCalledTimes(1);
   });
 
+  it("pastes literal text from the native application menu after WebView focus is lost", async () => {
+    const clipboardText = "### 三级标题测试\n\n点击测试：三级标题之后";
+    const readClipboardText = vi.fn(async () => clipboardText);
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      menu: {
+        ...runtime.menu,
+        readClipboardText
+      }
+    });
+
+    const { container } = renderApp();
+
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+    const view = getVisibleCodeMirrorView(container);
+    act(() => {
+      view.dispatch({ selection: EditorSelection.cursor(view.state.doc.length) });
+      view.contentDOM.blur();
+    });
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+    expect(menuHandlers.pastePlainText).toBeTypeOf("function");
+
+    act(() => {
+      menuHandlers.pastePlainText?.();
+    });
+
+    await waitFor(() => expect(readClipboardText).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => {
+      expect(view.state.doc.toString()).toContain("\\#\\#\\# 三级标题测试\n\n点击测试：三级标题之后");
+    });
+
+    const followUpPaste = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(followUpPaste, "clipboardData", {
+      value: {
+        files: Object.assign([], { item: () => null }),
+        getData: (type: string) => type === "text/plain" ? "FOLLOW-UP" : "",
+        types: ["text/plain"]
+      }
+    });
+    act(() => {
+      view.contentDOM.dispatchEvent(followUpPaste);
+    });
+
+    await waitFor(() => expect(view.state.doc.toString()).toContain("FOLLOW-UP"));
+  });
+
   it("includes upload error details in pasted image save failures", () => {
     expect(clipboardImageSaveFailureDescription(new Error("S3 image upload failed: HTTP 403"))).toBe(
       "S3 image upload failed: HTTP 403"

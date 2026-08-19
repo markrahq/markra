@@ -176,6 +176,20 @@ describe("useNativeMenuHandlers", () => {
     });
   });
 
+  it("routes the native plain text paste command", () => {
+    const pastePlainText = vi.fn();
+    const { result } = renderHook(() =>
+      useNativeMenuHandlers({
+        ...baseOptions,
+        pastePlainText
+      })
+    );
+
+    result.current.pastePlainText?.();
+
+    expect(pastePlainText).toHaveBeenCalledTimes(1);
+  });
+
   it("routes native formatting commands through Alt-only custom shortcuts", () => {
     const runEditorShortcut = vi.fn();
     const { result } = renderHook(() =>
@@ -440,6 +454,26 @@ describe("useApplicationShortcuts", () => {
     });
 
     expect(toggleAiAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes plain text paste from the application capture layer", () => {
+    const pastePlainText = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        pastePlainText
+      })
+    );
+
+    const handled = fireEvent.keyDown(window, {
+      code: "KeyV",
+      ctrlKey: true,
+      key: "V",
+      shiftKey: true
+    });
+
+    expect(handled).toBe(false);
+    expect(pastePlainText).toHaveBeenCalledTimes(1);
   });
 
   it("routes Alt-only configurable app shortcuts without accepting Mod+Alt", () => {

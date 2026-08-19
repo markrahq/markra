@@ -43,6 +43,7 @@ pub(crate) struct MenuLabels {
     pub(crate) cut: &'static str,
     pub(crate) copy: &'static str,
     pub(crate) paste: &'static str,
+    pub(crate) paste_plain_text: &'static str,
     pub(crate) select_all: &'static str,
     pub(crate) hide: &'static str,
     pub(crate) hide_others: &'static str,

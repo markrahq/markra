@@ -68,6 +68,10 @@ import { useExportSettings } from "./hooks/useExportSettings";
 import { useFileIgnoreSettings } from "./hooks/useFileIgnoreSettings";
 import { useCodeMirrorEditorController } from "./hooks/useCodeMirrorEditorController";
 import { shouldFocusEditorOnReady } from "./lib/editor-focus";
+import {
+  pasteCodeMirrorPlainText,
+  readAppClipboardText,
+} from "./lib/plain-text-paste";
 import { useMarkdownDocument, type ActiveDiskFileContentChange } from "./hooks/useMarkdownDocument";
 import { useMarkdownFileTree } from "./hooks/useMarkdownFileTree";
 import { useSelectionToolbarAnchorRefresh } from "./hooks/useSelectionToolbarAnchorRefresh";
@@ -93,7 +97,7 @@ import {
   useNativeMenus,
   useSettingsWindowShortcut
 } from "./hooks/useNativeBindings";
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
 import { EditorSelection } from "@codemirror/state";
 import {
   aiTranslationLanguageName,
@@ -3468,6 +3472,38 @@ function WorkspaceApp() {
     syncVisualMarkdownAfterEditorCommand();
     return handled;
   }, [readOnlyMode, runEditorShortcut, syncVisualMarkdownAfterEditorCommand]);
+  const handlePastePlainText = useCallback(() => {
+    if (readOnlyMode) return;
+
+    const activeElement = globalThis.document.activeElement;
+    const activeContent = activeElement instanceof HTMLElement
+      ? activeElement.closest<HTMLElement>(".cm-content")
+      : null;
+    // Native menus temporarily move DOM focus out of the WebView. Prefer the last CodeMirror focus
+    // marker, then fall back to the active main surface so the menu accelerator keeps its target.
+    const content = activeContent ?? globalThis.document.querySelector<HTMLElement>(
+      ".cm-editor.cm-focused .cm-content",
+    );
+    const view = (content ? EditorView.findFromDOM(content) : null) ??
+      (sourceSurfaceActive
+        ? sourceEditorRef.current
+        : activeTabId
+          ? mainVisualEditorsRef.current.get(activeTabId) ?? null
+          : null);
+    if (!view) return;
+
+    pasteCodeMirrorPlainText(
+      view,
+      readAppClipboardText,
+      editorPreferences.preferences.markdownShortcuts.pastePlainText,
+      { suppressNextNativePaste: false },
+    );
+  }, [
+    activeTabId,
+    editorPreferences.preferences.markdownShortcuts.pastePlainText,
+    readOnlyMode,
+    sourceSurfaceActive,
+  ]);
   const handleAiSelectionToolbarFormattingAction = useCallback((action: SelectionFormattingToolbarAction) => {
     if (readOnlyMode) return;
 
@@ -4016,6 +4052,7 @@ function WorkspaceApp() {
     clearRecentFiles: clearRecentMarkdownFiles,
     openFolder: handleOpenMarkdownFolder,
     openQuickOpen: handleQuickOpenOpen,
+    pastePlainText: handlePastePlainText,
     runAiQuickAction: aiFeatureEnabled ? handleAiContextMenuAction : undefined,
     runEditorShortcut: handleRunEditorShortcut,
     saveDocument: handleSaveDocument,
@@ -4049,6 +4086,7 @@ function WorkspaceApp() {
     openWorkspaceSearch: handleGlobalSearchOpen,
     openFolder: handleOpenMarkdownFolder,
     openQuickOpen: handleQuickOpenOpen,
+    pastePlainText: handlePastePlainText,
     platform: desktopPlatform,
     saveDocument: handleSaveDocument,
     saveDocumentAs,

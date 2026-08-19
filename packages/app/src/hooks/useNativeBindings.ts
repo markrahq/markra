@@ -47,6 +47,7 @@ type NativeMenuHandlerOptions = {
   openDocument: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
   openQuickOpen?: () => unknown | Promise<unknown>;
+  pastePlainText?: () => unknown | Promise<unknown>;
   openRecentFile?: (file: RecentMarkdownFile) => unknown | Promise<unknown>;
   runAiQuickAction?: (intent: NativeAiQuickActionIntent, prompt: string) => unknown | Promise<unknown>;
   runEditorShortcut: (
@@ -78,6 +79,7 @@ type ApplicationShortcutOptions = {
   openWorkspaceSearch?: () => unknown | Promise<unknown>;
   openFolder: () => unknown | Promise<unknown>;
   openQuickOpen?: () => unknown | Promise<unknown>;
+  pastePlainText?: () => unknown | Promise<unknown>;
   platform?: DesktopPlatform;
   saveDocument: () => unknown | Promise<unknown>;
   saveDocumentAs: () => unknown | Promise<unknown>;
@@ -148,6 +150,7 @@ export function useNativeMenuHandlers({
   openDocument,
   openFolder,
   openQuickOpen,
+  pastePlainText,
   openRecentFile,
   runAiQuickAction,
   runEditorShortcut,
@@ -187,6 +190,7 @@ export function useNativeMenuHandlers({
     openDocument,
     openFolder,
     openQuickOpen,
+    pastePlainText,
     openRecentFile,
     runAiQuickAction,
     runEditorShortcut,
@@ -222,6 +226,7 @@ export function useNativeMenuHandlers({
     openDocument,
     openFolder,
     openQuickOpen,
+    pastePlainText,
     openRecentFile,
     runAiQuickAction,
     runEditorShortcut,
@@ -292,6 +297,7 @@ export function useNativeMenuHandlers({
       }
       if (openRecentFile) handlers.openRecentFile = (file) => latestOptionsRef.current.openRecentFile?.(file);
       if (openQuickOpen) handlers.openQuickOpen = () => latestOptionsRef.current.openQuickOpen?.();
+      if (pastePlainText) handlers.pastePlainText = () => latestOptionsRef.current.pastePlainText?.();
       if (syncNow) handlers.syncNow = () => latestOptionsRef.current.syncNow?.();
       if (toggleAiAgent) handlers.toggleAiAgent = () => latestOptionsRef.current.toggleAiAgent?.();
       if (toggleAiCommand) handlers.toggleAiCommand = () => latestOptionsRef.current.toggleAiCommand?.();
@@ -449,6 +455,7 @@ export function useApplicationShortcuts({
   openWorkspaceSearch,
   openFolder,
   openQuickOpen,
+  pastePlainText,
   platform = resolveDesktopPlatform(),
   saveDocument,
   saveDocumentAs,
@@ -484,7 +491,8 @@ export function useApplicationShortcuts({
         [normalizedMarkdownShortcuts.toggleSourceMode, toggleSourceMode],
         [normalizedMarkdownShortcuts.toggleReadOnlyMode, toggleReadOnlyMode],
         [normalizedMarkdownShortcuts.toggleTypewriterMode, toggleTypewriterMode],
-        [normalizedMarkdownShortcuts.toggleVimMode, toggleVimMode]
+        [normalizedMarkdownShortcuts.toggleVimMode, toggleVimMode],
+        [normalizedMarkdownShortcuts.pastePlainText, pastePlainText]
       ];
 
       for (const [shortcut, handler] of configurableActions) {
@@ -578,6 +586,7 @@ export function useApplicationShortcuts({
     openWorkspaceSearch,
     openFolder,
     openQuickOpen,
+    pastePlainText,
     platform,
     saveDocument,
     saveDocumentAs,

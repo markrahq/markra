@@ -30,6 +30,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     cut: "Taglia",
     copy: "Copia",
     paste: "Incolla",
+    paste_plain_text: "Incolla come testo normale",
     select_all: "Seleziona tutto",
     hide: "Nascondi Markra",
     hide_others: "Nascondi altri",

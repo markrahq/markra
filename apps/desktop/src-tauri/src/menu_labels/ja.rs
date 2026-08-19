@@ -30,6 +30,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     cut: "カット",
     copy: "コピー",
     paste: "ペースト",
+    paste_plain_text: "プレーンテキストとしてペースト",
     select_all: "すべて選択",
     hide: "Markra を隠す",
     hide_others: "ほかを隠す",

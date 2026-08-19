@@ -20,11 +20,13 @@ export function pasteCodeMirrorPlainText(
   view: EditorView,
   readClipboardText: ClipboardTextReader,
   shortcut: string,
+  options: { suppressNextNativePaste?: boolean } = {},
 ) {
   if (view.state.readOnly) return false;
 
   const parsedShortcut = parseMarkdownShortcut(shortcut);
   if (
+    options.suppressNextNativePaste !== false &&
     parsedShortcut?.mod &&
     parsedShortcut.shift &&
     !parsedShortcut.alt &&

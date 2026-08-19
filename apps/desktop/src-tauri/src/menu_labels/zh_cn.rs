@@ -30,6 +30,7 @@ pub(super) const LABELS: MenuLabels = MenuLabels {
     cut: "剪切",
     copy: "复制",
     paste: "粘贴",
+    paste_plain_text: "粘贴为纯文本",
     select_all: "全选",
     hide: "隐藏 Markra",
     hide_others: "隐藏其他",

@@ -16,6 +16,7 @@ import { toggleAllCodeMirrorFolds } from "./folding.ts";
 import { defineMarkraPlugin, runMarkraCommand } from "./plugin.ts";
 import {
   consumeNextPlainTextPaste,
+  isPlainTextPaste,
 } from "../plain-text-paste.ts";
 
 export interface MarkdownShortcutsPluginOptions {
@@ -112,6 +113,7 @@ export function markdownShortcutsPlugin(
             : false;
         },
         paste: (event, view) => {
+          if (isPlainTextPaste(event)) return false;
           if (!consumeNextPlainTextPaste(view.contentDOM)) return false;
 
           event.preventDefault();

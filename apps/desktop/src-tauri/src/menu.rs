@@ -18,6 +18,7 @@ const CLEAR_RECENT_FILES_COMMAND: &str = "clearRecentFiles";
 const SETTINGS_WINDOW_COMMAND: &str = "openSettings";
 const SETTINGS_WINDOW_ACCELERATOR: &str = "CmdOrCtrl+Comma";
 const SYNC_NOW_DEFAULT_ACCELERATOR: &str = "CmdOrCtrl+Alt+R";
+const PASTE_PLAIN_TEXT_DEFAULT_ACCELERATOR: &str = "CmdOrCtrl+Shift+V";
 const CHECK_FOR_UPDATES_COMMAND: &str = "checkForUpdates";
 const EDIT_UNDO_COMMAND: &str = "editUndo";
 const EDIT_REDO_COMMAND: &str = "editRedo";
@@ -171,6 +172,12 @@ fn native_application_menu_profile_for_window_label(label: &str) -> NativeApplic
     }
 
     NativeApplicationMenuProfile::Editor
+}
+
+fn native_application_menu_profile_includes_plain_text_paste(
+    profile: NativeApplicationMenuProfile,
+) -> bool {
+    matches!(profile, NativeApplicationMenuProfile::Editor)
 }
 
 fn current_native_menu_platform() -> NativeMenuPlatform {
@@ -445,18 +452,38 @@ fn create_markra_app_submenu<R: tauri::Runtime>(
 fn create_edit_submenu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
     labels: crate::menu_labels::MenuLabels,
+    accelerators: Option<&HashMap<String, String>>,
+    include_plain_text_paste: bool,
 ) -> tauri::Result<Submenu<R>> {
     let undo = app_menu_item(app, EDIT_UNDO_COMMAND, labels.undo, "CmdOrCtrl+Z")?;
     let redo = app_menu_item(app, EDIT_REDO_COMMAND, labels.redo, "CmdOrCtrl+Shift+Z")?;
+    let paste_plain_text = include_plain_text_paste
+        .then(|| {
+            app_menu_item(
+                app,
+                "pastePlainText",
+                labels.paste_plain_text,
+                &menu_accelerator(
+                    accelerators,
+                    "pastePlainText",
+                    PASTE_PLAIN_TEXT_DEFAULT_ACCELERATOR,
+                ),
+            )
+        })
+        .transpose()?;
 
-    SubmenuBuilder::with_id(app, "markra:edit", labels.edit)
+    let builder = SubmenuBuilder::with_id(app, "markra:edit", labels.edit)
         .items(&[&undo, &redo])
         .separator()
         .cut_with_text(labels.cut)
         .copy_with_text(labels.copy)
-        .paste_with_text(labels.paste)
-        .select_all_with_text(labels.select_all)
-        .build()
+        .paste_with_text(labels.paste);
+    let builder = match paste_plain_text.as_ref() {
+        Some(item) => builder.item(item),
+        None => builder,
+    };
+
+    builder.select_all_with_text(labels.select_all).build()
 }
 
 fn create_open_recent_file_submenu<R: tauri::Runtime>(
@@ -569,7 +596,14 @@ fn create_settings_menu_for_language<R: tauri::Runtime>(
 ) -> tauri::Result<Menu<R>> {
     let labels = crate::menu_labels::for_language(language);
     let app_menu = create_markra_app_submenu(app, labels)?;
-    let edit_menu = create_edit_submenu(app, labels)?;
+    let edit_menu = create_edit_submenu(
+        app,
+        labels,
+        None,
+        native_application_menu_profile_includes_plain_text_paste(
+            NativeApplicationMenuProfile::Settings,
+        ),
+    )?;
 
     MenuBuilder::new(app)
         .items(&[&app_menu, &edit_menu])
@@ -902,7 +936,14 @@ fn create_application_menu_for_language<R: tauri::Runtime>(
         .items(&[&export_menu])
         .build()?;
 
-    let edit_menu = create_edit_submenu(app, labels)?;
+    let edit_menu = create_edit_submenu(
+        app,
+        labels,
+        accelerators,
+        native_application_menu_profile_includes_plain_text_paste(
+            NativeApplicationMenuProfile::Editor,
+        ),
+    )?;
 
     let format_menu = SubmenuBuilder::with_id(app, "markra:format", labels.format)
         .items(&[&bold, &italic, &strikethrough, &inline_code])
@@ -1051,6 +1092,7 @@ pub(crate) fn is_frontend_menu_command(command: &str) -> bool {
             | CLEAR_RECENT_FILES_COMMAND
             | EDIT_UNDO_COMMAND
             | EDIT_REDO_COMMAND
+            | "pastePlainText"
             | "openDocument"
             | "openFolder"
             | "openQuickOpen"
@@ -1111,6 +1153,11 @@ mod tests {
     }
 
     #[test]
+    fn plain_text_paste_uses_the_cross_platform_default_accelerator() {
+        assert_eq!(PASTE_PLAIN_TEXT_DEFAULT_ACCELERATOR, "CmdOrCtrl+Shift+V");
+    }
+
+    #[test]
     fn recognizes_frontend_menu_commands() {
         assert!(!is_frontend_menu_command("newDocument"));
         assert!(is_frontend_menu_command("checkForUpdates"));
@@ -1119,6 +1166,7 @@ mod tests {
         assert!(is_frontend_menu_command("clearRecentFiles"));
         assert!(is_frontend_menu_command("editUndo"));
         assert!(is_frontend_menu_command("editRedo"));
+        assert!(is_frontend_menu_command("pastePlainText"));
         assert!(is_frontend_menu_command("openFolder"));
         assert!(is_frontend_menu_command("openQuickOpen"));
         assert!(is_frontend_menu_command("closeDocument"));
@@ -1267,6 +1315,16 @@ mod tests {
         assert!(!submenu_ids.contains(&"markra:file".to_string()));
         assert!(!submenu_ids.contains(&"markra:format".to_string()));
         assert!(!submenu_ids.contains(&"markra:view".to_string()));
+    }
+
+    #[test]
+    fn plain_text_paste_is_scoped_to_editor_menu_profiles() {
+        assert!(native_application_menu_profile_includes_plain_text_paste(
+            NativeApplicationMenuProfile::Editor
+        ));
+        assert!(!native_application_menu_profile_includes_plain_text_paste(
+            NativeApplicationMenuProfile::Settings
+        ));
     }
 
     #[test]
