@@ -56,6 +56,26 @@ describe("CodeMirror search decorations", () => {
     });
   });
 
+  it("renders zero-width regular expression matches", () => {
+    const view = createView("alpha\nbeta");
+
+    updateCodeMirrorSearchDecorations(
+      view,
+      [
+        { from: 0, to: 0 },
+        { from: 6, to: 6 },
+      ],
+      1,
+    );
+
+    expect(view.dom.querySelectorAll(".cm-markra-search-zero-width")).toHaveLength(2);
+    expect(view.dom.querySelectorAll(".cm-markra-search-match-current")).toHaveLength(1);
+    expect(getCodeMirrorSearchState(view.state).matches).toEqual([
+      { from: 0, to: 0 },
+      { from: 6, to: 6 },
+    ]);
+  });
+
   it("drops invalid ranges and clears stale results after document edits", () => {
     const view = createView();
 
@@ -81,6 +101,9 @@ describe("CodeMirror search decorations", () => {
     const view = createView();
 
     expect(scrollCodeMirrorSearchMatchIntoView(view, { from: 11, to: 16 })).toBe(
+      true,
+    );
+    expect(scrollCodeMirrorSearchMatchIntoView(view, { from: 6, to: 6 })).toBe(
       true,
     );
     expect(scrollCodeMirrorSearchMatchIntoView(view, { from: 20, to: 30 })).toBe(

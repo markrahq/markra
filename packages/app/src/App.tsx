@@ -107,6 +107,7 @@ import {
   markdownImageDragPayloadForFile,
   markdownImageDragSrcForDocument,
   pathNameFromPath,
+  resolveSearchReplacement,
   t,
   type AppLanguage,
   type I18nKey
@@ -1058,6 +1059,8 @@ function WorkspaceApp() {
     openReplace: openDocumentReplace,
     openSearch: openDocumentSearch,
     query: documentSearchQuery,
+    queryValid: documentSearchQueryValid,
+    regularExpression: documentSearchRegularExpression,
     replacement: documentSearchReplacement,
     replaceOpen: documentSearchReplaceOpen,
     resetActiveIndex: resetDocumentSearchActiveIndex,
@@ -1067,6 +1070,7 @@ function WorkspaceApp() {
     setReplacement: setDocumentSearchReplacement,
     setReplaceOpen: setDocumentSearchReplaceOpen,
     setQuery: setDocumentSearchQuery,
+    setRegularExpression: setDocumentSearchRegularExpression,
     setVisualMatches: setVisualDocumentSearchMatches,
     visibleSourceMatches: visibleSourceDocumentSearchMatches,
     visualMatches: visualDocumentSearchMatches
@@ -3599,6 +3603,9 @@ function WorkspaceApp() {
   const handleDocumentSearchCaseSensitiveChange = useCallback((caseSensitive: boolean) => {
     setDocumentSearchCaseSensitive(caseSensitive);
   }, [setDocumentSearchCaseSensitive]);
+  const handleDocumentSearchRegularExpressionChange = useCallback((regularExpression: boolean) => {
+    setDocumentSearchRegularExpression(regularExpression);
+  }, [setDocumentSearchRegularExpression]);
   const handleDocumentSearchNext = useCallback(() => {
     navigateDocumentSearch(1);
   }, [navigateDocumentSearch]);
@@ -3606,17 +3613,42 @@ function WorkspaceApp() {
     navigateDocumentSearch(-1);
   }, [navigateDocumentSearch]);
   const handleDocumentReplace = useCallback(() => {
-    if (readOnlyMode || !activeDocumentSearchMatch) return;
+    if (readOnlyMode || !documentSearchQueryValid || !activeDocumentSearchMatch) return;
 
     if (documentSearchSurface === "source") {
-      handleSourceMarkdownChange(replaceTextRange(document.content, activeDocumentSearchMatch, documentSearchReplacement));
+      handleSourceMarkdownChange(replaceTextRange(
+        document.content,
+        activeDocumentSearchMatch,
+        resolveSearchReplacement(
+          document.content,
+          activeDocumentSearchMatch,
+          documentSearchQuery,
+          documentSearchReplacement,
+          {
+            caseSensitive: documentSearchCaseSensitive,
+            regularExpression: documentSearchRegularExpression
+          }
+        )
+      ));
       return;
     }
 
-    replaceEditorSearchMatch(activeDocumentSearchMatch, documentSearchReplacement);
+    replaceEditorSearchMatch(
+      activeDocumentSearchMatch,
+      documentSearchReplacement,
+      documentSearchQuery,
+      {
+        caseSensitive: documentSearchCaseSensitive,
+        regularExpression: documentSearchRegularExpression
+      }
+    );
   }, [
     activeDocumentSearchMatch,
     document.content,
+    documentSearchCaseSensitive,
+    documentSearchQuery,
+    documentSearchQueryValid,
+    documentSearchRegularExpression,
     documentSearchReplacement,
     documentSearchSurface,
     handleSourceMarkdownChange,
@@ -3624,19 +3656,44 @@ function WorkspaceApp() {
     readOnlyMode
   ]);
   const handleDocumentReplaceAll = useCallback(() => {
-    if (readOnlyMode || documentSearchMatches.length === 0) return;
+    if (readOnlyMode || !documentSearchQueryValid || documentSearchMatches.length === 0) return;
 
     if (documentSearchSurface === "source") {
-      handleSourceMarkdownChange(replaceTextRanges(document.content, documentSearchMatches, documentSearchReplacement));
+      handleSourceMarkdownChange(replaceTextRanges(
+        document.content,
+        documentSearchMatches,
+        (match) => resolveSearchReplacement(
+          document.content,
+          match,
+          documentSearchQuery,
+          documentSearchReplacement,
+          {
+            caseSensitive: documentSearchCaseSensitive,
+            regularExpression: documentSearchRegularExpression
+          }
+        )
+      ));
       resetDocumentSearchActiveIndex();
       return;
     }
 
-    replaceAllEditorSearchMatches(documentSearchMatches, documentSearchReplacement);
+    replaceAllEditorSearchMatches(
+      documentSearchMatches,
+      documentSearchReplacement,
+      documentSearchQuery,
+      {
+        caseSensitive: documentSearchCaseSensitive,
+        regularExpression: documentSearchRegularExpression
+      }
+    );
     resetDocumentSearchActiveIndex();
   }, [
     document.content,
+    documentSearchCaseSensitive,
     documentSearchMatches,
+    documentSearchQuery,
+    documentSearchQueryValid,
+    documentSearchRegularExpression,
     documentSearchReplacement,
     documentSearchSurface,
     handleSourceMarkdownChange,
@@ -3652,7 +3709,8 @@ function WorkspaceApp() {
 
     setVisualDocumentSearchMatches(
       findEditorSearchMatches(documentSearchQuery, {
-        caseSensitive: documentSearchCaseSensitive
+        caseSensitive: documentSearchCaseSensitive,
+        regularExpression: documentSearchRegularExpression
       })
     );
   }, [
@@ -3662,6 +3720,7 @@ function WorkspaceApp() {
     documentSearchCaseSensitive,
     documentSearchOpen,
     documentSearchQuery,
+    documentSearchRegularExpression,
     documentSearchSurface,
     findEditorSearchMatches,
     visualEditorReadySequence
@@ -4860,7 +4919,9 @@ function WorkspaceApp() {
                   language={appLanguage.language}
                   matchCount={documentSearchMatchCount}
                   query={documentSearchQuery}
+                  queryValid={documentSearchQueryValid}
                   readOnly={readOnlyMode}
+                  regularExpression={documentSearchRegularExpression}
                   replaceOpen={documentSearchReplaceOpen}
                   replacement={documentSearchReplacement}
                   onCaseSensitiveChange={handleDocumentSearchCaseSensitiveChange}
@@ -4868,6 +4929,7 @@ function WorkspaceApp() {
                   onNext={handleDocumentSearchNext}
                   onPrevious={handleDocumentSearchPrevious}
                   onQueryChange={handleDocumentSearchQueryChange}
+                  onRegularExpressionChange={handleDocumentSearchRegularExpressionChange}
                   onReplace={handleDocumentReplace}
                   onReplaceAll={handleDocumentReplaceAll}
                   onReplaceOpenChange={setDocumentSearchReplaceOpen}

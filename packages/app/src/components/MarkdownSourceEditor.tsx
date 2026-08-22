@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, type CSSProperties, type Ref, type UIEvent } from "react";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { Annotation, Compartment, EditorSelection, EditorState, Prec, Transaction, type Extension } from "@codemirror/state";
-import { Decoration, EditorView, keymap, lineNumbers } from "@codemirror/view";
+import { Decoration, EditorView, keymap, lineNumbers, WidgetType } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { t, type AppLanguage, type SearchRange } from "@markra/shared";
 import {
@@ -157,11 +157,41 @@ function clampSearchRange(match: SearchRange, documentLength: number) {
   return { from, to };
 }
 
+class ZeroWidthSourceSearchMatchWidget extends WidgetType {
+  constructor(readonly active: boolean) {
+    super();
+  }
+
+  eq(other: ZeroWidthSourceSearchMatchWidget) {
+    return other.active === this.active;
+  }
+
+  toDOM() {
+    const marker = document.createElement("span");
+    marker.className = this.active
+      ? "markra-cm-source-search-zero-width markra-cm-source-search-match-current"
+      : "markra-cm-source-search-zero-width";
+    marker.setAttribute("aria-hidden", "true");
+    return marker;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
 function markdownSourceSearchExtension(matches: SearchRange[] = [], activeIndex = -1): Extension {
   return EditorView.decorations.compute(["doc"], (state) => {
     const decorations = matches.flatMap((match, index) => {
       const { from, to } = clampSearchRange(match, state.doc.length);
-      if (to <= from) return [];
+      if (to < from) return [];
+
+      if (from === to) {
+        return Decoration.widget({
+          side: 1,
+          widget: new ZeroWidthSourceSearchMatchWidget(index === activeIndex)
+        }).range(from);
+      }
 
       return Decoration.mark({
         class: `markra-cm-source-search-match ${

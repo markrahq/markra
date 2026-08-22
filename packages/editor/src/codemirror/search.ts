@@ -8,6 +8,7 @@ import {
   Decoration,
   EditorView,
   type DecorationSet,
+  WidgetType,
 } from "@codemirror/view";
 import type { SearchRange } from "@markra/shared";
 
@@ -29,6 +30,29 @@ const emptySearchState: CodeMirrorSearchState = {
 };
 const setSearchEffect = StateEffect.define<SearchUpdate>();
 
+class ZeroWidthSearchMatchWidget extends WidgetType {
+  constructor(readonly active: boolean) {
+    super();
+  }
+
+  eq(other: ZeroWidthSearchMatchWidget) {
+    return other.active === this.active;
+  }
+
+  toDOM() {
+    const marker = document.createElement("span");
+    marker.className = this.active
+      ? "cm-markra-search-zero-width cm-markra-search-match-current"
+      : "cm-markra-search-zero-width";
+    marker.setAttribute("aria-hidden", "true");
+    return marker;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
 function validMatches(
   matches: readonly SearchRange[],
   documentLength: number,
@@ -40,7 +64,7 @@ function validMatches(
         Number.isInteger(match.from) &&
         Number.isInteger(match.to) &&
         match.from >= 0 &&
-        match.from < match.to &&
+        match.from <= match.to &&
         match.to <= documentLength,
     )
     .sort((left, right) => left.from - right.from || left.to - right.to);
@@ -55,14 +79,19 @@ function createSearchState(
     (match) => match.originalIndex === update.activeIndex,
   );
   const decorations = Decoration.set(
-    matches.map((match, index) =>
-      Decoration.mark({
-        class:
-          index === activeIndex
-            ? "cm-markra-search-match cm-markra-search-match-current"
-            : "cm-markra-search-match",
-      }).range(match.from, match.to),
-    ),
+    matches.map((match, index) => {
+      const active = index === activeIndex;
+      return match.from === match.to
+        ? Decoration.widget({
+            side: 1,
+            widget: new ZeroWidthSearchMatchWidget(active),
+          }).range(match.from)
+        : Decoration.mark({
+            class: active
+              ? "cm-markra-search-match cm-markra-search-match-current"
+              : "cm-markra-search-match",
+          }).range(match.from, match.to);
+    }),
     true,
   );
 
@@ -99,6 +128,13 @@ const searchTheme = EditorView.baseTheme({
     backgroundColor: "color-mix(in srgb, #f59e0b 58%, transparent)",
     boxShadow: "0 0 0 1px color-mix(in srgb, #d97706 72%, transparent)",
   },
+  ".cm-markra-search-zero-width": {
+    borderLeft: "2px solid color-mix(in srgb, #f59e0b 76%, transparent)",
+    display: "inline-block",
+    height: "1em",
+    marginLeft: "-1px",
+    verticalAlign: "text-bottom",
+  },
 });
 
 export function codeMirrorSearchPlugin(): Extension {
@@ -128,7 +164,7 @@ function validScrollMatch(
       Number.isInteger(match.from) &&
       Number.isInteger(match.to) &&
       match.from >= 0 &&
-      match.from < match.to &&
+      match.from <= match.to &&
       match.to <= documentLength,
   );
 }

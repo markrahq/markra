@@ -8066,7 +8066,15 @@ describe("Markra workspace", () => {
     expect(searchInput).toHaveAttribute("autocorrect", "off");
     expect(searchInput).toHaveAttribute("spellcheck", "false");
     expect(screen.getByRole("button", { name: "Case sensitive" })).not.toHaveAttribute("title");
+    const regularExpressionButton = screen.getByRole("button", { name: "Use regular expression" });
+    expect(regularExpressionButton).toHaveAttribute("aria-pressed", "false");
     expect(container.querySelector(".editor-content-slot")).toHaveAttribute("data-document-search-open", "true");
+
+    fireEvent.click(regularExpressionButton);
+    fireEvent.change(searchInput, { target: { value: "[" } });
+
+    expect(searchInput).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("alert")).toHaveTextContent("Invalid regular expression");
   });
 
   it("opens document replace from the native Windows Ctrl+H keyboard shortcut", async () => {
@@ -8411,6 +8419,64 @@ describe("Markra workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "Replace" }));
 
     expect(readMarkdownSource(sourceEditor)).toContain("# Hello to Markra");
+  });
+
+  it("uses regular expressions and capture groups in source-mode document replace", async () => {
+    renderApp();
+
+    await expectVisibleMarkdownText("Welcome to Markra");
+
+    fireEvent.keyDown(window, { key: "s", altKey: true, metaKey: true });
+    const sourceEditor = await screen.findByRole("textbox", { name: "Markdown source" });
+
+    fireEvent.keyDown(window, { key: "f", altKey: true, metaKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Use regular expression" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find in document" }), {
+      target: { value: "Welcome (to) (Markra)" }
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Replace" }), {
+      target: { value: "$2 says hello $1" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+
+    expect(readMarkdownSource(sourceEditor)).toContain("# Markra says hello to");
+  });
+
+  it("replaces the selected visual-mode regular expression match", async () => {
+    const content = [
+      "`alpha-1`",
+      "`beta-2`",
+      "`gamma-3`",
+      "`delta-4`",
+      "`epsilon-5`",
+      "`zeta-6`",
+      "`eta-7`",
+      "`theta-8`",
+      "`item-123`"
+    ].join("\n\n");
+    mockOpenMarkdownFile({ content, name: "regex.md", path: mockNativePath });
+    const { container } = renderApp();
+
+    fireEvent.click(screen.getByRole("button", { name: "Open Markdown or Folder" }));
+    await expectVisibleCodeMirrorText(container, "item-123");
+
+    fireEvent.keyDown(window, { key: "f", altKey: true, metaKey: true });
+    fireEvent.click(screen.getByRole("button", { name: "Use regular expression" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Find in document" }), {
+      target: { value: "(\\w+)-(\\d+)" }
+    });
+
+    await waitFor(() => expect(screen.getByText("1/9")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: "Previous match" }));
+    expect(screen.getByText("9/9")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Replace" }), {
+      target: { value: "a" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Replace" }));
+
+    await expectVisibleCodeMirrorText(container, "`a`");
+    await expectVisibleMarkdownWithout("item-123");
   });
 
   it("toggles read-only mode from the keyboard shortcut and marks the status area", async () => {

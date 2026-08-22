@@ -14,7 +14,10 @@ import type {
 } from "@markra/ai";
 import { getMarkdownOutline } from "@markra/markdown";
 import {
+  findSearchRanges,
   normalizedExternalAutolinkUrl,
+  resolveSearchReplacement,
+  type SearchOptions,
   type SearchRange,
 } from "@markra/shared";
 import { findCodeMirrorMathRanges } from "./math-preview.ts";
@@ -28,9 +31,7 @@ export interface ReplaceCodeMirrorMarkdownOptions {
   historyBaselineMarkdown?: string;
 }
 
-export interface CodeMirrorSearchOptions {
-  caseSensitive?: boolean;
-}
+export type CodeMirrorSearchOptions = Omit<SearchOptions, "maxMatches">;
 
 export interface CodeMirrorMarkdownImageReference {
   alt: string;
@@ -362,16 +363,6 @@ export function readCodeMirrorTableAnchors(
   return anchors;
 }
 
-function searchTextMatches(
-  candidate: string,
-  query: string,
-  caseSensitive: boolean,
-) {
-  return caseSensitive
-    ? candidate === query
-    : candidate.toLocaleLowerCase() === query.toLocaleLowerCase();
-}
-
 export function findCodeMirrorSearchMatches(
   state: EditorState,
   query: string,
@@ -383,26 +374,13 @@ export function findCodeMirrorSearchMatches(
   const hiddenDisplayMath = findCodeMirrorMathRanges(state).filter(
     (range) => range.kind === "display",
   );
-  const matches: SearchRange[] = [];
-  let position = 0;
-
-  while (position + query.length <= document.length) {
-    const candidate = document.slice(position, position + query.length);
-    const hidden = hiddenDisplayMath.some(
-      (range) => position < range.to && position + query.length > range.from,
-    );
-    if (
-      !hidden &&
-      searchTextMatches(candidate, query, options.caseSensitive ?? false)
-    ) {
-      matches.push({ from: position, to: position + query.length });
-      position += query.length;
-      continue;
-    }
-    position += 1;
-  }
-
-  return matches;
+  return findSearchRanges(document, query, options).filter((match) =>
+    !hiddenDisplayMath.some((range) =>
+      match.from === match.to
+        ? match.from > range.from && match.from < range.to
+        : match.from < range.to && match.to > range.from,
+    )
+  );
 }
 
 function validSearchRange(
@@ -414,7 +392,7 @@ function validSearchRange(
       Number.isInteger(match.from) &&
       Number.isInteger(match.to) &&
       match.from >= 0 &&
-      match.from < match.to &&
+      match.from <= match.to &&
       match.to <= documentLength,
   );
 }
@@ -423,6 +401,8 @@ export function replaceCodeMirrorSearchMatch(
   view: EditorView,
   match: SearchRange | null | undefined,
   replacement: string,
+  query = "",
+  options: CodeMirrorSearchOptions = {},
 ) {
   if (
     view.state.facet(EditorState.readOnly) ||
@@ -431,8 +411,13 @@ export function replaceCodeMirrorSearchMatch(
     return false;
   }
 
+  const document = view.state.doc.toString();
   view.dispatch({
-    changes: { from: match.from, insert: replacement, to: match.to },
+    changes: {
+      from: match.from,
+      insert: resolveSearchReplacement(document, match, query, replacement, options),
+      to: match.to,
+    },
     scrollIntoView: true,
   });
   return true;
@@ -442,6 +427,8 @@ export function replaceAllCodeMirrorSearchMatches(
   view: EditorView,
   matches: readonly SearchRange[],
   replacement: string,
+  query = "",
+  options: CodeMirrorSearchOptions = {},
 ) {
   if (view.state.facet(EditorState.readOnly)) return false;
 
@@ -457,10 +444,11 @@ export function replaceAllCodeMirrorSearchMatches(
     nonOverlapping.push(match);
   }
 
+  const document = view.state.doc.toString();
   view.dispatch({
     changes: nonOverlapping.map((match) => ({
       from: match.from,
-      insert: replacement,
+      insert: resolveSearchReplacement(document, match, query, replacement, options),
       to: match.to,
     })),
     scrollIntoView: true,

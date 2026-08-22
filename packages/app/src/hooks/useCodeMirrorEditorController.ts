@@ -31,6 +31,7 @@ import {
   showCodeMirrorAiPreview,
   showCodeMirrorAiSelectionHold,
   type AiEditorPreviewLabels,
+  type CodeMirrorSearchOptions,
   type CodeMirrorMarkdownImageReference,
   type CodeMirrorMarkdownLinkReference,
   type ReplaceCodeMirrorMarkdownOptions,
@@ -307,7 +308,7 @@ export function useCodeMirrorEditorController() {
   );
 
   const findSearchMatches = useCallback(
-    (query: string, options: { caseSensitive?: boolean } = {}) => {
+    (query: string, options: CodeMirrorSearchOptions = {}) => {
       const view = viewRef.current;
       return view ? findCodeMirrorSearchMatches(view.state, query, options) : [];
     },
@@ -335,20 +336,36 @@ export function useCodeMirrorEditorController() {
   );
 
   const replaceSearchMatch = useCallback(
-    (match: SearchRange | null | undefined, replacement: string) => {
+    (
+      match: SearchRange | null | undefined,
+      replacement: string,
+      query = "",
+      options: CodeMirrorSearchOptions = {},
+    ) => {
       const view = viewRef.current;
       return view
-        ? replaceCodeMirrorSearchMatch(view, match, replacement)
+        ? replaceCodeMirrorSearchMatch(view, match, replacement, query, options)
         : false;
     },
     [],
   );
 
   const replaceAllSearchMatches = useCallback(
-    (matches: SearchRange[], replacement: string) => {
+    (
+      matches: SearchRange[],
+      replacement: string,
+      query = "",
+      options: CodeMirrorSearchOptions = {},
+    ) => {
       const view = viewRef.current;
       return view
-        ? replaceAllCodeMirrorSearchMatches(view, matches, replacement)
+        ? replaceAllCodeMirrorSearchMatches(
+            view,
+            matches,
+            replacement,
+            query,
+            options,
+          )
         : false;
     },
     [],

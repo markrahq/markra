@@ -1743,6 +1743,14 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
   }
 
+  .markra-cm-source-search-zero-width {
+    display: inline-block;
+    height: 1em;
+    margin-left: -1px;
+    border-left: 2px solid color-mix(in srgb, var(--accent) 72%, transparent);
+    vertical-align: text-bottom;
+  }
+
   .markra-spellcheck-error {
     text-decoration-line: underline;
     text-decoration-style: wavy;
