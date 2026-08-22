@@ -14,6 +14,7 @@ import {
 } from "./plugin.ts";
 import { livePreview, type LivePreviewConfig } from "./preview.ts";
 import { markraSlashMenu } from "./slash-menu.ts";
+import { markraSetextHeading } from "./setext-heading.ts";
 import { markraTheme } from "./theme.ts";
 
 export type {
@@ -255,7 +256,7 @@ export interface LiveMarkdownConfig extends LivePreviewConfig {
 }
 
 export const markraLanguage = markdown({
-  extensions: [GFM, markraHighlight],
+  extensions: [GFM, markraHighlight, markraSetextHeading],
 });
 
 export function liveMarkdown(config: LiveMarkdownConfig = {}): Extension {
@@ -268,7 +269,7 @@ export function liveMarkdown(config: LiveMarkdownConfig = {}): Extension {
   return [
     highlight
       ? markraLanguage
-      : markdown({ extensions: [GFM] }),
+      : markdown({ extensions: [GFM, markraSetextHeading] }),
     markdownSyntaxHighlighting,
     codeFolding(),
     livePreview(previewConfig),

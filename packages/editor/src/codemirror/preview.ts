@@ -672,11 +672,14 @@ function buildDecorations(
       node.name === "LinkLabel" && parentName === "Link";
     const isReferenceDefinitionMark =
       node.name === "LinkMark" && parentName === "LinkReference";
+    const isUncommittedSetextMark =
+      node.name === "HeaderMark" && parentName === "Paragraph";
     const isHideable =
       !unfinishedInlineDestination &&
       !isFootnoteLinkSyntax(state, node.node as MarkraSyntaxNode) &&
       !taskSourceRemainsVisible &&
       !isReferenceDefinitionMark &&
+      !isUncommittedSetextMark &&
       (HIDEABLE_MARKS.has(node.name) ||
         isReferenceLinkLabel ||
         isLinkDestination(node.name, parentName));

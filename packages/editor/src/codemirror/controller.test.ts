@@ -191,6 +191,26 @@ describe("CodeMirror editor controller", () => {
     expect(sections[0]?.text).toBe(doc.slice(0, doc.indexOf("# Three")));
   });
 
+  it("omits single-character Setext underlines from heading anchors", () => {
+    expect(
+      readCodeMirrorHeadingAnchors(createView("Synthetic title\n-").state),
+    ).toEqual([]);
+    expect(
+      readCodeMirrorHeadingAnchors(createView("Synthetic title\n=").state),
+    ).toEqual([]);
+
+    expect(
+      readCodeMirrorHeadingAnchors(createView("Synthetic title\n--").state),
+    ).toEqual([
+      {
+        from: 0,
+        level: 2,
+        title: "Synthetic title",
+        to: "Synthetic title\n--".length,
+      },
+    ]);
+  });
+
   it("reuses heading anchors when an edit cannot affect headings", () => {
     const doc = "# Synthetic heading\n\nBody";
     const view = createView(doc);

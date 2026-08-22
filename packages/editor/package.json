@@ -28,6 +28,7 @@
     "@codemirror/state": "6.6.0",
     "@codemirror/view": "6.41.1",
     "@cspell/cspell-types": "10.0.1",
+    "@lezer/common": "1.5.2",
     "@lezer/highlight": "1.2.3",
     "@lezer/markdown": "1.6.3",
     "@markra/ai": "workspace:*",

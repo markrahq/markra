@@ -1,4 +1,4 @@
-import { forceParsing } from "@codemirror/language";
+import { forceParsing, syntaxTree } from "@codemirror/language";
 import {
   EditorSelection,
   EditorState,
@@ -108,6 +108,156 @@ describe("liveMarkdown", () => {
 
     expect(view.state.doc.toString()).toBe("#");
     expect(renderedLines(view)).toEqual(["#"]);
+  });
+
+  it("keeps a lone dash below text as an unfinished list marker", () => {
+    const doc = "Synthetic title\n";
+    const view = createView({ doc });
+
+    view.dispatch({
+      changes: { from: doc.length, insert: "-" },
+      selection: { anchor: doc.length + 1 },
+      userEvent: "input.type",
+    });
+
+    expect(view.state.doc.toString()).toBe("Synthetic title\n-");
+    expect(syntaxTree(view.state).toString()).toBe(
+      "Document(Paragraph(HeaderMark))",
+    );
+    expect(renderedLines(view)).toEqual(["Synthetic title", "-"]);
+    expect(view.dom.querySelector(".cm-markra-h2")).toBeNull();
+
+    view.dispatch({ selection: { anchor: 0 } });
+    expect(renderedLines(view)).toEqual(["Synthetic title", "-"]);
+
+    view.dispatch({
+      changes: { from: view.state.doc.length, insert: "-" },
+      selection: { anchor: view.state.doc.length + 1 },
+      userEvent: "input.type",
+    });
+
+    expect(syntaxTree(view.state).toString()).toBe(
+      "Document(SetextHeading2(HeaderMark))",
+    );
+    expect(view.dom.querySelector(".cm-markra-h2")?.textContent).toBe(
+      "Synthetic title",
+    );
+
+    view.dispatch({
+      changes: {
+        from: view.state.doc.length - 1,
+        to: view.state.doc.length,
+      },
+      selection: { anchor: view.state.doc.length - 1 },
+      userEvent: "delete.backward",
+    });
+
+    expect(syntaxTree(view.state).toString()).toBe(
+      "Document(Paragraph(HeaderMark))",
+    );
+    expect(renderedLines(view)).toEqual(["Synthetic title", "-"]);
+    expect(view.dom.querySelector(".cm-markra-h2")).toBeNull();
+  });
+
+  it.each([
+    [
+      "nothing",
+      "Synthetic title\n-",
+      "Document(Paragraph(HeaderMark))",
+      null,
+    ],
+    [
+      "a trailing space",
+      "Synthetic title\n- ",
+      "Document(Paragraph(HeaderMark))",
+      null,
+    ],
+    [
+      "list content",
+      "Synthetic title\n- item",
+      "Document(Paragraph,BulletList(ListItem(ListMark,Paragraph)))",
+      null,
+    ],
+    [
+      "a lone equals underline",
+      "Synthetic title\n=",
+      "Document(Paragraph(HeaderMark))",
+      null,
+    ],
+    [
+      "a two-character equals underline",
+      "Synthetic title\n==",
+      "Document(SetextHeading1(HeaderMark))",
+      "cm-markra-h1",
+    ],
+  ])("disambiguates %s", (
+    _label,
+    doc,
+    expectedTree,
+    expectedHeadingClass,
+  ) => {
+    const view = createView({ doc });
+
+    expect(syntaxTree(view.state).toString()).toBe(expectedTree);
+    if (expectedHeadingClass) {
+      expect(view.dom.querySelector(`.${expectedHeadingClass}`)).not.toBeNull();
+    } else {
+      expect(view.dom.querySelector(".cm-markra-h1, .cm-markra-h2")).toBeNull();
+    }
+  });
+
+  it("uses the same lone-dash parsing when syntax highlighting is disabled", () => {
+    const view = createView({
+      doc: "Synthetic title\n-",
+      extensions: [liveMarkdown({ highlight: false })],
+    });
+
+    expect(syntaxTree(view.state).toString()).toBe(
+      "Document(Paragraph(HeaderMark))",
+    );
+    expect(renderedLines(view)).toEqual(["Synthetic title", "-"]);
+  });
+
+  it("keeps inline formatting and a buffered lone underline visible", () => {
+    const title = Array.from(
+      { length: 80 },
+      (_, index) => `**segment-${index}**`,
+    ).join(" ");
+    const view = createView({ doc: `${title}\n-`, anchor: 0 });
+
+    expect(syntaxTree(view.state).toString()).not.toContain("SetextHeading");
+    expect(view.dom.querySelectorAll(".cm-markra-strong")).toHaveLength(80);
+    expect(renderedLines(view).at(-1)).toBe("-");
+    expect(view.dom.querySelector(".cm-markra-h1, .cm-markra-h2")).toBeNull();
+  });
+
+  it.each([
+    [
+      "rule",
+      "> Synthetic quote\n---",
+      "Document(Blockquote(QuoteMark,Paragraph),HorizontalRule)",
+    ],
+    [
+      "two-dash line",
+      "> Synthetic quote\n--",
+      "Document(Blockquote(QuoteMark,Paragraph))",
+    ],
+  ])("does not absorb a deindented %s into a nested Setext heading", (
+    _label,
+    doc,
+    expectedTree,
+  ) => {
+    const view = createView({ doc });
+
+    expect(syntaxTree(view.state).toString()).toBe(expectedTree);
+  });
+
+  it("preserves unambiguous Setext headings inside blockquotes", () => {
+    const view = createView({ doc: "> Synthetic quote\n> ---" });
+
+    expect(syntaxTree(view.state).toString()).toBe(
+      "Document(Blockquote(QuoteMark,SetextHeading2(HeaderMark)))",
+    );
   });
 
   it("hides Markdown markers outside the active line", () => {
