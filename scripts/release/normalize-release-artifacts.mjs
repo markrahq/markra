@@ -249,7 +249,7 @@ function writeZip(outputPath, inputFiles) {
 
   for (const inputFile of inputFiles) {
     const name = Buffer.from(inputFile.name.replace(/\\/g, "/"), "utf8");
-    const data = fs.readFileSync(inputFile.path);
+    const data = inputFile.data ?? fs.readFileSync(inputFile.path);
     const compressedData = zlib.deflateRawSync(data, { level: 9 });
     const entry = {
       name,
@@ -319,7 +319,11 @@ function createWindowsPortableZip(releaseRoot, bundleRoot, context) {
     },
   ];
 
-  for (const entry of fs.readdirSync(executableDir, { withFileTypes: true })) {
+  const executableEntries = fs
+    .readdirSync(executableDir, { withFileTypes: true })
+    .sort((left, right) => left.name.localeCompare(right.name));
+
+  for (const entry of executableEntries) {
     if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".dll")) {
       continue;
     }
@@ -329,6 +333,17 @@ function createWindowsPortableZip(releaseRoot, bundleRoot, context) {
       name: `${appFolder}/${entry.name}`,
     });
   }
+
+  const manifestName = "markra-portable.json";
+  const manifest = {
+    formatVersion: 1,
+    executable: `${productName}.exe`,
+    files: [...portableFiles.map((file) => file.name.slice(`${appFolder}/`.length)), manifestName],
+  };
+  portableFiles.push({
+    data: Buffer.from(`${JSON.stringify(manifest, null, 2)}\n`, "utf8"),
+    name: `${appFolder}/${manifestName}`,
+  });
 
   const outputPath = path.join(bundleRoot, "portable", `${productName}_${version}_windows_${arch}_portable.zip`);
   writeZip(outputPath, portableFiles);

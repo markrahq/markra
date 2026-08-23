@@ -1,3 +1,4 @@
+import { Channel, invoke } from "@tauri-apps/api/core";
 import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { getStoredNetworkSettings, saveStoredWorkspaceState } from "@markra/app/settings";
@@ -26,6 +27,15 @@ export type NativeAppUpdate = {
   version: string;
 };
 
+type NativePortableUpdateMetadata = {
+  body?: string;
+  currentVersion: string;
+  date?: string;
+  version: string;
+};
+
+type NativePortableDownloadEvent = DownloadEvent;
+
 function isTauriRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -42,6 +52,20 @@ async function checkWithLocalProxyFallback() {
   }
 
   return check();
+}
+
+async function checkPortableWithLocalProxyFallback() {
+  const proxies = await updaterProxyUrls();
+
+  for (const proxy of proxies) {
+    try {
+      return await invoke<NativePortableUpdateMetadata | null>("check_portable_app_update", { proxy });
+    } catch {
+      // Local proxies are optional; fall through to the next candidate or direct check.
+    }
+  }
+
+  return invoke<NativePortableUpdateMetadata | null>("check_portable_app_update");
 }
 
 async function updaterProxyUrls() {
@@ -87,8 +111,54 @@ async function persistEditorWindowRestoreSnapshot() {
   }
 }
 
+function createProgressListener(onProgress?: (progress: NativeAppUpdateProgress) => unknown) {
+  let contentLength: number | null = null;
+  let downloaded = 0;
+
+  return (event: DownloadEvent) => {
+    if (event.event === "Started") {
+      contentLength = event.data.contentLength ?? null;
+      downloaded = 0;
+      emitProgress({ contentLength, downloaded, onProgress });
+      return;
+    }
+
+    if (event.event === "Progress") {
+      downloaded += event.data.chunkLength;
+      emitProgress({ contentLength, downloaded, onProgress });
+      return;
+    }
+
+    if (event.event === "Finished") {
+      if (contentLength !== null) downloaded = contentLength;
+      emitProgress({ contentLength, downloaded, onProgress });
+    }
+  };
+}
+
+async function checkNativePortableAppUpdate(): Promise<NativeAppUpdate | null> {
+  const update = await checkPortableWithLocalProxyFallback();
+  if (!update) return null;
+
+  return {
+    ...update,
+    async downloadAndInstall(callbacks = {}) {
+      const onEvent = new Channel<NativePortableDownloadEvent>(createProgressListener(callbacks.onProgress));
+      await invoke("download_portable_app_update", { onEvent });
+    },
+    async restart() {
+      await persistEditorWindowRestoreSnapshot();
+      await invoke("restart_portable_app_update");
+    }
+  };
+}
+
 export async function checkNativeAppUpdate(): Promise<NativeAppUpdate | null> {
   if (!isTauriRuntime()) return null;
+
+  if (await invoke<boolean>("is_native_portable_app")) {
+    return checkNativePortableAppUpdate();
+  }
 
   const update = await checkWithLocalProxyFallback();
   if (!update) return null;
@@ -98,28 +168,7 @@ export async function checkNativeAppUpdate(): Promise<NativeAppUpdate | null> {
     currentVersion: update.currentVersion,
     date: update.date,
     async downloadAndInstall(callbacks = {}) {
-      let contentLength: number | null = null;
-      let downloaded = 0;
-
-      await update.downloadAndInstall((event: DownloadEvent) => {
-        if (event.event === "Started") {
-          contentLength = event.data.contentLength ?? null;
-          downloaded = 0;
-          emitProgress({ contentLength, downloaded, onProgress: callbacks.onProgress });
-          return;
-        }
-
-        if (event.event === "Progress") {
-          downloaded += event.data.chunkLength;
-          emitProgress({ contentLength, downloaded, onProgress: callbacks.onProgress });
-          return;
-        }
-
-        if (event.event === "Finished") {
-          if (contentLength !== null) downloaded = contentLength;
-          emitProgress({ contentLength, downloaded, onProgress: callbacks.onProgress });
-        }
-      });
+      await update.downloadAndInstall(createProgressListener(callbacks.onProgress));
     },
     async restart() {
       await persistEditorWindowRestoreSnapshot();

@@ -14,6 +14,7 @@ mod menu;
 mod menu_labels;
 mod network;
 mod opened_files;
+mod portable_update;
 mod remote_sync;
 mod s3;
 mod s3_text_file;
@@ -65,6 +66,10 @@ use opened_files::{
     opened_markdown_paths_from_args, opened_markdown_paths_from_args_with_cwd,
     opened_markdown_paths_from_urls, queue_opened_markdown_paths, take_opened_markdown_paths,
     OpenedMarkdownPathsState,
+};
+use portable_update::{
+    check_portable_app_update, cleanup_portable_update_helpers, download_portable_app_update,
+    is_native_portable_app, restart_portable_app_update, PortableUpdateState,
 };
 use remote_sync::sync_webdav_markdown_folder;
 use s3_text_file::{read_s3_text_file, write_s3_text_file};
@@ -184,6 +189,10 @@ fn spawn_startup_window_reveal_fallback<R: tauri::Runtime>(app: &tauri::AppHandl
     });
 }
 
+pub fn run_portable_update_helper_if_requested() -> bool {
+    portable_update::run_portable_update_helper_if_requested()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -194,7 +203,8 @@ pub fn run() {
         .manage(NativeApplicationMenuState::default())
         .manage(NativeMenuTargetState::default())
         .manage(EditorWindowRestoreState::default())
-        .manage(AcpAgentProcessState::default());
+        .manage(AcpAgentProcessState::default())
+        .manage(PortableUpdateState::default());
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
@@ -228,6 +238,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            cleanup_portable_update_helpers();
             apply_main_window_chrome(app);
             spawn_startup_window_reveal_fallback(&app.handle());
             if let Some(window) = app.get_webview_window("main") {
@@ -348,6 +359,10 @@ pub fn run() {
             delete_spellcheck_dictionary,
             get_spellcheck_dictionary_status,
             load_spellcheck_dictionary,
+            is_native_portable_app,
+            check_portable_app_update,
+            download_portable_app_update,
+            restart_portable_app_update,
             open_log_folder
         ])
         .build(tauri::generate_context!())

@@ -399,6 +399,24 @@ jobs:
           TARGET: ${{ matrix.target }}
         run: node .release-scripts/scripts/release/normalize-release-artifacts.mjs
 
+      - name: Sign Windows portable bundle
+        if: matrix.asset_platform == 'windows'
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          portable_path="$(find "${DESKTOP_DIR}/src-tauri/target/${{ matrix.target }}/release/bundle/portable" -maxdepth 1 -type f -name '*_portable.zip' -print -quit)"
+          if [[ -z "${portable_path}" ]]; then
+            echo "Windows portable bundle was not found." >&2
+            exit 1
+          fi
+
+          "${DESKTOP_DIR}/node_modules/.bin/tauri" signer sign "${portable_path}"
+          test -s "${portable_path}.sig"
+
       - name: Collect bundle paths
         id: bundle_paths
         shell: bash
@@ -510,13 +528,22 @@ jobs:
           UPDATER_PLATFORM: ${{ matrix.updater_platform }}
         run: node .release-scripts/scripts/release/create-updater-metadata.mjs
 
+      - name: Create Windows portable updater metadata
+        if: matrix.asset_platform == 'windows'
+        shell: bash
+        env:
+          ARTIFACT_PATHS_RAW: ${{ steps.bundle_paths.outputs.paths }}
+          OUTPUT_PATH: release-metadata.windows-portable-x86_64.json
+          UPDATER_PLATFORM: windows-portable-x86_64
+        run: node .release-scripts/scripts/release/create-updater-metadata.mjs
+
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_SLUG }}-${{ matrix.artifact_name }}-bundles
           path: |
             ${{ steps.bundle_paths.outputs.paths }}
-            release-metadata.json
+            release-metadata*.json
           if-no-files-found: error
 
   publish_release:
@@ -627,7 +654,7 @@ jobs:
 
       - name: Generate updater manifest
         env:
-          EXPECTED_UPDATER_PLATFORMS: darwin-aarch64,darwin-x86_64,linux-aarch64,linux-x86_64,windows-x86_64
+          EXPECTED_UPDATER_PLATFORMS: darwin-aarch64,darwin-x86_64,linux-aarch64,linux-x86_64,windows-x86_64,windows-portable-x86_64
           GITHUB_REPOSITORY: ${{ github.repository }}
           RELEASE_ASSETS_ROOT: release-assets
           RELEASE_NOTES_PATH: release-notes.md

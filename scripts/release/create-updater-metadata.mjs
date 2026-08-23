@@ -39,6 +39,10 @@ function signatureMatchersForPlatform(platform) {
     return [/\.AppImage\.sig$/, /\.AppImage\.tar\.gz\.sig$/, /\.tar\.gz\.sig$/];
   }
 
+  if (platform.startsWith("windows-portable-")) {
+    return [/_portable\.zip\.sig$/];
+  }
+
   if (platform.startsWith("windows-")) {
     return [/setup\.exe\.sig$/, /\.msi\.sig$/, /nsis.*\.zip\.sig$/, /msi.*\.zip\.sig$/, /\.exe\.sig$/, /\.zip\.sig$/];
   }

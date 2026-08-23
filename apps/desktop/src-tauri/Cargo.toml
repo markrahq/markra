@@ -38,6 +38,10 @@ tauri-plugin-store = "2.4.3"
 tauri-plugin-updater = "2.10.1"
 time = "0.3.44"
 trash = "5.2.6"
+zip = { version = "4.6.1", default-features = false, features = ["deflate-flate2"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.10.1"
@@ -50,7 +54,7 @@ objc2-foundation = { version = "0.3.0", default-features = false, features = ["s
 rustix = { version = "1.1.4", features = ["fs"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
 winreg = "0.55.0"
 
 [target.'cfg(any(target_os = "macos", windows, target_os = "linux"))'.dependencies]

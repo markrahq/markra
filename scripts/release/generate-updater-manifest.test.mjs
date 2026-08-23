@@ -12,7 +12,7 @@ function makeTempDir() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "markra-updater-manifest-"));
 }
 
-function writeArtifact(rootDir, platform, bundleName, signature) {
+function writeArtifact(rootDir, platform, bundleName, signature, metadataName = "release-metadata.json") {
   const artifactDir = path.join(rootDir, platform);
   const signatureName = `${bundleName}.sig`;
 
@@ -20,7 +20,7 @@ function writeArtifact(rootDir, platform, bundleName, signature) {
   fs.writeFileSync(path.join(artifactDir, bundleName), "bundle");
   fs.writeFileSync(path.join(artifactDir, signatureName), signature);
   fs.writeFileSync(
-    path.join(artifactDir, "release-metadata.json"),
+    path.join(artifactDir, metadataName),
     `${JSON.stringify(
       {
         updaterPlatform: platform,
@@ -53,6 +53,13 @@ test("generate-updater-manifest writes latest.json for every updater platform", 
   writeArtifact(rootDir, "linux-aarch64", "Markra_0.0.8_linux_arm64.AppImage", "linux-arm-signature");
   writeArtifact(rootDir, "linux-x86_64", "Markra_0.0.8_linux_x64.AppImage", "linux-signature");
   writeArtifact(rootDir, "windows-x86_64", "Markra_0.0.8_windows_x64_setup.exe", "windows-signature");
+  writeArtifact(
+    rootDir,
+    "windows-portable-x86_64",
+    "Markra_0.0.8_windows_x64_portable.zip",
+    "windows-portable-signature",
+    "release-metadata.windows-portable-x86_64.json",
+  );
   fs.writeFileSync(notesPath, "Release notes");
 
   const result = runManifestScript({
@@ -88,6 +95,10 @@ test("generate-updater-manifest writes latest.json for every updater platform", 
     "windows-x86_64": {
       signature: "windows-signature",
       url: "https://github.com/markrahq/markra/releases/download/v0.0.8/Markra_0.0.8_windows_x64_setup.exe",
+    },
+    "windows-portable-x86_64": {
+      signature: "windows-portable-signature",
+      url: "https://github.com/markrahq/markra/releases/download/v0.0.8/Markra_0.0.8_windows_x64_portable.zip",
     },
   });
 });

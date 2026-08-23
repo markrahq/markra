@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import zlib from "node:zlib";
 
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const releaseWorkflowPath = path.join(repoRoot, ".github", "workflows", "release.yml");
@@ -31,6 +32,29 @@ function runNormalizeScript(rootDir, env) {
       ...env,
     },
   });
+}
+
+function readZipEntries(archive) {
+  const entries = new Map();
+  let offset = 0;
+
+  while (archive.readUInt32LE(offset) === 0x04034b50) {
+    const compression = archive.readUInt16LE(offset + 8);
+    const compressedSize = archive.readUInt32LE(offset + 18);
+    const nameLength = archive.readUInt16LE(offset + 26);
+    const extraLength = archive.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    const dataEnd = dataStart + compressedSize;
+    const name = archive.subarray(nameStart, nameStart + nameLength).toString("utf8");
+    const compressed = archive.subarray(dataStart, dataEnd);
+    const data = compression === 8 ? zlib.inflateRawSync(compressed) : compressed;
+
+    entries.set(name, data);
+    offset = dataEnd;
+  }
+
+  return entries;
 }
 
 function readReleaseMatrixEntry(name) {
@@ -97,6 +121,15 @@ test("release workflow excludes Wayland client from Linux AppImage bundling", ()
   assert.match(verifyStep, /if:\s*matrix\.asset_platform == 'linux'/);
   assert.match(verifyStep, /verify-linux-appimage-libraries\.mjs/);
   assert.match(verifyStep, /verify-linux-appimage-gtk-ime\.mjs/);
+});
+
+test("release workflow signs the Windows portable bundle", () => {
+  const signStep = readReleaseStep("Sign Windows portable bundle");
+
+  assert.match(signStep, /if:\s*matrix\.asset_platform == 'windows'/);
+  assert.match(signStep, /tauri" signer sign/);
+  assert.match(signStep, /portable\.zip/);
+  assert.match(signStep, /portable_path.*\.sig/);
 });
 
 test("normalize-release-artifacts adds macOS platform labels to updater and dmg assets", () => {
@@ -174,9 +207,16 @@ test("normalize-release-artifacts adds Windows platform labels and creates a por
   assert.equal(fs.existsSync(portableZip), true);
 
   const zipContents = fs.readFileSync(portableZip);
+  const zipEntries = readZipEntries(zipContents);
   assert.equal(zipContents.subarray(0, 4).toString("latin1"), "PK\u0003\u0004");
   assert.match(zipContents.toString("latin1"), /Markra\/Markra\.exe/);
   assert.match(zipContents.toString("latin1"), /Markra\/support\.dll/);
+  assert.match(zipContents.toString("latin1"), /Markra\/markra-portable\.json/);
+  assert.deepEqual(JSON.parse(zipEntries.get("Markra/markra-portable.json").toString("utf8")), {
+    executable: "Markra.exe",
+    files: ["Markra.exe", "support.dll", "markra-portable.json"],
+    formatVersion: 1,
+  });
 });
 
 test("normalize-release-artifacts adds Linux platform labels to package assets", () => {

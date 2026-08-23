@@ -51,6 +51,27 @@ test("create-updater-metadata prefers the Windows setup updater bundle", () => {
   });
 });
 
+test("create-updater-metadata selects the signed Windows portable bundle", () => {
+  const rootDir = makeTempDir();
+  const [, msiSignature] = writeBundle(rootDir, "Markra_0.0.8_windows_x64_en-US.msi");
+  const [, setupSignature] = writeBundle(rootDir, "Markra_0.0.8_windows_x64_setup.exe");
+  const [bundlePath, signaturePath] = writeBundle(rootDir, "Markra_0.0.8_windows_x64_portable.zip");
+  const outputPath = path.join(rootDir, "release-metadata.windows-portable-x86_64.json");
+
+  const result = runMetadataScript({
+    ARTIFACT_PATHS_RAW: [msiSignature, setupSignature, signaturePath].join("\n"),
+    OUTPUT_PATH: outputPath,
+    UPDATER_PLATFORM: "windows-portable-x86_64",
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(fs.readFileSync(outputPath, "utf8")), {
+    updaterPlatform: "windows-portable-x86_64",
+    bundleName: path.basename(bundlePath),
+    signatureName: path.basename(signaturePath),
+  });
+});
+
 test("create-updater-metadata selects AppImage bundles for Linux updater metadata", () => {
   const rootDir = makeTempDir();
   const [bundlePath, signaturePath] = writeBundle(rootDir, "Markra_0.0.8_linux_x64.AppImage");

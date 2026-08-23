@@ -53,7 +53,10 @@ const expectedPlatforms = (process.env.EXPECTED_UPDATER_PLATFORMS || "")
   .map((platform) => platform.trim())
   .filter(Boolean);
 const metadataPaths = walkFiles(root)
-  .filter((filePath) => path.basename(filePath) === "release-metadata.json")
+  .filter((filePath) => {
+    const fileName = path.basename(filePath);
+    return fileName.startsWith("release-metadata") && fileName.endsWith(".json");
+  })
   .sort();
 
 const platforms = {};
