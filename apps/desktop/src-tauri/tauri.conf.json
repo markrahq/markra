@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "pnpm dev --host 127.0.0.1 --port 1420 --strictPort",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "pnpm build && pnpm build:icon",
+    "beforeBuildCommand": "pnpm build && pnpm build:icon && pnpm build:quicklook",
     "frontendDist": "../dist"
   },
   "app": {
@@ -73,6 +73,7 @@
     },
     "macOS": {
       "files": {
+        "PlugIns/MarkraQuickLookPreview.appex": "target/quicklook/MarkraQuickLookPreview.appex",
         "Resources/Assets.car": "icons/generated/Assets.car",
         "Resources/de.lproj": "macos-locales/de.lproj",
         "Resources/en.lproj": "macos-locales/en.lproj",

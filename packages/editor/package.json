@@ -42,7 +42,8 @@
     "mermaid": "11.15.0",
     "remark-frontmatter": "5.0.0",
     "remark-math": "6.0.0",
-    "turndown": "7.2.4"
+    "turndown": "7.2.4",
+    "unified": "11.0.5"
   },
   "devDependencies": {
     "@types/node": "24.10.0",

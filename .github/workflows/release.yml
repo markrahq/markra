@@ -338,6 +338,13 @@ jobs:
             $wixObjects
           exit $LASTEXITCODE
 
+      - name: Verify macOS Quick Look extension
+        if: startsWith(matrix.os, 'macos-')
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: pnpm --filter @markra/desktop verify:quicklook-bundle
+
       - name: Rebuild Linux AppImage library policy
         if: matrix.asset_platform == 'linux'
         shell: bash

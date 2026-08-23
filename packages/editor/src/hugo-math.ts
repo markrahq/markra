@@ -1,3 +1,5 @@
+import type { Processor } from "unified";
+
 type MarkdownNode = {
   data?: unknown;
   meta?: unknown;
@@ -425,8 +427,8 @@ export function markraHugoMathFromMarkdown() {
   };
 }
 
-export function remarkHugoMath(this: { data: () => RemarkProcessorData }) {
-  const data = this.data();
+export function remarkHugoMath(this: Processor) {
+  const data = this.data() as RemarkProcessorData;
   const micromarkExtensions = data.micromarkExtensions ?? (data.micromarkExtensions = []);
   const fromMarkdownExtensions = data.fromMarkdownExtensions ?? (data.fromMarkdownExtensions = []);
 

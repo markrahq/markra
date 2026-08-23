@@ -7,11 +7,16 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.app.json && vite build && pnpm verify:chunks",
+    "build:quicklook-renderer": "vite build --config vite.quicklook.config.ts",
+    "build:quicklook-extension": "bash scripts/build-macos-quicklook.sh",
+    "build:quicklook": "node scripts/quicklook.mjs",
     "build:icon": "node scripts/icon.mjs",
     "test": "vitest run",
+    "test:quicklook": "bash scripts/test-macos-quicklook.sh",
     "test:watch": "vitest",
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "verify:chunks": "node ../../packages/scripts/src/verify-vendor-chunks.mjs dist/assets",
+    "verify:quicklook-bundle": "bash scripts/verify-macos-quicklook.sh",
     "tauri": "tauri"
   },
   "dependencies": {
@@ -25,6 +30,7 @@
     "@tauri-apps/plugin-process": "2.3.1",
     "@tauri-apps/plugin-store": "^2.4.3",
     "@tauri-apps/plugin-updater": "2.10.1",
+    "katex": "0.16.45",
     "react": "19.2.5",
     "react-dom": "19.2.5"
   },
@@ -33,6 +39,7 @@
     "@tailwindcss/vite": "^4.2.4",
     "@tauri-apps/cli": "2.11.0",
     "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
     "@types/node": "24.10.0",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
@@ -41,6 +48,7 @@
     "tailwindcss": "^4.2.4",
     "typescript": "6.0.3",
     "vite": "8.0.10",
+    "vite-plugin-singlefile": "2.3.3",
     "vitest": "4.1.5"
   }
 }

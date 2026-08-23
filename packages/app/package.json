@@ -13,6 +13,10 @@
       "types": "./src/runtime/index.ts",
       "default": "./src/runtime/index.ts"
     },
+    "./markdown-preview": {
+      "types": "./src/components/MarkdownPreviewDocument.tsx",
+      "default": "./src/components/MarkdownPreviewDocument.tsx"
+    },
     "./settings": {
       "types": "./src/lib/settings/app-settings.ts",
       "default": "./src/lib/settings/app-settings.ts"
