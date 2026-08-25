@@ -5936,6 +5936,33 @@ describe("Markra workspace", () => {
     expect(mockedConfirmNativeUnsavedMarkdownDocumentDiscard).not.toHaveBeenCalled();
   });
 
+  it("appends an AI preview result without replacing the original selection", async () => {
+    mockOpenMarkdownFile({
+      content: "Before Original After",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    expect(await screen.findByText("Before Original After")).toBeInTheDocument();
+
+    dispatchAiEditorPreviewAction({
+      action: "append",
+      previewId: "synthetic-preview",
+      result: {
+        from: 7,
+        original: "Original",
+        replacement: "Improved",
+        to: 15,
+        type: "replace"
+      }
+    });
+
+    await expectVisibleMarkdownText("Before Original Improved After");
+  });
+
   it("does not expose side-open file tree actions when document tabs are hidden", async () => {
     mockedGetStoredEditorPreferences.mockResolvedValue({
       aiQuickActionPrompts: defaultAiQuickActionPrompts,

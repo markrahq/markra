@@ -883,6 +883,7 @@ export type I18nKey =
   | "app.aiSummarizing"
   | "app.aiTranslate"
   | "app.aiTranslating"
+  | "app.aiAppend"
   | "app.aiApply"
   | "app.aiReject"
   | "app.aiCopy"

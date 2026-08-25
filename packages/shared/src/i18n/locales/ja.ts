@@ -502,6 +502,7 @@ const messages: LocaleMessages = {
   "app.aiSummarizing": "要約中...",
   "app.aiTranslate": "翻訳",
   "app.aiTranslating": "翻訳中...",
+  "app.aiAppend": "追加",
   "app.aiApply": "適用",
   "app.aiReject": "却下",
   "app.aiCopy": "コピー",

@@ -244,6 +244,88 @@ describe("CodeMirror AI preview", () => {
     window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onAction);
   });
 
+  it("emits an append action from the preview controls", () => {
+    const doc = "Before Original After";
+    const result = replacementResult(doc, "Original", "Improved");
+    const view = createView(doc);
+    const onAction = vi.fn();
+    window.addEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onAction);
+
+    showCodeMirrorAiPreview(view, result, {
+      append: "Append",
+      apply: "Apply",
+      copied: "Copied",
+      copy: "Copy",
+      reject: "Reject",
+    }, { previewId: "synthetic-preview" });
+    const append = view.dom.querySelector<HTMLButtonElement>(
+      ".markra-ai-preview-append",
+    );
+    append?.click();
+
+    expect(append?.title).toBe("Append");
+    expect(onAction).toHaveBeenCalledOnce();
+    expect((onAction.mock.calls[0]?.[0] as CustomEvent).detail).toMatchObject({
+      action: "append",
+      previewId: "synthetic-preview",
+      result,
+    });
+    window.removeEventListener(AI_EDITOR_PREVIEW_ACTION_EVENT, onAction);
+  });
+
+  it("does not offer append when applying the AI result already inserts text", () => {
+    const doc = "# Synthetic";
+    const result: AiDiffResult = {
+      from: doc.length,
+      original: "",
+      replacement: "\n\nContinuation",
+      to: doc.length,
+      type: "insert",
+    };
+    const view = createView(doc);
+
+    showCodeMirrorAiPreview(view, result);
+
+    expect(view.dom.querySelector(".markra-ai-preview-append")).toBeNull();
+    expect(view.dom.querySelector(".markra-ai-preview-apply")).not.toBeNull();
+  });
+
+  it("appends an inline AI result after the original selection", () => {
+    const doc = "Before Original After";
+    const result = replacementResult(doc, "Original", "Improved");
+    const view = createView(doc);
+    showCodeMirrorAiPreview(view, result, undefined, { previewId: "append" });
+
+    expect(
+      applyCodeMirrorAiResult(view, result, {
+        mode: "append",
+        previewId: "append",
+      }),
+    ).toBe(true);
+
+    expect(view.state.doc.toString()).toBe("Before Original Improved After");
+    expect(view.state.selection.main.head).toBe("Before Original Improved".length);
+    expect(listCodeMirrorAiPreviewResults(view)).toEqual([]);
+  });
+
+  it("appends a block AI result as a separate Markdown block", () => {
+    const doc = "# Synthetic\n\nOriginal\n\nAfter";
+    const result = replacementResult(doc, "Original", "Improved");
+    const view = createView(doc);
+    showCodeMirrorAiPreview(view, result, undefined, { previewId: "append-block" });
+
+    expect(
+      applyCodeMirrorAiResult(view, result, {
+        mode: "append",
+        previewId: "append-block",
+      }),
+    ).toBe(true);
+
+    expect(view.state.doc.toString()).toBe(
+      "# Synthetic\n\nOriginal\n\nImproved\n\nAfter",
+    );
+  });
+
   it("applies one preview and rebases later previews through the same transaction", () => {
     const doc = "One Original Two Summary";
     const first = replacementResult(doc, "Original", "Much better");
@@ -372,6 +454,35 @@ describe("CodeMirror AI preview", () => {
     expect(onRestore).toHaveBeenCalledWith(
       expect.objectContaining({
         detail: expect.objectContaining({ previewId: "replacement", result }),
+      }),
+    );
+    window.removeEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, onRestore);
+  });
+
+  it("restores an appended comparison when undo removes the appended text", () => {
+    const doc = "Before Original After";
+    const result = replacementResult(doc, "Original", "Improved");
+    const view = createView(doc);
+    const onRestore = vi.fn();
+    window.addEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, onRestore);
+    showCodeMirrorAiPreview(view, result, undefined, { previewId: "append" });
+
+    expect(
+      applyCodeMirrorAiResult(view, result, {
+        mode: "append",
+        previewId: "append",
+      }),
+    ).toBe(true);
+    expect(view.state.doc.toString()).toBe("Before Original Improved After");
+    expect(undo(view)).toBe(true);
+
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(listCodeMirrorAiPreviewResults(view)).toEqual([result]);
+    expect(view.dom.querySelector(".markra-ai-preview-delete")?.textContent).toContain("Original");
+    expect(view.dom.querySelector(".markra-ai-preview-insert")?.textContent).toContain("Improved");
+    expect(onRestore).toHaveBeenCalledWith(
+      expect.objectContaining({
+        detail: expect.objectContaining({ previewId: "append", result }),
       }),
     );
     window.removeEventListener(AI_EDITOR_PREVIEW_RESTORE_EVENT, onRestore);

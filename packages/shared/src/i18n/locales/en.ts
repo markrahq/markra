@@ -872,6 +872,7 @@ const messages: BaseLocaleMessages = {
   "app.aiSummarizing": "Summarizing...",
   "app.aiTranslate": "Translate",
   "app.aiTranslating": "Translating...",
+  "app.aiAppend": "Append",
   "app.aiApply": "Apply",
   "app.aiReject": "Reject",
   "app.aiCopy": "Copy",

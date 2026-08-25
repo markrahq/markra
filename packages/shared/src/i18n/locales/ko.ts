@@ -494,6 +494,7 @@ const messages: LocaleMessages = {
   "app.aiSummarizing": "요약 중...",
   "app.aiTranslate": "번역",
   "app.aiTranslating": "번역 중...",
+  "app.aiAppend": "추가",
   "app.aiApply": "적용",
   "app.aiReject": "거부",
   "app.aiCopy": "복사",

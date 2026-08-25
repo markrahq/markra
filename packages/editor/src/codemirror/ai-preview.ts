@@ -33,6 +33,10 @@ export interface CodeMirrorAiPreviewOptions {
   previewId?: string;
 }
 
+export interface CodeMirrorAiApplyOptions extends CodeMirrorAiPreviewOptions {
+  mode?: "append" | "replace";
+}
+
 interface CodeMirrorAiPreviewSnapshot {
   readonly id: string;
   readonly labels?: AiEditorPreviewLabels;
@@ -49,6 +53,10 @@ interface CodeMirrorAiPreviewState {
 
 interface CodeMirrorAppliedPreviewSnapshot {
   readonly from: number;
+  readonly inserted: string;
+  readonly removed: string;
+  readonly resultFromOffset: number;
+  readonly resultToOffset: number;
   readonly snapshot: CodeMirrorAiPreviewSnapshot;
   readonly to: number;
 }
@@ -64,15 +72,21 @@ interface ClearPreviewEffect {
   readonly result?: AiTextDiffResult;
 }
 
-interface ApplyPreviewEffect {
+interface PreviewResultEffect {
   readonly previewId?: string;
   readonly result: AiTextDiffResult;
+}
+
+interface ApplyPreviewEffect extends PreviewResultEffect {
+  readonly from: number;
+  readonly inserted: string;
+  readonly removed: string;
 }
 
 const showPreviewEffect = StateEffect.define<ShowPreviewEffect>();
 const clearPreviewEffect = StateEffect.define<ClearPreviewEffect>();
 const applyPreviewEffect = StateEffect.define<ApplyPreviewEffect>();
-const confirmPreviewEffect = StateEffect.define<ApplyPreviewEffect>();
+const confirmPreviewEffect = StateEffect.define<PreviewResultEffect>();
 const restorePreviewEffect = StateEffect.define<null>();
 
 const emptyPreviewState: CodeMirrorAiPreviewState = {
@@ -83,6 +97,7 @@ const emptyPreviewState: CodeMirrorAiPreviewState = {
 };
 
 const defaultLabels: AiEditorPreviewLabels = {
+  append: "Append",
   apply: "Apply",
   chars: "chars",
   copied: "Copied",
@@ -229,6 +244,50 @@ function normalizeResultRange(
   return { from, to };
 }
 
+function edgeLineBreakCount(text: string, edge: "leading" | "trailing") {
+  const sample = edge === "leading" ? text.slice(0, 2) : text.slice(-2);
+  const match = edge === "leading" ? /^\n*/u.exec(sample) : /\n*$/u.exec(sample);
+  return match?.[0].length ?? 0;
+}
+
+function appendAiResultChange(
+  state: EditorState,
+  replacement: string,
+  to: number,
+) {
+  if (!replacement) return { cursor: to, from: to, insert: "", to };
+
+  const line = state.doc.lineAt(to);
+  if (to === line.to) {
+    // Keep an appended paragraph structurally separate without duplicating
+    // line breaks already supplied by the document or the AI result.
+    const existingBreaks = edgeLineBreakCount(
+      state.sliceDoc(Math.max(0, to - 2), to),
+      "trailing",
+    ) +
+      edgeLineBreakCount(replacement, "leading");
+    const prefix = "\n".repeat(Math.max(0, 2 - existingBreaks));
+    const insert = `${prefix}${replacement}`;
+    return { cursor: to + insert.length, from: to, insert, to };
+  }
+
+  const before = state.sliceDoc(Math.max(0, to - 1), to);
+  const after = state.sliceDoc(to, Math.min(state.doc.length, to + 1));
+  const prefix = !before || /\s$/u.test(before) || /^\s/u.test(replacement)
+    ? ""
+    : " ";
+  const suffix = !after || /^\s/u.test(after) || /\s$/u.test(replacement)
+    ? ""
+    : " ";
+  const insert = `${prefix}${replacement}${suffix}`;
+  return {
+    cursor: to + prefix.length + replacement.length,
+    from: to,
+    insert,
+    to,
+  };
+}
+
 function previewStateUpdate(
   value: CodeMirrorAiPreviewState,
   transaction: Transaction,
@@ -239,43 +298,51 @@ function previewStateUpdate(
   let nextSequence = value.nextSequence;
 
   if (transaction.docChanged && applied) {
-    const { result } = applied.snapshot;
+    const { inserted, removed, resultFromOffset, resultToOffset } = applied;
     const nextFrom = transaction.changes.mapPos(applied.from, -1);
     const previousStillApplied = transaction.startState.sliceDoc(
       applied.from,
       applied.to,
-    ) === result.replacement;
-    const nextReplacement = transaction.newDoc.sliceString(
+    ) === inserted;
+    const nextInserted = transaction.newDoc.sliceString(
       nextFrom,
-      nextFrom + result.replacement.length,
+      nextFrom + inserted.length,
     );
-    const nextOriginal = transaction.newDoc.sliceString(
+    const nextRemoved = transaction.newDoc.sliceString(
       nextFrom,
-      nextFrom + result.original.length,
+      nextFrom + removed.length,
     );
+    // Append removes no source text, so only a history undo can distinguish
+    // reverting that insertion from the user editing the appended result.
+    const revertedToRemoved = removed.length > 0
+      ? nextRemoved === removed
+      : transaction.isUserEvent("undo");
 
     if (
       previousStillApplied &&
-      nextReplacement !== result.replacement &&
-      nextOriginal === result.original
+      nextInserted !== inserted &&
+      revertedToRemoved
     ) {
+      const from = Math.max(0, nextFrom + resultFromOffset);
+      const to = Math.max(from, nextFrom + resultToOffset);
       pending = sortSnapshots([
         ...pending,
         {
           ...applied.snapshot,
           result: {
-            ...result,
-            from: nextFrom,
-            to: nextFrom + result.original.length,
+            ...applied.snapshot.result,
+            from,
+            original: transaction.newDoc.sliceString(from, to),
+            to,
           },
         },
       ]);
       applied = null;
-    } else if (nextReplacement === result.replacement) {
+    } else if (nextInserted === inserted) {
       applied = {
         ...applied,
         from: nextFrom,
-        to: nextFrom + result.replacement.length,
+        to: nextFrom + inserted.length,
       };
     } else {
       // Once the applied replacement itself is edited into a third value, an
@@ -334,15 +401,20 @@ function previewStateUpdate(
           !removed.includes(snapshot) && !conflictingIds.has(snapshot.id),
       );
       const snapshot = removed[0];
-      const from = effect.value.result.from;
-      if (snapshot && from !== undefined) {
+      const resultFrom = effect.value.result.from;
+      const resultTo = effect.value.result.to;
+      if (snapshot && resultFrom !== undefined && resultTo !== undefined) {
         applied = {
-          from,
+          from: effect.value.from,
+          inserted: effect.value.inserted,
+          removed: effect.value.removed,
+          resultFromOffset: resultFrom - effect.value.from,
+          resultToOffset: resultTo - effect.value.from,
           snapshot: {
             ...snapshot,
             result: effect.value.result,
           },
-          to: from + effect.value.result.replacement.length,
+          to: effect.value.from + effect.value.inserted.length,
         };
       }
       continue;
@@ -484,6 +556,7 @@ function createActionIcon(document: Document, action: AiEditorPreviewAction) {
   icon.setAttribute("width", "15");
 
   const pathsByAction: Record<AiEditorPreviewAction, string[]> = {
+    append: ["M12 5v14", "M5 12h14"],
     apply: ["M20 6 9 17l-5-5"],
     copy: [
       "M16 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-2",
@@ -521,7 +594,7 @@ function createLoadingIcon(document: Document) {
   return icon;
 }
 
-function markApplyButtonBusy(document: Document, button: HTMLButtonElement) {
+function markActionButtonBusy(document: Document, button: HTMLButtonElement) {
   button.dataset.applying = "true";
   button.disabled = true;
   button.classList.add("markra-ai-preview-applying");
@@ -566,7 +639,9 @@ function createActionButton(
 
   const triggerAction = () => {
     if (button.dataset.applying === "true") return;
-    if (action === "apply") markApplyButtonBusy(document, button);
+    if (action === "apply" || action === "append") {
+      markActionButtonBusy(document, button);
+    }
     onAction();
     if (action === "copy" && copiedLabel) {
       showCopySuccessFeedback(document, button, copiedLabel, label);
@@ -652,8 +727,16 @@ class AiPreviewWidget extends WidgetType {
       labels.apply,
       () => dispatchAction(view, this.snapshot, "apply"),
     );
-
-    actions.append(scope, copy, reject, apply);
+    actions.append(scope, copy, reject);
+    if (this.snapshot.result.type === "replace") {
+      actions.append(createActionButton(
+        document,
+        "append",
+        labels.append ?? defaultLabels.append ?? "Append",
+        () => dispatchAction(view, this.snapshot, "append"),
+      ));
+    }
+    actions.append(apply);
     widget.append(insertion, actions);
     return widget;
   }
@@ -856,7 +939,7 @@ export function listCodeMirrorAiPreviewResults(view: CodeMirrorView) {
 export function applyCodeMirrorAiResult(
   view: CodeMirrorView,
   result: AiDiffResult,
-  options: CodeMirrorAiPreviewOptions = {},
+  options: CodeMirrorAiApplyOptions = {},
 ) {
   if (view.state.readOnly || !isTextDiffResult(result)) return false;
   const { from, to } = normalizeResultRange(view.state, result);
@@ -866,11 +949,26 @@ export function applyCodeMirrorAiResult(
     sameResult(snapshot.result, appliedResult)
   )?.id;
 
+  const change = options.mode === "append"
+    ? appendAiResultChange(view.state, result.replacement, to)
+    : {
+        cursor: from + result.replacement.length,
+        from,
+        insert: result.replacement,
+        to,
+      };
+
   view.dispatch({
-    changes: { from, insert: result.replacement, to },
-    effects: applyPreviewEffect.of({ previewId, result: appliedResult }),
+    changes: { from: change.from, insert: change.insert, to: change.to },
+    effects: applyPreviewEffect.of({
+      from: change.from,
+      inserted: change.insert,
+      previewId,
+      removed: view.state.sliceDoc(change.from, change.to),
+      result: appliedResult,
+    }),
     scrollIntoView: true,
-    selection: EditorSelection.cursor(from + result.replacement.length),
+    selection: EditorSelection.cursor(change.cursor),
   });
   view.focus();
 

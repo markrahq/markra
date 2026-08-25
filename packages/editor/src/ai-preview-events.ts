@@ -9,7 +9,7 @@ export type AiTextDiffResult = Extract<
   { type: "insert" | "replace" }
 >;
 
-export type AiEditorPreviewAction = "apply" | "copy" | "reject";
+export type AiEditorPreviewAction = "append" | "apply" | "copy" | "reject";
 
 export interface AiEditorPreviewAppliedDetail {
   previewId?: string;
@@ -30,6 +30,7 @@ export interface AiEditorPreviewRestoreDetail {
 }
 
 export interface AiEditorPreviewLabels {
+  append?: string;
   apply: string;
   chars?: string;
   copied: string;

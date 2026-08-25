@@ -872,6 +872,7 @@ const messages: LocaleMessages = {
   "app.aiSummarizing": "总结中……",
   "app.aiTranslate": "翻译",
   "app.aiTranslating": "翻译中……",
+  "app.aiAppend": "追加",
   "app.aiApply": "应用",
   "app.aiReject": "拒绝",
   "app.aiCopy": "复制",

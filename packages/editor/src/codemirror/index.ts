@@ -26,6 +26,7 @@ export {
   AI_EDITOR_PREVIEW_RESTORE_EVENT,
 } from "../ai-preview-events.ts";
 export type {
+  CodeMirrorAiApplyOptions,
   CodeMirrorAiPreviewOptions,
 } from "./ai-preview.ts";
 export {

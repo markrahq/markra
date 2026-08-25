@@ -1471,6 +1471,7 @@ function WorkspaceApp() {
       editor.clearAiSelection();
       appliedAiPreviewKeysRef.current.clear();
       editor.previewAiResult(result, {
+        append: translate("app.aiAppend"),
         apply: translate("app.aiApply"),
         chars: translate("app.aiPreviewChars"),
         copied: translate("app.aiCopied"),
@@ -2076,7 +2077,11 @@ function WorkspaceApp() {
     reveal: scrollAiSelectionAboveCommand,
     selection: activeAiSelection
   });
-  const handleApplyAiResult = useCallback((restoredResult?: AiDiffResult | null, previewId?: string) => {
+  const handleApplyAiResult = useCallback((
+    restoredResult?: AiDiffResult | null,
+    previewId?: string,
+    mode: "append" | "replace" = "replace"
+  ) => {
     if (readOnlyMode) return;
 
     const result = restoredResult ?? aiResults.at(-1) ?? null;
@@ -2091,6 +2096,7 @@ function WorkspaceApp() {
 
     debug(() => ["[markra-ai-preview] app handle apply", {
       from: result.type === "error" ? null : result.from,
+      mode,
       replacementLength: result.type === "error" ? null : result.replacement.length,
       to: result.type === "error" ? null : result.to,
       type: result.type
@@ -2107,7 +2113,7 @@ function WorkspaceApp() {
     }
 
     appliedAiPreviewKeysRef.current.add(actionKey);
-    const applied = editor.applyAiResult(result, { previewId });
+    const applied = editor.applyAiResult(result, { mode, previewId });
     debug(() => ["[markra-ai-preview] app apply result", { applied }]);
 
     if (!applied) {
@@ -4150,6 +4156,11 @@ function WorkspaceApp() {
 
       if (action === "apply") {
         handleApplyAiResult(detail.result, detail.previewId);
+        return;
+      }
+
+      if (action === "append") {
+        handleApplyAiResult(detail.result, detail.previewId, "append");
         return;
       }
 
