@@ -494,6 +494,7 @@ const messages: LocaleMessages = {
   "app.aiSummarizing": "Сжатие...",
   "app.aiTranslate": "Перевести",
   "app.aiTranslating": "Перевод...",
+  "app.aiAppend": "Добавить",
   "app.aiApply": "Применить",
   "app.aiReject": "Отклонить",
   "app.aiCopy": "Копировать",

@@ -31,6 +31,7 @@ import {
   showCodeMirrorAiPreview,
   showCodeMirrorAiSelectionHold,
   type AiEditorPreviewLabels,
+  type CodeMirrorAiApplyOptions,
   type CodeMirrorMarkdownImageReference,
   type CodeMirrorMarkdownLinkReference,
   type ReplaceCodeMirrorMarkdownOptions,
@@ -441,7 +442,7 @@ export function useCodeMirrorEditorController() {
   );
 
   const applyAiResult = useCallback(
-    (result: AiDiffResult, options: { previewId?: string } = {}) => {
+    (result: AiDiffResult, options: CodeMirrorAiApplyOptions = {}) => {
       const view = viewRef.current;
       return view ? applyCodeMirrorAiResult(view, result, options) : false;
     },
