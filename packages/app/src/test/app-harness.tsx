@@ -231,6 +231,7 @@ vi.mock("../lib/tauri", () => ({
   listNativeEditorWindowRestoreStates: vi.fn(),
   openSettingsWindow: vi.fn(),
   prewarmSettingsWindow: vi.fn(),
+  setNativeUiZoom: vi.fn().mockResolvedValue(undefined),
   setNativeWindowTitle: vi.fn(),
   showNativeWindow: vi.fn(),
   showNativeAppAbout: vi.fn(),
@@ -406,6 +407,7 @@ vi.mock("../lib/settings/app-settings", () => ({
     "custom"
   ],
   appAppearanceModeOptions: ["system", "light", "dark"],
+  editorBodyFontSizeOptions: [14, 15, 16, 17, 18, 20, 22, 24, 28, 32],
   editorThemeOptions: [
     "light",
     "dark",

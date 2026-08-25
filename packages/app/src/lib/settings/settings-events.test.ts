@@ -80,7 +80,8 @@ describe("settings events", () => {
     const preferences = {
       appearanceMode: "dark" as const,
       darkTheme: "night" as const,
-      lightTheme: "sepia" as const
+      lightTheme: "sepia" as const,
+      uiZoomPercent: 140
     };
 
     await notifyAppThemeChanged(preferences);
@@ -95,7 +96,8 @@ describe("settings events", () => {
     expect(onThemeChanged).toHaveBeenCalledWith({
       appearanceMode: "light",
       darkTheme: "dark",
-      lightTheme: "newsprint"
+      lightTheme: "newsprint",
+      uiZoomPercent: 100
     });
     expect(onThemeChanged).toHaveBeenCalledTimes(2);
     expect(unlisten).toHaveBeenCalledTimes(1);

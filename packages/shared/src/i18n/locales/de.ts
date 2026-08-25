@@ -800,6 +800,8 @@ const messages: LocaleMessages = {
   "settings.editor.aiSelectionDisplayMode.useToolbar": "Schwebende Leiste anzeigen",
   "settings.theme.description": "Wählen Sie, wie Markra zwischen Ihren gespeicherten hellen und dunklen Paletten wechselt.",
   "settings.theme.appearanceModeTitle": "Darstellungsmodus",
+  "settings.theme.uiZoomTitle": "Oberflächenzoom",
+  "settings.theme.uiZoomDescription": "Vergrößert oder verkleinert die gesamte Oberfläche. Verwende Strg/Cmd mit Plus oder Minus und Strg/Cmd + 0 zum Zurücksetzen.",
   "settings.theme.lightPaletteTitle": "Helle Palette",
   "settings.theme.darkPaletteTitle": "Dunkle Palette",
   "settings.theme.lightCustomCssTitle": "CSS für helles benutzerdefiniertes Theme",

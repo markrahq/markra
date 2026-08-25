@@ -800,6 +800,8 @@ const messages: LocaleMessages = {
   "settings.editor.aiSelectionDisplayMode.useToolbar": "플로팅 바 표시",
   "settings.theme.description": "Markra가 저장된 라이트/다크 팔레트 사이를 전환하는 방식을 선택합니다.",
   "settings.theme.appearanceModeTitle": "표시 모드",
+  "settings.theme.uiZoomTitle": "인터페이스 확대/축소",
+  "settings.theme.uiZoomDescription": "전체 앱 인터페이스를 확대하거나 축소합니다. Ctrl/Cmd와 더하기 또는 빼기를 사용하고 Ctrl/Cmd + 0으로 재설정하세요.",
   "settings.theme.lightPaletteTitle": "라이트 팔레트",
   "settings.theme.darkPaletteTitle": "다크 팔레트",
   "settings.theme.lightCustomCssTitle": "라이트 사용자 지정 테마 CSS",

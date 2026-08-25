@@ -92,6 +92,8 @@ const messages: BaseLocaleMessages = {
   "settings.theme.colorTitle": "Color theme",
   "settings.theme.description": "Choose how Markra switches between your saved light and dark palettes.",
   "settings.theme.appearanceModeTitle": "Appearance mode",
+  "settings.theme.uiZoomTitle": "Interface zoom",
+  "settings.theme.uiZoomDescription": "Scale the entire interface. Use Ctrl/Cmd with Plus or Minus, and Ctrl/Cmd + 0 to reset.",
   "settings.theme.lightPaletteTitle": "Light palette",
   "settings.theme.darkPaletteTitle": "Dark palette",
   "settings.theme.system": "System",

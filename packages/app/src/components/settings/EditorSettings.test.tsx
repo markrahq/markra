@@ -28,6 +28,28 @@ async function settleSortableDrag() {
 
 
 describe("EditorSettings", () => {
+  it("offers larger body font sizes", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <EditorSettings
+        preferences={defaultEditorPreferences}
+        translate={translate}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    const bodyFontSize = screen.getByRole("combobox", { name: "Body font size" });
+    expect(within(bodyFontSize).getByRole("option", { name: "32px" })).toBeInTheDocument();
+
+    fireEvent.change(bodyFontSize, { target: { value: "28" } });
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      bodyFontSize: 28
+    });
+  });
+
   it("keeps global theme controls out of the editor tab", () => {
     render(
       <EditorSettings

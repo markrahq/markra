@@ -800,6 +800,8 @@ const messages: LocaleMessages = {
   "settings.editor.aiSelectionDisplayMode.useToolbar": "Mostrar barra flotante",
   "settings.theme.description": "Elige cómo Markra alterna entre tus paletas clara y oscura guardadas.",
   "settings.theme.appearanceModeTitle": "Modo de apariencia",
+  "settings.theme.uiZoomTitle": "Zoom de la interfaz",
+  "settings.theme.uiZoomDescription": "Amplía o reduce toda la interfaz. Usa Ctrl/Cmd con Más o Menos y Ctrl/Cmd + 0 para restablecer.",
   "settings.theme.lightPaletteTitle": "Paleta clara",
   "settings.theme.darkPaletteTitle": "Paleta oscura",
   "settings.theme.lightCustomCssTitle": "CSS del tema personalizado claro",

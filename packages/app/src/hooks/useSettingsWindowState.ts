@@ -118,6 +118,7 @@ import {
 } from "../lib/templates";
 import { useAppLanguage } from "./useAppLanguage";
 import { useAppTheme } from "./useAppTheme";
+import { useUiZoom } from "./useUiZoom";
 import { getAppRuntime, type AppSystemFontFamily } from "../runtime";
 
 export type SettingsCategory =
@@ -205,6 +206,10 @@ export function canonicalizeEditorFontFamilyPreference(
 
 export function useSettingsWindowState() {
   const appTheme = useAppTheme();
+  useUiZoom({
+    onUiZoomPercentChange: appTheme.selectUiZoomPercent,
+    uiZoomPercent: appTheme.uiZoomPercent
+  });
   const appLanguage = useAppLanguage();
   const initialSettingsTarget = settingsTargetFromSearch(window.location.search);
   const [activeCategory, setActiveCategory] = useState<SettingsCategory>(() =>
@@ -743,7 +748,8 @@ export function useSettingsWindowState() {
     notifyAppThemeChanged({
       appearanceMode: settings.appearanceMode,
       darkTheme: settings.darkTheme,
-      lightTheme: settings.lightTheme
+      lightTheme: settings.lightTheme,
+      uiZoomPercent: settings.uiZoomPercent
     }).catch(() => {});
     notifyAppCustomThemeCssChanged(settings.customThemeCss).catch(() => {});
   }, []);

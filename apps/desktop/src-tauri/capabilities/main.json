@@ -23,6 +23,7 @@
     "core:window:allow-show",
     "core:window:allow-start-dragging",
     "core:window:allow-toggle-maximize",
+    "core:webview:allow-set-webview-zoom",
     "dialog:allow-confirm",
     "dialog:allow-message",
     "dialog:allow-open",

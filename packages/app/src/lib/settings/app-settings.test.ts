@@ -20,6 +20,7 @@ import {
   lightEditorThemeOptions,
   importStoredAppSettings,
   resetWelcomeDocumentState,
+  normalizeAppThemePreferences,
   normalizeEditorPreferences,
   normalizeAcpAgentSettings,
   resolveAppAppearanceTheme,
@@ -152,7 +153,8 @@ describe("app settings", () => {
     await expect(getStoredThemePreferences()).resolves.toEqual({
       appearanceMode: "light",
       darkTheme: "dark",
-      lightTheme: "sepia"
+      lightTheme: "sepia",
+      uiZoomPercent: 100
     });
 
     expect(store.get).toHaveBeenCalledWith("appearanceMode");
@@ -167,6 +169,7 @@ describe("app settings", () => {
       if (key === "customThemeEnabled") return true;
       if (key === "lightTheme") return "solarized-light";
       if (key === "darkTheme") return "night";
+      if (key === "uiZoomPercent") return 140;
 
       return undefined;
     });
@@ -175,22 +178,31 @@ describe("app settings", () => {
       appearanceMode: "system",
       customThemeEnabled: true,
       darkTheme: "night",
-      lightTheme: "solarized-light"
+      lightTheme: "solarized-light",
+      uiZoomPercent: 140
     });
 
     await saveStoredThemePreferences({
       appearanceMode: "dark",
       customThemeEnabled: true,
       darkTheme: "catppuccin-mocha",
-      lightTheme: "catppuccin-latte"
+      lightTheme: "catppuccin-latte",
+      uiZoomPercent: 160
     });
 
     expect(store.set).toHaveBeenCalledWith("appearanceMode", "dark");
     expect(store.set).toHaveBeenCalledWith("customThemeEnabled", true);
     expect(store.set).toHaveBeenCalledWith("lightTheme", "catppuccin-latte");
     expect(store.set).toHaveBeenCalledWith("darkTheme", "catppuccin-mocha");
+    expect(store.set).toHaveBeenCalledWith("uiZoomPercent", 160);
     expect(store.set).not.toHaveBeenCalledWith("theme", expect.any(String));
     expect(store.save).toHaveBeenCalledTimes(1);
+  });
+
+  it("normalizes interface zoom to supported percentages", () => {
+    expect(normalizeAppThemePreferences({ uiZoomPercent: 180 }).uiZoomPercent).toBe(180);
+    expect(normalizeAppThemePreferences({ uiZoomPercent: 175 }).uiZoomPercent).toBe(100);
+    expect(normalizeAppThemePreferences({ uiZoomPercent: "large" }).uiZoomPercent).toBe(100);
   });
 
   it("resolves the active editor theme from appearance mode and saved palettes", () => {
@@ -354,6 +366,11 @@ describe("app settings", () => {
     expect(defaultEditorPreferences.autoRevealActiveFile).toBe(false);
     expect(normalizeEditorPreferences({ autoRevealActiveFile: false }).autoRevealActiveFile).toBe(false);
     expect(normalizeEditorPreferences({ autoRevealActiveFile: "sometimes" }).autoRevealActiveFile).toBe(false);
+  });
+
+  it("accepts larger body font sizes", () => {
+    expect(normalizeEditorPreferences({ bodyFontSize: 24 }).bodyFontSize).toBe(24);
+    expect(normalizeEditorPreferences({ bodyFontSize: 32 }).bodyFontSize).toBe(32);
   });
 
   it("normalizes the dropped file tab preference", () => {

@@ -92,6 +92,8 @@ const messages: LocaleMessages = {
   "settings.theme.colorTitle": "颜色主题",
   "settings.theme.description": "选择 Markra 如何在已保存的浅色和深色配色之间切换。",
   "settings.theme.appearanceModeTitle": "外观模式",
+  "settings.theme.uiZoomTitle": "界面缩放",
+  "settings.theme.uiZoomDescription": "缩放整个应用界面。可使用 Ctrl/Cmd 加加号或减号调整，使用 Ctrl/Cmd + 0 重置。",
   "settings.theme.lightPaletteTitle": "浅色配色",
   "settings.theme.darkPaletteTitle": "深色配色",
   "settings.theme.system": "跟随系统",

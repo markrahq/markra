@@ -800,6 +800,8 @@ const messages: LocaleMessages = {
   "settings.editor.aiSelectionDisplayMode.useToolbar": "Показывать плавающую панель",
   "settings.theme.description": "Выберите, как Markra переключается между сохранёнными светлой и тёмной палитрами.",
   "settings.theme.appearanceModeTitle": "Режим оформления",
+  "settings.theme.uiZoomTitle": "Масштаб интерфейса",
+  "settings.theme.uiZoomDescription": "Масштабирует весь интерфейс. Используйте Ctrl/Cmd с плюсом или минусом, а Ctrl/Cmd + 0 — для сброса.",
   "settings.theme.lightPaletteTitle": "Светлая палитра",
   "settings.theme.darkPaletteTitle": "Тёмная палитра",
   "settings.theme.lightCustomCssTitle": "CSS светлой пользовательской темы",

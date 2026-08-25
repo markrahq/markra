@@ -800,6 +800,8 @@ const messages: LocaleMessages = {
   "settings.editor.aiSelectionDisplayMode.useToolbar": "フローティングバーを表示",
   "settings.theme.description": "保存済みのライト/ダークパレットを Markra がどう切り替えるかを選択します。",
   "settings.theme.appearanceModeTitle": "外観モード",
+  "settings.theme.uiZoomTitle": "インターフェースのズーム",
+  "settings.theme.uiZoomDescription": "アプリ全体の表示を拡大または縮小します。Ctrl/Cmd とプラスまたはマイナスで調整し、Ctrl/Cmd + 0 でリセットします。",
   "settings.theme.lightPaletteTitle": "ライトパレット",
   "settings.theme.darkPaletteTitle": "ダークパレット",
   "settings.theme.lightCustomCssTitle": "ライトカスタムテーマ CSS",

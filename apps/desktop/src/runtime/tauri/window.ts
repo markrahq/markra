@@ -105,6 +105,16 @@ export async function getCurrentNativeWindowLabel() {
   return (await getCurrentNativeWindow())?.label ?? null;
 }
 
+export async function setNativeUiZoom(scaleFactor: number) {
+  if (!("__TAURI_INTERNALS__" in window)) {
+    document.documentElement.style.setProperty("zoom", String(scaleFactor));
+    return;
+  }
+
+  const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+  await getCurrentWebview().setZoom(scaleFactor);
+}
+
 function normalizeNativeEditorWindowRestoreStates(value: unknown): NativeEditorWindowRestoreState[] {
   if (!Array.isArray(value)) return [];
 

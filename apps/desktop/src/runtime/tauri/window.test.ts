@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { exit } from "@tauri-apps/plugin-process";
 import {
   closeNativeWindow,
@@ -18,6 +19,7 @@ import {
   openSettingsWindow,
   prewarmSettingsWindow,
   setNativeEditorWindowRestoreState,
+  setNativeUiZoom,
   showNativeWindow,
   toggleNativeWindowFullscreen,
   toggleNativeWindowMaximized
@@ -35,11 +37,16 @@ vi.mock("@tauri-apps/api/window", () => ({
   getCurrentWindow: vi.fn()
 }));
 
+vi.mock("@tauri-apps/api/webview", () => ({
+  getCurrentWebview: vi.fn()
+}));
+
 vi.mock("@tauri-apps/plugin-process", () => ({
   exit: vi.fn()
 }));
 
 const mockedGetCurrentWindow = vi.mocked(getCurrentWindow);
+const mockedGetCurrentWebview = vi.mocked(getCurrentWebview);
 const mockedInvoke = vi.mocked(invoke);
 const mockedListen = vi.mocked(listen);
 const mockedExit = vi.mocked(exit);
@@ -51,6 +58,7 @@ describe("native window actions", () => {
       value: {}
     });
     mockedGetCurrentWindow.mockReset();
+    mockedGetCurrentWebview.mockReset();
     mockedInvoke.mockReset();
     mockedListen.mockReset();
     mockedExit.mockReset();
@@ -183,6 +191,15 @@ describe("native window actions", () => {
     mockedGetCurrentWindow.mockReturnValue({ label: "markra-editor-1" } as unknown as ReturnType<typeof getCurrentWindow>);
 
     await expect(getCurrentNativeWindowLabel()).resolves.toBe("markra-editor-1");
+  });
+
+  it("applies interface zoom to the current Tauri webview", async () => {
+    const setZoom = vi.fn().mockResolvedValue(undefined);
+    mockedGetCurrentWebview.mockReturnValue({ setZoom } as unknown as ReturnType<typeof getCurrentWebview>);
+
+    await setNativeUiZoom(1.4);
+
+    expect(setZoom).toHaveBeenCalledWith(1.4);
   });
 
   it("keeps the window show action successful when focusing fails", async () => {

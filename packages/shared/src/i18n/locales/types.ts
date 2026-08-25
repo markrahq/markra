@@ -103,6 +103,8 @@ export type I18nKey =
   | "settings.theme.colorTitle"
   | "settings.theme.description"
   | "settings.theme.appearanceModeTitle"
+  | "settings.theme.uiZoomTitle"
+  | "settings.theme.uiZoomDescription"
   | "settings.theme.lightPaletteTitle"
   | "settings.theme.darkPaletteTitle"
   | "settings.theme.system"

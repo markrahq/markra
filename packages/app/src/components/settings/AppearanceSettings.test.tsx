@@ -4,6 +4,37 @@ import { defaultCustomThemeCss } from "../../lib/settings/app-settings";
 import { AppearanceSettings } from "./AppearanceSettings";
 
 describe("AppearanceSettings", () => {
+  it("updates the interface zoom percentage", () => {
+    const onSelectUiZoomPercent = vi.fn();
+
+    render(
+      <AppearanceSettings
+        customThemeEnabled={false}
+        darkCustomThemeCss=""
+        lightCustomThemeCss=""
+        selectedAppearanceMode="system"
+        selectedDarkTheme="dark"
+        selectedLightTheme="light"
+        selectedUiZoomPercent={120}
+        translate={translate}
+        onSelectAppearanceMode={vi.fn()}
+        onSelectDarkTheme={vi.fn()}
+        onSelectLightTheme={vi.fn()}
+        onSelectUiZoomPercent={onSelectUiZoomPercent}
+        onToggleCustomTheme={vi.fn()}
+        onUpdateDarkCustomThemeCss={vi.fn()}
+        onUpdateLightCustomThemeCss={vi.fn()}
+      />
+    );
+
+    const uiZoom = screen.getByRole("combobox", { name: "Interface zoom" });
+    expect(uiZoom).toHaveValue("120");
+
+    fireEvent.change(uiZoom, { target: { value: "160" } });
+
+    expect(onSelectUiZoomPercent).toHaveBeenCalledWith(160);
+  });
+
   it("updates the appearance mode and separate light and dark palettes", () => {
     const onSelectAppearanceMode = vi.fn();
     const onSelectLightTheme = vi.fn();
@@ -135,8 +166,10 @@ describe("AppearanceSettings", () => {
     const lightPalette = screen.getByRole("radiogroup", { name: "Light palette" });
     const darkPalette = screen.getByRole("radiogroup", { name: "Dark palette" });
     const customThemeSwitch = screen.getByRole("switch", { name: "Custom theme" });
+    const uiZoom = screen.getByRole("combobox", { name: "Interface zoom" });
 
-    expect(appearanceMode.closest(".settings-row")?.nextElementSibling).toBe(customThemeSwitch.closest(".settings-row"));
+    expect(appearanceMode.closest(".settings-row")?.nextElementSibling).toBe(uiZoom.closest(".settings-row"));
+    expect(uiZoom.closest(".settings-row")?.nextElementSibling).toBe(customThemeSwitch.closest(".settings-row"));
     expect(within(lightPalette).getByRole("radio", { name: "Custom" })).toHaveAttribute("aria-checked", "false");
     expect(within(darkPalette).getByRole("radio", { name: "Custom" })).toHaveAttribute("aria-checked", "false");
     expect(customThemeSwitch).not.toBeChecked();

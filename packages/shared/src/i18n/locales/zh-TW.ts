@@ -800,6 +800,8 @@ const messages: LocaleMessages = {
   "settings.editor.aiSelectionDisplayMode.useToolbar": "顯示選區浮動框",
   "settings.theme.description": "選擇 Markra 如何在已儲存的淺色與深色配色之間切換。",
   "settings.theme.appearanceModeTitle": "外觀模式",
+  "settings.theme.uiZoomTitle": "介面縮放",
+  "settings.theme.uiZoomDescription": "縮放整個應用程式介面。可使用 Ctrl/Cmd 加加號或減號調整，使用 Ctrl/Cmd + 0 重設。",
   "settings.theme.lightPaletteTitle": "淺色配色",
   "settings.theme.darkPaletteTitle": "深色配色",
   "settings.theme.lightCustomCssTitle": "淺色自訂主題 CSS",
