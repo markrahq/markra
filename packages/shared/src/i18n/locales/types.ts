@@ -906,6 +906,7 @@ export type I18nKey =
   | "app.clipboardImageSaveFailed"
   | "app.clipboardAttachmentRequiresSavedDocument"
   | "app.clipboardAttachmentSaveFailed"
+  | "app.markdownAttachmentOpenFailed"
   | "app.assetCleanup.title"
   | "app.assetCleanup.close"
   | "app.assetCleanup.scanning"

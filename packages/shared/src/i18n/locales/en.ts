@@ -895,6 +895,7 @@ const messages: BaseLocaleMessages = {
   "app.clipboardImageSaveFailed": "Could not save the pasted image.",
   "app.clipboardAttachmentRequiresSavedDocument": "Save the document before adding file attachments.",
   "app.clipboardAttachmentSaveFailed": "Could not save the file attachment.",
+  "app.markdownAttachmentOpenFailed": "Could not open the file attachment.",
   "app.assetCleanup.title": "Clean up unused images",
   "app.assetCleanup.close": "Close image cleanup",
   "app.assetCleanup.scanning": "Scanning Markdown references...",

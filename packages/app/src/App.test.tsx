@@ -1061,6 +1061,50 @@ describe("Markra workspace", () => {
     }));
   });
 
+  it("shows native attachment open failures with the underlying path error", async () => {
+    const attachment = { name: "Reference Doc.pdf", path: "/mock-files/Reference Doc.pdf" };
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      copyExternalFilesToStorage: false
+    }));
+    mockedOpenNativeLocalFiles.mockResolvedValue([attachment]);
+    mockedImportNativeLocalFile.mockResolvedValue({
+      label: "Reference Doc.pdf",
+      src: "FILE:///mock-files/Reference%20Doc.pdf"
+    });
+    mockedOpenNativeMarkdownAttachment.mockRejectedValue(
+      new Error("Markdown attachment is outside the current Markdown folder")
+    );
+
+    const { container } = renderApp();
+
+    await expectVisibleMarkdownText("Welcome to Markra");
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalled());
+    const menuHandlers = mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[0] as NativeMenuHandlers;
+
+    await act(async () => {
+      await menuHandlers.importLocalFiles?.();
+    });
+
+    revealVisualPreviews(container);
+    const link = await waitFor(() => {
+      const importedLink = container.querySelector<HTMLAnchorElement>(
+        'a[href="FILE:///mock-files/Reference%20Doc.pdf"]'
+      );
+      expect(importedLink).toBeInTheDocument();
+      return importedLink!;
+    });
+    link.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      ctrlKey: true
+    }));
+
+    expect(await screen.findByText("Could not open the file attachment.")).toBeInTheDocument();
+    expect(screen.getByText("Markdown attachment is outside the current Markdown folder")).toBeInTheDocument();
+    expect(screen.queryByText("Could not save the pasted image.")).not.toBeInTheDocument();
+  });
+
   it("does not open a relative attachment when the document has no root path", async () => {
     const attachment = { name: "Reference Doc.pdf", path: "/mock-files/Reference Doc.pdf" };
     mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({

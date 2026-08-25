@@ -895,6 +895,7 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessSteps": "ステップ",
   "app.clipboardAttachmentRequiresSavedDocument": "ファイル添付を追加する前にドキュメントを保存してください。",
   "app.clipboardAttachmentSaveFailed": "ファイル添付を保存できませんでした。",
+  "app.markdownAttachmentOpenFailed": "ファイル添付を開けませんでした。",
   "app.assetCleanup.title": "未使用の画像をクリーンアップ",
   "app.assetCleanup.close": "画像クリーンアップを閉じる",
   "app.assetCleanup.scanning": "Markdown の参照をスキャン中...",

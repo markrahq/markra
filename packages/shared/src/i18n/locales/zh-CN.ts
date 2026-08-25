@@ -895,6 +895,7 @@ const messages: LocaleMessages = {
   "app.clipboardImageSaveFailed": "无法保存粘贴的图片。",
   "app.clipboardAttachmentRequiresSavedDocument": "请先保存文档，再添加文件附件。",
   "app.clipboardAttachmentSaveFailed": "无法保存文件附件。",
+  "app.markdownAttachmentOpenFailed": "无法打开文件附件。",
   "app.assetCleanup.title": "清理未引用图片",
   "app.assetCleanup.close": "关闭图片清理",
   "app.assetCleanup.scanning": "正在扫描 Markdown 引用...",

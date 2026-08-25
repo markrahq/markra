@@ -895,6 +895,7 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessSteps": "단계",
   "app.clipboardAttachmentRequiresSavedDocument": "파일 첨부를 추가하기 전에 문서를 저장하세요.",
   "app.clipboardAttachmentSaveFailed": "파일 첨부를 저장할 수 없습니다.",
+  "app.markdownAttachmentOpenFailed": "파일 첨부를 열 수 없습니다.",
   "app.assetCleanup.title": "사용하지 않는 이미지 정리",
   "app.assetCleanup.close": "이미지 정리 닫기",
   "app.assetCleanup.scanning": "Markdown 참조 검색 중...",

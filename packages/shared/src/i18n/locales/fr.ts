@@ -895,6 +895,7 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessSteps": "étapes",
   "app.clipboardAttachmentRequiresSavedDocument": "Enregistrez le document avant d'ajouter des pieces jointes.",
   "app.clipboardAttachmentSaveFailed": "Impossible d'enregistrer la piece jointe.",
+  "app.markdownAttachmentOpenFailed": "Impossible d'ouvrir la pièce jointe.",
   "app.assetCleanup.title": "Nettoyer les images inutilisées",
   "app.assetCleanup.close": "Fermer le nettoyage des images",
   "app.assetCleanup.scanning": "Analyse des références Markdown...",

@@ -2266,9 +2266,11 @@ function WorkspaceApp() {
       documentPath: documentPath ?? null,
       rootPath,
       src
-    }).catch(() => {
+    }).catch((error) => {
+      const description = nativeFileOperationFailureDescription(error);
       showAppToast({
-        message: translate("app.clipboardImageSaveFailed"),
+        ...(description ? { description } : {}),
+        message: translate("app.markdownAttachmentOpenFailed"),
         status: "error"
       });
     });

@@ -895,6 +895,7 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessSteps": "步",
   "app.clipboardAttachmentRequiresSavedDocument": "請先儲存文件，再加入檔案附件。",
   "app.clipboardAttachmentSaveFailed": "無法儲存檔案附件。",
+  "app.markdownAttachmentOpenFailed": "無法開啟檔案附件。",
   "app.assetCleanup.title": "清理未引用圖片",
   "app.assetCleanup.close": "關閉圖片清理",
   "app.assetCleanup.scanning": "正在掃描 Markdown 引用...",

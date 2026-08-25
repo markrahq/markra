@@ -895,6 +895,7 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessSteps": "pasos",
   "app.clipboardAttachmentRequiresSavedDocument": "Guarda el documento antes de agregar archivos adjuntos.",
   "app.clipboardAttachmentSaveFailed": "No se pudo guardar el archivo adjunto.",
+  "app.markdownAttachmentOpenFailed": "No se pudo abrir el archivo adjunto.",
   "app.assetCleanup.title": "Limpiar imágenes sin usar",
   "app.assetCleanup.close": "Cerrar limpieza de imágenes",
   "app.assetCleanup.scanning": "Buscando referencias Markdown...",

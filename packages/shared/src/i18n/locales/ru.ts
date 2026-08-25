@@ -895,6 +895,7 @@ const messages: LocaleMessages = {
   "app.aiAgentProcessSteps": "шагов",
   "app.clipboardAttachmentRequiresSavedDocument": "Сохраните документ перед добавлением файловых вложений.",
   "app.clipboardAttachmentSaveFailed": "Не удалось сохранить файловое вложение.",
+  "app.markdownAttachmentOpenFailed": "Не удалось открыть файловое вложение.",
   "app.assetCleanup.title": "Очистить неиспользуемые изображения",
   "app.assetCleanup.close": "Закрыть очистку изображений",
   "app.assetCleanup.scanning": "Поиск ссылок в Markdown...",
