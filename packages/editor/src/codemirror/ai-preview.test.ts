@@ -290,7 +290,7 @@ describe("CodeMirror AI preview", () => {
     expect(view.dom.querySelector(".markra-ai-preview-apply")).not.toBeNull();
   });
 
-  it("appends an inline AI result after the original selection", () => {
+  it("appends an AI result after the selection's Markdown block", () => {
     const doc = "Before Original After";
     const result = replacementResult(doc, "Original", "Improved");
     const view = createView(doc);
@@ -303,9 +303,136 @@ describe("CodeMirror AI preview", () => {
       }),
     ).toBe(true);
 
-    expect(view.state.doc.toString()).toBe("Before Original Improved After");
-    expect(view.state.selection.main.head).toBe("Before Original Improved".length);
+    expect(view.state.doc.toString()).toBe("Before Original After\n\nImproved");
+    expect(view.state.selection.main.head).toBe(
+      "Before Original After\n\nImproved".length,
+    );
     expect(listCodeMirrorAiPreviewResults(view)).toEqual([]);
+  });
+
+  it.each([
+    {
+      doc: "Before Original, After",
+      expected: "Before Original, After\n\nImproved",
+      name: "punctuation",
+      original: "Original",
+      replacement: "Improved",
+    },
+    {
+      doc: "原文，后文",
+      expected: "原文，后文\n\n译文",
+      name: "CJK text",
+      original: "原文",
+      replacement: "译文",
+    },
+  ])(
+    "keeps the original $name block unchanged",
+    ({ doc, expected, original, replacement }) => {
+      const result = replacementResult(doc, original, replacement);
+      const view = createView(doc);
+      showCodeMirrorAiPreview(view, result, undefined, {
+        previewId: "append-block",
+      });
+
+      expect(
+        applyCodeMirrorAiResult(view, result, {
+          mode: "append",
+          previewId: "append-block",
+        }),
+      ).toBe(true);
+
+      expect(view.state.doc.toString()).toBe(expected);
+    },
+  );
+
+  it("separates an appended result from an adjacent Markdown block", () => {
+    const doc = "Original\n# After";
+    const result = replacementResult(doc, "Original", "Improved");
+    const view = createView(doc);
+    showCodeMirrorAiPreview(view, result, undefined, {
+      previewId: "append-adjacent",
+    });
+
+    expect(
+      applyCodeMirrorAiResult(view, result, {
+        mode: "append",
+        previewId: "append-adjacent",
+      }),
+    ).toBe(true);
+
+    expect(view.state.doc.toString()).toBe("Original\n\nImproved\n\n# After");
+  });
+
+  it("appends multiline output after the containing paragraph", () => {
+    const doc = "Before Original After";
+    const result = replacementResult(doc, "Original", "- First\n- Second");
+    const view = createView(doc);
+    showCodeMirrorAiPreview(view, result, undefined, { previewId: "append-list" });
+
+    expect(
+      applyCodeMirrorAiResult(view, result, {
+        mode: "append",
+        previewId: "append-list",
+      }),
+    ).toBe(true);
+
+    expect(view.state.doc.toString()).toBe(
+      "Before Original After\n\n- First\n- Second",
+    );
+  });
+
+  it("appends after a complete list instead of splitting a list item", () => {
+    const doc = "- Original\n- After\n\nTail";
+    const result = replacementResult(doc, "Original", "Improved");
+    const view = createView(doc);
+    showCodeMirrorAiPreview(view, result, undefined, {
+      previewId: "append-after-list",
+    });
+
+    expect(
+      applyCodeMirrorAiResult(view, result, {
+        mode: "append",
+        previewId: "append-after-list",
+      }),
+    ).toBe(true);
+
+    expect(view.state.doc.toString()).toBe(
+      "- Original\n- After\n\nImproved\n\nTail",
+    );
+  });
+
+  it("appends after a complete table instead of splitting a table cell", () => {
+    const doc = [
+      "| Field | Value |",
+      "| --- | --- |",
+      "| Original | After |",
+      "",
+      "Tail",
+    ].join("\n");
+    const result = replacementResult(doc, "Original", "Improved");
+    const view = createView(doc);
+    showCodeMirrorAiPreview(view, result, undefined, {
+      previewId: "append-after-table",
+    });
+
+    expect(
+      applyCodeMirrorAiResult(view, result, {
+        mode: "append",
+        previewId: "append-after-table",
+      }),
+    ).toBe(true);
+
+    expect(view.state.doc.toString()).toBe(
+      [
+        "| Field | Value |",
+        "| --- | --- |",
+        "| Original | After |",
+        "",
+        "Improved",
+        "",
+        "Tail",
+      ].join("\n"),
+    );
   });
 
   it("appends a block AI result as a separate Markdown block", () => {
@@ -473,7 +600,7 @@ describe("CodeMirror AI preview", () => {
         previewId: "append",
       }),
     ).toBe(true);
-    expect(view.state.doc.toString()).toBe("Before Original Improved After");
+    expect(view.state.doc.toString()).toBe("Before Original After\n\nImproved");
     expect(undo(view)).toBe(true);
 
     expect(view.state.doc.toString()).toBe(doc);

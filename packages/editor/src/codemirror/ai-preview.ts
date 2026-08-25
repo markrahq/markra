@@ -8,6 +8,7 @@ import {
   type Extension,
 } from "@codemirror/state";
 import { invertedEffects } from "@codemirror/commands";
+import { syntaxTree } from "@codemirror/language";
 import {
   Decoration,
   EditorView,
@@ -250,6 +251,15 @@ function edgeLineBreakCount(text: string, edge: "leading" | "trailing") {
   return match?.[0].length ?? 0;
 }
 
+function appendTargetPosition(state: EditorState, to: number) {
+  if (to >= state.doc.length) return state.doc.length;
+
+  let node = syntaxTree(state).resolveInner(to, to === 0 ? 1 : -1);
+  while (node.parent && node.parent.name !== "Document") node = node.parent;
+  if (node.name !== "Document" && node.to >= to) return node.to;
+  return state.doc.lineAt(to).to;
+}
+
 function appendAiResultChange(
   state: EditorState,
   replacement: string,
@@ -257,34 +267,29 @@ function appendAiResultChange(
 ) {
   if (!replacement) return { cursor: to, from: to, insert: "", to };
 
-  const line = state.doc.lineAt(to);
-  if (to === line.to) {
-    // Keep an appended paragraph structurally separate without duplicating
-    // line breaks already supplied by the document or the AI result.
-    const existingBreaks = edgeLineBreakCount(
-      state.sliceDoc(Math.max(0, to - 2), to),
-      "trailing",
-    ) +
-      edgeLineBreakCount(replacement, "leading");
-    const prefix = "\n".repeat(Math.max(0, 2 - existingBreaks));
-    const insert = `${prefix}${replacement}`;
-    return { cursor: to + insert.length, from: to, insert, to };
-  }
-
-  const before = state.sliceDoc(Math.max(0, to - 1), to);
-  const after = state.sliceDoc(to, Math.min(state.doc.length, to + 1));
-  const prefix = !before || /\s$/u.test(before) || /^\s/u.test(replacement)
-    ? ""
-    : " ";
-  const suffix = !after || /^\s/u.test(after) || /\s$/u.test(replacement)
-    ? ""
-    : " ";
+  const position = appendTargetPosition(state, to);
+  // Treat append as a structural Markdown operation. The original block stays
+  // byte-for-byte intact while the AI result receives block boundaries on
+  // both sides without removing authored blank lines.
+  const leadingBreaks = edgeLineBreakCount(
+    state.sliceDoc(Math.max(0, position - 2), position),
+    "trailing",
+  ) + edgeLineBreakCount(replacement, "leading");
+  const trailingBreaks = edgeLineBreakCount(replacement, "trailing") +
+    edgeLineBreakCount(
+      state.sliceDoc(position, Math.min(state.doc.length, position + 2)),
+      "leading",
+    );
+  const prefix = "\n".repeat(Math.max(0, 2 - leadingBreaks));
+  const suffix = position < state.doc.length
+    ? "\n".repeat(Math.max(0, 2 - trailingBreaks))
+    : "";
   const insert = `${prefix}${replacement}${suffix}`;
   return {
-    cursor: to + prefix.length + replacement.length,
-    from: to,
+    cursor: position + prefix.length + replacement.length,
+    from: position,
     insert,
-    to,
+    to: position,
   };
 }
 

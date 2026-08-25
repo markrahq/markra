@@ -5960,7 +5960,7 @@ describe("Markra workspace", () => {
       }
     });
 
-    await expectVisibleMarkdownText("Before Original Improved After");
+    await expectVisibleMarkdownText("Before Original After\n\nImproved");
   });
 
   it("does not expose side-open file tree actions when document tabs are hidden", async () => {
