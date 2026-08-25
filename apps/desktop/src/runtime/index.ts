@@ -198,6 +198,7 @@ export const desktopRuntime = {
     markSettingsWindowReady: windowRuntime.markSettingsWindowReady,
     hideSettingsWindow: windowRuntime.hideSettingsWindow,
     setEditorWindowRestoreState: windowRuntime.setNativeEditorWindowRestoreState,
+    setUiZoom: windowRuntime.setNativeUiZoom,
     setWindowTitle: windowRuntime.setNativeWindowTitle,
     showWindow: windowRuntime.showNativeWindow,
     toggleWindowFullscreen: windowRuntime.toggleNativeWindowFullscreen,

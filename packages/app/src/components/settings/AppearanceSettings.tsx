@@ -9,7 +9,12 @@ import {
   type LightEditorTheme
 } from "../../lib/settings/app-settings";
 import {
+  defaultUiZoomPercent,
+  uiZoomPercentOptions
+} from "../../lib/ui-zoom";
+import {
   SettingsRow,
+  SettingsSelect,
   SettingsSection,
   SettingsSwitch
 } from "./SettingsControls";
@@ -122,11 +127,13 @@ export function AppearanceSettings({
   onSelectAppearanceMode,
   onSelectDarkTheme,
   onSelectLightTheme,
+  onSelectUiZoomPercent,
   onToggleCustomTheme,
   onUpdateDarkCustomThemeCss,
   onUpdateLightCustomThemeCss,
   selectedDarkTheme,
   selectedLightTheme,
+  selectedUiZoomPercent = defaultUiZoomPercent,
   translate
 }: {
   customThemeEnabled: boolean;
@@ -135,12 +142,14 @@ export function AppearanceSettings({
   onSelectAppearanceMode: (mode: AppAppearanceMode) => unknown;
   onSelectDarkTheme: (theme: DarkEditorTheme) => unknown;
   onSelectLightTheme: (theme: LightEditorTheme) => unknown;
+  onSelectUiZoomPercent?: (percent: number) => unknown;
   onToggleCustomTheme: () => unknown;
   onUpdateDarkCustomThemeCss: (css: string) => unknown;
   onUpdateLightCustomThemeCss: (css: string) => unknown;
   selectedAppearanceMode: AppAppearanceMode;
   selectedDarkTheme: DarkEditorTheme;
   selectedLightTheme: LightEditorTheme;
+  selectedUiZoomPercent?: number;
   translate: SettingsTranslate;
 }) {
   return (
@@ -153,6 +162,21 @@ export function AppearanceSettings({
             selectedAppearanceMode={selectedAppearanceMode}
             translate={translate}
             onSelectAppearanceMode={onSelectAppearanceMode}
+          />
+        }
+      />
+      <SettingsRow
+        title={translate("settings.theme.uiZoomTitle")}
+        description={translate("settings.theme.uiZoomDescription")}
+        action={
+          <SettingsSelect
+            label={translate("settings.theme.uiZoomTitle")}
+            value={String(selectedUiZoomPercent)}
+            options={uiZoomPercentOptions.map((percent) => ({
+              label: `${percent}%`,
+              value: String(percent)
+            }))}
+            onChange={(value) => onSelectUiZoomPercent?.(Number(value))}
           />
         }
       />

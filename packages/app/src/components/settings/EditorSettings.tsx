@@ -30,6 +30,7 @@ import { IconButton, SegmentedControl, SegmentedControlItem, Tooltip } from "@ma
 import { clampNumber, type I18nKey } from "@markra/shared";
 import {
   defaultTitlebarActions,
+  editorBodyFontSizeOptions,
   editorParagraphSpacingPxMax,
   editorParagraphSpacingPxMin,
   reorderTitlebarActions,
@@ -103,7 +104,6 @@ function titlebarActionAvailable(id: TitlebarActionId, aiEnabled: boolean) {
   return aiEnabled || id !== "aiAgent";
 }
 
-const bodyFontSizeOptions = [14, 15, 16, 17, 18, 20];
 const contentWidthRatioSpanPx = editorCustomContentWidthMax - editorCustomContentWidthMin;
 const contentWidthRatioMin = 0;
 const contentWidthRatioMax = 100;
@@ -496,7 +496,7 @@ export function EditorSettings({
             <SettingsSelect
               label={translate("settings.editor.bodyFontSize")}
               value={String(preferences.bodyFontSize)}
-              options={bodyFontSizeOptions.map((size) => ({ label: `${size}px`, value: String(size) }))}
+              options={editorBodyFontSizeOptions.map((size) => ({ label: `${size}px`, value: String(size) }))}
               onChange={(value) =>
                 onUpdatePreferences({
                   ...preferences,

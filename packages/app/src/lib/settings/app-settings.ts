@@ -44,6 +44,10 @@ import {
   type ViewMode,
   type ViewModeCustomizations
 } from "../view-mode";
+import {
+  defaultUiZoomPercent,
+  normalizeUiZoomPercent
+} from "../ui-zoom";
 import { getAppRuntime } from "../../runtime";
 import {
   defaultBackupSettings,
@@ -135,6 +139,11 @@ export {
   normalizeWebSearchSettings
 } from "./web-search-settings";
 export {
+  defaultUiZoomPercent,
+  normalizeUiZoomPercent,
+  uiZoomPercentOptions
+} from "../ui-zoom";
+export {
   defaultStoredFileTreeSort,
   defaultWorkspaceState,
   normalizeFileTreeSortByWorkspace,
@@ -188,6 +197,7 @@ const themeKey = "theme";
 const appearanceModeKey = "appearanceMode";
 const lightThemeKey = "lightTheme";
 const darkThemeKey = "darkTheme";
+const uiZoomPercentKey = "uiZoomPercent";
 const customThemeEnabledKey = "customThemeEnabled";
 const customThemeCssKey = "customThemeCss";
 const lightCustomThemeCssKey = "lightCustomThemeCss";
@@ -301,11 +311,13 @@ export type AppThemePreferences = {
   customThemeEnabled?: boolean;
   darkTheme: DarkEditorTheme;
   lightTheme: LightEditorTheme;
+  uiZoomPercent?: number;
 };
 export const defaultAppThemePreferences: AppThemePreferences = {
   appearanceMode: "system",
   darkTheme: "dark",
-  lightTheme: "light"
+  lightTheme: "light",
+  uiZoomPercent: defaultUiZoomPercent
 };
 export type TitlebarActionId = "aiAgent" | "viewMode" | "sourceMode" | "history" | "save" | "theme";
 export type TitlebarActionPreference = {
@@ -367,6 +379,7 @@ export type PortableStoredAppSettings = {
   logLevel: AppLogLevel;
   network: NetworkSettings;
   syncSettings: SyncSettings;
+  uiZoomPercent: number;
   webSearch: WebSearchSettings;
 };
 export type StoredAppSettingsFile = {
@@ -625,7 +638,7 @@ export const defaultAcpAgentSettings: AcpAgentSettings = {
   enabled: false
 };
 
-const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20] as const;
+export const editorBodyFontSizeOptions = [14, 15, 16, 17, 18, 20, 22, 24, 28, 32] as const;
 const editorLineHeightOptions = [1.5, 1.65, 1.8] as const;
 export const editorParagraphSpacingPxMin = 0;
 export const editorParagraphSpacingPxMax = 32;
@@ -688,6 +701,7 @@ export function normalizePortableStoredAppSettings(value: Record<string, unknown
     logLevel: normalizeAppLogLevel(value.logLevel),
     network: normalizeNetworkSettings(value.network),
     syncSettings: normalizeSyncSettings(value.syncSettings),
+    uiZoomPercent: themePreferences.uiZoomPercent ?? defaultUiZoomPercent,
     webSearch: normalizeWebSearchSettings(value.webSearch)
   };
 }
@@ -702,7 +716,8 @@ export async function readPortableStoredAppSettings(): Promise<PortableStoredApp
     appearanceMode: await store.get<AppAppearanceMode>(appearanceModeKey),
     customThemeEnabled: await store.get<boolean>(customThemeEnabledKey),
     darkTheme: await store.get<DarkEditorTheme>(darkThemeKey),
-    lightTheme: await store.get<LightEditorTheme>(lightThemeKey)
+    lightTheme: await store.get<LightEditorTheme>(lightThemeKey),
+    uiZoomPercent: await store.get<number>(uiZoomPercentKey)
   }, legacyPreferences);
   const legacyCustomThemeCss = normalizeCustomThemeCss(await store.get<string>(customThemeCssKey));
   const customThemeCss = normalizeCustomThemeCssValues({
@@ -739,6 +754,7 @@ export async function readPortableStoredAppSettings(): Promise<PortableStoredApp
     logLevel: normalizeAppLogLevel(logLevel),
     network: normalizeNetworkSettings(network),
     syncSettings: normalizeSyncSettings(syncSettings),
+    uiZoomPercent: themePreferences.uiZoomPercent ?? defaultUiZoomPercent,
     webSearch: normalizeWebSearchSettings(webSearch)
   };
 }
@@ -763,6 +779,7 @@ export async function writePortableStoredAppSettings(settings: PortableStoredApp
   await store.set(logLevelKey, normalizeAppLogLevel(settings.logLevel));
   await store.set(networkKey, settings.network);
   await store.set(syncSettingsKey, settings.syncSettings);
+  await store.set(uiZoomPercentKey, settings.uiZoomPercent);
   await store.set(webSearchKey, settings.webSearch);
   await store.save();
 }
@@ -840,7 +857,12 @@ export function normalizeAppThemePreferences(
   value: unknown,
   fallback: AppThemePreferences = defaultAppThemePreferences
 ): AppThemePreferences {
-  if (typeof value !== "object" || value === null) return fallback;
+  if (typeof value !== "object" || value === null) {
+    return {
+      ...fallback,
+      uiZoomPercent: normalizeUiZoomPercent(fallback.uiZoomPercent)
+    };
+  }
 
   const preferences = value as Partial<Record<keyof AppThemePreferences, unknown>>;
   const fallbackDarkTheme = fallback.darkTheme === "custom"
@@ -864,7 +886,8 @@ export function normalizeAppThemePreferences(
       : fallbackDarkTheme,
     lightTheme: isLightEditorTheme(preferences.lightTheme) && preferences.lightTheme !== "custom"
       ? preferences.lightTheme
-      : fallbackLightTheme
+      : fallbackLightTheme,
+    uiZoomPercent: normalizeUiZoomPercent(preferences.uiZoomPercent, fallback.uiZoomPercent)
   };
 }
 
@@ -958,6 +981,7 @@ export async function getStoredThemePreferences(): Promise<AppThemePreferences> 
   const customThemeEnabled = await store.get<boolean>(customThemeEnabledKey);
   const lightTheme = await store.get<LightEditorTheme>(lightThemeKey);
   const darkTheme = await store.get<DarkEditorTheme>(darkThemeKey);
+  const uiZoomPercent = await store.get<number>(uiZoomPercentKey);
   const legacyTheme = await store.get<AppTheme>(themeKey);
   const legacyPreferences = isAppTheme(legacyTheme)
     ? createThemePreferencesFromLegacyTheme(legacyTheme)
@@ -967,7 +991,8 @@ export async function getStoredThemePreferences(): Promise<AppThemePreferences> 
     appearanceMode,
     customThemeEnabled,
     darkTheme,
-    lightTheme
+    lightTheme,
+    uiZoomPercent
   }, legacyPreferences);
 }
 
@@ -979,6 +1004,7 @@ export async function saveStoredThemePreferences(preferences: AppThemePreference
   await store.set(customThemeEnabledKey, normalizedPreferences.customThemeEnabled === true);
   await store.set(lightThemeKey, normalizedPreferences.lightTheme);
   await store.set(darkThemeKey, normalizedPreferences.darkTheme);
+  await store.set(uiZoomPercentKey, normalizedPreferences.uiZoomPercent ?? defaultUiZoomPercent);
   await store.save();
 }
 

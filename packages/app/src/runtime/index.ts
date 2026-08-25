@@ -400,6 +400,7 @@ export type AppWindowRuntime = {
   markSettingsWindowReady: () => Promise<unknown>;
   hideSettingsWindow: () => Promise<unknown>;
   setEditorWindowRestoreState: (input: SetNativeEditorWindowRestoreStateInput) => Promise<unknown>;
+  setUiZoom: (scaleFactor: number) => Promise<unknown>;
   setWindowTitle: (title: string) => Promise<unknown>;
   showWindow: () => Promise<unknown>;
   toggleWindowFullscreen: () => Promise<unknown>;
@@ -629,6 +630,11 @@ export function createDefaultAppRuntime(): AppRuntime {
       markSettingsWindowReady: async () => undefined,
       hideSettingsWindow: async () => undefined,
       setEditorWindowRestoreState: async () => undefined,
+      setUiZoom: async (scaleFactor) => {
+        if (typeof document !== "undefined") {
+          document.documentElement.style.setProperty("zoom", String(scaleFactor));
+        }
+      },
       setWindowTitle: async (title) => {
         if (typeof document !== "undefined") {
           document.title = title;

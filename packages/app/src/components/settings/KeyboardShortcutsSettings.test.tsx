@@ -440,6 +440,12 @@ describe("KeyboardShortcutsSettings", () => {
     expect(within(fixedShortcuts).getByText("Ctrl+Shift+F")).toBeInTheDocument();
     expect(within(fixedShortcuts).getByText("Settings...")).toBeInTheDocument();
     expect(within(fixedShortcuts).getByText("Ctrl+,")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Zoom in")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+=")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Zoom out")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+-")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Reset zoom")).toBeInTheDocument();
+    expect(within(fixedShortcuts).getByText("Ctrl+0")).toBeInTheDocument();
     expect(within(fixedShortcuts).queryByRole("button")).not.toBeInTheDocument();
   });
 

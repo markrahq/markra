@@ -339,12 +339,14 @@ export function SettingsWindow() {
               selectedAppearanceMode={appTheme.appearanceMode}
               selectedDarkTheme={appTheme.darkTheme}
               selectedLightTheme={appTheme.lightTheme}
+              selectedUiZoomPercent={appTheme.uiZoomPercent}
               translate={translate}
               onUpdateDarkCustomThemeCss={appTheme.updateDarkCustomThemeCss}
               onUpdateLightCustomThemeCss={appTheme.updateLightCustomThemeCss}
               onSelectAppearanceMode={appTheme.selectAppearanceMode}
               onSelectDarkTheme={appTheme.selectDarkTheme}
               onSelectLightTheme={appTheme.selectLightTheme}
+              onSelectUiZoomPercent={appTheme.selectUiZoomPercent}
               onToggleCustomTheme={appTheme.toggleCustomTheme}
             />
           ) : null}

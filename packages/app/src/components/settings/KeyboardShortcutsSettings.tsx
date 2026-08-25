@@ -117,7 +117,10 @@ const fixedKeyboardShortcuts: Array<{
   { labelKey: "app.workspaceSearch.searchWorkspace", shortcut: "Mod+Shift+F" },
   { labelKey: "menu.exportPdf", shortcut: "Mod+Alt+P" },
   { labelKey: "menu.exportHtml", shortcut: "Mod+Shift+E" },
-  { labelKey: "menu.settings", shortcut: "Mod+," }
+  { labelKey: "menu.settings", shortcut: "Mod+," },
+  { labelKey: "settings.editor.shortcutZoomIn", shortcut: "Mod+=" },
+  { labelKey: "settings.editor.shortcutZoomOut", shortcut: "Mod+-" },
+  { labelKey: "settings.editor.shortcutZoomReset", shortcut: "Mod+0" }
 ];
 
 function keyboardShortcutActionAvailable(action: MarkdownShortcutAction, aiEnabled: boolean) {

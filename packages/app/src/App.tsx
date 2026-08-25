@@ -46,6 +46,7 @@ import { WorkspaceOperationOverlay } from "./components/WorkspaceOperationOverla
 import { useAppLanguage } from "./hooks/useAppLanguage";
 import { useAppLogLevel } from "./hooks/useAppLogLevel";
 import { useAppTheme } from "./hooks/useAppTheme";
+import { useUiZoom } from "./hooks/useUiZoom";
 import { useAiCommandUi } from "./hooks/useAiCommandUi";
 import {
   shouldHideAiCommandForAiAgentPanel,
@@ -477,6 +478,10 @@ function WorkspaceApp() {
   const spellcheckFeatureEnabled = appFeatures.spellcheck;
   const updaterFeatureEnabled = appFeatures.updater;
   const appTheme = useAppTheme();
+  useUiZoom({
+    onUiZoomPercentChange: appTheme.selectUiZoomPercent,
+    uiZoomPercent: appTheme.uiZoomPercent
+  });
   const appLanguage = useAppLanguage();
   useAppLogLevel();
   useRuntimeLogCapture();

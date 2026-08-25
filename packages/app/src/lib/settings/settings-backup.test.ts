@@ -113,6 +113,7 @@ function portableSettings(): PortableStoredAppSettings {
       provider: "webdav",
       remotePath: "mock-notes"
     },
+    uiZoomPercent: 140,
     webSearch: {
       ...defaultWebSearchSettings,
       enabled: true,

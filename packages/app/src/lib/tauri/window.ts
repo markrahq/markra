@@ -67,6 +67,10 @@ export function setNativeEditorWindowRestoreState(input: SetNativeEditorWindowRe
   return getAppRuntime().window.setEditorWindowRestoreState(input);
 }
 
+export function setNativeUiZoom(scaleFactor: number) {
+  return getAppRuntime().window.setUiZoom(scaleFactor);
+}
+
 export function listNativeEditorWindowRestoreStates() {
   return getAppRuntime().window.listEditorWindowRestoreStates();
 }

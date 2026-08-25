@@ -22,6 +22,7 @@ import {
   type LightEditorTheme,
   type ResolvedAppTheme
 } from "../lib/settings/app-settings";
+import { defaultUiZoomPercent } from "../lib/ui-zoom";
 import {
   listenAppCustomThemeCssChanged,
   listenAppThemeChanged,
@@ -235,6 +236,13 @@ export function useAppTheme() {
     });
   }, [themePreferences, updateThemePreferences]);
 
+  const selectUiZoomPercent = useCallback((uiZoomPercent: number) => {
+    updateThemePreferences({
+      ...themePreferences,
+      uiZoomPercent
+    });
+  }, [themePreferences, updateThemePreferences]);
+
   // The custom swatches mirror the global switch; keep the saved palettes so turning custom off restores them.
   const selectLightTheme = useCallback((lightTheme: LightEditorTheme) => {
     updateThemePreferences({
@@ -316,11 +324,13 @@ export function useAppTheme() {
     selectAppearanceMode,
     selectDarkTheme,
     selectLightTheme,
+    selectUiZoomPercent,
     themePreferences,
     toggleCustomTheme,
     toggleTheme,
     updateCustomThemeCss,
     updateDarkCustomThemeCss,
-    updateLightCustomThemeCss
+    updateLightCustomThemeCss,
+    uiZoomPercent: themePreferences.uiZoomPercent ?? defaultUiZoomPercent
   };
 }
