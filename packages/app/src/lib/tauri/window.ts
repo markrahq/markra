@@ -41,6 +41,10 @@ export function openBlankEditorWindow() {
   return getAppRuntime().window.openBlankEditorWindow();
 }
 
+export function requestNativeAppExit() {
+  return getAppRuntime().window.requestAppExit();
+}
+
 export function listenNativeSettingsWindowTarget(onTarget: (target: NativeSettingsWindowTarget) => unknown) {
   return getAppRuntime().window.listenSettingsWindowTarget(onTarget);
 }

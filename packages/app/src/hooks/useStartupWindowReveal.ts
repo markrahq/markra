@@ -10,7 +10,7 @@ type UseStartupWindowRevealOptions = {
   revealWindow?: () => Promise<unknown>;
 };
 
-function scheduleAfterNextPaint(callback: () => unknown) {
+export function scheduleAfterNextPaint(callback: () => unknown) {
   if (typeof window === "undefined" || typeof window.requestAnimationFrame !== "function") {
     const timeout = setTimeout(callback, 0);
     return () => clearTimeout(timeout);

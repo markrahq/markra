@@ -52,6 +52,10 @@ export function openNativeBlankEditorWindow() {
   return invokeNative("open_blank_editor_window");
 }
 
+export function requestNativeAppExit() {
+  return invokeNative("request_app_exit");
+}
+
 export async function listenNativeSettingsWindowTarget(onTarget: (target: NativeSettingsWindowTarget) => unknown) {
   if (!("__TAURI_INTERNALS__" in window)) {
     return () => {};

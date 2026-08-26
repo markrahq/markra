@@ -550,7 +550,7 @@ export function useApplicationShortcuts({
         }
         return;
       } else if (
-        platform === "windows" &&
+        (platform === "windows" || platform === "linux") &&
         key === "n" &&
         event.ctrlKey &&
         !event.metaKey &&

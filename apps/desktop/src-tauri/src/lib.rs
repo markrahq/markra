@@ -34,7 +34,7 @@ use ai_chat_attachments::{
     delete_ai_chat_attachment_session, read_ai_chat_attachment, save_ai_chat_attachment,
 };
 use ai_http::{request_ai_provider_json, request_native_chat, request_native_chat_stream};
-use app_exit::handle_app_exit_requested;
+use app_exit::{handle_app_exit_requested, request_app_exit};
 use app_logs::open_log_folder;
 use backup::backup_markdown_folder;
 use clipboard::{read_clipboard_content, read_clipboard_text};
@@ -316,6 +316,7 @@ pub fn run() {
             open_settings_window,
             prewarm_settings_window,
             mark_settings_window_ready,
+            request_app_exit,
             hide_settings_window,
             open_external_url,
             request_ai_provider_json,

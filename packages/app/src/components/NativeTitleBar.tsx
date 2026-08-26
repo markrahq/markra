@@ -178,7 +178,7 @@ export function NativeTitleBar({
   const themeActionLabel = theme === "dark" ? label("app.switchToLightTheme") : label("app.switchToDarkTheme");
   const editorViewMode = splitMode ? "split" : sourceMode ? "source" : "visual";
   const openChoiceMenuAvailable = Boolean(onOpenMarkdownFolder) && (!nativeWindowChrome || platform !== "macos");
-  const openChoiceMenuAlignmentClassName = platform === "windows" ? "right-0" : "left-0";
+  const openChoiceMenuAlignmentClassName = (platform === "windows" || platform === "linux") ? "right-0" : "left-0";
   const titlebarSideSlotWidth = 196;
   const normalizedTitlebarActions = useMemo(
     () => titlebarActions?.length === 0 ? [] : normalizeTitlebarActions(titlebarActions),
@@ -691,7 +691,7 @@ export function NativeTitleBar({
     );
   };
 
-  if (platform === "windows") {
+  if (platform === "windows" || (platform === "linux" && nativeWindowChrome)) {
     return (
       <WindowsNativeTitleBar
         aiAgentOpen={aiAgentOpen}
