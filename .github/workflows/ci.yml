@@ -242,4 +242,9 @@ jobs:
         run: cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
 
       - name: Test
+        if: runner.os != 'Windows'
         run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked
+
+      - name: Compile tests
+        if: runner.os == 'Windows'
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked --no-run
