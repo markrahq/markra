@@ -379,6 +379,12 @@ describe("app settings", () => {
     expect(normalizeEditorPreferences({ openDroppedFilesInTabs: "yes" }).openDroppedFilesInTabs).toBe(false);
   });
 
+  it("normalizes the close window on last tab preference", () => {
+    expect(defaultEditorPreferences.closeWindowOnLastTabClose).toBe(false);
+    expect(normalizeEditorPreferences({ closeWindowOnLastTabClose: true }).closeWindowOnLastTabClose).toBe(true);
+    expect(normalizeEditorPreferences({ closeWindowOnLastTabClose: "yes" }).closeWindowOnLastTabClose).toBe(false);
+  });
+
   it("normalizes the document links visibility preference", () => {
     expect(defaultEditorPreferences.documentLinksVisible).toBe(false);
     expect(normalizeEditorPreferences({ documentLinksVisible: true }).documentLinksVisible).toBe(true);

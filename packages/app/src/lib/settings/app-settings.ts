@@ -402,6 +402,7 @@ export type EditorPreferences = {
   bodyFontSize: number;
   clipboardImageFolder: string;
   closeAiCommandOnAgentPanelOpen: boolean;
+  closeWindowOnLastTabClose: boolean;
   contentWidth: EditorContentWidth;
   contentWidthPx: number | null;
   copyExternalFilesToStorage: boolean;
@@ -565,6 +566,7 @@ export const defaultEditorPreferences: EditorPreferences = {
   bodyFontSize: 16,
   clipboardImageFolder: "assets",
   closeAiCommandOnAgentPanelOpen: false,
+  closeWindowOnLastTabClose: false,
   contentWidth: "default",
   contentWidthPx: null,
   copyExternalFilesToStorage: true,
@@ -1762,6 +1764,10 @@ export function normalizeEditorPreferences(value: unknown): EditorPreferences {
       typeof preferences.closeAiCommandOnAgentPanelOpen === "boolean"
         ? preferences.closeAiCommandOnAgentPanelOpen
         : defaultEditorPreferences.closeAiCommandOnAgentPanelOpen,
+    closeWindowOnLastTabClose:
+      typeof preferences.closeWindowOnLastTabClose === "boolean"
+        ? preferences.closeWindowOnLastTabClose
+        : defaultEditorPreferences.closeWindowOnLastTabClose,
     contentWidth: editorContentWidthOptions.includes(preferences.contentWidth as EditorContentWidth)
       ? (preferences.contentWidth as EditorContentWidth)
       : defaultEditorPreferences.contentWidth,

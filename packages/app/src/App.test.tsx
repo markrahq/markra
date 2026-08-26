@@ -409,6 +409,7 @@ function createStoredEditorPreferences(
     clipboardImageFolder: "assets",
     copyExternalFilesToStorage: true,
     closeAiCommandOnAgentPanelOpen: false,
+    closeWindowOnLastTabClose: overrides.closeWindowOnLastTabClose ?? false,
     contentWidth: "default",
     contentWidthPx: null,
     documentLinksOpen: true,
@@ -1613,6 +1614,7 @@ describe("Markra workspace", () => {
         clipboardImageFolder: "assets",
         copyExternalFilesToStorage: true,
         closeAiCommandOnAgentPanelOpen: false,
+        closeWindowOnLastTabClose: false,
         contentWidth: "default",
         contentWidthPx: null,
         documentLinksOpen: true,
@@ -1686,6 +1688,7 @@ describe("Markra workspace", () => {
         clipboardImageFolder: "assets",
         copyExternalFilesToStorage: true,
         closeAiCommandOnAgentPanelOpen: false,
+        closeWindowOnLastTabClose: false,
         contentWidth: "default",
         contentWidthPx: null,
         documentLinksOpen: true,
@@ -2962,6 +2965,7 @@ describe("Markra workspace", () => {
       clipboardImageFolder: "assets",
       copyExternalFilesToStorage: true,
       closeAiCommandOnAgentPanelOpen: false,
+      closeWindowOnLastTabClose: false,
       contentWidth: "default",
       contentWidthPx: null,
       documentLinksOpen: true,
@@ -4215,6 +4219,69 @@ describe("Markra workspace", () => {
       filePath: null,
       openFilePaths: []
     }));
+    expect(mockedCloseNativeWindow).not.toHaveBeenCalled();
+  });
+
+  it("closes the window from Cmd+W when the last tab closes and the preference is enabled", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      closeWindowOnLastTabClose: true
+    }));
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await expectVisibleMarkdownText("Native file");
+
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
+
+    await waitFor(() => expect(mockedCloseNativeWindow).toHaveBeenCalledTimes(1));
+  });
+
+  it("keeps the window open when Cmd+W closes one of multiple tabs", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      closeWindowOnLastTabClose: true
+    }));
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await expectVisibleMarkdownText("Native file");
+    fireEvent.click(screen.getByRole("button", { name: "New tab" }));
+    expect(screen.getAllByRole("tab")).toHaveLength(2);
+
+    fireEvent.keyDown(window, { key: "w", metaKey: true });
+
+    await waitFor(() => expect(screen.getAllByRole("tab")).toHaveLength(1));
+    expect(mockedCloseNativeWindow).not.toHaveBeenCalled();
+  });
+
+  it("closes the window when the last tab close button is used", async () => {
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      closeWindowOnLastTabClose: true
+    }));
+    mockOpenMarkdownFile({
+      content: "# Native file\n\nOpened from disk.",
+      name: "native.md",
+      path: mockNativePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await expectVisibleMarkdownText("Native file");
+    fireEvent.click(screen.getByRole("button", { name: "Close tab native.md" }));
+
+    await waitFor(() => expect(mockedCloseNativeWindow).toHaveBeenCalledTimes(1));
   });
 
   it("previews an image asset from the current folder tree and returns to markdown files", async () => {
@@ -5992,6 +6059,7 @@ describe("Markra workspace", () => {
       clipboardImageFolder: "assets",
       copyExternalFilesToStorage: true,
       closeAiCommandOnAgentPanelOpen: false,
+      closeWindowOnLastTabClose: false,
       contentWidth: "default",
       contentWidthPx: null,
       documentLinksOpen: true,
@@ -6164,6 +6232,7 @@ describe("Markra workspace", () => {
       clipboardImageFolder: "assets",
       copyExternalFilesToStorage: true,
       closeAiCommandOnAgentPanelOpen: false,
+      closeWindowOnLastTabClose: false,
       contentWidth: "default",
       contentWidthPx: null,
       documentLinksOpen: true,

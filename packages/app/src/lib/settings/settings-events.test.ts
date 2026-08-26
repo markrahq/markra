@@ -196,6 +196,7 @@ describe("settings events", () => {
       clipboardImageFolder: "images",
       copyExternalFilesToStorage: true,
       closeAiCommandOnAgentPanelOpen: true,
+      closeWindowOnLastTabClose: false,
       contentWidth: "wide" as const,
       contentWidthPx: 1120,
       documentLinksOpen: true,
@@ -290,6 +291,7 @@ describe("settings events", () => {
       payload: {
         preferences: {
           closeAiCommandOnAgentPanelOpen: false,
+          closeWindowOnLastTabClose: false,
           showAiQuickInputOnSelection: "nope",
           showAiSelectionToolbarOnSelection: true
         }

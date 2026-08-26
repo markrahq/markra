@@ -222,6 +222,25 @@ export function GeneralSettings({
         </p>
       ) : null}
 
+      <SettingsSection label={translate("settings.sections.window")}>
+        <SettingsRow
+          title={translate("settings.window.closeWindowOnLastTabClose")}
+          description={translate("settings.window.closeWindowOnLastTabCloseDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.closeWindowOnLastTabClose}
+              label={translate("settings.window.closeWindowOnLastTabClose")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  closeWindowOnLastTabClose: !preferences.closeWindowOnLastTabClose
+                })
+              }
+            />
+          }
+        />
+      </SettingsSection>
+
       <SettingsSection label={translate("settings.sections.fileOpening")}>
         <SettingsRow
           title={translate("settings.files.openDroppedFilesInTabs")}
