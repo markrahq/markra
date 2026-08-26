@@ -1,3 +1,18 @@
+## [2.10.0](https://github.com/markrahq/markra/compare/v2.9.0...v2.10.0) (2026-08-26)
+
+### Features
+
+* **ai:** add append action to editing previews ([#690](https://github.com/markrahq/markra/issues/690)) ([c8585cf](https://github.com/markrahq/markra/commit/c8585cf9e6b674ebe76aaef8d7528fb865cb973f))
+* **app:** add last-tab window close option ([#695](https://github.com/markrahq/markra/issues/695)) ([bcb5516](https://github.com/markrahq/markra/commit/bcb551614193ec8c056d9eb8822638bc59402068))
+* **desktop:** self-drawn titlebar on Linux ([#692](https://github.com/markrahq/markra/issues/692)) ([a0513e2](https://github.com/markrahq/markra/commit/a0513e2e0c36d0bb479af4c1a8d9df51db0af689))
+* **search:** unify workspace file and content search ([#694](https://github.com/markrahq/markra/issues/694)) ([ec40cd7](https://github.com/markrahq/markra/commit/ec40cd7d2920b01944510f9e911b8e4962d84335))
+* **settings:** add interface zoom and larger text sizes ([#691](https://github.com/markrahq/markra/issues/691)) ([35e8659](https://github.com/markrahq/markra/commit/35e86591164a1bdb1af06c6a0c33348b404131f7)), closes [#682](https://github.com/markrahq/markra/issues/682)
+* **updater:** support Windows portable updates ([#686](https://github.com/markrahq/markra/issues/686)) ([a5a44a6](https://github.com/markrahq/markra/commit/a5a44a63247a5dddcc455ef325be1a68be7bf54c)), closes [#681](https://github.com/markrahq/markra/issues/681)
+
+### Bug Fixes
+
+* **app:** report attachment open failures ([#689](https://github.com/markrahq/markra/issues/689)) ([9c7a88e](https://github.com/markrahq/markra/commit/9c7a88eab85cf92bf8e92fcbff1c3d227b15067e))
+
 ## [2.9.0](https://github.com/markrahq/markra/compare/v2.8.0...v2.9.0) (2026-08-23)
 
 ### Features
