@@ -14,9 +14,10 @@ import {
   listNativeEditorWindowRestoreStates,
   hideSettingsWindow,
   markSettingsWindowReady,
-  minimizeNativeWindow,
-  openNativeBlankEditorWindow,
-  openSettingsWindow,
+ minimizeNativeWindow,
+ openNativeBlankEditorWindow,
+  requestNativeAppExit,
+ openSettingsWindow,
   prewarmSettingsWindow,
   setNativeEditorWindowRestoreState,
   setNativeUiZoom,
@@ -153,12 +154,20 @@ describe("native window actions", () => {
     expect(mockedGetCurrentWindow).not.toHaveBeenCalled();
   });
 
-  it("opens a blank editor window through the native command", async () => {
+ it("opens a blank editor window through the native command", async () => {
+   mockedInvoke.mockResolvedValue(undefined);
+
+   await openNativeBlankEditorWindow();
+
+   expect(mockedInvoke).toHaveBeenCalledWith("open_blank_editor_window");
+ });
+
+  it("requests an app-wide exit through the native command", async () => {
     mockedInvoke.mockResolvedValue(undefined);
 
-    await openNativeBlankEditorWindow();
+    await requestNativeAppExit();
 
-    expect(mockedInvoke).toHaveBeenCalledWith("open_blank_editor_window");
+    expect(mockedInvoke).toHaveBeenCalledWith("request_app_exit");
   });
 
   it("shows the current Tauri window", async () => {

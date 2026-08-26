@@ -165,6 +165,7 @@ import {
   openBlankEditorWindow,
   openNativeExternalUrl,
   openSettingsWindow,
+  requestNativeAppExit,
   prewarmSettingsWindow,
   showNativeAppAbout,
   toggleNativeWindowFullscreen,
@@ -478,8 +479,8 @@ function WorkspaceApp() {
   const aiFeatureEnabled = appFeatures.ai;
   const exportFeatureEnabled = appFeatures.export;
   const markdownBundleFeatureEnabled = exportFeatureEnabled && appFeatures.markdownBundle === true;
-  const nativeWindowChromeEnabled = appFeatures.nativeWindowChrome && desktopPlatform !== "linux";
-  const windowsSelfDrawnChromeEnabled = nativeWindowChromeEnabled && desktopPlatform === "windows";
+  const nativeWindowChromeEnabled = appFeatures.nativeWindowChrome;
+  const windowsSelfDrawnChromeEnabled = nativeWindowChromeEnabled && (desktopPlatform === "windows" || desktopPlatform === "linux");
   const pandocFeatureEnabled = appFeatures.pandoc;
   const s3ImageUploadFeatureEnabled = appFeatures.s3ImageUpload;
   const spellcheckFeatureEnabled = appFeatures.spellcheck;
@@ -3008,7 +3009,7 @@ function WorkspaceApp() {
     showNativeAppAbout().catch(() => {});
   }, []);
   const handleExitApp = useCallback(() => {
-    closeNativeWindow().catch(() => {});
+    requestNativeAppExit().catch(() => {});
   }, []);
   const rawFileTreeRootName = rootNameForDocument(document.path);
   const fileTreeRootName =
@@ -4900,7 +4901,8 @@ function WorkspaceApp() {
             onSaveFileAsTemplate: handleSaveMarkdownFileAsTemplate,
             onSelectOutlineItem: editor.selectOutlineItem,
             onToggleMarkdownFiles: handleFileTreeToggle,
-            onWorkspaceSearchOpen: handleSidebarWorkspaceSearchOpen
+            onWorkspaceSearchOpen: handleSidebarWorkspaceSearchOpen,
+            platform: windowsSelfDrawnChromeEnabled ? "windows" : desktopPlatform
           }}
           windowsSelfDrawnChrome={windowsSelfDrawnChromeEnabled}
           workspaceOperationOverlay={workspaceOperationOverlay}

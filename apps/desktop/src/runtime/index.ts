@@ -195,6 +195,7 @@ export const desktopRuntime = {
     openExternalUrl: windowRuntime.openNativeExternalUrl,
     openSettingsWindow: windowRuntime.openSettingsWindow,
     prewarmSettingsWindow: windowRuntime.prewarmSettingsWindow,
+    requestAppExit: windowRuntime.requestNativeAppExit,
     markSettingsWindowReady: windowRuntime.markSettingsWindowReady,
     hideSettingsWindow: windowRuntime.hideSettingsWindow,
     setEditorWindowRestoreState: windowRuntime.setNativeEditorWindowRestoreState,

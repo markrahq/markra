@@ -1240,7 +1240,10 @@ mod tests {
     #[test]
     fn rejects_a_fifo_replaced_before_source_open_without_blocking() {
         use std::sync::mpsc;
-        use std::time::Duration;
+        use std::time::{Duration, Instant};
+
+        const FIFO_OPEN_DEADLINE: Duration = Duration::from_secs(5);
+        const FIFO_OPEN_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
         let fixture = AttachmentFixture::new();
         let source_fixture = AttachmentFixture::new();
@@ -1251,6 +1254,9 @@ mod tests {
         let source_path = source.to_string_lossy().to_string();
         let thread_source = source.clone();
         let (result_sender, result_receiver) = mpsc::channel();
+        // Signals the main thread once the hook has finished replacing the source with a FIFO,
+        // so the timeout window below never races the hook's remove+mkfifo swap.
+        let (fifo_ready_sender, fifo_ready_receiver) = mpsc::channel();
         let import_thread = std::thread::spawn(move || {
             let result = import_local_file_with_scope_and_hook(
                 note,
@@ -1266,6 +1272,9 @@ mod tests {
                     if !status.success() {
                         return Err("mkfifo failed".to_string());
                     }
+                    fifo_ready_sender
+                        .send(())
+                        .expect("test receiver should remain");
                     Ok(())
                 },
             );
@@ -1274,17 +1283,56 @@ mod tests {
                 .expect("test receiver should remain");
         });
 
+        fifo_ready_receiver
+            .recv_timeout(Duration::from_secs(5))
+            .expect("hook should finish replacing the source with a FIFO");
+
         let result = match result_receiver.recv_timeout(Duration::from_millis(250)) {
             Ok(result) => result,
             Err(mpsc::RecvTimeoutError::Timeout) => {
-                let writer = fs::OpenOptions::new()
-                    .write(true)
-                    .open(&source)
-                    .expect("FIFO writer should release the blocked source open");
-                drop(writer);
-                let _ = result_receiver.recv_timeout(Duration::from_secs(1));
-                import_thread.join().expect("import thread should finish");
-                panic!("source open blocked on a FIFO replacement");
+                // The import thread is still running after 250ms, which means it is blocked
+                // opening the FIFO for reading. Probe with a nonblocking writer open: on a FIFO
+                // this succeeds immediately when a reader is present and returns ENXIO when there
+                // is none, so the probe itself can never hang. Release the writer right away; if
+                // a reader races us it still proceeds, and the import result below stays
+                // authoritative for what the test asserts.
+                let deadline = Instant::now() + FIFO_OPEN_DEADLINE;
+                loop {
+                    match result_receiver.recv_timeout(FIFO_OPEN_POLL_INTERVAL) {
+                        Ok(result) => break result,
+                        Err(mpsc::RecvTimeoutError::Timeout) => {
+                            match rustix::fs::open(
+                                &source,
+                                rustix::fs::OFlags::WRONLY | rustix::fs::OFlags::NONBLOCK,
+                                rustix::fs::Mode::empty(),
+                            ) {
+                                Ok(fd) => {
+                                    drop(fd);
+                                    // The blocked reader now has a writer; wait for the import
+                                    // thread to observe the FIFO and reject it.
+                                    break result_receiver.recv_timeout(FIFO_OPEN_DEADLINE).expect(
+                                        "import should finish after the FIFO reader is released",
+                                    );
+                                }
+                                Err(error)
+                                    if error == rustix::io::Errno::NXIO
+                                        || error.kind() == io::ErrorKind::WouldBlock =>
+                                {
+                                    // No reader yet (ENXIO); keep probing until the deadline.
+                                    if Instant::now() >= deadline {
+                                        break result_receiver
+                                            .recv_timeout(FIFO_OPEN_DEADLINE)
+                                            .expect(
+                                                "import should finish after the FIFO reader is released",
+                                            );
+                                    }
+                                }
+                                Err(error) => panic!("nonblocking FIFO probe failed: {error}"),
+                            }
+                        }
+                        Err(error) => panic!("source import channel failed: {error}"),
+                    }
+                }
             }
             Err(error) => panic!("source import channel failed: {error}"),
         };

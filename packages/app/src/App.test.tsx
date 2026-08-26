@@ -2793,6 +2793,23 @@ describe("Markra workspace", () => {
   it("shows a close button in the web settings window", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
     mockedResolveDesktopPlatform.mockReturnValue("linux");
+    configureAppRuntime({
+      ...createDefaultAppRuntime(),
+      features: {
+        ai: false,
+        export: true,
+        nativeWindowChrome: false,
+        networkProxy: false,
+        pandoc: false,
+        s3ImageUpload: false,
+        spellcheck: false,
+        updater: false
+      },
+      platform: {
+        resolveDesktopOsVersion: () => null,
+        resolveDesktopPlatform: () => "linux"
+      }
+    });
     window.history.pushState({}, "", "/?settings=1");
 
     const { container } = renderApp();

@@ -324,7 +324,6 @@ fn application_about_metadata() -> AboutMetadata<'static> {
     }
 }
 
-#[cfg(any(windows, test))]
 fn native_about_full_version(metadata: &AboutMetadata<'_>) -> Option<String> {
     match (&metadata.version, &metadata.short_version) {
         (Some(version), Some(short_version)) => Some(format!("{version} ({short_version})")),
@@ -333,12 +332,10 @@ fn native_about_full_version(metadata: &AboutMetadata<'_>) -> Option<String> {
     }
 }
 
-#[cfg(any(windows, test))]
 fn native_about_dialog_title(metadata: &AboutMetadata<'_>) -> String {
     format!("About {}", metadata.name.as_deref().unwrap_or("Markra"))
 }
 
-#[cfg(any(windows, test))]
 fn native_about_dialog_message(metadata: &AboutMetadata<'_>) -> String {
     use std::fmt::Write;
 
@@ -411,10 +408,43 @@ fn show_native_app_about_for_window<R: tauri::Runtime>(
     Ok(())
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn show_native_app_about_for_window<R: tauri::Runtime>(
+    window: &tauri::Window<R>,
+) -> Result<(), String> {
+    // On Linux the self-drawn titlebar's "About Markra" entry is wired to
+    // this command instead of a native predefined About item (the native
+    // menubar is hidden). Surface the same metadata used by the Windows
+    // implementation through tauri-plugin-dialog so the panel renders with
+    // the platform-native toolkit (GTK on Linux).
+    use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
+
+    let metadata = application_about_metadata();
+    let title = native_about_dialog_title(&metadata);
+    let message = native_about_dialog_message(&metadata);
+    let app_handle = window.app_handle().clone();
+    let window = window.clone();
+
+    std::thread::spawn(move || {
+        app_handle
+            .dialog()
+            .message(message)
+            .title(title)
+            .buttons(MessageDialogButtons::Ok)
+            .kind(MessageDialogKind::Info)
+            .parent(&window)
+            .blocking_show();
+    });
+
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "windows", target_os = "linux")))]
 fn show_native_app_about_for_window<R: tauri::Runtime>(
     _window: &tauri::Window<R>,
 ) -> Result<(), String> {
+    // macOS keeps the native menu bar, whose About item opens the AppKit
+    // about panel directly, so this command never reaches the frontend there.
     Ok(())
 }
 
@@ -582,7 +612,7 @@ pub(crate) fn create_application_menu<R: tauri::Runtime>(
     create_application_menu_for_language(app, language, None, &[])
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(target_os = "windows")]
 pub(crate) fn create_settings_window_menu<R: tauri::Runtime>(
     app: &tauri::AppHandle<R>,
 ) -> tauri::Result<Menu<R>> {
@@ -1068,7 +1098,7 @@ pub(crate) fn install_application_menu(
 
     app.set_menu(menu).map_err(|error| error.to_string())?;
     state.remember_installed(profile, config);
-    crate::windows::hide_native_menu_for_settings_window_in_app(&app);
+    crate::windows::hide_native_menus_for_app(&app);
 
     Ok(())
 }

@@ -28,7 +28,7 @@ import { useRuntimeLogEntries } from "../hooks/useRuntimeLogEntries";
 import { appLogger } from "../lib/app-logger";
 import { appVersion } from "../lib/app-version";
 import { showAppToast } from "../lib/app-toast";
-import { resolveDesktopPlatform } from "../lib/platform";
+import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import { hideSettingsWindow, markSettingsWindowReady } from "../lib/tauri";
 import { MacWindowControls } from "./MacWindowControls";
 import { WindowsWindowControls } from "./WindowsWindowControls";
@@ -110,8 +110,10 @@ export function SettingsWindow() {
   ];
   const activeSettingsCategory = hiddenCategories.includes(activeCategory) ? "general" : activeCategory;
   const platform = resolveDesktopPlatform();
-  const showWindowsWindowChrome = platform === "windows" && appFeatures.nativeWindowChrome;
+  const showWindowsWindowChrome = (platform === "windows" || platform === "linux") && appFeatures.nativeWindowChrome;
+  const settingsPlatform: DesktopPlatform = showWindowsWindowChrome ? "windows" : platform;
   const showMacosWindowChrome = platform === "macos" && appFeatures.nativeWindowChrome;
+  const showSettingsCloseButton = !showWindowsWindowChrome && !showMacosWindowChrome;
   const settingsStartupReady = appLanguage.ready && appTheme.ready;
   const settingsLayoutClassName = showWindowsWindowChrome
     ? "settings-layout absolute inset-x-0 top-10 bottom-0 grid grid-cols-[180px_minmax(0,1fr)] max-[700px]:grid-cols-1 max-[700px]:grid-rows-[auto_minmax(0,1fr)]"
@@ -214,15 +216,15 @@ export function SettingsWindow() {
           activeCategory={activeSettingsCategory}
           appVersion={appVersion}
           hiddenCategories={hiddenCategories}
-          platform={platform}
+          platform={settingsPlatform}
           translate={translate}
           onCategoryChange={setActiveCategory}
         />
         <SettingsContent
           activeCategory={activeSettingsCategory}
-          platform={platform}
+          platform={settingsPlatform}
           translate={translate}
-          onClose={platform === "linux" ? handleCloseSettings : undefined}
+          onClose={showSettingsCloseButton ? handleCloseSettings : undefined}
         >
           {activeSettingsCategory === "general" ? (
             <GeneralSettings

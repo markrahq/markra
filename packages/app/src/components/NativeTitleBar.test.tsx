@@ -501,6 +501,31 @@ describe("NativeTitleBar", () => {
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
   });
 
+  it("renders self-drawn window controls on Linux", () => {
+    const { container } = render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        nativeWindowChrome
+        platform="linux"
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    expect(container.querySelector(".windows-app-chrome")).toBeInTheDocument();
+    expect(container.querySelector(".native-titlebar")).toHaveClass("top-10");
+    expect(screen.getByRole("button", { name: "Minimize window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Maximize or restore window" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Close window" })).toBeInTheDocument();
+  });
+
   it("places the Windows folder context in the center of the top chrome instead of the centered titlebar", () => {
     const { container } = render(
       <NativeTitleBar

@@ -49,4 +49,5 @@ Thumbs.db
 
 .cargo-target/
 apps/desktop/src-tauri/gen/schemas/windows-schema.json
+apps/desktop/src-tauri/gen/schemas/linux-schema.json
 .superpowers
