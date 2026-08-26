@@ -150,6 +150,35 @@ describe("GeneralSettings", () => {
     });
   });
 
+  it("toggles closing the window with the last document tab", () => {
+    const onUpdatePreferences = vi.fn();
+
+    render(
+      <GeneralSettings
+        appVersion="0.0.7"
+        language="en"
+        preferences={{
+          ...defaultEditorPreferences,
+          closeWindowOnLastTabClose: false
+        }}
+        translate={translate}
+        welcomeReset={false}
+        onCheckForUpdates={vi.fn()}
+        onResetWelcomeDocument={vi.fn()}
+        onSelectLanguage={vi.fn()}
+        onUpdatePreferences={onUpdatePreferences}
+      />
+    );
+
+    expect(screen.getByRole("heading", { name: "Window" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("switch", { name: "Close window with last tab" }));
+
+    expect(onUpdatePreferences).toHaveBeenCalledWith({
+      ...defaultEditorPreferences,
+      closeWindowOnLastTabClose: true
+    });
+  });
+
   it("keeps diagnostics actions out of general settings", () => {
     render(
       <GeneralSettings

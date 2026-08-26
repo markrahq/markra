@@ -1207,6 +1207,13 @@ function WorkspaceApp() {
       path: tab.path
     }))
   ], [documentTabs, imageTabs]);
+  const closeWindowAfterLastTab = useCallback((closedTabId: string) => {
+    if (!editorPreferences.preferences.closeWindowOnLastTabClose) return;
+    // Callers run this only after a successful close; this render still holds the pre-close tab list.
+    if (titlebarTabs.length !== 1 || titlebarTabs[0]?.id !== closedTabId) return;
+
+    closeNativeWindow().catch(() => {});
+  }, [editorPreferences.preferences.closeWindowOnLastTabClose, titlebarTabs]);
   const activeTitlebarTabId = activeImageFile ? imageDocumentTabId(activeImageFile.path) : activeTabId;
   const {
     clearSideDocumentGroup,
@@ -2867,6 +2874,7 @@ function WorkspaceApp() {
       clearSideDocumentGroup();
       updateActiveAiSelection(null);
       handleAiCommandClose();
+      closeWindowAfterLastTab(focusedSideCloseTabId);
       return;
     }
 
@@ -2874,6 +2882,7 @@ function WorkspaceApp() {
       const closingTabId = imageDocumentTabId(activeImageFile.path);
       setImageTabs((currentTabs) => currentTabs.filter((tab) => tab.id !== closingTabId));
       setActiveImageFile(null);
+      closeWindowAfterLastTab(closingTabId);
       return;
     }
 
@@ -2886,6 +2895,7 @@ function WorkspaceApp() {
       }
       updateActiveAiSelection(null);
       handleAiCommandClose();
+      closeWindowAfterLastTab(activeTabId);
       return;
     }
 
@@ -2902,6 +2912,7 @@ function WorkspaceApp() {
     clearSideDocumentGroup,
     clearOpenDocument,
     closeMarkdownTab,
+    closeWindowAfterLastTab,
     confirmCanDiscardCurrentDocument,
     documentOperationTarget,
     handleAiCommandClose,
@@ -4378,6 +4389,7 @@ function WorkspaceApp() {
       if (closingActiveImage) setActiveImageFile(null);
       updateActiveAiSelection(null);
       handleAiCommandClose();
+      closeWindowAfterLastTab(tabId);
       return true;
     }
 
@@ -4389,12 +4401,14 @@ function WorkspaceApp() {
     }
     updateActiveAiSelection(null);
     handleAiCommandClose();
+    closeWindowAfterLastTab(tabId);
     return true;
   }, [
     activeImageFile,
     captureActiveDocumentViewState,
     clearSideDocumentGroup,
     closeMarkdownTab,
+    closeWindowAfterLastTab,
     handleAiCommandClose,
     imageTabs,
     sideDocumentGroup,
