@@ -346,10 +346,10 @@ where
 fn wait_for_parent_process(parent_process_id: u32) -> Result<(), String> {
     use windows_sys::Win32::{
         Foundation::{CloseHandle, WAIT_FAILED, WAIT_OBJECT_0},
-        System::Threading::{OpenProcess, WaitForSingleObject, SYNCHRONIZE},
+        System::Threading::{OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE},
     };
 
-    let handle = unsafe { OpenProcess(SYNCHRONIZE, 0, parent_process_id) };
+    let handle = unsafe { OpenProcess(PROCESS_SYNCHRONIZE, 0, parent_process_id) };
     if handle.is_null() {
         return Ok(());
     }
