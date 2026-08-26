@@ -26,6 +26,12 @@ describe("document search", () => {
     expect(findSearchRanges("İ, exact", ",")).toEqual([{ from: 1, to: 2 }]);
   });
 
+  it("maps case-insensitive matches back across length-changing case folds", () => {
+    expect(findSearchRanges("İstanbul.md", "i")).toEqual([{ from: 0, to: 1 }]);
+    expect(findSearchRanges("İ ΟΣ", "ος")).toEqual([{ from: 2, to: 4 }]);
+    expect(findSearchRanges("Straße.md", "STRASSE")).toEqual([{ from: 0, to: 6 }]);
+  });
+
   it("stops collecting ranges once the match limit is reached", () => {
     expect(findSearchRanges("alpha beta alpha gamma alpha", "alpha", { maxMatches: 2 })).toEqual([
       { from: 0, to: 5 },

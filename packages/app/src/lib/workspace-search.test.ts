@@ -198,4 +198,40 @@ describe("workspace search", () => {
     expect(search.results).toHaveLength(1);
     expect(search.truncated).toBe(true);
   });
+
+  it("counts file-name matches toward the global result limit", async () => {
+    const file = {
+      name: "alpha.md",
+      path: "/mock-vault/alpha.md",
+      relativePath: "alpha.md"
+    } satisfies WorkspaceSearchFile;
+    const search = await searchWorkspaceFiles([file], "alpha", {
+      maxMatches: 1,
+      maxMatchesPerFile: 5,
+      readFile: async (path) => ({ content: "alpha", path })
+    });
+
+    expect(search.results).toEqual([
+      expect.objectContaining({ kind: "fileName" })
+    ]);
+    expect(search.truncated).toBe(true);
+  });
+
+  it("counts file-name matches toward the per-file result limit", async () => {
+    const file = {
+      name: "alpha.md",
+      path: "/mock-vault/alpha.md",
+      relativePath: "alpha.md"
+    } satisfies WorkspaceSearchFile;
+    const search = await searchWorkspaceFiles([file], "alpha", {
+      maxMatches: 10,
+      maxMatchesPerFile: 1,
+      readFile: async (path) => ({ content: "alpha", path })
+    });
+
+    expect(search.results).toEqual([
+      expect.objectContaining({ kind: "fileName" })
+    ]);
+    expect(search.truncated).toBe(true);
+  });
 });

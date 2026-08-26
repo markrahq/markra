@@ -1200,12 +1200,14 @@ export function useMarkdownDocument({
       try {
         if (!documentTabsEnabled) {
           const canDiscard = await confirmCanDiscardCurrentDocument();
-          if (!canDiscard) return;
+          if (!canDiscard) return false;
         }
 
         await loadNativeMarkdownPath(file.path, false);
+        return true;
       } catch {
         // Missing or moved files should leave the tree available for another choice.
+        return false;
       }
     },
     [confirmCanDiscardCurrentDocument, documentTabsEnabled, loadNativeMarkdownPath]

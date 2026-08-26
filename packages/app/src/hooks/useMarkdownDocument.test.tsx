@@ -152,6 +152,43 @@ describe("useMarkdownDocument", () => {
     mockedSetNativeEditorWindowRestoreState.mockResolvedValue(undefined);
   });
 
+  it("reports whether a file-tree document opened successfully", async () => {
+    mockedReadNativeMarkdownFile
+      .mockResolvedValueOnce({
+        content: "# Available",
+        name: "available.md",
+        path: "/mock-files/available.md"
+      })
+      .mockRejectedValueOnce(new Error("Synthetic missing file"));
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+
+    let availableOpened = false;
+    let missingOpened = true;
+    await act(async () => {
+      availableOpened = await result.current.openTreeMarkdownFile({
+        name: "available.md",
+        path: "/mock-files/available.md",
+        relativePath: "available.md"
+      });
+      missingOpened = await result.current.openTreeMarkdownFile({
+        name: "missing.md",
+        path: "/mock-files/missing.md",
+        relativePath: "missing.md"
+      });
+    });
+
+    expect(availableOpened).toBe(true);
+    expect(missingOpened).toBe(false);
+  });
+
   it("does not ask to discard an untouched blank document when the editor still exposes stale markdown", async () => {
     let editorMarkdown = "";
     const confirmDiscardUnsavedChanges = vi.fn(() => true);

@@ -157,6 +157,37 @@ describe("GlobalSearchPanel", () => {
     expect(highlight).toHaveClass("global-search-match");
   });
 
+  it("highlights matching relative-path segments for file results", () => {
+    const { container } = render(
+      <GlobalSearchPanel
+        caseSensitive={false}
+        language="en"
+        loading={false}
+        query="docs"
+        results={[{
+          ...fileNameResult,
+          file: {
+            ...fileNameResult.file,
+            name: "guide.md"
+          }
+        }]}
+        searchedFileCount={1}
+        truncated={false}
+        unreadableFileCount={0}
+        onCaseSensitiveChange={() => {}}
+        onClose={() => {}}
+        onOpenFile={() => {}}
+        onOpenResult={() => {}}
+        onQueryChange={() => {}}
+      />
+    );
+
+    const directory = container.querySelector(".font-mono");
+
+    expect(directory).toHaveTextContent("docs /");
+    expect(directory?.querySelector("mark")).toHaveTextContent("docs");
+  });
+
   it("toggles case-sensitive search", () => {
     const setCaseSensitive = vi.fn();
     render(
@@ -232,6 +263,40 @@ describe("GlobalSearchPanel", () => {
     );
 
     expect(screen.getByText("First 1 results")).toBeInTheDocument();
+  });
+
+  it("resets expanded file previews when the query changes", () => {
+    const results = Array.from({ length: 5 }, (_, index) => ({
+      ...result,
+      id: `/mock-vault/guide.md:${index}`,
+      lineNumber: index + 1,
+      matchIndex: index,
+      snippet: `alpha result ${index + 1}`
+    })) satisfies WorkspaceSearchResult[];
+    const props = {
+      caseSensitive: false,
+      language: "en" as const,
+      loading: false,
+      results,
+      searchedFileCount: 1,
+      truncated: false,
+      unreadableFileCount: 0,
+      onCaseSensitiveChange: () => {},
+      onClose: () => {},
+      onOpenFile: () => {},
+      onOpenResult: () => {},
+      onQueryChange: () => {}
+    };
+    const { rerender } = render(<GlobalSearchPanel {...props} query="alpha" />);
+
+    expect(screen.queryByRole("button", { name: "Open docs/guide.md line 5" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "show 1 more match" }));
+    expect(screen.getByRole("button", { name: "Open docs/guide.md line 5" })).toBeInTheDocument();
+
+    rerender(<GlobalSearchPanel {...props} query="beta" />);
+
+    expect(screen.queryByRole("button", { name: "Open docs/guide.md line 5" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "show 1 more match" })).toBeInTheDocument();
   });
 
   it("virtualizes large result groups instead of rendering every group", async () => {

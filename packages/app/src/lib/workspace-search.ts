@@ -73,7 +73,11 @@ export function mergeWorkspaceFileNameMatches(
   response: WorkspaceSearchResponse,
   files: readonly WorkspaceSearchFile[],
   query: string,
-  options: { caseSensitive?: boolean } = {}
+  options: {
+    caseSensitive?: boolean;
+    maxMatches?: number;
+    maxMatchesPerFile?: number;
+  } = {}
 ): WorkspaceSearchResponse {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) return response;
@@ -92,17 +96,12 @@ export function mergeWorkspaceFileNameMatches(
   if (matchingFilePaths.size === 0) return response;
 
   const contentResultsByPath = new Map<string, WorkspaceSearchContentResult[]>();
-  const contentResultsOutsideFileTree: WorkspaceSearchContentResult[] = [];
-  const searchableFilePaths = new Set(searchableFiles.map((file) => file.path));
+  const resultFilesByPath = new Map<string, WorkspaceSearchFile>();
 
   response.results.forEach((result) => {
     if (isWorkspaceFileNameSearchResult(result)) return;
 
-    if (!searchableFilePaths.has(result.file.path)) {
-      contentResultsOutsideFileTree.push(result);
-      return;
-    }
-
+    resultFilesByPath.set(result.file.path, result.file);
     const fileResults = contentResultsByPath.get(result.file.path);
     if (fileResults) {
       fileResults.push(result);
@@ -115,25 +114,65 @@ export function mergeWorkspaceFileNameMatches(
   const contentOnlyFiles = searchableFiles.filter((file) => (
     !matchingFilePaths.has(file.path) && contentResultsByPath.has(file.path)
   ));
-  const results: WorkspaceSearchResult[] = [];
+  const orderedPaths: string[] = [];
+  const orderedPathSet = new Set<string>();
+  const addOrderedPath = (path: string) => {
+    if (orderedPathSet.has(path)) return;
 
-  for (const file of [...fileNameMatchedFiles, ...contentOnlyFiles]) {
-    if (matchingFilePaths.has(file.path)) {
-      results.push({
+    orderedPathSet.add(path);
+    orderedPaths.push(path);
+  };
+
+  fileNameMatchedFiles.forEach((file) => addOrderedPath(file.path));
+  contentOnlyFiles.forEach((file) => addOrderedPath(file.path));
+  response.results.forEach((result) => {
+    if (!isWorkspaceFileNameSearchResult(result)) addOrderedPath(result.file.path);
+  });
+
+  const filesByPath = new Map(searchableFiles.map((file) => [file.path, file]));
+  const maxMatches = options.maxMatches === undefined ? undefined : Math.max(0, options.maxMatches);
+  const maxMatchesPerFile = options.maxMatchesPerFile === undefined
+    ? undefined
+    : Math.max(0, options.maxMatchesPerFile);
+  const results: WorkspaceSearchResult[] = [];
+  let truncated = response.truncated;
+
+  for (const path of orderedPaths) {
+    const file = filesByPath.get(path) ?? resultFilesByPath.get(path);
+    if (!file) continue;
+
+    const fileResults: WorkspaceSearchResult[] = [];
+    if (matchingFilePaths.has(path)) {
+      fileResults.push({
         file,
         id: `file-name:${file.path}`,
         kind: "fileName"
       });
     }
 
-    results.push(...(contentResultsByPath.get(file.path) ?? []));
-  }
+    const contentResults = contentResultsByPath.get(path) ?? [];
+    const remainingFileResultCount = maxMatchesPerFile === undefined
+      ? contentResults.length
+      : Math.max(0, maxMatchesPerFile - fileResults.length);
+    if (contentResults.length > remainingFileResultCount) truncated = true;
+    fileResults.push(...contentResults.slice(0, remainingFileResultCount));
 
-  results.push(...contentResultsOutsideFileTree);
+    const remainingResultCount = maxMatches === undefined
+      ? fileResults.length
+      : Math.max(0, maxMatches - results.length);
+    if (fileResults.length > remainingResultCount) truncated = true;
+    results.push(...fileResults.slice(0, remainingResultCount));
+
+    if (maxMatches !== undefined && results.length >= maxMatches) {
+      if (orderedPaths.at(-1) !== path) truncated = true;
+      break;
+    }
+  }
 
   return {
     ...response,
-    results
+    results,
+    truncated
   };
 }
 
@@ -200,7 +239,9 @@ export async function searchWorkspaceFiles(
     truncated: truncatedByFileLimit || (maxMatches !== undefined && collectedMatchCount > maxMatches),
     unreadableFileCount
   }, searchableFiles, normalizedQuery, {
-    caseSensitive: options.caseSensitive
+    caseSensitive: options.caseSensitive,
+    maxMatches,
+    maxMatchesPerFile
   });
 }
 

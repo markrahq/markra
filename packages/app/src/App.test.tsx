@@ -8436,7 +8436,7 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("searchbox", { name: "Search workspace" })).toHaveValue("alpha");
   });
 
-  it("does not open document search after opening a workspace search result", async () => {
+  it("positions the editor without opening document search after a workspace result", async () => {
     const guidePath = "/mock-files/vault/docs/guide.md";
     mockedOpenNativeMarkdownFolder.mockResolvedValue({
       name: "vault",
@@ -8451,7 +8451,7 @@ describe("Markra workspace", () => {
       path: guidePath
     });
 
-    renderApp();
+    const { container } = renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
     expect(await screen.findByRole("button", { name: "guide.md" })).toBeInTheDocument();
@@ -8463,6 +8463,11 @@ describe("Markra workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Open guide.md line 3" }));
 
     await expectVisibleMarkdownText("Guide");
+    const view = getVisibleCodeMirrorView(container);
+    await waitFor(() => {
+      expect(view.state.selection.main.from).toBe(19);
+      expect(view.state.selection.main.to).toBe(24);
+    });
     expect(screen.queryByRole("search", { name: "Find in document" })).not.toBeInTheDocument();
   });
 

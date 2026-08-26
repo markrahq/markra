@@ -260,6 +260,11 @@ export function GlobalSearchPanel({
   }, [resultGroupVirtualizer, results]);
 
   useEffect(() => {
+    setCollapsedFilePaths(new Set());
+    setExpandedPreviewFilePaths(new Set());
+  }, [query]);
+
+  useEffect(() => {
     resultGroupVirtualizer.measure();
   }, [collapsedFilePaths, expandedPreviewFilePaths, resultGroupVirtualizer]);
 
@@ -330,10 +335,10 @@ export function GlobalSearchPanel({
         </button>
       </div>
       <div className={resultSurfaceClassName}>
-        <div className="flex h-8 shrink-0 items-center gap-2 border-b border-(--border-default) px-3 text-[11px] font-[560] text-(--text-secondary)">
+        <div className="flex h-8 min-w-0 shrink-0 items-center gap-2 overflow-hidden border-b border-(--border-default) px-3 text-[11px] font-[560] text-(--text-secondary)">
           {loading ? <Loader2 aria-hidden="true" className="animate-spin" size={13} /> : null}
-          <span>{statusText}</span>
-          <span>
+          <span className="min-w-0 flex-1 truncate">{statusText}</span>
+          <span className="shrink-0">
             {searchLabel(countMessageKey(
               searchedFileCount,
               "app.workspaceSearch.fileCount",
@@ -341,7 +346,9 @@ export function GlobalSearchPanel({
             ), { count: searchedFileCount })}
           </span>
           {unreadableFileCount > 0 ? (
-            <span>{searchLabel("app.workspaceSearch.unreadableFileCount", { count: unreadableFileCount })}</span>
+            <span className="min-w-0 truncate">
+              {searchLabel("app.workspaceSearch.unreadableFileCount", { count: unreadableFileCount })}
+            </span>
           ) : null}
         </div>
         {results.length > 0 ? (
@@ -424,7 +431,7 @@ export function GlobalSearchPanel({
                         <div className="pb-2 pl-7 pr-1">
                           {directoryLabel ? (
                             <div className="mb-1 truncate font-mono text-[11px] text-(--text-secondary)">
-                              {directoryLabel}
+                              {renderHighlightedSnippet(directoryLabel, query, caseSensitive)}
                             </div>
                           ) : null}
                           {visibleResults.length > 0 ? (

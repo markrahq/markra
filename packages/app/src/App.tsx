@@ -327,6 +327,10 @@ type PendingEditorModeSelection = {
   tabId: string;
   targetSurface: EditorSurface;
 };
+type PendingWorkspaceSearchSelection = {
+  path: string;
+  selection: EditorSelectionSnapshot;
+};
 
 function boundedEditorSelection(selection: EditorSelectionSnapshot, documentLength: number) {
   const ranges = selection.ranges.length > 0
@@ -565,6 +569,7 @@ function WorkspaceApp() {
   const lastFocusedEditorContentRef = useRef<HTMLElement | null>(null);
   const documentTabViewStatesRef = useRef(new Map<string, DocumentTabViewState>());
   const pendingEditorModeSelectionRef = useRef<PendingEditorModeSelection | null>(null);
+  const pendingWorkspaceSearchSelectionRef = useRef<PendingWorkspaceSearchSelection | null>(null);
   const pendingEditorModeScrollRef = useRef<PendingEditorModeScroll | null>(null);
   const splitSurfaceRef = useRef<HTMLDivElement | null>(null);
   const sideDocumentSurfaceRef = useRef<HTMLDivElement | null>(null);
@@ -1071,7 +1076,6 @@ function WorkspaceApp() {
     replaceOpen: documentSearchReplaceOpen,
     resetActiveIndex: resetDocumentSearchActiveIndex,
     revealRevision: documentSearchRevealRevision,
-    selectMatch: selectDocumentSearchMatch,
     setCaseSensitive: setDocumentSearchCaseSensitive,
     setReplacement: setDocumentSearchReplacement,
     setReplaceOpen: setDocumentSearchReplaceOpen,
@@ -2706,16 +2710,16 @@ function WorkspaceApp() {
 
     if (file.kind === "asset") {
       openImageTab(file);
-      return;
+      return true;
     }
 
     if (file.kind === "attachment") {
       await handleOpenLocalAttachment(file.relativePath, null);
-      return;
+      return true;
     }
 
     setActiveImageFile(null);
-    await openTreeMarkdownFile(file);
+    return openTreeMarkdownFile(file);
   }, [captureActiveDocumentViewState, handleOpenLocalAttachment, openImageTab, openTreeMarkdownFile]);
   const handleQuickOpenOpen = useCallback(() => {
     hideGlobalSearch();
@@ -2750,24 +2754,23 @@ function WorkspaceApp() {
     await handleOpenTreeFile(file);
   }, [handleOpenTreeFile, hideGlobalSearch]);
   const handleGlobalSearchResultOpen = useCallback(async (result: WorkspaceSearchContentResult) => {
+    // The destination editor is created after the file-open state commits, so preserve the source range until then.
+    const pendingSelection: PendingWorkspaceSearchSelection = {
+      path: result.file.path,
+      selection: {
+        mainIndex: 0,
+        ranges: [{ anchor: result.match.from, head: result.match.to }]
+      }
+    };
+    pendingWorkspaceSearchSelectionRef.current = pendingSelection;
     hideGlobalSearch();
-    await handleOpenTreeFile(result.file);
-    if (!documentSearchOpen) return;
-
-    setDocumentSearchQuery(globalSearchQuery.trim());
-    setDocumentSearchCaseSensitive(globalSearchCaseSensitive);
-    setDocumentSearchReplaceOpen(false);
-    selectDocumentSearchMatch(result.matchIndex);
+    const opened = await handleOpenTreeFile(result.file);
+    if (!opened && pendingWorkspaceSearchSelectionRef.current === pendingSelection) {
+      pendingWorkspaceSearchSelectionRef.current = null;
+    }
   }, [
-    documentSearchOpen,
-    globalSearchCaseSensitive,
-    globalSearchQuery,
     handleOpenTreeFile,
-    hideGlobalSearch,
-    selectDocumentSearchMatch,
-    setDocumentSearchCaseSensitive,
-    setDocumentSearchQuery,
-    setDocumentSearchReplaceOpen
+    hideGlobalSearch
   ]);
   const handleOpenTreeFileToSide = useCallback(async (file: NativeMarkdownFolderFile) => {
     captureActiveDocumentViewState();
@@ -4047,6 +4050,30 @@ function WorkspaceApp() {
           pendingEditorModeSelectionRef.current = null;
         }
       }
+
+      const pendingWorkspaceSelection = pendingWorkspaceSearchSelectionRef.current;
+      if (
+        pendingWorkspaceSelection &&
+        document.path &&
+        sameNativePath(pendingWorkspaceSelection.path, document.path)
+      ) {
+        const workspaceTargetSurface = largeMarkdownVisualBlocked ? "source" : targetSurface;
+        const targetEditor = workspaceTargetSurface === "source"
+          ? sourceEditorRef.current
+          : mainVisualEditorsRef.current.get(activeTabId) ?? null;
+        if (targetEditor) {
+          const selection = boundedEditorSelection(
+            pendingWorkspaceSelection.selection,
+            targetEditor.state.doc.length
+          );
+          targetEditor.requestMeasure();
+          targetEditor.dispatch({ selection, scrollIntoView: true });
+          targetEditor.focus();
+          showCodeMirrorLocationCue(targetEditor, selection.main.head);
+          saveDocumentTabViewState(activeTabId, { selection: editorSelectionSnapshot(selection) });
+          pendingWorkspaceSearchSelectionRef.current = null;
+        }
+      }
     });
 
     return () => {
@@ -4056,10 +4083,12 @@ function WorkspaceApp() {
     activeImageFile,
     activeEditorSurface,
     activeTabId,
+    document.path,
     document.revision,
     editorMode,
     editorPreferences.preferences.modeSwitchHighlightEnabled,
     hasOpenDocument,
+    largeMarkdownVisualBlocked,
     saveDocumentTabViewState,
     sourceEditorReadySequence,
     visualEditorReadySequence
