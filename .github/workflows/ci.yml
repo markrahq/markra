@@ -203,6 +203,8 @@ jobs:
             label: Linux
           - os: macos-latest
             label: macOS
+          - os: windows-latest
+            label: Windows
     timeout-minutes: 20
 
     steps:

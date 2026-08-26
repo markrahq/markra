@@ -38,7 +38,7 @@ tauri-plugin-store = "2.4.3"
 tauri-plugin-updater = "2.10.1"
 time = "0.3.44"
 trash = "5.2.6"
-zip = { version = "4.6.1", default-features = false, features = ["deflate-flate2"] }
+zip = { version = "4.6.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [dev-dependencies]
 tempfile = "3.27.0"
