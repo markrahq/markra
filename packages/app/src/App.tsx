@@ -1017,6 +1017,7 @@ function WorkspaceApp() {
     setCaseSensitive: setGlobalSearchCaseSensitive,
     setQuery: setGlobalSearchQuery
   } = workspaceSearch;
+  const [globalSearchPresentation, setGlobalSearchPresentation] = useState<"dialog" | "sidebar">("dialog");
   const hasOpenDocument = document.open;
   const largeMarkdownVisualBlocked =
     hasOpenDocument && !activeImageFile && shouldBlockLargeMarkdownVisual(document.content, {
@@ -2726,9 +2727,14 @@ function WorkspaceApp() {
   }, []);
   const handleGlobalSearchOpen = useCallback(() => {
     setQuickOpenOpen(false);
-    if (!fileTreeOpen) toggleFileTree(document.path);
+    setGlobalSearchPresentation("dialog");
     openGlobalSearch();
-  }, [document.path, fileTreeOpen, openGlobalSearch, toggleFileTree]);
+  }, [openGlobalSearch]);
+  const handleSidebarWorkspaceSearchOpen = useCallback(() => {
+    setQuickOpenOpen(false);
+    setGlobalSearchPresentation("sidebar");
+    openGlobalSearch();
+  }, [openGlobalSearch]);
   const handleGlobalSearchClose = closeGlobalSearch;
   const handleGlobalSearchQueryChange = useCallback((query: string) => {
     setGlobalSearchQuery(query);
@@ -4815,27 +4821,29 @@ function WorkspaceApp() {
             width: compactViewport
               ? Math.min(fileTreeWidth, Math.max(0, viewportWidth - 48))
               : fileTreeWidth,
-            workspaceSearchOpen: globalSearchOpen && visibleFileTreeOpen,
-            workspaceSearchPanel: globalSearchOpen && visibleFileTreeOpen ? (
-              <GlobalSearchPanel
-                caseSensitive={globalSearchCaseSensitive}
-                language={appLanguage.language}
-                loading={globalSearchLoading}
-                placement="sidebar"
-                query={globalSearchQuery}
-                recentQueries={globalSearchRecentQueries}
-                results={globalSearchResponse.results}
-                searchedFileCount={globalSearchResponse.searchedFileCount}
-                truncated={globalSearchResponse.truncated}
-                unreadableFileCount={globalSearchResponse.unreadableFileCount}
-                onCaseSensitiveChange={handleGlobalSearchCaseSensitiveChange}
-                onClose={handleGlobalSearchClose}
-                onOpenFile={handleGlobalSearchFileOpen}
-                onOpenResult={handleGlobalSearchResultOpen}
-                onQueryChange={handleGlobalSearchQueryChange}
-                onRecentQuerySelect={handleGlobalSearchRecentQuerySelect}
-              />
-            ) : null,
+            workspaceSearchOpen: globalSearchOpen && globalSearchPresentation === "sidebar",
+            workspaceSearchPanel: globalSearchOpen
+              && globalSearchPresentation === "sidebar"
+              && visibleFileTreeOpen ? (
+                <GlobalSearchPanel
+                  caseSensitive={globalSearchCaseSensitive}
+                  language={appLanguage.language}
+                  loading={globalSearchLoading}
+                  placement="sidebar"
+                  query={globalSearchQuery}
+                  recentQueries={globalSearchRecentQueries}
+                  results={globalSearchResponse.results}
+                  searchedFileCount={globalSearchResponse.searchedFileCount}
+                  truncated={globalSearchResponse.truncated}
+                  unreadableFileCount={globalSearchResponse.unreadableFileCount}
+                  onCaseSensitiveChange={handleGlobalSearchCaseSensitiveChange}
+                  onClose={handleGlobalSearchClose}
+                  onOpenFile={handleGlobalSearchFileOpen}
+                  onOpenResult={handleGlobalSearchResultOpen}
+                  onQueryChange={handleGlobalSearchQueryChange}
+                  onRecentQuerySelect={handleGlobalSearchRecentQuerySelect}
+                />
+              ) : null,
             onCleanUnusedImages: assetCleanupAvailable ? assetCleanup.openDialog : undefined,
             onCreateFile: handleCreateMarkdownTreeFile,
             onCreateFolder: handleCreateMarkdownTreeFolder,
@@ -4863,7 +4871,7 @@ function WorkspaceApp() {
             onSaveFileAsTemplate: handleSaveMarkdownFileAsTemplate,
             onSelectOutlineItem: editor.selectOutlineItem,
             onToggleMarkdownFiles: handleFileTreeToggle,
-            onWorkspaceSearchOpen: handleGlobalSearchOpen
+            onWorkspaceSearchOpen: handleSidebarWorkspaceSearchOpen
           }}
           windowsSelfDrawnChrome={windowsSelfDrawnChromeEnabled}
           workspaceOperationOverlay={workspaceOperationOverlay}
@@ -4873,8 +4881,9 @@ function WorkspaceApp() {
           onEditorContentDragOver={handleEditorContentDragOver}
           onEditorContentDrop={handleEditorContentDrop}
         >
-              {/* Immersive views can suppress the sidebar, so keep the dialog as a reachable fallback. */}
-              {globalSearchOpen && !visibleFileTreeOpen ? (
+              {globalSearchOpen && (
+                globalSearchPresentation === "dialog" || !visibleFileTreeOpen
+              ) ? (
                 <GlobalSearchPanel
                   caseSensitive={globalSearchCaseSensitive}
                   language={appLanguage.language}

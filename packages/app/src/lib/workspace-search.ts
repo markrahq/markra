@@ -79,14 +79,16 @@ export function mergeWorkspaceFileNameMatches(
   if (!normalizedQuery) return response;
 
   const searchableFiles = files.filter(isWorkspaceSearchableFile);
-  const matchingFilePaths = new Set(searchableFiles.flatMap((file) =>
-    findSearchRanges(file.name, normalizedQuery, {
-      caseSensitive: options.caseSensitive,
-      maxMatches: 1
-    }).length > 0
-      ? [file.path]
-      : []
-  ));
+  const matchingFilePaths = new Set(searchableFiles.flatMap((file) => {
+    const matchesNameOrPath = [file.name, file.relativePath].some((candidate) =>
+      findSearchRanges(candidate, normalizedQuery, {
+        caseSensitive: options.caseSensitive,
+        maxMatches: 1
+      }).length > 0
+    );
+
+    return matchesNameOrPath ? [file.path] : [];
+  }));
   if (matchingFilePaths.size === 0) return response;
 
   const contentResultsByPath = new Map<string, WorkspaceSearchContentResult[]>();

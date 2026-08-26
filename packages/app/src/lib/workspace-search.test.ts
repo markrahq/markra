@@ -37,6 +37,28 @@ describe("workspace search", () => {
     ]);
   });
 
+  it("returns files whose relative paths match even when their names and contents do not", async () => {
+    const file = {
+      name: "guide.md",
+      path: "/mock-vault/docs/guide.md",
+      relativePath: "docs/guide.md"
+    } satisfies WorkspaceSearchFile;
+    const search = await searchWorkspaceFiles([file], "docs", {
+      readFile: async (path) => ({
+        content: "synthetic content without the query",
+        path
+      })
+    });
+
+    expect(search.results).toEqual([
+      expect.objectContaining({
+        file,
+        id: "file-name:/mock-vault/docs/guide.md",
+        kind: "fileName"
+      })
+    ]);
+  });
+
   it("searches markdown file content and ignores folders and assets", async () => {
     const readFile = vi.fn(async (path: string) => ({
       content: path.endsWith("guide.md")
