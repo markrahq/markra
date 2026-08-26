@@ -714,6 +714,7 @@ export type I18nKey =
   | "app.workspaceSearch.fileSearchResults"
   | "app.workspaceSearch.loading"
   | "app.workspaceSearch.noResults"
+  | "app.workspaceSearch.openFile"
   | "app.workspaceSearch.openResult"
   | "app.workspaceSearch.placeholder"
   | "app.workspaceSearch.recentSearch"

@@ -3,16 +3,25 @@ import type { NativeMarkdownFolderFile } from "./tauri";
 
 export type WorkspaceSearchFile = Pick<NativeMarkdownFolderFile, "kind" | "name" | "path" | "relativePath">;
 
-export type WorkspaceSearchResult = {
+export type WorkspaceSearchContentResult = {
   columnNumber: number;
   file: WorkspaceSearchFile;
   id: string;
+  kind?: "content";
   lineNumber: number;
   lineText: string;
   match: SearchRange;
   matchIndex: number;
   snippet: string;
 };
+
+export type WorkspaceSearchFileNameResult = {
+  file: WorkspaceSearchFile;
+  id: string;
+  kind: "fileName";
+};
+
+export type WorkspaceSearchResult = WorkspaceSearchContentResult | WorkspaceSearchFileNameResult;
 
 export type WorkspaceSearchResponse = {
   results: WorkspaceSearchResult[];
@@ -50,6 +59,80 @@ const snippetMaxLength = 96;
 
 export function isWorkspaceSearchableFile(file: WorkspaceSearchFile) {
   return file.kind !== "asset" && file.kind !== "attachment" && file.kind !== "folder";
+}
+
+export function isWorkspaceFileNameSearchResult(
+  result: WorkspaceSearchResult
+): result is WorkspaceSearchFileNameResult {
+  return result.kind === "fileName";
+}
+
+// Merge names after content search so native and browser fallbacks share one result contract
+// without making the native content index return synthetic line matches.
+export function mergeWorkspaceFileNameMatches(
+  response: WorkspaceSearchResponse,
+  files: readonly WorkspaceSearchFile[],
+  query: string,
+  options: { caseSensitive?: boolean } = {}
+): WorkspaceSearchResponse {
+  const normalizedQuery = query.trim();
+  if (!normalizedQuery) return response;
+
+  const searchableFiles = files.filter(isWorkspaceSearchableFile);
+  const matchingFilePaths = new Set(searchableFiles.flatMap((file) =>
+    findSearchRanges(file.name, normalizedQuery, {
+      caseSensitive: options.caseSensitive,
+      maxMatches: 1
+    }).length > 0
+      ? [file.path]
+      : []
+  ));
+  if (matchingFilePaths.size === 0) return response;
+
+  const contentResultsByPath = new Map<string, WorkspaceSearchContentResult[]>();
+  const contentResultsOutsideFileTree: WorkspaceSearchContentResult[] = [];
+  const searchableFilePaths = new Set(searchableFiles.map((file) => file.path));
+
+  response.results.forEach((result) => {
+    if (isWorkspaceFileNameSearchResult(result)) return;
+
+    if (!searchableFilePaths.has(result.file.path)) {
+      contentResultsOutsideFileTree.push(result);
+      return;
+    }
+
+    const fileResults = contentResultsByPath.get(result.file.path);
+    if (fileResults) {
+      fileResults.push(result);
+    } else {
+      contentResultsByPath.set(result.file.path, [result]);
+    }
+  });
+
+  const fileNameMatchedFiles = searchableFiles.filter((file) => matchingFilePaths.has(file.path));
+  const contentOnlyFiles = searchableFiles.filter((file) => (
+    !matchingFilePaths.has(file.path) && contentResultsByPath.has(file.path)
+  ));
+  const results: WorkspaceSearchResult[] = [];
+
+  for (const file of [...fileNameMatchedFiles, ...contentOnlyFiles]) {
+    if (matchingFilePaths.has(file.path)) {
+      results.push({
+        file,
+        id: `file-name:${file.path}`,
+        kind: "fileName"
+      });
+    }
+
+    results.push(...(contentResultsByPath.get(file.path) ?? []));
+  }
+
+  results.push(...contentResultsOutsideFileTree);
+
+  return {
+    ...response,
+    results
+  };
 }
 
 export async function searchWorkspaceFiles(
@@ -109,12 +192,14 @@ export async function searchWorkspaceFiles(
     if (maxMatches !== undefined && results.length >= maxMatches) break;
   }
 
-  return {
+  return mergeWorkspaceFileNameMatches({
     results,
     searchedFileCount: searchableFiles.length,
     truncated: truncatedByFileLimit || (maxMatches !== undefined && collectedMatchCount > maxMatches),
     unreadableFileCount
-  };
+  }, searchableFiles, normalizedQuery, {
+    caseSensitive: options.caseSensitive
+  });
 }
 
 function findWorkspaceSearchResults(
@@ -143,7 +228,7 @@ function findWorkspaceSearchResults(
       match: range,
       matchIndex,
       snippet: workspaceSearchSnippet(line.text, line.columnNumber, range.to - range.from)
-    } satisfies WorkspaceSearchResult;
+    } satisfies WorkspaceSearchContentResult;
   });
 
   return {

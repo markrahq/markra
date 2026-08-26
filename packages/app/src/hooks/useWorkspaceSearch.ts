@@ -4,6 +4,7 @@ import {
   nextGlobalSearchRecentQueries
 } from "../app/workspace-model";
 import {
+  mergeWorkspaceFileNameMatches,
   searchWorkspaceFiles,
   type WorkspaceSearchResponse
 } from "../lib/workspace-search";
@@ -129,7 +130,14 @@ export function useWorkspaceSearch({
             query: trimmedQuery
           }).catch(() => null)
         : null;
-      if (nativeResponse) return nativeResponse;
+      if (nativeResponse) {
+        return mergeWorkspaceFileNameMatches(
+          nativeResponse,
+          fileTreeFiles,
+          trimmedQuery,
+          { caseSensitive }
+        );
+      }
 
       return searchWorkspaceFiles(fileTreeFiles, trimmedQuery, {
         caseSensitive,

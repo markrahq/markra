@@ -66,7 +66,12 @@ type MarkdownOpenPathResponse =
       path: string;
     };
 
-type MarkdownWorkspaceSearchResultResponse = Omit<WorkspaceSearchResponse["results"][number], "file"> & {
+type WorkspaceContentSearchResult = Extract<
+  WorkspaceSearchResponse["results"][number],
+  { kind?: "content" }
+>;
+
+type MarkdownWorkspaceSearchResultResponse = Omit<WorkspaceContentSearchResult, "file"> & {
   file: MarkdownFolderFileResponse;
 };
 

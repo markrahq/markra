@@ -50,4 +50,37 @@ describe("useWorkspaceSearch", () => {
       query: "needle"
     }));
   });
+
+  it("merges file-name matches into native workspace search results", async () => {
+    const fileTreeFiles: NativeMarkdownFolderFile[] = [{
+      name: "guide.md",
+      path: "/vault/guide.md",
+      relativePath: "guide.md"
+    }];
+    mockedSearchNativeMarkdownFilesForPath.mockResolvedValue({
+      results: [],
+      searchedFileCount: 1,
+      truncated: false,
+      unreadableFileCount: 0
+    });
+    const { result } = renderHook(() => useWorkspaceSearch({
+      activeImageFile: null,
+      documentContent: "",
+      documentPath: null,
+      fileTreeFiles,
+      fileTreeSourcePath: "/vault"
+    }));
+
+    act(() => {
+      result.current.openSearch();
+      result.current.setQuery("guide");
+    });
+
+    await waitFor(() => expect(result.current.response.results).toEqual([
+      expect.objectContaining({
+        id: "file-name:/vault/guide.md",
+        kind: "fileName"
+      })
+    ]));
+  });
 });

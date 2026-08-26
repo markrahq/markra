@@ -150,7 +150,10 @@ import {
 import { selectionAnchorFromDomSelection, type SelectionAnchor } from "./lib/selection-anchor";
 import { runEditorLinkCommand } from "./app/editor-link-command";
 import { isPandocSetupError, runPandocSetupAction } from "./app/pandoc-setup";
-import type { WorkspaceSearchResult } from "./lib/workspace-search";
+import type {
+  WorkspaceSearchContentResult,
+  WorkspaceSearchFile
+} from "./lib/workspace-search";
 import type {
   SelectionHeadingLevel,
   SelectionFormattingAction,
@@ -2723,8 +2726,9 @@ function WorkspaceApp() {
   }, []);
   const handleGlobalSearchOpen = useCallback(() => {
     setQuickOpenOpen(false);
+    if (!fileTreeOpen) toggleFileTree(document.path);
     openGlobalSearch();
-  }, [openGlobalSearch]);
+  }, [document.path, fileTreeOpen, openGlobalSearch, toggleFileTree]);
   const handleGlobalSearchClose = closeGlobalSearch;
   const handleGlobalSearchQueryChange = useCallback((query: string) => {
     setGlobalSearchQuery(query);
@@ -2735,7 +2739,11 @@ function WorkspaceApp() {
   const handleGlobalSearchRecentQuerySelect = useCallback((query: string) => {
     selectGlobalSearchRecentQuery(query);
   }, [selectGlobalSearchRecentQuery]);
-  const handleGlobalSearchResultOpen = useCallback(async (result: WorkspaceSearchResult) => {
+  const handleGlobalSearchFileOpen = useCallback(async (file: WorkspaceSearchFile) => {
+    hideGlobalSearch();
+    await handleOpenTreeFile(file);
+  }, [handleOpenTreeFile, hideGlobalSearch]);
+  const handleGlobalSearchResultOpen = useCallback(async (result: WorkspaceSearchContentResult) => {
     hideGlobalSearch();
     await handleOpenTreeFile(result.file);
     if (!documentSearchOpen) return;
@@ -4807,6 +4815,27 @@ function WorkspaceApp() {
             width: compactViewport
               ? Math.min(fileTreeWidth, Math.max(0, viewportWidth - 48))
               : fileTreeWidth,
+            workspaceSearchOpen: globalSearchOpen && visibleFileTreeOpen,
+            workspaceSearchPanel: globalSearchOpen && visibleFileTreeOpen ? (
+              <GlobalSearchPanel
+                caseSensitive={globalSearchCaseSensitive}
+                language={appLanguage.language}
+                loading={globalSearchLoading}
+                placement="sidebar"
+                query={globalSearchQuery}
+                recentQueries={globalSearchRecentQueries}
+                results={globalSearchResponse.results}
+                searchedFileCount={globalSearchResponse.searchedFileCount}
+                truncated={globalSearchResponse.truncated}
+                unreadableFileCount={globalSearchResponse.unreadableFileCount}
+                onCaseSensitiveChange={handleGlobalSearchCaseSensitiveChange}
+                onClose={handleGlobalSearchClose}
+                onOpenFile={handleGlobalSearchFileOpen}
+                onOpenResult={handleGlobalSearchResultOpen}
+                onQueryChange={handleGlobalSearchQueryChange}
+                onRecentQuerySelect={handleGlobalSearchRecentQuerySelect}
+              />
+            ) : null,
             onCleanUnusedImages: assetCleanupAvailable ? assetCleanup.openDialog : undefined,
             onCreateFile: handleCreateMarkdownTreeFile,
             onCreateFolder: handleCreateMarkdownTreeFolder,
@@ -4833,7 +4862,8 @@ function WorkspaceApp() {
             onResizeStart: compactViewport ? undefined : startFileTreeResize,
             onSaveFileAsTemplate: handleSaveMarkdownFileAsTemplate,
             onSelectOutlineItem: editor.selectOutlineItem,
-            onToggleMarkdownFiles: handleFileTreeToggle
+            onToggleMarkdownFiles: handleFileTreeToggle,
+            onWorkspaceSearchOpen: handleGlobalSearchOpen
           }}
           windowsSelfDrawnChrome={windowsSelfDrawnChromeEnabled}
           workspaceOperationOverlay={workspaceOperationOverlay}
@@ -4843,7 +4873,8 @@ function WorkspaceApp() {
           onEditorContentDragOver={handleEditorContentDragOver}
           onEditorContentDrop={handleEditorContentDrop}
         >
-              {globalSearchOpen ? (
+              {/* Immersive views can suppress the sidebar, so keep the dialog as a reachable fallback. */}
+              {globalSearchOpen && !visibleFileTreeOpen ? (
                 <GlobalSearchPanel
                   caseSensitive={globalSearchCaseSensitive}
                   language={appLanguage.language}
@@ -4856,6 +4887,7 @@ function WorkspaceApp() {
                   unreadableFileCount={globalSearchResponse.unreadableFileCount}
                   onCaseSensitiveChange={handleGlobalSearchCaseSensitiveChange}
                   onClose={handleGlobalSearchClose}
+                  onOpenFile={handleGlobalSearchFileOpen}
                   onOpenResult={handleGlobalSearchResultOpen}
                   onQueryChange={handleGlobalSearchQueryChange}
                   onRecentQuerySelect={handleGlobalSearchRecentQuerySelect}

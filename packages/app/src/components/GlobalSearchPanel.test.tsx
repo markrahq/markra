@@ -43,7 +43,49 @@ const otherFileResult = {
   snippet: "alpha in root"
 } satisfies WorkspaceSearchResult;
 
+const fileNameResult = {
+  file: {
+    name: "alpha-guide.md",
+    path: "/mock-vault/docs/alpha-guide.md",
+    relativePath: "docs/alpha-guide.md"
+  },
+  id: "file-name:/mock-vault/docs/alpha-guide.md",
+  kind: "fileName"
+} satisfies WorkspaceSearchResult;
+
 describe("GlobalSearchPanel", () => {
+  it("renders file-name matches as openable results in the sidebar", () => {
+    const openFile = vi.fn();
+    render(
+      <GlobalSearchPanel
+        caseSensitive={false}
+        language="en"
+        loading={false}
+        placement="sidebar"
+        query="alpha"
+        results={[fileNameResult]}
+        searchedFileCount={1}
+        truncated={false}
+        unreadableFileCount={0}
+        onCaseSensitiveChange={() => {}}
+        onClose={() => {}}
+        onOpenFile={openFile}
+        onOpenResult={() => {}}
+        onQueryChange={() => {}}
+      />
+    );
+
+    const search = screen.getByRole("search", { name: "Search workspace" });
+    const fileButton = within(search).getByRole("button", { name: "Open docs/alpha-guide.md" });
+
+    expect(fileButton.querySelector("mark")).toHaveTextContent("alpha");
+    expect(screen.queryByRole("dialog", { name: "Search workspace" })).not.toBeInTheDocument();
+
+    fireEvent.click(fileButton);
+
+    expect(openFile).toHaveBeenCalledWith(fileNameResult.file);
+  });
+
   it("groups workspace search results by file and opens a selected match", () => {
     const openResult = vi.fn();
     render(
@@ -58,6 +100,7 @@ describe("GlobalSearchPanel", () => {
         unreadableFileCount={0}
         onCaseSensitiveChange={() => {}}
         onClose={() => {}}
+        onOpenFile={() => {}}
         onOpenResult={openResult}
         onQueryChange={() => {}}
       />
@@ -70,14 +113,16 @@ describe("GlobalSearchPanel", () => {
     expect(within(dialog).getByText("3 results")).toBeInTheDocument();
 
     const guideGroup = within(results).getByRole("group", { name: "docs/guide.md search results" });
-    expect(within(guideGroup).getByRole("button", { name: "Collapse docs/guide.md search results" })).toHaveTextContent("2");
+    expect(within(guideGroup).getByRole("button", { name: "Collapse docs/guide.md search results" })).toBeInTheDocument();
+    expect(within(guideGroup).getByText("2")).toBeInTheDocument();
     expect(within(guideGroup).getByText("guide.md")).toBeInTheDocument();
     expect(within(guideGroup).getByText("docs /")).toBeInTheDocument();
     expect(within(guideGroup).getByRole("button", { name: "Open docs/guide.md line 3" })).toHaveTextContent("First alpha note");
     expect(within(guideGroup).getByRole("button", { name: "Open docs/guide.md line 5" })).toHaveTextContent("Second alpha entry");
 
     const notesGroup = within(results).getByRole("group", { name: "notes.md search results" });
-    expect(within(notesGroup).getByRole("button", { name: "Collapse notes.md search results" })).toHaveTextContent("1");
+    expect(within(notesGroup).getByRole("button", { name: "Collapse notes.md search results" })).toBeInTheDocument();
+    expect(within(notesGroup).getByText("1")).toBeInTheDocument();
     expect(within(notesGroup).queryByText("/")).not.toBeInTheDocument();
 
     fireEvent.click(within(guideGroup).getByRole("button", { name: "Open docs/guide.md line 3" }));
@@ -98,6 +143,7 @@ describe("GlobalSearchPanel", () => {
         unreadableFileCount={0}
         onCaseSensitiveChange={() => {}}
         onClose={() => {}}
+        onOpenFile={() => {}}
         onOpenResult={() => {}}
         onQueryChange={() => {}}
       />
@@ -125,6 +171,7 @@ describe("GlobalSearchPanel", () => {
         unreadableFileCount={0}
         onCaseSensitiveChange={setCaseSensitive}
         onClose={() => {}}
+        onOpenFile={() => {}}
         onOpenResult={() => {}}
         onQueryChange={() => {}}
       />
@@ -150,6 +197,7 @@ describe("GlobalSearchPanel", () => {
         unreadableFileCount={0}
         onCaseSensitiveChange={() => {}}
         onClose={() => {}}
+        onOpenFile={() => {}}
         onOpenResult={() => {}}
         onQueryChange={() => {}}
         onRecentQuerySelect={selectRecentQuery}
@@ -177,6 +225,7 @@ describe("GlobalSearchPanel", () => {
         unreadableFileCount={0}
         onCaseSensitiveChange={() => {}}
         onClose={() => {}}
+        onOpenFile={() => {}}
         onOpenResult={() => {}}
         onQueryChange={() => {}}
       />
@@ -211,6 +260,7 @@ describe("GlobalSearchPanel", () => {
           unreadableFileCount={0}
           onCaseSensitiveChange={() => {}}
           onClose={() => {}}
+          onOpenFile={() => {}}
           onOpenResult={() => {}}
           onQueryChange={() => {}}
         />

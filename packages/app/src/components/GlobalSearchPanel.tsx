@@ -2,12 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState, type Key, type Keybo
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { CaseSensitive, ChevronDown, ChevronRight, Loader2, Search, X } from "lucide-react";
 import { findSearchRanges, t, type AppLanguage, type I18nKey } from "@markra/shared";
-import type { WorkspaceSearchResult } from "../lib/workspace-search";
+import {
+  isWorkspaceFileNameSearchResult,
+  type WorkspaceSearchContentResult,
+  type WorkspaceSearchFile,
+  type WorkspaceSearchFileNameResult,
+  type WorkspaceSearchResult
+} from "../lib/workspace-search";
 
 type GlobalSearchPanelProps = {
   caseSensitive: boolean;
   language?: AppLanguage;
   loading: boolean;
+  placement?: "dialog" | "sidebar";
   query: string;
   recentQueries?: readonly string[];
   results: readonly WorkspaceSearchResult[];
@@ -16,14 +23,16 @@ type GlobalSearchPanelProps = {
   unreadableFileCount: number;
   onCaseSensitiveChange: (caseSensitive: boolean) => unknown;
   onClose: () => unknown;
-  onOpenResult: (result: WorkspaceSearchResult) => unknown;
+  onOpenFile: (file: WorkspaceSearchFile) => unknown;
+  onOpenResult: (result: WorkspaceSearchContentResult) => unknown;
   onQueryChange: (query: string) => unknown;
   onRecentQuerySelect?: (query: string) => unknown;
 };
 
 type GlobalSearchResultGroup = {
   file: WorkspaceSearchResult["file"];
-  results: WorkspaceSearchResult[];
+  fileNameResult?: WorkspaceSearchFileNameResult;
+  results: WorkspaceSearchContentResult[];
 };
 
 type VirtualResultGroupItem = {
@@ -58,13 +67,18 @@ function groupSearchResultsByFile(results: readonly WorkspaceSearchResult[]) {
   results.forEach((result) => {
     const currentGroup = groups.get(result.file.path);
     if (currentGroup) {
-      currentGroup.results.push(result);
+      if (isWorkspaceFileNameSearchResult(result)) {
+        currentGroup.fileNameResult = result;
+      } else {
+        currentGroup.results.push(result);
+      }
       return;
     }
 
     groups.set(result.file.path, {
       file: result.file,
-      results: [result]
+      fileNameResult: isWorkspaceFileNameSearchResult(result) ? result : undefined,
+      results: isWorkspaceFileNameSearchResult(result) ? [] : [result]
     });
   });
 
@@ -86,6 +100,11 @@ function estimateResultGroupHeight(
   expandedPreviewFilePaths: Set<string>
 ) {
   if (!group || collapsedFilePaths.has(group.file.path)) return collapsedResultGroupHeight;
+
+  if (group.results.length === 0) {
+    return collapsedResultGroupHeight
+      + (directoryLabelFromRelativePath(group.file.relativePath) ? resultGroupDirectoryHeight : 0);
+  }
 
   const previewExpanded = expandedPreviewFilePaths.has(group.file.path);
   const visibleResultCount = previewExpanded
@@ -155,6 +174,7 @@ export function GlobalSearchPanel({
   caseSensitive,
   language = "en",
   loading,
+  placement = "dialog",
   query,
   recentQueries = [],
   results,
@@ -163,6 +183,7 @@ export function GlobalSearchPanel({
   unreadableFileCount,
   onCaseSensitiveChange,
   onClose,
+  onOpenFile,
   onOpenResult,
   onQueryChange,
   onRecentQuerySelect
@@ -221,6 +242,13 @@ export function GlobalSearchPanel({
           "app.workspaceSearch.resultCount",
           "app.workspaceSearch.resultCountPlural"
         ), { count: results.length });
+  const sidebarPlacement = placement === "sidebar";
+  const panelClassName = sidebarPlacement
+    ? "global-search-panel flex min-h-0 flex-1 flex-col overflow-hidden bg-(--bg-secondary) text-[12px] text-(--text-primary)"
+    : "global-search-panel absolute left-1/2 top-14 z-50 flex w-[min(calc(100%-2rem),640px)] -translate-x-1/2 flex-col overflow-hidden rounded-md border border-(--border-strong) bg-(--bg-secondary)/98 text-[12px] text-(--text-primary) shadow-[0_18px_58px_rgba(0,0,0,0.18)] backdrop-blur-sm";
+  const resultSurfaceClassName = sidebarPlacement
+    ? "flex min-h-0 flex-1 flex-col"
+    : "flex min-h-0 max-h-[min(52vh,420px)] flex-col";
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -262,8 +290,8 @@ export function GlobalSearchPanel({
 
   return (
     <div
-      className="global-search-panel absolute left-1/2 top-14 z-50 flex w-[min(calc(100%-2rem),640px)] -translate-x-1/2 flex-col overflow-hidden rounded-md border border-(--border-strong) bg-(--bg-secondary)/98 text-[12px] text-(--text-primary) shadow-[0_18px_58px_rgba(0,0,0,0.18)] backdrop-blur-sm"
-      role="dialog"
+      className={panelClassName}
+      role={sidebarPlacement ? "search" : "dialog"}
       aria-label={label("app.workspaceSearch.searchWorkspace")}
     >
       <div className="flex min-w-0 items-center gap-1.5 border-b border-(--border-default) p-2">
@@ -301,7 +329,7 @@ export function GlobalSearchPanel({
           <X aria-hidden="true" size={14} />
         </button>
       </div>
-      <div className="flex min-h-0 max-h-[min(52vh,420px)] flex-col">
+      <div className={resultSurfaceClassName}>
         <div className="flex h-8 shrink-0 items-center gap-2 border-b border-(--border-default) px-3 text-[11px] font-[560] text-(--text-secondary)">
           {loading ? <Loader2 aria-hidden="true" className="animate-spin" size={13} /> : null}
           <span>{statusText}</span>
@@ -338,6 +366,10 @@ export function GlobalSearchPanel({
                   : group.results.slice(0, collapsedGroupPreviewCount);
                 const hiddenResultCount = group.results.length - visibleResults.length;
                 const directoryLabel = directoryLabelFromRelativePath(group.file.relativePath);
+                const resultCount = group.results.length + (group.fileNameResult ? 1 : 0);
+                const fileName = group.fileNameResult
+                  ? renderHighlightedSnippet(group.file.name, query, caseSensitive)
+                  : group.file.name;
 
                 return (
                   <div
@@ -354,53 +386,68 @@ export function GlobalSearchPanel({
                         path: group.file.relativePath
                       })}
                     >
-                      <button
-                        className="grid w-full cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-sm border-0 bg-transparent px-1.5 py-2 text-left outline-none transition-[background-color,color] duration-150 hover:bg-(--bg-hover) focus-visible:bg-(--bg-active) focus-visible:ring-2 focus-visible:ring-(--accent)"
-                        aria-expanded={!collapsed}
-                        aria-label={
-                          collapsed
-                            ? searchLabel("app.workspaceSearch.expandFile", { path: group.file.relativePath })
-                            : searchLabel("app.workspaceSearch.collapseFile", { path: group.file.relativePath })
-                        }
-                        type="button"
-                        onClick={() => toggleFileGroup(group.file.path)}
-                      >
-                        {collapsed
-                          ? <ChevronRight aria-hidden="true" className="text-(--text-secondary)" size={14} />
-                          : <ChevronDown aria-hidden="true" className="text-(--text-secondary)" size={14} />}
-                        <span className="min-w-0 truncate text-[14px] font-[720] text-(--text-heading)">
-                          {group.file.name}
-                        </span>
+                      <div className="grid w-full grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center rounded-sm px-1 py-1.5">
+                        {group.results.length > 0 ? (
+                          <button
+                            className="document-search-icon-button"
+                            aria-expanded={!collapsed}
+                            aria-label={
+                              collapsed
+                                ? searchLabel("app.workspaceSearch.expandFile", { path: group.file.relativePath })
+                                : searchLabel("app.workspaceSearch.collapseFile", { path: group.file.relativePath })
+                            }
+                            type="button"
+                            onClick={() => toggleFileGroup(group.file.path)}
+                          >
+                            {collapsed
+                              ? <ChevronRight aria-hidden="true" size={14} />
+                              : <ChevronDown aria-hidden="true" size={14} />}
+                          </button>
+                        ) : (
+                          <span aria-hidden="true" />
+                        )}
+                        <button
+                          className="min-w-0 cursor-pointer truncate rounded-sm border-0 bg-transparent px-1 py-1 text-left text-[13px] font-[680] text-(--text-heading) outline-none transition-colors duration-150 hover:bg-(--bg-hover) focus-visible:bg-(--bg-active) focus-visible:ring-2 focus-visible:ring-(--accent)"
+                          aria-label={searchLabel("app.workspaceSearch.openFile", {
+                            path: group.file.relativePath
+                          })}
+                          type="button"
+                          onClick={() => onOpenFile(group.file)}
+                        >
+                          {fileName}
+                        </button>
                         <span className="rounded-sm bg-(--bg-active) px-2 py-0.5 text-[12px] font-[620] tabular-nums text-(--text-heading)">
-                          {group.results.length}
+                          {resultCount}
                         </span>
-                      </button>
-                      {!collapsed ? (
+                      </div>
+                      {!collapsed && (directoryLabel || group.results.length > 0) ? (
                         <div className="pb-2 pl-7 pr-1">
                           {directoryLabel ? (
                             <div className="mb-1 truncate font-mono text-[11px] text-(--text-secondary)">
                               {directoryLabel}
                             </div>
                           ) : null}
-                          <ul className="m-0 list-none p-0" role="list" aria-label={`${group.file.relativePath} matches`}>
-                            {visibleResults.map((result) => (
-                              <li key={result.id}>
-                                <button
-                                  className="block w-full cursor-pointer rounded-sm border-0 bg-transparent px-0 py-1 text-left outline-none transition-[background-color,color] duration-150 hover:bg-(--bg-hover) focus-visible:bg-(--bg-active) focus-visible:ring-2 focus-visible:ring-(--accent)"
-                                  aria-label={searchLabel("app.workspaceSearch.openResult", {
-                                    line: result.lineNumber,
-                                    path: result.file.relativePath
-                                  })}
-                                  type="button"
-                                  onClick={() => onOpenResult(result)}
-                                >
-                                  <span className="block min-w-0 truncate font-mono text-[12px] leading-5 text-(--text-primary)">
-                                    {renderHighlightedSnippet(result.snippet, query, caseSensitive)}
-                                  </span>
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
+                          {visibleResults.length > 0 ? (
+                            <ul className="m-0 list-none p-0" role="list" aria-label={`${group.file.relativePath} matches`}>
+                              {visibleResults.map((result) => (
+                                <li key={result.id}>
+                                  <button
+                                    className="block w-full cursor-pointer rounded-sm border-0 bg-transparent px-0 py-1 text-left outline-none transition-[background-color,color] duration-150 hover:bg-(--bg-hover) focus-visible:bg-(--bg-active) focus-visible:ring-2 focus-visible:ring-(--accent)"
+                                    aria-label={searchLabel("app.workspaceSearch.openResult", {
+                                      line: result.lineNumber,
+                                      path: result.file.relativePath
+                                    })}
+                                    type="button"
+                                    onClick={() => onOpenResult(result)}
+                                  >
+                                    <span className="block min-w-0 truncate font-mono text-[12px] leading-5 text-(--text-primary)">
+                                      {renderHighlightedSnippet(result.snippet, query, caseSensitive)}
+                                    </span>
+                                  </button>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
                           {hiddenResultCount > 0 ? (
                             <button
                               className="mt-0.5 cursor-pointer rounded-sm border-0 bg-transparent px-0 py-1 text-left text-[12px] font-[560] text-(--text-secondary) outline-none transition-colors duration-150 hover:text-(--text-heading) focus-visible:text-(--text-heading) focus-visible:ring-2 focus-visible:ring-(--accent)"

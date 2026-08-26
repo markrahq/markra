@@ -703,6 +703,7 @@ const messages: BaseLocaleMessages = {
   "app.workspaceSearch.fileSearchResults": "{path} search results",
   "app.workspaceSearch.loading": "Searching...",
   "app.workspaceSearch.noResults": "No results",
+  "app.workspaceSearch.openFile": "Open {path}",
   "app.workspaceSearch.openResult": "Open {path} line {line}",
   "app.workspaceSearch.placeholder": "Search files",
   "app.workspaceSearch.recentSearch": "Search for {query}",

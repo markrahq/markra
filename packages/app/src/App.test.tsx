@@ -8233,6 +8233,9 @@ describe("Markra workspace", () => {
     expect(await screen.findByRole("button", { name: "guide.md" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true });
+    expect(screen.getByRole("search", { name: "Search workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Search workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tree", { name: "Markdown files" })).not.toBeInTheDocument();
     fireEvent.change(screen.getByRole("searchbox", { name: "Search workspace" }), {
       target: { value: "alpha" }
     });
@@ -8246,6 +8249,42 @@ describe("Markra workspace", () => {
     );
     expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalledWith(guidePath);
     expect(await screen.findByRole("button", { name: "Open guide.md line 1" })).toBeInTheDocument();
+  });
+
+  it("opens files that match the workspace search by name", async () => {
+    const guidePath = "/mock-files/vault/alpha-guide.md";
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      name: "vault",
+      path: mockFolderPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "alpha-guide.md", path: guidePath, relativePath: "alpha-guide.md" }
+    ]);
+    mockedSearchNativeMarkdownFilesForPath.mockResolvedValue({
+      results: [],
+      searchedFileCount: 1,
+      truncated: false,
+      unreadableFileCount: 0
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Synthetic guide",
+      name: "alpha-guide.md",
+      path: guidePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("button", { name: "alpha-guide.md" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search workspace" }), {
+      target: { value: "alpha" }
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Open alpha-guide.md" }));
+
+    await expectVisibleMarkdownText("Synthetic guide");
+    expect(screen.queryByRole("search", { name: "Search workspace" })).not.toBeInTheDocument();
   });
 
   it("clears workspace search after closing with Escape", async () => {

@@ -168,6 +168,8 @@ type MarkdownFileTreeDrawerProps = {
   sidebarLayoutMode?: SidebarLayoutMode;
   updateAvailable?: boolean;
   width?: number;
+  workspaceSearchOpen?: boolean;
+  workspaceSearchPanel?: ReactNode;
   onCleanUnusedImages?: () => unknown | Promise<unknown>;
   onCreateFile?: (fileName: string, parentPath?: string | null, contents?: string) => unknown | Promise<unknown>;
   onCreateFolder?: (folderName: string, parentPath?: string | null) => unknown | Promise<unknown>;
@@ -199,6 +201,7 @@ type MarkdownFileTreeDrawerProps = {
   onSaveFileAsTemplate?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   onSelectOutlineItem: (item: MarkdownOutlineItem, index: number) => unknown;
   onToggleMarkdownFiles?: () => unknown;
+  onWorkspaceSearchOpen?: () => unknown;
 };
 
 type SidebarPanel = "files" | "outline" | "links";
@@ -486,6 +489,8 @@ export function MarkdownFileTreeDrawer({
   sidebarLayoutMode = "stacked",
   updateAvailable = false,
   width = 288,
+  workspaceSearchOpen = false,
+  workspaceSearchPanel = null,
   onCleanUnusedImages,
   onCreateFile,
   onCreateFolder,
@@ -510,7 +515,8 @@ export function MarkdownFileTreeDrawer({
   onResizeStart,
   onSaveFileAsTemplate,
   onSelectOutlineItem,
-  onToggleMarkdownFiles
+  onToggleMarkdownFiles,
+  onWorkspaceSearchOpen
 }: MarkdownFileTreeDrawerProps) {
   const resizeCleanupRef = useRef<(() => unknown) | null>(null);
   const outlineResizeCleanupRef = useRef<(() => unknown) | null>(null);
@@ -826,10 +832,12 @@ export function MarkdownFileTreeDrawer({
   ));
   const activeBacklinks = linkIndex && currentPath ? workspaceBacklinksForPath(linkIndex, currentPath) : [];
   const activeUnlinkedMentions = linkIndex && currentPath ? workspaceUnlinkedMentionsForPath(linkIndex, currentPath) : [];
+  const workspaceSearchVisible = workspaceSearchOpen && workspaceSearchPanel !== null;
   const filePanelAvailable = fileListVisible && (folderOpen || (open && fileCreationAvailable));
   const outlinePanelAvailable = outlineVisible;
   const filePanelRendered =
     filePanelAvailable &&
+    !workspaceSearchVisible &&
     (!tabbedSidebarLayout || activeSidebarPanel === "files");
   const filePanelVisible = filePanelRendered && fileTreeListOpen;
   const filePanelClassName = !fileTreeListOpen
@@ -841,8 +849,12 @@ export function MarkdownFileTreeDrawer({
     !tabbedSidebarLayout && fileTreeListOpen && outlineOpen
       ? { flex: `0 1 ${100 - outlineHeightPercent}%` }
       : undefined;
-  const outlinePanelVisible = outlinePanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "outline");
-  const linksPanelVisible = linkPanelAvailable && (!tabbedSidebarLayout || activeSidebarPanel === "links");
+  const outlinePanelVisible = !workspaceSearchVisible
+    && outlinePanelAvailable
+    && (!tabbedSidebarLayout || activeSidebarPanel === "outline");
+  const linksPanelVisible = !workspaceSearchVisible
+    && linkPanelAvailable
+    && (!tabbedSidebarLayout || activeSidebarPanel === "links");
   const linksPanelOpen = tabbedSidebarLayout || documentLinksOpen;
   const linksPanelClassName = tabbedSidebarLayout
     ? "markdown-file-tree-links flex min-h-0 flex-1"
@@ -859,14 +871,19 @@ export function MarkdownFileTreeDrawer({
       : undefined;
   const outlinePanelFlexible = tabbedSidebarLayout || !filePanelAvailable || !fileTreeListOpen;
   const outlineResizerVisible =
+    !workspaceSearchVisible &&
     !tabbedSidebarLayout &&
     outlinePanelAvailable &&
     outlineOpen &&
     filePanelAvailable &&
     fileTreeListOpen;
-  const documentLinksResizerVisible = !tabbedSidebarLayout && linkPanelAvailable && documentLinksOpen;
+  const documentLinksResizerVisible = !workspaceSearchVisible
+    && !tabbedSidebarLayout
+    && linkPanelAvailable
+    && documentLinksOpen;
   const fileSearchVisible = filePanelRendered;
   const folderAccessVisible =
+    !workspaceSearchVisible &&
     recentFolderAreaVisible &&
     filePanelRendered;
   const fileTreeSurfaceClassName = platform === "windows" ? "bg-(--bg-chrome)" : "bg-(--bg-secondary)";
@@ -2770,9 +2787,11 @@ export function MarkdownFileTreeDrawer({
         {fileSearchVisible ? (
           <IconButton
             className={actionButtonClassName}
-            label={label("app.searchMarkdownFiles")}
-            pressed={searchOpen}
-            onClick={toggleFileSearch}
+            label={label(onWorkspaceSearchOpen
+              ? "app.workspaceSearch.searchWorkspace"
+              : "app.searchMarkdownFiles")}
+            pressed={onWorkspaceSearchOpen ? workspaceSearchOpen : searchOpen}
+            onClick={onWorkspaceSearchOpen ?? toggleFileSearch}
           >
             <Search aria-hidden="true" size={14} />
           </IconButton>
@@ -2894,7 +2913,7 @@ export function MarkdownFileTreeDrawer({
   };
 
   const renderSidebarPanelTabs = () => (
-    tabbedSidebarLayout && sidebarPanelTabs.length > 1 ? (
+    !workspaceSearchVisible && tabbedSidebarLayout && sidebarPanelTabs.length > 1 ? (
       <div
         className={`markdown-file-tree-panel-tabs grid h-10 shrink-0 border-b border-(--border-default) px-3 ${sidebarPanelTabGridClassName}`}
         role="group"
@@ -2975,7 +2994,7 @@ export function MarkdownFileTreeDrawer({
             onPointerDown={handleResizePointerDown}
           />
         ) : null}
-        {!tabbedSidebarLayout && filePanelAvailable ? (
+        {!workspaceSearchVisible && !tabbedSidebarLayout && filePanelAvailable ? (
           <div className="markdown-file-tree-files-header grid h-10 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center border-b border-(--border-default) pr-2 pl-3">
             <h2 className="m-0 truncate text-[14px] leading-5 font-[560] tracking-normal text-(--text-heading)">
               {label("app.files")}
@@ -2986,6 +3005,7 @@ export function MarkdownFileTreeDrawer({
         {folderAccessVisible ? renderFolderAccessArea() : null}
 
         <div ref={fileTreeBodyRef} className="markdown-file-tree-body flex min-h-0 flex-1 flex-col">
+          {workspaceSearchVisible ? workspaceSearchPanel : null}
           {filePanelRendered ? (
             <section
               className={`markdown-file-tree-files flex min-h-0 flex-col ${filePanelClassName}`}
