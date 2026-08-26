@@ -351,6 +351,7 @@ const messages: LocaleMessages = {
   "app.workspaceSearch.fileSearchResults": "Результаты поиска для {path}",
   "app.workspaceSearch.loading": "Идет поиск...",
   "app.workspaceSearch.noResults": "Нет результатов",
+  "app.workspaceSearch.openFile": "Открыть {path}",
   "app.workspaceSearch.openResult": "Открыть {path}, строка {line}",
   "app.workspaceSearch.placeholder": "Искать в файлах",
   "app.workspaceSearch.recentSearch": "Искать {query}",

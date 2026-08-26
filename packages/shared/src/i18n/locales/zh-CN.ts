@@ -703,6 +703,7 @@ const messages: LocaleMessages = {
   "app.workspaceSearch.fileSearchResults": "{path} 搜索结果",
   "app.workspaceSearch.loading": "搜索中...",
   "app.workspaceSearch.noResults": "没有结果",
+  "app.workspaceSearch.openFile": "打开 {path}",
   "app.workspaceSearch.openResult": "打开 {path} 第 {line} 行",
   "app.workspaceSearch.placeholder": "搜索文件内容",
   "app.workspaceSearch.recentSearch": "搜索 {query}",

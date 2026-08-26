@@ -373,6 +373,14 @@ fn markdown_search_line(content: &str, range: &MarkdownSearchRange) -> (usize, u
     )
 }
 
+fn markdown_search_editor_range(content: &str, range: &MarkdownSearchRange) -> MarkdownSearchRange {
+    // CodeMirror selections use UTF-16 offsets, while Rust string ranges are UTF-8 byte offsets.
+    MarkdownSearchRange {
+        from: content[..range.from].encode_utf16().count(),
+        to: content[..range.to].encode_utf16().count(),
+    }
+}
+
 fn char_slice(text: &str, start: usize, end: usize) -> String {
     text.chars()
         .skip(start)
@@ -428,6 +436,7 @@ fn markdown_workspace_search_results(
         .map(|(match_index, range)| {
             let (line_number, column_number, line_text) = markdown_search_line(content, &range);
             let match_length = content[range.from..range.to].chars().count();
+            let matched_range = markdown_search_editor_range(content, &range);
 
             MarkdownWorkspaceSearchResult {
                 column_number,
@@ -436,7 +445,7 @@ fn markdown_workspace_search_results(
                 line_number,
                 snippet: markdown_search_snippet(&line_text, column_number, match_length),
                 line_text,
-                matched_range: range,
+                matched_range,
                 match_index,
             }
         })
@@ -744,6 +753,27 @@ mod tests {
         );
 
         fs::remove_dir_all(root).expect("test tree should be removed");
+    }
+
+    #[test]
+    fn returns_editor_offsets_for_unicode_workspace_matches() {
+        let file = MarkdownFolderFile {
+            created_at: None,
+            kind: MarkdownFolderEntryKind::File,
+            modified_at: None,
+            path: "/synthetic/unicode.md".to_string(),
+            relative_path: "unicode.md".to_string(),
+            size_bytes: None,
+        };
+        let (results, truncated) =
+            markdown_workspace_search_results(&file, "前缀 alpha", None, "alpha", false, None);
+
+        assert_eq!(truncated, false);
+        assert_eq!(results.len(), 1);
+        assert_eq!(
+            results[0].matched_range,
+            MarkdownSearchRange { from: 3, to: 8 }
+        );
     }
 
     #[test]

@@ -351,6 +351,7 @@ const messages: LocaleMessages = {
   "app.workspaceSearch.fileSearchResults": "{path} 검색 결과",
   "app.workspaceSearch.loading": "검색 중...",
   "app.workspaceSearch.noResults": "결과 없음",
+  "app.workspaceSearch.openFile": "{path} 열기",
   "app.workspaceSearch.openResult": "{path} {line}행 열기",
   "app.workspaceSearch.placeholder": "파일 내용 검색",
   "app.workspaceSearch.recentSearch": "{query} 검색",

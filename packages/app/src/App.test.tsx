@@ -8250,6 +8250,9 @@ describe("Markra workspace", () => {
     expect(await screen.findByRole("button", { name: "guide.md" })).toBeInTheDocument();
 
     fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true });
+    expect(screen.getByRole("dialog", { name: "Search workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("search", { name: "Search workspace" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tree", { name: "Markdown files" })).toBeInTheDocument();
     fireEvent.change(screen.getByRole("searchbox", { name: "Search workspace" }), {
       target: { value: "alpha" }
     });
@@ -8263,6 +8266,103 @@ describe("Markra workspace", () => {
     );
     expect(mockedReadNativeMarkdownFile).not.toHaveBeenCalledWith(guidePath);
     expect(await screen.findByRole("button", { name: "Open guide.md line 1" })).toBeInTheDocument();
+  });
+
+  it("keeps sidebar and shortcut workspace search presentations distinct", async () => {
+    const guidePath = "/mock-files/vault/guide.md";
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      name: "vault",
+      path: mockFolderPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "guide.md", path: guidePath, relativePath: "guide.md" }
+    ]);
+    mockedSearchNativeMarkdownFilesForPath.mockResolvedValue({
+      results: [],
+      searchedFileCount: 1,
+      truncated: false,
+      unreadableFileCount: 0
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("button", { name: "guide.md" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+
+    expect(screen.getByRole("search", { name: "Search workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Search workspace" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tree", { name: "Markdown files" })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true });
+
+    expect(screen.getByRole("dialog", { name: "Search workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("search", { name: "Search workspace" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tree", { name: "Markdown files" })).toBeInTheDocument();
+  });
+
+  it("keeps a closed file tree closed while workspace search is open", async () => {
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      name: "vault",
+      path: mockFolderPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([]);
+    mockedSearchNativeMarkdownFilesForPath.mockResolvedValue({
+      results: [],
+      searchedFileCount: 0,
+      truncated: false,
+      unreadableFileCount: 0
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("button", { name: "Search workspace" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Toggle file list" }));
+    expect(screen.queryByRole("complementary", { name: "Markdown file tree" })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true });
+
+    expect(screen.getByRole("dialog", { name: "Search workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Markdown file tree" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Toggle file list" })).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("opens files that match the workspace search by name", async () => {
+    const guidePath = "/mock-files/vault/alpha-guide.md";
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({
+      name: "vault",
+      path: mockFolderPath
+    });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { name: "alpha-guide.md", path: guidePath, relativePath: "alpha-guide.md" }
+    ]);
+    mockedSearchNativeMarkdownFilesForPath.mockResolvedValue({
+      results: [],
+      searchedFileCount: 1,
+      truncated: false,
+      unreadableFileCount: 0
+    });
+    mockedReadNativeMarkdownFile.mockResolvedValue({
+      content: "# Synthetic guide",
+      name: "alpha-guide.md",
+      path: guidePath
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+    expect(await screen.findByRole("button", { name: "alpha-guide.md" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "f", metaKey: true, shiftKey: true });
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search workspace" }), {
+      target: { value: "alpha" }
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Open alpha-guide.md" }));
+
+    await expectVisibleMarkdownText("Synthetic guide");
+    expect(screen.queryByRole("search", { name: "Search workspace" })).not.toBeInTheDocument();
   });
 
   it("clears workspace search after closing with Escape", async () => {
@@ -8353,7 +8453,7 @@ describe("Markra workspace", () => {
     expect(screen.getByRole("searchbox", { name: "Search workspace" })).toHaveValue("alpha");
   });
 
-  it("does not open document search after opening a workspace search result", async () => {
+  it("positions the editor without opening document search after a workspace result", async () => {
     const guidePath = "/mock-files/vault/docs/guide.md";
     mockedOpenNativeMarkdownFolder.mockResolvedValue({
       name: "vault",
@@ -8368,7 +8468,7 @@ describe("Markra workspace", () => {
       path: guidePath
     });
 
-    renderApp();
+    const { container } = renderApp();
 
     fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
     expect(await screen.findByRole("button", { name: "guide.md" })).toBeInTheDocument();
@@ -8380,6 +8480,11 @@ describe("Markra workspace", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Open guide.md line 3" }));
 
     await expectVisibleMarkdownText("Guide");
+    const view = getVisibleCodeMirrorView(container);
+    await waitFor(() => {
+      expect(view.state.selection.main.from).toBe(19);
+      expect(view.state.selection.main.to).toBe(24);
+    });
     expect(screen.queryByRole("search", { name: "Find in document" })).not.toBeInTheDocument();
   });
 

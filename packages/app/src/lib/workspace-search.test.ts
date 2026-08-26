@@ -1,4 +1,10 @@
-import { searchWorkspaceFiles, type WorkspaceSearchFile } from "./workspace-search";
+import {
+  isWorkspaceFileNameSearchResult,
+  searchWorkspaceFiles,
+  type WorkspaceSearchContentResult,
+  type WorkspaceSearchFile,
+  type WorkspaceSearchResult
+} from "./workspace-search";
 
 const workspaceFiles = [
   { name: "guide.md", path: "/mock-vault/guide.md", relativePath: "guide.md" },
@@ -7,7 +13,52 @@ const workspaceFiles = [
   { name: "release.md", path: "/mock-vault/release.md", relativePath: "release.md" }
 ] satisfies WorkspaceSearchFile[];
 
+function workspaceContentResults(results: readonly WorkspaceSearchResult[]): WorkspaceSearchContentResult[] {
+  return results.filter((result): result is WorkspaceSearchContentResult => (
+    !isWorkspaceFileNameSearchResult(result)
+  ));
+}
+
 describe("workspace search", () => {
+  it("returns files whose names match even when their contents do not", async () => {
+    const search = await searchWorkspaceFiles(workspaceFiles, "guide", {
+      readFile: async (path) => ({
+        content: "synthetic content without the query",
+        path
+      })
+    });
+
+    expect(search.results).toEqual([
+      expect.objectContaining({
+        file: workspaceFiles[0],
+        id: "file-name:/mock-vault/guide.md",
+        kind: "fileName"
+      })
+    ]);
+  });
+
+  it("returns files whose relative paths match even when their names and contents do not", async () => {
+    const file = {
+      name: "guide.md",
+      path: "/mock-vault/docs/guide.md",
+      relativePath: "docs/guide.md"
+    } satisfies WorkspaceSearchFile;
+    const search = await searchWorkspaceFiles([file], "docs", {
+      readFile: async (path) => ({
+        content: "synthetic content without the query",
+        path
+      })
+    });
+
+    expect(search.results).toEqual([
+      expect.objectContaining({
+        file,
+        id: "file-name:/mock-vault/docs/guide.md",
+        kind: "fileName"
+      })
+    ]);
+  });
+
   it("searches markdown file content and ignores folders and assets", async () => {
     const readFile = vi.fn(async (path: string) => ({
       content: path.endsWith("guide.md")
@@ -27,7 +78,7 @@ describe("workspace search", () => {
     expect(readFile).toHaveBeenNthCalledWith(2, "/mock-vault/release.md");
     expect(search.searchedFileCount).toBe(2);
     expect(search.unreadableFileCount).toBe(0);
-    expect(search.results.map((result) => ({
+    expect(workspaceContentResults(search.results).map((result) => ({
       columnNumber: result.columnNumber,
       lineNumber: result.lineNumber,
       lineText: result.lineText,
@@ -69,7 +120,7 @@ describe("workspace search", () => {
       })
     });
 
-    expect(search.results.map((result) => ({
+    expect(workspaceContentResults(search.results).map((result) => ({
       lineText: result.lineText,
       relativePath: result.file.relativePath
     }))).toEqual([
@@ -97,9 +148,10 @@ describe("workspace search", () => {
     });
 
     expect(lateMatchLine.length).toBeLessThan(160);
-    expect(search.results[0]?.snippet).toContain("alpha");
-    expect(search.results[0]?.snippet).toMatch(/^\.\.\./);
-    expect(search.results[0]?.snippet).not.toContain("opening segment");
+    const [result] = workspaceContentResults(search.results);
+    expect(result?.snippet).toContain("alpha");
+    expect(result?.snippet).toMatch(/^\.\.\./);
+    expect(result?.snippet).not.toContain("opening segment");
   });
 
   it("counts unreadable files even after the result limit is reached", async () => {
@@ -129,7 +181,7 @@ describe("workspace search", () => {
     });
 
     expect(search.results).toHaveLength(90);
-    expect(search.results[89]?.lineText).toBe("alpha line 89");
+    expect(workspaceContentResults(search.results)[89]?.lineText).toBe("alpha line 89");
     expect(search.truncated).toBe(false);
   });
 
@@ -144,6 +196,42 @@ describe("workspace search", () => {
     });
 
     expect(search.results).toHaveLength(1);
+    expect(search.truncated).toBe(true);
+  });
+
+  it("counts file-name matches toward the global result limit", async () => {
+    const file = {
+      name: "alpha.md",
+      path: "/mock-vault/alpha.md",
+      relativePath: "alpha.md"
+    } satisfies WorkspaceSearchFile;
+    const search = await searchWorkspaceFiles([file], "alpha", {
+      maxMatches: 1,
+      maxMatchesPerFile: 5,
+      readFile: async (path) => ({ content: "alpha", path })
+    });
+
+    expect(search.results).toEqual([
+      expect.objectContaining({ kind: "fileName" })
+    ]);
+    expect(search.truncated).toBe(true);
+  });
+
+  it("counts file-name matches toward the per-file result limit", async () => {
+    const file = {
+      name: "alpha.md",
+      path: "/mock-vault/alpha.md",
+      relativePath: "alpha.md"
+    } satisfies WorkspaceSearchFile;
+    const search = await searchWorkspaceFiles([file], "alpha", {
+      maxMatches: 10,
+      maxMatchesPerFile: 1,
+      readFile: async (path) => ({ content: "alpha", path })
+    });
+
+    expect(search.results).toEqual([
+      expect.objectContaining({ kind: "fileName" })
+    ]);
     expect(search.truncated).toBe(true);
   });
 });

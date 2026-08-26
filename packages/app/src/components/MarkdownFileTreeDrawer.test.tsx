@@ -4396,4 +4396,34 @@ describe("MarkdownFileTreeDrawer", () => {
 
     expect(mouseDown.defaultPrevented).toBe(true);
   });
+
+  it("opens and hosts workspace search from the file toolbar", () => {
+    const openWorkspaceSearch = vi.fn();
+    const renderDrawer = (workspaceSearchOpen: boolean) => (
+      <MarkdownFileTreeDrawer
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[]}
+        rootName="Obsidian Vault"
+        workspaceSearchOpen={workspaceSearchOpen}
+        workspaceSearchPanel={<section aria-label="Search workspace" role="search" />}
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+        onWorkspaceSearchOpen={openWorkspaceSearch}
+      />
+    );
+    const { rerender } = render(renderDrawer(false));
+
+    fireEvent.click(screen.getByRole("button", { name: "Search workspace" }));
+
+    expect(openWorkspaceSearch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("search", { name: "Search workspace" })).not.toBeInTheDocument();
+
+    rerender(renderDrawer(true));
+
+    expect(screen.getByRole("search", { name: "Search workspace" })).toBeInTheDocument();
+    expect(screen.queryByRole("tree", { name: "Markdown files" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("separator", { name: "Resize outline" })).not.toBeInTheDocument();
+  });
 });

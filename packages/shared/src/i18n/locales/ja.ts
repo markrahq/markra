@@ -359,6 +359,7 @@ const messages: LocaleMessages = {
   "app.workspaceSearch.fileSearchResults": "{path} の検索結果",
   "app.workspaceSearch.loading": "検索中...",
   "app.workspaceSearch.noResults": "結果なし",
+  "app.workspaceSearch.openFile": "{path} を開く",
   "app.workspaceSearch.openResult": "{path} の {line} 行目を開く",
   "app.workspaceSearch.placeholder": "ファイル内容を検索",
   "app.workspaceSearch.recentSearch": "{query} を検索",

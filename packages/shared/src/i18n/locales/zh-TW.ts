@@ -359,6 +359,7 @@ const messages: LocaleMessages = {
   "app.workspaceSearch.fileSearchResults": "{path} 搜尋結果",
   "app.workspaceSearch.loading": "搜尋中...",
   "app.workspaceSearch.noResults": "沒有結果",
+  "app.workspaceSearch.openFile": "開啟 {path}",
   "app.workspaceSearch.openResult": "開啟 {path} 第 {line} 行",
   "app.workspaceSearch.placeholder": "搜尋檔案內容",
   "app.workspaceSearch.recentSearch": "搜尋 {query}",

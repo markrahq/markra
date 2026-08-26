@@ -4,6 +4,7 @@ import {
   nextGlobalSearchRecentQueries
 } from "../app/workspace-model";
 import {
+  mergeWorkspaceFileNameMatches,
   searchWorkspaceFiles,
   type WorkspaceSearchResponse
 } from "../lib/workspace-search";
@@ -14,6 +15,8 @@ import {
 } from "../lib/tauri";
 
 export const globalSearchDebounceMs = 180;
+export const globalSearchMaxMatches = 1_000;
+export const globalSearchMaxMatchesPerFile = 100;
 
 type WorkspaceSearchInput = {
   activeImageFile: NativeMarkdownFolderFile | null;
@@ -112,6 +115,10 @@ export function useWorkspaceSearch({
 
     let active = true;
     setLoading(true);
+    setResponse((current) => ({
+      ...emptyWorkspaceSearchResponse,
+      searchedFileCount: current.searchedFileCount
+    }));
     setRecentQueries((current) => nextGlobalSearchRecentQueries(current, trimmedQuery));
 
     const runGlobalSearch = async () => {
@@ -125,14 +132,29 @@ export function useWorkspaceSearch({
                 }
               : null,
             globalIgnoreRules,
+            maxMatches: globalSearchMaxMatches,
+            maxMatchesPerFile: globalSearchMaxMatchesPerFile,
             path: fileTreeSourcePath,
             query: trimmedQuery
           }).catch(() => null)
         : null;
-      if (nativeResponse) return nativeResponse;
+      if (nativeResponse) {
+        return mergeWorkspaceFileNameMatches(
+          nativeResponse,
+          fileTreeFiles,
+          trimmedQuery,
+          {
+            caseSensitive,
+            maxMatches: globalSearchMaxMatches,
+            maxMatchesPerFile: globalSearchMaxMatchesPerFile
+          }
+        );
+      }
 
       return searchWorkspaceFiles(fileTreeFiles, trimmedQuery, {
         caseSensitive,
+        maxMatches: globalSearchMaxMatches,
+        maxMatchesPerFile: globalSearchMaxMatchesPerFile,
         readFile: async (path) => {
           if (!activeImageFile && documentPath === path) {
             return {
