@@ -985,6 +985,25 @@ function renderVisualTableCell(
   });
 }
 
+function finishVisualTableInlineSource(
+  view: CodeMirrorView,
+  cell: HTMLTableCellElement,
+  images: ImagePreviewPluginOptions | undefined,
+  links: LinksPluginOptions | undefined,
+) {
+  const session = tableEditingSessions.get(view);
+  tableEditingSessions.delete(view);
+  if (session?.inlineSourceVisible && cell.isConnected) {
+    renderVisualTableCell(
+      view,
+      cell,
+      visualTableCellSource(cell),
+      images,
+      links,
+    );
+  }
+}
+
 function appendCell(
   view: CodeMirrorView,
   row: HTMLTableRowElement,
@@ -1139,10 +1158,7 @@ function appendCell(
         session.column === columnIndex &&
         session.header === header
       ) {
-        tableEditingSessions.delete(view);
-        if (session.inlineSourceVisible && cell.isConnected) {
-          renderVisualTableCell(view, cell, cellPreview.source, images, links);
-        }
+        finishVisualTableInlineSource(view, cell, images, links);
       }
     }, 0);
   });
@@ -1187,6 +1203,8 @@ function appendCell(
 
 interface TableWidgetRuntime {
   documentMouseDownHandler: ((event: MouseEvent) => void) | null;
+  inlineSourceDocument: Document | null;
+  inlineSourceMouseDownHandler: ((event: MouseEvent) => void) | null;
   preview: TablePreview;
   sizeButton: HTMLButtonElement | null;
   sizePopover: HTMLElement | null;
@@ -1218,6 +1236,8 @@ class TableWidget extends WidgetType {
     this.labelsKey = JSON.stringify(labels);
     this.runtime = {
       documentMouseDownHandler: null,
+      inlineSourceDocument: null,
+      inlineSourceMouseDownHandler: null,
       preview,
       sizeButton: null,
       sizePopover: null,
@@ -1432,6 +1452,18 @@ class TableWidget extends WidgetType {
 
   destroy() {
     this.closeSizePicker();
+    if (
+      this.runtime.inlineSourceDocument &&
+      this.runtime.inlineSourceMouseDownHandler
+    ) {
+      this.runtime.inlineSourceDocument.removeEventListener(
+        "mousedown",
+        this.runtime.inlineSourceMouseDownHandler,
+        true,
+      );
+    }
+    this.runtime.inlineSourceDocument = null;
+    this.runtime.inlineSourceMouseDownHandler = null;
   }
 
   toDOM(view: CodeMirrorView) {
@@ -1487,6 +1519,22 @@ class TableWidget extends WidgetType {
       event.stopPropagation();
       editMathSource(math, markdown);
     }, true);
+    const inlineSourceMouseDownHandler = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      const session = tableEditingSessions.get(view);
+      if (!session || session.tableFrom !== this.preview.from) return;
+      const cell = table.querySelector<HTMLTableCellElement>(
+        `[data-table-row="${session.row}"]` +
+          `[data-table-column="${session.column}"]` +
+          `[data-table-header="${String(session.header)}"]`,
+      );
+      const target = event.target instanceof Node ? event.target : null;
+      if (!cell || (target && cell.contains(target))) return;
+      finishVisualTableInlineSource(view, cell, this.images, this.links);
+    };
+    this.runtime.inlineSourceDocument = document;
+    this.runtime.inlineSourceMouseDownHandler = inlineSourceMouseDownHandler;
+    document.addEventListener("mousedown", inlineSourceMouseDownHandler, true);
     tableScroll.className = "markra-table-scroll";
     tableScroll.dataset.tableAlignment = tableAlignment;
     alignControls.className = "markra-table-align-controls";

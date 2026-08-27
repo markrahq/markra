@@ -361,6 +361,63 @@ describe("tablePreviewPlugin", () => {
     ).toBe("$y^2$");
   });
 
+  it("renders updated math when the shared visual table loses focus", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Row | $x^2$ |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const math = cell?.querySelector<HTMLElement>(
+      "[data-markra-math-markdown]",
+    );
+
+    math?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    if (cell) cell.textContent = "$y^2$";
+    cell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    const updatedCell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const table = updatedCell?.closest<HTMLTableElement>("table");
+    table?.focus();
+    const sourceText = updatedCell?.firstChild;
+    if (sourceText) {
+      const sourceRange = document.createRange();
+      sourceRange.setStart(sourceText, 1);
+      sourceRange.collapse(true);
+      document.getSelection()?.removeAllRanges();
+      document.getSelection()?.addRange(sourceRange);
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(updatedCell?.textContent).toBe("$y^2$");
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    expect(
+      view.dom.querySelector<HTMLElement>(
+        ".cm-markra-table tbody td:nth-child(2) [data-markra-math-markdown]",
+      )?.dataset.markraMathMarkdown,
+    ).toBe("$y^2$");
+    expect(view.state.doc.toString()).toContain("| Row | $y^2$ |");
+  });
+
   it("keeps escaped dollars and inline code as table-cell source", () => {
     const doc = [
       "| Escaped | Code |",
