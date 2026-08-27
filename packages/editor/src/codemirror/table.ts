@@ -1034,14 +1034,15 @@ function appendCell(
       }
       return;
     }
-    const image = target?.closest<HTMLElement>(
-      "[data-markra-image-markdown]",
+    const editableInline = target?.closest<HTMLElement>(
+      "[data-markra-image-markdown], [data-markra-math-markdown]",
     );
-    if (image && cell.contains(image)) {
+    if (editableInline && cell.contains(editableInline)) {
       const handled = revealVisualTableInlineSource(
         cell,
-        image,
-        image.dataset.markraImageMarkdown,
+        editableInline,
+        editableInline.dataset.markraImageMarkdown ??
+          editableInline.dataset.markraMathMarkdown,
       );
       if (handled) {
         tableEditingSessions.set(view, {
