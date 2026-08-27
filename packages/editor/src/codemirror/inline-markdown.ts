@@ -38,6 +38,7 @@ export interface InlineMarkdownImageDetails {
 }
 
 export interface InlineMarkdownRenderOptions {
+  readonly revealedMathRange?: MarkraSourceRange;
   readonly resolveImageSource?: (
     details: InlineMarkdownImageDetails,
   ) => string | null;
@@ -48,6 +49,7 @@ interface InlineMarkdownRenderContext {
   readonly mathMacros: MarkraMathMacros;
   readonly mathRanges: readonly MarkraMathRange[];
   readonly options: InlineMarkdownRenderOptions;
+  readonly revealedMathRange: MarkraSourceRange | null;
 }
 
 function resolveLinkHref(
@@ -119,12 +121,24 @@ function appendMath(
   range: MarkraMathRange,
   context: InlineMarkdownRenderContext,
 ) {
+  const revealed = context.revealedMathRange;
+  if (revealed?.from === range.from && revealed.to === range.to) {
+    const source = ownerDocument.createElement("span");
+    source.dataset.markraMathFrom = String(range.from);
+    source.dataset.markraMathTo = String(range.to);
+    source.dataset.markraTableMathSource = "true";
+    source.textContent = range.source;
+    parent.appendChild(source);
+    return;
+  }
+
   const element = ownerDocument.createElement("button");
   element.type = "button";
   element.className = "markra-math-render markra-math-render-inline";
   element.contentEditable = "false";
-  element.tabIndex = -1;
+  element.dataset.markraMathFrom = String(range.from);
   element.dataset.markraMathMarkdown = range.source;
+  element.dataset.markraMathTo = String(range.to);
   element.innerHTML = renderMarkraMathToString(
     range.tex,
     "inline",
@@ -482,10 +496,40 @@ export function renderInlineMarkdown(
 ) {
   target.replaceChildren();
   const tree = inlineParser.parse(source);
+  const requestedRange = options.revealedMathRange;
+  const revealedMathRange = requestedRange
+    ? {
+        from: Math.max(0, Math.min(source.length, requestedRange.from)),
+        to: Math.max(0, Math.min(source.length, requestedRange.to)),
+      }
+    : null;
+  const detectedMathRanges = findMarkraMathRanges(
+    source,
+    inlineCodeRanges(tree.topNode),
+  );
+  const revealedRange = revealedMathRange &&
+      revealedMathRange.to > revealedMathRange.from
+    ? {
+        from: revealedMathRange.from,
+        kind: "inline" as const,
+        source: source.slice(revealedMathRange.from, revealedMathRange.to),
+        tex: "",
+        to: revealedMathRange.to,
+      }
+    : null;
+  const mathRanges = revealedRange
+    ? [
+        ...detectedMathRanges.filter((range) =>
+          range.to <= revealedRange.from || range.from >= revealedRange.to
+        ),
+        revealedRange,
+      ].sort((left, right) => left.from - right.from)
+    : detectedMathRanges;
   const context: InlineMarkdownRenderContext = {
     mathMacros: createMarkraMathMacros(),
-    mathRanges: findMarkraMathRanges(source, inlineCodeRanges(tree.topNode)),
+    mathRanges,
     options,
+    revealedMathRange,
   };
   renderRange(
     target,
