@@ -117,15 +117,20 @@ function appendMath(
   parent: Node,
   ownerDocument: Document,
   range: MarkraMathRange,
-  macros: MarkraMathMacros,
+  context: InlineMarkdownRenderContext,
 ) {
-  const element = ownerDocument.createElement("span");
+  const element = ownerDocument.createElement("button");
+  element.type = "button";
   element.className = "markra-math-render markra-math-render-inline";
   element.contentEditable = "false";
+  element.tabIndex = -1;
   element.dataset.markraMathMarkdown = range.source;
-  element.innerHTML = renderMarkraMathToString(range.tex, "inline", macros);
+  element.innerHTML = renderMarkraMathToString(
+    range.tex,
+    "inline",
+    context.mathMacros,
+  );
   element.setAttribute("aria-label", "Edit math source");
-  element.setAttribute("role", "button");
   parent.appendChild(element);
 }
 
@@ -147,7 +152,7 @@ function appendTextWithMath(
       continue;
     }
     appendText(parent, source, cursor, range.from);
-    appendMath(parent, ownerDocument, range, context.mathMacros);
+    appendMath(parent, ownerDocument, range, context);
     cursor = range.to;
   }
   appendText(parent, source, cursor, to);
@@ -203,7 +208,7 @@ function renderRange(
         crossingMath.from,
         context,
       );
-      appendMath(parent, ownerDocument, crossingMath, context.mathMacros);
+      appendMath(parent, ownerDocument, crossingMath, context);
       cursor = crossingMath.to;
       continue;
     }

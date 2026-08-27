@@ -279,7 +279,12 @@ function revealedMathRangesKey(
 
 const mathTheme = EditorView.baseTheme({
   ".markra-math-render": {
+    appearance: "none",
+    background: "transparent",
+    border: "0",
     cursor: "text",
+    font: "inherit",
+    padding: "0",
   },
   ".markra-math-render-display": {
     display: "block",

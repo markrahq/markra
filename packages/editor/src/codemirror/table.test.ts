@@ -298,14 +298,45 @@ describe("tablePreviewPlugin", () => {
     );
 
     expect(math).not.toBeNull();
+    expect(math?.tagName).toBe("BUTTON");
+    expect(math?.getAttribute("type")).toBe("button");
+    math?.addEventListener("mousedown", (event) => event.stopPropagation());
+    math?.addEventListener("mouseup", (event) => event.stopPropagation());
+    math?.addEventListener("click", (event) => event.stopPropagation());
     expect(math?.dispatchEvent(new MouseEvent("mousedown", {
       bubbles: true,
       button: 0,
       cancelable: true,
     }))).toBe(false);
     expect(cell?.querySelector(".markra-math-render-inline")).toBeNull();
+    const table = cell?.closest<HTMLTableElement>("table");
+    table?.focus();
+    expect(document.activeElement).toBe(table);
+    const sourceText = cell?.firstChild;
+    if (sourceText) {
+      const sourceRange = document.createRange();
+      sourceRange.setStart(sourceText, 1);
+      sourceRange.collapse(true);
+      document.getSelection()?.removeAllRanges();
+      document.getSelection()?.addRange(sourceRange);
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(cell?.querySelector(".markra-math-render-inline")).toBeNull();
     expect(cell?.textContent).toBe(formula);
-    expect(document.activeElement).toBe(cell);
+    math?.dispatchEvent(new MouseEvent("mouseup", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    math?.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    expect(cell?.querySelector(".markra-math-render-inline")).toBeNull();
+    expect(cell?.textContent).toBe(formula);
+    expect(document.activeElement).toBe(table);
+    expect(cell?.contains(document.getSelection()?.anchorNode ?? null)).toBe(true);
     expect(view.state.doc.toString()).toBe(doc);
 
     if (cell) cell.textContent = "$y^2$";

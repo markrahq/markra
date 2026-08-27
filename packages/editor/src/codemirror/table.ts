@@ -58,6 +58,16 @@ interface TableCellPreview {
   readonly to: number;
 }
 
+type EditVisualTableMathSource = (
+  element: HTMLElement,
+  markdown: string,
+) => void;
+
+const visualTableMathSourceEditors = new WeakMap<
+  HTMLTableCellElement,
+  EditVisualTableMathSource
+>();
+
 const TABLE_CARET_PLACEHOLDER = "\u200b";
 
 function createVisualTableCaretHost(ownerDocument: Document) {
@@ -988,6 +998,22 @@ function appendCell(
   links: LinksPluginOptions | undefined,
 ) {
   const cell = row.ownerDocument.createElement(header ? "th" : "td");
+  const editMathSource: EditVisualTableMathSource = (element, markdown) => {
+    const previousSession = tableEditingSessions.get(view);
+    tableEditingSessions.set(view, {
+      column: columnIndex,
+      header,
+      inlineSourceVisible: true,
+      originalSource: cellPreview.source,
+      row: rowIndex,
+      tableFrom: preview.from,
+    });
+    const handled = revealVisualTableInlineSource(cell, element, markdown);
+    if (handled) return;
+    if (previousSession) tableEditingSessions.set(view, previousSession);
+    else tableEditingSessions.delete(view);
+  };
+  visualTableMathSourceEditors.set(cell, editMathSource);
   const currentSession = tableEditingSessions.get(view);
   const keepInlineSourceVisible =
     currentSession?.tableFrom === preview.from &&
@@ -1034,15 +1060,14 @@ function appendCell(
       }
       return;
     }
-    const editableInline = target?.closest<HTMLElement>(
-      "[data-markra-image-markdown], [data-markra-math-markdown]",
+    const image = target?.closest<HTMLElement>(
+      "[data-markra-image-markdown]",
     );
-    if (editableInline && cell.contains(editableInline)) {
+    if (image && cell.contains(image)) {
       const handled = revealVisualTableInlineSource(
         cell,
-        editableInline,
-        editableInline.dataset.markraImageMarkdown ??
-          editableInline.dataset.markraMathMarkdown,
+        image,
+        image.dataset.markraImageMarkdown,
       );
       if (handled) {
         tableEditingSessions.set(view, {
@@ -1082,7 +1107,23 @@ function appendCell(
   });
   cell.addEventListener("blur", () => {
     cell.ownerDocument.defaultView?.setTimeout(() => {
-      const activeCell = cell.ownerDocument.activeElement;
+      const table = cell.closest<HTMLTableElement>("table");
+      const activeElement = cell.ownerDocument.activeElement;
+      let activeCell = activeElement instanceof HTMLTableCellElement
+        ? activeElement
+        : null;
+      if (!activeCell && table && activeElement === table) {
+        const selectionNode = cell.ownerDocument.getSelection()?.anchorNode;
+        const selectionElement = selectionNode instanceof Element
+          ? selectionNode
+          : selectionNode?.parentElement;
+        const selectedCell = selectionElement?.closest<HTMLTableCellElement>(
+          "th, td",
+        );
+        if (selectedCell && table.contains(selectedCell)) {
+          activeCell = selectedCell;
+        }
+      }
       const session = tableEditingSessions.get(view);
       if (
         activeCell instanceof HTMLTableCellElement &&
@@ -1419,6 +1460,33 @@ class TableWidget extends WidgetType {
     wrapper.dataset.tableFrom = String(this.preview.from);
     wrapper.dataset.tableAlignment = tableAlignment;
     wrapper.dataset.widthMode = widthMode;
+    wrapper.addEventListener("mousedown", (event) => {
+      if (view.state.readOnly || event.button !== 0) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const math = target?.closest<HTMLElement>(
+        "[data-markra-math-markdown]",
+      );
+      const cell = math?.closest<HTMLTableCellElement>("th, td");
+      const editMathSource = cell
+        ? visualTableMathSourceEditors.get(cell)
+        : undefined;
+      const markdown = math?.dataset.markraMathMarkdown;
+      if (
+        !math ||
+        !cell ||
+        !table.contains(cell) ||
+        !editMathSource ||
+        !markdown
+      ) {
+        return;
+      }
+
+      // CodeMirror owns the widget boundary and can consume target/bubble
+      // events, so formula activation must happen before editor selection work.
+      event.preventDefault();
+      event.stopPropagation();
+      editMathSource(math, markdown);
+    }, true);
     tableScroll.className = "markra-table-scroll";
     tableScroll.dataset.tableAlignment = tableAlignment;
     alignControls.className = "markra-table-align-controls";
