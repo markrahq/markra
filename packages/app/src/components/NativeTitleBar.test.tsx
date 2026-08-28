@@ -638,74 +638,74 @@ describe("NativeTitleBar", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Markra" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Markra" }));
 
     expect(screen.getByRole("menu", { name: "Markra" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "About Markra" }));
     expect(showAbout).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Markra" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Markra" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Settings... Ctrl+," }));
     expect(openSettings).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Markra" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Markra" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Check for updates" }));
     expect(checkForUpdates).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Markra" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Markra" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Quit Markra" }));
     expect(exitApp).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "File" }));
 
     expect(screen.getByRole("menu", { name: "File" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "New Ctrl+N" }));
     expect(openBlankEditorWindow).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "File" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Open... Ctrl+O" }));
     expect(openMarkdown).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "File" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Save Ctrl+S" }));
     expect(saveMarkdown).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "File" }));
     const saveAsItem = screen.getByRole("menuitem", { name: "Save As... Ctrl+Shift+S" });
     expect(saveAsItem).not.toBeDisabled();
     fireEvent.click(saveAsItem);
     expect(saveMarkdownAs).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "File" }));
     const syncItem = screen.getByRole("menuitem", { name: "Sync now Ctrl+Alt+R" });
     expect(syncItem).not.toBeDisabled();
     fireEvent.click(syncItem);
     expect(syncNow).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "File" }));
     const exportMenuItem = screen.getByRole("menuitem", { name: "Export" });
     expect(exportMenuItem).not.toBeDisabled();
-    fireEvent.pointerEnter(exportMenuItem);
+    fireEvent.click(exportMenuItem);
     const exportPdfItem = screen.getByRole("menuitem", { name: "Export PDF Ctrl+Alt+P" });
     expect(exportPdfItem).not.toBeDisabled();
     fireEvent.click(exportPdfItem);
     expect(exportPdf).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "File" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "File" }));
     const reopenedExportMenuItem = screen.getByRole("menuitem", { name: "Export" });
-    fireEvent.pointerEnter(reopenedExportMenuItem);
+    fireEvent.click(reopenedExportMenuItem);
     const exportMarkdownItem = screen.getByRole("menuitem", { name: "Export Markdown with attachments" });
     expect(exportMarkdownItem).not.toBeDisabled();
     fireEvent.click(exportMarkdownItem);
     expect(exportMarkdown).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
 
     expect(screen.getByRole("menu", { name: "Edit" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Undo Ctrl+Z" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "Select All Ctrl+A" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Format" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Format" }));
 
     expect(screen.getByRole("menu", { name: "Format" })).toBeInTheDocument();
     const boldItem = screen.getByRole("menuitem", { name: "Bold Ctrl+B" });
@@ -713,10 +713,10 @@ describe("NativeTitleBar", () => {
     fireEvent.click(boldItem);
     expect(formatBold).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Format" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Format" }));
     expect(screen.getByRole("menuitem", { name: "Heading 1 Ctrl+Alt+1" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "View" }));
 
     expect(screen.getByRole("menu", { name: "View" })).toBeInTheDocument();
     expect(screen.queryByRole("menuitem", { name: "Enter Full Screen" })).not.toBeInTheDocument();
@@ -728,21 +728,89 @@ describe("NativeTitleBar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Maximize or restore window" }));
     expect(toggleWindowMaximized).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "View" }));
     const aiCommandItem = screen.getByRole("menuitem", { name: "AI writing command Ctrl+Shift+J" });
     expect(aiCommandItem).not.toBeDisabled();
     fireEvent.click(aiCommandItem);
     expect(toggleAiCommand).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "View" }));
     const foldsItem = screen.getByRole("menuitem", { name: "Toggle all folds Ctrl+Alt+T" });
     expect(foldsItem).not.toBeDisabled();
     fireEvent.click(foldsItem);
     expect(toggleAllFolds).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "View" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Toggle file list Ctrl+Shift+M" }));
     expect(toggleMarkdownFiles).toHaveBeenCalledTimes(1);
+  });
+
+  it("marks disabled Windows app menu items with data-disabled styling hooks", () => {
+    const onOpenMarkdown = vi.fn();
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        platform="windows"
+        saveDisabled
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onOpenBlankEditorWindow={vi.fn()}
+        onOpenMarkdown={onOpenMarkdown}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Markra" }));
+
+    const hiddenItem = screen.getByRole("menuitem", { name: "Hide Markra" });
+    expect(hiddenItem).toHaveAttribute("data-disabled");
+    expect(hiddenItem.className).toContain("data-disabled:opacity-45");
+    expect(hiddenItem.className).toContain("data-disabled:pointer-events-none");
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "File" }));
+
+    const saveItem = screen.getByRole("menuitem", { name: "Save Ctrl+S" });
+    expect(saveItem).toHaveAttribute("data-disabled");
+    expect(saveItem.className).toContain("data-disabled:opacity-45");
+
+    const newItem = screen.getByRole("menuitem", { name: "New Ctrl+N" });
+    expect(newItem).not.toHaveAttribute("data-disabled");
+    expect(newItem.className).toContain("hover:bg-(--bg-hover)");
+  });
+
+  it("switches the open Windows app menu when hovering another menubar trigger", () => {
+    render(
+      <NativeTitleBar
+        aiAgentOpen={false}
+        dirty={false}
+        documentName="Draft.md"
+        markdownFilesOpen={false}
+        platform="windows"
+        theme="light"
+        onToggleAiAgent={() => {}}
+        onOpenBlankEditorWindow={() => {}}
+        onOpenMarkdown={() => {}}
+        onSaveMarkdown={() => {}}
+        onToggleMarkdownFiles={() => {}}
+        onToggleTheme={() => {}}
+      />
+    );
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Markra" }));
+    expect(screen.getByRole("menu", { name: "Markra" })).toBeInTheDocument();
+
+    fireEvent.mouseEnter(screen.getByRole("menuitem", { name: "File" }), {
+      clientX: 80,
+      clientY: 10
+    });
+
+    expect(screen.getByRole("menu", { name: "File" })).toBeInTheDocument();
+    expect(screen.queryByRole("menu", { name: "Markra" })).not.toBeInTheDocument();
   });
 
   it("toggles the Windows window state from self-drawn titlebar double-click mouse downs", () => {
