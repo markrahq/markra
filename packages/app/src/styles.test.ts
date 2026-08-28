@@ -52,7 +52,6 @@ describe("editor stylesheet", () => {
     expect(styles).toContain("font-size: 31px");
     expect(styles).toContain(".markdown-paper .cm-line.cm-markra-h3");
     expect(styles).toContain("font-size: 24px");
-    expect(styles).toContain(".markdown-paper .cm-line.cm-markra-empty-line");
     expect(styles).toContain(".markdown-paper .cm-line.cm-markra-list-item");
     expect(styles).toContain('[data-markra-list-source="hidden"]::before');
     expect(styles).toContain('content: "" !important');
@@ -93,6 +92,21 @@ describe("editor stylesheet", () => {
       expect(styles).toContain(`font-size: var(${fontSizeVariable});`);
       expect(styles).toContain(`font-weight: var(${fontWeightVariable});`);
       expect(styles).toContain(`line-height: var(${lineHeightVariable});`);
+    }
+  });
+
+  it("keeps vertical heading rhythm out of editable CodeMirror line boxes", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+
+    for (let level = 1; level <= 6; level += 1) {
+      const ruleStart = styles.indexOf(
+        `.markdown-paper .cm-line.cm-markra-h${level} {`,
+      );
+      const ruleEnd = styles.indexOf("\n  }", ruleStart);
+      const rule = styles.slice(ruleStart, ruleEnd);
+
+      expect(ruleStart).toBeGreaterThanOrEqual(0);
+      expect(rule).not.toContain("padding-block");
     }
   });
 
@@ -465,24 +479,25 @@ describe("editor stylesheet", () => {
     expect(styles).not.toContain(
       ".markdown-paper .cm-line.cm-markra-empty-line {",
     );
-    expect(styles).toContain(
+    expect(styles).not.toContain(
       ".markdown-paper .cm-line.cm-markra-paragraph-end {",
     );
-    expect(styles).toContain(
+    expect(styles).not.toContain(
       "padding-block-end: var(--editor-paragraph-spacing) !important;",
     );
     expect(styles).not.toContain("cm-markra-paragraph-separator");
     expect(styles).not.toContain(
       '.cm-markra-empty-line[data-markra-empty-source="hidden"] {',
     );
+    expect(styles).not.toContain(
+      ".cm-line.cm-markra-empty-line + .cm-line.cm-markra-blockquote",
+    );
+    expect(styles).not.toContain("margin-block-start: 10px;");
   });
 
   it("keeps CodeMirror block rhythm aligned with the original visual editor", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 
-    expect(styles).toContain(
-      ".cm-line.cm-markra-empty-line + .cm-line.cm-markra-blockquote",
-    );
     expect(styles).toContain(
       '.cm-line.cm-markra-list-item[data-list-depth="0"] +',
     );
@@ -661,24 +676,21 @@ describe("editor stylesheet", () => {
     );
     expect(styles).toContain(
       ".markdown-paper .cm-line.cm-markra-h1 {\n" +
-      "    --markra-heading-control-center-offset: -5.5px;",
+      "    --markra-heading-control-center-offset: 0px;",
     );
     expect(styles).toContain(
       ".markdown-paper .cm-line.cm-markra-h2 {\n" +
-      "    --markra-heading-control-center-offset: 8px;",
+      "    --markra-heading-control-center-offset: 0px;",
     );
     expect(styles).toContain(
       ".markdown-paper .cm-line.cm-markra-h3 {\n" +
-      "    --markra-heading-control-center-offset: 9px;",
+      "    --markra-heading-control-center-offset: 0px;",
     );
     expect(styles).toContain(
       ".markdown-paper .cm-line.cm-markra-h4 {\n" +
-      "    --markra-heading-control-center-offset: 8px;",
+      "    --markra-heading-control-center-offset: 0px;",
     );
-    expect(styles).toContain(
-      "--markra-heading-control-center-offset: 7px;\n" +
-      "    padding-block-start: 14px !important;",
-    );
+    expect(styles).toContain("--markra-heading-control-center-offset: 0px;");
     expect(styles).not.toContain(
       ".cm-line.cm-markra-h3.markra-heading-toggle-heading {\n" +
       "    --markra-heading-control-center-offset:",

@@ -987,36 +987,32 @@
   /* Heading controls follow typography even when the final heading has no
      foldable content and therefore no fold-toggle decoration. */
   .markdown-paper .cm-line.cm-markra-h1 {
-    --markra-heading-control-center-offset: -5.5px;
+    --markra-heading-control-center-offset: 0px;
     color: var(--editor-h1-color) !important;
-    padding-block: 0 16px !important;
     font-size: var(--editor-h1-font-size) !important;
     font-weight: var(--editor-h1-font-weight) !important;
     line-height: var(--editor-h1-line-height) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-h2 {
-    --markra-heading-control-center-offset: 8px;
+    --markra-heading-control-center-offset: 0px;
     color: var(--editor-h2-color) !important;
-    padding-block: 28px 12px !important;
     font-size: var(--editor-h2-font-size) !important;
     font-weight: var(--editor-h2-font-weight) !important;
     line-height: var(--editor-h2-line-height) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-h3 {
-    --markra-heading-control-center-offset: 9px;
+    --markra-heading-control-center-offset: 0px;
     color: var(--editor-h3-color) !important;
-    padding-block: 22px 4px !important;
     font-size: var(--editor-h3-font-size) !important;
     font-weight: var(--editor-h3-font-weight) !important;
     line-height: var(--editor-h3-line-height) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-h4 {
-    --markra-heading-control-center-offset: 8px;
+    --markra-heading-control-center-offset: 0px;
     color: var(--editor-h4-color) !important;
-    padding-block: 18px 2px !important;
     font-size: var(--editor-h4-font-size) !important;
     font-weight: var(--editor-h4-font-weight) !important;
     line-height: var(--editor-h4-line-height) !important;
@@ -1024,8 +1020,7 @@
 
   .markdown-paper .cm-line.cm-markra-h5,
   .markdown-paper .cm-line.cm-markra-h6 {
-    --markra-heading-control-center-offset: 7px;
-    padding-block-start: 14px !important;
+    --markra-heading-control-center-offset: 0px;
   }
 
   .markdown-paper .cm-line.cm-markra-h5 {
@@ -1063,12 +1058,6 @@
 
   .markdown-paper .cm-line.cm-markra-paragraph {
     color: var(--editor-text-primary);
-  }
-
-  /* Paragraph spacing is extra rhythm after content, not a replacement for
-     an authored blank line, which must retain the editor's normal line height. */
-  .markdown-paper .cm-line.cm-markra-paragraph-end {
-    padding-block-end: var(--editor-paragraph-spacing) !important;
   }
 
   .markdown-paper .cm-line.cm-markra-list-item {
@@ -1128,10 +1117,6 @@
     border-left: 1px solid var(--editor-border-strong) !important;
     padding-left: 20px !important;
     color: var(--editor-text-secondary) !important;
-  }
-
-  .markdown-paper .cm-line.cm-markra-empty-line + .cm-line.cm-markra-blockquote {
-    margin-block-start: 10px;
   }
 
   .markdown-paper .cm-line.cm-markra-list-item + .cm-line.cm-markra-list-item {

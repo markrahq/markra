@@ -108,6 +108,7 @@ export interface CodeMirrorPaperSurfaceProps {
   onTextSelectionChange?: (selection: AiSelectionContext | null) => unknown;
   openExternalUrl?: (url: string) => unknown;
   openLocalAttachment?: (src: string) => unknown;
+  paragraphSpacingPx?: number;
   plugins?: readonly MarkraPlugin[];
   readClipboardText?: ClipboardTextReader;
   readOnly?: boolean;
@@ -145,6 +146,7 @@ interface MarkdownExtensionOptions {
   openExternalUrl: () => ((url: string) => unknown) | undefined;
   openLocalAttachment: () => ((src: string) => unknown) | undefined;
   openSpellcheckSuggestions: (view: EditorView) => boolean;
+  paragraphSpacingPx: number;
   resolveImageSrc: (source: string) => string | undefined;
   hideHeadingMarkersOnFocus: boolean;
   showCodeBlockLineNumbers: boolean;
@@ -162,6 +164,7 @@ function markdownExtension({
   openExternalUrl,
   openLocalAttachment,
   openSpellcheckSuggestions,
+  paragraphSpacingPx,
   resolveImageSrc,
   hideHeadingMarkersOnFocus,
   showCodeBlockLineNumbers,
@@ -202,6 +205,7 @@ function markdownExtension({
     highlight: extendedSyntax?.highlight ?? true,
     resolveLinkTarget: linkOptions?.resolveTarget,
     hideHeadingMarkersOnFocus,
+    paragraphSpacing: paragraphSpacingPx,
     plugins: [
       blocksPlugin({
         callout: extendedSyntax?.githubAlerts ?? true,
@@ -361,6 +365,7 @@ export function CodeMirrorPaperSurface({
   openExternalUrl,
   openLocalAttachment,
   plugins = emptyPlugins,
+  paragraphSpacingPx = 8,
   readClipboardText = readAppClipboardText,
   readOnly = false,
   resolveImageSrc,
@@ -541,6 +546,7 @@ export function CodeMirrorPaperSurface({
               openExternalUrl: () => openExternalUrlRef.current,
               openLocalAttachment: () => openLocalAttachmentRef.current,
               openSpellcheckSuggestions: openSpellcheckSuggestionMenu,
+              paragraphSpacingPx,
               resolveImageSrc: (source) => resolveImageSrcRef.current?.(source),
               hideHeadingMarkersOnFocus,
               showCodeBlockLineNumbers,
@@ -689,6 +695,7 @@ export function CodeMirrorPaperSurface({
           openExternalUrl: () => openExternalUrlRef.current,
           openLocalAttachment: () => openLocalAttachmentRef.current,
           openSpellcheckSuggestions: openSpellcheckSuggestionMenu,
+          paragraphSpacingPx,
           resolveImageSrc: (source) => resolveImageSrcRef.current?.(source),
           hideHeadingMarkersOnFocus,
           showCodeBlockLineNumbers,
@@ -712,6 +719,7 @@ export function CodeMirrorPaperSurface({
     Boolean(openExternalUrl),
     Boolean(openLocalAttachment),
     openSpellcheckSuggestionMenu,
+    paragraphSpacingPx,
     plugins,
     readClipboardText,
     hideHeadingMarkersOnFocus,

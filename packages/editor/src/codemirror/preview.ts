@@ -18,6 +18,7 @@ import {
 } from "./policy.ts";
 import {
   getMarkraRenderers,
+  markraListDepth,
   type MarkraRenderer,
   type MarkraSyntaxNode,
 } from "./renderers.ts";
@@ -32,6 +33,7 @@ import { unescapeMarkdown } from "./syntax.ts";
 import { createTaskDecoration } from "./tasks.ts";
 import { isInsidePreformattedBlock } from "./blank-lines.ts";
 import { syntaxTreeChanged, updateOnlyInsertsPlainText } from "./changes.ts";
+import { blockSpacingExtension } from "./block-spacing.ts";
 
 const HEADING_CLASSES: Readonly<Record<string, string>> = {
   ATXHeading1: "cm-markra-h1",
@@ -195,16 +197,6 @@ function emptyTaskMarkerRange(source: string) {
   };
 }
 
-function listDepth(node: MarkraSyntaxNode) {
-  let depth = 0;
-  let parent = node.parent;
-  while (parent) {
-    if (parent.name === "ListItem") depth += 1;
-    parent = parent.parent;
-  }
-  return depth;
-}
-
 function hasUnclosedInlineDestination(
   state: EditorView["state"],
   node: MarkraSyntaxNode,
@@ -266,6 +258,7 @@ export interface LivePreviewConfig {
   resolveLinkTarget?: (context: MarkraLinkSourceContext) => string | null;
   reveal?: RevealPolicy;
   hideHeadingMarkersOnFocus?: boolean;
+  paragraphSpacing?: number;
   taskCheckboxes?: boolean;
 }
 
@@ -394,7 +387,7 @@ function buildDecorations(
         let paragraphEndLine: number | null = null;
         if (
           node.name === "Paragraph" &&
-          listDepth(node.node as MarkraSyntaxNode) === 0
+          markraListDepth(node.node as MarkraSyntaxNode) === 0
         ) {
           const endLine = state.doc.lineAt(node.to - 1).number;
           let nextContentLine = endLine + 1;
@@ -500,7 +493,7 @@ function buildDecorations(
           Decoration.line({
             attributes: {
               "data-list-depth": String(
-                listDepth(node.node as MarkraSyntaxNode),
+                markraListDepth(node.node as MarkraSyntaxNode),
               ),
               "data-list-kind": listAttributes.kind,
               "data-list-marker": listAttributes.marker,
@@ -953,6 +946,7 @@ function previewPlugin(config: LivePreviewConfig): Extension {
 export function livePreview(config: LivePreviewConfig = {}): Extension {
   return [
     sourceDragSelectionExtension,
+    blockSpacingExtension(config.paragraphSpacing),
     previewPlugin(config),
     listMarkerSelectionPlugin,
   ];
