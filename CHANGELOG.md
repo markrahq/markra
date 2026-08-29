@@ -1,3 +1,14 @@
+## [2.10.1](https://github.com/markrahq/markra/compare/v2.10.0...v2.10.1) (2026-08-29)
+
+### Features
+
+* replace self-drawn menubar with Base UI Menubar for hover switching ([#699](https://github.com/markrahq/markra/issues/699)) ([e0fb843](https://github.com/markrahq/markra/commit/e0fb843fb804d54ca2a46bedbbcc8fa241033bd6))
+
+### Bug Fixes
+
+* **editor:** keep visual line clicks aligned ([#701](https://github.com/markrahq/markra/issues/701)) ([bf4a185](https://github.com/markrahq/markra/commit/bf4a1852f3211f4c1c89a7dc785a0d4fd463e370)), closes [#700](https://github.com/markrahq/markra/issues/700)
+* **editor:** render math in visual table cells ([#698](https://github.com/markrahq/markra/issues/698)) ([60ea1ac](https://github.com/markrahq/markra/commit/60ea1acffc142fffaca932828c8b7b55e0af1dbb)), closes [#697](https://github.com/markrahq/markra/issues/697)
+
 ## [2.10.0](https://github.com/markrahq/markra/compare/v2.9.0...v2.10.0) (2026-08-26)
 
 ### Features
