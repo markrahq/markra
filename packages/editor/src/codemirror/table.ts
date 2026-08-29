@@ -7,6 +7,7 @@ import {
 } from "@codemirror/view";
 import { createLucideIcon, popoverPosition } from "@markra/shared";
 import { Minus, Plus, Trash2 } from "lucide";
+import type { MarkraSourceRange } from "../math-syntax.ts";
 import {
   renderInlineMarkdown,
   serializeInlineMarkdown,
@@ -58,6 +59,16 @@ interface TableCellPreview {
   readonly to: number;
 }
 
+type EditVisualTableMathSource = (
+  element: HTMLElement,
+  markdown: string,
+) => void;
+
+const visualTableMathSourceEditors = new WeakMap<
+  HTMLTableCellElement,
+  EditVisualTableMathSource
+>();
+
 const TABLE_CARET_PLACEHOLDER = "\u200b";
 
 function createVisualTableCaretHost(ownerDocument: Document) {
@@ -80,6 +91,8 @@ interface TableEditingSession {
   readonly column: number;
   readonly header: boolean;
   readonly inlineSourceVisible: boolean;
+  readonly mathFrom?: number;
+  readonly mathTo?: number;
   readonly originalSource: string;
   readonly row: number;
   readonly tableFrom: number;
@@ -747,8 +760,9 @@ function moveVisualTableCellFocus(
   view: CodeMirrorView,
   table: HTMLTableElement,
   backward: boolean,
+  sourceCell?: HTMLTableCellElement,
 ) {
-  const cell = activeVisualTableCell(view, table);
+  const cell = sourceCell ?? activeVisualTableCell(view, table);
   if (!cell) return false;
 
   const cells = Array.from(
@@ -881,6 +895,17 @@ function handleVisualTableCellEnter(
   }
 
   const session = tableEditingSessions.get(view);
+  if (!session?.inlineSourceVisible) {
+    const math = cell.querySelector<HTMLElement>(
+      "[data-markra-math-markdown]",
+    );
+    const editMathSource = visualTableMathSourceEditors.get(cell);
+    const markdown = math?.dataset.markraMathMarkdown;
+    if (math && editMathSource && markdown) {
+      editMathSource(math, markdown);
+      return;
+    }
+  }
   tableEditingSessions.delete(view);
   if (session?.inlineSourceVisible) {
     renderVisualTableCell(
@@ -892,6 +917,82 @@ function handleVisualTableCellEnter(
     );
   }
   view.focus();
+}
+
+function handleVisualTableCellEscape(
+  view: CodeMirrorView,
+  preview: TablePreview,
+  cell: HTMLTableCellElement,
+  event: KeyboardEvent,
+  rowIndex: number,
+  columnIndex: number,
+  header: boolean,
+  images: ImagePreviewPluginOptions | undefined,
+  links: LinksPluginOptions | undefined,
+) {
+  event.preventDefault();
+  event.stopPropagation();
+  const session = tableEditingSessions.get(view);
+  tableEditingSessions.delete(view);
+  if (session) {
+    const changed = replaceVisualTableCell(
+      view,
+      preview,
+      rowIndex,
+      columnIndex,
+      header,
+      session.originalSource,
+    );
+    if (!changed && session.inlineSourceVisible) {
+      renderVisualTableCell(view, cell, session.originalSource, images, links);
+    }
+  }
+  view.focus();
+}
+
+function closestSourceIndex(source: string, value: string, expected: number) {
+  let closest = -1;
+  let closestDistance = Number.POSITIVE_INFINITY;
+  let cursor = source.indexOf(value);
+  while (cursor >= 0) {
+    const distance = Math.abs(cursor - expected);
+    if (distance < closestDistance) {
+      closest = cursor;
+      closestDistance = distance;
+    }
+    cursor = source.indexOf(value, cursor + Math.max(1, value.length));
+  }
+  return closest;
+}
+
+function updateVisualTableMathSourceRange(
+  view: CodeMirrorView,
+  cell: HTMLTableCellElement,
+  source: string,
+) {
+  const session = tableEditingSessions.get(view);
+  if (
+    !session?.inlineSourceVisible ||
+    session.mathFrom === undefined ||
+    session.mathTo === undefined
+  ) {
+    return;
+  }
+  const element = cell.querySelector<HTMLElement>(
+    "[data-markra-table-math-source]",
+  );
+  const value = element?.textContent ?? "";
+  if (!value) {
+    tableEditingSessions.delete(view);
+    return;
+  }
+  const from = closestSourceIndex(source, value, session.mathFrom);
+  if (from < 0) return;
+  tableEditingSessions.set(view, {
+    ...session,
+    mathFrom: from,
+    mathTo: from + value.length,
+  });
 }
 
 function syncVisualTableCell(
@@ -907,13 +1008,15 @@ function syncVisualTableCell(
   if (!Number.isInteger(rowIndex) || !Number.isInteger(columnIndex)) return;
 
   const caretOffset = tableCellCaretOffset(cell);
+  const source = visualTableCellSource(cell);
+  updateVisualTableMathSourceRange(view, cell, source);
   const changed = replaceVisualTableCell(
     view,
     preview,
     rowIndex,
     columnIndex,
     header,
-    visualTableCellSource(cell),
+    source,
   );
   const selectionNode = cell.ownerDocument.getSelection()?.anchorNode;
   if (changed || !selectionNode || !cell.contains(selectionNode)) {
@@ -956,10 +1059,12 @@ function renderVisualTableCell(
   source: string,
   images: ImagePreviewPluginOptions | undefined,
   links: LinksPluginOptions | undefined,
+  revealedMathRange?: MarkraSourceRange,
 ) {
   const imageResolver = images?.resolveSource;
   const linkResolver = links?.resolveTarget;
   renderInlineMarkdown(cell, source, {
+    ...(revealedMathRange ? { revealedMathRange } : {}),
     ...(imageResolver
       ? {
           resolveImageSource: (details: InlineMarkdownImageDetails) =>
@@ -975,6 +1080,25 @@ function renderVisualTableCell(
   });
 }
 
+function finishVisualTableInlineSource(
+  view: CodeMirrorView,
+  cell: HTMLTableCellElement,
+  images: ImagePreviewPluginOptions | undefined,
+  links: LinksPluginOptions | undefined,
+) {
+  const session = tableEditingSessions.get(view);
+  tableEditingSessions.delete(view);
+  if (session?.inlineSourceVisible && cell.isConnected) {
+    renderVisualTableCell(
+      view,
+      cell,
+      visualTableCellSource(cell),
+      images,
+      links,
+    );
+  }
+}
+
 function appendCell(
   view: CodeMirrorView,
   row: HTMLTableRowElement,
@@ -988,6 +1112,56 @@ function appendCell(
   links: LinksPluginOptions | undefined,
 ) {
   const cell = row.ownerDocument.createElement(header ? "th" : "td");
+  const editMathSource: EditVisualTableMathSource = (element, markdown) => {
+    const mathFrom = Number(element.dataset.markraMathFrom);
+    const mathTo = Number(element.dataset.markraMathTo);
+    const previousSession = tableEditingSessions.get(view);
+    const originalSource = visualTableCellSource(cell);
+    tableEditingSessions.set(view, {
+      column: columnIndex,
+      header,
+      inlineSourceVisible: true,
+      ...(Number.isInteger(mathFrom) && Number.isInteger(mathTo)
+        ? { mathFrom, mathTo }
+        : {}),
+      originalSource,
+      row: rowIndex,
+      tableFrom: preview.from,
+    });
+    let handled = false;
+    if (Number.isInteger(mathFrom) && Number.isInteger(mathTo)) {
+      renderVisualTableCell(
+        view,
+        cell,
+        originalSource,
+        images,
+        links,
+        { from: mathFrom, to: mathTo },
+      );
+      const source = cell.querySelector<HTMLElement>(
+        "[data-markra-table-math-source]",
+      );
+      const text = source?.firstChild;
+      if (source && text) {
+        cell.focus();
+        const selection = cell.ownerDocument.getSelection();
+        if (selection) {
+          const range = cell.ownerDocument.createRange();
+          range.setStart(text, Math.min(1, text.textContent?.length ?? 0));
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        handled = true;
+      }
+    } else {
+      handled = revealVisualTableInlineSource(cell, element, markdown);
+    }
+    if (handled) return;
+    if (previousSession) tableEditingSessions.set(view, previousSession);
+    else tableEditingSessions.delete(view);
+  };
+  visualTableMathSourceEditors.set(cell, editMathSource);
   const currentSession = tableEditingSessions.get(view);
   const keepInlineSourceVisible =
     currentSession?.tableFrom === preview.from &&
@@ -995,8 +1169,23 @@ function appendCell(
     currentSession.column === columnIndex &&
     currentSession.header === header &&
     currentSession.inlineSourceVisible;
-  if (keepInlineSourceVisible) cell.textContent = cellPreview.source;
-  else renderVisualTableCell(view, cell, cellPreview.source, images, links);
+  const revealedMathRange = keepInlineSourceVisible &&
+      currentSession.mathFrom !== undefined &&
+      currentSession.mathTo !== undefined
+    ? { from: currentSession.mathFrom, to: currentSession.mathTo }
+    : undefined;
+  if (keepInlineSourceVisible && !revealedMathRange) {
+    cell.textContent = cellPreview.source;
+  } else {
+    renderVisualTableCell(
+      view,
+      cell,
+      cellPreview.source,
+      images,
+      links,
+      revealedMathRange,
+    );
+  }
   cell.tabIndex = view.state.readOnly ? -1 : 0;
   cell.dataset.tableColumn = String(columnIndex);
   cell.dataset.tableHeader = String(header);
@@ -1081,7 +1270,23 @@ function appendCell(
   });
   cell.addEventListener("blur", () => {
     cell.ownerDocument.defaultView?.setTimeout(() => {
-      const activeCell = cell.ownerDocument.activeElement;
+      const table = cell.closest<HTMLTableElement>("table");
+      const activeElement = cell.ownerDocument.activeElement;
+      let activeCell = activeElement instanceof HTMLTableCellElement
+        ? activeElement
+        : null;
+      if (!activeCell && table && activeElement === table) {
+        const selectionNode = cell.ownerDocument.getSelection()?.anchorNode;
+        const selectionElement = selectionNode instanceof Element
+          ? selectionNode
+          : selectionNode?.parentElement;
+        const selectedCell = selectionElement?.closest<HTMLTableCellElement>(
+          "th, td",
+        );
+        if (selectedCell && table.contains(selectedCell)) {
+          activeCell = selectedCell;
+        }
+      }
       const session = tableEditingSessions.get(view);
       if (
         activeCell instanceof HTMLTableCellElement &&
@@ -1097,10 +1302,7 @@ function appendCell(
         session.column === columnIndex &&
         session.header === header
       ) {
-        tableEditingSessions.delete(view);
-        if (session.inlineSourceVisible && cell.isConnected) {
-          renderVisualTableCell(view, cell, cellPreview.source, images, links);
-        }
+        finishVisualTableInlineSource(view, cell, images, links);
       }
     }, 0);
   });
@@ -1120,31 +1322,25 @@ function appendCell(
       return;
     }
     if (event.key !== "Escape") return;
-
-    event.preventDefault();
-    event.stopPropagation();
-    const session = tableEditingSessions.get(view);
-    tableEditingSessions.delete(view);
-    if (session) {
-      const changed = replaceVisualTableCell(
-        view,
-        preview,
-        rowIndex,
-        columnIndex,
-        header,
-        session.originalSource,
-      );
-      if (!changed && session.inlineSourceVisible) {
-        renderVisualTableCell(view, cell, session.originalSource, images, links);
-      }
-    }
-    view.focus();
+    handleVisualTableCellEscape(
+      view,
+      preview,
+      cell,
+      event,
+      rowIndex,
+      columnIndex,
+      header,
+      images,
+      links,
+    );
   });
   row.append(cell);
 }
 
 interface TableWidgetRuntime {
   documentMouseDownHandler: ((event: MouseEvent) => void) | null;
+  inlineSourceDocument: Document | null;
+  inlineSourceMouseDownHandler: ((event: MouseEvent) => void) | null;
   preview: TablePreview;
   sizeButton: HTMLButtonElement | null;
   sizePopover: HTMLElement | null;
@@ -1176,6 +1372,8 @@ class TableWidget extends WidgetType {
     this.labelsKey = JSON.stringify(labels);
     this.runtime = {
       documentMouseDownHandler: null,
+      inlineSourceDocument: null,
+      inlineSourceMouseDownHandler: null,
       preview,
       sizeButton: null,
       sizePopover: null,
@@ -1390,6 +1588,18 @@ class TableWidget extends WidgetType {
 
   destroy() {
     this.closeSizePicker();
+    if (
+      this.runtime.inlineSourceDocument &&
+      this.runtime.inlineSourceMouseDownHandler
+    ) {
+      this.runtime.inlineSourceDocument.removeEventListener(
+        "mousedown",
+        this.runtime.inlineSourceMouseDownHandler,
+        true,
+      );
+    }
+    this.runtime.inlineSourceDocument = null;
+    this.runtime.inlineSourceMouseDownHandler = null;
   }
 
   toDOM(view: CodeMirrorView) {
@@ -1418,6 +1628,86 @@ class TableWidget extends WidgetType {
     wrapper.dataset.tableFrom = String(this.preview.from);
     wrapper.dataset.tableAlignment = tableAlignment;
     wrapper.dataset.widthMode = widthMode;
+    const activateMathSource = (eventTarget: EventTarget | null) => {
+      if (view.state.readOnly) return false;
+      const target = eventTarget instanceof Element ? eventTarget : null;
+      const math = target?.closest<HTMLElement>(
+        "[data-markra-math-markdown]",
+      );
+      const cell = math?.closest<HTMLTableCellElement>("th, td");
+      const editMathSource = cell
+        ? visualTableMathSourceEditors.get(cell)
+        : undefined;
+      const markdown = math?.dataset.markraMathMarkdown;
+      if (
+        !math ||
+        !cell ||
+        !table.contains(cell) ||
+        !editMathSource ||
+        !markdown
+      ) {
+        return false;
+      }
+      editMathSource(math, markdown);
+      return true;
+    };
+    wrapper.addEventListener("mousedown", (event) => {
+      if (event.button !== 0 || !activateMathSource(event.target)) return;
+      // CodeMirror owns the widget boundary and can consume target/bubble
+      // events, so formula activation must happen before editor selection work.
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    wrapper.addEventListener("click", (event) => {
+      if (!activateMathSource(event.target)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
+    const inlineSourceMouseDownHandler = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      const session = tableEditingSessions.get(view);
+      if (!session || session.tableFrom !== this.preview.from) return;
+      const cell = table.querySelector<HTMLTableCellElement>(
+        `[data-table-row="${session.row}"]` +
+          `[data-table-column="${session.column}"]` +
+          `[data-table-header="${String(session.header)}"]`,
+      );
+      const target = event.target instanceof Node ? event.target : null;
+      if (!cell) return;
+      const activeSource = cell.querySelector<HTMLElement>(
+        "[data-markra-table-math-source]",
+      );
+      if (target && activeSource?.contains(target)) return;
+
+      const targetElement = target instanceof Element
+        ? target
+        : target?.parentElement;
+      const nextMath = targetElement?.closest<HTMLElement>(
+        "[data-markra-math-markdown]",
+      );
+      const nextMathFrom = nextMath?.dataset.markraMathFrom;
+      const nextMathTo = nextMath?.dataset.markraMathTo;
+      const nextMathInCell = Boolean(nextMath && cell.contains(nextMath));
+      if (nextMathInCell) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      finishVisualTableInlineSource(view, cell, this.images, this.links);
+      if (!nextMathInCell || !nextMathFrom || !nextMathTo) return;
+
+      const replacement = cell.querySelector<HTMLElement>(
+        `[data-markra-math-from="${nextMathFrom}"]` +
+          `[data-markra-math-to="${nextMathTo}"]`,
+      );
+      const editMathSource = visualTableMathSourceEditors.get(cell);
+      const markdown = replacement?.dataset.markraMathMarkdown;
+      if (replacement && editMathSource && markdown) {
+        editMathSource(replacement, markdown);
+      }
+    };
+    this.runtime.inlineSourceDocument = document;
+    this.runtime.inlineSourceMouseDownHandler = inlineSourceMouseDownHandler;
+    document.addEventListener("mousedown", inlineSourceMouseDownHandler, true);
     tableScroll.className = "markra-table-scroll";
     tableScroll.dataset.tableAlignment = tableAlignment;
     alignControls.className = "markra-table-align-controls";
@@ -1430,7 +1720,7 @@ class TableWidget extends WidgetType {
     table.dataset.widthMode = widthMode;
     table.classList.toggle("markra-table-width-auto", widthMode === "auto");
     table.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
+      if (event.key === "Enter" || event.key === "Escape") {
         const cell = activeVisualTableCell(view, table);
         if (!cell) return;
         const rowIndex = Number(cell.dataset.tableRow);
@@ -1441,28 +1731,48 @@ class TableWidget extends WidgetType {
         }
         // Safari targets keyboard events at the shared contenteditable table
         // instead of the focused cell, so route both targets through one path.
-        handleVisualTableCellEnter(
-          view,
-          this.preview,
-          cell,
-          event,
-          rowIndex,
-          columnIndex,
-          header,
-          this.images,
-          this.links,
-        );
+        if (event.key === "Enter") {
+          handleVisualTableCellEnter(
+            view,
+            this.preview,
+            cell,
+            event,
+            rowIndex,
+            columnIndex,
+            header,
+            this.images,
+            this.links,
+          );
+        } else {
+          handleVisualTableCellEscape(
+            view,
+            this.preview,
+            cell,
+            event,
+            rowIndex,
+            columnIndex,
+            header,
+            this.images,
+            this.links,
+          );
+        }
         return;
       }
       if (
         event.key !== "Tab" ||
         event.altKey ||
         event.ctrlKey ||
-        event.metaKey ||
-        !moveVisualTableCellFocus(view, table, event.shiftKey)
+        event.metaKey
       ) {
         return;
       }
+      const cell = activeVisualTableCell(view, table);
+      if (!cell) return;
+      const session = tableEditingSessions.get(view);
+      if (session?.inlineSourceVisible) {
+        finishVisualTableInlineSource(view, cell, this.images, this.links);
+      }
+      if (!moveVisualTableCellFocus(view, table, event.shiftKey, cell)) return;
       // WebKit preserves the old editing position during native Tab focus
       // navigation, so move the caret before its next insertion begins.
       event.preventDefault();

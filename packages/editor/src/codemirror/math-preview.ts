@@ -17,9 +17,13 @@ import {
   createMarkraMathMacros,
   isMarkraMathMacroDefinitionSource,
   renderMarkraMathToString,
-  type MarkraMathKind,
   type MarkraMathMacros,
 } from "../math-render.ts";
+import {
+  findMarkraMathRanges,
+  type MarkraMathRange,
+  type MarkraSourceRange,
+} from "../math-syntax.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { selectionRevealsRange } from "./policy.ts";
 import {
@@ -28,39 +32,12 @@ import {
 } from "./changes.ts";
 import { codeMirrorVimModeChangedEffect } from "./vim.ts";
 
-export interface CodeMirrorMathRange {
-  readonly from: number;
-  readonly kind: MarkraMathKind;
-  readonly source: string;
-  readonly tex: string;
-  readonly to: number;
-}
-
-interface SourceRange {
-  readonly from: number;
-  readonly to: number;
-}
+export type CodeMirrorMathRange = MarkraMathRange;
 
 const codeNodeNames = new Set(["CodeBlock", "FencedCode", "InlineCode"]);
 
-function isEscaped(source: string, index: number) {
-  let count = 0;
-  for (let cursor = index - 1; cursor >= 0 && source[cursor] === "\\"; cursor -= 1) {
-    count += 1;
-  }
-  return count % 2 === 1;
-}
-
-function overlaps(range: SourceRange, other: SourceRange) {
-  return range.from < other.to && range.to > other.from;
-}
-
-function insideAnyRange(from: number, to: number, ranges: readonly SourceRange[]) {
-  return ranges.some((range) => overlaps({ from, to }, range));
-}
-
 function codeRanges(state: EditorState) {
-  const ranges: SourceRange[] = [];
+  const ranges: MarkraSourceRange[] = [];
   syntaxTree(state).iterate({
     enter(node) {
       if (codeNodeNames.has(node.name)) ranges.push({ from: node.from, to: node.to });
@@ -69,166 +46,9 @@ function codeRanges(state: EditorState) {
   return ranges;
 }
 
-function findClosingDelimiter(
-  source: string,
-  from: number,
-  delimiter: string,
-  blocked: readonly SourceRange[],
-) {
-  let cursor = from;
-  while (cursor < source.length) {
-    const match = source.indexOf(delimiter, cursor);
-    if (match < 0) return null;
-    if (!isEscaped(source, match) && !insideAnyRange(match, match + delimiter.length, blocked)) {
-      return match;
-    }
-    cursor = match + delimiter.length;
-  }
-  return null;
-}
-
-function displayMathRanges(source: string, blocked: readonly SourceRange[]) {
-  const ranges: CodeMirrorMathRange[] = [];
-  const delimiters = [
-    { close: "$$", open: "$$" },
-    { close: String.raw`\]`, open: String.raw`\[` },
-  ] as const;
-
-  for (const { close, open } of delimiters) {
-    let cursor = 0;
-    while (cursor < source.length) {
-      const from = source.indexOf(open, cursor);
-      if (from < 0) break;
-      if (isEscaped(source, from) || insideAnyRange(from, from + open.length, blocked)) {
-        cursor = from + open.length;
-        continue;
-      }
-
-      const closeFrom = findClosingDelimiter(
-        source,
-        from + open.length,
-        close,
-        blocked,
-      );
-      if (closeFrom === null) break;
-
-      const to = closeFrom + close.length;
-      const range = {
-        from,
-        kind: "display" as const,
-        source: source.slice(from, to),
-        tex: source.slice(from + open.length, closeFrom).trim(),
-        to,
-      };
-      ranges.push(range);
-      blocked = [...blocked, range];
-      cursor = to;
-    }
-  }
-
-  return ranges;
-}
-
-function inlineDollarRanges(source: string, blocked: readonly SourceRange[]) {
-  const ranges: CodeMirrorMathRange[] = [];
-  let cursor = 0;
-
-  while (cursor < source.length) {
-    const from = source.indexOf("$", cursor);
-    if (from < 0) break;
-    const afterOpen = source[from + 1];
-    if (
-      source[from + 1] === "$" ||
-      source[from - 1] === "$" ||
-      isEscaped(source, from) ||
-      !afterOpen ||
-      /\s/u.test(afterOpen) ||
-      insideAnyRange(from, from + 1, blocked)
-    ) {
-      cursor = from + 1;
-      continue;
-    }
-
-    let closeFrom = from + 1;
-    while (closeFrom < source.length) {
-      closeFrom = source.indexOf("$", closeFrom);
-      if (closeFrom < 0 || source.slice(from, closeFrom).includes("\n")) break;
-      const beforeClose = source[closeFrom - 1];
-      if (
-        source[closeFrom + 1] !== "$" &&
-        source[closeFrom - 1] !== "$" &&
-        !isEscaped(source, closeFrom) &&
-        beforeClose &&
-        !/\s/u.test(beforeClose) &&
-        !insideAnyRange(closeFrom, closeFrom + 1, blocked)
-      ) {
-        const to = closeFrom + 1;
-        ranges.push({
-          from,
-          kind: "inline",
-          source: source.slice(from, to),
-          tex: source.slice(from + 1, closeFrom),
-          to,
-        });
-        cursor = to;
-        break;
-      }
-      closeFrom += 1;
-    }
-
-    if (closeFrom < 0 || source.slice(from, closeFrom).includes("\n")) cursor = from + 1;
-  }
-
-  return ranges;
-}
-
-function inlineHugoRanges(source: string, blocked: readonly SourceRange[]) {
-  const ranges: CodeMirrorMathRange[] = [];
-  const open = String.raw`\(`;
-  const close = String.raw`\)`;
-  let cursor = 0;
-
-  while (cursor < source.length) {
-    const from = source.indexOf(open, cursor);
-    if (from < 0) break;
-    if (insideAnyRange(from, from + open.length, blocked)) {
-      cursor = from + open.length;
-      continue;
-    }
-    const closeFrom = source.indexOf(close, from + open.length);
-    if (
-      closeFrom < 0 ||
-      source.slice(from, closeFrom).includes("\n") ||
-      insideAnyRange(closeFrom, closeFrom + close.length, blocked)
-    ) {
-      cursor = from + open.length;
-      continue;
-    }
-
-    const to = closeFrom + close.length;
-    ranges.push({
-      from,
-      kind: "inline",
-      source: source.slice(from, to),
-      tex: source.slice(from + open.length, closeFrom),
-      to,
-    });
-    cursor = to;
-  }
-
-  return ranges;
-}
-
 export function findCodeMirrorMathRanges(state: EditorState) {
   const source = state.doc.toString();
-  const code = codeRanges(state);
-  const display = displayMathRanges(source, code);
-  const blocked = [...code, ...display];
-  const inline = [
-    ...inlineDollarRanges(source, blocked),
-    ...inlineHugoRanges(source, blocked),
-  ];
-  return [...display, ...inline].sort((left, right) => left.from - right.from);
+  return findMarkraMathRanges(source, codeRanges(state));
 }
 
 function activateMath(view: CodeMirrorView, range: CodeMirrorMathRange) {
@@ -459,7 +279,12 @@ function revealedMathRangesKey(
 
 const mathTheme = EditorView.baseTheme({
   ".markra-math-render": {
+    appearance: "none",
+    background: "transparent",
+    border: "0",
     cursor: "text",
+    font: "inherit",
+    padding: "0",
   },
   ".markra-math-render-display": {
     display: "block",

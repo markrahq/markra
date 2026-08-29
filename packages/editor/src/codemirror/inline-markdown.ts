@@ -1,4 +1,14 @@
 import { parser, GFM } from "@lezer/markdown";
+import {
+  createMarkraMathMacros,
+  renderMarkraMathToString,
+  type MarkraMathMacros,
+} from "../math-render.ts";
+import {
+  findMarkraMathRanges,
+  type MarkraMathRange,
+  type MarkraSourceRange,
+} from "../math-syntax.ts";
 import { markraHighlight } from "./highlight.ts";
 import { resolveSafeImageSource } from "./image.ts";
 import {
@@ -28,10 +38,18 @@ export interface InlineMarkdownImageDetails {
 }
 
 export interface InlineMarkdownRenderOptions {
+  readonly revealedMathRange?: MarkraSourceRange;
   readonly resolveImageSource?: (
     details: InlineMarkdownImageDetails,
   ) => string | null;
   readonly resolveLinkTarget?: (source: string) => string | null;
+}
+
+interface InlineMarkdownRenderContext {
+  readonly mathMacros: MarkraMathMacros;
+  readonly mathRanges: readonly MarkraMathRange[];
+  readonly options: InlineMarkdownRenderOptions;
+  readonly revealedMathRange: MarkraSourceRange | null;
 }
 
 function resolveLinkHref(
@@ -84,6 +102,96 @@ function childNodes(node: InlineNode) {
   return children;
 }
 
+function inlineCodeRanges(node: InlineNode) {
+  const ranges: MarkraSourceRange[] = [];
+  const visit = (current: InlineNode) => {
+    if (current.name === "InlineCode") {
+      ranges.push({ from: current.from, to: current.to });
+      return;
+    }
+    for (const child of childNodes(current)) visit(child);
+  };
+  visit(node);
+  return ranges;
+}
+
+function appendMath(
+  parent: Node,
+  ownerDocument: Document,
+  range: MarkraMathRange,
+  context: InlineMarkdownRenderContext,
+) {
+  const revealed = context.revealedMathRange;
+  if (revealed?.from === range.from && revealed.to === range.to) {
+    const source = ownerDocument.createElement("span");
+    source.dataset.markraMathFrom = String(range.from);
+    source.dataset.markraMathTo = String(range.to);
+    source.dataset.markraTableMathSource = "true";
+    source.textContent = range.source;
+    parent.appendChild(source);
+    return;
+  }
+
+  const element = ownerDocument.createElement("button");
+  element.type = "button";
+  element.className = "markra-math-render markra-math-render-inline";
+  element.contentEditable = "false";
+  element.dataset.markraMathFrom = String(range.from);
+  element.dataset.markraMathMarkdown = range.source;
+  element.dataset.markraMathTo = String(range.to);
+  element.innerHTML = renderMarkraMathToString(
+    range.tex,
+    "inline",
+    context.mathMacros,
+  );
+  element.setAttribute("aria-label", "Edit math source");
+  parent.appendChild(element);
+}
+
+function appendTextWithMath(
+  parent: Node,
+  ownerDocument: Document,
+  source: string,
+  from: number,
+  to: number,
+  context: InlineMarkdownRenderContext,
+) {
+  let cursor = from;
+  for (const range of context.mathRanges) {
+    if (
+      range.kind !== "inline" ||
+      range.from < from ||
+      range.to > to
+    ) {
+      continue;
+    }
+    appendText(parent, source, cursor, range.from);
+    appendMath(parent, ownerDocument, range, context);
+    cursor = range.to;
+  }
+  appendText(parent, source, cursor, to);
+}
+
+function mathRangeCrossingChild(
+  child: InlineNode,
+  from: number,
+  to: number,
+  cursor: number,
+  ranges: readonly MarkraMathRange[],
+) {
+  // TeX punctuation can look like Markdown, so a formula that crosses a parsed
+  // child boundary must stay atomic instead of inheriting that child markup.
+  return ranges.find((range) =>
+    range.kind === "inline" &&
+    range.from >= cursor &&
+    range.from >= from &&
+    range.to <= to &&
+    range.from < child.to &&
+    range.to > child.from &&
+    !(child.from <= range.from && child.to >= range.to)
+  );
+}
+
 function renderRange(
   parent: Node,
   ownerDocument: Document,
@@ -91,14 +199,41 @@ function renderRange(
   node: InlineNode,
   from: number,
   to: number,
-  options: InlineMarkdownRenderOptions,
+  context: InlineMarkdownRenderContext,
 ) {
   let cursor = from;
   for (const child of childNodes(node)) {
-    if (child.to <= from || child.from >= to) continue;
+    if (child.to <= from || child.from >= to || child.to <= cursor) continue;
     const childFrom = Math.max(from, child.from);
     const childTo = Math.min(to, child.to);
-    appendText(parent, source, cursor, childFrom);
+    const crossingMath = mathRangeCrossingChild(
+      child,
+      from,
+      to,
+      cursor,
+      context.mathRanges,
+    );
+    if (crossingMath) {
+      appendTextWithMath(
+        parent,
+        ownerDocument,
+        source,
+        cursor,
+        crossingMath.from,
+        context,
+      );
+      appendMath(parent, ownerDocument, crossingMath, context);
+      cursor = crossingMath.to;
+      continue;
+    }
+    appendTextWithMath(
+      parent,
+      ownerDocument,
+      source,
+      cursor,
+      childFrom,
+      context,
+    );
     if (!markerNodes.has(child.name)) {
       renderNode(
         parent,
@@ -107,12 +242,12 @@ function renderRange(
         child,
         childFrom,
         childTo,
-        options,
+        context,
       );
     }
     cursor = Math.max(cursor, childTo);
   }
-  appendText(parent, source, cursor, to);
+  appendTextWithMath(parent, ownerDocument, source, cursor, to, context);
 }
 
 function wrappedNode(
@@ -121,7 +256,7 @@ function wrappedNode(
   source: string,
   node: InlineNode,
   tagName: "del" | "em" | "mark" | "strong",
-  options: InlineMarkdownRenderOptions,
+  context: InlineMarkdownRenderContext,
 ) {
   const element = ownerDocument.createElement(tagName);
   renderRange(
@@ -131,7 +266,7 @@ function wrappedNode(
     node,
     node.from,
     node.to,
-    options,
+    context,
   );
   parent.appendChild(element);
 }
@@ -141,7 +276,7 @@ function renderLink(
   ownerDocument: Document,
   source: string,
   node: InlineNode,
-  options: InlineMarkdownRenderOptions,
+  context: InlineMarkdownRenderContext,
 ) {
   const children = childNodes(node);
   const marks = children.filter((child) => child.name === "LinkMark");
@@ -156,7 +291,7 @@ function renderLink(
   const href = resolveLinkHref(
     source.slice(url.from, url.to).trim(),
     false,
-    options,
+    context.options,
   );
   const element = ownerDocument.createElement(href ? "a" : "span");
   element.dataset.markraLinkMarkdown = source.slice(node.from, node.to);
@@ -173,7 +308,7 @@ function renderLink(
     node,
     labelFrom,
     labelTo,
-    options,
+    context,
   );
   parent.appendChild(element);
   if (href) {
@@ -190,7 +325,7 @@ function renderAutolink(
   ownerDocument: Document,
   source: string,
   node: InlineNode,
-  options: InlineMarkdownRenderOptions,
+  context: InlineMarkdownRenderContext,
 ) {
   const url = node.name === "URL"
     ? node
@@ -201,7 +336,7 @@ function renderAutolink(
   }
 
   const linkSource = unescapeMarkdown(source.slice(url.from, url.to).trim());
-  const href = resolveLinkHref(linkSource, true, options);
+  const href = resolveLinkHref(linkSource, true, context.options);
   const element = ownerDocument.createElement(href ? "a" : "span");
   element.dataset.markraLinkMarkdown = source.slice(node.from, node.to);
   element.dataset.markraLinkSource = href ?? linkSource;
@@ -226,7 +361,7 @@ function renderImage(
   ownerDocument: Document,
   source: string,
   node: InlineNode,
-  options: InlineMarkdownRenderOptions,
+  context: InlineMarkdownRenderContext,
 ) {
   const children = childNodes(node);
   const marks = children.filter((child) => child.name === "LinkMark");
@@ -249,8 +384,8 @@ function renderImage(
   };
   let resolvedSource: string | null;
   try {
-    resolvedSource = options.resolveImageSource
-      ? options.resolveImageSource(details)
+    resolvedSource = context.options.resolveImageSource
+      ? context.options.resolveImageSource(details)
       : resolveSafeImageSource(details.source);
   } catch {
     resolvedSource = null;
@@ -284,20 +419,20 @@ function renderNode(
   node: InlineNode,
   from = node.from,
   to = node.to,
-  options: InlineMarkdownRenderOptions = {},
+  context: InlineMarkdownRenderContext,
 ) {
   switch (node.name) {
     case "StrongEmphasis":
-      wrappedNode(parent, ownerDocument, source, node, "strong", options);
+      wrappedNode(parent, ownerDocument, source, node, "strong", context);
       return;
     case "Emphasis":
-      wrappedNode(parent, ownerDocument, source, node, "em", options);
+      wrappedNode(parent, ownerDocument, source, node, "em", context);
       return;
     case "Strikethrough":
-      wrappedNode(parent, ownerDocument, source, node, "del", options);
+      wrappedNode(parent, ownerDocument, source, node, "del", context);
       return;
     case "Highlight":
-      wrappedNode(parent, ownerDocument, source, node, "mark", options);
+      wrappedNode(parent, ownerDocument, source, node, "mark", context);
       return;
     case "InlineCode": {
       const element = ownerDocument.createElement("code");
@@ -311,11 +446,11 @@ function renderNode(
       return;
     }
     case "Link":
-      renderLink(parent, ownerDocument, source, node, options);
+      renderLink(parent, ownerDocument, source, node, context);
       return;
     case "Autolink":
     case "URL":
-      renderAutolink(parent, ownerDocument, source, node, options);
+      renderAutolink(parent, ownerDocument, source, node, context);
       return;
     case "HardBreak":
       {
@@ -346,11 +481,11 @@ function renderNode(
       }
       return;
     case "Image": {
-      renderImage(parent, ownerDocument, source, node, options);
+      renderImage(parent, ownerDocument, source, node, context);
       return;
     }
     default:
-      renderRange(parent, ownerDocument, source, node, from, to, options);
+      renderRange(parent, ownerDocument, source, node, from, to, context);
   }
 }
 
@@ -361,6 +496,41 @@ export function renderInlineMarkdown(
 ) {
   target.replaceChildren();
   const tree = inlineParser.parse(source);
+  const requestedRange = options.revealedMathRange;
+  const revealedMathRange = requestedRange
+    ? {
+        from: Math.max(0, Math.min(source.length, requestedRange.from)),
+        to: Math.max(0, Math.min(source.length, requestedRange.to)),
+      }
+    : null;
+  const detectedMathRanges = findMarkraMathRanges(
+    source,
+    inlineCodeRanges(tree.topNode),
+  );
+  const revealedRange = revealedMathRange &&
+      revealedMathRange.to > revealedMathRange.from
+    ? {
+        from: revealedMathRange.from,
+        kind: "inline" as const,
+        source: source.slice(revealedMathRange.from, revealedMathRange.to),
+        tex: "",
+        to: revealedMathRange.to,
+      }
+    : null;
+  const mathRanges = revealedRange
+    ? [
+        ...detectedMathRanges.filter((range) =>
+          range.to <= revealedRange.from || range.from >= revealedRange.to
+        ),
+        revealedRange,
+      ].sort((left, right) => left.from - right.from)
+    : detectedMathRanges;
+  const context: InlineMarkdownRenderContext = {
+    mathMacros: createMarkraMathMacros(),
+    mathRanges,
+    options,
+    revealedMathRange,
+  };
   renderRange(
     target,
     target.ownerDocument,
@@ -368,7 +538,7 @@ export function renderInlineMarkdown(
     tree.topNode,
     0,
     source.length,
-    options,
+    context,
   );
 }
 
@@ -379,6 +549,11 @@ function serializeNode(node: Node): string {
       .replace(/\|/gu, "\\|");
   }
   if (!(node instanceof HTMLElement)) return "";
+  // KaTeX emits duplicate visual and accessibility text; only the authored
+  // Markdown is a valid table-cell serialization of the formula.
+  if (node.dataset.markraMathMarkdown) {
+    return node.dataset.markraMathMarkdown;
+  }
   const content = Array.from(node.childNodes, serializeNode).join("");
   switch (node.tagName) {
     case "STRONG":

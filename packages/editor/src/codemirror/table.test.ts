@@ -2,7 +2,8 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { dispatchPlainTextPaste } from "../plain-text-paste.ts";
-import { liveMarkdown } from "./index.ts";
+import { liveMarkdown, mathPreviewPlugin } from "./index.ts";
+import type { MarkraPlugin } from "./plugin.ts";
 import {
   focusVisualTableCell,
   tablePreviewPlugin,
@@ -13,7 +14,7 @@ const views: EditorView[] = [];
 
 function createView(
   doc: string,
-  plugin = tablePreviewPlugin(),
+  plugin: MarkraPlugin | readonly MarkraPlugin[] = tablePreviewPlugin(),
 ) {
   const parent = document.createElement("div");
   document.body.append(parent);
@@ -21,7 +22,11 @@ function createView(
     parent,
     state: EditorState.create({
       doc,
-      extensions: [liveMarkdown({ plugins: [plugin] })],
+      extensions: [
+        liveMarkdown({
+          plugins: Array.isArray(plugin) ? plugin : [plugin],
+        }),
+      ],
       selection: EditorSelection.cursor(doc.length),
     }),
   });
@@ -180,6 +185,495 @@ describe("tablePreviewPlugin", () => {
       "https://example.test",
     );
     expect(cells[1]?.querySelector(".markra-live-link-icon")).not.toBeNull();
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("renders inline math inside visual table cells without changing Markdown", () => {
+    const doc = [
+      "| Expression | Gradient |",
+      "| --- | --- |",
+      String.raw`| $\mathbf{A}x$ | \(\mathbf{A}^{\mathsf{T}}\) |`,
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const formulas = view.dom.querySelectorAll<HTMLElement>(
+      ".cm-markra-table .markra-math-render-inline",
+    );
+
+    expect(formulas).toHaveLength(2);
+    expect(formulas[0]?.querySelector(".katex")).not.toBeNull();
+    expect(formulas[0]?.dataset.markraMathMarkdown).toBe(
+      String.raw`$\mathbf{A}x$`,
+    );
+    expect(formulas[1]?.dataset.markraMathMarkdown).toBe(
+      String.raw`\(\mathbf{A}^{\mathsf{T}}\)`,
+    );
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("preserves rendered math while editing surrounding table-cell text", async () => {
+    const formula = String.raw`$\lVert\mathbf{X}\rVert_F^2$`;
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      `| Row | Before ${formula} after |`,
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+
+    cell?.focus();
+    if (cell?.firstChild) cell.firstChild.textContent = "Updated before ";
+    cell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain(
+      `| Row | Updated before ${formula} after |`,
+    );
+    expect(
+      view.dom.querySelector(
+        ".cm-markra-table tbody td:nth-child(2) .markra-math-render-inline .katex",
+      ),
+    ).not.toBeNull();
+  });
+
+  it("keeps the caret outside rendered math when editing following text", async () => {
+    const formula = String.raw`$x^2$`;
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      `| Row | Before ${formula} after |`,
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const followingText = cell?.lastChild;
+
+    expect(followingText?.nodeType).toBe(Node.TEXT_NODE);
+    cell?.focus();
+    if (followingText) followingText.textContent = " updated";
+    const range = document.createRange();
+    range.setStart(followingText!, followingText?.textContent?.length ?? 0);
+    range.collapse(true);
+    document.getSelection()?.removeAllRanges();
+    document.getSelection()?.addRange(range);
+    cell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    const updatedCell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const anchorNode = document.getSelection()?.anchorNode;
+    expect(view.state.doc.toString()).toContain(
+      `| Row | Before ${formula} updated |`,
+    );
+    expect(updatedCell?.contains(anchorNode ?? null)).toBe(true);
+    expect(anchorNode?.parentNode).toBe(updatedCell);
+    expect(anchorNode?.textContent).toBe(" updated");
+    expect(document.getSelection()?.anchorOffset).toBe(" updated".length);
+  });
+
+  it("reveals and updates editable math Markdown inside a visual table cell", async () => {
+    const formula = String.raw`$\mathbf{A}x$`;
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      `| Row | ${formula} |`,
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const math = cell?.querySelector<HTMLElement>(
+      ".markra-math-render-inline",
+    );
+
+    expect(math).not.toBeNull();
+    expect(math?.tagName).toBe("BUTTON");
+    expect(math?.getAttribute("type")).toBe("button");
+    math?.addEventListener("mousedown", (event) => event.stopPropagation());
+    math?.addEventListener("mouseup", (event) => event.stopPropagation());
+    math?.addEventListener("click", (event) => event.stopPropagation());
+    expect(math?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }))).toBe(false);
+    expect(cell?.querySelector(".markra-math-render-inline")).toBeNull();
+    const table = cell?.closest<HTMLTableElement>("table");
+    table?.focus();
+    expect(document.activeElement).toBe(table);
+    const sourceText = cell?.firstChild;
+    if (sourceText) {
+      const sourceRange = document.createRange();
+      sourceRange.setStart(sourceText, 1);
+      sourceRange.collapse(true);
+      document.getSelection()?.removeAllRanges();
+      document.getSelection()?.addRange(sourceRange);
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(cell?.querySelector(".markra-math-render-inline")).toBeNull();
+    expect(cell?.textContent).toBe(formula);
+    math?.dispatchEvent(new MouseEvent("mouseup", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    math?.dispatchEvent(new MouseEvent("click", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    expect(cell?.querySelector(".markra-math-render-inline")).toBeNull();
+    expect(cell?.textContent).toBe(formula);
+    expect(document.activeElement).toBe(table);
+    expect(cell?.contains(document.getSelection()?.anchorNode ?? null)).toBe(true);
+    expect(view.state.doc.toString()).toBe(doc);
+
+    const editableMath = cell?.querySelector<HTMLElement>(
+      "[data-markra-table-math-source]",
+    );
+    if (editableMath) editableMath.textContent = "$y^2$";
+    cell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    const updatedCell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    expect(updatedCell?.textContent).toBe("$y^2$");
+    expect(view.state.doc.toString()).toContain("| Row | $y^2$ |");
+
+    updatedCell?.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Enter",
+    }));
+    expect(
+      view.dom.querySelector<HTMLElement>(
+        ".cm-markra-table tbody td:nth-child(2) [data-markra-math-markdown]",
+      )?.dataset.markraMathMarkdown,
+    ).toBe("$y^2$");
+  });
+
+  it("renders updated math when the shared visual table loses focus", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Row | $x^2$ |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const math = cell?.querySelector<HTMLElement>(
+      "[data-markra-math-markdown]",
+    );
+
+    math?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    const editableMath = cell?.querySelector<HTMLElement>(
+      "[data-markra-table-math-source]",
+    );
+    if (editableMath) editableMath.textContent = "$y^2$";
+    cell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    const updatedCell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const table = updatedCell?.closest<HTMLTableElement>("table");
+    table?.focus();
+    const sourceText = updatedCell?.querySelector<HTMLElement>(
+      "[data-markra-table-math-source]",
+    )?.firstChild;
+    if (sourceText) {
+      const sourceRange = document.createRange();
+      sourceRange.setStart(sourceText, 1);
+      sourceRange.collapse(true);
+      document.getSelection()?.removeAllRanges();
+      document.getSelection()?.addRange(sourceRange);
+    }
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+    expect(updatedCell?.textContent).toBe("$y^2$");
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    expect(
+      view.dom.querySelector<HTMLElement>(
+        ".cm-markra-table tbody td:nth-child(2) [data-markra-math-markdown]",
+      )?.dataset.markraMathMarkdown,
+    ).toBe("$y^2$");
+    expect(view.state.doc.toString()).toContain("| Row | $y^2$ |");
+  });
+
+  it("routes Escape from the shared table to the active math source", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Row | $x^2$ |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const math = cell?.querySelector<HTMLElement>(
+      "[data-markra-math-markdown]",
+    );
+
+    math?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    const source = cell?.querySelector<HTMLElement>(
+      "[data-markra-table-math-source]",
+    );
+    if (source) source.textContent = "$y^2$";
+    else if (cell) cell.textContent = "$y^2$";
+    cell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    const updatedCell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const table = updatedCell?.closest<HTMLTableElement>("table");
+    table?.focus();
+    table?.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Escape",
+    }));
+
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(
+      view.dom.querySelector<HTMLElement>(
+        ".cm-markra-table tbody td:nth-child(2) [data-markra-math-markdown]",
+      )?.dataset.markraMathMarkdown,
+    ).toBe("$x^2$");
+  });
+
+  it("commits active math before shared-table Tab navigation", async () => {
+    const doc = [
+      "| Formula | Next |",
+      "| --- | --- |",
+      "| $x$ | Target |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+    const sourceCell = table?.querySelector<HTMLTableCellElement>(
+      "tbody td:first-child",
+    );
+    const math = sourceCell?.querySelector<HTMLElement>(
+      "[data-markra-math-markdown]",
+    );
+
+    math?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    const source = sourceCell?.querySelector<HTMLElement>(
+      "[data-markra-table-math-source]",
+    );
+    if (source) source.textContent = "$y$";
+    else if (sourceCell) sourceCell.textContent = "$y$";
+    sourceCell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    const updatedTable = view.dom.querySelector<HTMLTableElement>(
+      ".cm-markra-table",
+    );
+    const updatedTargetCell = updatedTable?.querySelector<HTMLTableCellElement>(
+      "tbody td:nth-child(2)",
+    );
+    updatedTable?.focus();
+    updatedTable?.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Tab",
+    }));
+    await Promise.resolve();
+
+    expect(
+      view.dom.querySelector<HTMLElement>(
+        ".cm-markra-table tbody td:first-child [data-markra-math-markdown]",
+      )?.dataset.markraMathMarkdown,
+    ).toBe("$y$");
+    expect(
+      updatedTargetCell?.contains(document.getSelection()?.anchorNode ?? null),
+    ).toBe(true);
+  });
+
+  it("uses Enter on the shared table to edit its first formula", () => {
+    const doc = [
+      "| Formula |",
+      "| --- |",
+      "| $x$ |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+    const cell = table?.querySelector<HTMLTableCellElement>("tbody td");
+    const text = cell?.querySelector(".katex-html")?.firstChild;
+
+    table?.focus();
+    if (text) {
+      const range = document.createRange();
+      range.selectNodeContents(text);
+      range.collapse(false);
+      document.getSelection()?.removeAllRanges();
+      document.getSelection()?.addRange(range);
+    }
+    table?.dispatchEvent(new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      key: "Enter",
+    }));
+
+    expect(
+      cell?.querySelector<HTMLElement>("[data-markra-table-math-source]")
+        ?.textContent,
+    ).toBe("$x$");
+  });
+
+  it("activates a visual table formula from its native button click", () => {
+    const doc = [
+      "| Formula |",
+      "| --- |",
+      "| $x$ |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const button = view.dom.querySelector<HTMLButtonElement>(
+      ".cm-markra-table [data-markra-math-markdown]",
+    );
+
+    button?.click();
+
+    expect(
+      view.dom.querySelector<HTMLElement>("[data-markra-table-math-source]")
+        ?.textContent,
+    ).toBe("$x$");
+  });
+
+  it("keeps only the active formula as source inside a mixed table cell", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Row | Before $x$ plus $z$ after |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    const firstMath = cell?.querySelector<HTMLElement>(
+      "[data-markra-math-markdown]",
+    );
+
+    firstMath?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    const source = cell?.querySelector<HTMLElement>(
+      "[data-markra-table-math-source]",
+    );
+    expect(source?.textContent).toBe("$x$");
+    expect(cell?.querySelectorAll("[data-markra-math-markdown]")).toHaveLength(1);
+
+    if (source) source.textContent = "$yx$";
+    cell?.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    await Promise.resolve();
+
+    const updatedCell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table tbody td:nth-child(2)",
+    );
+    expect(
+      updatedCell?.querySelector<HTMLElement>("[data-markra-table-math-source]")
+        ?.textContent,
+    ).toBe("$yx$");
+    expect(
+      updatedCell?.querySelector<HTMLElement>("[data-markra-math-markdown]")
+        ?.dataset.markraMathMarkdown,
+    ).toBe("$z$");
+
+    updatedCell
+      ?.querySelector<HTMLElement>("[data-markra-math-markdown]")
+      ?.dispatchEvent(new MouseEvent("mousedown", {
+        bubbles: true,
+        button: 0,
+        cancelable: true,
+      }));
+    expect(
+      updatedCell?.querySelector<HTMLElement>("[data-markra-table-math-source]")
+        ?.textContent,
+    ).toBe("$z$");
+    expect(
+      updatedCell?.querySelector<HTMLElement>("[data-markra-math-markdown]")
+        ?.dataset.markraMathMarkdown,
+    ).toBe("$yx$");
+
+    updatedCell?.dispatchEvent(new MouseEvent("mousedown", {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+    }));
+    await Promise.resolve();
+
+    expect(
+      view.dom.querySelector<HTMLElement>(
+        ".cm-markra-table tbody td:nth-child(2) [data-markra-math-markdown]",
+      )?.dataset.markraMathMarkdown,
+    ).toBe("$yx$");
+    expect(view.state.doc.toString()).toContain(
+      "| Row | Before $yx$ plus $z$ after |",
+    );
+  });
+
+  it("keeps escaped dollars and inline code as table-cell source", () => {
+    const doc = [
+      "| Escaped | Code |",
+      "| --- | --- |",
+      "| \\$x$ | `$y$` |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc, [mathPreviewPlugin(), tablePreviewPlugin()]);
+    const cells = view.dom.querySelectorAll<HTMLTableCellElement>(
+      ".cm-markra-table tbody td",
+    );
+
+    expect(view.dom.querySelector(".cm-markra-table .katex")).toBeNull();
+    expect(cells[0]?.textContent).toBe("$x$");
+    expect(cells[1]?.querySelector("code")?.textContent).toBe("$y$");
     expect(view.state.doc.toString()).toBe(doc);
   });
 
