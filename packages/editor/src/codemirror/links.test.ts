@@ -205,6 +205,7 @@ describe("linksPlugin", () => {
   it.each([
     ["angle autolink", "<https://example.test/angle>", "https://example.test/angle"],
     ["bare autolink", "https://example.test/bare", "https://example.test/bare"],
+    ["loopback port autolink", "http://127.0.0.1:8080/test", "http://127.0.0.1:8080/test"],
     ["angle email autolink", "<author@example.test>", "mailto:author@example.test"],
     ["mailto autolink", "<mailto:author@example.test>", "mailto:author@example.test"],
     ["bare email autolink", "author@example.test", "mailto:author@example.test"],
