@@ -403,8 +403,8 @@ importers:
         specifier: 1.2.3
         version: 1.2.3
       '@lezer/markdown':
-        specifier: 1.6.3
-        version: 1.6.3
+        specifier: 1.6.4
+        version: 1.6.4
       '@markra/ai':
         specifier: workspace:*
         version: link:../ai
@@ -1103,8 +1103,8 @@ packages:
   '@lezer/lr@1.4.10':
     resolution: {integrity: sha512-rnCpTIBafOx4mRp43xOxDJbFipJm/c0cia/V5TiGlhmMa+wsSdoGmUN3w5Bqrks/09Q/D4tNAmWaT8p6NRi77A==}
 
-  '@lezer/markdown@1.6.3':
-    resolution: {integrity: sha512-jpGm5Ps+XErS+xA4urw7ogEGkeZOahVQF21Z6oECF0sj+2liwZopd2+I8uH5I/vZsRuuze3OxBREIANLf6KKUw==}
+  '@lezer/markdown@1.6.4':
+    resolution: {integrity: sha512-N0SxazMj4k65DBfaf1azqtMZd6u7MqluP84/NZnB/io8Td9aleFmAhz9hcbvSfsxT5tdYlJ5qgv5aMJGY4zEtA==}
 
   '@marijn/find-cluster-break@1.0.2':
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
@@ -3655,7 +3655,7 @@ snapshots:
       '@codemirror/state': 6.6.0
       '@codemirror/view': 6.41.1
       '@lezer/common': 1.5.2
-      '@lezer/markdown': 1.6.3
+      '@lezer/markdown': 1.6.4
 
   '@codemirror/language@6.12.3':
     dependencies:
@@ -3894,7 +3894,7 @@ snapshots:
     dependencies:
       '@lezer/common': 1.5.2
 
-  '@lezer/markdown@1.6.3':
+  '@lezer/markdown@1.6.4':
     dependencies:
       '@lezer/common': 1.5.2
       '@lezer/highlight': 1.2.3
