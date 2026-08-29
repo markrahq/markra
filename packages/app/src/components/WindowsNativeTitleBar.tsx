@@ -14,18 +14,13 @@ import {
   contextMenuItem,
   contextMenuSeparator,
   contextMenuSubmenu,
-  showContextMenu,
   type ContextMenuEntry
 } from "./ContextMenu";
 import { WindowsWindowControls } from "./WindowsWindowControls";
 import { IconButton, Tooltip } from "@markra/ui";
+import { AppMenuBar, type AppMenuConfig } from "./AppMenuBar";
 
 type WindowsAppMenuId = "app" | "file" | "edit" | "format" | "view";
-
-type WindowsAppMenuConfig = {
-  id: WindowsAppMenuId;
-  label: string;
-};
 
 type WindowsNativeTitleBarProps = {
   aiAgentOpen: boolean;
@@ -183,16 +178,21 @@ export function WindowsNativeTitleBar({
       </IconButton>
     </div>
   ) : null;
-  const windowsAppMenus: WindowsAppMenuConfig[] = [
-    { id: "file", label: label("menu.file") },
-    { id: "edit", label: label("menu.edit") },
-    { id: "format", label: label("menu.format") },
-    { id: "view", label: label("menu.view") }
+  const windowsAppMenus: AppMenuConfig[] = [
+    {
+      id: "app",
+      label: "Markra",
+      triggerClassName: "font-[620] text-(--text-heading)"
+    },
+    { id: "file", label: label("menu.file"), triggerClassName: "text-(--text-primary)" },
+    { id: "edit", label: label("menu.edit"), triggerClassName: "text-(--text-primary)" },
+    { id: "format", label: label("menu.format"), triggerClassName: "text-(--text-primary)" },
+    { id: "view", label: label("menu.view"), triggerClassName: "text-(--text-primary)" }
   ];
   const runToggleWindowMaximized = () => {
     runOptionalWindowsAction(onToggleWindowMaximized);
   };
-  const windowsAppMenuEntries = (menuId: WindowsAppMenuId): ContextMenuEntry[] => {
+  const windowsAppMenuEntries = (menuId: string): ContextMenuEntry[] => {
     if (menuId === "app") {
       return [
         windowsMenuItem("showAbout", label("menu.aboutMarkra"), undefined, onShowAbout),
@@ -303,20 +303,6 @@ export function WindowsNativeTitleBar({
       contextMenuItem("toggleTheme", themeActionLabel, undefined, onToggleTheme)
     ];
   };
-  const showWindowsAppMenu = (menu: WindowsAppMenuConfig, event: ReactMouseEvent<HTMLButtonElement>) => {
-    event.preventDefault();
-    event.stopPropagation();
-
-    const rect = event.currentTarget.getBoundingClientRect();
-    showContextMenu(event.currentTarget.ownerDocument, {
-      ariaLabel: menu.label,
-      entries: windowsAppMenuEntries(menu.id),
-      position: {
-        x: rect.left,
-        y: rect.bottom
-      }
-    });
-  };
   const handleWindowsTitlebarMouseDownCapture = (event: ReactMouseEvent<HTMLElement>) => {
     if (!nativeWindowChrome || !onToggleWindowMaximized || isWindowsTitlebarInteractiveTarget(event.target)) return;
     if (event.button !== 0 || event.detail !== 2) return;
@@ -364,27 +350,13 @@ export function WindowsNativeTitleBar({
           </button>
           ) : null}
         </div>
-        <button
-          className="h-7 shrink-0 rounded-sm border-0 bg-transparent px-2 text-[12px] leading-none font-[620] text-(--text-heading) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-          aria-haspopup="menu"
-          type="button"
-          onMouseDown={(event) => event.stopPropagation()}
-          onClick={(event) => showWindowsAppMenu({ id: "app", label: "Markra" }, event)}
-        >
-          Markra
-        </button>
-        {windowsAppMenus.map((menu) => (
-          <button
-            className="h-7 rounded-sm border-0 bg-transparent px-2 text-[12px] leading-none text-(--text-primary) hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
-            aria-haspopup="menu"
-            key={menu.id}
-            type="button"
-            onMouseDown={(event) => event.stopPropagation()}
-            onClick={(event) => showWindowsAppMenu(menu, event)}
-          >
-            {menu.label}
-          </button>
-        ))}
+        <div onMouseDown={(event) => event.stopPropagation()}>
+          <AppMenuBar
+            menus={windowsAppMenus}
+            getEntries={windowsAppMenuEntries}
+            triggerClassName="h-7 shrink-0 rounded-sm border-0 bg-transparent px-2 text-[12px] leading-none hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent)"
+          />
+        </div>
       </div>
       <div className="min-w-0" data-tauri-drag-region={nativeWindowChrome ? true : undefined} />
       <WindowsWindowControls onMaximize={onToggleWindowMaximized} />
