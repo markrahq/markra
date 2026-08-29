@@ -16,6 +16,16 @@ export interface MarkraSyntaxNode {
   getChildren(name: string): readonly MarkraSyntaxNode[];
 }
 
+export function markraListDepth(node: MarkraSyntaxNode) {
+  let depth = 0;
+  let parent = node.parent;
+  while (parent) {
+    if (parent.name === "ListItem") depth += 1;
+    parent = parent.parent;
+  }
+  return depth;
+}
+
 export interface MarkraRendererContext {
   readonly node: MarkraSyntaxNode;
   readonly state: EditorState;

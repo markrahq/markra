@@ -57,6 +57,39 @@ describe("CodeMirrorPaperSurface", () => {
     expect(onEditorReady).toHaveBeenLastCalledWith(null, view);
   });
 
+  it("keeps configurable paragraph rhythm in measured block spacers", async () => {
+    const onEditorReady = vi.fn();
+    const { container, rerender } = render(
+      <CodeMirrorPaperSurface
+        initialContent={"Synthetic first paragraph\n\nSynthetic second paragraph"}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        paragraphSpacingPx={14}
+      />,
+    );
+
+    expect(
+      container.querySelector<HTMLElement>(".cm-markra-paragraph-spacer")
+        ?.style.height,
+    ).toBe("14px");
+
+    rerender(
+      <CodeMirrorPaperSurface
+        initialContent={"Synthetic first paragraph\n\nSynthetic second paragraph"}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={() => {}}
+        paragraphSpacingPx={6}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        container.querySelector<HTMLElement>(".cm-markra-paragraph-spacer")
+          ?.style.height,
+      ).toBe("6px");
+    });
+  });
+
   it("uses the configured shortcut to paste clipboard text without formatting", async () => {
     const code = [
       "const mockValue = items.at(0);",

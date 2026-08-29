@@ -2,6 +2,23 @@ import { syntaxTree } from "@codemirror/language";
 import type { EditorState, Transaction } from "@codemirror/state";
 import type { ViewUpdate } from "@codemirror/view";
 
+function onlyInsertsPlainText(
+  change: Pick<Transaction, "changes" | "docChanged">,
+) {
+  if (!change.docChanged) return false;
+
+  let plainInsertion = true;
+  change.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+    if (
+      fromA !== toA ||
+      !/^[\p{L}\p{M}\p{N}]+$/u.test(inserted.toString())
+    ) {
+      plainInsertion = false;
+    }
+  });
+  return plainInsertion;
+}
+
 export function syntaxTreeChanged(
   startState: EditorState,
   state: EditorState,
@@ -23,16 +40,7 @@ export function updateOnlyInsertsPlainText(update: ViewUpdate) {
     return false;
   }
 
-  let plainInsertion = true;
-  update.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
-    if (
-      fromA !== toA ||
-      !/^[\p{L}\p{M}\p{N}]+$/u.test(inserted.toString())
-    ) {
-      plainInsertion = false;
-    }
-  });
-  return plainInsertion;
+  return onlyInsertsPlainText(update);
 }
 
 function changesStayAfter(

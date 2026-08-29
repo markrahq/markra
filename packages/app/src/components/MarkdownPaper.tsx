@@ -195,6 +195,7 @@ export function MarkdownPaper({
             onActiveOutlineIndexChange={onActiveOutlineIndexChange}
             onEditorReady={onEditorReady}
             onMarkdownChange={onMarkdownChange}
+            paragraphSpacingPx={paragraphSpacingPx}
             onSaveClipboardAttachment={onSaveClipboardAttachment}
             onSaveClipboardImage={onSaveClipboardImage}
             onSaveRemoteClipboardImage={onSaveRemoteClipboardImage}
