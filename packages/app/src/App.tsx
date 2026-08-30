@@ -266,14 +266,13 @@ const sideDocumentPaneKeyboardStepPercent = 5;
 const sideDocumentMainPanePercentMin = 35;
 const sideDocumentMainPanePercentMax = 70;
 const defaultSideDocumentMainPanePercent = 50;
-const quietStatusOverlayInset = 56;
 
 function persistSideDocumentGroup(group: StoredWorkspaceSideBySideGroup | null) {
   saveStoredWorkspaceState({ sideBySideGroup: group }).catch(() => {});
 }
 
 function editorBottomOverlayInset(aiCommandActive: boolean, aiCommandInset: number) {
-  return Math.max(quietStatusOverlayInset, aiCommandActive ? aiCommandInset : 0);
+  return aiCommandActive ? aiCommandInset : 0;
 }
 
 function nativeFileOperationFailureDescription(error: unknown) {
@@ -4573,7 +4572,7 @@ function WorkspaceApp() {
           <div
             key={tab.id}
             aria-hidden={visualHidden ? "true" : undefined}
-            className="h-full min-h-0"
+            className="h-full min-h-0 overflow-hidden"
             hidden={visualHidden}
           >
             <MarkdownPaper
@@ -4995,7 +4994,7 @@ function WorkspaceApp() {
                   style={sideDocumentOpen ? sideDocumentSurfaceStyle : undefined}
                 >
                   <div
-                    className="relative h-full min-h-0 overflow-hidden"
+                    className="relative grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden"
                     ref={mainDocumentPaneRef}
                     onFocusCapture={handleMainDocumentPaneFocus}
                   >
@@ -5064,7 +5063,7 @@ function WorkspaceApp() {
                       </div>
                     </div>
                   ) : (
-                    <div className="relative h-full min-h-0">
+                    <div className="relative h-full min-h-0 overflow-hidden">
                       {mainVisualEditors}
                       {sourceMode ? (
                         <LazyMarkdownSourceEditor
@@ -5135,7 +5134,6 @@ function WorkspaceApp() {
                         <span className="pointer-events-none absolute top-10 bottom-5 left-1/2 w-px -translate-x-1/2 bg-(--border-default) transition-colors duration-150 ease-out group-hover/side-resizer:bg-(--accent) group-focus/side-resizer:bg-(--accent)" />
                       </div>
                       <SideDocumentPane
-                        bottomOverlayInset={viewModeChrome.statusBar ? quietStatusOverlayInset : 0}
                         bodyFontSize={editorPreferences.preferences.bodyFontSize}
                         content={sideDocumentTab.content}
                         contentWidth={activeEditorContentWidth}

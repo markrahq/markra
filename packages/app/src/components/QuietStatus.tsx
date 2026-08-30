@@ -26,7 +26,7 @@ export function QuietStatus({
 
   return (
     <footer
-      className="quiet-status pointer-events-none absolute right-4.5 bottom-3 flex justify-end gap-2.5 text-[12px] leading-5 text-(--text-secondary) opacity-[0.68]"
+      className="quiet-status pointer-events-none flex min-h-11 flex-wrap items-center justify-end gap-x-2.5 px-4.5 py-2 text-[12px] leading-5 text-(--text-secondary) opacity-[0.68]"
       aria-label={label("app.documentStatus")}
     >
       {showWordCount ? (

@@ -731,6 +731,11 @@
     background-color: color-mix(in srgb, var(--accent) 42%, transparent);
   }
 
+  .paper-scroll {
+    height: 100%;
+  }
+
+  /* Keep this contextual height in CSS: h-full plus the fixed top offset would overflow into the status row. */
   .editor-content-slot .paper-scroll {
     height: calc(100% - 2.5rem);
     margin-top: 2.5rem;
