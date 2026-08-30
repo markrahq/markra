@@ -12,7 +12,6 @@ import { MarkdownPaper } from "./MarkdownPaper";
 
 type SideDocumentPaneProps = {
   bodyFontSize: number;
-  bottomOverlayInset?: number;
   content: string;
   contentWidth: EditorContentWidth;
   contentWidthPx: number | null;
@@ -58,7 +57,6 @@ function ignoreSideEditorReady() {
 
 export function SideDocumentPane({
   bodyFontSize,
-  bottomOverlayInset = 0,
   content,
   contentWidth,
   contentWidthPx,
@@ -102,13 +100,12 @@ export function SideDocumentPane({
 
   return (
     <section
-      className="side-document-pane relative h-full min-h-0 overflow-hidden bg-(--bg-primary)"
+      className="side-document-pane relative grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden bg-(--bg-primary)"
       aria-label={label("app.sideDocument")}
       onFocusCapture={onFocus}
     >
       {mode === "source" ? (
         <LazyMarkdownSourceEditor
-          bottomOverlayInset={bottomOverlayInset}
           bodyFontSize={bodyFontSize}
           content={content}
           contentWidth={contentWidth}
@@ -132,7 +129,6 @@ export function SideDocumentPane({
       ) : (
         <MarkdownPaper
           autoFocus={false}
-          bottomOverlayInset={bottomOverlayInset}
           bodyFontSize={bodyFontSize}
           contentWidth={contentWidth}
           contentWidthPx={contentWidthPx}

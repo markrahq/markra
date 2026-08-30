@@ -154,7 +154,7 @@ describe("MarkdownSourceEditor", () => {
     ).toBe(true);
   });
 
-  it("keeps source scrolling vertical without pane-level horizontal scroll", () => {
+  it("keeps source scrolling vertical without forcing the pane past its layout row", () => {
     const { container } = render(
       <MarkdownSourceEditor
         content="# Source"
@@ -162,12 +162,10 @@ describe("MarkdownSourceEditor", () => {
       />
     );
 
-    expect(container.querySelector(".paper-scroll")).toHaveClass(
-      "h-full",
-      "min-h-0",
-      "overflow-x-hidden",
-      "overflow-y-auto"
-    );
+    const sourceScroll = container.querySelector(".paper-scroll");
+
+    expect(sourceScroll).not.toHaveClass("h-full");
+    expect(sourceScroll).toHaveClass("min-h-0", "overflow-x-hidden", "overflow-y-auto");
   });
 
   it("shows document line numbers when enabled and updates them without recreating the editor", async () => {

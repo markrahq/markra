@@ -1246,20 +1246,27 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".quiet-status")).not.toHaveTextContent("75 words");
   });
 
-  it("keeps the active writing surface clear of the quiet status line", async () => {
+  it("reserves a separate row for document status instead of overlaying the writing surface", async () => {
     const { container } = renderApp();
 
     await expectVisibleMarkdownText("Welcome to Markra");
-    await waitFor(() => {
-      expect(container.querySelector(".markdown-paper")?.getAttribute("style")).toContain("padding-bottom: 56px");
-    });
+    const visualStatus = container.querySelector(".quiet-status");
+    const visualPaper = container.querySelector(".markdown-paper");
+    const visualScroll = visualPaper?.parentElement;
+
+    expect(visualStatus).not.toHaveClass("absolute");
+    expect(visualStatus?.parentElement).toHaveClass("grid", "grid-rows-[minmax(0,1fr)_auto]");
+    expect(visualPaper).toHaveStyle({ paddingBottom: 0 });
+    expect(visualScroll).not.toHaveClass("h-full");
+    expect(visualScroll?.parentElement).toHaveClass("overflow-hidden");
 
     await selectEditorViewMode("Source code");
     await waitFor(() => {
-      expect(container.querySelector(".markdown-source-paper")?.getAttribute("style")).toContain(
-        "padding-bottom: 56px"
-      );
+      expect(container.querySelector(".markdown-source-paper")).toHaveStyle({ paddingBottom: 0 });
     });
+    const sourceScroll = container.querySelector(".markdown-source-paper")?.parentElement;
+    expect(sourceScroll).not.toHaveClass("h-full");
+    expect(sourceScroll?.parentElement).toHaveClass("overflow-hidden");
   });
 
   it("restores a selected history version into the current document", async () => {
@@ -4851,6 +4858,12 @@ describe("Markra workspace", () => {
     expect(mainStatus).toHaveTextContent("saved");
     expect(sideStatus).toHaveTextContent("3 words");
     expect(sideStatus).toHaveTextContent("saved");
+    expect(mainStatus).not.toHaveClass("absolute");
+    expect(sideStatus).not.toHaveClass("absolute");
+    expect(mainPane).toHaveClass("grid", "grid-rows-[minmax(0,1fr)_auto]");
+    expect(sidePane).toHaveClass("grid", "grid-rows-[minmax(0,1fr)_auto]");
+    expect(mainPane.querySelector(".paper-scroll")).not.toHaveClass("h-full");
+    expect(sidePane.querySelector(".paper-scroll")).not.toHaveClass("h-full");
   });
 
   it("keeps native plain text paste targeted at a blurred side editor", async () => {
