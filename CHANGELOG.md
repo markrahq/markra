@@ -1,3 +1,10 @@
+## [2.10.2](https://github.com/markrahq/markra/compare/v2.10.1...v2.10.2) (2026-08-30)
+
+### Bug Fixes
+
+* **app:** keep document status outside editor content ([#705](https://github.com/markrahq/markra/issues/705)) ([4da5a1a](https://github.com/markrahq/markra/commit/4da5a1a9924f5453dba4e45b28ef489477196d43)), closes [#704](https://github.com/markrahq/markra/issues/704)
+* **editor:** recognize autolinks with port numbers ([#703](https://github.com/markrahq/markra/issues/703)) ([8a9c7fb](https://github.com/markrahq/markra/commit/8a9c7fb607f54fb62c9ee250a03d79343f3b09ab)), closes [#702](https://github.com/markrahq/markra/issues/702)
+
 ## [2.10.1](https://github.com/markrahq/markra/compare/v2.10.0...v2.10.1) (2026-08-29)
 
 ### Features
