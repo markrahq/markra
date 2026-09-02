@@ -205,6 +205,16 @@ fn editor_window_decorations_for_platform(platform: &str) -> bool {
     platform != "windows" && platform != "linux"
 }
 
+fn should_preserve_inner_size_when_hiding_menu(
+    platform: &str,
+    is_menu_visible: bool,
+    is_maximized: bool,
+    is_minimized: bool,
+    is_fullscreen: bool,
+) -> bool {
+    platform == "windows" && is_menu_visible && !is_maximized && !is_minimized && !is_fullscreen
+}
+
 pub(crate) fn hide_native_menu_for_window<R>(window: &tauri::WebviewWindow<R>)
 where
     R: tauri::Runtime,
@@ -212,7 +222,27 @@ where
     match native_menu_window_action_for_platform(current_window_chrome_platform(), window.label()) {
         NativeMenuWindowAction::Keep => {}
         NativeMenuWindowAction::Hide => {
+            let platform = current_window_chrome_platform();
+            let is_menu_visible =
+                platform == "windows" && window.is_menu_visible().unwrap_or_default();
+            let inner_size = if should_preserve_inner_size_when_hiding_menu(
+                platform,
+                is_menu_visible,
+                window.is_maximized().unwrap_or_default(),
+                window.is_minimized().unwrap_or_default(),
+                window.is_fullscreen().unwrap_or_default(),
+            ) {
+                window.inner_size().ok()
+            } else {
+                None
+            };
             let _ = window.hide_menu();
+            if let Some(inner_size) = inner_size {
+                // window-state restores the saved client size while the native menu is
+                // attached. Removing that menu expands the client area unless we reapply
+                // the pre-hide size, causing the saved height to grow on every launch.
+                let _ = window.set_size(inner_size);
+            }
         }
         NativeMenuWindowAction::Remove => {
             // On GTK, hide_menu() leaves the GtkMenuBar in the widget tree and
@@ -1614,6 +1644,56 @@ mod tests {
         assert!(should_hide_native_menu_for_window_label_on_platform(
             "linux",
             "markra-editor-1"
+        ));
+    }
+
+    #[test]
+    fn windows_menu_hiding_preserves_the_restored_inner_size() {
+        let source = include_str!("windows.rs");
+        let start = source
+            .find("pub(crate) fn hide_native_menu_for_window")
+            .expect("native menu hiding function should exist");
+        let end = source[start..]
+            .find("pub(crate) fn hide_native_menus_for_app")
+            .map(|offset| start + offset)
+            .expect("native menu hiding function should have a bounded source range");
+        let function_source = &source[start..end];
+        let capture = function_source
+            .find("window.inner_size()")
+            .expect("Windows should capture the restored content size before hiding its menu");
+        let hide = function_source
+            .find("window.hide_menu()")
+            .expect("Windows should hide its native menu");
+        let restore = function_source
+            .find("window.set_size(inner_size)")
+            .expect("Windows should restore the captured content size after hiding its menu");
+
+        assert!(capture < hide);
+        assert!(hide < restore);
+    }
+
+    #[test]
+    fn menu_hiding_preserves_inner_size_only_for_normal_windows() {
+        assert!(should_preserve_inner_size_when_hiding_menu(
+            "windows", true, false, false, false
+        ));
+        assert!(!should_preserve_inner_size_when_hiding_menu(
+            "windows", false, false, false, false
+        ));
+        assert!(!should_preserve_inner_size_when_hiding_menu(
+            "windows", true, true, false, false
+        ));
+        assert!(!should_preserve_inner_size_when_hiding_menu(
+            "windows", true, false, true, false
+        ));
+        assert!(!should_preserve_inner_size_when_hiding_menu(
+            "windows", true, false, false, true
+        ));
+        assert!(!should_preserve_inner_size_when_hiding_menu(
+            "macos", true, false, false, false
+        ));
+        assert!(!should_preserve_inner_size_when_hiding_menu(
+            "linux", true, false, false, false
         ));
     }
 

@@ -192,27 +192,16 @@ class FrontmatterWidget extends WidgetType {
       `Edit ${this.range.kind.toUpperCase()} frontmatter`,
     );
     editor.spellcheck = false;
-    editor.addEventListener("keydown", (event) => {
-      if (
-        (event.key !== "Backspace" && event.key !== "Delete") ||
-        editor.selectionStart !== 0 ||
-        editor.selectionEnd !== editor.value.length
-      ) {
-        return;
-      }
-      const current = readCodeMirrorFrontmatter(view.state.doc.toString());
-      if (!current || view.state.facet(EditorState.readOnly)) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      removeFrontmatter(view, current);
-    });
-    editor.addEventListener("input", () => {
+    let composing = false;
+    const syncEditorValue = () => {
       const current = readCodeMirrorFrontmatter(view.state.doc.toString());
       if (!current) return;
       const selectionStart = editor.selectionStart;
       const selectionEnd = editor.selectionEnd;
       const insert = current.delimiter ? `${editor.value}\n` : editor.value;
+      if (view.state.doc.sliceString(current.contentFrom, current.contentTo) === insert) {
+        return;
+      }
       view.dispatch({
         changes: {
           from: current.contentFrom,
@@ -231,6 +220,34 @@ class FrontmatterWidget extends WidgetType {
       if (nextEditor) {
         nextEditor.rows = Math.max(1, nextEditor.value.split("\n").length);
       }
+    };
+    editor.addEventListener("compositionstart", () => {
+      composing = true;
+    });
+    editor.addEventListener("compositionend", () => {
+      composing = false;
+      syncEditorValue();
+    });
+    editor.addEventListener("keydown", (event) => {
+      if (
+        (event.key !== "Backspace" && event.key !== "Delete") ||
+        editor.selectionStart !== 0 ||
+        editor.selectionEnd !== editor.value.length
+      ) {
+        return;
+      }
+      const current = readCodeMirrorFrontmatter(view.state.doc.toString());
+      if (!current || view.state.facet(EditorState.readOnly)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      removeFrontmatter(view, current);
+    });
+    editor.addEventListener("input", (event) => {
+      // Refocusing or moving the textarea selection before IME commit transfers
+      // the composition to CodeMirror's contenteditable surface on Windows.
+      if (composing || event.isComposing) return;
+      syncEditorValue();
     });
     root.append(label, editor);
     this.syncDOM(root, view);
