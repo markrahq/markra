@@ -1591,6 +1591,118 @@ describe("tablePreviewPlugin", () => {
     expect(view.dom.querySelector(".cm-markra-table")).not.toBeNull();
   });
 
+  it("keeps IME composition inside a visual table header when WebKit lifts the selection", async () => {
+    const doc = [
+      "| Name | Value |",
+      "| --- | --- |",
+      "| Alpha | 1 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table");
+    const cell = table?.querySelector<HTMLTableCellElement>(
+      "thead th:nth-child(2)",
+    );
+    const row = cell?.parentElement;
+
+    cell?.focus();
+    table?.dispatchEvent(new CompositionEvent("compositionstart", {
+      bubbles: true,
+    }));
+    table?.focus();
+    if (row) {
+      const selection = document.getSelection();
+      const range = document.createRange();
+      range.setStart(row, 1);
+      range.collapse(true);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    table?.dispatchEvent(new InputEvent("beforeinput", {
+      bubbles: true,
+      cancelable: true,
+      data: "中文",
+      inputType: "insertCompositionText",
+      isComposing: true,
+    }));
+
+    expect(document.activeElement).toBe(cell);
+    expect(cell?.contains(document.getSelection()?.anchorNode ?? null)).toBe(true);
+
+    const selection = document.getSelection();
+    const text = selection?.anchorNode;
+    if (selection && text instanceof Text) {
+      const offset = selection.anchorOffset;
+      text.insertData(offset, "中文");
+      selection.collapse(text, offset + 2);
+    }
+    table?.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      data: "中文",
+      inputType: "insertCompositionText",
+      isComposing: true,
+    }));
+    table?.dispatchEvent(new CompositionEvent("compositionend", {
+      bubbles: true,
+      data: "中文",
+    }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain("| Name | Value中文 |");
+    expect(view.dom.querySelectorAll(".cm-markra-table thead th")).toHaveLength(2);
+    expect(view.dom.querySelectorAll(".cm-markra-table tbody td")).toHaveLength(2);
+  });
+
+  it("stabilizes the caret host before composing into an empty visual table header", async () => {
+    const doc = [
+      "| 1 |  |",
+      "| --- | --- |",
+      "| 2 | 2 |",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView(doc);
+
+    focusVisualTableCell(view, 0, -1, 1, true, 0);
+    await Promise.resolve();
+
+    const cell = view.dom.querySelector<HTMLTableCellElement>(
+      ".cm-markra-table thead th:nth-child(2)",
+    );
+    const table = cell?.closest("table");
+    expect(document.getSelection()?.anchorNode?.parentNode).toBe(cell);
+    expect(document.getSelection()?.anchorNode?.textContent).toBe("");
+
+    table?.dispatchEvent(new CompositionEvent("compositionstart", {
+      bubbles: true,
+    }));
+
+    const compositionText = document.getSelection()?.anchorNode;
+    const compositionHost = compositionText?.parentElement;
+    expect(compositionText?.textContent).toBe("\u200b");
+    expect(compositionHost?.dataset.markraTableCaretHost).toBe("true");
+
+    if (compositionText) compositionText.textContent = "\u200b苏打水";
+    table?.dispatchEvent(new InputEvent("input", {
+      bubbles: true,
+      data: "苏打水",
+      inputType: "insertCompositionText",
+      isComposing: true,
+    }));
+    expect(view.state.doc.toString()).toBe(doc);
+
+    table?.dispatchEvent(new CompositionEvent("compositionend", {
+      bubbles: true,
+      data: "苏打水",
+    }));
+    await Promise.resolve();
+
+    expect(view.state.doc.toString()).toContain("| 1 | 苏打水 |");
+    expect(view.dom.querySelectorAll(".cm-markra-table thead th")).toHaveLength(2);
+    expect(view.dom.querySelectorAll(".cm-markra-table tbody td")).toHaveLength(2);
+  });
+
   it("commits a visual table cell after IME composition finishes", async () => {
     const doc = [
       "| Name | Value |",
