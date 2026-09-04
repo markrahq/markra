@@ -93,6 +93,49 @@ describe("frontmatterPreviewPlugin", () => {
     expect(view.dom.ownerDocument.activeElement).toBe(editor);
   });
 
+  it("defers frontmatter document updates until IME composition ends", () => {
+    const source = ["+++", 'title = ""', "+++", "", "# Body"].join("\n");
+    const view = createView(source);
+    const editor = view.dom.querySelector<HTMLTextAreaElement>(
+      ".cm-markra-frontmatter-editor",
+    );
+
+    editor?.focus();
+    editor?.dispatchEvent(new CompositionEvent("compositionstart", {
+      bubbles: true,
+    }));
+    if (editor) {
+      editor.value = 'title = "shili"';
+      editor.dispatchEvent(new InputEvent("input", {
+        bubbles: true,
+        data: "shili",
+        inputType: "insertCompositionText",
+        isComposing: true,
+      }));
+    }
+
+    expect(view.state.doc.toString()).toBe(source);
+    expect(view.dom.ownerDocument.activeElement).toBe(editor);
+
+    if (editor) {
+      editor.value = 'title = "示例"';
+      editor.setSelectionRange(editor.value.length, editor.value.length);
+      editor.dispatchEvent(new CompositionEvent("compositionend", {
+        bubbles: true,
+        data: "示例",
+      }));
+    }
+
+    expect(view.state.doc.toString()).toBe([
+      "+++",
+      'title = "示例"',
+      "+++",
+      "",
+      "# Body",
+    ].join("\n"));
+    expect(view.dom.ownerDocument.activeElement).toBe(editor);
+  });
+
   it("ignores non-leading or malformed metadata", () => {
     const malformed = createView('{"title":"Synthetic",}\n\n# Body');
     const nonLeading = createView("# Intro\n\n---\ntitle: Synthetic\n---");
