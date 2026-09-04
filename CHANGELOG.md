@@ -1,3 +1,10 @@
+## [2.10.3](https://github.com/markrahq/markra/compare/v2.10.2...v2.10.3) (2026-09-04)
+
+### Bug Fixes
+
+* **editor:** keep IME input inside table headers ([#709](https://github.com/markrahq/markra/issues/709)) ([11610d2](https://github.com/markrahq/markra/commit/11610d24793494ea53590b24359711a2c855224b))
+* stabilize Windows frontmatter input and window sizing ([#707](https://github.com/markrahq/markra/issues/707)) ([c5ffb7a](https://github.com/markrahq/markra/commit/c5ffb7a52e860f19b4dbf0e8800eb27160c0ed34)), closes [#706](https://github.com/markrahq/markra/issues/706)
+
 ## [2.10.2](https://github.com/markrahq/markra/compare/v2.10.1...v2.10.2) (2026-08-30)
 
 ### Bug Fixes
