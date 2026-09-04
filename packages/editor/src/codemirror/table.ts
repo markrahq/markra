@@ -756,6 +756,28 @@ function repairVisualTableCellSelection(
   }
 }
 
+function stabilizeVisualTableCompositionCaret(
+  view: CodeMirrorView,
+  table: HTMLTableElement,
+) {
+  const cell = activeVisualTableCell(view, table);
+  if (!cell || visualTableCellSource(cell) !== "") return;
+
+  // An empty Text node is a valid DOM range but WebKit may move IME text to
+  // the surrounding table row. A zero-width span keeps the native insertion
+  // point inside the empty cell and is stripped when Markdown is serialized.
+  const caretHost = createVisualTableCaretHost(cell.ownerDocument);
+  cell.replaceChildren(caretHost.host);
+  cell.focus();
+  const selection = cell.ownerDocument.getSelection();
+  if (!selection) return;
+  const range = cell.ownerDocument.createRange();
+  range.setStart(caretHost.text, TABLE_CARET_PLACEHOLDER.length);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
 function moveVisualTableCellFocus(
   view: CodeMirrorView,
   table: HTMLTableElement,
@@ -1793,12 +1815,14 @@ class TableWidget extends WidgetType {
         event.stopPropagation();
         return;
       }
-      if (event instanceof InputEvent && event.isComposing) return;
+      // WebKit can lift the range from a header cell after compositionstart.
+      // Repair only escaped ranges so the IME never inserts outside the cell.
       repairVisualTableCellSelection(view, table);
     });
     table.addEventListener("compositionstart", (event) => {
       event.stopPropagation();
       repairVisualTableCellSelection(view, table);
+      stabilizeVisualTableCompositionCaret(view, table);
       composing = true;
     });
     table.addEventListener("compositionend", (event) => {
