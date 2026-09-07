@@ -82,7 +82,7 @@ test("generate-homebrew-cask writes a dual-architecture cask from macOS DMGs", (
   assert.match(cask, new RegExp(`sha256 arm: "${sha256(armContent)}"`));
   assert.match(cask, new RegExp(`intel: "${sha256(intelContent)}"`));
   assert.match(cask, /url "https:\/\/github\.com\/markrahq\/markra\/releases\/download\/v#\{version\}\/Markra_#\{version\}_macos_#\{arch\}\.dmg"/);
-  assert.match(cask, /verified: "github\.com\/markrahq\/markra\/"/);
+  assert.doesNotMatch(cask, /verified:/);
   assert.match(cask, /name "Markra"/);
   assert.match(cask, /desc "AI-native Markdown editor"/);
   assert.match(cask, /homepage "https:\/\/github\.com\/markrahq\/markra"/);
