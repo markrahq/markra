@@ -56,6 +56,12 @@ export function normalizeAiSettings(value: unknown): AiProviderSettings {
   const providers = value.providers.map(normalizeProvider).filter((provider): provider is AiProviderConfig => Boolean(provider));
   if (providers.length === 0) return createDefaultAiSettings();
 
+  // Existing settings predate this catalog entry; append it without replacing saved providers or selections.
+  const orcaRouterTemplate = defaultProviderTemplateForProviderId("orcarouter");
+  if (orcaRouterTemplate && !providers.some((provider) => provider.id === orcaRouterTemplate.id)) {
+    providers.push(cloneProvider(orcaRouterTemplate));
+  }
+
   const defaultProviderId =
     typeof value.defaultProviderId === "string" && providers.some((provider) => provider.id === value.defaultProviderId)
       ? value.defaultProviderId

@@ -1,6 +1,81 @@
-import { normalizeAiSettings } from "./settings";
+import { createDefaultAiSettings, normalizeAiSettings } from "./settings";
 
 describe("AI provider settings", () => {
+  it("adds disabled OrcaRouter to existing settings without changing saved providers or selections", () => {
+    const saved = {
+      defaultProviderId: "custom-provider-1",
+      defaultModelId: "mock-writer",
+      inlineDefaultProviderId: "custom-provider-1",
+      inlineDefaultModelId: "mock-writer",
+      agentDefaultProviderId: "custom-provider-1",
+      agentDefaultModelId: "mock-agent",
+      providers: [{
+        apiKey: "mock-key",
+        apiStyle: "openai-compatible" as const,
+        baseUrl: "https://gateway.example.test/v1",
+        customHeaders: '{"X-Test":"mock"}',
+        defaultModelId: "mock-writer",
+        enabled: true,
+        id: "custom-provider-1",
+        models: [
+          { capabilities: ["text"], enabled: true, id: "mock-writer", name: "Mock Writer" },
+          { capabilities: ["text", "tools"], enabled: true, id: "mock-agent", name: "Mock Agent" }
+        ],
+        name: "Mock Gateway",
+        type: "openai-compatible" as const
+      }]
+    };
+
+    const settings = normalizeAiSettings(saved);
+    const { providers: savedProviders, ...selections } = saved;
+    expect(settings).toMatchObject(selections);
+    expect(settings.providers[0]).toEqual(savedProviders[0]);
+    expect(settings.providers).toHaveLength(2);
+    expect(settings.providers[1]).toMatchObject({
+      apiKey: "",
+      apiStyle: "openai-compatible",
+      baseUrl: "https://api.orcarouter.ai/v1",
+      defaultModelId: "orcarouter/auto",
+      enabled: false,
+      id: "orcarouter",
+      name: "OrcaRouter",
+      type: "openai-compatible"
+    });
+    expect(saved.providers).toHaveLength(1);
+    expect(normalizeAiSettings(settings)).toEqual(settings);
+  });
+
+  it("preserves saved OrcaRouter configuration without duplicating or resetting it", () => {
+    const saved = {
+      defaultProviderId: "orcarouter",
+      defaultModelId: "mock/model",
+      providers: [{
+        apiKey: "mock-orca-key",
+        baseUrl: "https://orca.example.test/v1",
+        defaultModelId: "mock/model",
+        enabled: true,
+        id: "orcarouter",
+        models: [{ capabilities: ["text"], enabled: true, id: "mock/model", name: "Mock model" }],
+        name: "My router",
+        type: "openai-compatible"
+      }]
+    };
+    const settings = normalizeAiSettings(saved);
+    expect(settings.providers).toHaveLength(1);
+    expect(settings.providers[0]).toMatchObject(saved.providers[0]);
+    expect(settings.defaultModelId).toBe("mock/model");
+  });
+
+  it("includes an independent OrcaRouter configuration in each fresh settings object", () => {
+    const first = createDefaultAiSettings().providers.find((provider) => provider.id === "orcarouter");
+    const second = createDefaultAiSettings().providers.find((provider) => provider.id === "orcarouter");
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(first?.models).not.toBe(second?.models);
+    expect(first).toMatchObject({ enabled: false, apiKey: "", defaultModelId: "orcarouter/auto" });
+    expect(first?.models.some((model) => model.enabled && model.id === first.defaultModelId)).toBe(true);
+  });
+
   it("normalizes legacy provider types into the new request API styles", () => {
     const settings = normalizeAiSettings({
       defaultProviderId: "openai",

@@ -23,6 +23,7 @@ const defaultByApiStyle: Record<AiProviderApiStyle, ProviderCapabilities> = {
 };
 
 const providerOverrides: Record<string, Partial<ProviderCapabilities>> = {
+  orcarouter: { modelList: true },
   "aliyun-bailian": { modelList: true, toolCalling: true },
   volcengine: { modelList: true, toolCalling: true },
   "xiaomi-mimo": { modelList: true, toolCalling: true }

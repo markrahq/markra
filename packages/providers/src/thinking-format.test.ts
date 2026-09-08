@@ -20,6 +20,17 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
 }
 
 describe("provider thinking formats", () => {
+  it.each(["mock/writer", "anthropic/claude-test", "google/gemini-test", "qwen/qwen3-test", "deepseek/deepseek-v4-test"])(
+    "uses OrcaRouter reasoning effort for %s without upstream-specific thinking fields",
+    (model) => {
+      const config = provider({ id: "orcarouter", type: "openai-compatible", baseUrl: "https://orca.example.test/v1" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: true })).toEqual({ reasoning_effort: "high" });
+      // The gateway documents positive effort values, but no portable way to disable upstream reasoning.
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: false })).toEqual({});
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, {})).toEqual({});
+    }
+  );
+
   it("resolves OpenAI-compatible thinking formats before request shaping", () => {
     expect(getOpenAiCompatibleThinkingFormat(provider({ type: "ollama" }), "llama3.3", true)).toBe("ollama-think");
     expect(getOpenAiCompatibleThinkingFormat(provider({

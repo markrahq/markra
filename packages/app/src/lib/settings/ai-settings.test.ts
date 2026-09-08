@@ -142,7 +142,7 @@ describe("AI settings", () => {
     const settings = await getStoredAiSettings();
 
     expect(settings.defaultProviderId).toBe("custom-provider-1");
-    expect(settings.providers.map((provider) => provider.id)).toEqual(["custom-provider-1"]);
+    expect(settings.providers.map((provider) => provider.id)).toEqual(["custom-provider-1", "orcarouter"]);
     expect(settings.providers[0]?.type).toBe("openai-compatible");
   });
 

@@ -8,6 +8,7 @@ import mistralLogo from "../assets/provider-logos/mistral.svg";
 import ollamaLogo from "../assets/provider-logos/ollama.svg";
 import openAiLogo from "../assets/provider-logos/openai.svg";
 import openRouterLogo from "../assets/provider-logos/openrouter.svg";
+import orcaRouterLogo from "../assets/provider-logos/orcarouter.png";
 import qwenLogo from "../assets/provider-logos/qwen.svg";
 import togetherLogo from "../assets/provider-logos/together.svg";
 import volcengineLogo from "../assets/provider-logos/volcengine.svg";
@@ -32,6 +33,7 @@ const providerLogoByType: Partial<Record<AiProviderApiStyle, string>> = {
 };
 
 const providerLogoById: Partial<Record<string, string>> = {
+  orcarouter: orcaRouterLogo,
   "aliyun-bailian": qwenLogo,
   "volcengine": volcengineLogo,
   "xiaomi-mimo": xiaomiMimoLogo

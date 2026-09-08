@@ -156,6 +156,22 @@ export const defaultProviderTemplates: AiProviderConfigSeed[] = [
   },
   {
     apiKey: "",
+    baseUrl: "https://api.orcarouter.ai/v1",
+    defaultModelId: "orcarouter/auto",
+    enabled: false,
+    id: "orcarouter",
+    models: [
+      { capabilities: ["text", "tools"], enabled: true, id: "orcarouter/auto", name: "OrcaRouter Auto" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "openai/gpt-5.5", name: "GPT-5.5" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "anthropic/claude-sonnet-4.6", name: "Claude Sonnet 4.6" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "google/gemini-3.1-pro-preview", name: "Gemini 3.1 Pro Preview" }
+    ],
+    name: "OrcaRouter",
+    apiStyle: "openai-compatible",
+    type: "openai-compatible"
+  },
+  {
+    apiKey: "",
     baseUrl: "https://api.together.xyz/v1",
     defaultModelId: "moonshotai/Kimi-K2.6",
     enabled: false,
