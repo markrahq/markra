@@ -74,8 +74,7 @@ function renderCask({ armSha256, intelSha256, repository, version }) {
   sha256 arm: "${armSha256}",
          intel: "${intelSha256}"
 
-  url "https://github.com/${repository}/releases/download/v#{version}/Markra_#{version}_macos_#{arch}.dmg",
-      verified: "github.com/${repository}/"
+  url "https://github.com/${repository}/releases/download/v#{version}/Markra_#{version}_macos_#{arch}.dmg"
 
   name "Markra"
   desc "AI-native Markdown editor"
