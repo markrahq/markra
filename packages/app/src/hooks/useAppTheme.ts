@@ -119,7 +119,11 @@ export function useAppTheme() {
   );
   const [customThemeCss, setCustomThemeCss] = useState<CustomThemeCssValues>(defaultCustomThemeCssValues);
   const [systemTheme, setSystemTheme] = useState<ResolvedAppTheme>(() => getSystemTheme());
-  const [themePreferencesReady, setThemePreferencesReady] = useState(() => startupThemePreferencesRef.current !== null);
+  // Editor startup parameters seed the first paint, but omit settings such as customThemeEnabled.
+  // Wait for the complete store before revealing an editor that may need custom CSS.
+  const [themePreferencesReady, setThemePreferencesReady] = useState(() =>
+    startupThemePreferencesRef.current !== null && new URLSearchParams(window.location.search).has("settings")
+  );
   const [customThemeCssReady, setCustomThemeCssReady] = useState(false);
   const liveCustomThemeCssReceivedRef = useRef(false);
   const liveThemePreferencesReceivedRef = useRef(false);

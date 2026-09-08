@@ -2526,6 +2526,50 @@ describe("Markra workspace", () => {
     await waitFor(() => expect(mockedShowNativeWindow).toHaveBeenCalledTimes(1));
   });
 
+  it("keeps an editor hidden until stored preferences and custom CSS replace its startup palette", async () => {
+    mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
+    mockSystemColorScheme(true);
+    window.history.replaceState(
+      {}, "", "/?startupAppearanceMode=light&startupLightTheme=light&startupDarkTheme=dark"
+    );
+    let resolvePreferences!: (preferences: {
+      appearanceMode: "light";
+      customThemeEnabled: true;
+      lightTheme: "light";
+      darkTheme: "dark";
+    }) => unknown;
+    let resolveCss!: (css: { light: string; dark: string }) => unknown;
+    mockedGetStoredThemePreferences.mockReturnValue(new Promise((resolve) => {
+      resolvePreferences = resolve;
+    }));
+    mockedGetStoredCustomThemeCss.mockReturnValue(new Promise((resolve) => {
+      resolveCss = resolve;
+    }));
+
+    renderApp();
+
+    await waitFor(() => expect(mockedGetStoredThemePreferences).toHaveBeenCalled());
+    expect(document.documentElement).toHaveAttribute("data-theme", "light");
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 160));
+    });
+    expect(mockedShowNativeWindow).not.toHaveBeenCalled();
+
+    act(() => {
+      resolvePreferences({
+        appearanceMode: "light", customThemeEnabled: true, lightTheme: "light", darkTheme: "dark"
+      });
+    });
+    await waitFor(() => expect(document.documentElement).toHaveAttribute("data-theme", "custom"));
+    expect(mockedShowNativeWindow).not.toHaveBeenCalled();
+
+    act(() => {
+      resolveCss({ light: ':root[data-theme="custom"] { --bg-primary: #fdf6e3; }', dark: "" });
+    });
+    await waitFor(() => expect(mockedShowNativeWindow).toHaveBeenCalledTimes(1));
+    expect(document.getElementById("markra-custom-theme-style")).toHaveTextContent("#fdf6e3");
+  });
+
   it("prewarms the settings window after workspace startup is ready", async () => {
     mockedConsumeWelcomeDocumentState.mockResolvedValue(false);
 

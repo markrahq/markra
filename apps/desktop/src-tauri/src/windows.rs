@@ -26,7 +26,10 @@ use objc2_app_kit::{NSWindow, NSWindowStyleMask};
 use serde_json::{Map, Value};
 #[cfg(target_os = "macos")]
 use tauri::TitleBarStyle;
-use tauri::{utils::config::Color, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    utils::config::{Color, Config, WindowConfig},
+    Emitter, Manager, WebviewUrl, WebviewWindowBuilder,
+};
 
 const BLANK_EDITOR_WINDOW_LABEL_PREFIX: &str = "markra-editor-";
 const BLANK_EDITOR_WINDOW_URL: &str = "index.html?blank=1";
@@ -89,14 +92,14 @@ fn settings_window_runtime_state() -> &'static Mutex<SettingsWindowRuntimeState>
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct SettingsWindowStartupPreferences {
+struct WindowStartupPreferences {
     language: AppLanguage,
     appearance_mode: String,
     light_theme: String,
     dark_theme: String,
 }
 
-impl SettingsWindowStartupPreferences {
+impl WindowStartupPreferences {
     fn default_for_language(language: AppLanguage) -> Self {
         Self {
             language,
@@ -107,7 +110,7 @@ impl SettingsWindowStartupPreferences {
     }
 }
 
-impl Default for SettingsWindowStartupPreferences {
+impl Default for WindowStartupPreferences {
     fn default() -> Self {
         Self::default_for_language(AppLanguage::En)
     }
@@ -447,7 +450,7 @@ fn normalized_settings_window_target(target: Option<&str>) -> Option<&'static st
 }
 
 fn append_url_query_param(url: &mut String, key: &str, value: &str) {
-    url.push('&');
+    url.push(if url.contains('?') { '&' } else { '?' });
     url.push_str(key);
     url.push('=');
     url.push_str(&encode_url_query_component(value));
@@ -483,8 +486,8 @@ fn is_dark_editor_theme(value: &str) -> bool {
 fn legacy_theme_preferences(
     language: AppLanguage,
     theme: Option<&str>,
-) -> SettingsWindowStartupPreferences {
-    let mut preferences = SettingsWindowStartupPreferences::default_for_language(language);
+) -> WindowStartupPreferences {
+    let mut preferences = WindowStartupPreferences::default_for_language(language);
     let Some(theme) = theme else {
         return preferences;
     };
@@ -507,13 +510,13 @@ fn legacy_theme_preferences(
     preferences
 }
 
-fn settings_window_startup_preferences(identifier: &str) -> SettingsWindowStartupPreferences {
+fn window_startup_preferences(identifier: &str) -> WindowStartupPreferences {
     let language = resolve_startup_language(identifier);
     let Some(settings_path) = settings_store_path(identifier) else {
-        return SettingsWindowStartupPreferences::default_for_language(language);
+        return WindowStartupPreferences::default_for_language(language);
     };
     let Some(settings) = read_settings_object(&settings_path) else {
-        return SettingsWindowStartupPreferences::default_for_language(language);
+        return WindowStartupPreferences::default_for_language(language);
     };
 
     let mut preferences = legacy_theme_preferences(
@@ -544,7 +547,7 @@ fn settings_window_startup_preferences(identifier: &str) -> SettingsWindowStartu
 
 fn settings_window_url(
     target: Option<&str>,
-    startup_preferences: &SettingsWindowStartupPreferences,
+    startup_preferences: &WindowStartupPreferences,
 ) -> String {
     let mut url = SETTINGS_WINDOW_URL.to_string();
 
@@ -553,21 +556,7 @@ fn settings_window_url(
         SETTINGS_STARTUP_LANGUAGE_PARAM,
         startup_preferences.language.as_code(),
     );
-    append_url_query_param(
-        &mut url,
-        SETTINGS_STARTUP_APPEARANCE_MODE_PARAM,
-        &startup_preferences.appearance_mode,
-    );
-    append_url_query_param(
-        &mut url,
-        SETTINGS_STARTUP_LIGHT_THEME_PARAM,
-        &startup_preferences.light_theme,
-    );
-    append_url_query_param(
-        &mut url,
-        SETTINGS_STARTUP_DARK_THEME_PARAM,
-        &startup_preferences.dark_theme,
-    );
+    append_startup_theme_params(&mut url, startup_preferences);
 
     if let Some(target) = normalized_settings_window_target(target) {
         append_url_query_param(&mut url, "settingsTarget", target);
@@ -576,13 +565,72 @@ fn settings_window_url(
     url
 }
 
+fn append_startup_theme_params(url: &mut String, startup_preferences: &WindowStartupPreferences) {
+    append_url_query_param(
+        url,
+        SETTINGS_STARTUP_APPEARANCE_MODE_PARAM,
+        &startup_preferences.appearance_mode,
+    );
+    append_url_query_param(
+        url,
+        SETTINGS_STARTUP_LIGHT_THEME_PARAM,
+        &startup_preferences.light_theme,
+    );
+    append_url_query_param(
+        url,
+        SETTINGS_STARTUP_DARK_THEME_PARAM,
+        &startup_preferences.dark_theme,
+    );
+}
+
+fn apply_editor_startup_preferences(
+    config: &mut WindowConfig,
+    platform: &str,
+    startup_preferences: &WindowStartupPreferences,
+) {
+    if let WebviewUrl::App(path) = &config.url {
+        let mut url = path.to_string_lossy().into_owned();
+        append_startup_theme_params(&mut url, startup_preferences);
+        config.url = WebviewUrl::App(url.into());
+    }
+
+    // Set both the native and WebView background before either can paint. Leave the
+    // native theme alone so matchMedia still observes system changes after startup.
+    if startup_preferences.appearance_mode != "system" {
+        config.background_color = window_startup_background_color(platform, startup_preferences);
+    }
+}
+
+pub(crate) fn configure_editor_startup(config: &mut Config) {
+    let preferences = window_startup_preferences(&config.identifier);
+    for window in &mut config.app.windows {
+        if is_editor_window_label(&window.label) {
+            apply_editor_startup_preferences(
+                window,
+                current_window_chrome_platform(),
+                &preferences,
+            );
+        }
+    }
+}
+
 fn spawn_editor_window_with_label<R>(app: tauri::AppHandle<R>, label: String, url: String)
 where
     R: tauri::Runtime,
 {
     // Create editor windows off the menu/reopen event thread to avoid WebView2 deadlocks on Windows.
     std::thread::spawn(move || {
-        let builder = WebviewWindowBuilder::new(&app, label, WebviewUrl::App(url.into()))
+        let mut startup_config = WindowConfig {
+            url: WebviewUrl::App(url.into()),
+            ..Default::default()
+        };
+        let preferences = window_startup_preferences(&app.config().identifier);
+        apply_editor_startup_preferences(
+            &mut startup_config,
+            current_window_chrome_platform(),
+            &preferences,
+        );
+        let builder = WebviewWindowBuilder::new(&app, label, startup_config.url)
             .title("")
             .inner_size(1360.0, 800.0)
             .min_inner_size(360.0, 320.0)
@@ -590,6 +638,12 @@ where
             .transparent(editor_window_transparent())
             .shadow(true)
             .center();
+
+        let builder = if let Some(color) = startup_config.background_color {
+            builder.background_color(color)
+        } else {
+            builder
+        };
 
         #[cfg(target_os = "macos")]
         let builder = builder
@@ -743,9 +797,7 @@ fn settings_window_visible() -> bool {
     false
 }
 
-fn settings_window_resolved_appearance(
-    startup_preferences: &SettingsWindowStartupPreferences,
-) -> &str {
+fn window_startup_appearance(startup_preferences: &WindowStartupPreferences) -> &str {
     if startup_preferences.appearance_mode == "light" {
         return "light";
     }
@@ -753,15 +805,15 @@ fn settings_window_resolved_appearance(
     "dark"
 }
 
-fn settings_window_background_color_for_preferences(
+fn window_startup_background_color(
     platform: &str,
-    startup_preferences: &SettingsWindowStartupPreferences,
+    startup_preferences: &WindowStartupPreferences,
 ) -> Option<Color> {
     if let Some(color) = transparent_window_background_color_for_platform(platform) {
         return Some(color);
     }
 
-    if settings_window_resolved_appearance(startup_preferences) == "light" {
+    if window_startup_appearance(startup_preferences) == "light" {
         return Some(Color(255, 255, 255, 255));
     }
 
@@ -1172,7 +1224,7 @@ fn spawn_settings_window_with_mode<R>(
 
         let (width, height) = settings_window_inner_size();
         let (min_width, min_height) = settings_window_min_inner_size();
-        let startup_preferences = settings_window_startup_preferences(&identifier);
+        let startup_preferences = window_startup_preferences(&identifier);
 
         let builder = WebviewWindowBuilder::new(
             &app,
@@ -1198,10 +1250,9 @@ fn spawn_settings_window_with_mode<R>(
             }
         };
 
-        let builder = if let Some(color) = settings_window_background_color_for_preferences(
-            current_window_chrome_platform(),
-            &startup_preferences,
-        ) {
+        let builder = if let Some(color) =
+            window_startup_background_color(current_window_chrome_platform(), &startup_preferences)
+        {
             builder.background_color(color)
         } else {
             builder
@@ -1746,20 +1797,81 @@ mod tests {
     }
 
     #[test]
+    fn editor_startup_uses_saved_appearance_before_window_creation() {
+        for (appearance, background) in [
+            ("light", Some(Color(255, 255, 255, 255))),
+            ("dark", Some(Color(30, 30, 30, 255))),
+            ("system", None),
+        ] {
+            let preferences = WindowStartupPreferences {
+                appearance_mode: appearance.to_string(),
+                light_theme: "sepia".to_string(),
+                dark_theme: "night".to_string(),
+                ..Default::default()
+            };
+            let mut config = tauri::utils::config::WindowConfig {
+                url: WebviewUrl::App("index.html?path=%2Fmock%20notes%2Fnote.md".into()),
+                visible: false,
+                width: 913.0,
+                ..Default::default()
+            };
+
+            apply_editor_startup_preferences(&mut config, "windows", &preferences);
+
+            assert_eq!(config.background_color, background);
+            // Keep matchMedia connected to the real system theme after switching back to system.
+            assert_eq!(config.theme, None);
+            assert!(!config.visible);
+            assert_eq!(config.width, 913.0);
+            assert_eq!(config.url, WebviewUrl::App(format!(
+                "index.html?path=%2Fmock%20notes%2Fnote.md&startupAppearanceMode={appearance}&startupLightTheme=sepia&startupDarkTheme=night"
+            ).into()));
+        }
+    }
+
+    #[test]
+    fn editor_startup_supports_main_and_blank_window_urls() {
+        for (url, expected_prefix) in [
+            ("index.html", "index.html?startupAppearanceMode=light"),
+            (
+                "index.html?blank=1",
+                "index.html?blank=1&startupAppearanceMode=light",
+            ),
+        ] {
+            let mut config = tauri::utils::config::WindowConfig {
+                url: WebviewUrl::App(url.into()),
+                ..Default::default()
+            };
+            let preferences = WindowStartupPreferences {
+                appearance_mode: "light".to_string(),
+                ..Default::default()
+            };
+
+            apply_editor_startup_preferences(&mut config, "macos", &preferences);
+
+            assert_eq!(config.background_color, Some(Color(255, 255, 255, 0)));
+            let WebviewUrl::App(path) = config.url else {
+                panic!("expected app URL")
+            };
+            assert!(path.to_str().unwrap().starts_with(expected_prefix));
+        }
+    }
+
+    #[test]
     fn settings_window_background_matches_current_platform_strategy() {
         assert!(settings_window_shadow());
-        let startup_preferences = SettingsWindowStartupPreferences::default();
+        let startup_preferences = WindowStartupPreferences::default();
 
         assert_eq!(
-            settings_window_background_color_for_preferences("macos", &startup_preferences),
+            window_startup_background_color("macos", &startup_preferences),
             Some(Color(255, 255, 255, 0))
         );
         assert_eq!(
-            settings_window_background_color_for_preferences("windows", &startup_preferences),
+            window_startup_background_color("windows", &startup_preferences),
             Some(Color(30, 30, 30, 255))
         );
 
-        let light_startup_preferences = SettingsWindowStartupPreferences {
+        let light_startup_preferences = WindowStartupPreferences {
             language: AppLanguage::En,
             appearance_mode: "light".to_string(),
             light_theme: "light".to_string(),
@@ -1767,7 +1879,7 @@ mod tests {
         };
 
         assert_eq!(
-            settings_window_background_color_for_preferences("windows", &light_startup_preferences),
+            window_startup_background_color("windows", &light_startup_preferences),
             Some(Color(255, 255, 255, 255))
         );
     }
@@ -1817,7 +1929,7 @@ mod tests {
 
     #[test]
     fn targets_export_pandoc_settings_from_window_url() {
-        let startup_preferences = SettingsWindowStartupPreferences {
+        let startup_preferences = WindowStartupPreferences {
             language: AppLanguage::ZhCn,
             appearance_mode: "dark".to_string(),
             light_theme: "sepia".to_string(),
@@ -1833,7 +1945,7 @@ mod tests {
     #[test]
     fn settings_window_url_uses_default_startup_preferences() {
         assert_eq!(
-            settings_window_url(None, &SettingsWindowStartupPreferences::default()),
+            settings_window_url(None, &WindowStartupPreferences::default()),
             "index.html?settings=1&startupLanguage=en&startupAppearanceMode=system&startupLightTheme=light&startupDarkTheme=dark"
         );
     }
@@ -1842,7 +1954,7 @@ mod tests {
     fn legacy_theme_preferences_preserve_old_theme_settings() {
         assert_eq!(
             legacy_theme_preferences(AppLanguage::En, Some("night")),
-            SettingsWindowStartupPreferences {
+            WindowStartupPreferences {
                 language: AppLanguage::En,
                 appearance_mode: "dark".to_string(),
                 light_theme: "light".to_string(),
@@ -1851,7 +1963,7 @@ mod tests {
         );
         assert_eq!(
             legacy_theme_preferences(AppLanguage::En, Some("sepia")),
-            SettingsWindowStartupPreferences {
+            WindowStartupPreferences {
                 language: AppLanguage::En,
                 appearance_mode: "light".to_string(),
                 light_theme: "sepia".to_string(),
