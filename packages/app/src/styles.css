@@ -3895,6 +3895,10 @@
     text-align: center;
   }
 
+  .markdown-paper .cm-content .markra-math-render-display {
+    --markra-math-block-spacing: 0.85em;
+  }
+
   .markdown-paper .markra-math-render-display .katex-display {
     margin: 0;
     overflow-x: auto;

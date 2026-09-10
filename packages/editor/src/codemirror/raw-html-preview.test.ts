@@ -56,6 +56,20 @@ afterEach(() => {
 });
 
 describe("rawHtmlPreviewPlugin", () => {
+  it("reveals source and updates its selection before focusing the editor", () => {
+    const doc = "Before\n\n<table>\n<tr><td>Mock</td></tr>\n</table>\n\nAfter";
+    const from = doc.indexOf("<table>");
+    const view = createView(doc, rawHtmlPreviewPlugin(), 0);
+    view.contentDOM.blur();
+    const focused: Array<{ head: number; preview: boolean }> = [];
+    view.contentDOM.addEventListener("focus", () => focused.push({
+      head: view.state.selection.main.head,
+      preview: Boolean(view.dom.querySelector(".markra-html-node table")),
+    }));
+    view.dom.querySelector<HTMLButtonElement>('[data-action="source"]')!.click();
+    expect(focused).toEqual([{ head: from, preview: false }]);
+  });
+
   it("keeps explicitly opened HTML source visible at both block boundaries", () => {
     const source = "<table>\n<tr><td>Synthetic</td></tr>\n</table>";
     const doc = `Before\n\n${source}\n\nAfter`;

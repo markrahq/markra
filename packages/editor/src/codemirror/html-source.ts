@@ -37,10 +37,10 @@ export const htmlSourceEditing = StateField.define<HtmlSourceRange | null>({
 });
 
 export function revealHtmlSource(view: EditorView, range: HtmlSourceRange) {
-  view.focus();
   view.dispatch({
     effects: openHtmlSource.of(range),
     selection: { anchor: range.from },
     scrollIntoView: true,
   });
+  view.focus();
 }
