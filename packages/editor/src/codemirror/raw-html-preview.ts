@@ -17,6 +17,7 @@ import { defineMarkraPlugin } from "./plugin.ts";
 import { cursorInsideRange, selectionChangeAffectsReveal } from "./policy.ts";
 import { syntaxTreeChanged, updateChangesStayAfter } from "./changes.ts";
 import { createHtmlTableWidget, type HtmlTableLabels } from "./html-table-widget.ts";
+import { htmlSourceEditing, revealHtmlSource } from "./html-source.ts";
 
 export interface RawHtmlPreviewPluginOptions {
   resolveImageSrc?: ResolveRawHtmlSrc;
@@ -178,14 +179,6 @@ function inlineHtmlRanges(
   return ranges.sort((left, right) => left.from - right.from);
 }
 
-function activateHtml(view: CodeMirrorView, range: CodeMirrorHtmlRange) {
-  view.dispatch({
-    selection: { anchor: Math.min(range.to - 1, range.from + 1) },
-    scrollIntoView: true,
-  });
-  view.focus();
-}
-
 class RawHtmlWidget extends WidgetType {
   constructor(
     readonly range: CodeMirrorHtmlRange,
@@ -225,7 +218,7 @@ class RawHtmlWidget extends WidgetType {
     const activate = (event: Event) => {
       event.preventDefault();
       event.stopPropagation();
-      activateHtml(view, this.range);
+      revealHtmlSource(view, this.range);
     };
     root.addEventListener("mousedown", activate);
     root.addEventListener("keydown", (event) => {
@@ -269,8 +262,10 @@ function buildRawHtmlDecorations(
   const htmlRanges = [...blocks, ...inlineHtmlRanges(view, blocks)].sort(
     (left, right) => left.from - right.from,
   );
+  const editing = view.state.field(htmlSourceEditing, false);
 
   for (const range of htmlRanges) {
+    if (editing && editing.from < range.to && editing.to > range.from) continue;
     if (cursorInsideRange(view, range.from, range.to)) continue;
     const widget = createHtmlTableWidget(range, view, options) ?? new RawHtmlWidget(range, options);
     if (range.block && range.source.includes("\n")) {
@@ -327,6 +322,7 @@ export function rawHtmlPreviewPlugin(
   return defineMarkraPlugin({
     id: "markra.raw-html-preview",
     extension: [
+      htmlSourceEditing,
       ViewPlugin.fromClass(
         class {
           decorations: DecorationSet;
@@ -352,6 +348,7 @@ export function rawHtmlPreviewPlugin(
             }
             if (
               update.docChanged ||
+              update.startState.field(htmlSourceEditing) !== update.state.field(htmlSourceEditing) ||
               update.transactions.some(transaction => transaction.reconfigured) ||
               selectionChangeAffectsReveal(update) ||
               update.focusChanged ||

@@ -6,6 +6,7 @@ import {
   type HtmlCellPoint, type HtmlTable,
 } from "../html-table.ts";
 import { attachHtmlColumnResizers } from "./html-table-resize.ts";
+import { revealHtmlSource } from "./html-source.ts";
 
 export interface HtmlTableLabels {
   mergeCells: string;
@@ -208,9 +209,7 @@ export class HtmlTableWidget extends WidgetType {
       this.runtime.composing = null;
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.classList.contains("cm-markra-html-cell-content")) this.commitCell(view, active);
-      const { from, to } = this.runtime.range;
-      view.focus();
-      view.dispatch({ selection: { anchor: Math.min(to - 1, from + 1) }, scrollIntoView: true });
+      revealHtmlSource(view, this.runtime.range);
     });
   }
   private control(document: Document, label: string, action: string, run: () => unknown) {

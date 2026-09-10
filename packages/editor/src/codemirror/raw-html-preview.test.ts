@@ -56,6 +56,50 @@ afterEach(() => {
 });
 
 describe("rawHtmlPreviewPlugin", () => {
+  it("keeps explicitly opened HTML source visible at both block boundaries", () => {
+    const source = "<table>\n<tr><td>Synthetic</td></tr>\n</table>";
+    const doc = `Before\n\n${source}\n\nAfter`;
+    const from = doc.indexOf("<table>");
+    const to = from + source.length;
+    const view = createView(doc);
+    view.dom.querySelector<HTMLButtonElement>('[data-action="source"]')!.click();
+
+    view.dispatch({ selection: EditorSelection.cursor(from) });
+    expect(view.dom.querySelector(".markra-html-node")).toBeNull();
+    expect(view.dom.querySelector(".cm-markra-html-hidden-line")).toBeNull();
+    expect(view.state.selection.main.head).toBe(from);
+
+    view.dispatch({ selection: EditorSelection.cursor(to) });
+    expect(view.dom.querySelector(".markra-html-node")).toBeNull();
+    expect(view.state.doc.toString()).toBe(doc);
+
+    view.dispatch({ selection: EditorSelection.cursor(doc.length) });
+    expect(view.dom.querySelector(".markra-html-node table")).not.toBeNull();
+  });
+
+  it("preserves source intent through boundary edits, selection and blur without changing initial previews", () => {
+    const source = "<table>\n<tr><td>Mock</td></tr>\n</table>";
+    const doc = `${source}\n\nAfter`;
+    const view = createView(doc, rawHtmlPreviewPlugin(), 0);
+    expect(view.dom.querySelector(".markra-html-node table")).not.toBeNull();
+    view.dom.querySelector<HTMLButtonElement>('[data-action="source"]')!.click();
+    view.dispatch({ selection: EditorSelection.cursor(0) });
+    view.contentDOM.blur();
+    view.dispatch({ selection: view.state.selection });
+    expect(view.dom.querySelector(".markra-html-node")).toBeNull();
+
+    view.focus();
+    view.dispatch({ changes: { from: 0, insert: "\n" }, selection: EditorSelection.cursor(0) });
+    expect(view.dom.querySelector(".markra-html-node")).toBeNull();
+    view.dispatch({ changes: { from: 0, to: 1 }, selection: EditorSelection.cursor(0) });
+    view.dispatch({ selection: EditorSelection.range(0, doc.length) });
+    expect(view.dom.querySelector(".markra-html-node")).toBeNull();
+    expect(view.state.doc.toString()).toBe(doc);
+
+    const reopened = createView(doc, rawHtmlPreviewPlugin(), 0);
+    expect(reopened.dom.querySelector(".markra-html-node table")).not.toBeNull();
+  });
+
   it.each(["", "\n"])("renders merged HTML tables and preserves source through editing and recreation (%j)", (separator) => {
     const source = [
       '<div><table><thead><tr><th colspan="2">Synthetic heading</th></tr></thead>',
