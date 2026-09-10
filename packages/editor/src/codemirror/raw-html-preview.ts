@@ -16,9 +16,11 @@ import {
 import { defineMarkraPlugin } from "./plugin.ts";
 import { cursorInsideRange, selectionChangeAffectsReveal } from "./policy.ts";
 import { syntaxTreeChanged, updateChangesStayAfter } from "./changes.ts";
+import { createHtmlTableWidget, type HtmlTableLabels } from "./html-table-widget.ts";
 
 export interface RawHtmlPreviewPluginOptions {
   resolveImageSrc?: ResolveRawHtmlSrc;
+  tableLabels?: Partial<HtmlTableLabels>;
 }
 
 interface CodeMirrorHtmlRange {
@@ -270,7 +272,7 @@ function buildRawHtmlDecorations(
 
   for (const range of htmlRanges) {
     if (cursorInsideRange(view, range.from, range.to)) continue;
-    const widget = new RawHtmlWidget(range, options);
+    const widget = createHtmlTableWidget(range, view, options) ?? new RawHtmlWidget(range, options);
     if (range.block && range.source.includes("\n")) {
       addBlockReplacement(view, ranges, range, widget);
     } else {
@@ -350,6 +352,7 @@ export function rawHtmlPreviewPlugin(
             }
             if (
               update.docChanged ||
+              update.transactions.some(transaction => transaction.reconfigured) ||
               selectionChangeAffectsReveal(update) ||
               update.focusChanged ||
               update.viewportChanged ||

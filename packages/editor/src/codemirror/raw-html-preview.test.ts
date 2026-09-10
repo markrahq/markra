@@ -70,7 +70,7 @@ describe("rawHtmlPreviewPlugin", () => {
     expect(preview?.querySelector("td")?.rowSpan).toBe(2);
     expect(view.state.doc.toString()).toBe(doc);
 
-    preview?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    preview?.querySelector<HTMLButtonElement>('[data-action="source"]')?.click();
     expect(view.dom.querySelector(".markra-html-node table")).toBeNull();
     expect(view.state.doc.toString()).toBe(doc);
 

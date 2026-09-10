@@ -3596,6 +3596,89 @@
     @apply m-0 inline-block max-w-full rounded-none border-0 align-middle;
   }
 
+  .markdown-paper .cm-markra-html-table {
+    @apply my-6;
+  }
+
+  .markdown-paper .cm-markra-html-table-toolbar {
+    @apply flex flex-wrap items-center gap-1 pb-2 text-xs;
+    color: var(--editor-text-primary);
+  }
+
+  .markdown-paper .cm-markra-html-table-toolbar button {
+    @apply rounded px-2 py-1.5 transition-colors;
+  }
+
+  .markdown-paper .cm-markra-html-table-toolbar button:hover:not(:disabled) {
+    background: var(--editor-bg-secondary);
+    color: var(--editor-text-heading);
+  }
+
+  .markdown-paper .cm-markra-html-table-toolbar button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .markdown-paper .cm-markra-html-table-toolbar button:disabled {
+    @apply cursor-default opacity-40;
+  }
+
+  .markdown-paper .cm-markra-html-table-toolbar > span {
+    @apply ml-auto pl-2;
+  }
+
+  .markdown-paper .cm-markra-html-table-grid {
+    @apply relative pt-5;
+  }
+
+  .markdown-paper .cm-markra-html-table table {
+    @apply my-0;
+  }
+
+  .markdown-paper .cm-markra-html-table [data-html-cell] {
+    @apply min-w-12 p-0;
+  }
+
+  .markdown-paper .cm-markra-html-cell-content {
+    @apply min-h-10 px-3 py-2 outline-none;
+  }
+
+  .markdown-paper .cm-markra-html-cell-content:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+  }
+
+  .markdown-paper .cm-markra-html-table [data-selected] {
+    background: color-mix(in srgb, var(--accent) 10%, var(--editor-paper-bg));
+  }
+
+  .markdown-paper .cm-markra-html-column-resize {
+    /* Keep drag targets above cells so invisible boundaries never intercept a merged cell's clicks. */
+    @apply absolute top-0 z-10 h-5 w-2 cursor-col-resize touch-none;
+    transform: translateX(-50%);
+  }
+
+  .markdown-paper .cm-markra-html-column-resize::after {
+    content: "";
+    @apply absolute inset-y-1 left-1/2 w-px;
+    background: var(--editor-border-strong);
+  }
+
+  .markdown-paper .cm-markra-html-column-resize:last-child {
+    transform: translateX(-100%);
+  }
+
+  .markdown-paper .cm-markra-html-column-resize:hover,
+  .markdown-paper .cm-markra-html-column-resize:focus-visible {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    outline: 1px solid var(--accent);
+    outline-offset: -3px;
+  }
+
+  .markdown-paper .cm-markra-html-resizing {
+    @apply cursor-col-resize select-none;
+  }
+
   .markdown-paper .markra-html-node pre {
     white-space: pre-wrap;
   }

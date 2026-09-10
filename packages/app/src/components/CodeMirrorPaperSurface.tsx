@@ -287,6 +287,14 @@ function markdownExtension({
       }),
       rawHtmlPreviewPlugin({
         resolveImageSrc: (source) => resolveImageSrc(source) ?? source,
+        tableLabels: {
+          mergeCells: t(language, "editor.table.mergeCells"),
+          splitCell: t(language, "editor.table.splitCell"),
+          editSource: t(language, "editor.htmlSource"),
+          selectCells: t(language, "editor.table.selectCells"),
+          resizeColumn: t(language, "editor.table.resizeColumn"),
+          cell: t(language, "editor.table.cell"),
+        },
       }),
       tableFragmentMergePlugin({
         label: t(language, "editor.table.mergeFragment"),

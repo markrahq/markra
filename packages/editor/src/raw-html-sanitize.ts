@@ -1,3 +1,5 @@
+import { parseHtmlSpan } from "./html-attributes.ts";
+
 export type ResolveRawHtmlSrc = (src: string) => string;
 
 export interface RawHtmlSanitizeOptions {
@@ -106,6 +108,7 @@ const allowedStyleProperties = new Set([
   "min-height",
   "min-width",
   "text-align",
+  "table-layout",
   "width",
 ]);
 
@@ -183,12 +186,8 @@ function copySanitizedAttribute(
   if (!attributeIsAllowed(tagName, attributeName)) return;
 
   if (allowedTableCellAttributes.has(attributeName) || attributeName === "span") {
-    const source = attributeValue.trim();
-    const span = Number(source);
-    // HTML uses rowspan="0" for all remaining rows in the group; column spans start at 1.
-    const minimum = attributeName === "rowspan" ? 0 : 1;
-    const maximum = attributeName === "rowspan" ? 65534 : 1000;
-    if (/^\d+$/u.test(source) && span >= minimum && span <= maximum) {
+    const span = parseHtmlSpan(attributeName, attributeValue);
+    if (span !== null) {
       element.setAttribute(attributeName, String(span));
     }
     return;
