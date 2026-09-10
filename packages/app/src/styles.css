@@ -3580,6 +3580,18 @@
     white-space: normal;
   }
 
+  .markdown-paper .markra-html-node:has(table) {
+    @apply overflow-x-auto;
+    /* A wide table must scroll here instead of setting CodeMirror's minimum content width. */
+    contain: inline-size;
+  }
+
+  .markdown-paper .markra-html-node table {
+    table-layout: auto;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
   .markdown-paper .markra-html-node img {
     @apply m-0 inline-block max-w-full rounded-none border-0 align-middle;
   }

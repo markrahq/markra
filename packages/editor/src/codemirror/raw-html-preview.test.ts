@@ -56,6 +56,38 @@ afterEach(() => {
 });
 
 describe("rawHtmlPreviewPlugin", () => {
+  it.each(["", "\n"])("renders merged HTML tables and preserves source through editing and recreation (%j)", (separator) => {
+    const source = [
+      '<div><table><thead><tr><th colspan="2">Synthetic heading</th></tr></thead>',
+      '<tbody><tr><td rowspan="2">A</td><td>B</td></tr>',
+      "<tr><td>C</td></tr></tbody></table></div>",
+    ].join(separator);
+    const doc = `${source}\n\nEdit here`;
+    const view = createView(doc);
+    const preview = view.dom.querySelector<HTMLElement>(".markra-html-node");
+
+    expect(preview?.querySelector("th")?.colSpan).toBe(2);
+    expect(preview?.querySelector("td")?.rowSpan).toBe(2);
+    expect(view.state.doc.toString()).toBe(doc);
+
+    preview?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    expect(view.dom.querySelector(".markra-html-node table")).toBeNull();
+    expect(view.state.doc.toString()).toBe(doc);
+
+    const position = doc.indexOf(">B<") + 1;
+    view.dispatch({ changes: { from: position, to: position + 1, insert: "Updated" } });
+    view.dispatch({ selection: EditorSelection.cursor(view.state.doc.length) });
+    const edited = doc.replace(">B<", ">Updated<");
+    expect(view.dom.querySelector("table")?.textContent).toContain("Updated");
+    expect(view.dom.querySelector("td")?.rowSpan).toBe(2);
+    expect(view.state.doc.toString()).toBe(edited);
+
+    const reopened = createView(edited);
+    expect(reopened.dom.querySelector("th")?.colSpan).toBe(2);
+    expect(reopened.dom.querySelector("td")?.rowSpan).toBe(2);
+    expect(reopened.state.doc.toString()).toBe(edited);
+  });
+
   it("renders sanitized block HTML without changing its source", () => {
     const doc = [
       '<div class="example" onclick="alert(1)">',

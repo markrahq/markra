@@ -14,7 +14,10 @@ const allowedRawHtmlTags = new Set([
   "abbr",
   "b",
   "br",
+  "caption",
   "code",
+  "col",
+  "colgroup",
   "del",
   "details",
   "div",
@@ -38,6 +41,13 @@ const allowedRawHtmlTags = new Set([
   "sub",
   "summary",
   "sup",
+  "table",
+  "tbody",
+  "td",
+  "tfoot",
+  "th",
+  "thead",
+  "tr",
   "u",
 ]);
 
@@ -68,6 +78,8 @@ const allowedGlobalAttributes = new Set([
   "width",
 ]);
 const allowedAnchorAttributes = new Set(["href", "name", "rel", "target"]);
+const allowedTableCellAttributes = new Set(["colspan", "rowspan"]);
+const allowedTableScopes = new Set(["row", "col", "rowgroup", "colgroup"]);
 const allowedImageAttributes = new Set([
   "alt",
   "decoding",
@@ -154,6 +166,9 @@ function attributeIsAllowed(tagName: string, attributeName: string) {
   if (attributeName.startsWith("data-")) return true;
   if (allowedGlobalAttributes.has(attributeName)) return true;
   if (tagName === "a" && allowedAnchorAttributes.has(attributeName)) return true;
+  if ((tagName === "td" || tagName === "th") && allowedTableCellAttributes.has(attributeName)) return true;
+  if ((tagName === "col" || tagName === "colgroup") && attributeName === "span") return true;
+  if (tagName === "th" && attributeName === "scope") return true;
   return tagName === "img" && allowedImageAttributes.has(attributeName);
 }
 
@@ -167,6 +182,22 @@ function copySanitizedAttribute(
 ) {
   if (!attributeIsAllowed(tagName, attributeName)) return;
 
+  if (allowedTableCellAttributes.has(attributeName) || attributeName === "span") {
+    const source = attributeValue.trim();
+    const span = Number(source);
+    // HTML uses rowspan="0" for all remaining rows in the group; column spans start at 1.
+    const minimum = attributeName === "rowspan" ? 0 : 1;
+    const maximum = attributeName === "rowspan" ? 65534 : 1000;
+    if (/^\d+$/u.test(source) && span >= minimum && span <= maximum) {
+      element.setAttribute(attributeName, String(span));
+    }
+    return;
+  }
+  if (attributeName === "scope") {
+    const scope = attributeValue.trim().toLowerCase();
+    if (allowedTableScopes.has(scope)) element.setAttribute("scope", scope);
+    return;
+  }
   if (attributeName === "href") {
     if (isSafeRawHtmlUrl(attributeValue, "href")) element.setAttribute("href", attributeValue);
     return;
