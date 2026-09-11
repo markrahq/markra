@@ -191,17 +191,13 @@ describe("HTML table editing widget", () => {
     expect(view.dom.querySelector("col")?.style.width).toBe("150px");
   });
 
-  it("keeps read-only documents unchanged and exposes explicit source editing", () => {
+  it("keeps read-only documents unchanged", () => {
     const readonly = createView(source, true);
     expect(contents(readonly).every(cell => cell.getAttribute("contenteditable") === "false")).toBe(true);
     expect(button(readonly, "Merge cells").disabled).toBe(true);
     expect(readonly.dom.querySelector('[role="separator"]')).toBeNull();
     input(contents(readonly)[0]!, "Ignored");
     expect(readonly.state.doc.toString()).toBe(`Before\n\n${source}\n\nAfter`);
-    const view = createView();
-    button(view, "Edit HTML source").click();
-    expect(view.dom.querySelector(".cm-markra-html-cell-content")).toBeNull();
-    expect(view.state.doc.toString()).toBe(`Before\n\n${source}\n\nAfter`);
   });
 
   it("disables existing cell and resize controls when read-only configuration changes", () => {

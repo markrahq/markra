@@ -6,12 +6,10 @@ import {
   type HtmlCellPoint, type HtmlTable,
 } from "../html-table.ts";
 import { attachHtmlColumnResizers } from "./html-table-resize.ts";
-import { revealHtmlSource } from "./html-source.ts";
 
 export interface HtmlTableLabels {
   mergeCells: string;
   splitCell: string;
-  editSource: string;
   selectCells: string;
   resizeColumn: string;
   cell: string;
@@ -37,7 +35,7 @@ interface Runtime {
   rendering: boolean;
 }
 const defaultLabels: HtmlTableLabels = {
-  mergeCells: "Merge cells", splitCell: "Split cell", editSource: "Edit HTML source",
+  mergeCells: "Merge cells", splitCell: "Split cell",
   selectCells: "Shift-click to select cells", resizeColumn: "Resize column", cell: "Cell",
 };
 
@@ -204,14 +202,6 @@ export class HtmlTableWidget extends WidgetType {
     });
   }
 
-  private sourceButton(document: Document, view: EditorView) {
-    return this.control(document, this.labels.editSource, "source", () => {
-      this.runtime.composing = null;
-      const active = document.activeElement;
-      if (active instanceof HTMLElement && active.classList.contains("cm-markra-html-cell-content")) this.commitCell(view, active);
-      revealHtmlSource(view, this.runtime.range);
-    });
-  }
   private control(document: Document, label: string, action: string, run: () => unknown) {
     const button = document.createElement("button");
     button.type = "button"; button.textContent = label; button.setAttribute("aria-label", label);
@@ -286,7 +276,7 @@ export class HtmlTableWidget extends WidgetType {
     const document = root.ownerDocument;
     root.replaceChildren(...sanitizeRawHtml(this.runtime.range.source, document, this.options));
     const rendered = [...root.querySelectorAll("table")].filter(table => !table.parentElement?.closest("table"));
-    if (rendered.length !== this.runtime.tables.length) { root.prepend(this.sourceButton(document, view)); this.runtime.rendering = false; return; }
+    if (rendered.length !== this.runtime.tables.length) { this.runtime.rendering = false; return; }
     rendered.forEach((table, index) => {
       const model = this.runtime.tables[index]!;
       const wrapper = document.createElement("div"); wrapper.className = "cm-markra-html-table"; wrapper.dataset.table = String(index);
@@ -306,7 +296,7 @@ export class HtmlTableWidget extends WidgetType {
         this.runtime.selections.set(index, { anchor: point, head: point }); this.runtime.focus = { table: index, ...point };
         this.change(view, splitHtmlCell(this.runtime.range.source, document, index, point));
       });
-      toolbar.append(merge, split, this.sourceButton(document, view), hint);
+      toolbar.append(merge, split, hint);
       const scroll = document.createElement("div"); scroll.className = "markra-table-scroll";
       const grid = document.createElement("div"); grid.className = "cm-markra-html-table-grid";
       table.replaceWith(wrapper); grid.append(table); scroll.append(grid); wrapper.append(toolbar, scroll);

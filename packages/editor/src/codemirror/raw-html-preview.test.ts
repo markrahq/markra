@@ -57,26 +57,30 @@ afterEach(() => {
 
 describe("rawHtmlPreviewPlugin", () => {
   it("reveals source and updates its selection before focusing the editor", () => {
-    const doc = "Before\n\n<table>\n<tr><td>Mock</td></tr>\n</table>\n\nAfter";
-    const from = doc.indexOf("<table>");
+    const doc = "Before\n\n<div>\n<strong>Mock</strong>\n</div>\n\nAfter";
+    const from = doc.indexOf("<div>");
     const view = createView(doc, rawHtmlPreviewPlugin(), 0);
     view.contentDOM.blur();
     const focused: Array<{ head: number; preview: boolean }> = [];
     view.contentDOM.addEventListener("focus", () => focused.push({
       head: view.state.selection.main.head,
-      preview: Boolean(view.dom.querySelector(".markra-html-node table")),
+      preview: Boolean(view.dom.querySelector(".markra-html-node")),
     }));
-    view.dom.querySelector<HTMLButtonElement>('[data-action="source"]')!.click();
+    view.dom.querySelector<HTMLElement>(".markra-html-node")!.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
     expect(focused).toEqual([{ head: from, preview: false }]);
   });
 
   it("keeps explicitly opened HTML source visible at both block boundaries", () => {
-    const source = "<table>\n<tr><td>Synthetic</td></tr>\n</table>";
+    const source = "<div>\n<strong>Synthetic</strong>\n</div>";
     const doc = `Before\n\n${source}\n\nAfter`;
-    const from = doc.indexOf("<table>");
+    const from = doc.indexOf("<div>");
     const to = from + source.length;
     const view = createView(doc);
-    view.dom.querySelector<HTMLButtonElement>('[data-action="source"]')!.click();
+    view.dom.querySelector<HTMLElement>(".markra-html-node")!.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
 
     view.dispatch({ selection: EditorSelection.cursor(from) });
     expect(view.dom.querySelector(".markra-html-node")).toBeNull();
@@ -88,15 +92,17 @@ describe("rawHtmlPreviewPlugin", () => {
     expect(view.state.doc.toString()).toBe(doc);
 
     view.dispatch({ selection: EditorSelection.cursor(doc.length) });
-    expect(view.dom.querySelector(".markra-html-node table")).not.toBeNull();
+    expect(view.dom.querySelector(".markra-html-node strong")).not.toBeNull();
   });
 
   it("preserves source intent through boundary edits, selection and blur without changing initial previews", () => {
-    const source = "<table>\n<tr><td>Mock</td></tr>\n</table>";
+    const source = "<div>\n<strong>Mock</strong>\n</div>";
     const doc = `${source}\n\nAfter`;
     const view = createView(doc, rawHtmlPreviewPlugin(), 0);
-    expect(view.dom.querySelector(".markra-html-node table")).not.toBeNull();
-    view.dom.querySelector<HTMLButtonElement>('[data-action="source"]')!.click();
+    expect(view.dom.querySelector(".markra-html-node strong")).not.toBeNull();
+    view.dom.querySelector<HTMLElement>(".markra-html-node")!.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
     view.dispatch({ selection: EditorSelection.cursor(0) });
     view.contentDOM.blur();
     view.dispatch({ selection: view.state.selection });
@@ -111,7 +117,7 @@ describe("rawHtmlPreviewPlugin", () => {
     expect(view.state.doc.toString()).toBe(doc);
 
     const reopened = createView(doc, rawHtmlPreviewPlugin(), 0);
-    expect(reopened.dom.querySelector(".markra-html-node table")).not.toBeNull();
+    expect(reopened.dom.querySelector(".markra-html-node strong")).not.toBeNull();
   });
 
   it.each(["", "\n"])("renders merged HTML tables and preserves source through editing and recreation (%j)", (separator) => {
@@ -128,7 +134,7 @@ describe("rawHtmlPreviewPlugin", () => {
     expect(preview?.querySelector("td")?.rowSpan).toBe(2);
     expect(view.state.doc.toString()).toBe(doc);
 
-    preview?.querySelector<HTMLButtonElement>('[data-action="source"]')?.click();
+    view.dispatch({ selection: EditorSelection.cursor(source.indexOf("<table>") + 1) });
     expect(view.dom.querySelector(".markra-html-node table")).toBeNull();
     expect(view.state.doc.toString()).toBe(doc);
 
