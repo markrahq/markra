@@ -9,7 +9,7 @@
         const params = new URLSearchParams(window.location.search);
         const isSettingsWindow = params.has("settings");
 
-        const appearanceMode = isSettingsWindow ? params.get("startupAppearanceMode") : "system";
+        const appearanceMode = params.get("startupAppearanceMode") || "system";
         const prefersDark =
           typeof window.matchMedia === "function" &&
           window.matchMedia("(prefers-color-scheme: dark)").matches;

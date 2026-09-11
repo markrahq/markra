@@ -92,10 +92,10 @@ use window_state::{
 };
 use windows::{
     apply_main_window_chrome, apply_settings_window_lifecycle, apply_webview_window_chrome,
-    apply_window_event_chrome, editor_window_url_for_folder, editor_window_url_for_path,
-    hide_settings_window, is_editor_window_label, mark_settings_window_ready,
-    minimize_current_window, open_blank_editor_window, open_settings_window,
-    prewarm_settings_window, spawn_blank_editor_window, spawn_editor_window,
+    apply_window_event_chrome, configure_editor_startup, editor_window_url_for_folder,
+    editor_window_url_for_path, hide_settings_window, is_editor_window_label,
+    mark_settings_window_ready, minimize_current_window, open_blank_editor_window,
+    open_settings_window, prewarm_settings_window, spawn_blank_editor_window, spawn_editor_window,
     spawn_restorable_editor_window, toggle_settings_window,
 };
 
@@ -195,6 +195,9 @@ pub fn run_portable_update_helper_if_requested() -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    // Configured windows are created before setup; seed their first paint here.
+    configure_editor_startup(context.config_mut());
     let builder = tauri::Builder::default()
         .manage(MarkdownFileWatcherState::default())
         .manage(MarkdownTreeWatcherState::default())
@@ -366,7 +369,7 @@ pub fn run() {
             restart_portable_app_update,
             open_log_folder
         ])
-        .build(tauri::generate_context!())
+        .build(context)
         .expect("error while building Markra")
         .run(|app, event| match event {
             tauri::RunEvent::ExitRequested { code, api, .. } => {
