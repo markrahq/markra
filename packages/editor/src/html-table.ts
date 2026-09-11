@@ -37,7 +37,7 @@ function columnsInGroup(group: HTMLTableColElement) {
   );
 }
 
-function readTable(element: HTMLTableElement): HtmlTable {
+export function readHtmlTable(element: HTMLTableElement): HtmlTable {
   const rows = Array.from(element.rows);
   const cells: HtmlTableCell[] = [];
   const grid: HtmlTable["grid"] = rows.map(() => []);
@@ -88,7 +88,7 @@ export function readHtmlTables(source: string, ownerDocument: Document) {
   const elements = Array.from(template.content.querySelectorAll("table")).filter(
     table => !table.parentElement?.closest("table, script, style, template, svg, math, iframe, object"),
   );
-  return { template, tables: elements.map(readTable) };
+  return { template, tables: elements.map(readHtmlTable) };
 }
 
 export function htmlTableSelection(table: HtmlTable, anchor: HtmlCellPoint, head: HtmlCellPoint) {
@@ -131,13 +131,24 @@ export function htmlTableSelection(table: HtmlTable, anchor: HtmlCellPoint, head
   return { bounds, cells, mergeable };
 }
 
-export function editHtmlCell(source: string, document: Document, tableIndex: number, point: HtmlCellPoint, html: string) {
+export function editHtmlCells(source: string, document: Document, tableIndex: number, updates: readonly (HtmlCellPoint & { html: string })[]) {
   const { template, tables } = readHtmlTables(source, document);
   const table = tables[tableIndex];
-  const cell = table?.valid ? table.grid[point.row]?.[point.column] : null;
-  if (!cell || cell.element.innerHTML === html) return null;
-  cell.element.innerHTML = html;
-  return template.innerHTML;
+  if (!table?.valid) return null;
+  let changed = false;
+  for (const update of updates) {
+    const cell = table.grid[update.row]?.[update.column];
+    if (!cell) return null;
+    if (cell.element.innerHTML !== update.html) {
+      cell.element.innerHTML = update.html;
+      changed = true;
+    }
+  }
+  return changed ? template.innerHTML : null;
+}
+
+export function editHtmlCell(source: string, document: Document, tableIndex: number, point: HtmlCellPoint, html: string) {
+  return editHtmlCells(source, document, tableIndex, [{ ...point, html }]);
 }
 
 export function mergeHtmlCells(source: string, document: Document, tableIndex: number, anchor: HtmlCellPoint, head: HtmlCellPoint) {
@@ -212,6 +223,7 @@ export function resizeHtmlColumns(source: string, document: Document, tableIndex
     groups.at(-1)!.append(col);
   }
   table.element.style.tableLayout = "fixed";
+  table.element.dataset.markraWidthMode = "manual";
   table.element.style.width = `${widths.reduce((sum, width) => sum + Math.round(width), 0)}px`;
   table.element.style.minWidth = "0px";
   table.element.style.maxWidth = "none";

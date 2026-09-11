@@ -109,3 +109,70 @@ describe("HTML table source operations", () => {
     expect(mergeHtmlCells(overlap, document, 0, point(0, 0), point(1, 0))).toBeNull();
   });
 });
+
+describe("HTML table structure controls", () => {
+  it("adds a column and a body row around existing merged cells", async () => {
+    const { transformHtmlTable } = await import("./html-table-actions.ts");
+    const column = transformHtmlTable(source, document, 0, { type: "add-column" })!;
+    expect(tableOf(column).columnCount).toBe(4);
+    expect(tableOf(column).grid[2]?.[0]?.rowSpan).toBe(2);
+    const row = transformHtmlTable(column, document, 0, { type: "add-row" })!;
+    expect(tableOf(row).rows).toHaveLength(4);
+    expect(tableOf(row).rows[3]?.cells).toHaveLength(4);
+  });
+
+  it("shrinks spans when deleting a column and moves surviving rowspan content when deleting its first row", async () => {
+    const { transformHtmlTable } = await import("./html-table-actions.ts");
+    const removed = transformHtmlTable(source, document, 0, { type: "delete-column", index: 1 })!;
+    expect(tableOf(removed).columnCount).toBe(2);
+    expect(tableOf(removed).grid[0]?.[0]?.columnSpan).toBe(2);
+    expect(tableOf(removed).grid[1]?.[1]?.element.textContent).toBe("C");
+    const row = transformHtmlTable(source, document, 0, { type: "delete-row", index: 1 })!;
+    expect(tableOf(row).rows).toHaveLength(2);
+    expect(tableOf(row).rows[1]?.textContent).toBe("ADE");
+    expect(tableOf(row).grid[1]?.[0]?.rowSpan).toBe(1);
+  });
+
+  it("adds rows before a footer and honors open-ended rowspan groups", async () => {
+    const { transformHtmlTable } = await import("./html-table-actions.ts");
+    const html = '<table><tbody><tr><td rowspan="0">A</td><td>B</td></tr></tbody><tfoot><tr><td colspan="2">Total</td></tr></tfoot></table>';
+    const added = transformHtmlTable(html, document, 0, { type: "add-row" })!;
+    expect(tableOf(added).rows.map(row => row.parentElement?.tagName)).toEqual(["TBODY", "TBODY", "TFOOT"]);
+    expect(tableOf(added).grid[1]?.[0]?.element.textContent).toBe("A");
+    expect(tableOf(added).rows[1]?.cells).toHaveLength(1);
+  });
+
+  it("resizes a merged table while retaining surviving content and column widths", async () => {
+    const { transformHtmlTable } = await import("./html-table-actions.ts");
+    const widths = resizeHtmlColumns(source, document, 0, [100, 150, 200])!;
+    const resized = transformHtmlTable(widths, document, 0, { type: "resize", columns: 2, rows: 2 })!;
+    const table = tableOf(resized);
+    expect(table.rows).toHaveLength(2);
+    expect(table.columnCount).toBe(2);
+    expect(table.grid[1]?.[0]?.rowSpan).toBe(1);
+    expect(table.grid[1]?.[1]?.element.textContent).toBe("B");
+    expect([...table.element.querySelectorAll("col")].map(col => col.style.width)).toEqual(["100px", "150px"]);
+    expect(table.element.style.width).toBe("250px");
+  });
+
+  it("persists alignment and switches manual widths to auto or even layout", async () => {
+    const { transformHtmlTable } = await import("./html-table-actions.ts");
+    const aligned = transformHtmlTable(source, document, 0, { type: "align", alignment: "right" })!;
+    expect(tableOf(aligned).cells.every(cell => cell.element.style.textAlign === "right")).toBe(true);
+    const manual = resizeHtmlColumns(aligned, document, 0, [100, 150, 200])!;
+    const auto = transformHtmlTable(manual, document, 0, { type: "width-mode", mode: "auto" })!;
+    expect(tableOf(auto).element.style.tableLayout).toBe("auto");
+    expect(tableOf(auto).element.style.width).toBe("100%");
+    const even = transformHtmlTable(auto, document, 0, { type: "width-mode", mode: "even" })!;
+    expect(tableOf(even).element.style.tableLayout).toBe("fixed");
+    expect(tableOf(even).element.querySelector("col")?.style.width).toContain("%");
+  });
+
+  it("preserves the last row/column and only deletes the selected table", async () => {
+    const { transformHtmlTable } = await import("./html-table-actions.ts");
+    const html = '<div>Before<table><tr><td>A</td></tr></table>After</div>';
+    expect(transformHtmlTable(html, document, 0, { type: "delete-column", index: 0 })).toBeNull();
+    expect(transformHtmlTable(html, document, 0, { type: "delete-row", index: 0 })).toBeNull();
+    expect(transformHtmlTable(html, document, 0, { type: "delete-table" })).toBe("<div>BeforeAfter</div>");
+  });
+});

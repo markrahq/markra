@@ -201,6 +201,22 @@ function markdownExtension({
       resolveImageSrc(source) ?? null,
   };
 
+  const tableLabels = {
+    addColumnRight: t(language, "editor.table.addColumnRight"),
+    addRowBelow: t(language, "editor.table.addRowBelow"),
+    adjustTable: t(language, "editor.table.adjustTable"),
+    alignCenter: t(language, "editor.table.alignCenter"),
+    alignLeft: t(language, "editor.table.alignLeft"),
+    alignRight: t(language, "editor.table.alignRight"),
+    columnWidthMode: t(language, "editor.table.columnWidthMode"),
+    deleteColumn: t(language, "editor.table.deleteColumn"),
+    deleteRow: t(language, "editor.table.deleteRow"),
+    deleteTable: t(language, "editor.table.deleteTable"),
+    resizeTableTo: t(language, "editor.table.resizeTableTo"),
+    tableColumns: t(language, "editor.table.columns"),
+    tableRows: t(language, "editor.table.rows"),
+  };
+
   return liveMarkdown({
     highlight: extendedSyntax?.highlight ?? true,
     resolveLinkTarget: linkOptions?.resolveTarget,
@@ -288,6 +304,7 @@ function markdownExtension({
       rawHtmlPreviewPlugin({
         resolveImageSrc: (source) => resolveImageSrc(source) ?? source,
         tableLabels: {
+          ...tableLabels,
           mergeCells: t(language, "editor.table.mergeCells"),
           splitCell: t(language, "editor.table.splitCell"),
           selectCells: t(language, "editor.table.selectCells"),
@@ -301,21 +318,7 @@ function markdownExtension({
       tablePreviewPlugin({
         getDocumentKey: documentPath,
         images: imageOptions,
-        labels: {
-          addColumnRight: t(language, "editor.table.addColumnRight"),
-          addRowBelow: t(language, "editor.table.addRowBelow"),
-          adjustTable: t(language, "editor.table.adjustTable"),
-          alignCenter: t(language, "editor.table.alignCenter"),
-          alignLeft: t(language, "editor.table.alignLeft"),
-          alignRight: t(language, "editor.table.alignRight"),
-          columnWidthMode: t(language, "editor.table.columnWidthMode"),
-          deleteColumn: t(language, "editor.table.deleteColumn"),
-          deleteRow: t(language, "editor.table.deleteRow"),
-          deleteTable: t(language, "editor.table.deleteTable"),
-          resizeTableTo: t(language, "editor.table.resizeTableTo"),
-          tableColumns: t(language, "editor.table.columns"),
-          tableRows: t(language, "editor.table.rows"),
-        },
+        labels: tableLabels,
         links: linkOptions,
         widthMode: tableColumnWidthMode,
       }),

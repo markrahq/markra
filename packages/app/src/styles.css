@@ -1415,17 +1415,18 @@
     line-height: 0 !important;
   }
 
-  .markdown-paper .cm-markra-table {
+  /* HTML tables retain authored widths and their draggable column layout. */
+  .markdown-paper .cm-markra-table-wrap[data-table-from] .cm-markra-table {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
   }
 
-  .markdown-paper .cm-markra-table[data-width-mode="auto"] {
+  .markdown-paper .cm-markra-table-wrap[data-table-from] .cm-markra-table[data-width-mode="auto"] {
     table-layout: auto !important;
   }
 
-  .markdown-paper .cm-markra-table[data-width-mode="even"] {
+  .markdown-paper .cm-markra-table-wrap[data-table-from] .cm-markra-table[data-width-mode="even"] {
     table-layout: fixed !important;
   }
 
@@ -3596,35 +3597,13 @@
     @apply m-0 inline-block max-w-full rounded-none border-0 align-middle;
   }
 
-  .markdown-paper .cm-markra-html-table {
-    @apply my-6;
+  .markdown-paper .markra-html-node:has(.cm-markra-html-table) {
+    overflow: visible;
   }
 
-  .markdown-paper .cm-markra-html-table-toolbar {
-    @apply flex flex-wrap items-center gap-1 pb-2 text-xs;
-    color: var(--editor-text-primary);
-  }
-
-  .markdown-paper .cm-markra-html-table-toolbar button {
-    @apply rounded px-2 py-1.5 transition-colors;
-  }
-
-  .markdown-paper .cm-markra-html-table-toolbar button:hover:not(:disabled) {
-    background: var(--editor-bg-secondary);
-    color: var(--editor-text-heading);
-  }
-
-  .markdown-paper .cm-markra-html-table-toolbar button:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  .markdown-paper .cm-markra-html-table-toolbar button:disabled {
-    @apply cursor-default opacity-40;
-  }
-
-  .markdown-paper .cm-markra-html-table-toolbar > span {
-    @apply ml-auto pl-2;
+  .markdown-paper .markra-table-extra-control {
+    @apply relative rounded-md;
+    position: static;
   }
 
   .markdown-paper .cm-markra-html-table-grid {
@@ -3635,17 +3614,13 @@
     @apply my-0;
   }
 
-  .markdown-paper .cm-markra-html-table [data-html-cell] {
-    @apply min-w-12 p-0;
-  }
-
   .markdown-paper .cm-markra-html-cell-content {
-    @apply min-h-10 px-3 py-2 outline-none;
+    min-width: 3rem;
+    outline: none;
   }
 
   .markdown-paper .cm-markra-html-cell-content:focus {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
+    box-shadow: inset 0 0 0 2px currentColor;
   }
 
   .markdown-paper .cm-markra-html-table [data-selected] {
@@ -3656,6 +3631,14 @@
     /* Keep drag targets above cells so invisible boundaries never intercept a merged cell's clicks. */
     @apply absolute top-0 z-10 h-5 w-2 cursor-col-resize touch-none;
     transform: translateX(-50%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .markdown-paper .cm-markra-html-table:hover .cm-markra-html-column-resize,
+  .markdown-paper .cm-markra-html-table:focus-within .cm-markra-html-column-resize {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .markdown-paper .cm-markra-html-column-resize::after {

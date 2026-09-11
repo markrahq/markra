@@ -1,3 +1,12 @@
+import {
+  activeTableCell,
+  clearTableSelection,
+  createTableCaretHost as createVisualTableCaretHost,
+  isTableCaretPlaceholder as visualTableCellHasPlaceholderBreak,
+  placeTableCellCaret as placeVisualTableCellCaret,
+  tableCellCaretOffset,
+  tableCaretPlaceholder as TABLE_CARET_PLACEHOLDER,
+} from "./table-selection.ts";
 import type { EditorState } from "@codemirror/state";
 import {
   Decoration,
@@ -5,8 +14,7 @@ import {
   WidgetType,
   type EditorView as CodeMirrorView,
 } from "@codemirror/view";
-import { createLucideIcon, popoverPosition } from "@markra/shared";
-import { Minus, Plus, Trash2 } from "lucide";
+import { createTableControls, defaultTableLabels, type TableControlLabels } from "./table-controls.ts";
 import type { MarkraSourceRange } from "../math-syntax.ts";
 import {
   renderInlineMarkdown,
@@ -37,21 +45,7 @@ export interface TablePreviewPluginOptions {
   widthMode?: CodeMirrorTableWidthMode;
 }
 
-export interface TablePreviewLabels {
-  addColumnRight: string;
-  addRowBelow: string;
-  adjustTable: string;
-  alignCenter: string;
-  alignLeft: string;
-  alignRight: string;
-  columnWidthMode: string;
-  deleteColumn: string;
-  deleteRow: string;
-  deleteTable: string;
-  resizeTableTo: string;
-  tableColumns: string;
-  tableRows: string;
-}
+export type TablePreviewLabels = TableControlLabels;
 
 interface TableCellPreview {
   readonly from: number;
@@ -68,16 +62,6 @@ const visualTableMathSourceEditors = new WeakMap<
   HTMLTableCellElement,
   EditVisualTableMathSource
 >();
-
-const TABLE_CARET_PLACEHOLDER = "\u200b";
-
-function createVisualTableCaretHost(ownerDocument: Document) {
-  const host = ownerDocument.createElement("span");
-  host.dataset.markraTableCaretHost = "true";
-  const text = ownerDocument.createTextNode(TABLE_CARET_PLACEHOLDER);
-  host.append(text);
-  return { host, text };
-}
 
 interface TablePreview {
   readonly alignments: readonly CodeMirrorTableAlignment[];
@@ -98,25 +82,9 @@ interface TableEditingSession {
   readonly tableFrom: number;
 }
 
-const defaultLabels: TablePreviewLabels = {
-  addColumnRight: "Add column to the right",
-  addRowBelow: "Add row below",
-  adjustTable: "Adjust table",
-  alignCenter: "Align table center",
-  alignLeft: "Align table left",
-  alignRight: "Align table right",
-  columnWidthMode: "Column width mode",
-  deleteColumn: "Delete column",
-  deleteRow: "Delete row",
-  deleteTable: "Delete table",
-  resizeTableTo: "Resize table to {columns} columns by {rows} rows",
-  tableColumns: "Table columns",
-  tableRows: "Table rows",
-};
 
 const tableSizePickerColumns = 8;
 const tableSizePickerRows = 10;
-const tableSizePopoverFallbackSize = { height: 248, width: 184 };
 const tablePreviewRendererId = "markra.table-preview";
 const tableWidthModeStoragePrefix = "markra:table-width-mode";
 const tableEditingSessions = new WeakMap<CodeMirrorView, TableEditingSession>();
@@ -160,52 +128,6 @@ function writeStoredWidthMode(
   } catch {
     // Storage can be unavailable in embedded or privacy-restricted surfaces.
   }
-}
-
-function createTableAlignIcon(
-  document: Document,
-  alignment: Exclude<CodeMirrorTableAlignment, null>,
-) {
-  const icon = document.createElement("span");
-  icon.className = `markra-table-align-icon markra-table-align-icon-${alignment}`;
-  icon.ariaHidden = "true";
-  for (let index = 0; index < 3; index += 1) {
-    const line = document.createElement("span");
-    line.className = "markra-table-align-icon-line";
-    icon.append(line);
-  }
-  return icon;
-}
-
-function createTableSizeIcon(document: Document) {
-  const icon = document.createElement("span");
-  icon.className = "markra-table-size-icon";
-  icon.ariaHidden = "true";
-  for (let index = 0; index < 4; index += 1) {
-    const square = document.createElement("span");
-    square.className = "markra-table-size-icon-square";
-    icon.append(square);
-  }
-  return icon;
-}
-
-function createTableWidthIcon(document: Document) {
-  const icon = document.createElement("span");
-  icon.className = "markra-table-width-icon";
-  icon.ariaHidden = "true";
-  for (const className of [
-    "markra-table-width-edge",
-    "markra-table-width-arrow",
-    "markra-table-width-letter",
-    "markra-table-width-arrow",
-    "markra-table-width-edge",
-  ]) {
-    const part = document.createElement("span");
-    part.className = className;
-    if (className === "markra-table-width-letter") part.textContent = "A";
-    icon.append(part);
-  }
-  return icon;
 }
 
 function trimCellRange(line: string, from: number, to: number) {
@@ -540,43 +462,6 @@ function resizeTable(
   return true;
 }
 
-function formatTableSizeLabel(
-  labels: TablePreviewLabels,
-  columns: number,
-  rows: number,
-) {
-  return labels.resizeTableTo
-    .replace("{columns}", String(columns))
-    .replace("{rows}", String(rows));
-}
-
-function createControl(
-  document: Document,
-  className: string,
-  label: string,
-  action: () => unknown,
-  icon?: Node,
-) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = `markra-table-control ${className}`;
-  button.ariaLabel = label;
-  button.title = label;
-  button.addEventListener("mousedown", (event) => {
-    if (event.button !== 0 || event.ctrlKey) return;
-    event.preventDefault();
-    event.stopPropagation();
-  });
-  button.addEventListener("click", (event) => {
-    if (event.button !== 0 || event.ctrlKey) return;
-    event.preventDefault();
-    event.stopPropagation();
-    action();
-  });
-  if (icon) button.append(icon);
-  return button;
-}
-
 function normalizedTableAlignment(preview: TablePreview) {
   const alignments = new Set(
     preview.alignments.map((alignment) => alignment ?? "left"),
@@ -589,7 +474,7 @@ function applyWidthModeToTableControls(
   mode: CodeMirrorTableWidthMode,
 ) {
   for (const wrapper of view.dom.querySelectorAll<HTMLElement>(
-    ".cm-markra-table-wrap",
+    ".cm-markra-table-wrap[data-table-from]",
   )) {
     wrapper.dataset.widthMode = mode;
     const table = wrapper.querySelector<HTMLTableElement>(".cm-markra-table");
@@ -605,14 +490,6 @@ function applyWidthModeToTableControls(
       button.dataset.mode = mode;
     }
   }
-}
-
-function visualTableCellHasPlaceholderBreak(cell: HTMLTableCellElement) {
-  return (
-    cell.childNodes.length === 1 &&
-    cell.firstElementChild?.tagName === "BR" &&
-    cell.firstElementChild.getAttribute("data-markra-source-break") !== "true"
-  );
 }
 
 function visualTableCellSource(cell: HTMLTableCellElement) {
@@ -655,38 +532,12 @@ function replaceVisualTableCell(
   );
 }
 
-function tableCellCaretOffset(cell: HTMLTableCellElement) {
-  const selection = cell.ownerDocument.getSelection();
-  const anchorNode = selection?.anchorNode;
-  if (!selection || !anchorNode || !cell.contains(anchorNode)) {
-    return cell.textContent?.length ?? 0;
-  }
-
-  const range = cell.ownerDocument.createRange();
-  range.selectNodeContents(cell);
-  range.setEnd(anchorNode, selection.anchorOffset);
-  return range.toString().replaceAll(TABLE_CARET_PLACEHOLDER, "").length;
-}
-
 function activeVisualTableCell(
   view: CodeMirrorView,
   table: HTMLTableElement,
 ) {
-  const activeElement = table.ownerDocument.activeElement;
-  if (
-    activeElement instanceof HTMLTableCellElement &&
-    table.contains(activeElement)
-  ) {
-    // Safari can leave its native range in the prior cell after Tab moves
-    // focus, so the focused cell is the authoritative input destination.
-    return activeElement;
-  }
-
-  const selectionNode = table.ownerDocument.getSelection()?.anchorNode;
-  const selectionElement =
-    selectionNode instanceof Element ? selectionNode : selectionNode?.parentElement;
-  const selectedCell = selectionElement?.closest<HTMLTableCellElement>("th, td");
-  if (selectedCell && table.contains(selectedCell)) return selectedCell;
+  const active = activeTableCell(table);
+  if (active) return active;
 
   // WebKit can lift the selection to the row/table after deleting the final
   // character. The editing session still identifies the cell that must sync.
@@ -703,46 +554,6 @@ function activeVisualTableCell(
       `[data-table-column="${session.column}"]` +
       `[data-table-header="${String(session.header)}"]`,
   );
-}
-
-function placeVisualTableCellCaret(
-  cell: HTMLTableCellElement,
-  caretOffset: number,
-) {
-  cell.focus();
-  const walker = cell.ownerDocument.createTreeWalker(
-    cell,
-    NodeFilter.SHOW_TEXT,
-  );
-  let textNode = walker.nextNode();
-  let remaining = caretOffset;
-  while (
-    textNode &&
-    remaining > (textNode.textContent?.length ?? 0)
-  ) {
-    remaining -= textNode.textContent?.length ?? 0;
-    textNode = walker.nextNode();
-  }
-  // WebKit may place input outside an empty table cell when the range is
-  // anchored on the <th>/<td> itself, so always provide a text caret host.
-  if (!textNode) {
-    textNode = cell.ownerDocument.createTextNode("");
-    if (visualTableCellHasPlaceholderBreak(cell)) {
-      cell.replaceChildren(textNode);
-    } else {
-      cell.append(textNode);
-    }
-  }
-  const selection = cell.ownerDocument.getSelection();
-  if (!selection) return;
-  const range = cell.ownerDocument.createRange();
-  range.setStart(
-    textNode,
-    Math.min(remaining, textNode.textContent?.length ?? 0),
-  );
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
 }
 
 function repairVisualTableCellSelection(
@@ -1360,12 +1171,10 @@ function appendCell(
 }
 
 interface TableWidgetRuntime {
-  documentMouseDownHandler: ((event: MouseEvent) => void) | null;
+  controls: ReturnType<typeof createTableControls> | null;
   inlineSourceDocument: Document | null;
   inlineSourceMouseDownHandler: ((event: MouseEvent) => void) | null;
   preview: TablePreview;
-  sizeButton: HTMLButtonElement | null;
-  sizePopover: HTMLElement | null;
 }
 
 function tablePreviewContentKey(preview: TablePreview) {
@@ -1393,12 +1202,10 @@ class TableWidget extends WidgetType {
     this.contentKey = tablePreviewContentKey(preview);
     this.labelsKey = JSON.stringify(labels);
     this.runtime = {
-      documentMouseDownHandler: null,
+      controls: null,
       inlineSourceDocument: null,
       inlineSourceMouseDownHandler: null,
       preview,
-      sizeButton: null,
-      sizePopover: null,
     };
   }
 
@@ -1448,168 +1255,9 @@ class TableWidget extends WidgetType {
     return true;
   }
 
-  private closeSizePicker = () => {
-    const document = this.runtime.sizePopover?.ownerDocument;
-    this.runtime.sizePopover?.remove();
-    this.runtime.sizePopover = null;
-    if (this.runtime.sizeButton) this.runtime.sizeButton.ariaExpanded = "false";
-    if (this.runtime.documentMouseDownHandler) {
-      document?.removeEventListener(
-        "mousedown",
-        this.runtime.documentMouseDownHandler,
-        true,
-      );
-      this.runtime.documentMouseDownHandler = null;
-    }
-  };
-
-  private handleDocumentMouseDown = (event: MouseEvent) => {
-    const target = event.target;
-    if (
-      target instanceof Node &&
-      (this.runtime.sizeButton?.contains(target) ||
-        this.runtime.sizePopover?.contains(target))
-    ) {
-      return;
-    }
-    this.closeSizePicker();
-  };
-
-  private openSizePicker(
-    view: CodeMirrorView,
-    anchor: HTMLButtonElement,
-  ) {
-    if (this.runtime.sizePopover) {
-      this.closeSizePicker();
-      return;
-    }
-
-    const document = view.dom.ownerDocument;
-    const popover = document.createElement("div");
-    const grid = document.createElement("div");
-    const footer = document.createElement("div");
-    const columnsInput = document.createElement("input");
-    const rowsInput = document.createElement("input");
-    const separator = document.createElement("span");
-    const currentColumns = Math.min(
-      this.preview.header.length,
-      tableSizePickerColumns,
-    );
-    const currentRows = Math.min(
-      this.preview.rows.length + 1,
-      tableSizePickerRows,
-    );
-
-    popover.className = "markra-table-size-popover";
-    popover.setAttribute("role", "dialog");
-    popover.ariaLabel = this.labels.adjustTable;
-    grid.className = "markra-table-size-grid";
-    footer.className = "markra-table-size-footer";
-    columnsInput.className = "markra-table-size-input";
-    columnsInput.type = "number";
-    columnsInput.min = "1";
-    columnsInput.max = String(tableSizePickerColumns);
-    columnsInput.value = String(currentColumns);
-    columnsInput.ariaLabel = this.labels.tableColumns;
-    rowsInput.className = "markra-table-size-input";
-    rowsInput.type = "number";
-    rowsInput.min = "1";
-    rowsInput.max = String(tableSizePickerRows);
-    rowsInput.value = String(currentRows);
-    rowsInput.ariaLabel = this.labels.tableRows;
-    separator.className = "markra-table-size-separator";
-    separator.textContent = "x";
-
-    const updatePendingSize = (columns: number, rows: number) => {
-      columnsInput.value = String(columns);
-      rowsInput.value = String(rows);
-      for (const cell of grid.querySelectorAll<HTMLButtonElement>(
-        ".markra-table-size-cell",
-      )) {
-        const active =
-          Number(cell.dataset.columns) <= columns &&
-          Number(cell.dataset.rows) <= rows;
-        cell.ariaPressed = String(active);
-        cell.classList.toggle("markra-table-size-cell-active", active);
-      }
-    };
-
-    const applySize = (columns: number, rows: number) => {
-      if (resizeTable(view, this.preview, columns, rows)) {
-        this.closeSizePicker();
-      }
-    };
-    for (let row = 1; row <= tableSizePickerRows; row += 1) {
-      for (let column = 1; column <= tableSizePickerColumns; column += 1) {
-        const cell = document.createElement("button");
-        cell.type = "button";
-        cell.className = "markra-table-size-cell";
-        cell.ariaLabel = formatTableSizeLabel(this.labels, column, row);
-        cell.dataset.columns = String(column);
-        cell.dataset.rows = String(row);
-        cell.addEventListener("mouseenter", () => {
-          updatePendingSize(column, row);
-        });
-        cell.addEventListener("focus", () => {
-          updatePendingSize(column, row);
-        });
-        cell.addEventListener("mousedown", (event) => {
-          if (event.button !== 0) return;
-          event.preventDefault();
-          event.stopPropagation();
-          applySize(column, row);
-        });
-        grid.append(cell);
-      }
-    }
-
-    const handleInputKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        event.stopPropagation();
-        applySize(Number(columnsInput.value), Number(rowsInput.value));
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        this.closeSizePicker();
-        view.focus();
-      }
-    };
-    columnsInput.addEventListener("keydown", handleInputKeyDown);
-    rowsInput.addEventListener("keydown", handleInputKeyDown);
-    footer.append(columnsInput, separator, rowsInput);
-    popover.append(grid, footer);
-    document.body.append(popover);
-    updatePendingSize(currentColumns, currentRows);
-
-    const windowTarget = document.defaultView;
-    const position = popoverPosition(
-      anchor.getBoundingClientRect(),
-      {
-        height: popover.offsetHeight || tableSizePopoverFallbackSize.height,
-        width: popover.offsetWidth || tableSizePopoverFallbackSize.width,
-      },
-      {
-        height: windowTarget?.innerHeight ?? 768,
-        width: windowTarget?.innerWidth ?? 1024,
-      },
-    );
-    popover.style.left = `${position.left}px`;
-    popover.style.maxHeight = `${position.maxHeight}px`;
-    popover.style.overflowY = "auto";
-    popover.style.position = "fixed";
-    popover.style.top = `${position.top}px`;
-    anchor.ariaExpanded = "true";
-    this.runtime.documentMouseDownHandler = this.handleDocumentMouseDown;
-    document.addEventListener(
-      "mousedown",
-      this.runtime.documentMouseDownHandler,
-      true,
-    );
-    this.runtime.sizePopover = popover;
-  }
-
   destroy() {
-    this.closeSizePicker();
+    this.runtime.controls?.destroy();
+    this.runtime.controls = null;
     if (
       this.runtime.inlineSourceDocument &&
       this.runtime.inlineSourceMouseDownHandler
@@ -1628,8 +1276,6 @@ class TableWidget extends WidgetType {
     const document = view.dom.ownerDocument;
     const wrapper = document.createElement("span");
     const tableScroll = document.createElement("span");
-    const alignControls = document.createElement("span");
-    const sizeControls = document.createElement("span");
     const table = document.createElement("table");
     const head = document.createElement("thead");
     const headRow = document.createElement("tr");
@@ -1641,8 +1287,6 @@ class TableWidget extends WidgetType {
       this.getDocumentKey(),
       this.defaultWidthMode,
     );
-    let hoveredColumn = 0;
-    let hoveredRow = 0;
     let composing = false;
 
     wrapper.className =
@@ -1732,8 +1376,6 @@ class TableWidget extends WidgetType {
     document.addEventListener("mousedown", inlineSourceMouseDownHandler, true);
     tableScroll.className = "markra-table-scroll";
     tableScroll.dataset.tableAlignment = tableAlignment;
-    alignControls.className = "markra-table-align-controls";
-    sizeControls.className = "markra-table-size-controls";
     table.className = "cm-markra-table";
     // Individual contenteditable cells trap native ranges inside one cell.
     // One shared editing host lets drag selections cross the complete table.
@@ -1815,6 +1457,23 @@ class TableWidget extends WidgetType {
         event.stopPropagation();
         return;
       }
+      if (!view.state.readOnly && event instanceof InputEvent && event.inputType.startsWith("delete")) {
+        const cleared = clearTableSelection(table);
+        if (cleared.length) {
+          event.preventDefault(); event.stopPropagation();
+          const values = tableValues(this.preview);
+          for (const cell of cleared) {
+            const row = Number(cell.dataset.tableRow);
+            const column = Number(cell.dataset.tableColumn);
+            if (cell.dataset.tableHeader === "true") values.header[column] = visualTableCellSource(cell);
+            else if (values.rows[row]) values.rows[row]![column] = visualTableCellSource(cell);
+          }
+          replaceTable(view, this.preview, values.header, values.rows, values.alignments, false);
+          const first = cleared[0]!;
+          focusVisualTableCell(view, this.preview.from, Number(first.dataset.tableRow), Number(first.dataset.tableColumn), first.dataset.tableHeader === "true", 0);
+          return;
+        }
+      }
       // WebKit can lift the range from a header cell after compositionstart.
       // Repair only escaped ranges so the IME never inserts outside the cell.
       repairVisualTableCellSelection(view, table);
@@ -1838,117 +1497,6 @@ class TableWidget extends WidgetType {
       const cell = activeVisualTableCell(view, table);
       if (cell) syncVisualTableCell(view, this.preview, cell);
     });
-
-    const sizeButton = document.createElement("button");
-    sizeButton.type = "button";
-    sizeButton.className = "markra-table-control markra-table-size-button";
-    sizeButton.ariaLabel = this.labels.adjustTable;
-    sizeButton.ariaExpanded = "false";
-    sizeButton.title = this.labels.adjustTable;
-    sizeButton.append(createTableSizeIcon(document));
-    sizeButton.addEventListener("mousedown", (event) => {
-      if (event.button !== 0 || event.ctrlKey) return;
-      event.preventDefault();
-      event.stopPropagation();
-    });
-    sizeButton.addEventListener("click", (event) => {
-      if (event.button !== 0 || event.ctrlKey) return;
-      event.preventDefault();
-      event.stopPropagation();
-      this.openSizePicker(view, sizeButton);
-    });
-    this.runtime.sizeButton = sizeButton;
-
-    const alignButtons = (["left", "center", "right"] as const).map(
-      (alignment) => {
-        const label =
-          alignment === "left"
-            ? this.labels.alignLeft
-            : alignment === "center"
-              ? this.labels.alignCenter
-              : this.labels.alignRight;
-        const button = createControl(
-          document,
-          `markra-table-align-button markra-table-align-${alignment}`,
-          label,
-          () => alignTable(view, this.preview, alignment),
-          createTableAlignIcon(document, alignment),
-        );
-        button.dataset.alignment = alignment;
-        button.ariaPressed = String(alignment === activeAlignment);
-        return button;
-      },
-    );
-
-    let widthModeButton: HTMLButtonElement;
-    const toggleWidthMode = () => {
-      const currentMode =
-        widthModeButton.dataset.mode === "auto" ? "auto" : "even";
-      const nextMode = currentMode === "auto" ? "even" : "auto";
-      writeStoredWidthMode(document, this.getDocumentKey(), nextMode);
-      applyWidthModeToTableControls(view, nextMode);
-    };
-    widthModeButton = createControl(
-      document,
-      "markra-table-width-button",
-      this.labels.columnWidthMode,
-      toggleWidthMode,
-      createTableWidthIcon(document),
-    );
-    widthModeButton.ariaPressed = String(widthMode === "auto");
-    widthModeButton.dataset.mode = widthMode;
-    widthModeButton.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") return;
-      event.preventDefault();
-      event.stopPropagation();
-      toggleWidthMode();
-    });
-
-    const deleteTableButton = createControl(
-      document,
-      "markra-table-delete-table",
-      this.labels.deleteTable,
-      () => deleteTable(view, this.preview),
-      createLucideIcon(document, Trash2, "markra-table-control-icon"),
-    );
-    const addColumnButton = createControl(
-      document,
-      "markra-table-add-column",
-      this.labels.addColumnRight,
-      () => addColumn(view, this.preview),
-      createLucideIcon(document, Plus, "markra-table-control-icon"),
-    );
-    const addRowButton = createControl(
-      document,
-      "markra-table-add-row",
-      this.labels.addRowBelow,
-      () => addRow(view, this.preview),
-      createLucideIcon(document, Plus, "markra-table-control-icon"),
-    );
-    const deleteColumnButton = createControl(
-      document,
-      "markra-table-delete-control markra-table-delete-column",
-      this.labels.deleteColumn,
-      () => deleteColumn(view, this.preview, hoveredColumn),
-      createLucideIcon(document, Minus, "markra-table-control-icon"),
-    );
-    const deleteRowButton = createControl(
-      document,
-      "markra-table-delete-control markra-table-delete-row",
-      this.labels.deleteRow,
-      () => deleteRow(view, this.preview, hoveredRow),
-      createLucideIcon(document, Minus, "markra-table-control-icon"),
-    );
-    deleteColumnButton.hidden = true;
-    deleteRowButton.hidden = true;
-
-    sizeControls.append(sizeButton);
-    alignControls.append(
-      sizeControls,
-      ...alignButtons,
-      widthModeButton,
-      deleteTableButton,
-    );
 
     for (const [index, cell] of this.preview.header.entries()) {
       appendCell(
@@ -1987,44 +1535,26 @@ class TableWidget extends WidgetType {
 
     table.append(head, body);
     tableScroll.append(table);
-    wrapper.append(
-      alignControls,
-      tableScroll,
-      addColumnButton,
-      addRowButton,
-      deleteColumnButton,
-      deleteRowButton,
-    );
-    wrapper.addEventListener("mousemove", (event) => {
-      const target = event.target instanceof Element ? event.target : null;
-      const cell = target?.closest<HTMLTableCellElement>("th, td");
-      if (!cell || !table.contains(cell)) return;
-      const row = cell.parentElement;
-      if (!(row instanceof HTMLTableRowElement)) return;
-
-      const wrapperRect = wrapper.getBoundingClientRect();
-      if (cell instanceof HTMLTableCellElement && cell.tagName === "TH") {
-        hoveredColumn = cell.cellIndex;
-        const cellRect = cell.getBoundingClientRect();
-        deleteColumnButton.hidden = false;
-        deleteRowButton.hidden = true;
-        deleteColumnButton.style.left =
-          `${cellRect.left - wrapperRect.left + cellRect.width / 2}px`;
-        deleteColumnButton.style.top = `${cellRect.top - wrapperRect.top}px`;
-        return;
-      }
-
-      hoveredRow = row.sectionRowIndex;
-      const rowRect = row.getBoundingClientRect();
-      deleteColumnButton.hidden = true;
-      deleteRowButton.hidden = false;
-      deleteRowButton.style.left = `${rowRect.right - wrapperRect.left}px`;
-      deleteRowButton.style.top =
-        `${rowRect.top - wrapperRect.top + rowRect.height / 2}px`;
-    });
-    wrapper.addEventListener("mouseleave", () => {
-      deleteColumnButton.hidden = true;
-      deleteRowButton.hidden = true;
+    wrapper.append(tableScroll);
+    this.runtime.controls = createTableControls(wrapper, table, {
+      labels: this.labels,
+      readOnly: () => view.state.readOnly,
+      shape: () => ({ columns: this.preview.header.length, rows: this.preview.rows.length + 1 }),
+      alignment: () => normalizedTableAlignment(this.preview),
+      widthMode: () => wrapper.dataset.widthMode === "even" ? "even" : "auto",
+      resize: (columns, rows) => resizeTable(view, this.preview, columns, rows),
+      align: alignment => alignTable(view, this.preview, alignment),
+      setWidthMode: mode => {
+        writeStoredWidthMode(document, this.getDocumentKey(), mode);
+        applyWidthModeToTableControls(view, mode);
+      },
+      addRow: () => addRow(view, this.preview),
+      addColumn: () => addColumn(view, this.preview),
+      deleteRow: row => deleteRow(view, this.preview, row),
+      deleteColumn: column => deleteColumn(view, this.preview, column),
+      deleteTable: () => deleteTable(view, this.preview),
+      cellPosition: cell => ({ row: Number(cell.dataset.tableRow), column: Number(cell.dataset.tableColumn), header: cell.dataset.tableHeader === "true" }),
+      focusEditor: () => view.focus(),
     });
     wrapper.addEventListener("copy", (event) => {
       if (!event.clipboardData) return;
@@ -2095,7 +1625,7 @@ const tableTheme = EditorView.baseTheme({
     opacity: "1",
     pointerEvents: "auto",
   },
-  ".markra-table-size-button, .markra-table-align-button, .markra-table-width-button, .markra-table-delete-table": {
+  ".markra-table-size-button, .markra-table-align-button, .markra-table-width-button, .markra-table-delete-table, .markra-table-extra-control": {
     borderRadius: "0.375em",
     position: "static",
   },
@@ -2176,7 +1706,7 @@ const tableTheme = EditorView.baseTheme({
 export function tablePreviewPlugin(
   options: TablePreviewPluginOptions = {},
 ) {
-  const labels = { ...defaultLabels, ...options.labels };
+  const labels = { ...defaultTableLabels, ...options.labels };
   const widthMode = options.widthMode ?? "auto";
   const getDocumentKey = options.getDocumentKey ?? (() => undefined);
 

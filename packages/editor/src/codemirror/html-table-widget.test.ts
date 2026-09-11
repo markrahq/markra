@@ -35,6 +35,38 @@ function input(cell: HTMLElement, html: string) {
 afterEach(() => { for (const view of views.splice(0)) view.destroy(); document.body.replaceChildren(); });
 
 describe("HTML table editing widget", () => {
+  it("uses the Markdown table controls for adding, aligning and resizing", () => {
+    const view = createView();
+    button(view, "Add column to the right").click();
+    expect(view.dom.querySelectorAll("tr")[0]?.children).toHaveLength(3);
+    button(view, "Add row below").click();
+    expect(view.dom.querySelectorAll("tr")).toHaveLength(3);
+    button(view, "Align table center").click();
+    expect(view.dom.querySelector("td")?.style.textAlign).toBe("center");
+    button(view, "Column width mode").click();
+    expect(view.dom.querySelector("table")?.style.tableLayout).toBe("fixed");
+    button(view, "Adjust table").click();
+    const size = document.querySelector<HTMLButtonElement>('[aria-label="Resize table to 2 columns by 2 rows"]')!;
+    size.dispatchEvent(new MouseEvent("mousedown", { button: 0, bubbles: true, cancelable: true }));
+    expect(view.dom.querySelectorAll("tr")).toHaveLength(2);
+    expect(view.dom.querySelectorAll("tr")[0]?.children).toHaveLength(2);
+  });
+
+  it("uses one editing host and matches Enter, Shift+Enter and Escape", () => {
+    const view = createView();
+    expect(view.dom.querySelector("table")?.getAttribute("contenteditable")).toBe("true");
+    expect(contents(view)[0]?.tagName).toBe("TD");
+    const cell = select(view, 0);
+    input(cell, "Changed");
+    cell.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    expect(view.state.doc.toString()).toBe(`Before\n\n${source}\n\nAfter`);
+    const next = select(view, 1);
+    input(next, "Saved");
+    next.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    expect(view.state.doc.toString()).toContain("<td>Saved</td>");
+    expect(document.activeElement).toBe(view.contentDOM);
+  });
+
   it("does not normalize or rewrite authored HTML on focus and blur", () => {
     const html = "<TABLE class='authored'><TR><TD><img src='./mock.png'>A</TD></TR></TABLE>";
     const view = createView(html);
@@ -42,6 +74,40 @@ describe("HTML table editing widget", () => {
     const cell = select(view, 0);
     cell.blur();
     expect(view.state.doc.toString()).toBe(original);
+  });
+
+  it("starts a new Escape baseline after leaving and reentering a cell", async () => {
+    const view = createView();
+    input(select(view, 0), "Saved");
+    view.focus();
+    await Promise.resolve();
+    const cell = select(view, 0);
+    input(cell, "Cancelled");
+    cell.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    expect(view.state.doc.toString()).toContain("<td>Saved</td>");
+  });
+
+  it("keeps the Escape baseline while native focus moves to the table host", async () => {
+    const view = createView();
+    const cell = select(view, 1);
+    const table = cell.closest("table")!;
+    // Native focusout can run its microtasks while activeElement is still body.
+    Object.defineProperty(document, "activeElement", { configurable: true, get: () => document.body });
+    cell.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget: table }));
+    await Promise.resolve();
+    Reflect.deleteProperty(document, "activeElement");
+    table.focus();
+    input(cell, "Changed");
+    cell.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true }));
+    expect(view.state.doc.toString()).toContain("<td>B</td>");
+  });
+
+  it("offers column deletion from the first row of a table without th cells", () => {
+    const view = createView();
+    contents(view)[1]!.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    expect(button(view, "Delete column").hidden).toBe(false);
+    button(view, "Delete column").click();
+    expect(contents(view).map(cell => cell.textContent)).toEqual(["A", "C"]);
   });
 
   it("cancels active resizing when an external document change arrives", () => {
@@ -82,6 +148,51 @@ describe("HTML table editing widget", () => {
     cell.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
     expect(view.state.doc.toString()).toContain("测试");
     expect(contents(view)[1]).toBe(cell);
+  });
+
+  it("keeps input focused when the browser targets the shared table host", () => {
+    const view = createView();
+    const cell = select(view, 1);
+    const table = view.dom.querySelector("table")!;
+    table.focus();
+    const range = document.createRange(); range.selectNodeContents(cell); range.collapse(false);
+    document.getSelection()?.removeAllRanges(); document.getSelection()?.addRange(range);
+    cell.textContent = "Shared host";
+    table.dispatchEvent(new InputEvent("input", { bubbles: true }));
+    expect(view.state.doc.toString()).toContain("<td>Shared host</td>");
+    expect(document.activeElement).toBe(contents(view)[1]);
+  });
+
+  it("copies a cross-cell selection as table source like Markdown tables", () => {
+    const view = createView();
+    const cells = contents(view);
+    const range = document.createRange(); range.setStart(cells[0]!, 0); range.setEnd(cells[3]!, cells[3]!.childNodes.length);
+    document.getSelection()?.removeAllRanges(); document.getSelection()?.addRange(range);
+    const copied: Record<string, string> = {};
+    const event = new Event("copy", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: { setData: (type: string, value: string) => { copied[type] = value; } } });
+    view.dom.querySelector("table")!.dispatchEvent(event);
+    expect(copied["text/plain"]).toBe(source);
+    expect(view.state.doc.toString()).toBe(`Before\n\n${source}\n\nAfter`);
+  });
+
+  it("clears a text selection across cells without removing rows or columns", () => {
+    const view = createView();
+    const cells = contents(view);
+    const range = document.createRange(); range.setStart(cells[0]!, 0); range.setEnd(cells[3]!, cells[3]!.childNodes.length);
+    document.getSelection()?.removeAllRanges(); document.getSelection()?.addRange(range);
+    view.dom.querySelector("table")!.dispatchEvent(new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true }));
+    expect(contents(view).map(cell => cell.textContent)).toEqual(["", "", "", ""]);
+    expect(view.dom.querySelectorAll("tr")).toHaveLength(2);
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(`Before\n\n${source}\n\nAfter`);
+  });
+
+  it("focuses a new row's editable cell when rowspan zero covers its first column", () => {
+    const view = createView('<table><tbody><tr><td rowspan="0">Keep</td><td>A</td></tr></tbody></table>');
+    button(view, "Add row below").click();
+    expect((document.activeElement as HTMLElement).dataset.row).toBe("1");
+    expect((document.activeElement as HTMLElement).dataset.column).toBe("1");
   });
 
   it("retains cell focus after keyboard undo and structural actions", () => {
@@ -137,12 +248,12 @@ describe("HTML table editing widget", () => {
     expect(view.state.doc.toString()).not.toContain("asset://");
   });
 
-  it("provides a caret line after Enter without persisting its placeholder", () => {
+  it("provides a caret line after Shift+Enter without persisting its placeholder", () => {
     const view = createView();
     const cell = select(view, 1);
     const range = document.createRange(); range.selectNodeContents(cell); range.collapse(false);
     document.getSelection()?.removeAllRanges(); document.getSelection()?.addRange(range);
-    cell.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    cell.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true, cancelable: true }));
     expect(cell.querySelector('[data-markra-caret-break]')).not.toBeNull();
     expect(view.state.doc.toString()).toContain("<td>B<br></td>");
     expect(view.state.doc.toString()).not.toContain("data-markra");
@@ -193,7 +304,7 @@ describe("HTML table editing widget", () => {
 
   it("keeps read-only documents unchanged", () => {
     const readonly = createView(source, true);
-    expect(contents(readonly).every(cell => cell.getAttribute("contenteditable") === "false")).toBe(true);
+    expect(readonly.dom.querySelector("table")?.getAttribute("contenteditable")).toBe("false");
     expect(button(readonly, "Merge cells").disabled).toBe(true);
     expect(readonly.dom.querySelector('[role="separator"]')).toBeNull();
     input(contents(readonly)[0]!, "Ignored");
@@ -206,7 +317,7 @@ describe("HTML table editing widget", () => {
     select(view, 0);
     view.dispatch({ effects: permission.reconfigure(EditorState.readOnly.of(true)) });
     expect(contents(view)).toHaveLength(4);
-    expect(contents(view).every(cell => cell.getAttribute("contenteditable") === "false")).toBe(true);
+    expect(view.dom.querySelector("table")?.getAttribute("contenteditable")).toBe("false");
     expect(view.dom.querySelector('[role="separator"]')).toBeNull();
     expect(view.state.doc.toString()).toBe(`Before\n\n${source}\n\nAfter`);
   });
