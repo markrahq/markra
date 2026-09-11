@@ -150,6 +150,35 @@ describe("HTML table editing widget", () => {
     expect(contents(view)[1]).toBe(cell);
   });
 
+  it("keeps composing text intact when a structural control is clicked", () => {
+    const view = createView();
+    const cell = select(view, 1);
+    cell.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    input(cell, "测试");
+    button(view, "Add row below").click();
+    expect(contents(view)[1]).toBe(cell);
+    expect(cell.textContent).toBe("测试");
+    expect(view.dom.querySelectorAll("tr")).toHaveLength(2);
+    cell.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    expect(view.state.doc.toString()).toContain("测试");
+    button(view, "Add row below").click();
+    expect(view.dom.querySelectorAll("tr")).toHaveLength(3);
+  });
+
+  it("preserves an image-only cell when starting IME input beside the image", () => {
+    const view = createView('<table><tr><td><img src="./mock.png"></td></tr></table>');
+    const cell = select(view, 0);
+    const range = document.createRange(); range.selectNodeContents(cell); range.collapse(false);
+    document.getSelection()?.removeAllRanges(); document.getSelection()?.addRange(range);
+    cell.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true }));
+    expect(cell.querySelector("img")?.getAttribute("src")).toBe("asset://./mock.png");
+    cell.querySelector('[data-markra-table-caret-host]')!.textContent = "\u200b测试";
+    cell.dispatchEvent(new CompositionEvent("compositionend", { bubbles: true }));
+    expect(view.state.doc.toString()).toContain('src="./mock.png"');
+    expect(view.state.doc.toString()).toContain("测试");
+    expect(view.state.doc.toString()).not.toContain("\u200b");
+  });
+
   it("keeps input focused when the browser targets the shared table host", () => {
     const view = createView();
     const cell = select(view, 1);
@@ -283,6 +312,20 @@ describe("HTML table editing widget", () => {
       new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true }),
     );
     expect(view.state.doc.toString()).toBe(`Before\n\n${source}\n\nAfter`);
+  });
+
+  it("does not steal cell focus after resizing a column at its minimum", () => {
+    const view = createView();
+    for (let index = 0; index < 8; index += 1) {
+      view.dom.querySelector<HTMLElement>('[role="separator"][data-column="0"]')!.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true, cancelable: true }),
+      );
+    }
+    expect(view.dom.querySelector("col")?.style.width).toBe("48px");
+    const cell = select(view, 1);
+    input(cell, "Typed");
+    expect(view.state.doc.toString()).toContain("Typed");
+    expect(document.activeElement).toBe(cell);
   });
 
   it("commits a drag once on release and cancels a drag on Escape", () => {

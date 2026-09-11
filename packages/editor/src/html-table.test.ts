@@ -89,6 +89,13 @@ describe("HTML table source operations", () => {
     expect(table.firstElementChild?.tagName).toBe("CAPTION");
   });
 
+  it("does not duplicate a spanning column's id when persisting widths", () => {
+    const html = '<table><colgroup><col id="synthetic-column" span="2"></colgroup><tr><td>A</td><td>B</td></tr></table>';
+    const resized = resizeHtmlColumns(html, document, 0, [120, 180])!;
+    expect(tableOf(resized).element.querySelectorAll('[id="synthetic-column"]')).toHaveLength(1);
+    expect([...tableOf(resized).element.querySelectorAll("col")].map(col => col.style.width)).toEqual(["120px", "180px"]);
+  });
+
   it("adds a colgroup after a caption and keeps widths through merge and split", () => {
     const resized = resizeHtmlColumns(source, document, 0, [100, 150, 200])!;
     expect(tableOf(resized).element.children[1]?.tagName).toBe("COLGROUP");

@@ -138,7 +138,11 @@ export class HtmlTableWidget extends WidgetType {
 
   private change(view: EditorView, source: string | null, inputCell?: HTMLElement) {
     const range = this.runtime.range;
-    if (view.state.readOnly || source === null || source === range.source || view.state.sliceDoc(range.from, range.to) !== range.source) return false;
+    if (view.state.readOnly || source === null || source === range.source || view.state.sliceDoc(range.from, range.to) !== range.source) {
+      // A no-op resize must not leave a focus request for the next cell edit.
+      this.runtime.focus = null;
+      return false;
+    }
     const key = inputCell ? `${inputCell.dataset.table}:${inputCell.dataset.row}:${inputCell.dataset.column}` : null;
     const document = view.dom.ownerDocument;
     const restoreInputFocus = inputCell && (document.activeElement === inputCell ||
@@ -307,7 +311,15 @@ export class HtmlTableWidget extends WidgetType {
       this.beginCell(index, contentPoint(cell));
       if (!cell.textContent) {
         const host = createTableCaretHost(document);
-        cell.replaceChildren(host.host);
+        const selection = document.getSelection();
+        const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+        // Textless cells can contain images, nested tables or authored line breaks.
+        if (range && cell.contains(range.commonAncestorContainer)) {
+          range.deleteContents();
+          range.insertNode(host.host);
+        } else {
+          cell.append(host.host);
+        }
         placeTableCellCaret(cell, tableCaretPlaceholder.length);
       }
       this.runtime.composing = cell;
@@ -442,6 +454,8 @@ export class HtmlTableWidget extends WidgetType {
       table.replaceWith(wrapper); grid.append(table); scroll.append(grid); wrapper.append(scroll);
       table.classList.add("cm-markra-table");
       table.setAttribute("contenteditable", String(!this.readOnly && model.valid));
+      // Only cell edits have a source transaction; captions remain selectable preview content.
+      table.caption?.setAttribute("contenteditable", "false");
       table.title = this.labels.selectCells;
       const renderedCells = Array.from(table.rows).flatMap(row => Array.from(row.cells));
       const columnCells: Array<{ element: HTMLTableCellElement; column: number; columnSpan: number }> = [];
@@ -481,7 +495,7 @@ export class HtmlTableWidget extends WidgetType {
       updateLayout();
       this.runtime.controls.push(createTableControls(wrapper, table, {
         labels: this.labels,
-        readOnly: () => view.state.readOnly || !this.runtime.tables[index]?.valid,
+        readOnly: () => view.state.readOnly || !this.runtime.tables[index]?.valid || this.runtime.composing !== null,
         shape: () => ({ columns: this.runtime.tables[index]!.columnCount, rows: this.runtime.tables[index]!.rows.length }),
         alignment: () => htmlTableAlignment(this.runtime.tables[index]!),
         widthMode: () => htmlTableWidthMode(this.runtime.tables[index]!.element),

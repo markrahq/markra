@@ -203,7 +203,11 @@ export function resizeHtmlColumns(source: string, document: Document, tableIndex
   for (const group of groups) {
     const columns = columnsInGroup(group);
     const expanded = columns.length
-      ? columns.flatMap(col => Array.from({ length: spanValue(col, "span") }, () => col.cloneNode(false) as HTMLTableColElement))
+      ? columns.flatMap(col => Array.from({ length: spanValue(col, "span") }, (_, copyIndex) => {
+          const copy = col.cloneNode(false) as HTMLTableColElement;
+          if (copyIndex) copy.removeAttribute("id");
+          return copy;
+        }))
       : Array.from({ length: spanValue(group, "span") }, () => document.createElement("col"));
     group.removeAttribute("span");
     group.removeAttribute("width");
