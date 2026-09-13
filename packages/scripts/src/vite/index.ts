@@ -155,6 +155,8 @@ export function createMarkraAppViteConfig(options: MarkraAppViteConfigOptions) {
     },
     server: options.server,
     test: {
+      // Keep raw theme templates available to settings tests in both app shells.
+      css: { include: [/\/themes\/[^/]+\.css(?:\?|$)/] },
       environment: "jsdom",
       globals: true,
       ...(options.test ?? {})

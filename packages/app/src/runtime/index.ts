@@ -408,6 +408,17 @@ export type AppWindowRuntime = {
   toggleWindowMaximized: () => Promise<unknown>;
 };
 
+export type ThemeDirectory = {
+  directory: string;
+  files: string[];
+};
+
+export type AppThemesRuntime = {
+  list: () => Promise<ThemeDirectory>;
+  read: (fileName: string) => Promise<string>;
+  openFolder: () => Promise<unknown>;
+};
+
 export type AppRuntime = {
   acp: AppAcpRuntime;
   ai: AppAiRuntime;
@@ -423,6 +434,7 @@ export type AppRuntime = {
   shellCommand: AppShellCommandRuntime;
   spellcheck: AppSpellcheckRuntime;
   systemFonts: AppSystemFontsRuntime;
+  themes?: AppThemesRuntime;
   updater: AppUpdaterRuntime;
   webResource: AppWebResourceRuntime;
   window: AppWindowRuntime;

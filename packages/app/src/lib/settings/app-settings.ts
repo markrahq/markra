@@ -1,3 +1,4 @@
+import defaultCustomThemeCss from "../../themes/light.css?raw";
 import {
   createAiAgentSessionTitle,
   createDefaultAiAgentSessionState,
@@ -445,63 +446,7 @@ export type { EditorContentWidth };
 export type { EditorFontFamilyPreference };
 
 export const customThemeCssMaxLength = 50000;
-export const defaultCustomThemeCss = `:root[data-theme="custom"] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f6f8fa;
-  --bg-code: #f6f8fa;
-  --bg-hover: rgba(129, 139, 152, 0.1);
-  --bg-active: #e6eaef;
-  --text-primary: #1f2328;
-  --text-heading: #1f2328;
-  --text-secondary: #59636e;
-  --text-md-char: #818b98;
-  --border-default: #d1d9e0;
-  --border-strong: #d1d9e0;
-  --accent: #1a1c1e;
-  --accent-soft: rgba(26, 28, 30, 0.1);
-  --accent-hover: #0f1115;
-}
-
-:root[data-theme="custom"] .markdown-paper[data-editor-theme="custom"] {
-  --editor-paper-bg: var(--bg-primary);
-  --editor-text-primary: var(--text-primary);
-  --editor-text-heading: var(--text-heading);
-  --editor-text-secondary: var(--text-secondary);
-  --editor-heading-font-weight: 760;
-  --editor-heading-letter-spacing: 0;
-  --editor-h1-color: var(--editor-text-heading);
-  --editor-h1-font-size: 44px;
-  --editor-h1-font-size-compact: 34px;
-  --editor-h1-font-weight: var(--editor-heading-font-weight);
-  --editor-h1-line-height: 1.15;
-  --editor-h2-color: var(--editor-text-heading);
-  --editor-h2-font-size: 31px;
-  --editor-h2-font-size-compact: 26px;
-  --editor-h2-font-weight: var(--editor-heading-font-weight);
-  --editor-h2-line-height: 1.22;
-  --editor-h3-color: var(--editor-text-heading);
-  --editor-h3-font-size: 24px;
-  --editor-h3-font-weight: var(--editor-heading-font-weight);
-  --editor-h3-line-height: 1.28;
-  --editor-h4-color: var(--editor-text-heading);
-  --editor-h4-font-size: 19px;
-  --editor-h4-font-weight: var(--editor-heading-font-weight);
-  --editor-h4-line-height: 1.35;
-  --editor-h5-color: var(--editor-text-heading);
-  --editor-h5-font-size: 16px;
-  --editor-h5-font-weight: var(--editor-heading-font-weight);
-  --editor-h5-line-height: 1.45;
-  --editor-h6-color: var(--editor-text-heading);
-  --editor-h6-font-size: 16px;
-  --editor-h6-font-weight: var(--editor-heading-font-weight);
-  --editor-h6-line-height: 1.45;
-  --editor-border: var(--border-default);
-  --editor-border-strong: var(--border-strong);
-  --editor-bg-secondary: var(--bg-secondary);
-  --editor-inline-code-bg: var(--bg-code);
-  --editor-code-bg: var(--bg-code);
-  --editor-code-line-bg: var(--bg-secondary);
-}`;
+export { defaultCustomThemeCss };
 export type CustomThemeCssValues = {
   dark: string;
   light: string;

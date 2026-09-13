@@ -25,6 +25,8 @@ import {
 import { mergeClassNames } from "./class-names";
 import type { SettingsTranslate } from "./translate";
 import { Tooltip } from "@markra/ui";
+import { ThemeFileSelect, ThemeFolderSettings } from "./ThemeFolderSettings";
+import type { useThemeFiles } from "../../hooks/useThemeFiles";
 
 const appearanceModeIcons: Record<AppAppearanceMode, LucideIcon> = {
   dark: Moon,
@@ -83,11 +85,15 @@ function AppearanceModeControl({
 }
 
 function CustomThemeCssPanel({
+  appearance,
+  themeFiles,
   customThemeCss,
   onUpdateCustomThemeCss,
   title,
   translate
 }: {
+  appearance: "light" | "dark";
+  themeFiles?: ReturnType<typeof useThemeFiles>;
   customThemeCss: string;
   onUpdateCustomThemeCss: (css: string) => unknown;
   title: string;
@@ -109,17 +115,23 @@ function CustomThemeCssPanel({
           {title}
         </h4>
       </div>
-      <CustomThemeCssControl
+      {themeFiles?.available ? <ThemeFileSelect appearance={appearance} themeFiles={themeFiles} translate={translate} /> : null}
+      {themeFiles?.available && themeFiles.selection[appearance] ? (
+        <p className="my-2 text-[13px] leading-5 text-(--text-secondary)">
+          {translate("settings.theme.editFileHint")}
+        </p>
+      ) : <CustomThemeCssControl
         customThemeCss={customThemeCss}
         label={title}
         translate={translate}
         onUpdateCustomThemeCss={onUpdateCustomThemeCss}
-      />
+      />}
     </section>
   );
 }
 
 export function AppearanceSettings({
+  themeFiles,
   customThemeEnabled,
   selectedAppearanceMode,
   darkCustomThemeCss,
@@ -136,6 +148,7 @@ export function AppearanceSettings({
   selectedUiZoomPercent = defaultUiZoomPercent,
   translate
 }: {
+  themeFiles?: ReturnType<typeof useThemeFiles>;
   customThemeEnabled: boolean;
   darkCustomThemeCss: string;
   lightCustomThemeCss: string;
@@ -215,15 +228,20 @@ export function AppearanceSettings({
           />
         }
       />
+      {themeFiles?.available ? <ThemeFolderSettings themeFiles={themeFiles} translate={translate} /> : null}
       {customThemeEnabled ? (
         <>
           <CustomThemeCssPanel
+            appearance="light"
+            themeFiles={themeFiles}
             customThemeCss={lightCustomThemeCss}
             title={translate("settings.theme.lightCustomCssTitle")}
             translate={translate}
             onUpdateCustomThemeCss={onUpdateLightCustomThemeCss}
           />
           <CustomThemeCssPanel
+            appearance="dark"
+            themeFiles={themeFiles}
             customThemeCss={darkCustomThemeCss}
             title={translate("settings.theme.darkCustomCssTitle")}
             translate={translate}
