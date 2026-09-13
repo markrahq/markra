@@ -1,3 +1,16 @@
+## [2.11.0](https://github.com/markrahq/markra/compare/v2.10.3...v2.11.0) (2026-09-13)
+
+### Features
+
+* **ai:** add OrcaRouter provider ([#718](https://github.com/markrahq/markra/issues/718)) ([cc97f4c](https://github.com/markrahq/markra/commit/cc97f4ccafaba8544ca983779de58b57ac7ad7b3)), closes [#715](https://github.com/markrahq/markra/issues/715)
+* **editor:** add editable HTML tables with merged cells ([#720](https://github.com/markrahq/markra/issues/720)) ([a9416b3](https://github.com/markrahq/markra/commit/a9416b3f92cae6692f108b88674f0733172c3a94))
+
+### Bug Fixes
+
+* **desktop:** apply saved theme before window startup ([#716](https://github.com/markrahq/markra/issues/716)) ([0064fba](https://github.com/markrahq/markra/commit/0064fba9427a866b0f8f4b23fe6381940043a6b8)), closes [#713](https://github.com/markrahq/markra/issues/713)
+* **editor:** prevent ordered list markers from wrapping ([#725](https://github.com/markrahq/markra/issues/725)) ([b114c3c](https://github.com/markrahq/markra/commit/b114c3c188decbd3816acf6a85e86c82983dca69))
+* **release:** drop deprecated `verified:` from Homebrew cask url stanza ([#714](https://github.com/markrahq/markra/issues/714)) ([0800a2b](https://github.com/markrahq/markra/commit/0800a2bb1e7b9923bd33dc3a177d0a631e40c48a))
+
 ## [2.10.3](https://github.com/markrahq/markra/compare/v2.10.2...v2.10.3) (2026-09-04)
 
 ### Bug Fixes
