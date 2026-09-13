@@ -519,10 +519,10 @@ describe("editor stylesheet", () => {
     );
     expect(styles).toContain("margin: 0 !important");
     expect(styles).toContain(
-      '.markdown-paper .cm-markra-table[data-width-mode="auto"]',
+      '.markdown-paper .cm-markra-table-wrap[data-table-from] .cm-markra-table[data-width-mode="auto"]',
     );
     expect(styles).toContain(
-      '.markdown-paper .cm-markra-table[data-width-mode="even"]',
+      '.markdown-paper .cm-markra-table-wrap[data-table-from] .cm-markra-table[data-width-mode="even"]',
     );
     expect(styles).toContain(
       '.markdown-paper[data-editor-theme="github"] .cm-markra-table-wrap',

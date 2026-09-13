@@ -43,6 +43,18 @@ afterEach(() => {
 });
 
 describe("tablePreviewPlugin", () => {
+  it("clears text across cells while retaining the table grid", () => {
+    const view = createView("| Name | Value |\n| --- | --- |\n| A | B |\n| C | D |\n\nAfter");
+    const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table")!;
+    const cells = [...table.querySelectorAll("tbody td")];
+    const range = document.createRange(); range.setStart(cells[0]!, 0); range.setEnd(cells[3]!, cells[3]!.childNodes.length);
+    document.getSelection()?.removeAllRanges(); document.getSelection()?.addRange(range);
+    table.dispatchEvent(new InputEvent("beforeinput", { inputType: "deleteContentBackward", bubbles: true, cancelable: true }));
+    expect([...view.dom.querySelectorAll("tbody td")].map(cell => cell.textContent)).toEqual(["", "", "", ""]);
+    expect(view.dom.querySelectorAll("tr")).toHaveLength(3);
+    expect(view.state.doc.toString()).toContain("After");
+  });
+
   it("keeps an unchanged visual table mounted when editing before it", async () => {
     const doc = [
       "Before",
@@ -1115,6 +1127,8 @@ describe("tablePreviewPlugin", () => {
       y: 10,
       toJSON: () => ({}),
     });
+    const scroll = wrapper!.querySelector<HTMLElement>(".markra-table-scroll")!;
+    scroll.getBoundingClientRect = wrapper!.getBoundingClientRect;
     header!.getBoundingClientRect = () => ({
       bottom: 70,
       height: 40,
@@ -1149,6 +1163,9 @@ describe("tablePreviewPlugin", () => {
     expect(deleteRow?.hidden).toBe(false);
     expect(deleteRow?.style.left).toBe("264px");
     expect(deleteRow?.style.top).toBe("80px");
+    scroll.getBoundingClientRect = () => ({ ...wrapper!.getBoundingClientRect(), right: 240, width: 220 });
+    bodyCell!.dispatchEvent(new MouseEvent("mousemove", { bubbles: true }));
+    expect(deleteRow?.style.left).toBe("220px");
   });
 
   it("reveals the complete table source when the selection enters it", () => {

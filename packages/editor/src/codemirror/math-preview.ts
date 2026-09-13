@@ -289,11 +289,14 @@ const mathTheme = EditorView.baseTheme({
   ".markra-math-render-display": {
     display: "block",
     overflowX: "auto",
-    padding: "0.4em 0",
+    // Block-widget measurements exclude margins. Keep all spacing inside the
+    // measured box so coordinate lookups for subsequent source lines stay aligned.
+    margin: "0",
+    padding: "calc(0.4em + var(--markra-math-block-spacing, 0px)) 0",
     textAlign: "center",
   },
   ".markra-math-render-active-preview": {
-    marginTop: "0.4em",
+    paddingTop: "0.8em",
   },
 });
 

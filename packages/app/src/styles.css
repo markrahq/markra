@@ -1415,17 +1415,18 @@
     line-height: 0 !important;
   }
 
-  .markdown-paper .cm-markra-table {
+  /* HTML tables retain authored widths and their draggable column layout. */
+  .markdown-paper .cm-markra-table-wrap[data-table-from] .cm-markra-table {
     width: 100% !important;
     max-width: 100% !important;
     margin: 0 !important;
   }
 
-  .markdown-paper .cm-markra-table[data-width-mode="auto"] {
+  .markdown-paper .cm-markra-table-wrap[data-table-from] .cm-markra-table[data-width-mode="auto"] {
     table-layout: auto !important;
   }
 
-  .markdown-paper .cm-markra-table[data-width-mode="even"] {
+  .markdown-paper .cm-markra-table-wrap[data-table-from] .cm-markra-table[data-width-mode="even"] {
     table-layout: fixed !important;
   }
 
@@ -3580,8 +3581,85 @@
     white-space: normal;
   }
 
+  .markdown-paper .markra-html-node:has(table) {
+    @apply overflow-x-auto;
+    /* A wide table must scroll here instead of setting CodeMirror's minimum content width. */
+    contain: inline-size;
+  }
+
+  .markdown-paper .markra-html-node table {
+    table-layout: auto;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+
   .markdown-paper .markra-html-node img {
     @apply m-0 inline-block max-w-full rounded-none border-0 align-middle;
+  }
+
+  .markdown-paper .markra-html-node:has(.cm-markra-html-table) {
+    overflow: visible;
+  }
+
+  .markdown-paper .markra-table-extra-control {
+    @apply relative rounded-md;
+    position: static;
+  }
+
+  .markdown-paper .cm-markra-html-table-grid {
+    @apply relative pt-5;
+  }
+
+  .markdown-paper .cm-markra-html-table table {
+    @apply my-0;
+  }
+
+  .markdown-paper .cm-markra-html-cell-content {
+    min-width: 3rem;
+    outline: none;
+  }
+
+  .markdown-paper .cm-markra-html-cell-content:focus {
+    box-shadow: inset 0 0 0 2px currentColor;
+  }
+
+  .markdown-paper .cm-markra-html-table [data-selected] {
+    background: color-mix(in srgb, var(--accent) 10%, var(--editor-paper-bg));
+  }
+
+  .markdown-paper .cm-markra-html-column-resize {
+    /* Keep drag targets above cells so invisible boundaries never intercept a merged cell's clicks. */
+    @apply absolute top-0 z-10 h-5 w-2 cursor-col-resize touch-none;
+    transform: translateX(-50%);
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .markdown-paper .cm-markra-html-table:hover .cm-markra-html-column-resize,
+  .markdown-paper .cm-markra-html-table:focus-within .cm-markra-html-column-resize {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .markdown-paper .cm-markra-html-column-resize::after {
+    content: "";
+    @apply absolute inset-y-1 left-1/2 w-px;
+    background: var(--editor-border-strong);
+  }
+
+  .markdown-paper .cm-markra-html-column-resize:last-child {
+    transform: translateX(-100%);
+  }
+
+  .markdown-paper .cm-markra-html-column-resize:hover,
+  .markdown-paper .cm-markra-html-column-resize:focus-visible {
+    background: color-mix(in srgb, var(--accent) 20%, transparent);
+    outline: 1px solid var(--accent);
+    outline-offset: -3px;
+  }
+
+  .markdown-paper .cm-markra-html-resizing {
+    @apply cursor-col-resize select-none;
   }
 
   .markdown-paper .markra-html-node pre {
@@ -3798,6 +3876,10 @@
     overflow-x: auto;
     overflow-y: hidden;
     text-align: center;
+  }
+
+  .markdown-paper .cm-content .markra-math-render-display {
+    --markra-math-block-spacing: 0.85em;
   }
 
   .markdown-paper .markra-math-render-display .katex-display {
