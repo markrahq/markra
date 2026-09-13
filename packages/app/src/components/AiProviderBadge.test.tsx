@@ -14,6 +14,11 @@ function provider(overrides: Partial<AiProviderConfig> = {}): AiProviderConfig {
 }
 
 describe("AiProviderBadge", () => {
+  it("shows the OrcaRouter logo for its compatible provider entry", () => {
+    render(<AiProviderBadge provider={provider({ id: "orcarouter", name: "OrcaRouter" })} translate={(key) => key} />);
+    expect(screen.getByRole("img", { name: "OrcaRouter settings.ai.providerLogo" })).toHaveAttribute("src", expect.stringContaining("orcarouter"));
+  });
+
   it("uses safe line height for fallback provider initials", () => {
     render(<AiProviderBadge provider={provider()} translate={(key) => key} />);
 

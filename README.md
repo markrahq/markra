@@ -176,7 +176,7 @@ Markra is not trying to replace every Markdown tool. It is closest to a calm doc
 
 Supports cloud models, local models, and any OpenAI-compatible endpoint. Separate model selection for inline editing and the side panel.
 
-**Built-in providers:** OpenAI · Anthropic · Google Gemini · DeepSeek · Mistral · Groq · OpenRouter · Together.ai · Qwen · Xiaomi MiMo · Volcengine Ark · xAI · Azure OpenAI · Ollama
+**Built-in providers:** OpenAI · Anthropic · Google Gemini · DeepSeek · Mistral · Groq · OpenRouter · OrcaRouter · Together.ai · Qwen · Xiaomi MiMo · Volcengine Ark · xAI · Azure OpenAI · Ollama
 
 **Web search:** Provider-native search, Bing, and SearXNG — with configurable result and content limits.
 

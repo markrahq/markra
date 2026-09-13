@@ -176,7 +176,7 @@ Markra 并不是想替代所有 Markdown 工具。它更接近一个安静的本
 
 支持云端模型、本地模型和任意 OpenAI 兼容接口，内联编辑和侧边栏可分别选择模型。
 
-**内置服务商：** OpenAI · Anthropic · Google Gemini · DeepSeek · Mistral · Groq · OpenRouter · Together.ai · Qwen · Xiaomi MiMo · Volcengine Ark · xAI · Azure OpenAI · Ollama
+**内置服务商：** OpenAI · Anthropic · Google Gemini · DeepSeek · Mistral · Groq · OpenRouter · OrcaRouter · Together.ai · Qwen · Xiaomi MiMo · Volcengine Ark · xAI · Azure OpenAI · Ollama
 
 **联网搜索：** 服务商原生搜索、Bing 和 SearXNG——结果数量和正文长度均可配置。
 

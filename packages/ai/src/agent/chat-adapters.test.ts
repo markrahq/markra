@@ -1,9 +1,10 @@
 import {
   getChatAdapter,
+  getChatAdapterForProvider,
   type ChatMessage
 } from "./chat-adapters";
 import { buildInlineAiMessages } from "./inline-prompt";
-import type { AiProviderConfig } from "@markra/providers";
+import { createDefaultAiSettings, type AiProviderConfig } from "@markra/providers";
 import type { Tool } from "@earendil-works/pi-ai";
 import { encodeOpenRouterReasoningDetails } from "./reasoning-metadata";
 
@@ -51,6 +52,34 @@ const readDocumentTool = {
 } as Tool;
 
 describe("AI chat adapters", () => {
+  it("uses the compatible adapter for built-in OrcaRouter inline and agent requests", () => {
+    const config = createDefaultAiSettings().providers.find((item) => item.id === "orcarouter");
+    expect(config).toBeDefined();
+    if (!config) throw new Error("Missing OrcaRouter provider");
+    const configured = { ...config, apiKey: "mock-key" };
+    const adapter = getChatAdapterForProvider(configured);
+    expect(adapter).toBe(getChatAdapter("openai-compatible"));
+    const inline = adapter.buildRequest(configured, "mock/writer", messages, { stream: true });
+    expect(inline).toEqual({
+      url: "https://api.orcarouter.ai/v1/chat/completions",
+      headers: { Authorization: "Bearer mock-key", "content-type": "application/json" },
+      body: { messages, model: "mock/writer", temperature: 0.7, stream: true }
+    });
+    const agent = adapter.buildRequest(configured, "mock/reasoner", messages, {
+      stream: true,
+      thinkingEnabled: true,
+      tools: [readDocumentTool]
+    });
+    expect(agent.body).toMatchObject({
+      model: "mock/reasoner",
+      stream: true,
+      reasoning_effort: "high",
+      tools: [{ type: "function", function: { name: "read_document" } }]
+    });
+    expect(agent.body).not.toHaveProperty("reasoning");
+    expect(agent.body).not.toHaveProperty("thinking");
+  });
+
   it("builds OpenAI-compatible chat completion requests with JSON headers", () => {
     const request = getChatAdapter("openai-compatible").buildRequest(
       provider({ baseUrl: "https://proxy.example.test/v1", type: "openai-compatible" }),
