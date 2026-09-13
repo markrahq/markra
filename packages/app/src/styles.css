@@ -1166,6 +1166,16 @@
     inset-inline-start: var(--markra-list-depth-offset);
   }
 
+  .markdown-paper .cm-line.cm-markra-list-item[data-list-kind="ordered"][data-markra-list-source="hidden"]::before {
+    /* Keep multi-digit markers whole and grow into the gutter, away from editable text. */
+    inset-inline-start: auto;
+    inset-inline-end: calc(100% - var(--markra-list-depth-offset) - 1.2em);
+    width: max-content;
+    min-width: 1.2em;
+    white-space: nowrap;
+    text-align: end;
+  }
+
   .markdown-paper .cm-line.cm-markra-list-item[data-list-kind="task"][data-markra-list-source="hidden"] {
     padding-inline-start: calc(1.4em + var(--markra-list-depth-offset)) !important;
   }
