@@ -335,6 +335,7 @@ export function SettingsWindow() {
           ) : null}
           {activeSettingsCategory === "appearance" ? (
             <AppearanceSettings
+              themeCompatibility={appTheme.themeCompatibility}
               themeFiles={appTheme.themeFiles}
               customThemeEnabled={appTheme.customThemeEnabled}
               darkCustomThemeCss={appTheme.darkCustomThemeCss}

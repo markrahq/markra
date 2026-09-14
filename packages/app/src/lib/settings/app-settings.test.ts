@@ -58,6 +58,12 @@ describe("app settings", () => {
     resetSettingsStoreRuntime();
   });
 
+  it("preserves imported theme CSS beyond the old 50,000-character limit", async () => {
+    const css = `#write { color: #123456; } /* ${"mock ".repeat(12_000)} */`;
+    await saveStoredCustomThemeCss({ light: css, dark: "" });
+    expect(store.set).toHaveBeenCalledWith("lightCustomThemeCss", css);
+  });
+
   it("documents the supported heading tokens in the default custom theme CSS", () => {
     expect(defaultCustomThemeCss).toContain("--editor-heading-font-weight: 760;");
     expect(defaultCustomThemeCss).toContain("--editor-heading-letter-spacing: 0;");

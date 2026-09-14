@@ -1,7 +1,8 @@
 import { Code2, Download, RotateCcw, Upload } from "lucide-react";
-import { type ChangeEvent, type CSSProperties, useRef } from "react";
+import { type ChangeEvent, type CSSProperties, useRef, useState } from "react";
 import {
   defaultCustomThemeCss,
+  customThemeCssMaxBytes,
   type EditorTheme
 } from "../../lib/settings/app-settings";
 import type { I18nKey } from "@markra/shared";
@@ -347,6 +348,7 @@ export function CustomThemeCssControl({
   translate: Translate;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState<I18nKey | null>(null);
   const importLabel = translate("settings.theme.importCustomCss");
   const exportLabel = translate("settings.theme.exportCustomCss");
   const resetLabel = translate("settings.theme.resetCustomCss");
@@ -357,14 +359,20 @@ export function CustomThemeCssControl({
 
     input.value = "";
     if (!file) return;
+    setImportError(null);
+    if (file.size > customThemeCssMaxBytes) {
+      setImportError("settings.theme.cssFileTooLarge");
+      return;
+    }
 
     file.text()
       .then((css) => onUpdateCustomThemeCss(css))
-      .catch(() => {});
+      .catch(() => setImportError("settings.theme.cssFileReadError"));
   }
 
   return (
     <div className="flex w-full flex-col items-stretch gap-2">
+      {importError ? <p role="alert" className="m-0 text-[13px] leading-5 text-(--danger)">{translate(importError)}</p> : null}
       <SettingsTextarea
         className="min-h-24 font-mono font-[500]"
         label={label}

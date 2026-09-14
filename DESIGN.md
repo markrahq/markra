@@ -269,6 +269,8 @@ Inputs, selects, textareas, and search fields use white background, neutral bord
 
 Theme file controls reuse the compact settings rows, neutral secondary buttons, and existing select styling. Keep the folder and manual refresh actions together in one row, with separate light and dark source selectors in their corresponding Custom theme CSS sections. Bound selectors to the available content width so long filenames truncate without widening the panel; fallback messages use muted, wrapping text.
 
+Compatibility notices sit below each affected CSS section heading in compact secondary text, using `role="status"` and a short list of limitations when needed.
+
 Segmented controls sit on surface backgrounds with compact spacing. The selected segment uses active neutral surface and strong text; focus uses the primary ring.
 
 Toggles use primary for checked state and neutral surface for unchecked state. Toggle labels should be short and operational.

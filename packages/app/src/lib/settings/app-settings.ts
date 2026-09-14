@@ -445,7 +445,9 @@ export type { AppLogLevel };
 export type { EditorContentWidth };
 export type { EditorFontFamilyPreference };
 
-export const customThemeCssMaxLength = 50000;
+export const customThemeCssMaxBytes = 1024 * 1024;
+// This many code units can preserve any supported UTF-8 import without truncating its source.
+export const customThemeCssMaxLength = customThemeCssMaxBytes;
 export { defaultCustomThemeCss };
 export type CustomThemeCssValues = {
   dark: string;

@@ -50,3 +50,36 @@ it("waits for selected file CSS on first paint and does not truncate large style
   expect(result.current.ready).toBe(true);
   expect(document.getElementById("markra-custom-theme-style")?.textContent).toBe(css);
 });
+
+it("adapts Typora CSS from settings without changing the saved source", async () => {
+  const runtime = createDefaultAppRuntime();
+  configureAppRuntime(runtime);
+  const source = '#write h1 { color: #aabbcc; } .cm-s-inner .cm-keyword { color: #bbccdd; }';
+  await saveStoredThemePreferences({ appearanceMode: "light", lightTheme: "light", darkTheme: "dark", customThemeEnabled: true });
+  await saveStoredCustomThemeCss({ light: source, dark: '#write { color: #ddeeff; }' });
+  const { result } = renderHook(useAppTheme);
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(document.getElementById("markra-custom-theme-style")?.textContent).toContain("--editor-h1-color: #aabbcc;");
+  expect(result.current.lightCustomThemeCss).toBe(source);
+  expect(result.current.themeCompatibility.light.kind).toBe("typora");
+  act(() => result.current.selectAppearanceMode("dark"));
+  expect(document.getElementById("markra-custom-theme-style")?.textContent).toContain("--editor-text-primary: #ddeeff;");
+});
+
+it("adapts refreshed Typora theme files and restores native CSS when their source changes", async () => {
+  let css = '#write { color: #112233; }';
+  configureAppRuntime({ ...createDefaultAppRuntime(), themes: {
+    list: async () => ({ directory: "/mock/themes", files: ["typora.css"] }),
+    read: async () => css, openFolder: async () => undefined
+  } });
+  await saveStoredThemePreferences({ appearanceMode: "light", lightTheme: "light", darkTheme: "dark", customThemeEnabled: true });
+  await saveStoredThemeFiles({ light: "typora.css", dark: null });
+  const { result } = renderHook(useAppTheme);
+  await waitFor(() => expect(result.current.ready).toBe(true));
+  expect(result.current.themeCompatibility.light.kind).toBe("typora");
+  expect(document.getElementById("markra-custom-theme-style")?.textContent).toContain("--editor-text-primary: #112233;");
+  css = ':root[data-theme="custom"] { --accent: #556677; }';
+  await act(() => result.current.themeFiles.refresh());
+  expect(result.current.themeCompatibility.light.kind).toBe("native");
+  expect(document.getElementById("markra-custom-theme-style")?.textContent).toBe(css);
+});

@@ -27,6 +27,8 @@ import type { SettingsTranslate } from "./translate";
 import { Tooltip } from "@markra/ui";
 import { ThemeFileSelect, ThemeFolderSettings } from "./ThemeFolderSettings";
 import type { useThemeFiles } from "../../hooks/useThemeFiles";
+import type { ThemeCompatibility } from "../../lib/themes/typora";
+import { ThemeCompatibilityNotice } from "./ThemeCompatibilityNotice";
 
 const appearanceModeIcons: Record<AppAppearanceMode, LucideIcon> = {
   dark: Moon,
@@ -85,6 +87,7 @@ function AppearanceModeControl({
 }
 
 function CustomThemeCssPanel({
+  compatibility,
   appearance,
   themeFiles,
   customThemeCss,
@@ -92,6 +95,7 @@ function CustomThemeCssPanel({
   title,
   translate
 }: {
+  compatibility?: ThemeCompatibility;
   appearance: "light" | "dark";
   themeFiles?: ReturnType<typeof useThemeFiles>;
   customThemeCss: string;
@@ -115,6 +119,7 @@ function CustomThemeCssPanel({
           {title}
         </h4>
       </div>
+      <ThemeCompatibilityNotice compatibility={compatibility} translate={translate} />
       {themeFiles?.available ? <ThemeFileSelect appearance={appearance} themeFiles={themeFiles} translate={translate} /> : null}
       {themeFiles?.available && themeFiles.selection[appearance] ? (
         <p className="my-2 text-[13px] leading-5 text-(--text-secondary)">
@@ -131,6 +136,7 @@ function CustomThemeCssPanel({
 }
 
 export function AppearanceSettings({
+  themeCompatibility,
   themeFiles,
   customThemeEnabled,
   selectedAppearanceMode,
@@ -148,6 +154,7 @@ export function AppearanceSettings({
   selectedUiZoomPercent = defaultUiZoomPercent,
   translate
 }: {
+  themeCompatibility?: Record<"light" | "dark", ThemeCompatibility>;
   themeFiles?: ReturnType<typeof useThemeFiles>;
   customThemeEnabled: boolean;
   darkCustomThemeCss: string;
@@ -233,6 +240,7 @@ export function AppearanceSettings({
         <>
           <CustomThemeCssPanel
             appearance="light"
+            compatibility={themeCompatibility?.light}
             themeFiles={themeFiles}
             customThemeCss={lightCustomThemeCss}
             title={translate("settings.theme.lightCustomCssTitle")}
@@ -241,6 +249,7 @@ export function AppearanceSettings({
           />
           <CustomThemeCssPanel
             appearance="dark"
+            compatibility={themeCompatibility?.dark}
             themeFiles={themeFiles}
             customThemeCss={darkCustomThemeCss}
             title={translate("settings.theme.darkCustomCssTitle")}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   appAppearanceModeOptions,
   getStoredCustomThemeCss,
@@ -24,6 +24,7 @@ import {
 } from "../lib/settings/app-settings";
 import { defaultUiZoomPercent } from "../lib/ui-zoom";
 import { useThemeFiles } from "./useThemeFiles";
+import { adaptTyporaTheme } from "../lib/themes/typora";
 import {
   listenAppCustomThemeCssChanged,
   listenAppThemeChanged,
@@ -131,7 +132,11 @@ export function useAppTheme() {
   const resolvedTheme = resolveAppThemePreferencesAppearance(themePreferences, systemTheme);
   const customThemeEnabled = themePreferences.customThemeEnabled === true;
   const ready = themePreferencesReady && (editorTheme !== "custom" || (customThemeCssReady && themeFiles.ready));
-  const activeCustomCss = themeFiles.css[resolvedTheme] ?? customThemeCss[resolvedTheme];
+  const lightCssSource = themeFiles.css.light ?? customThemeCss.light;
+  const darkCssSource = themeFiles.css.dark ?? customThemeCss.dark;
+  const lightThemeCss = useMemo(() => adaptTyporaTheme(lightCssSource, "light"), [lightCssSource]);
+  const darkThemeCss = useMemo(() => adaptTyporaTheme(darkCssSource, "dark"), [darkCssSource]);
+  const activeCustomCss = resolvedTheme === "dark" ? darkThemeCss.css : lightThemeCss.css;
 
   useEffect(() => {
     let active = true;
@@ -316,6 +321,7 @@ export function useAppTheme() {
   }, [customThemeCss]);
 
   return {
+    themeCompatibility: { light: lightThemeCss, dark: darkThemeCss },
     themeFiles,
     customThemeCss,
     customThemeEnabled,
