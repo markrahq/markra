@@ -32,6 +32,8 @@ export default defineConfig(({ mode }) => ({
       },
   plugins: [react(), tailwindcss()],
   test: {
+    // Theme templates are imported as text; Vitest must not replace them with empty CSS modules.
+    css: { include: [/\/themes\/[^/]+\.css(?:\?|$)/] },
     environment: "jsdom",
     globals: true,
     ...localTestWorkerConfig,

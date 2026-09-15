@@ -13,6 +13,7 @@ import * as logs from "./tauri/logs";
 import * as menu from "./tauri/menu";
 import * as shellCommand from "./tauri/shell-command";
 import * as spellcheck from "./tauri/spellcheck";
+import * as themes from "./tauri/themes";
 import * as updater from "./tauri/updater";
 import * as webResource from "./tauri/web-resource";
 import * as windowRuntime from "./tauri/window";
@@ -174,6 +175,12 @@ export const desktopRuntime = {
   },
   systemFonts: {
     listFontFamilies: fonts.listNativeSystemFontFamilies
+  },
+  themes: {
+    chooseFolder: themes.chooseNativeThemeFolder,
+    list: themes.listNativeThemes,
+    read: themes.readNativeTheme,
+    openFolder: themes.openNativeThemeFolder
   },
   updater: {
     checkAppUpdate: updater.checkNativeAppUpdate
