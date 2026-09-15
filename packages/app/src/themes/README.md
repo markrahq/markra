@@ -2,18 +2,22 @@
 
 ## Use a theme / 使用主题
 
-1. Open Settings → Appearance → Open theme folder.
-2. Copy `starter-light.css` or `starter-dark.css` to a new `.css` file in this folder.
+1. Open Settings → Appearance. Use Choose theme folder for an existing CSS directory, or keep the default. Open theme folder opens the active directory.
+2. Add a CSS file, or copy `starter-light.css` or `starter-dark.css` from the default folder.
 3. Enable Custom theme and select a file for each appearance.
 4. Edit and save the file in your text editor, then click Refresh themes in Markra.
 
-在「设置 → 外观」打开主题文件夹，复制浅色或深色模板为新的 `.css` 文件。
+在「设置 → 外观」选择已有主题文件夹，或保留默认目录。「打开主题文件夹」会打开当前目录，可复制浅色或深色模板为新的 `.css` 文件。
 开启「自定义主题」后，分别选择浅色、深色主题文件。用文本编辑器修改并保存后，点击「刷新主题」即可应用到所有窗口。
 
-Templates are created once. Markra updates and refreshes never overwrite your files or restore deleted templates.
+One directory is active at a time, and its path is shown in Settings. The folder choice survives restarts and is synchronized across windows. Switching to a different directory clears file choices to avoid applying a different file with the same name; choose the new folder's light/dark files afterward. Use default folder returns to Markra's managed directory. Cancelling the picker keeps the current choice. If a saved folder becomes unavailable, the saved settings CSS is used until you restore the folder and refresh or choose another directory.
+
+一次使用一个目录，设置中会显示当前路径，并在重启后保留、在窗口间同步。切换到不同目录时会清空文件选择，避免误用同名文件，请重新选择浅色和深色主题。点击「恢复默认文件夹」可回到默认目录；取消选择保留原设置。已保存的目录不可用时，会暂时使用设置中的 CSS，可恢复目录后刷新或重新选择目录。
+
+Templates are created once in the default directory only. Custom folders, including an existing Typora themes folder, are read without adding, moving or changing files. Markra updates and refreshes never overwrite your files or restore deleted templates.
 Only CSS files directly inside this folder are listed. File names and themes are local to this computer; copy them separately when moving to another device. Existing CSS import/export and portable settings backups contain the CSS entered in Settings, not these files.
 
-模板只在首次初始化时创建，升级或刷新不会覆盖修改或恢复已删除的模板。只扫描本目录下的 CSS 文件。
+模板只在默认目录首次初始化时创建。自定义目录（包括已有 Typora 主题目录）只读取，不会添加、移动或修改文件。升级或刷新不会覆盖修改或恢复已删除的模板。只扫描本目录下的 CSS 文件。
 主题文件和选择记录保存在本机，换设备时请单独复制；设置备份和 CSS 导入导出仍处理设置中填写的 CSS。
 
 ## Supported variables / 常用变量

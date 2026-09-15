@@ -414,9 +414,10 @@ export type ThemeDirectory = {
 };
 
 export type AppThemesRuntime = {
-  list: () => Promise<ThemeDirectory>;
-  read: (fileName: string) => Promise<string>;
-  openFolder: () => Promise<unknown>;
+  list: (directory?: string | null) => Promise<ThemeDirectory>;
+  read: (fileName: string, directory?: string | null) => Promise<string>;
+  openFolder: (directory?: string | null) => Promise<unknown>;
+  chooseFolder: (options: { title: string; defaultPath?: string }) => Promise<string | null>;
 };
 
 export type AppRuntime = {

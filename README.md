@@ -172,19 +172,21 @@ Markra is not trying to replace every Markdown tool. It is closest to a calm doc
 ### Themes and Export
 
 - Built-in palettes and scoped custom CSS, with separate light/dark settings and CSS import/export/reset.
-- Desktop theme folder with editable starter files, manual refresh across open windows, and saved selections that survive restarts. Missing or unreadable files fall back to the CSS saved in Settings.
+- Choose a desktop theme folder or use the default folder with editable starter files. Folder and file choices survive restarts; manual refresh applies edits across open windows. Missing or unreadable files fall back to the CSS saved in Settings.
 - Basic Typora theme compatibility: automatically adapt colors, installed fonts, heading sizes, weights and letter spacing, links, code fonts/backgrounds, and common syntax colors while preserving the original CSS.
 - Customize inline and fenced-code fonts with `--editor-code-font-family`.
 - Export to standalone HTML or PDF with page, margin, and metadata controls. Exports use their own styles rather than the editor theme.
 
 To use a desktop theme file:
 
-1. Open **Settings → Appearance → Open theme folder**.
-2. Add a CSS file, or copy and edit `starter-light.css` or `starter-dark.css`.
+1. Open **Settings → Appearance** and use **Choose theme folder** to select an existing CSS directory, or keep the default. **Open theme folder** opens the active directory.
+2. Add a CSS file, or copy and edit `starter-light.css` or `starter-dark.css` from the default folder.
 3. Enable **Custom theme** and select a file for each appearance.
 4. After editing and saving a file, click **Refresh themes** to apply it across open windows.
 
 On desktop or web, you can also use **Import CSS** in the same settings section. Supported files are UTF-8 CSS up to **1 MiB**. Theme files stay local and are not included in portable settings backups.
+
+One folder is active at a time. Switching to a different folder clears file selections so you can choose its themes. **Use default folder** returns to Markra's managed directory. Custom folders are only read; Markra does not move files or add templates to them.
 
 Typora compatibility covers basic appearance, not every theme rule. Complex layouts, conditional rules, bundled fonts/images, and imported stylesheets are skipped with notices in Settings. See the [theme guide](packages/app/src/themes/README.md) for supported variables and compatibility details.
 

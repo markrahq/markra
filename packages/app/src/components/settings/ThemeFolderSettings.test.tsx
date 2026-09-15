@@ -7,7 +7,8 @@ function controls() {
     available: true, directory: "/mock/themes", files: ["example.css"],
     selection: { light: "missing.css", dark: null }, css: { light: null, dark: null },
     failedFiles: ["missing.css"], error: false, loading: false, ready: true,
-    refresh: vi.fn(), openFolder: vi.fn(), select: vi.fn()
+    customDirectory: null as string | null,
+    refresh: vi.fn(), openFolder: vi.fn(), select: vi.fn(), chooseFolder: vi.fn(), resetFolder: vi.fn()
   };
 }
 
@@ -41,4 +42,23 @@ it("disables the selector while saving and offers recovery after a directory err
   </>);
   expect(screen.getByRole("combobox")).toBeDisabled();
   expect(screen.getByRole("alert")).toHaveTextContent("try again");
+});
+
+it("shows the active path and supports choosing or resetting the folder", () => {
+  const themeFiles = { ...controls(), customDirectory: "/mock/custom", directory: "/mock/custom", failedFiles: [] };
+  render(<ThemeFolderSettings themeFiles={themeFiles} translate={translate} />);
+  expect(screen.getByText("/mock/custom")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Choose theme folder" }));
+  expect(themeFiles.chooseFolder).toHaveBeenCalledWith("Choose theme folder");
+  fireEvent.click(screen.getByRole("button", { name: "Use default folder" }));
+  expect(themeFiles.resetFolder).toHaveBeenCalledOnce();
+});
+
+it("explains empty folders and disables directory changes while loading", () => {
+  const themeFiles = { ...controls(), files: [], failedFiles: [] };
+  const { rerender } = render(<ThemeFolderSettings themeFiles={themeFiles} translate={translate} />);
+  expect(screen.getByText(/No CSS files/)).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Use default folder" })).not.toBeInTheDocument();
+  rerender(<ThemeFolderSettings themeFiles={{ ...themeFiles, loading: true }} translate={translate} />);
+  expect(screen.getByRole("button", { name: "Choose theme folder" })).toBeDisabled();
 });

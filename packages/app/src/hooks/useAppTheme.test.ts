@@ -13,6 +13,7 @@ afterEach(() => {
 it("applies file CSS for each appearance and restores inline CSS when the file is unavailable", async () => {
   const read = vi.fn(async (file: string) => `/* ${file} */`);
   configureAppRuntime({ ...createDefaultAppRuntime(), themes: {
+    chooseFolder: async () => null,
     list: async () => ({ directory: "/mock/themes", files: ["light.css", "dark.css"] }),
     read, openFolder: async () => undefined
   } });
@@ -36,6 +37,7 @@ it("applies file CSS for each appearance and restores inline CSS when the file i
 it("waits for selected file CSS on first paint and does not truncate large stylesheets", async () => {
   let resolveCss!: (css: string) => unknown;
   configureAppRuntime({ ...createDefaultAppRuntime(), themes: {
+    chooseFolder: async () => null,
     list: async () => ({ directory: "/mock/themes", files: ["large.css"] }),
     read: () => new Promise<string>((resolve) => { resolveCss = resolve; }),
     openFolder: async () => undefined
@@ -69,6 +71,7 @@ it("adapts Typora CSS from settings without changing the saved source", async ()
 it("adapts refreshed Typora theme files and restores native CSS when their source changes", async () => {
   let css = '#write { color: #112233; }';
   configureAppRuntime({ ...createDefaultAppRuntime(), themes: {
+    chooseFolder: async () => null,
     list: async () => ({ directory: "/mock/themes", files: ["typora.css"] }),
     read: async () => css, openFolder: async () => undefined
   } });

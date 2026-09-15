@@ -177,6 +177,7 @@ export const desktopRuntime = {
     listFontFamilies: fonts.listNativeSystemFontFamilies
   },
   themes: {
+    chooseFolder: themes.chooseNativeThemeFolder,
     list: themes.listNativeThemes,
     read: themes.readNativeTheme,
     openFolder: themes.openNativeThemeFolder

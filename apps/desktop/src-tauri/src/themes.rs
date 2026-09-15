@@ -29,6 +29,38 @@ fn theme_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| error.to_string())
 }
 
+fn resolve_theme_directory(default: &Path, selected: Option<&str>) -> Result<PathBuf, String> {
+    let Some(selected) = selected else {
+        return Ok(default.to_path_buf());
+    };
+    let path = Path::new(selected);
+    if !path.is_absolute() {
+        return Err("Theme folder must be an absolute path".into());
+    }
+    let path = path.canonicalize().map_err(|error| error.to_string())?;
+    if !path.is_dir() {
+        return Err("Theme folder must be an existing directory".into());
+    }
+    Ok(path)
+}
+
+fn prepare_theme_directory(default: &Path, selected: Option<&str>) -> Result<PathBuf, String> {
+    let root = resolve_theme_directory(default, selected)?;
+    // A selected folder may belong to another app. Only Markra's default directory receives templates.
+    if selected.is_none() {
+        initialize_theme_directory(&root)?;
+    }
+    root.canonicalize().map_err(|error| error.to_string())
+}
+
+fn list_theme_directory(default: &Path, selected: Option<&str>) -> Result<ThemeDirectory, String> {
+    let root = prepare_theme_directory(default, selected)?;
+    Ok(ThemeDirectory {
+        files: list_theme_files(&root)?,
+        directory: root.to_string_lossy().into_owned(),
+    })
+}
+
 fn initialize_theme_directory(root: &Path) -> Result<(), String> {
     fs::create_dir_all(root).map_err(|error| error.to_string())?;
     if root
@@ -135,32 +167,41 @@ fn read_theme_css(root: &Path, name: &str) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub(crate) async fn list_themes(app: tauri::AppHandle) -> Result<ThemeDirectory, String> {
-    let root = theme_directory(&app)?;
+pub(crate) async fn list_themes(
+    app: tauri::AppHandle,
+    directory: Option<String>,
+) -> Result<ThemeDirectory, String> {
+    let default = theme_directory(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
-        initialize_theme_directory(&root)?;
-        Ok(ThemeDirectory {
-            files: list_theme_files(&root)?,
-            directory: root.to_string_lossy().into_owned(),
-        })
+        list_theme_directory(&default, directory.as_deref())
     })
     .await
     .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-pub(crate) async fn read_theme(app: tauri::AppHandle, file_name: String) -> Result<String, String> {
-    let root = theme_directory(&app)?;
-    tauri::async_runtime::spawn_blocking(move || read_theme_css(&root, &file_name))
-        .await
-        .map_err(|error| error.to_string())?
+pub(crate) async fn read_theme(
+    app: tauri::AppHandle,
+    file_name: String,
+    directory: Option<String>,
+) -> Result<String, String> {
+    let default = theme_directory(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let root = resolve_theme_directory(&default, directory.as_deref())?;
+        read_theme_css(&root, &file_name)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]
-pub(crate) async fn open_theme_folder(app: tauri::AppHandle) -> Result<(), String> {
-    let root = theme_directory(&app)?;
+pub(crate) async fn open_theme_folder(
+    app: tauri::AppHandle,
+    directory: Option<String>,
+) -> Result<(), String> {
+    let default = theme_directory(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
-        initialize_theme_directory(&root)?;
+        let root = prepare_theme_directory(&default, directory.as_deref())?;
         let program = if cfg!(target_os = "macos") {
             "open"
         } else if cfg!(windows) {
@@ -199,6 +240,44 @@ mod tests {
             "/* edited */"
         );
         assert!(!root.join("starter-dark.css").exists());
+    }
+
+    #[test]
+    fn lists_a_custom_folder_without_seeding_or_changing_it() {
+        let temp = tempdir().unwrap();
+        let default = temp.path().join("default");
+        let custom = temp.path().join("custom");
+        fs::create_dir(&custom).unwrap();
+        fs::write(custom.join("mock.css"), "/* retained */").unwrap();
+        let result = list_theme_directory(&default, Some(custom.to_str().unwrap())).unwrap();
+        assert_eq!(result.files, vec!["mock.css"]);
+        assert_eq!(
+            PathBuf::from(result.directory),
+            custom.canonicalize().unwrap()
+        );
+        assert_eq!(fs::read_dir(&custom).unwrap().count(), 1);
+        assert_eq!(
+            fs::read_to_string(custom.join("mock.css")).unwrap(),
+            "/* retained */"
+        );
+        assert!(!default.exists());
+    }
+
+    #[test]
+    fn restores_the_default_folder_and_rejects_invalid_custom_folders() {
+        let temp = tempdir().unwrap();
+        let default = temp.path().join("default");
+        let missing = temp.path().join("missing");
+        let file = temp.path().join("file.css");
+        fs::write(&file, "").unwrap();
+        assert!(list_theme_directory(&default, Some("relative/path")).is_err());
+        assert!(list_theme_directory(&default, Some(missing.to_str().unwrap())).is_err());
+        assert!(list_theme_directory(&default, Some(file.to_str().unwrap())).is_err());
+        assert!(!missing.exists());
+        assert!(!default.exists());
+        let result = list_theme_directory(&default, None).unwrap();
+        assert_eq!(result.files, vec!["starter-dark.css", "starter-light.css"]);
+        assert!(default.join("README.md").is_file());
     }
 
     #[test]
