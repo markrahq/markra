@@ -56,16 +56,52 @@ export async function requestNativeChatStream(
   request: NativeAiChatRequest,
   onChunk: (chunk: string) => unknown
 ): Promise<NativeAiStreamResponse> {
+  const network = await networkSettingsForNativeRequest();
+  const pendingChunks: Promise<unknown>[] = [];
+  let acceptingChunks = true;
+  let finishChannel!: () => unknown;
+  let rejectChannel!: (error: unknown) => unknown;
+  const channelDone = new Promise<unknown>((resolve, reject) => {
+    finishChannel = () => resolve(undefined);
+    rejectChannel = reject;
+  });
+  const failChannel = (error: unknown) => {
+    acceptingChunks = false;
+    rejectChannel(error);
+  };
   const onEvent = new Channel<NativeAiChatStreamEvent>((event) => {
-    if (event.type === "chunk") {
-      onChunk(event.chunk);
+    if (!acceptingChunks) return;
+    if (event.type === "done") {
+      acceptingChunks = false;
+      Promise.all(pendingChunks).then(finishChannel, failChannel);
+      return;
+    }
+
+    try {
+      const pendingChunk = Promise.resolve(onChunk(event.chunk));
+      pendingChunks.push(pendingChunk);
+      pendingChunk.catch(failChannel);
+    } catch (error) {
+      failChannel(error);
     }
   });
-  const network = await networkSettingsForNativeRequest();
-  const response = await invokeNative<NativeAiStreamResponse>("request_native_chat_stream", {
-    onEvent,
-    request: network ? { ...request, network } : request
-  });
 
-  return response;
+  try {
+    // The command can return before larger channel payloads arrive; done is ordered after every chunk.
+    const [response] = await Promise.all([
+      invokeNative<NativeAiStreamResponse>("request_native_chat_stream", {
+        onEvent,
+        request: network ? { ...request, network } : request
+      }).then((response) => {
+        // HTTP errors return a body without sending channel events.
+        if (response.status < 200 || response.status >= 300) finishChannel();
+        return response;
+      }),
+      channelDone
+    ]);
+
+    return response;
+  } finally {
+    acceptingChunks = false;
+  }
 }
