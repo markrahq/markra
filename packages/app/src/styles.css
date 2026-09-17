@@ -1420,8 +1420,10 @@
     margin: 0 !important;
     padding: 28px 36px 12px 0 !important;
     overflow: visible !important;
-    font-size: 16px !important;
-    line-height: 26.4px !important;
+    /* The source line uses a zero font size; inherit the body size via a
+       variable so table text still follows the editor preference. */
+    font-size: var(--editor-body-font-size, 16px) !important;
+    line-height: 1.65 !important;
   }
 
   .markdown-paper .cm-line:has(> .cm-markra-table-wrap) {
