@@ -268,6 +268,55 @@ describe("web file runtime", () => {
       .rejects.toThrow("Opening containing folders requires the desktop runtime.");
   });
 
+  it("returns null when the browser directory picker is cancelled", async () => {
+    const pickDirectoryFiles = vi.fn(async () => []);
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      pickDirectoryFiles,
+      showDirectoryPicker: async () => {
+        throw new DOMException("Mock picker cancelled", "AbortError");
+      }
+    });
+
+    await expect(runtime.files.openMarkdownFolder()).resolves.toBeNull();
+    expect(pickDirectoryFiles).not.toHaveBeenCalled();
+  });
+
+  it("opens a browser directory after cancelling an earlier selection", async () => {
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      "note.md": new FakeFileHandle("note.md", "# Mock note")
+    });
+    const showDirectoryPicker = vi.fn()
+      .mockRejectedValueOnce(new DOMException("Mock picker cancelled", "AbortError"))
+      .mockResolvedValueOnce(directory);
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker
+    });
+
+    await expect(runtime.files.openMarkdownFolder()).resolves.toBeNull();
+    const folder = await runtime.files.openMarkdownFolder();
+
+    expect(folder).toMatchObject({ name: "mock-vault" });
+    await expect(runtime.files.listMarkdownFilesForPath(folder!.path)).resolves.toContainEqual(
+      expect.objectContaining({ name: "note.md", relativePath: "note.md" })
+    );
+  });
+
+  it.each([
+    new DOMException("Mock picker blocked", "SecurityError"),
+    new Error("Mock picker failure")
+  ])("preserves browser directory picker errors other than cancellation: %s", async (error) => {
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => {
+        throw error;
+      }
+    });
+
+    await expect(runtime.files.openMarkdownFolder()).rejects.toBe(error);
+  });
+
   it("opens browser directories and lists Markdown tree entries", async () => {
     const directory = new FakeDirectoryHandle("mock-vault", {
       ".git": new FakeDirectoryHandle(".git", {

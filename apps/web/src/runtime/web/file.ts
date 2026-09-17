@@ -1123,7 +1123,14 @@ export function createWebFileRuntime(
     },
     async openMarkdownFolder() {
       if (showDirectoryPicker) {
-        const handle = await showDirectoryPicker();
+        let handle: WebDirectoryHandle;
+        try {
+          handle = await showDirectoryPicker();
+        } catch (error) {
+          // Dismissing the native picker rejects its promise instead of returning no selection.
+          if (error instanceof DOMException && error.name === "AbortError") return null;
+          throw error;
+        }
         const registered = registerDirectoryHandle(handle);
         await persistDirectoryHandle(registered.id, handle);
 
