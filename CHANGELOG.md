@@ -1,3 +1,12 @@
+## [2.11.1](https://github.com/markrahq/markra/compare/v2.11.0...v2.11.1) (2026-09-17)
+
+### Bug Fixes
+
+* **ai:** wait for streamed chunks before closing responses ([#734](https://github.com/markrahq/markra/issues/734)) ([2c9a5a1](https://github.com/markrahq/markra/commit/2c9a5a189a923f7fc97f8845941dea5eeac81d00)), closes [#724](https://github.com/markrahq/markra/issues/724)
+* **editor:** scale table text with body font size ([#735](https://github.com/markrahq/markra/issues/735)) ([f188940](https://github.com/markrahq/markra/commit/f1889404d87411c17c10dc27cbebd211bee5462a))
+* **fonts:** use proportional quotes in non-Chinese locales ([#732](https://github.com/markrahq/markra/issues/732)) ([cd4df45](https://github.com/markrahq/markra/commit/cd4df452be25a6ae85d70a7266a686a7408a2f5b)), closes [#731](https://github.com/markrahq/markra/issues/731)
+* **web:** handle directory picker cancellation ([#733](https://github.com/markrahq/markra/issues/733)) ([43619a7](https://github.com/markrahq/markra/commit/43619a799e12af252a3b8ce549138ecce1a0e8c2)), closes [#730](https://github.com/markrahq/markra/issues/730)
+
 ## [2.11.0](https://github.com/markrahq/markra/compare/v2.10.3...v2.11.0) (2026-09-13)
 
 ### Features
