@@ -88,10 +88,20 @@ function streamNativeResponse(request: NativeAiChatRequest, streamTransport: Cha
     },
     status: 200
   });
-  const pendingWrites: Promise<unknown>[] = [];
   let responseSettled = false;
+  let streamFinished = false;
 
   return new Promise<Response>((resolve, reject) => {
+    const failStream = (error: unknown) => {
+      streamFinished = true;
+      if (!responseSettled) {
+        responseSettled = true;
+        reject(error);
+      }
+
+      // The response body carries the error; cleanup may race with reader cancellation.
+      writer.abort(error).catch(() => {});
+    };
     const settleWithStream = () => {
       if (responseSettled) return;
       responseSettled = true;
@@ -99,36 +109,32 @@ function streamNativeResponse(request: NativeAiChatRequest, streamTransport: Cha
     };
 
     streamTransport(request, (chunk) => {
+      if (streamFinished) return;
       settleWithStream();
       const pendingWrite = writer.write(textEncoder.encode(chunk));
-      pendingWrites.push(pendingWrite);
+      // Event-based transports may ignore this promise, so handle write failures immediately.
+      pendingWrite.catch(failStream);
 
       return pendingWrite;
     })
-      .then(async (nativeResponse) => {
+      .then((nativeResponse) => {
+        if (streamFinished) return;
+        streamFinished = true;
         if (!responseSettled) {
+          const jsonResponse = jsonResponseFromNative({ body: nativeResponse.body ?? null, status: nativeResponse.status });
           responseSettled = true;
-          resolve(jsonResponseFromNative({ body: nativeResponse.body ?? null, status: nativeResponse.status }));
-          return;
+          resolve(jsonResponse);
+          return writer.close();
         }
 
-        await Promise.all(pendingWrites);
         if (nativeResponse.status < 200 || nativeResponse.status >= 300) {
-          await writer.abort(new Error(readNativeResponseError({ body: nativeResponse.body ?? null, status: nativeResponse.status })));
-          return;
+          throw new Error(readNativeResponseError({ body: nativeResponse.body ?? null, status: nativeResponse.status }));
         }
 
-        await writer.close();
+        // close() drains all queued writes before ending the readable side.
+        return writer.close();
       })
-      .catch(async (error: unknown) => {
-        if (!responseSettled) {
-          responseSettled = true;
-          reject(error);
-          return;
-        }
-
-        await writer.abort(error);
-      });
+      .catch(failStream);
   });
 }
 

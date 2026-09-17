@@ -95,4 +95,63 @@ describe("createNativeAiSdkFetch", () => {
     });
     expect(streamTransport).not.toHaveBeenCalled();
   });
+
+  it.each([true, false])("ignores chunks arriving after the transport finishes (streamed: %s)", async (streamed) => {
+    let emitChunk: (chunk: string) => unknown = () => undefined;
+    const nativeFetch = createNativeAiSdkFetch({
+      streamTransport: async (_request, onChunk) => {
+        emitChunk = onChunk;
+        if (streamed) onChunk("data: mock first\n\n");
+        return { status: 200 };
+      }
+    });
+
+    const response = await nativeFetch("https://example.test/v1/responses", {
+      body: JSON.stringify({ stream: true }),
+      method: "POST"
+    });
+
+    await expect(response.text()).resolves.toBe(streamed ? "data: mock first\n\n" : "");
+    const lateWrite = emitChunk("data: mock late\n\n");
+    Promise.resolve(lateWrite).catch(() => {});
+    expect(lateWrite).toBeUndefined();
+  });
+
+  it("handles rejected writes immediately when the response reader cancels", async () => {
+    let emitChunk: (chunk: string) => unknown = () => undefined;
+    let finishTransport: (response: { status: number }) => unknown = () => undefined;
+    const nativeFetch = createNativeAiSdkFetch({
+      streamTransport: (_request, onChunk) => {
+        emitChunk = onChunk;
+        onChunk("data: mock first\n\n");
+        return new Promise((resolve) => { finishTransport = resolve; });
+      }
+    });
+    const response = await nativeFetch("https://example.test/v1/responses", {
+      body: JSON.stringify({ stream: true }),
+      method: "POST"
+    });
+    const reader = response.body!.getReader();
+    await reader.read();
+    await reader.cancel(new Error("Mock reader cancellation"));
+
+    // Native event callbacks may ignore returned promises while the request is still running.
+    emitChunk("data: mock cancelled write\n\n");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    finishTransport({ status: 200 });
+    await expect(Promise.resolve(emitChunk("data: mock late\n\n"))).resolves.toBeUndefined();
+    await expect(reader.read()).resolves.toEqual({ done: true, value: undefined });
+  });
+
+  it("rejects transport failures before any response chunks arrive", async () => {
+    const error = new Error("Mock connection failure");
+    const nativeFetch = createNativeAiSdkFetch({
+      streamTransport: async () => { throw error; }
+    });
+
+    await expect(nativeFetch("https://example.test/v1/responses", {
+      body: JSON.stringify({ stream: true }),
+      method: "POST"
+    })).rejects.toBe(error);
+  });
 });
