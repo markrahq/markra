@@ -24,14 +24,31 @@
 
 <h2 align="center">首席赞助</h2>
 
+<table align="center">
+  <tr>
+    <td align="center" valign="top" width="50%">
+      <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor">
+        <img src="https://goaihop.com/goaihop-logo.svg" height="56" alt="GoAIHop 标志" />
+      </a>
+      <br />
+      <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor"><strong>GoAIHop</strong></a>
+      <br />
+      AI 中转站导航、比价与实测。
+    </td>
+    <td align="center" valign="top" width="50%">
+      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA">
+        <img src="assets/sponsors/fluxion-ai.png" height="56" alt="Fluxion AI 标志" />
+      </a>
+      <br />
+      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Fluxion AI</strong></a>
+      <br />
+      主流 AI，一站接入；智能调度，费用透明。
+    </td>
+  </tr>
+</table>
+
 <p align="center">
-  <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor">
-    <img src="https://goaihop.com/goaihop-logo.svg" width="72" alt="GoAIHop 标志" />
-  </a>
-  <br />
-  <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor"><strong>GoAIHop</strong></a>
-  <br />
-  AI 中转站导航、比价与实测。
+  <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Fluxion AI</strong></a> · Fable 5.1 较 Claude 官方 API 最高省约 90%。
 </p>
 
 <p align="center">

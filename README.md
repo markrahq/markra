@@ -22,16 +22,33 @@
   <img alt="License" src="https://img.shields.io/badge/License-AGPL--3.0-important" />
 </p>
 
-<h2 align="center">Chief Sponsor</h2>
+<h2 align="center">Chief Sponsors</h2>
+
+<table align="center">
+  <tr>
+    <td align="center" valign="top" width="50%">
+      <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor">
+        <img src="https://goaihop.com/goaihop-logo.svg" height="56" alt="GoAIHop logo" />
+      </a>
+      <br />
+      <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor"><strong>GoAIHop</strong></a>
+      <br />
+      AI relay directory, pricing &amp; real-world tests.
+    </td>
+    <td align="center" valign="top" width="50%">
+      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA">
+        <img src="assets/sponsors/fluxion-ai.png" height="56" alt="Fluxion AI logo" />
+      </a>
+      <br />
+      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Fluxion AI</strong></a>
+      <br />
+      One AI API. Smart routing, clear pricing.
+    </td>
+  </tr>
+</table>
 
 <p align="center">
-  <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor">
-    <img src="https://goaihop.com/goaihop-logo.svg" width="72" alt="GoAIHop logo" />
-  </a>
-  <br />
-  <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor"><strong>GoAIHop</strong></a>
-  <br />
-  AI relay directory, price comparison, and real-world performance testing.
+  <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Fluxion AI</strong></a> · Fable 5.1: up to ~90% less than Claude’s official API.
 </p>
 
 <p align="center">
