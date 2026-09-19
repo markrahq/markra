@@ -4,6 +4,11 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@codemirror/view@6.41.1':
+    hash: ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb
+    path: patches/@codemirror__view@6.41.1.patch
+
 importers:
 
   .:
@@ -259,7 +264,7 @@ importers:
         version: 6.6.0
       '@codemirror/view':
         specifier: 6.41.1
-        version: 6.41.1
+        version: 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       '@dnd-kit/core':
         specifier: 6.3.1
         version: 6.3.1(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -395,7 +400,7 @@ importers:
         version: 6.6.0
       '@codemirror/view':
         specifier: 6.41.1
-        version: 6.41.1
+        version: 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       '@cspell/cspell-types':
         specifier: 10.0.1
         version: 10.0.1
@@ -419,7 +424,7 @@ importers:
         version: link:../shared
       '@replit/codemirror-vim':
         specifier: 6.3.0
-        version: 6.3.0(@codemirror/commands@6.10.3)(@codemirror/language@6.12.3)(@codemirror/search@6.7.0)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1)
+        version: 6.3.0(@codemirror/commands@6.10.3)(@codemirror/language@6.12.3)(@codemirror/search@6.7.0)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb))
       cspell-trie-lib:
         specifier: 10.0.1
         version: 10.0.1(@cspell/cspell-types@10.0.1)
@@ -465,7 +470,7 @@ importers:
     dependencies:
       '@codemirror/view':
         specifier: 6.41.1
-        version: 6.41.1
+        version: 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       '@markra/editor':
         specifier: workspace:*
         version: link:../editor
@@ -3608,14 +3613,14 @@ snapshots:
     dependencies:
       '@codemirror/language': 6.12.3
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       '@lezer/common': 1.5.2
 
   '@codemirror/commands@6.10.3':
     dependencies:
       '@codemirror/language': 6.12.3
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       '@lezer/common': 1.5.2
 
   '@codemirror/lang-css@6.3.1':
@@ -3633,7 +3638,7 @@ snapshots:
       '@codemirror/lang-javascript': 6.2.5
       '@codemirror/language': 6.12.3
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       '@lezer/common': 1.5.2
       '@lezer/css': 1.3.3
       '@lezer/html': 1.3.13
@@ -3644,7 +3649,7 @@ snapshots:
       '@codemirror/language': 6.12.3
       '@codemirror/lint': 6.9.5
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       '@lezer/common': 1.5.2
       '@lezer/javascript': 1.5.4
 
@@ -3659,14 +3664,14 @@ snapshots:
       '@codemirror/lang-html': 6.4.11
       '@codemirror/language': 6.12.3
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       '@lezer/common': 1.5.2
       '@lezer/markdown': 1.6.4
 
   '@codemirror/language@6.12.3':
     dependencies:
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       '@lezer/common': 1.5.2
       '@lezer/highlight': 1.2.3
       '@lezer/lr': 1.4.10
@@ -3675,20 +3680,20 @@ snapshots:
   '@codemirror/lint@6.9.5':
     dependencies:
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       crelt: 1.0.6
 
   '@codemirror/search@6.7.0':
     dependencies:
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
       crelt: 1.0.6
 
   '@codemirror/state@6.6.0':
     dependencies:
       '@marijn/find-cluster-break': 1.0.2
 
-  '@codemirror/view@6.41.1':
+  '@codemirror/view@6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)':
     dependencies:
       '@codemirror/state': 6.6.0
       crelt: 1.0.6
@@ -3968,13 +3973,13 @@ snapshots:
     dependencies:
       quansync: 1.0.0
 
-  '@replit/codemirror-vim@6.3.0(@codemirror/commands@6.10.3)(@codemirror/language@6.12.3)(@codemirror/search@6.7.0)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1)':
+  '@replit/codemirror-vim@6.3.0(@codemirror/commands@6.10.3)(@codemirror/language@6.12.3)(@codemirror/search@6.7.0)(@codemirror/state@6.6.0)(@codemirror/view@6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb))':
     dependencies:
       '@codemirror/commands': 6.10.3
       '@codemirror/language': 6.12.3
       '@codemirror/search': 6.7.0
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
 
   '@rolldown/binding-android-arm64@1.0.0-rc.17':
     optional: true
@@ -4581,7 +4586,7 @@ snapshots:
       '@codemirror/lint': 6.9.5
       '@codemirror/search': 6.7.0
       '@codemirror/state': 6.6.0
-      '@codemirror/view': 6.41.1
+      '@codemirror/view': 6.41.1(patch_hash=ffb25c0dbacf0721cabf9a478e56706b3e6a6df28774d2602d9111a5a17cc8cb)
 
   comma-separated-tokens@2.0.3: {}
 
