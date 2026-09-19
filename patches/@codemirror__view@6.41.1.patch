@@ -1,0 +1,32 @@
+diff --git a/dist/index.cjs b/dist/index.cjs
+index 0a2374effcd135ba9be38756ec0244997344afcb..7425a7ed9d78162213b25c53e976d384e05c11ff 100644
+--- a/dist/index.cjs
++++ b/dist/index.cjs
+@@ -670,8 +670,9 @@ class DOMSelectionState {
+     }
+ }
+ let preventScrollSupported = null;
+-// Safari 26 breaks preventScroll support
+-if (browser.safari && browser.safari_version >= 26)
++// Safari 26 breaks preventScroll support. WKWebView omits Version/ from
++// its user agent, so an unknown Safari version needs the same fallback.
++if (browser.safari && (browser.safari_version >= 26 || browser.safari_version == 0))
+     preventScrollSupported = false;
+ // Feature-detects support for .focus({preventScroll: true}), and uses
+ // a fallback kludge when not supported.
+diff --git a/dist/index.js b/dist/index.js
+index ac1464a31c3e4aa2858546d59d81228d07c6e4c2..c31dc871c6093f9ad9a66600862141ae3a2cb7a0 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -667,8 +667,9 @@ class DOMSelectionState {
+     }
+ }
+ let preventScrollSupported = null;
+-// Safari 26 breaks preventScroll support
+-if (browser.safari && browser.safari_version >= 26)
++// Safari 26 breaks preventScroll support. WKWebView omits Version/ from
++// its user agent, so an unknown Safari version needs the same fallback.
++if (browser.safari && (browser.safari_version >= 26 || browser.safari_version == 0))
+     preventScrollSupported = false;
+ // Feature-detects support for .focus({preventScroll: true}), and uses
+ // a fallback kludge when not supported.
