@@ -227,6 +227,8 @@ Markra bundles Noto Sans SC Variable for application chrome and the default edit
 
 Editor typography is larger and calmer than UI typography. Body copy defaults to 16px with a 1.65 line-height for comfortable long-form writing. Headings use strong weight, normal tracking, and clear scale jumps: H1 at 44px, H2 at 31px, and H3 at 24px.
 
+Theme authors can set `--editor-code-font-family` for inline code, fenced code, and rendered preview code. Keep this font customization separate from CodeMirror's code-row sizing and line-height safeguards.
+
 Application controls use compact desktop sizes. Most settings, menus, inputs, and list controls sit between 12px and 13px, with medium-to-semibold weights for clarity. Letter spacing remains 0 across the UI.
 
 Use typographic hierarchy before adding decoration. Prefer weight, size, tone, and spacing changes over colored badges or boxed labels.
@@ -264,6 +266,10 @@ Secondary buttons use the background surface, strong text, and neutral borders. 
 Icon buttons are preferred for toolbar actions when a familiar symbol exists. Pair them with accessible labels and visible focus rings. Use `lucide-react` icons for app controls.
 
 Inputs, selects, textareas, and search fields use white background, neutral border, strong text, and the primary color for focus border and focus ring. Placeholder text uses muted text.
+
+Theme file controls reuse the compact settings rows, neutral secondary buttons, and existing select styling. Keep Choose, Open, and Refresh in a compact wrapping group within the row. Show the active path below in selectable, wrapping monospace text, with an action to restore the default only for custom folders. Retain separate light and dark source selectors in their corresponding Custom theme CSS sections. Bound selectors to the available content width so long filenames truncate without widening the panel; empty folder status and fallback messages use muted, wrapping text.
+
+Compatibility notices sit below each affected CSS section heading in compact secondary text, using `role="status"` and a short list of limitations when needed.
 
 Segmented controls sit on surface backgrounds with compact spacing. The selected segment uses active neutral surface and strong text; focus uses the primary ring.
 

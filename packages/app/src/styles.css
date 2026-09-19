@@ -1113,6 +1113,7 @@
   }
 
   .markdown-paper .cm-markra-inline-code {
+    font-family: var(--editor-code-font-family, ui-monospace, SFMono-Regular, Menlo, monospace) !important;
     background: var(--editor-inline-code-bg) !important;
     color: var(--editor-inline-code-text) !important;
   }
@@ -1321,7 +1322,8 @@
     border: 0 !important;
     background: transparent !important;
     color: var(--editor-code-text) !important;
-    font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace !important;
+    /* The variable permits font customization without removing CodeMirror's geometry safeguards. */
+    font-family: var(--editor-code-font-family, Menlo, Consolas, "DejaVu Sans Mono", monospace) !important;
     font-size: 14.4px !important;
     line-height: 24px !important;
   }
@@ -4188,7 +4190,7 @@
 
   .markdown-paper code {
     @apply rounded-[3px] border border-(--border-default) bg-(--bg-code) px-[0.28em] py-[0.12em] text-[0.88em] text-(--text-primary);
-    font-family: Menlo, Consolas, "DejaVu Sans Mono", monospace;
+    font-family: var(--editor-code-font-family, Menlo, Consolas, "DejaVu Sans Mono", monospace);
     color: oklch(40% 0.13 247);
     background: var(--editor-inline-code-bg);
     border-color: var(--editor-border);

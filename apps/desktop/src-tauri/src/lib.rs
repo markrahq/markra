@@ -21,6 +21,7 @@ mod s3_text_file;
 mod shell_command;
 mod spellcheck_dictionary;
 mod text_file;
+mod themes;
 mod watcher;
 mod web_http;
 mod webdav_text_file;
@@ -80,6 +81,7 @@ use spellcheck_dictionary::{
 use tauri::Manager;
 use tauri_plugin_window_state::StateFlags;
 use text_file::{read_text_file, write_text_file};
+use themes::{list_themes, open_theme_folder, read_theme};
 use watcher::{
     unwatch_markdown_file, unwatch_markdown_tree, watch_markdown_file, watch_markdown_tree,
     MarkdownFileWatcherState, MarkdownTreeWatcherState,
@@ -281,6 +283,9 @@ pub fn run() {
             emit_native_menu_command_payload(app, payload);
         })
         .invoke_handler(tauri::generate_handler![
+            list_themes,
+            read_theme,
+            open_theme_folder,
             list_markdown_files_for_path,
             list_markdown_reference_files_for_path,
             load_markdown_files_for_path,
