@@ -1,3 +1,10 @@
+## [2.11.2](https://github.com/markrahq/markra/compare/v2.11.1...v2.11.2) (2026-09-20)
+
+### Bug Fixes
+
+* **editor:** preserve first-click caret in WKWebView ([#737](https://github.com/markrahq/markra/issues/737)) ([da6c518](https://github.com/markrahq/markra/commit/da6c518c2b01db71bf93a07445194b4293218a1c)), closes [#736](https://github.com/markrahq/markra/issues/736)
+* **editor:** show Mermaid render diagnostics ([#741](https://github.com/markrahq/markra/issues/741)) ([7ed626f](https://github.com/markrahq/markra/commit/7ed626fef228e4371507e18b83cd27a58d8e3710)), closes [#740](https://github.com/markrahq/markra/issues/740)
+
 ## [2.11.1](https://github.com/markrahq/markra/compare/v2.11.0...v2.11.1) (2026-09-17)
 
 ### Bug Fixes
