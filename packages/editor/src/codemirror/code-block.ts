@@ -24,6 +24,7 @@ import {
   type MarkraCodeLanguageOption,
 } from "../code-support.ts";
 import {
+  formatMermaidError,
   isMermaidLanguage,
   mermaidThemeFromElement,
   renderMermaidToSvg,
@@ -281,6 +282,15 @@ const codeBlockTheme = EditorView.baseTheme({
   ".markra-mermaid-render svg": {
     height: "auto",
     maxWidth: "100%",
+  },
+  ".markra-mermaid-render-invalid": {
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+    fontSize: "0.86em",
+    maxHeight: "18em",
+    overflow: "auto",
+    overflowWrap: "anywhere",
+    textAlign: "left",
+    whiteSpace: "pre-wrap",
   },
 });
 
@@ -685,15 +695,22 @@ class MermaidPreviewWidget extends WidgetType {
           if (token !== runtime.renderToken) return;
           this.closeViewer(runtime);
           preview.innerHTML = svg;
+          preview.classList.remove("markra-mermaid-render-invalid");
+          delete preview.dataset.error;
           removeEmptyMermaidLabels(preview);
           this.appendZoomButton(runtime, view, preview, wrapper);
           preview.setAttribute("aria-busy", "false");
+          view.requestMeasure();
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (token !== runtime.renderToken) return;
-          preview.textContent = this.labels.mermaidError;
+          this.closeViewer(runtime);
+          wrapper.querySelector(".markra-mermaid-zoom-button")?.remove();
+          preview.textContent = formatMermaidError(error, this.labels.mermaidError);
+          preview.classList.add("markra-mermaid-render-invalid");
           preview.dataset.error = "true";
           preview.setAttribute("aria-busy", "false");
+          view.requestMeasure();
         });
     };
     render();

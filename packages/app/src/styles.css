@@ -4422,9 +4422,10 @@
   }
 
   .markdown-paper .markra-mermaid-render-invalid {
-    @apply text-[0.86em];
-    background: color-mix(in srgb, oklch(65% 0.19 29) 8%, var(--editor-code-bg));
-    color: oklch(46% 0.17 29);
+    @apply max-h-[18em] overflow-auto font-mono text-[0.86em] whitespace-pre-wrap;
+    background: color-mix(in srgb, var(--danger) 8%, var(--editor-code-bg));
+    color: var(--danger);
+    overflow-wrap: anywhere;
     text-align: left;
   }
 

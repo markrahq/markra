@@ -57,6 +57,7 @@ function decorationWidgetNames(view: EditorView) {
 afterEach(() => {
   for (const view of views.splice(0)) view.destroy();
   document.body.replaceChildren();
+  document.documentElement.removeAttribute("data-theme");
 });
 
 describe("codeBlockPreviewPlugin", () => {
@@ -572,6 +573,98 @@ describe("codeBlockPreviewPlugin", () => {
 
     expect(view.dom.querySelector(".markra-mermaid-render")).toBeNull();
     expect(renderedLines(view)).toContain("```mermaid");
+    expect(view.state.doc.toString()).toBe(source);
+  });
+
+  it.each(["click", "keyboard"])("shows Mermaid diagnostics as text and reveals source via %s", async (activation) => {
+    const source = "```mermaid\nsequenceDiagram\n  A->>B\n```\n\nEdit";
+    const diagnostic = "Parse error on line 2:\n<img src=x onerror=alert(1)>\nExpecting 'TXT', got 'NEWLINE'";
+    const view = createView(source, codeBlockPreviewPlugin({
+      renderMermaid: vi.fn().mockRejectedValue(new Error(diagnostic)),
+    }));
+
+    await vi.waitFor(() => {
+      expect(view.dom.querySelector(".markra-mermaid-render")?.textContent)
+        .toBe(`Unable to render Mermaid diagram\n\n${diagnostic}`);
+    });
+    const preview = view.dom.querySelector<HTMLElement>(".markra-mermaid-render")!;
+    expect(preview.classList.contains("markra-mermaid-render-invalid")).toBe(true);
+    expect(preview.getAttribute("aria-busy")).toBe("false");
+    expect(preview.querySelector("img")).toBeNull();
+    expect(view.dom.querySelector(".markra-mermaid-zoom-button")).toBeNull();
+    expect(view.state.doc.toString()).toBe(source);
+
+    if (activation === "click") preview.click();
+    else preview.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }));
+
+    expect(view.dom.querySelector(".markra-mermaid-render")).toBeNull();
+    expect(renderedLines(view)).toContain("  A->>B");
+    expect(view.state.doc.toString()).toBe(source);
+  });
+
+  it("recovers from a Mermaid parse error after correcting the source", async () => {
+    const source = "```mermaid\nsequenceDiagram\n  A->>B\n```\n\nEdit";
+    const renderMermaid = vi.fn()
+      .mockRejectedValueOnce(new Error("Parse error on line 2: expected a message"))
+      .mockResolvedValue('<svg aria-label="Corrected diagram"></svg>');
+    const view = createView(source, codeBlockPreviewPlugin({ renderMermaid }));
+
+    await vi.waitFor(() => {
+      expect(view.dom.querySelector(".markra-mermaid-render-invalid")).not.toBeNull();
+    });
+    view.dom.querySelector<HTMLElement>(".markra-mermaid-render")!.click();
+    expect(view.state.doc.toString()).toBe(source);
+
+    const message = ": synthetic message";
+    const insertion = source.indexOf("A->>B") + "A->>B".length;
+    view.dispatch({
+      changes: { from: insertion, insert: message },
+      selection: { anchor: source.length + message.length },
+      userEvent: "input",
+    });
+
+    await vi.waitFor(() => {
+      expect(view.dom.querySelector('svg[aria-label="Corrected diagram"]')).not.toBeNull();
+    });
+    expect(view.dom.querySelector(".markra-mermaid-render-invalid")).toBeNull();
+    expect(view.dom.querySelector(".markra-mermaid-render[data-error]")).toBeNull();
+    expect(renderMermaid).toHaveBeenLastCalledWith(expect.objectContaining({
+      source: `sequenceDiagram\n  A->>B${message}`,
+    }));
+    expect(view.state.doc.toString()).toBe(source.slice(0, insertion) + message + source.slice(insertion));
+  });
+
+  it("clears stale Mermaid controls and error state across theme rerenders", async () => {
+    const source = "```mermaid\nflowchart TD\n  A --> B\n```\n\nEdit";
+    const renderMermaid = vi.fn()
+      .mockResolvedValueOnce('<svg aria-label="Initial diagram"></svg>')
+      .mockRejectedValueOnce(new Error("Synthetic render failure"))
+      .mockResolvedValueOnce('<svg aria-label="Recovered diagram"></svg>');
+    const view = createView(source, codeBlockPreviewPlugin({ renderMermaid }));
+
+    await vi.waitFor(() => {
+      expect(view.dom.querySelector(".markra-mermaid-zoom-button")).not.toBeNull();
+    });
+    view.dom.querySelector<HTMLButtonElement>(".markra-mermaid-zoom-button")!.click();
+    expect(document.querySelector(".markra-media-viewer-dialog")).not.toBeNull();
+
+    document.documentElement.setAttribute("data-theme", "dark");
+    await vi.waitFor(() => {
+      expect(view.dom.querySelector(".markra-mermaid-render")?.textContent)
+        .toContain("Synthetic render failure");
+    });
+    expect(view.dom.querySelector(".markra-mermaid-zoom-button")).toBeNull();
+    expect(document.querySelector(".markra-media-viewer-dialog")).toBeNull();
+
+    document.documentElement.setAttribute("data-theme", "light");
+    await vi.waitFor(() => {
+      expect(view.dom.querySelector('svg[aria-label="Recovered diagram"]')).not.toBeNull();
+    });
+    const preview = view.dom.querySelector<HTMLElement>(".markra-mermaid-render")!;
+    expect(preview.hasAttribute("data-error")).toBe(false);
+    expect(preview.classList.contains("markra-mermaid-render-invalid")).toBe(false);
+    expect(preview.getAttribute("aria-busy")).toBe("false");
+    expect(view.dom.querySelector(".markra-mermaid-zoom-button")).not.toBeNull();
     expect(view.state.doc.toString()).toBe(source);
   });
 
