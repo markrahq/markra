@@ -148,6 +148,16 @@ describe("AI chat adapters", () => {
     });
   });
 
+  it("attributes direct Perplexity chat requests", () => {
+    const request = getChatAdapter("openai-compatible").buildRequest(
+      provider({ baseUrl: "https://api.perplexity.ai", type: "openai-compatible" }),
+      "sonar-pro",
+      messages
+    );
+
+    expect(request.headers).toMatchObject({ "X-Pplx-Integration": "markra" });
+  });
+
   it("disables DeepSeek thinking by default so inline edits stream final content quickly", () => {
     const request = getChatAdapter("deepseek").buildRequest(
       provider({ baseUrl: "https://api.deepseek.com", type: "deepseek" }),

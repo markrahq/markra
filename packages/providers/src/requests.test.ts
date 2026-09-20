@@ -331,6 +331,28 @@ describe("AI provider requests", () => {
     });
   });
 
+  it("attributes direct Perplexity model requests without replacing caller attribution", () => {
+    expect(
+      buildAiProviderModelsRequest(
+        provider({ baseUrl: "https://api.perplexity.ai", type: "openai-compatible" })
+      ).headers
+    ).toMatchObject({ "X-Pplx-Integration": "markra" });
+    expect(
+      buildAiProviderModelsRequest(
+        provider({
+          baseUrl: "https://api.perplexity.ai",
+          customHeaders: '{"x-pplx-integration":"custom"}',
+          type: "openai-compatible"
+        })
+      ).headers
+    ).toMatchObject({ "x-pplx-integration": "custom" });
+    expect(
+      buildAiProviderModelsRequest(
+        provider({ baseUrl: "https://perplexity.example.com", type: "openai-compatible" })
+      ).headers
+    ).not.toHaveProperty("X-Pplx-Integration");
+  });
+
   it("parses common model list response shapes", () => {
     expect(
       parseAiProviderModels(provider({ type: "openai" }), {
