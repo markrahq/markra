@@ -10,6 +10,7 @@
   --preview-border: #d0d7de;
   --preview-link: #0969da;
   --preview-code: #eff1f3;
+  --preview-error: #cf222e;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--preview-bg);
   color: var(--preview-text);
@@ -25,6 +26,7 @@
   --preview-border: #30363d;
   --preview-link: #58a6ff;
   --preview-code: #1f242c;
+  --preview-error: #ff8a80;
 }
 
 * {
@@ -318,12 +320,18 @@ body {
 }
 
 .markdown-preview-paper .markra-mermaid-render-invalid {
+  max-height: 18em;
+  overflow: auto;
   padding: 0.8em 1em;
-  border: 1px solid #cf222e;
+  border: 1px solid var(--preview-error);
   border-radius: 7px;
-  background: color-mix(in srgb, #cf222e 8%, var(--preview-bg));
-  color: #cf222e;
+  background: color-mix(in srgb, var(--preview-error) 8%, var(--preview-bg));
+  color: var(--preview-error);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.86em;
+  overflow-wrap: anywhere;
   text-align: left;
+  white-space: pre-wrap;
 }
 
 @media (max-width: 520px) {

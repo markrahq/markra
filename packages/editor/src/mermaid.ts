@@ -56,9 +56,24 @@ function configureMermaid(renderer: MermaidRenderer, theme: MarkraMermaidTheme) 
     },
     securityLevel: "antiscript",
     startOnLoad: false,
+    // Markra displays the diagnostic in place; Mermaid's fallback SVG would leak into the page.
+    suppressErrorRendering: true,
     theme
   });
   configuredTheme = theme;
+}
+
+// Render this as text: Mermaid diagnostics can include HTML from the diagram source.
+export function formatMermaidError(error: unknown, summary = "Unable to render Mermaid diagram") {
+  let message = "";
+  if (typeof error === "string") {
+    message = error;
+  } else if (error && typeof error === "object" && "message" in error && typeof error.message === "string") {
+    message = error.message;
+  }
+
+  const details = message.trim();
+  return details ? `${summary}\n\n${details}` : summary;
 }
 
 export async function renderMermaidToSvg(source: string, options: RenderMermaidOptions = {}) {

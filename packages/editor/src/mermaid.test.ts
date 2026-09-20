@@ -10,10 +10,35 @@ vi.mock("mermaid", () => ({
 }));
 
 import mermaid from "mermaid";
-import { renderMermaidToSvg } from "./mermaid";
+import { formatMermaidError, renderMermaidToSvg } from "./mermaid";
+
+describe("formatMermaidError", () => {
+  const summary = "Unable to render Mermaid diagram";
+  const diagnostic = "Parse error on line 3:\nA->>B\n-----^\nExpecting 'TXT', got 'NEWLINE'";
+
+  it.each([
+    new Error(diagnostic),
+    { message: diagnostic },
+    diagnostic,
+  ])("preserves the diagnostic and diagram line number", (error) => {
+    expect(formatMermaidError(error)).toBe(`${summary}\n\n${diagnostic}`);
+  });
+
+  it.each([undefined, null, {}, { message: 3 }, new Error(""), "  "])(
+    "keeps a useful summary when the error has no message",
+    (error) => {
+      expect(formatMermaidError(error)).toBe(summary);
+    },
+  );
+
+  it("preserves a caller's localized summary", () => {
+    expect(formatMermaidError(new Error(diagnostic), "无法渲染 Mermaid 图表"))
+      .toBe(`无法渲染 Mermaid 图表\n\n${diagnostic}`);
+  });
+});
 
 describe("renderMermaidToSvg", () => {
-  it("configures Mermaid to render safe HTML label line breaks", async () => {
+  it("renders safe HTML labels and leaves error presentation to Markra", async () => {
     await renderMermaidToSvg(["flowchart TD", "  A[Global<br/>Rules] --> B[Project]"].join("\n"), {
       theme: "neutral"
     });
@@ -22,7 +47,8 @@ describe("renderMermaidToSvg", () => {
       flowchart: expect.objectContaining({
         htmlLabels: true
       }),
-      securityLevel: "antiscript"
+      securityLevel: "antiscript",
+      suppressErrorRendering: true
     }));
   });
 });

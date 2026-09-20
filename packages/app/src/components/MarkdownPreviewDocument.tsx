@@ -13,6 +13,7 @@ import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import {
   createMarkraMathMacros,
+  formatMermaidError,
   isMarkraMathMacroDefinitionSource,
   isMermaidLanguage,
   mermaidThemeFromElement,
@@ -119,7 +120,7 @@ async function renderMermaidPreviewBlocks(root: HTMLElement) {
     } catch (error) {
       render.className = "markra-mermaid-render markra-mermaid-render-invalid";
       render.dataset.error = error instanceof Error ? error.message : "Unknown Mermaid render error";
-      render.textContent = "Unable to render Mermaid diagram";
+      render.textContent = formatMermaidError(error);
     }
 
     pre.replaceWith(render);
