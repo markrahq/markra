@@ -194,7 +194,7 @@ const messages: LocaleMessages = {
   "settings.editor.imageUploadFileNamePattern": "文件命名规则",
   "settings.editor.imageUploadFileNamePatternDescription": "支持 {name}、{timestamp}、{random}、{md5}，图片扩展名会自动追加。",
   "settings.editor.clipboardImageFolder": "剪贴板图片文件夹",
-  "settings.editor.clipboardImageFolderDescription": "粘贴图片时保存到当前 Markdown 文件旁边的这个文件夹。",
+  "settings.editor.clipboardImageFolderDescription": "将图片和附件保存到当前 Markdown 文件旁的目录。支持 ${filename}（不含扩展名的文档名），例如 ${filename}.assets。重命名文档不会迁移已有目录。",
   "settings.editor.copyExternalFilesToStorage": "复制粘贴文件到存储",
   "settings.editor.copyExternalFilesToStorageDescription": "将粘贴或拖放的图片和文件复制到所选存储目标，而不是链接原始位置。",
   "settings.editor.webDavServerUrl": "WebDAV 服务器 URL",

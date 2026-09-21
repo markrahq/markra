@@ -693,7 +693,7 @@ const messages: LocaleMessages = {
   "settings.logs.copySucceeded": "로그를 복사했습니다.",
   "settings.logs.copyFailed": "로그를 복사할 수 없습니다.",
   "settings.editor.clipboardImageFolder": "클립보드 이미지 폴더",
-  "settings.editor.clipboardImageFolderDescription": "붙여넣은 이미지를 현재 Markdown 파일 옆의 이 폴더에 저장합니다.",
+  "settings.editor.clipboardImageFolderDescription": "이미지와 첨부 파일을 현재 Markdown 파일 옆에 저장합니다. ${filename}은 확장자를 제외한 문서 이름입니다(예: ${filename}.assets). 문서 이름을 바꿔도 기존 폴더는 이동하지 않습니다.",
   "settings.editor.copyExternalFilesToStorage": "붙여넣은 파일을 저장소로 복사",
   "settings.editor.copyExternalFilesToStorageDescription": "붙여넣거나 드롭한 이미지와 파일을 원본 위치에 연결하는 대신 선택한 저장 대상에 복사합니다.",
   "settings.editor.viewMode": "보기 모드",

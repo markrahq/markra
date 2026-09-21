@@ -693,7 +693,7 @@ const messages: LocaleMessages = {
   "settings.logs.copySucceeded": "Log copiati.",
   "settings.logs.copyFailed": "Impossibile copiare i log.",
   "settings.editor.clipboardImageFolder": "Cartella immagini dagli appunti",
-  "settings.editor.clipboardImageFolderDescription": "Salva le immagini incollate in questa cartella accanto al file Markdown corrente.",
+  "settings.editor.clipboardImageFolderDescription": "Salva immagini e allegati accanto al file Markdown corrente. Usa ${filename} per il nome del documento senza estensione, ad esempio ${filename}.assets. Rinominare il documento non modifica le cartelle esistenti.",
   "settings.editor.copyExternalFilesToStorage": "Copia file incollati nello storage",
   "settings.editor.copyExternalFilesToStorageDescription": "Copia immagini e file incollati o trascinati nella destinazione di storage selezionata invece di collegare la posizione originale.",
   "settings.editor.viewMode": "Modalità vista",

@@ -53,6 +53,17 @@ describe("workspace asset index", () => {
     expect(workspaceAssetIsManaged("notes/used.png", ".", documentPaths)).toBe(false);
   });
 
+  it("only manages template folders belonging to scanned documents", () => {
+    const documentPaths = ["notes/daily.md", "archive/测试 note.v2.markdown"];
+    expect(workspaceAssetIsManaged("notes/daily.assets/image.png", "${filename}.assets", documentPaths)).toBe(true);
+    expect(workspaceAssetIsManaged("archive/测试 note.v2.assets/image.png", "${filename}.assets", documentPaths)).toBe(true);
+    expect(workspaceAssetIsManaged("notes/other.assets/image.png", "${filename}.assets", documentPaths)).toBe(false);
+    expect(workspaceAssetIsManaged("daily.assets/image.png", "${filename}.assets", documentPaths)).toBe(false);
+    expect(workspaceAssetIsManaged("notes/daily.assets/nested/image.png", "${filename}.assets", documentPaths)).toBe(false);
+    expect(workspaceAssetIsManaged("notes/media/daily/image.png", "media/${filename}", documentPaths)).toBe(true);
+    expect(workspaceAssetIsManaged("notes/image.png", "${filename}", ["notes/...md"])).toBe(false);
+  });
+
   it("finds unused managed images while honoring dirty document contents", async () => {
     const readFile = vi.fn(async (path: string) => ({
       content: path.endsWith("daily.md")

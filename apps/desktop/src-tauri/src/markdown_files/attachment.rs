@@ -8,6 +8,7 @@ use cap_std::fs::Dir;
 use tauri::Manager;
 
 use super::asset::allow_asset_directory;
+use super::asset_folder::resolve_asset_folder;
 use super::path::{is_markdown_open_file, markdown_tree_relative_path};
 use super::types::ClipboardAttachmentFile;
 
@@ -469,7 +470,8 @@ fn write_attachment_file_with_scope_hooks_internal(
             )),
         };
     }
-    let folder = normalize_clipboard_attachment_folder(&folder)?;
+    let folder =
+        normalize_clipboard_attachment_folder(&resolve_asset_folder(&folder, &document_path)?)?;
     // Keep this handle through creation; resolving the folder again would allow a symlink swap.
     let mut forbid_root_assets = Some(forbid_root_assets);
     if let Err(error) = verify_directory_path_identity(&root, root_identity, "Attachment root") {
@@ -792,6 +794,26 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.root);
         }
+    }
+
+    #[test]
+    fn expands_document_folder_templates_when_saving_attachments() {
+        let root = tempfile::tempdir().unwrap();
+        let note = root.path().join("mock.note.markdown");
+        fs::write(&note, "# Mock note").unwrap();
+        let saved = save_clipboard_attachment_file(
+            note.to_string_lossy().to_string(),
+            "media/${filename}".to_string(),
+            vec![4, 5, 6],
+            "reference.pdf".to_string(),
+            |_| Ok(()),
+        )
+        .unwrap();
+        assert_eq!(saved.relative_path, "media/mock.note/reference.pdf");
+        assert_eq!(
+            fs::read(root.path().join(&saved.relative_path)).unwrap(),
+            vec![4, 5, 6]
+        );
     }
 
     #[test]

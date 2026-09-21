@@ -689,6 +689,56 @@ describe("web file runtime", () => {
     );
   });
 
+  it.each(["测试 note.v2", "100%2F note", "mock #1"])("expands document folder templates for %s", async (name) => {
+    const directory = new FakeDirectoryHandle("mock-vault", {
+      notes: new FakeDirectoryHandle("notes", {
+        [`${name}.md`]: new FakeFileHandle(`${name}.md`, "# Mock note")
+      })
+    });
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showDirectoryPicker: async () => directory
+    });
+    const root = await runtime.files.openMarkdownFolder();
+    const entries = await runtime.files.listMarkdownFilesForPath(root!.path);
+    const note = entries.find((entry) => entry.name === `${name}.md`)!;
+    const image = await runtime.files.saveClipboardImage({
+      documentPath: note.path,
+      fileName: "image.png",
+      folder: "${filename}.assets",
+      image: new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" })
+    });
+    expect(image.src).toBe(`${encodeURIComponent(name)}.assets/image.png`);
+    const attachment = await runtime.files.saveClipboardAttachment({
+      documentPath: note.path,
+      folder: "${filename}.assets",
+      attachment: new File(["mock attachment"], "reference.pdf")
+    });
+    expect(attachment.src).toBe(`${encodeURIComponent(name)}.assets/reference.pdf`);
+    const renamed = await runtime.files.renameMarkdownTreeFile(root!.path, note.path, "renamed.md");
+    const newImage = await runtime.files.saveClipboardImage({
+      documentPath: renamed.path,
+      fileName: "new.png",
+      folder: "${filename}.assets",
+      image: new File([new Uint8Array([4, 5, 6])], "new.png", { type: "image/png" })
+    });
+    expect(newImage.src).toBe("renamed.assets/new.png");
+    await expect(runtime.files.readMarkdownImageFile({
+      documentPath: renamed.path,
+      src: image.src
+    })).resolves.toMatchObject({ src: image.src });
+    await expect(runtime.files.readMarkdownImageFile({
+      documentPath: renamed.path,
+      src: `${image.src}?raw=1#mock`
+    })).resolves.toMatchObject({ src: `${image.src}?raw=1#mock` });
+    await expect(runtime.files.listMarkdownFilesForPath(root!.path, {
+      managedAttachmentFolder: "${filename}.assets"
+    })).resolves.toContainEqual(expect.objectContaining({
+      kind: "attachment",
+      relativePath: `notes/${name}.assets/reference.pdf`
+    }));
+  });
+
   it("uses browser confirmation for file delete and unsaved changes prompts", async () => {
     const confirm = vi.fn(() => true);
     const runtime = createWebRuntime({

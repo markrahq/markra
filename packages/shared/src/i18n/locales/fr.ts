@@ -693,7 +693,7 @@ const messages: LocaleMessages = {
   "settings.logs.copySucceeded": "Journaux copiés.",
   "settings.logs.copyFailed": "Impossible de copier les journaux.",
   "settings.editor.clipboardImageFolder": "Dossier des images du presse-papiers",
-  "settings.editor.clipboardImageFolderDescription": "Enregistre les images collées dans ce dossier à côté du fichier Markdown actuel.",
+  "settings.editor.clipboardImageFolderDescription": "Enregistre les images et pièces jointes à côté du fichier Markdown actuel. ${filename} désigne le nom du document sans extension, par exemple ${filename}.assets. Renommer le document ne modifie pas les dossiers existants.",
   "settings.editor.copyExternalFilesToStorage": "Copier les fichiers collés vers le stockage",
   "settings.editor.copyExternalFilesToStorageDescription": "Copie les images et fichiers collés ou déposés vers la cible de stockage choisie au lieu de lier leur emplacement d’origine.",
   "settings.editor.viewMode": "Mode d’affichage",

@@ -693,7 +693,7 @@ const messages: LocaleMessages = {
   "settings.logs.copySucceeded": "Protokolle kopiert.",
   "settings.logs.copyFailed": "Protokolle konnten nicht kopiert werden.",
   "settings.editor.clipboardImageFolder": "Ordner für Zwischenablagebilder",
-  "settings.editor.clipboardImageFolderDescription": "Speichert eingefügte Bilder in diesem Ordner neben der aktuellen Markdown-Datei.",
+  "settings.editor.clipboardImageFolderDescription": "Bilder und Anhänge neben der aktuellen Markdown-Datei speichern. ${filename} steht für den Dokumentnamen ohne Erweiterung, z. B. ${filename}.assets. Beim Umbenennen bleiben bestehende Ordner unverändert.",
   "settings.editor.copyExternalFilesToStorage": "Eingefügte Dateien in Speicher kopieren",
   "settings.editor.copyExternalFilesToStorageDescription": "Kopiert eingefügte oder abgelegte Bilder und Dateien in das gewählte Speicherziel, statt den Originalort zu verlinken.",
   "settings.editor.viewMode": "Ansichtsmodus",

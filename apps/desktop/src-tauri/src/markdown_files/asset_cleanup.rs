@@ -3,6 +3,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
+use super::asset_folder::resolve_asset_folder;
 use super::path::{
     is_markdown_tree_asset_file, is_markdown_tree_file, markdown_tree_root_for_path, path_to_string,
 };
@@ -128,7 +129,7 @@ fn validated_asset_cleanup_targets(
     let root = markdown_tree_root_for_path(Path::new(root_path))?
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let managed_folder = managed_asset_folder(managed_folder)?;
+    managed_asset_folder(managed_folder)?;
     if documents.is_empty() {
         return Err("Cleanup requires scanned Markdown file snapshots".to_string());
     }
@@ -142,7 +143,11 @@ fn validated_asset_cleanup_targets(
         }
 
         if let Some(document_directory) = validated_document.path.parent() {
-            let managed_directory = document_directory.join(&managed_folder);
+            let folder = managed_asset_folder(&resolve_asset_folder(
+                managed_folder,
+                &validated_document.path,
+            )?)?;
+            let managed_directory = document_directory.join(folder);
             if managed_directory.is_dir() {
                 managed_directories.insert(
                     managed_directory
@@ -259,6 +264,38 @@ mod tests {
             path: path.to_string_lossy().to_string(),
             size_bytes: Some(metadata.len()),
         }
+    }
+
+    #[test]
+    fn expands_document_folder_templates_without_widening_cleanup_scope() {
+        let root = tempfile::tempdir().unwrap();
+        let note = root.path().join("mock.md");
+        fs::write(&note, "# Mock note").unwrap();
+        for folder in ["mock.assets", "unrelated.assets"] {
+            fs::create_dir(root.path().join(folder)).unwrap();
+            fs::write(root.path().join(folder).join("unused.png"), [1, 2, 3]).unwrap();
+        }
+        let valid = root.path().join("mock.assets/unused.png");
+        let unrelated = root.path().join("unrelated.assets/unused.png");
+        let rejected = trash_markdown_assets_with(
+            root.path().to_string_lossy().to_string(),
+            vec![snapshot(&unrelated)],
+            vec![snapshot(&note)],
+            "${filename}.assets".to_string(),
+            |_| panic!("must not trash unrelated images"),
+        );
+        assert!(rejected.is_err());
+        let summary = trash_markdown_assets_with(
+            root.path().to_string_lossy().to_string(),
+            vec![snapshot(&valid)],
+            vec![snapshot(&note)],
+            "${filename}.assets".to_string(),
+            |path| fs::remove_file(path).map_err(|error| error.to_string()),
+        )
+        .unwrap();
+        assert_eq!(summary.trashed_paths.len(), 1);
+        assert!(!valid.exists());
+        assert!(unrelated.exists());
     }
 
     #[test]

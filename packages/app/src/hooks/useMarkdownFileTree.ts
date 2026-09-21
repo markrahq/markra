@@ -1,3 +1,4 @@
+import { assetFolderMatchesPath } from "@markra/markdown";
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   createAiAgentSessionId,
@@ -76,17 +77,6 @@ function normalizeManagedAttachmentFolder(folder: string | null | undefined) {
   return parts.length ? parts.join("/") : ".";
 }
 
-function normalizedTreeRelativePath(path: string) {
-  return path.trim().replace(/\\/gu, "/").replace(/\/+/gu, "/").replace(/^\.\/+/u, "");
-}
-
-function treePathIsBelowFolder(path: string, folder: string) {
-  if (folder === ".") return true;
-
-  const normalizedPath = normalizedTreeRelativePath(path);
-  return normalizedPath === folder || normalizedPath.startsWith(`${folder}/`);
-}
-
 type LoadedFileTreeRequest = {
   globalIgnoreRules: string;
   managedAttachmentFolder: string;
@@ -120,7 +110,7 @@ function filterManagedAttachmentFiles(
   files.forEach((file) => {
     if (
       file.kind === "attachment" &&
-      !treePathIsBelowFolder(normalizedTreeRelativePath(file.relativePath), normalizedManagedAttachmentFolder)
+      !assetFolderMatchesPath(file.relativePath, normalizedManagedAttachmentFolder)
     ) {
       return;
     }

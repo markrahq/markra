@@ -1,5 +1,6 @@
 import {
   parseMarkdownAssetReferences,
+  resolveAssetFolder,
   type MarkdownAssetReference,
   resolveMarkdownLocalPath
 } from "@markra/markdown";
@@ -59,11 +60,15 @@ export function workspaceAssetIsManaged(
   managedFolder: string,
   documentRelativePaths: readonly string[] = []
 ) {
-  const managedParts = normalizedManagedFolderParts(managedFolder);
-  if (!managedParts) return false;
-
   const directoryParts = normalizedPathParts(relativePath).slice(0, -1);
   return documentRelativePaths.some((documentPath) => {
+    let managedParts: string[] | null;
+    try {
+      managedParts = normalizedManagedFolderParts(resolveAssetFolder(managedFolder, documentPath));
+    } catch {
+      return false;
+    }
+    if (!managedParts) return false;
     const documentDirectoryParts = normalizedPathParts(documentPath).slice(0, -1);
     return pathPartsAreEqual(directoryParts, [...documentDirectoryParts, ...managedParts]);
   });

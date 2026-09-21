@@ -1,5 +1,6 @@
 mod asset;
 mod asset_cleanup;
+mod asset_folder;
 mod attachment;
 mod document;
 mod export;

@@ -194,7 +194,7 @@ const messages: BaseLocaleMessages = {
   "settings.editor.imageUploadFileNamePattern": "File naming pattern",
   "settings.editor.imageUploadFileNamePatternDescription": "Tokens: {name}, {timestamp}, {random}, {md5}. The image extension is added automatically.",
   "settings.editor.clipboardImageFolder": "Clipboard image folder",
-  "settings.editor.clipboardImageFolderDescription": "Save pasted images in this folder beside the current Markdown file.",
+  "settings.editor.clipboardImageFolderDescription": "Save images and attachments beside the current Markdown file. Use ${filename} for the document name without its extension, e.g. ${filename}.assets. Existing folders stay unchanged after renaming a document.",
   "settings.editor.copyExternalFilesToStorage": "Copy pasted files to storage",
   "settings.editor.copyExternalFilesToStorageDescription": "Copy pasted or dropped images and files to the selected storage target instead of linking their original location.",
   "settings.editor.webDavServerUrl": "WebDAV server URL",

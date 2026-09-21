@@ -693,7 +693,7 @@ const messages: LocaleMessages = {
   "settings.logs.copySucceeded": "Registros copiados.",
   "settings.logs.copyFailed": "No se pudieron copiar los registros.",
   "settings.editor.clipboardImageFolder": "Carpeta de imágenes del portapapeles",
-  "settings.editor.clipboardImageFolderDescription": "Guarda las imágenes pegadas en esta carpeta junto al archivo Markdown actual.",
+  "settings.editor.clipboardImageFolderDescription": "Guarda imágenes y adjuntos junto al archivo Markdown actual. Usa ${filename} para el nombre del documento sin extensión, p. ej. ${filename}.assets. Al renombrar el documento, las carpetas existentes no cambian.",
   "settings.editor.copyExternalFilesToStorage": "Copiar archivos pegados al almacenamiento",
   "settings.editor.copyExternalFilesToStorageDescription": "Copia imágenes y archivos pegados o soltados al almacenamiento seleccionado en lugar de enlazar su ubicación original.",
   "settings.editor.viewMode": "Modo de vista",

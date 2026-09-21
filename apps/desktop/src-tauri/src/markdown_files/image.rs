@@ -2,6 +2,7 @@ use std::fs;
 use std::path::{Component, Path, PathBuf};
 
 use super::asset::allow_asset_directory;
+use super::asset_folder::resolve_asset_folder;
 use super::path::{
     is_markdown_open_file, is_markdown_tree_asset_file, markdown_tree_relative_path, path_to_string,
 };
@@ -273,7 +274,7 @@ fn save_clipboard_image_file(
         .canonicalize()
         .map_err(|error| error.to_string())?;
     allow_root_assets(&root)?;
-    let folder = normalize_clipboard_image_folder(&folder)?;
+    let folder = normalize_clipboard_image_folder(&resolve_asset_folder(&folder, &document_path)?)?;
     let target_folder = root.join(folder);
 
     fs::create_dir_all(&target_folder).map_err(|error| error.to_string())?;
@@ -332,6 +333,27 @@ pub(crate) fn read_local_image_file(path: String) -> Result<MarkdownImageFile, S
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn expands_document_folder_templates_when_saving_images() {
+        let root = tempfile::tempdir().unwrap();
+        let note = root.path().join("测试 note.v2.md");
+        fs::write(&note, "# Mock note").unwrap();
+        let saved = save_clipboard_image_file(
+            note.to_string_lossy().to_string(),
+            "${filename}.assets".to_string(),
+            "image/png".to_string(),
+            vec![1, 2, 3],
+            Some("image.png".to_string()),
+            |_| Ok(()),
+        )
+        .unwrap();
+        assert_eq!(saved.relative_path, "测试 note.v2.assets/image.png");
+        assert_eq!(
+            fs::read(root.path().join(&saved.relative_path)).unwrap(),
+            vec![1, 2, 3]
+        );
+    }
 
     #[test]
     fn saves_clipboard_images_below_the_current_markdown_file_directory() {
