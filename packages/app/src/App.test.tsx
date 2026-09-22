@@ -58,6 +58,7 @@ import {
   mockedNotifyAppExportSettingsChanged,
   mockedNotifyAppLanguageChanged,
   mockedNotifyAppThemeChanged,
+  mockedOpenNativeContainingFolder,
   mockedOpenNativeMarkdownFileInNewWindow,
   mockedOpenNativeLocalImages,
   mockedOpenNativeLocalFiles,
@@ -9425,6 +9426,84 @@ describe("Markra workspace", () => {
 
     expect(mockedClearStoredRecentMarkdownFiles).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(mockedInstallNativeApplicationMenu.mock.calls.at(-1)?.[3]).toEqual([]));
+  });
+
+  const exportCases = [
+    ["exportHtml", mockedSaveNativeHtmlFile, "html"],
+    ["exportPdf", mockedSaveNativePdfFile, "pdf"],
+    ["exportMarkdown", mockedSaveNativeMarkdownBundleFile, "md"],
+    ["exportDocx", mockedSaveNativePandocFile, "docx"],
+    ["exportEpub", mockedSaveNativePandocFile, "epub"],
+    ["exportLatex", mockedSaveNativePandocFile, "tex"]
+  ] as const;
+
+  async function prepareExportFeedback() {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({ ...runtime, features: { ...runtime.features, markdownBundle: true } });
+    mockOpenMarkdownFile({ content: "# Example export", name: "example.md", path: mockNativePath });
+    renderApp();
+    await waitFor(() => expect(mockedInstallNativeApplicationMenu).toHaveBeenCalledTimes(1));
+    const handlers = mockedInstallNativeApplicationMenu.mock.calls[0]?.[0] as NativeMenuHandlers;
+    await act(async () => { await handlers.openDocument?.(); });
+    return handlers;
+  }
+
+  it.each(exportCases)("shows export feedback and reveals the saved file for %s", async (command, save, extension) => {
+    const file = { name: `renamed.${extension}`, path: `/mock-exports/renamed.${extension}` };
+    save.mockResolvedValue(file);
+    const handlers = await prepareExportFeedback();
+    await act(async () => { await handlers[command]?.(); });
+    const button = await screen.findByRole("button", { name: "Show in folder" });
+    expect(button.closest(".app-toast")).toHaveClass("app-toast-notice");
+    expect(button.closest(".app-toast")).toHaveTextContent(file.name);
+    expect(mockedOpenNativeContainingFolder).not.toHaveBeenCalled();
+    fireEvent.click(button);
+    await waitFor(() => expect(mockedOpenNativeContainingFolder).toHaveBeenCalledWith(file.path));
+  });
+
+  it.each(exportCases)("keeps cancelled export feedback silent for %s", async (command, save, _extension) => {
+    save.mockResolvedValue(null);
+    const handlers = await prepareExportFeedback();
+    await act(async () => { await handlers[command]?.(); });
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    expect(document.querySelector(".app-toast")).not.toBeInTheDocument();
+  });
+
+  it.each(exportCases)("shows failed export feedback for %s", async (command, save, _extension) => {
+    save.mockRejectedValue(new Error("Synthetic export failure"));
+    const handlers = await prepareExportFeedback();
+    await act(async () => { await handlers[command]?.(); });
+    await waitFor(() => expect(document.querySelector(".app-toast")).toHaveTextContent(/Could not export/));
+    expect(screen.queryByRole("button", { name: "Show in folder" })).not.toBeInTheDocument();
+  });
+
+  it("waits for the export to finish before showing success feedback", async () => {
+    let finishExport!: (file: { name: string; path: string }) => unknown;
+    mockedSaveNativeHtmlFile.mockReturnValue(new Promise((resolve) => { finishExport = resolve; }));
+    const handlers = await prepareExportFeedback();
+    await act(async () => { await handlers.exportHtml?.(); });
+    await waitFor(() => expect(mockedSaveNativeHtmlFile).toHaveBeenCalledTimes(1));
+    expect(document.querySelector(".app-toast")).not.toBeInTheDocument();
+    await act(async () => { finishExport({ name: "finished.html", path: "/mock-exports/finished.html" }); });
+    expect(await screen.findByRole("button", { name: "Show in folder" })).toBeInTheDocument();
+    expect(mockedSaveNativeHtmlFile).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports a folder-opening failure without reporting the export as failed", async () => {
+    mockedSaveNativeHtmlFile.mockResolvedValue({ name: "example.html", path: "/mock-exports/example.html" });
+    mockedOpenNativeContainingFolder.mockRejectedValue(new Error("Synthetic folder failure"));
+    const handlers = await prepareExportFeedback();
+    await act(async () => { await handlers.exportHtml?.(); });
+    fireEvent.click(await screen.findByRole("button", { name: "Show in folder" }));
+    expect(await screen.findByText("Could not show the exported file in its folder.")).toBeInTheDocument();
+  });
+
+  it.each(["web-print://example.pdf", "web-download://example.html"])("does not claim a local export completed for %s", async (path) => {
+    mockedSaveNativeHtmlFile.mockResolvedValue({ name: "example.html", path });
+    const handlers = await prepareExportFeedback();
+    await act(async () => { await handlers.exportHtml?.(); });
+    await waitFor(() => expect(mockedSaveNativeHtmlFile).toHaveBeenCalled());
+    expect(document.querySelector(".app-toast")).not.toBeInTheDocument();
   });
 
   it("exports the current markdown document as standalone HTML from the native menu", async () => {
