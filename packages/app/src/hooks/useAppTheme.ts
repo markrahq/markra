@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   appAppearanceModeOptions,
   getStoredCustomThemeCss,
@@ -23,6 +23,8 @@ import {
   type ResolvedAppTheme
 } from "../lib/settings/app-settings";
 import { defaultUiZoomPercent } from "../lib/ui-zoom";
+import { useThemeFiles } from "./useThemeFiles";
+import { adaptTyporaTheme } from "../lib/themes/typora";
 import {
   listenAppCustomThemeCssChanged,
   listenAppThemeChanged,
@@ -66,12 +68,10 @@ function applyCustomThemeCss(css: string) {
   style.textContent = css;
 }
 
-function applyAppTheme(theme: EditorTheme, resolvedTheme: ResolvedAppTheme, customThemeCss: CustomThemeCssValues) {
+function applyAppTheme(theme: EditorTheme, activeCustomCss: string) {
   // Keep the root attribute as the single switch for theme-scoped CSS variables.
   document.documentElement.dataset.theme = theme;
   removeStartupThemeCss();
-
-  const activeCustomCss = resolvedTheme === "dark" ? customThemeCss.dark : customThemeCss.light;
 
   if (theme === "custom" && activeCustomCss.trim()) {
     applyCustomThemeCss(activeCustomCss);
@@ -113,6 +113,7 @@ function startupThemePreferencesFromLocation(): AppThemePreferences | null {
 }
 
 export function useAppTheme() {
+  const themeFiles = useThemeFiles();
   const startupThemePreferencesRef = useRef<AppThemePreferences | null>(startupThemePreferencesFromLocation());
   const [themePreferences, setThemePreferences] = useState<AppThemePreferences>(
     () => startupThemePreferencesRef.current ?? defaultAppThemePreferences
@@ -130,7 +131,12 @@ export function useAppTheme() {
   const editorTheme = resolveAppThemePreferencesEditorTheme(themePreferences, systemTheme);
   const resolvedTheme = resolveAppThemePreferencesAppearance(themePreferences, systemTheme);
   const customThemeEnabled = themePreferences.customThemeEnabled === true;
-  const ready = themePreferencesReady && (editorTheme !== "custom" || customThemeCssReady);
+  const ready = themePreferencesReady && (editorTheme !== "custom" || (customThemeCssReady && themeFiles.ready));
+  const lightCssSource = themeFiles.css.light ?? customThemeCss.light;
+  const darkCssSource = themeFiles.css.dark ?? customThemeCss.dark;
+  const lightThemeCss = useMemo(() => adaptTyporaTheme(lightCssSource, "light"), [lightCssSource]);
+  const darkThemeCss = useMemo(() => adaptTyporaTheme(darkCssSource, "dark"), [darkCssSource]);
+  const activeCustomCss = resolvedTheme === "dark" ? darkThemeCss.css : lightThemeCss.css;
 
   useEffect(() => {
     let active = true;
@@ -169,8 +175,8 @@ export function useAppTheme() {
   }, []);
 
   useLayoutEffect(() => {
-    applyAppTheme(editorTheme, resolvedTheme, customThemeCss);
-  }, [customThemeCss, editorTheme, resolvedTheme]);
+    applyAppTheme(editorTheme, activeCustomCss);
+  }, [activeCustomCss, editorTheme]);
 
   useEffect(() => {
     let active = true;
@@ -315,6 +321,8 @@ export function useAppTheme() {
   }, [customThemeCss]);
 
   return {
+    themeCompatibility: { light: lightThemeCss, dark: darkThemeCss },
+    themeFiles,
     customThemeCss,
     customThemeEnabled,
     darkCustomThemeCss: customThemeCss.dark,
