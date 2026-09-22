@@ -713,7 +713,7 @@ const messages: LocaleMessages = {
   "settings.logs.copySucceeded": "ログをコピーしました。",
   "settings.logs.copyFailed": "ログをコピーできませんでした。",
   "settings.editor.clipboardImageFolder": "クリップボード画像フォルダー",
-  "settings.editor.clipboardImageFolderDescription": "貼り付けた画像を現在の Markdown ファイルの隣にあるこのフォルダーへ保存します。",
+  "settings.editor.clipboardImageFolderDescription": "画像と添付ファイルを現在の Markdown ファイルの隣に保存します。${filename} は拡張子を除く文書名です（例：${filename}.assets）。文書名を変更しても既存のフォルダーは移動しません。",
   "settings.editor.copyExternalFilesToStorage": "貼り付けたファイルをストレージへコピー",
   "settings.editor.copyExternalFilesToStorageDescription": "貼り付けまたはドロップした画像やファイルを、元の場所へリンクする代わりに選択中の保存先へコピーします。",
   "settings.editor.viewMode": "表示モード",

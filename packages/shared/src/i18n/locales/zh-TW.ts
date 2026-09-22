@@ -713,7 +713,7 @@ const messages: LocaleMessages = {
   "settings.logs.copySucceeded": "日誌已複製。",
   "settings.logs.copyFailed": "無法複製日誌。",
   "settings.editor.clipboardImageFolder": "剪貼簿圖片資料夾",
-  "settings.editor.clipboardImageFolderDescription": "貼上圖片時，儲存到目前 Markdown 檔案旁邊的這個資料夾。",
+  "settings.editor.clipboardImageFolderDescription": "將圖片和附件儲存到目前 Markdown 檔案旁的資料夾。支援 ${filename}（不含副檔名的文件名稱），例如 ${filename}.assets。重新命名文件不會搬移既有資料夾。",
   "settings.editor.copyExternalFilesToStorage": "複製貼上檔案到儲存空間",
   "settings.editor.copyExternalFilesToStorageDescription": "將貼上或拖放的圖片與檔案複製到所選儲存目標，而不是連結原始位置。",
   "settings.editor.viewMode": "視圖模式",

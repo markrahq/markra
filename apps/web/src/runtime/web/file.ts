@@ -1,3 +1,4 @@
+import { assetFolderMatchesPath, resolveAssetFolder } from "@markra/markdown";
 import type {
   AppFileRuntime,
   AppSettingsRuntime,
@@ -171,8 +172,7 @@ function normalizeManagedAttachmentFolder(folder: string | null | undefined) {
 function relativePathIsBelowFolder(path: string, folder: string | null) {
   if (folder === null) return true;
 
-  const normalizedPath = path.trim().replace(/\\/gu, "/").replace(/\/+/gu, "/").replace(/^\.\/+/u, "");
-  return normalizedPath === folder || normalizedPath.startsWith(`${folder}/`);
+  return assetFolderMatchesPath(path, folder);
 }
 
 function shouldIncludeFolderFile(file: NativeMarkdownFolderFile, managedAttachmentFolder: string | null) {
@@ -189,7 +189,9 @@ function decodePathSegments(path: string) {
 
 function decodeMarkdownLocalPath(path: string) {
   try {
-    return decodeURI(path);
+    // This is a local path after removing URL suffixes; decode reserved characters
+    // such as %23 too, exactly once, to preserve literal percent sequences.
+    return decodeURIComponent(path);
   } catch {
     return path;
   }
@@ -1195,7 +1197,8 @@ export function createWebFileRuntime(
       if (documentPath?.kind !== "folder") throw new Error("Current document is not a web folder file.");
       const documentSegments = documentPath.relativePath.split("/").filter(Boolean);
       documentSegments.pop();
-      const imagePath = joinRelativePath(documentSegments.join("/"), input.src);
+      const localSrc = decodeMarkdownLocalPath(input.src.split(/[?#]/u)[0] ?? "");
+      const imagePath = joinRelativePath(documentSegments.join("/"), localSrc);
       const handle = await resolveFileFromFolderPath(documentPath.id, imagePath);
       const file = await handle.getFile();
 
@@ -1284,7 +1287,7 @@ export function createWebFileRuntime(
       const documentSegments = parsedDocumentPath.relativePath.split("/").filter(Boolean);
       documentSegments.pop();
       const documentDirectory = await resolveDirectory(root, documentSegments.join("/"));
-      const folder = normalizeClipboardImageFolder(input.folder);
+      const folder = normalizeClipboardImageFolder(resolveAssetFolder(input.folder, parsedDocumentPath.relativePath));
       const targetDirectory = await ensureDirectory(documentDirectory, folder);
       const fileName = await uniqueFileName(targetDirectory, input.fileName);
 
@@ -1319,7 +1322,7 @@ export function createWebFileRuntime(
       const documentSegments = parsedDocumentPath.relativePath.split("/").filter(Boolean);
       documentSegments.pop();
       const documentDirectory = await resolveDirectory(root, documentSegments.join("/"));
-      const folder = normalizeClipboardImageFolder(input.folder);
+      const folder = normalizeClipboardImageFolder(resolveAssetFolder(input.folder, parsedDocumentPath.relativePath));
       const targetDirectory = await ensureDirectory(documentDirectory, folder);
       const fileName = await uniqueFileName(targetDirectory, input.attachment.name.trim() || "attachment");
 

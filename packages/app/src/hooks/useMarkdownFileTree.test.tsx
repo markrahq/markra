@@ -606,6 +606,18 @@ describe("useMarkdownFileTree", () => {
     expect(screen.queryByText("assets/reference.docx")).not.toBeInTheDocument();
   });
 
+  it("shows attachments in document template folders including renamed documents", async () => {
+    mockedOpenNativeMarkdownFolder.mockResolvedValue({ path: "/mock-vault", name: "mock-vault" });
+    mockedListNativeMarkdownFilesForPath.mockResolvedValue([
+      { kind: "attachment", path: "/mock-vault/notes/old.assets/reference.pdf", name: "reference.pdf", relativePath: "notes/old.assets/reference.pdf" },
+      { kind: "attachment", path: "/mock-vault/notes/downloads/hidden.pdf", name: "hidden.pdf", relativePath: "notes/downloads/hidden.pdf" }
+    ]);
+    render(<FileTreeProbe managedAttachmentFolder="${filename}.assets" />);
+    fireEvent.click(screen.getByRole("button", { name: "Open folder" }));
+    expect(await screen.findByText("notes/old.assets/reference.pdf")).toBeInTheDocument();
+    expect(screen.queryByText("notes/downloads/hidden.pdf")).not.toBeInTheDocument();
+  });
+
   it("refreshes files when the managed attachment folder changes", async () => {
     mockedOpenNativeMarkdownFolder.mockResolvedValue({
       path: "/vault",

@@ -713,7 +713,7 @@ const messages: LocaleMessages = {
   "settings.logs.copySucceeded": "Журналы скопированы.",
   "settings.logs.copyFailed": "Не удалось скопировать журналы.",
   "settings.editor.clipboardImageFolder": "Папка для изображений из буфера обмена",
-  "settings.editor.clipboardImageFolderDescription": "Сохранять вставленные изображения в этой папке рядом с текущим файлом Markdown.",
+  "settings.editor.clipboardImageFolderDescription": "Сохранять изображения и вложения рядом с текущим файлом Markdown. ${filename} — имя документа без расширения, например ${filename}.assets. При переименовании документа существующие папки не меняются.",
   "settings.editor.copyExternalFilesToStorage": "Копировать вставленные файлы в хранилище",
   "settings.editor.copyExternalFilesToStorageDescription": "Копировать вставленные или перетащенные изображения и файлы в выбранное хранилище вместо ссылки на исходное расположение.",
   "settings.editor.viewMode": "Режим вида",

@@ -119,6 +119,9 @@ importers:
       '@markra/editor':
         specifier: workspace:*
         version: link:../../packages/editor
+      '@markra/markdown':
+        specifier: workspace:*
+        version: link:../../packages/markdown
       '@markra/shared':
         specifier: workspace:*
         version: link:../../packages/shared

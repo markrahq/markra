@@ -7,6 +7,7 @@ use std::sync::{
 };
 
 use super::asset::allow_asset_directory;
+use super::asset_folder::asset_folder_matches_path;
 use super::ignore_rules::MarkdownIgnoreRules;
 use super::path::{
     is_markdown_tree_asset_file, is_markdown_tree_attachment_file, is_markdown_tree_file,
@@ -298,7 +299,7 @@ fn tree_relative_path_is_below_folder(path: &str, folder: &str) -> bool {
     }
 
     let normalized_path = normalize_tree_relative_path(path);
-    normalized_path == folder || normalized_path.starts_with(&format!("{folder}/"))
+    asset_folder_matches_path(&normalized_path, folder)
 }
 
 fn should_include_markdown_tree_file(
@@ -800,6 +801,26 @@ mod tests {
         assert_eq!(file.relative_path, relative_path);
         assert!(file.created_at.is_some());
         assert!(file.modified_at.is_some());
+    }
+
+    #[test]
+    fn matches_document_folder_templates_for_attachment_visibility() {
+        assert!(tree_relative_path_is_below_folder(
+            "notes/mock.assets/reference.pdf",
+            "${filename}.assets"
+        ));
+        assert!(tree_relative_path_is_below_folder(
+            "notes/media/mock/reference.pdf",
+            "media/${filename}"
+        ));
+        assert!(!tree_relative_path_is_below_folder(
+            "notes/downloads/reference.pdf",
+            "${filename}.assets"
+        ));
+        assert!(!tree_relative_path_is_below_folder(
+            "notes/.assets/reference.pdf",
+            "${filename}.assets"
+        ));
     }
 
     #[test]
