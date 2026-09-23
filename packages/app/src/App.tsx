@@ -3881,6 +3881,39 @@ function WorkspaceApp() {
       title: context.name
     });
   }, [exportFeatureEnabled, readCurrentMarkdownForDocument]);
+  const notifyExportSaved = useCallback((file: { name: string; path: string } | null) => {
+    if (!file) return;
+    // Browser download/print requests do not confirm that a local file was saved.
+    if (file.path.startsWith("web-download://") || file.path.startsWith("web-print://")) return;
+
+    showAppToast({
+      action: {
+        label: translate("app.exportShowInFolder"),
+        onClick: () => {
+          openNativeContainingFolder(file.path).catch(() => {
+            showAppToast({
+              message: translate("app.exportRevealFailed"),
+              status: "error",
+              surface: "notice"
+            });
+          });
+        }
+      },
+      description: file.name,
+      duration: 10000,
+      id: `document-export:${file.path}`,
+      message: translate("app.exportSucceeded"),
+      status: "success",
+      surface: "notice"
+    });
+  }, [translate]);
+  const notifyExportFailed = useCallback(() => {
+    showAppToast({
+      message: translate("app.exportFailed"),
+      status: "error",
+      surface: "notice"
+    });
+  }, [translate]);
   const handleRenderedExport = useCallback((exported: RenderedMarkdownExport) => {
     if (!exportFeatureEnabled || exportSnapshot?.id !== exported.id) return;
 
@@ -3900,23 +3933,14 @@ function WorkspaceApp() {
     });
     const suggestedName = exportDocumentFileName(exported.title, exported.kind);
 
-    if (exported.kind === "html") {
-      saveNativeHtmlFile({
-        contents,
-        suggestedName
-      }).catch(() => {}).finally(() => {
+    const saveFile = exported.kind === "html" ? saveNativeHtmlFile : saveNativePdfFile;
+    saveFile({ contents, suggestedName })
+      .then(notifyExportSaved)
+      .catch(notifyExportFailed)
+      .finally(() => {
         clearExportSnapshot(exported.id);
       });
-      return;
-    }
-
-    saveNativePdfFile({
-      contents,
-      suggestedName
-    }).catch(() => {}).finally(() => {
-      clearExportSnapshot(exported.id);
-    });
-  }, [appLanguage.language, clearExportSnapshot, exportFeatureEnabled, exportSettings.settings, exportSnapshot?.id]);
+  }, [appLanguage.language, clearExportSnapshot, exportFeatureEnabled, exportSettings.settings, exportSnapshot?.id, notifyExportFailed, notifyExportSaved]);
   const exportHtmlDocument = useCallback(() => beginDocumentExport("html"), [beginDocumentExport]);
   const exportPdfDocument = useCallback(() => beginDocumentExport("pdf"), [beginDocumentExport]);
   const exportMarkdownDocument = useCallback(() => {
@@ -3946,16 +3970,18 @@ function WorkspaceApp() {
       references,
       rootPath: fileTree.sourcePath ?? context.path,
       suggestedName: exportDocumentFileName(context.name, "markdown")
-    }).catch(() => {
+    }).then(notifyExportSaved).catch(() => {
       showAppToast({
         message: translate("app.markdownExportFailed"),
-        status: "error"
+        status: "error",
+        surface: "notice"
       });
     });
   }, [
     editorPreferences.preferences.clipboardImageFolder,
     fileTree.sourcePath,
     markdownBundleFeatureEnabled,
+    notifyExportSaved,
     readCurrentMarkdownForDocument,
     translate
   ]);
@@ -3972,11 +3998,12 @@ function WorkspaceApp() {
       pandocArgs: exportSettings.settings.pandocArgs,
       pandocPath: exportSettings.settings.pandocPath,
       suggestedName: exportDocumentFileName(context.name, format)
-    }).catch((error: unknown) => {
+    }).then(notifyExportSaved).catch((error: unknown) => {
       if (!isPandocSetupError(error)) {
         showAppToast({
           message: translate("app.pandocExportFailed"),
-          status: "error"
+          status: "error",
+          surface: "notice"
         });
         return;
       }
@@ -3996,6 +4023,7 @@ function WorkspaceApp() {
     exportSettings.settings.pandocArgs,
     exportSettings.settings.pandocPath,
     pandocFeatureEnabled,
+    notifyExportSaved,
     readCurrentMarkdownForDocument,
     translate
   ]);
