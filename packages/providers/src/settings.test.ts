@@ -30,7 +30,7 @@ describe("AI provider settings", () => {
     const { providers: savedProviders, ...selections } = saved;
     expect(settings).toMatchObject(selections);
     expect(settings.providers[0]).toEqual(savedProviders[0]);
-    expect(settings.providers).toHaveLength(2);
+    expect(settings.providers).toHaveLength(3);
     expect(settings.providers[1]).toMatchObject({
       apiKey: "",
       apiStyle: "openai-compatible",
@@ -61,7 +61,7 @@ describe("AI provider settings", () => {
       }]
     };
     const settings = normalizeAiSettings(saved);
-    expect(settings.providers).toHaveLength(1);
+    expect(settings.providers.filter((provider) => provider.id === "orcarouter")).toHaveLength(1);
     expect(settings.providers[0]).toMatchObject(saved.providers[0]);
     expect(settings.defaultModelId).toBe("mock/model");
   });
@@ -74,6 +74,58 @@ describe("AI provider settings", () => {
     expect(first?.models).not.toBe(second?.models);
     expect(first).toMatchObject({ enabled: false, apiKey: "", defaultModelId: "orcarouter/auto" });
     expect(first?.models.some((model) => model.enabled && model.id === first.defaultModelId)).toBe(true);
+  });
+
+  it("adds disabled Requesty to existing settings without changing saved selections", () => {
+    const saved = {
+      defaultProviderId: "custom-provider-1",
+      defaultModelId: "mock-writer",
+      providers: [{
+        apiKey: "mock-key",
+        baseUrl: "https://gateway.example.test/v1",
+        defaultModelId: "mock-writer",
+        enabled: true,
+        id: "custom-provider-1",
+        models: [{ capabilities: ["text"], enabled: true, id: "mock-writer", name: "Mock Writer" }],
+        name: "Mock Gateway",
+        type: "openai-compatible" as const
+      }]
+    };
+
+    const settings = normalizeAiSettings(saved);
+    expect(settings.defaultProviderId).toBe("custom-provider-1");
+    expect(settings.defaultModelId).toBe("mock-writer");
+    expect(settings.providers.find((provider) => provider.id === "requesty")).toMatchObject({
+      apiKey: "",
+      apiStyle: "openai-compatible",
+      baseUrl: "https://router.requesty.ai/v1",
+      defaultModelId: "gpt-5.6-sol",
+      enabled: false,
+      name: "Requesty",
+      type: "openai-compatible"
+    });
+    expect(normalizeAiSettings(settings)).toEqual(settings);
+  });
+
+  it("preserves saved Requesty configuration without duplicating or resetting it", () => {
+    const saved = {
+      defaultProviderId: "requesty",
+      defaultModelId: "mock/model",
+      providers: [{
+        apiKey: "mock-requesty-key",
+        baseUrl: "https://router.eu.requesty.ai/v1",
+        defaultModelId: "mock/model",
+        enabled: true,
+        id: "requesty",
+        models: [{ capabilities: ["text"], enabled: true, id: "mock/model", name: "Mock model" }],
+        name: "My router",
+        type: "openai-compatible"
+      }]
+    };
+    const settings = normalizeAiSettings(saved);
+    expect(settings.providers.filter((provider) => provider.id === "requesty")).toHaveLength(1);
+    expect(settings.providers.find((provider) => provider.id === "requesty")).toMatchObject(saved.providers[0]);
+    expect(settings.defaultModelId).toBe("mock/model");
   });
 
   it("normalizes legacy provider types into the new request API styles", () => {
