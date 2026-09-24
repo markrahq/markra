@@ -46,6 +46,8 @@ export function getOpenAiCompatibleThinkingFormat(
   // OrcaRouter translates effort itself; upstream model-name fallbacks send incompatible native fields.
   // Omit effort when off: the gateway does not document a portable "none" value across upstreams.
   if (config.id === "orcarouter") return thinkingState === "enabled" ? "reasoning-effort" : null;
+  // Requesty also maps reasoning_effort per upstream, so the same rule applies.
+  if (config.id === "requesty") return thinkingState === "enabled" ? "reasoning-effort" : null;
 
   const normalizedModel = model.toLowerCase();
   if (config.type === "ollama") return "ollama-think";

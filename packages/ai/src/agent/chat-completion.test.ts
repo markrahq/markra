@@ -55,6 +55,42 @@ describe("chatCompletion", () => {
     }), expect.any(Function));
   });
 
+  it("streams Requesty text and tool arguments through the existing compatible transport", async () => {
+    const config = createDefaultAiSettings().providers.find((item) => item.id === "requesty");
+    expect(config).toBeDefined();
+    if (!config) throw new Error("Missing Requesty provider");
+    const onDelta = vi.fn();
+    const onThinkingDelta = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      const events = [
+        { choices: [{ delta: { reasoning_content: "Mock reasoning" } }] },
+        { choices: [{ delta: { content: "Mock answer" } }] },
+        { choices: [{ delta: { tool_calls: [{ index: 0, id: "mock-call", function: { name: "read_document", arguments: "{" } }] } }] },
+        { choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: "}" } }] }, finish_reason: "tool_calls" }] }
+      ];
+      onChunk(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") + "data: [DONE]\n\n");
+      return { status: 200 };
+    });
+
+    await expect(chatCompletionStream(
+      { ...config, apiKey: "mock-key" },
+      "claude-sonnet-5",
+      [{ role: "user", content: "Read the mock document." }],
+      { onDelta, onThinkingDelta, streamTransport, thinkingEnabled: true }
+    )).resolves.toEqual({
+      content: "Mock answer",
+      finishReason: "toolUse",
+      toolCalls: [{ id: "mock-call", name: "read_document", arguments: {} }]
+    });
+    expect(onDelta).toHaveBeenCalledWith("Mock answer");
+    expect(onThinkingDelta).toHaveBeenCalledWith("Mock reasoning");
+    expect(streamTransport).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://router.requesty.ai/v1/chat/completions",
+      headers: { Authorization: "Bearer mock-key", "content-type": "application/json" },
+      body: expect.stringContaining('"reasoning_effort":"high"')
+    }), expect.any(Function));
+  });
+
   it("sends a native POST request and parses the provider response", async () => {
     const transport = vi.fn().mockResolvedValue({
       body: {

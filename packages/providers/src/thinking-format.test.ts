@@ -31,6 +31,16 @@ describe("provider thinking formats", () => {
     }
   );
 
+  it.each(["gpt-5.6-sol", "claude-sonnet-5", "gemini-3.6-flash", "openai/gpt-4o-mini"])(
+    "uses Requesty reasoning effort for %s without upstream-specific thinking fields",
+    (model) => {
+      const config = provider({ id: "requesty", type: "openai-compatible", baseUrl: "https://router.requesty.ai/v1" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: true })).toEqual({ reasoning_effort: "high" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: false })).toEqual({});
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, {})).toEqual({});
+    }
+  );
+
   it("resolves OpenAI-compatible thinking formats before request shaping", () => {
     expect(getOpenAiCompatibleThinkingFormat(provider({ type: "ollama" }), "llama3.3", true)).toBe("ollama-think");
     expect(getOpenAiCompatibleThinkingFormat(provider({
