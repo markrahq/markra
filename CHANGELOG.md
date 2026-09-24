@@ -1,3 +1,11 @@
+## [2.12.0](https://github.com/markrahq/markra/compare/v2.11.2...v2.12.0) (2026-09-24)
+
+### Features
+
+* **export:** show completion notices with file location actions ([#745](https://github.com/markrahq/markra/issues/745)) ([c7e88f1](https://github.com/markrahq/markra/commit/c7e88f143458b061fda8c060aaa060c353e64ede))
+* **storage:** support filename variables in asset folders ([#743](https://github.com/markrahq/markra/issues/743)) ([c319526](https://github.com/markrahq/markra/commit/c319526a42306cca922d4ea15566d3db5d1a33c8)), closes [#742](https://github.com/markrahq/markra/issues/742)
+* **themes:** add theme folders and basic Typora compatibility ([#726](https://github.com/markrahq/markra/issues/726)) ([cd73445](https://github.com/markrahq/markra/commit/cd73445399e57290386839c4663578caad4ab85f))
+
 ## [2.11.2](https://github.com/markrahq/markra/compare/v2.11.1...v2.11.2) (2026-09-20)
 
 ### Bug Fixes
