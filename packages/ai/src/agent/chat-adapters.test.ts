@@ -80,6 +80,34 @@ describe("AI chat adapters", () => {
     expect(agent.body).not.toHaveProperty("thinking");
   });
 
+  it("uses the compatible adapter for built-in Requesty inline and agent requests", () => {
+    const config = createDefaultAiSettings().providers.find((item) => item.id === "requesty");
+    expect(config).toBeDefined();
+    if (!config) throw new Error("Missing Requesty provider");
+    const configured = { ...config, apiKey: "mock-key" };
+    const adapter = getChatAdapterForProvider(configured);
+    expect(adapter).toBe(getChatAdapter("openai-compatible"));
+    const inline = adapter.buildRequest(configured, "openai/gpt-4o-mini", messages, { stream: true });
+    expect(inline).toEqual({
+      url: "https://router.requesty.ai/v1/chat/completions",
+      headers: { Authorization: "Bearer mock-key", "content-type": "application/json" },
+      body: { messages, model: "openai/gpt-4o-mini", temperature: 0.7, stream: true }
+    });
+    const agent = adapter.buildRequest(configured, "claude-sonnet-5", messages, {
+      stream: true,
+      thinkingEnabled: true,
+      tools: [readDocumentTool]
+    });
+    expect(agent.body).toMatchObject({
+      model: "claude-sonnet-5",
+      stream: true,
+      reasoning_effort: "high",
+      tools: [{ type: "function", function: { name: "read_document" } }]
+    });
+    expect(agent.body).not.toHaveProperty("reasoning");
+    expect(agent.body).not.toHaveProperty("thinking");
+  });
+
   it("builds OpenAI-compatible chat completion requests with JSON headers", () => {
     const request = getChatAdapter("openai-compatible").buildRequest(
       provider({ baseUrl: "https://proxy.example.test/v1", type: "openai-compatible" }),

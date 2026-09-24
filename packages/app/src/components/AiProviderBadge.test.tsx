@@ -19,6 +19,11 @@ describe("AiProviderBadge", () => {
     expect(screen.getByRole("img", { name: "OrcaRouter settings.ai.providerLogo" })).toHaveAttribute("src", expect.stringContaining("orcarouter"));
   });
 
+  it("shows the Requesty logo for its compatible provider entry", () => {
+    render(<AiProviderBadge provider={provider({ id: "requesty", name: "Requesty" })} translate={(key) => key} />);
+    expect(screen.getByRole("img", { name: "Requesty settings.ai.providerLogo" })).toHaveAttribute("src", expect.stringMatching(/^data:image\/svg\+xml/));
+  });
+
   it("uses safe line height for fallback provider initials", () => {
     render(<AiProviderBadge provider={provider()} translate={(key) => key} />);
 
