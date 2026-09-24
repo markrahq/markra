@@ -211,7 +211,7 @@ Typora 兼容以基础外观为范围：复杂布局、条件规则、主题附�
 
 支持云端模型、本地模型和任意 OpenAI 兼容接口，内联编辑和侧边栏可分别选择模型。
 
-**内置服务商：** OpenAI · Anthropic · Google Gemini · DeepSeek · Mistral · Groq · OpenRouter · OrcaRouter · Together.ai · Qwen · Xiaomi MiMo · Volcengine Ark · xAI · Azure OpenAI · Ollama
+**内置服务商：** OpenAI · Anthropic · Google Gemini · DeepSeek · Mistral · Groq · OpenRouter · OrcaRouter · Requesty · Together.ai · Qwen · Xiaomi MiMo · Volcengine Ark · xAI · Azure OpenAI · Ollama
 
 **联网搜索：** 服务商原生搜索、Bing 和 SearXNG——结果数量和正文长度均可配置。
 
