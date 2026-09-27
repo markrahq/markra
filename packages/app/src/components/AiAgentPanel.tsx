@@ -432,7 +432,7 @@ export function AiAgentPanel({
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key !== "Enter" || isComposingEnter(event)) return;
-    if (event.ctrlKey) return;
+    if (event.ctrlKey || event.shiftKey) return;
 
     event.preventDefault();
     submitComposer();
