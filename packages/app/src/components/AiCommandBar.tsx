@@ -440,7 +440,7 @@ export function AiCommandBar({
     if (event.key !== "Enter" || isComposingEnter(event)) return;
 
     event.preventDefault();
-    if (event.ctrlKey) {
+    if (event.ctrlKey || event.shiftKey) {
       insertPromptNewline(event.currentTarget);
       return;
     }

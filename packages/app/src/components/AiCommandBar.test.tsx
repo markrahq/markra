@@ -426,6 +426,30 @@ describe("AiCommandBar", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("inserts a newline with Shift+Enter", () => {
+    const onPromptChange = vi.fn();
+    const onSubmit = vi.fn();
+
+    render(
+      <AiCommandBar
+        language="en"
+        open
+        prompt="helloworld"
+        submitting={false}
+        onClose={vi.fn()}
+        onPromptChange={onPromptChange}
+        onSubmit={onSubmit}
+      />
+    );
+
+    const input = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "AI command" });
+    input.setSelectionRange(5, 5);
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+
+    expect(onPromptChange).toHaveBeenCalledWith("hello\nworld");
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("suggests the AI panel for structurally complex inline prompts", () => {
     const onTransferToAiPanel = vi.fn();
 

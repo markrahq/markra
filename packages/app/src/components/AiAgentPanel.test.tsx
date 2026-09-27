@@ -640,6 +640,24 @@ describe("AiAgentPanel", () => {
     expect(submit).toHaveBeenCalledTimes(1);
   });
 
+  it("does not send and keeps default newline behavior when Enter is pressed with Shift", () => {
+    const submit = vi.fn();
+    const updateDraft = vi.fn();
+
+    renderAgentPanel({
+      documentAvailable: true,
+      draft: "Summarize this note",
+      onDraftChange: updateDraft,
+      onSubmit: submit
+    });
+
+    const input = screen.getByRole("textbox", { name: "Markra AI message" });
+    const defaultAllowed = fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+
+    expect(defaultAllowed).toBe(true);
+    expect(submit).not.toHaveBeenCalled();
+  });
+
   it("does not send when Enter confirms an IME composition", () => {
     function Harness() {
       const [draft, setDraft] = useState("Which AI models are available?");
