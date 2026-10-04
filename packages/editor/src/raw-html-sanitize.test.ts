@@ -8,6 +8,16 @@ function renderHtml(source: string) {
 }
 
 describe("HTML table sanitization", () => {
+  it("preserves safe vertical alignment on merged cells", () => {
+    const root = renderHtml('<table><tbody><tr><td rowspan="2" style="text-align: center; vertical-align: middle; position: fixed">A</td><td>B</td></tr><tr><td>C</td></tr></tbody></table>');
+    const cell = root.querySelector<HTMLTableCellElement>("td");
+
+    expect(cell?.rowSpan).toBe(2);
+    expect(cell?.style.textAlign).toBe("center");
+    expect(cell?.style.verticalAlign).toBe("middle");
+    expect(cell?.style.position).toBe("");
+  });
+
   it("preserves table sections, column groups and merged cells", () => {
     const root = renderHtml([
       "<table><caption>Synthetic measurements</caption>",

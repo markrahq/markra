@@ -35,6 +35,20 @@ function input(cell: HTMLElement, html: string) {
 afterEach(() => { for (const view of views.splice(0)) view.destroy(); document.body.replaceChildren(); });
 
 describe("HTML table editing widget", () => {
+  it("keeps merged cell alignment and source unchanged after editor recreation", () => {
+    const html = '<table><tbody><tr><td rowspan="2" style="vertical-align: middle; text-align: center">A</td><td>B</td></tr><tr><td>C</td></tr></tbody></table>';
+    const original = `Before\n\n${html}\n\nAfter`;
+    for (let index = 0; index < 2; index += 1) {
+      const view = createView(html);
+      const cell = view.dom.querySelector<HTMLTableCellElement>('td[rowspan="2"]');
+
+      expect(cell?.style.verticalAlign).toBe("middle");
+      expect(cell?.style.textAlign).toBe("center");
+      expect(view.state.doc.toString()).toBe(original);
+      if (index === 0) views.pop()?.destroy();
+    }
+  });
+
   it("uses the Markdown table controls for adding, aligning and resizing", () => {
     const view = createView();
     button(view, "Add column to the right").click();

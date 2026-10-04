@@ -109,6 +109,7 @@ const allowedStyleProperties = new Set([
   "min-width",
   "text-align",
   "table-layout",
+  "vertical-align",
   "width",
 ]);
 

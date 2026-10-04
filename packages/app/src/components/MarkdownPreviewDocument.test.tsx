@@ -12,6 +12,50 @@ vi.mock("@markra/editor", async (importOriginal) => ({
 import { MarkdownPreviewDocument } from "./MarkdownPreviewDocument";
 
 describe("MarkdownPreviewDocument", () => {
+  it("renders sanitized HTML blocks and resolves their image sources before reporting completion", async () => {
+    const onRendered = vi.fn();
+    const resolveImageSrc = vi.fn((src: string) => `asset://${src}`);
+    const { container, rerender } = render(
+      <MarkdownPreviewDocument
+        markdown={'<div><table onclick="bad()"><tr><td rowspan="2" style="vertical-align: middle; position: fixed"><strong>A</strong><img src="assets/mock.png" onerror="bad()"></td><td>B</td></tr><tr><td>C</td></tr></table><script>bad()</script><iframe src="https://example.test"></iframe><a href="javascript:bad()">Unsafe</a></div>'}
+        resolveImageSrc={resolveImageSrc}
+        onRendered={onRendered}
+      />
+    );
+    await waitFor(() => expect(onRendered).toHaveBeenCalled());
+    const cell = container.querySelector<HTMLTableCellElement>('td[rowspan="2"]');
+
+    expect(cell?.style.verticalAlign).toBe("middle");
+    expect(cell?.style.position).toBe("");
+    expect(cell?.querySelector("strong")?.textContent).toBe("A");
+    expect(cell?.querySelector("img")).toHaveAttribute("src", "asset://assets/mock.png");
+    expect(container.querySelector("script, iframe, [onclick], [onerror], a[href]")).toBeNull();
+    expect(onRendered.mock.calls[0]![0].querySelector("table")).not.toBeNull();
+
+    rerender(<MarkdownPreviewDocument markdown="Updated **synthetic** content" />);
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector("strong")?.textContent).toBe("synthetic");
+  });
+
+  it("renders HTML blocks inside quotes and list items while keeping fenced HTML as code", () => {
+    const { container } = render(
+      <MarkdownPreviewDocument markdown={[
+        "> <table><tr><td>Quoted</td></tr></table>",
+        "",
+        "- <table><tr><td>Listed</td></tr></table>",
+        "",
+        "```html",
+        "<table><tr><td>Code</td></tr></table>",
+        "```"
+      ].join("\n")} />
+    );
+
+    expect(container.querySelector("blockquote table td")?.textContent).toBe("Quoted");
+    expect(container.querySelector("li table td")?.textContent).toBe("Listed");
+    expect(container.querySelector("pre code")?.textContent).toContain("<table><tr><td>Code</td></tr></table>");
+    expect(container.querySelector("pre table")).toBeNull();
+  });
+
   it("shows Mermaid diagnostics safely without blocking other diagrams", async () => {
     const diagnostic = "Parse error on line 2:\n<img src=x onerror=alert(1)>\nExpecting 'TXT', got 'NEWLINE'";
     renderMermaid.mockRejectedValueOnce(new Error(diagnostic));
