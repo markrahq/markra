@@ -1,3 +1,11 @@
+## [2.12.1](https://github.com/markrahq/markra/compare/v2.12.0...v2.12.1) (2026-10-05)
+
+### Bug Fixes
+
+* **app:** insert newline on Shift+Enter in AI inputs ([#748](https://github.com/markrahq/markra/issues/748)) ([867d4dd](https://github.com/markrahq/markra/commit/867d4dd1c3c1457bb472d9f5916059a5d43d15ab)), closes [#746](https://github.com/markrahq/markra/issues/746)
+* **editor:** render ordered lists with sequential numbering ([#753](https://github.com/markrahq/markra/issues/753)) ([f2e809d](https://github.com/markrahq/markra/commit/f2e809dbec2e9946edff3541dca5f19537fe4676))
+* **export:** render HTML tables and preserve vertical alignment ([#752](https://github.com/markrahq/markra/issues/752)) ([6f40262](https://github.com/markrahq/markra/commit/6f40262c5b35bc08955e3810fd595d0d968c0583))
+
 ## [2.12.0](https://github.com/markrahq/markra/compare/v2.11.2...v2.12.0) (2026-09-24)
 
 ### Features
