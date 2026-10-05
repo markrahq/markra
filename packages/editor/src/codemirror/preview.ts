@@ -1,5 +1,5 @@
 import { syntaxTree } from "@codemirror/language";
-import type { Extension, Range, Text } from "@codemirror/state";
+import type { EditorState, Extension, Range, Text } from "@codemirror/state";
 import {
   Decoration,
   type DecorationSet,
@@ -117,6 +117,34 @@ function listLineAttributes(source: string) {
     kind,
     marker: kind === "ordered" ? sourceMarker : "•",
   };
+}
+
+function orderedListMarker(
+  state: EditorState,
+  item: MarkraSyntaxNode,
+  markers: Map<number, string>,
+) {
+  const list = item.parent;
+  if (list?.name !== "OrderedList") return null;
+
+  if (!markers.has(item.from)) {
+    const items = list.getChildren("ListItem");
+    const firstMark = items[0]?.getChild("ListMark");
+    if (!firstMark) return null;
+
+    const sourceMarker = state.sliceDoc(firstMark.from, firstMark.to);
+    const start = Number.parseInt(sourceMarker, 10);
+    if (!Number.isFinite(start)) return null;
+    const delimiter = sourceMarker.at(-1);
+
+    // Count direct siblings, including offscreen items, from the authored start.
+    // Nested lists have their own sequence; preview numbering never rewrites source.
+    items.forEach((child, index) => {
+      markers.set(child.from, `${start + index}${delimiter}`);
+    });
+  }
+
+  return markers.get(item.from) ?? null;
 }
 
 function rangeSelectionIncludesPosition(
@@ -354,6 +382,7 @@ function buildDecorations(
   const decoratedBlockLines = new Set<string>();
   const decoratedEmptyLines = new Set<number>();
   const decoratedListLines = new Set<number>();
+  const orderedListMarkers = new Map<number, string>();
   const decoratedNodes = new Set<string>();
   const rendererClaimedNodes = new Set<string>();
   const tree = syntaxTree(state);
@@ -496,7 +525,13 @@ function buildDecorations(
                 markraListDepth(node.node as MarkraSyntaxNode),
               ),
               "data-list-kind": listAttributes.kind,
-              "data-list-marker": listAttributes.marker,
+              "data-list-marker": listAttributes.kind === "ordered"
+                ? orderedListMarker(
+                  state,
+                  node.node as MarkraSyntaxNode,
+                  orderedListMarkers,
+                ) ?? listAttributes.marker
+                : listAttributes.marker,
               "data-markra-list-source": sourceVisible ? "visible" : "hidden",
             },
             class: "cm-markra-list-item",
