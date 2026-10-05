@@ -12,6 +12,36 @@ vi.mock("mermaid", () => ({
 import { MarkdownExportDocument } from "./MarkdownExportDocument";
 
 describe("MarkdownExportDocument", () => {
+  it.each(["html", "pdf"] as const)("exports raw HTML merged tables as elements for %s", async (kind) => {
+    const onRendered = vi.fn();
+    render(
+      <MarkdownExportDocument
+        onRendered={onRendered}
+        snapshot={{
+          id: 1,
+          kind,
+          markdown: [
+            "<table><thead><tr><th colspan=\"2\">Synthetic group</th></tr></thead>",
+            '<tbody><tr><td rowspan="2" style="text-align: center; vertical-align: middle">A</td><td>B<br>C</td></tr>',
+            "<tr><td>D</td></tr></tbody></table>"
+          ].join("\n"),
+          title: "synthetic-table.md"
+        }}
+      />
+    );
+    await waitFor(() => expect(onRendered).toHaveBeenCalledTimes(1));
+    const root = document.createElement("div");
+    root.innerHTML = onRendered.mock.calls[0]![0].bodyHtml;
+    const cell = root.querySelector<HTMLTableCellElement>('td[rowspan="2"]');
+
+    expect(root.querySelector("table")).not.toBeNull();
+    expect(root.querySelector("th")?.colSpan).toBe(2);
+    expect(cell?.style.verticalAlign).toBe("middle");
+    expect(cell?.style.textAlign).toBe("center");
+    expect(root.querySelector("td br")).not.toBeNull();
+    expect(root.textContent).not.toContain("<table>");
+  });
+
   it("renders ordinary Markdown line breaks without explicit br tags", async () => {
     const onRendered = vi.fn();
 

@@ -20,6 +20,7 @@ import {
   remarkHugoMath,
   renderMarkraMathToString,
   renderMermaidToSvg,
+  sanitizeRawHtml,
   type MarkraMathMacros
 } from "@markra/editor";
 import { parseMarkdownCalloutMarker, type ParsedMarkdownCalloutMarker } from "@markra/shared";
@@ -45,7 +46,7 @@ type MarkdownAstNode = {
   value?: string;
 };
 
-function replaceHtmlBreakNodes(node: MarkdownAstNode) {
+function replaceHtmlNodes(node: MarkdownAstNode) {
   if (!Array.isArray(node.children)) return;
 
   node.children = node.children.map((child) => {
@@ -53,15 +54,31 @@ function replaceHtmlBreakNodes(node: MarkdownAstNode) {
       return { type: "break" };
     }
 
-    replaceHtmlBreakNodes(child);
+    if (child.type === "html" && typeof child.value === "string" &&
+      (node.type === "root" || node.type === "blockquote" || node.type === "listItem")) {
+      // Block HTML is a complete fragment; inline tags can be split across Markdown nodes.
+      return {
+        type: "markraHtml",
+        data: { hName: "div", hProperties: { "data-markra-raw-html": child.value } }
+      };
+    }
+
+    replaceHtmlNodes(child);
     return child;
   });
 }
 
-function remarkMarkraHtmlBreaks() {
+function remarkMarkraHtml() {
   return (tree: MarkdownAstNode) => {
-    replaceHtmlBreakNodes(tree);
+    replaceHtmlNodes(tree);
   };
+}
+
+function renderRawHtmlBlock(source: string, resolveImageSrc: MarkdownPreviewDocumentProps["resolveImageSrc"]) {
+  const root = document.createElement("div");
+  // Preview and export must use the editor's allowlist before inserting authored HTML.
+  root.append(...sanitizeRawHtml(source, document, { resolveImageSrc }));
+  return <div className="markra-html-node" dangerouslySetInnerHTML={{ __html: root.innerHTML }} />;
 }
 
 function hasMathClass(className: unknown, kind: "display" | "inline") {
@@ -246,7 +263,7 @@ export function MarkdownPreviewDocument({
   return (
     <article className={previewClassName(className)} ref={articleRef}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkHugoMath, remarkMarkraHtmlBreaks]}
+        remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkHugoMath, remarkMarkraHtml]}
         components={{
           a: ({ node: _node, ...props }) => <a {...props} rel="noreferrer" target="_blank" />,
           blockquote: ({ node: _node, ...props }) =>
@@ -261,6 +278,12 @@ export function MarkdownPreviewDocument({
             }
 
             return <code {...props} className={codeClassName}>{children}</code>;
+          },
+          div: ({ node, ...props }) => {
+            const source = node?.properties["data-markra-raw-html"];
+            return typeof source === "string"
+              ? renderRawHtmlBlock(source, resolveImageSrc)
+              : <div {...props} />;
           },
           img: ({ node: _node, src, alt, ...props }) => (
             <img
