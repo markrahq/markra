@@ -1,5 +1,7 @@
+import { history, redo, undo } from "@codemirror/commands";
 import { forceParsing, syntaxTree } from "@codemirror/language";
 import {
+  Compartment,
   EditorSelection,
   EditorState,
   type Extension,
@@ -7,7 +9,7 @@ import {
 } from "@codemirror/state";
 import { drawSelection, EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { liveMarkdown } from "./index.ts";
+import { liveMarkdown, markraLanguage } from "./index.ts";
 
 const syntaxTreeIterations = vi.hoisted(
   (): Array<{ from: number | undefined; to: number | undefined }> => [],
@@ -82,6 +84,13 @@ function createView({
 function renderedLines(view: EditorView) {
   return Array.from(view.dom.querySelectorAll(".cm-line"), (line) =>
     line.textContent ?? "",
+  );
+}
+
+function orderedListMarkers(view: EditorView) {
+  return Array.from(
+    view.dom.querySelectorAll('.cm-markra-list-item[data-list-kind="ordered"]'),
+    (line) => line.getAttribute("data-list-marker"),
   );
 }
 
@@ -1036,6 +1045,131 @@ describe("liveMarkdown", () => {
     expect(lines[0]?.textContent).toBe("First item");
     expect(lines[1]?.getAttribute("data-markra-list-source")).toBe("hidden");
     expect(lines[1]?.textContent).toBe("Second item");
+  });
+
+  it("updates ordered list numbering after deletion, undo, and redo", () => {
+    const doc = "1. First item\n2. Middle item\n3. Last item\n\nTail";
+    const preview = new Compartment();
+    const view = createView({
+      doc,
+      extensions: [history(), preview.of(liveMarkdown())],
+    });
+
+    view.dispatch({
+      changes: {
+        from: view.state.doc.line(2).from,
+        to: view.state.doc.line(3).from,
+      },
+      userEvent: "delete.selection",
+    });
+
+    const remaining = "1. First item\n3. Last item\n\nTail";
+    expect(view.state.doc.toString()).toBe(remaining);
+    expect(orderedListMarkers(view)).toEqual(["1.", "2."]);
+
+    expect(undo(view)).toBe(true);
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(orderedListMarkers(view)).toEqual(["1.", "2.", "3."]);
+    expect(redo(view)).toBe(true);
+    expect(orderedListMarkers(view)).toEqual(["1.", "2."]);
+
+    view.dispatch({ selection: { anchor: remaining.indexOf("Last") } });
+    expect(orderedListMarkers(view)).toEqual(["1.", "2."]);
+    view.contentDOM.blur();
+    view.dispatch({ selection: { anchor: remaining.length } });
+    expect(orderedListMarkers(view)).toEqual(["1.", "2."]);
+
+    view.dispatch({ effects: preview.reconfigure(markraLanguage) });
+    expect(renderedLines(view)).toEqual(remaining.split("\n"));
+    view.dispatch({ effects: preview.reconfigure(liveMarkdown()) });
+    expect(orderedListMarkers(view)).toEqual(["1.", "2."]);
+    expect(view.state.doc.toString()).toBe(remaining);
+
+    const reopened = createView({ doc: remaining, focus: false });
+    expect(orderedListMarkers(reopened)).toEqual(["1.", "2."]);
+    expect(reopened.state.doc.toString()).toBe(remaining);
+  });
+
+  it("updates ordered list numbering after deleting multiple selected items", () => {
+    const doc = "1. First item\n2. Second item\n3. Third item\n4. Fourth item\n\nTail";
+    const view = createView({ doc });
+
+    view.dispatch({
+      changes: [
+        { from: view.state.doc.line(2).from, to: view.state.doc.line(3).from },
+        { from: view.state.doc.line(4).from, to: view.state.doc.line(5).from },
+      ],
+      userEvent: "delete.selection",
+    });
+
+    expect(view.state.doc.toString()).toBe("1. First item\n3. Third item\n\nTail");
+    expect(orderedListMarkers(view)).toEqual(["1.", "2."]);
+  });
+
+  it.each([
+    [
+      "repeated source numbers",
+      "1. First\n1. Second\n1. Third",
+      ["1.", "2.", "3."],
+    ],
+    ["a custom start", "7. First\n12. Second\n2. Third", ["7.", "8.", "9."]],
+    ["a zero start", "0. First\n0. Second", ["0.", "1."]],
+    ["parenthesis markers", "3) First\n8) Second", ["3)", "4)"]],
+    ["loose items", "1. First\n\n3. Second", ["1.", "2."]],
+    [
+      "continuation paragraphs",
+      "1. First\n\n   Continuation\n\n3. Second",
+      ["1.", "2."],
+    ],
+    [
+      "separate lists",
+      "1. First\n3. Second\n\nParagraph\n\n5. Third\n9. Fourth",
+      ["1.", "2.", "5.", "6."],
+    ],
+    [
+      "separate marker styles",
+      "1. First\n3. Second\n4) Third\n9) Fourth",
+      ["1.", "2.", "4)", "5)"],
+    ],
+    [
+      "nested lists",
+      [
+        "1. First",
+        "   4. Nested first",
+        "   8. Nested second",
+        "3. Second",
+        "   1. Other nested first",
+        "   3. Other nested second",
+      ].join("\n"),
+      ["1.", "4.", "5.", "2.", "1.", "2."],
+    ],
+    ["nested bullets", "1. First\n   - Nested bullet\n3. Second", ["1.", "2."]],
+    ["ordered task items", "1. First\n2. [ ] Task\n4. Third", ["1.", "3."]],
+    [
+      "fenced source",
+      "```md\n1. Example\n3. Example\n```\n\n1. First\n3. Second",
+      ["1.", "2."],
+    ],
+  ])("numbers %s from parsed list membership", (_name, sourceDoc, markers) => {
+    const doc = `${sourceDoc}\n\nTail`;
+    const view = createView({ doc });
+
+    expect(orderedListMarkers(view)).toEqual(markers);
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("counts ordered list items outside the visible range", () => {
+    const doc = "1. First item\n1. Second item\n1. Third item\n\nTail";
+    const view = createView({ doc });
+    const third = view.state.doc.line(3);
+    vi.spyOn(view, "visibleRanges", "get").mockReturnValue([
+      { from: third.from, to: third.to },
+    ]);
+
+    view.dispatch({ selection: { anchor: third.to } });
+
+    expect(orderedListMarkers(view)).toEqual(["3."]);
+    expect(view.state.doc.toString()).toBe(doc);
   });
 
   it("marks hidden list markers whose source is included in a range selection", () => {
