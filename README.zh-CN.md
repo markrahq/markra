@@ -37,10 +37,10 @@
     </td>
     <td align="center" valign="top" width="50%">
       <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA">
-        <img src="assets/sponsors/fluxion-ai.png" height="56" alt="Fluxion AI 标志" />
+        <img src="assets/sponsors/sidrune-ai.webp" height="56" alt="Sidrune AI 标志" />
       </a>
       <br />
-      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Fluxion AI</strong></a>
+      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Sidrune AI</strong></a>
       <br />
       主流 AI，一站接入；智能调度，费用透明。
     </td>
@@ -48,7 +48,7 @@
 </table>
 
 <p align="center">
-  <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Fluxion AI</strong></a> · Fable 5.1 较 Claude 官方 API 最高省约 90%。
+  <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Sidrune AI</strong></a> · Fable 5.1 较 Claude 官方 API 最高省约 90%。
 </p>
 
 <p align="center">

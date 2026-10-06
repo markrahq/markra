@@ -37,10 +37,10 @@
     </td>
     <td align="center" valign="top" width="50%">
       <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA">
-        <img src="assets/sponsors/fluxion-ai.png" height="56" alt="Fluxion AI logo" />
+        <img src="assets/sponsors/sidrune-ai.webp" height="56" alt="Sidrune AI logo" />
       </a>
       <br />
-      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Fluxion AI</strong></a>
+      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Sidrune AI</strong></a>
       <br />
       One AI API. Smart routing, clear pricing.
     </td>
@@ -48,7 +48,7 @@
 </table>
 
 <p align="center">
-  <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Fluxion AI</strong></a> · Fable 5.1: up to ~90% less than Claude’s official API.
+  <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Sidrune AI</strong></a> · Fable 5.1: up to ~90% less than Claude’s official API.
 </p>
 
 <p align="center">
