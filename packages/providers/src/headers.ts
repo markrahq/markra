@@ -2,9 +2,13 @@ import { isRecord } from "@markra/shared";
 
 import type { AiProviderConfig } from "./types";
 
-export function readAiProviderCustomHeaders(provider: Pick<AiProviderConfig, "customHeaders">): Record<string, string> {
+const perplexityIntegrationHeader = "X-Pplx-Integration";
+
+export function readAiProviderCustomHeaders(
+  provider: Pick<AiProviderConfig, "baseUrl" | "customHeaders">
+): Record<string, string> {
   const customHeaders = provider.customHeaders?.trim();
-  if (!customHeaders) return {};
+  if (!customHeaders) return addPerplexityIntegrationHeader({}, provider.baseUrl);
 
   let parsed: unknown;
   try {
@@ -28,5 +32,24 @@ export function readAiProviderCustomHeaders(provider: Pick<AiProviderConfig, "cu
     headers[normalizedName] = String(value);
   }
 
+  return addPerplexityIntegrationHeader(headers, provider.baseUrl);
+}
+
+function addPerplexityIntegrationHeader(headers: Record<string, string>, baseUrl?: string) {
+  if (
+    isDirectPerplexityBaseUrl(baseUrl) &&
+    !Object.keys(headers).some((name) => name.toLowerCase() === perplexityIntegrationHeader.toLowerCase())
+  ) {
+    headers[perplexityIntegrationHeader] = "markra";
+  }
+
   return headers;
+}
+
+function isDirectPerplexityBaseUrl(baseUrl?: string) {
+  try {
+    return new URL(baseUrl ?? "").hostname.toLowerCase() === "api.perplexity.ai";
+  } catch {
+    return false;
+  }
 }
