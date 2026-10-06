@@ -39,6 +39,32 @@ describe("AI provider requests", () => {
     });
   });
 
+  it("discovers Requesty managed models with capabilities from their metadata", async () => {
+    const config = createDefaultAiSettings().providers.find((item) => item.id === "requesty");
+    expect(config).toBeDefined();
+    if (!config) throw new Error("Missing Requesty provider");
+    const transport = vi.fn().mockResolvedValue({
+      status: 200,
+      body: {
+        object: "list",
+        data: [
+          { api: "chat", id: "mock-writer", supports_reasoning: true, supports_tool_calling: true, supports_vision: true },
+          { api: "chat", id: "mock-basic", supports_reasoning: false, supports_tool_calling: false, supports_vision: false },
+          { api: "embedding", id: "mock-embedder" }
+        ]
+      }
+    });
+    await expect(fetchAiProviderModels({ ...config, apiKey: "mock-key" }, transport)).resolves.toEqual([
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "mock-writer", name: "mock-writer" },
+      { capabilities: ["text"], enabled: true, id: "mock-basic", name: "mock-basic" }
+    ]);
+    expect(transport).toHaveBeenCalledWith({
+      method: "GET",
+      url: "https://router.requesty.ai/v1/models/managed",
+      headers: { Authorization: "Bearer mock-key" }
+    });
+  });
+
   it("ships mainstream providers by default", () => {
     const settings = createDefaultAiSettings();
     const providerIds = settings.providers.map((item) => item.id);

@@ -172,6 +172,23 @@ export const defaultProviderTemplates: AiProviderConfigSeed[] = [
   },
   {
     apiKey: "",
+    baseUrl: "https://router.requesty.ai/v1",
+    defaultModelId: "gpt-5.6-sol",
+    enabled: false,
+    id: "requesty",
+    models: [
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "gpt-5.6-sol", name: "GPT-5.6 Sol" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "claude-fable-5", name: "Claude Fable 5" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "claude-opus-5", name: "Claude Opus 5" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "claude-sonnet-5", name: "Claude Sonnet 5" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "gemini-3.6-flash", name: "Gemini 3.6 Flash" }
+    ],
+    name: "Requesty",
+    apiStyle: "openai-compatible",
+    type: "openai-compatible"
+  },
+  {
+    apiKey: "",
     baseUrl: "https://api.together.xyz/v1",
     defaultModelId: "moonshotai/Kimi-K2.6",
     enabled: false,
