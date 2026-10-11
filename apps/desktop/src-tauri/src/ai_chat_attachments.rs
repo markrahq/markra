@@ -2,7 +2,6 @@ use std::{
     fs,
     path::{Path, PathBuf},
 };
-use tauri::Manager;
 
 const ATTACHMENT_ROOT_FOLDER: &str = "ai-agent-sessions";
 const MAX_IDENTIFIER_BYTES: usize = 128;
@@ -86,8 +85,7 @@ fn delete_attachment_session(root: &Path, session_id: &str) -> Result<(), String
 }
 
 fn attachment_root<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
+    crate::user_data::app_data_dir(app)
         .map(|path| path.join(ATTACHMENT_ROOT_FOLDER))
         .map_err(|error| format!("Could not resolve AI chat attachment storage: {error}"))
 }

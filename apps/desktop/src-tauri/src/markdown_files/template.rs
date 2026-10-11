@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 
 use super::path::normalize_markdown_tree_single_file_name;
 use super::types::MarkdownTemplateFile;
-use tauri::Manager;
 
 fn normalize_markdown_template_file_name(file_name: &str) -> Result<String, String> {
     let trimmed_name = normalize_markdown_tree_single_file_name(file_name)?;
@@ -21,8 +20,7 @@ fn normalize_markdown_template_file_name(file_name: &str) -> Result<String, Stri
 }
 
 fn markdown_template_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
+    crate::user_data::app_data_dir(app)
         .map(|path| path.join("templates"))
         .map_err(|error| error.to_string())
 }

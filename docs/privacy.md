@@ -25,6 +25,8 @@ Markra may store these items locally:
 
 Provider API keys and tokens are saved in local Markra settings. Treat the local user profile and device storage as sensitive. Markra does not claim that these settings are separately encrypted by the app.
 
+Desktop launches with `--user-data-dir` store settings and other persistent app data in the selected directory, including any configured credentials. This supports keeping a profile on removable storage. It does not move Markdown documents or rewrite paths to external files. See [Custom User Data Directory](../README.md#custom-user-data-directory) for launch examples and platform details.
+
 ## AI Requests
 
 AI requests are sent only to the provider endpoint you configure or select. The request can include:

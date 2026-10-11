@@ -45,7 +45,6 @@ const SETTINGS_WINDOW_LABEL: &str = "markra-settings";
 const SETTINGS_WINDOW_URL: &str = "index.html?settings=1";
 const SETTINGS_WINDOW_TARGET_EVENT: &str = "markra://settings-window-target";
 const SETTINGS_WINDOW_TARGET_EXPORT_PANDOC_PATH: &str = "exportPandocPath";
-const SETTINGS_STORE_PATH: &str = "settings.json";
 const SETTINGS_STARTUP_LANGUAGE_PARAM: &str = "startupLanguage";
 const SETTINGS_STARTUP_APPEARANCE_MODE_PARAM: &str = "startupAppearanceMode";
 const SETTINGS_STARTUP_LIGHT_THEME_PARAM: &str = "startupLightTheme";
@@ -457,7 +456,7 @@ fn append_url_query_param(url: &mut String, key: &str, value: &str) {
 }
 
 fn settings_store_path(identifier: &str) -> Option<PathBuf> {
-    dirs::data_dir().map(|data_dir| data_dir.join(identifier).join(SETTINGS_STORE_PATH))
+    crate::user_data::settings_store_path(identifier)
 }
 
 fn read_settings_object(path: &Path) -> Option<Map<String, Value>> {
@@ -650,7 +649,7 @@ where
             .title_bar_style(TitleBarStyle::Overlay)
             .hidden_title(true);
 
-        match builder.build() {
+        match crate::user_data::configure_webview(builder).build() {
             Ok(window) => {
                 remember_native_menu_webview_window(&window);
                 hide_native_macos_window_controls(&window);
@@ -1263,7 +1262,7 @@ fn spawn_settings_window_with_mode<R>(
             .title_bar_style(settings_window_title_bar_style())
             .hidden_title(settings_window_hidden_title());
 
-        match builder.build() {
+        match crate::user_data::configure_webview(builder).build() {
             Ok(window) => {
                 hide_native_macos_window_controls(&window);
                 hide_native_menu_for_window(&window);

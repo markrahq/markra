@@ -6,7 +6,6 @@ use reqwest::header::{CONTENT_LENGTH, LOCATION};
 use reqwest::redirect::Policy;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tauri::Manager;
 
 use crate::network::{apply_network_settings, NetworkSettings};
 use crate::web_http::validated_web_resource_url;
@@ -55,11 +54,7 @@ pub(crate) async fn load_spellcheck_dictionary(
 ) -> Result<SpellcheckDictionaryResponse, String> {
     let relative_path =
         dictionary_cache_relative_path(&request.id, &request.version, &request.sha256)?;
-    let cache_path = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?
-        .join(relative_path);
+    let cache_path = crate::user_data::app_data_dir(&app)?.join(relative_path);
 
     if !forces_dictionary_download(&request) {
         if let Ok(bytes) = fs::read(&cache_path) {
@@ -100,11 +95,7 @@ pub(crate) async fn delete_spellcheck_dictionary(
 ) -> Result<(), String> {
     let relative_path =
         dictionary_cache_relative_path(&request.id, &request.version, &request.sha256)?;
-    let cache_path = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?
-        .join(relative_path);
+    let cache_path = crate::user_data::app_data_dir(&app)?.join(relative_path);
 
     match fs::remove_file(&cache_path) {
         Ok(()) => Ok(()),
@@ -120,11 +111,7 @@ pub(crate) async fn get_spellcheck_dictionary_status(
 ) -> Result<SpellcheckDictionaryStatusResponse, String> {
     let relative_path =
         dictionary_cache_relative_path(&request.id, &request.version, &request.sha256)?;
-    let cache_path = app
-        .path()
-        .app_data_dir()
-        .map_err(|error| error.to_string())?
-        .join(relative_path);
+    let cache_path = crate::user_data::app_data_dir(&app)?.join(relative_path);
 
     Ok(SpellcheckDictionaryStatusResponse {
         downloaded: dictionary_cache_matches_sha256(&cache_path, &request.sha256)?,

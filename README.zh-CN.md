@@ -100,6 +100,24 @@ brew install --cask markrahq/tap/markra
 sudo pacman -U ./Markra_<版本号>_linux_x64.pkg.tar.zst
 ```
 
+### 自定义应用数据目录
+
+桌面版支持 `--user-data-dir=<路径>` 和 `--user-data-dir <路径>`。相对路径以启动时的工作目录为基准。目录不存在时会自动创建，设置、AI 会话与附件、主题、模板、文档历史、拼写词典、日志和窗口状态都会保存在该目录。不传参数时，继续使用现有系统目录。
+
+将 Windows 便携包放在 U 盘的 `Markra` 文件夹内，并在旁边放置以下启动脚本：
+
+```bat
+@echo off
+cd /d "%~dp0"
+start "" "Markra\Markra.exe" "--user-data-dir=.\Markra_Data"
+```
+
+macOS/Linux 可通过已安装的命令行入口或可执行文件运行 `markra --user-data-dir "./Markra_Data"`。参数后可以继续指定要打开的文件或文件夹。
+
+切换数据目录前，请完全退出 Markra。新目录使用独立配置，不会自动迁移原有数据；Markdown 文档和外部文件路径仍使用原来的保存位置。需要沿用已有设置时，可以在新配置中恢复设置备份。
+
+Windows/Linux 的 WebView 数据也会保存在指定目录。macOS 的 WKWebView 不支持任意缓存目录，因此自定义配置使用临时 WebView 缓存，Markra 的持久数据仍保存在指定目录。
+
 ## 演示
 
 <p align="center">

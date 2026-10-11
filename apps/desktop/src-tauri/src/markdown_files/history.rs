@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use sha2::{Digest, Sha256};
-use tauri::Manager;
 
 use super::path::is_markdown_history_file;
 use super::types::{MarkdownFileHistoryEntry, MarkdownFileHistoryFile};
@@ -40,8 +39,7 @@ fn canonical_history_document_path(path: &Path) -> String {
 }
 
 pub(super) fn markdown_history_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
+    crate::user_data::app_data_dir(app)
         .map(|path| path.join("markdown-history"))
         .map_err(|error| error.to_string())
 }

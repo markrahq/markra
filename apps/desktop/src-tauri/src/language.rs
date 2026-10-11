@@ -5,7 +5,6 @@ use std::{
 
 use serde_json::{Map, Value};
 
-const SETTINGS_STORE_PATH: &str = "settings.json";
 const LANGUAGE_KEY: &str = "language";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -94,11 +93,7 @@ fn system_locale_candidates() -> Vec<String> {
 }
 
 fn settings_store_path(identifier: &str) -> Option<PathBuf> {
-    dirs::data_dir().map(|data_dir| settings_store_path_from_data_dir(data_dir, identifier))
-}
-
-fn settings_store_path_from_data_dir(data_dir: impl AsRef<Path>, identifier: &str) -> PathBuf {
-    data_dir.as_ref().join(identifier).join(SETTINGS_STORE_PATH)
+    crate::user_data::settings_store_path(identifier)
 }
 
 fn language_from_system_locales(locales: &[&str]) -> Option<AppLanguage> {
@@ -276,17 +271,5 @@ mod tests {
                 strings_path.display()
             );
         }
-    }
-
-    #[test]
-    fn settings_store_path_matches_tauri_app_data_layout() {
-        let path = settings_store_path_from_data_dir("/tmp/app-data", "dev.markra.app");
-
-        assert_eq!(
-            path,
-            Path::new("/tmp/app-data")
-                .join("dev.markra.app")
-                .join("settings.json")
-        );
     }
 }

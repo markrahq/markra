@@ -100,6 +100,24 @@ On Arch Linux, download the x64 package from the release and install it with:
 sudo pacman -U ./Markra_<version>_linux_x64.pkg.tar.zst
 ```
 
+### Custom User Data Directory
+
+The desktop app accepts `--user-data-dir=<path>` or `--user-data-dir <path>`. Relative paths resolve from the launch working directory. Markra creates the directory if needed and stores settings, AI sessions and attachments, themes, templates, document history, spellcheck dictionaries, logs, and window state there. Without the option, the existing system directories are used.
+
+For a Windows portable package on a USB drive, place this launcher beside the `Markra` app folder:
+
+```bat
+@echo off
+cd /d "%~dp0"
+start "" "Markra\Markra.exe" "--user-data-dir=.\Markra_Data"
+```
+
+On macOS/Linux, use `markra --user-data-dir "./Markra_Data"` with the installed shell command or executable. File and folder arguments can follow the option.
+
+Quit Markra completely before switching data directories. A new directory starts with fresh settings; existing data is not moved automatically. Markdown documents and paths to external files remain where you saved them. To reuse existing settings, restore a settings backup into the new profile.
+
+Windows/Linux WebView data is stored in the selected directory. On macOS, custom profiles use a temporary WebView cache because WKWebView does not support an arbitrary cache directory; persistent Markra data still uses the selected directory.
+
 ## Demo
 
 <p align="center">

@@ -1,7 +1,5 @@
 use std::{fs, path::Path, process::Command};
 
-use tauri::Manager;
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum LogFolderPlatform {
     Linux,
@@ -48,9 +46,7 @@ fn log_folder_command_for_path(path: &Path, platform: LogFolderPlatform) -> LogF
 
 #[tauri::command]
 pub(crate) fn open_log_folder<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(), String> {
-    let log_dir = app
-        .path()
-        .app_log_dir()
+    let log_dir = crate::user_data::log_dir(&app)
         .map_err(|error| format!("Could not resolve app log directory: {error}"))?;
 
     fs::create_dir_all(&log_dir)

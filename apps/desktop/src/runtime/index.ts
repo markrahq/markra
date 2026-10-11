@@ -1,4 +1,5 @@
 import { emit } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 import { platform as tauriPlatform, version as tauriVersion, type Platform as TauriPlatform } from "@tauri-apps/plugin-os";
 import { load } from "@tauri-apps/plugin-store";
 import { hasTauriRuntime } from "@markra/shared";
@@ -161,7 +162,10 @@ export const desktopRuntime = {
     resolveDesktopPlatform
   },
   settings: {
-    loadStore: load
+    async loadStore(path: string, options: Parameters<typeof load>[1]) {
+      const resolvedPath = await invoke<string>("resolve_store_path", { path });
+      return load(resolvedPath, options);
+    }
   },
   shellCommand: {
     getShellCommandStatus: shellCommand.getNativeShellCommandStatus,

@@ -1,6 +1,13 @@
 import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
+import { load } from "@tauri-apps/plugin-store";
 import { desktopRuntime } from "./index";
 import * as logs from "./tauri/logs";
+
+vi.mock("@tauri-apps/api/core", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@tauri-apps/api/core")>(),
+  invoke: vi.fn()
+}));
 
 vi.mock("@tauri-apps/api/event", () => ({
   emit: vi.fn(),
@@ -51,5 +58,33 @@ describe("desktop runtime logs", () => {
     expect(desktopRuntime.logs.isAvailable()).toBe(true);
     expect(desktopRuntime.logs.openLogFolder).toBe(logs.openNativeLogFolder);
     expect(desktopRuntime.logs.writeLog).toBe(logs.writeNativeLog);
+  });
+});
+
+describe("desktop runtime settings", () => {
+  beforeEach(() => {
+    vi.mocked(invoke).mockReset();
+    vi.mocked(load).mockReset();
+  });
+
+  it.each(["settings.json", "/mock-data/settings.json"])(
+    "loads the store from the native resolved path %s",
+    async (resolvedPath) => {
+      vi.mocked(invoke).mockResolvedValue(resolvedPath);
+      const options = { defaults: {}, autoSave: false };
+
+      await desktopRuntime.settings.loadStore("settings.json", options);
+
+      expect(invoke).toHaveBeenCalledWith("resolve_store_path", { path: "settings.json" });
+      expect(load).toHaveBeenCalledWith(resolvedPath, options);
+    }
+  );
+
+  it("does not fall back to the default store when resolving the custom path fails", async () => {
+    vi.mocked(invoke).mockRejectedValue(new Error("Mock storage unavailable"));
+
+    await expect(desktopRuntime.settings.loadStore("settings.json", { defaults: {} }))
+      .rejects.toThrow("Mock storage unavailable");
+    expect(load).not.toHaveBeenCalled();
   });
 });

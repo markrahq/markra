@@ -9,7 +9,6 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
-use tauri::Manager;
 
 const MAX_THEME_BYTES: u64 = 1024 * 1024;
 const LIGHT_TEMPLATE: &str = include_str!("../../../../packages/app/src/themes/light.css");
@@ -23,8 +22,7 @@ pub(crate) struct ThemeDirectory {
 }
 
 fn theme_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    app.path()
-        .app_data_dir()
+    crate::user_data::app_data_dir(app)
         .map(|path| path.join("themes"))
         .map_err(|error| error.to_string())
 }

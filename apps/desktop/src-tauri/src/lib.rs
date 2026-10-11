@@ -22,6 +22,7 @@ mod shell_command;
 mod spellcheck_dictionary;
 mod text_file;
 mod themes;
+mod user_data;
 mod watcher;
 mod web_http;
 mod webdav_text_file;
@@ -79,6 +80,7 @@ use spellcheck_dictionary::{
     delete_spellcheck_dictionary, get_spellcheck_dictionary_status, load_spellcheck_dictionary,
 };
 use tauri::Manager;
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_window_state::StateFlags;
 use text_file::{read_text_file, write_text_file};
 use themes::{list_themes, open_theme_folder, read_theme};
@@ -197,9 +199,24 @@ pub fn run_portable_update_helper_if_requested() -> bool {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    if let Err(error) = user_data::initialize_user_data_dir(std::env::args()) {
+        eprintln!("Could not start Markra: {error}");
+        std::process::exit(2);
+    }
     let mut context = tauri::generate_context!();
     // Configured windows are created before setup; seed their first paint here.
     configure_editor_startup(context.config_mut());
+    // Config paths are relative in Tauri. Build custom-profile windows ourselves
+    // so every webview receives the same absolute directory before first paint.
+    let mut startup_windows = Vec::new();
+    if user_data::user_data_dir().is_some() {
+        for window in &mut context.config_mut().app.windows {
+            if window.create {
+                startup_windows.push(window.clone());
+                window.create = false;
+            }
+        }
+    }
     let builder = tauri::Builder::default()
         .manage(MarkdownFileWatcherState::default())
         .manage(MarkdownTreeWatcherState::default())
@@ -213,6 +230,25 @@ pub fn run() {
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
     let builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+        if let Err(error) = user_data::check_forwarded_directory(&args, Path::new(&cwd)) {
+            eprintln!("{error}");
+            let mut dialog = app.dialog().message(error).title("Markra");
+            let window = app
+                .webview_windows()
+                .into_values()
+                .find(|window| window.is_focused().unwrap_or(false))
+                .or_else(|| {
+                    app.webview_windows()
+                        .into_values()
+                        .find(|window| window.is_visible().unwrap_or(false))
+                });
+            if let Some(window) = window {
+                let _ = window.set_focus();
+                dialog = dialog.parent(&window);
+            }
+            dialog.show(|_| {});
+            return;
+        }
         reveal_or_open_markdown_paths(
             app,
             opened_markdown_paths_from_args_with_cwd(args, std::path::PathBuf::from(cwd)),
@@ -221,28 +257,50 @@ pub fn run() {
     }));
 
     #[cfg(any(target_os = "macos", windows, target_os = "linux"))]
-    let builder = builder.plugin(
-        tauri_plugin_window_state::Builder::default()
-            .with_state_flags(window_state_restore_flags())
-            .build(),
-    );
+    let builder = {
+        let mut window_state = tauri_plugin_window_state::Builder::default()
+            .with_state_flags(window_state_restore_flags());
+        if let Some(directory) = user_data::user_data_dir() {
+            window_state = window_state.with_filename(
+                directory
+                    .join(tauri_plugin_window_state::DEFAULT_FILENAME)
+                    .to_string_lossy(),
+            );
+        }
+        builder.plugin(window_state.build())
+    };
+
+    let mut logger = tauri_plugin_log::Builder::new()
+        .level(tauri_plugin_log::log::LevelFilter::Debug)
+        .max_file_size(DESKTOP_LOG_MAX_FILE_SIZE_BYTES)
+        .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(
+            DESKTOP_LOG_ARCHIVED_FILE_COUNT,
+        ));
+    if let Some(directory) = user_data::user_data_dir() {
+        logger = logger.targets([
+            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+            tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Folder {
+                path: directory.join("logs"),
+                file_name: None,
+            }),
+        ]);
+    }
 
     builder
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .level(tauri_plugin_log::log::LevelFilter::Debug)
-                .max_file_size(DESKTOP_LOG_MAX_FILE_SIZE_BYTES)
-                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepSome(
-                    DESKTOP_LOG_ARCHIVED_FILE_COUNT,
-                ))
-                .build(),
-        )
+        .plugin(logger.build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .setup(|app| {
+        .setup(move |app| {
+            for window_config in &startup_windows {
+                user_data::configure_webview(tauri::WebviewWindowBuilder::from_config(
+                    app.handle(),
+                    window_config,
+                )?)
+                .build()?;
+            }
             cleanup_portable_update_helpers();
             apply_main_window_chrome(app);
             spawn_startup_window_reveal_fallback(&app.handle());
@@ -283,6 +341,7 @@ pub fn run() {
             emit_native_menu_command_payload(app, payload);
         })
         .invoke_handler(tauri::generate_handler![
+            user_data::resolve_store_path,
             list_themes,
             read_theme,
             open_theme_folder,

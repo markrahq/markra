@@ -35,6 +35,7 @@ struct PortableHelperRequest {
     staged_dir: PathBuf,
     install_dir: PathBuf,
     backup_dir: PathBuf,
+    user_data_dir: Option<PathBuf>,
 }
 
 #[derive(Debug)]
@@ -330,12 +331,23 @@ where
     }
 
     let parent_process_id = args.next()?.to_string_lossy().parse().ok()?;
-    let request = PortableHelperRequest {
+    let mut request = PortableHelperRequest {
         parent_process_id,
         staged_dir: PathBuf::from(args.next()?),
         install_dir: PathBuf::from(args.next()?),
         backup_dir: PathBuf::from(args.next()?),
+        user_data_dir: None,
     };
+    if let Some(arg) = args.next() {
+        if arg != OsStr::new("--user-data-dir") {
+            return None;
+        }
+        let path = args.next()?;
+        if path.is_empty() {
+            return None;
+        }
+        request.user_data_dir = Some(path.into());
+    }
     if args.next().is_some() {
         return None;
     }
@@ -408,12 +420,21 @@ where
 }
 
 fn run_portable_update_helper(request: PortableHelperRequest) -> Result<(), String> {
+    let user_data_dir = request.user_data_dir.clone();
     run_portable_update_helper_with(request, wait_for_parent_process, |executable| {
-        Command::new(executable)
+        portable_restart_command(executable, user_data_dir.as_deref())
             .spawn()
             .map(|_| ())
             .map_err(|error| portable_error("failed to restart portable app", error))
     })
+}
+
+fn portable_restart_command(executable: &Path, user_data_dir: Option<&Path>) -> Command {
+    let mut command = Command::new(executable);
+    if let Some(directory) = user_data_dir {
+        command.arg("--user-data-dir").arg(directory);
+    }
+    command
 }
 
 pub fn run_portable_update_helper_if_requested() -> bool {
@@ -588,12 +609,19 @@ fn spawn_portable_update_helper(staged: &StagedPortableUpdate) -> Result<(), Str
     // process to exit, replace the original files, and then launch the new version.
     fs::copy(&executable, &helper_path)
         .map_err(|error| portable_error("failed to prepare portable update helper", error))?;
-    Command::new(&helper_path)
+    let mut command = Command::new(&helper_path);
+    command
         .arg(PORTABLE_UPDATE_HELPER_ARG)
         .arg(parent_process_id().to_string())
         .arg(&staged.staged_dir)
         .arg(&staged.install_dir)
-        .arg(&staged.backup_dir)
+        .arg(&staged.backup_dir);
+    // The helper runs from a temporary location; retain the resolved profile
+    // rather than restarting the updated app with its default settings.
+    if let Some(directory) = crate::user_data::user_data_dir() {
+        command.arg("--user-data-dir").arg(directory);
+    }
+    command
         .spawn()
         .map_err(|error| portable_error("failed to launch portable update helper", error))?;
     Ok(())
@@ -900,6 +928,7 @@ mod tests {
             staged_dir: staged,
             install_dir: install.clone(),
             backup_dir: backup,
+            user_data_dir: None,
         };
 
         run_portable_update_helper_with(
@@ -941,5 +970,45 @@ mod tests {
                 .map(Into::into)
         )
         .is_none());
+    }
+
+    #[test]
+    fn preserves_the_data_directory_in_portable_update_helper_requests() {
+        let request = parse_portable_update_helper_request(
+            [
+                "Markra.exe",
+                PORTABLE_UPDATE_HELPER_ARG,
+                "42",
+                "/mock/staged",
+                "/mock/install",
+                "/mock/backup",
+                "--user-data-dir",
+                "/mock data",
+            ]
+            .into_iter()
+            .map(Into::into),
+        )
+        .expect("helper should retain the selected profile");
+        assert_eq!(
+            request.user_data_dir.as_deref(),
+            Some(Path::new("/mock data"))
+        );
+    }
+
+    #[test]
+    fn restarts_the_updated_app_with_the_same_absolute_data_directory() {
+        let command =
+            portable_restart_command(Path::new("/mock/Markra.exe"), Some(Path::new("/mock data")));
+        assert_eq!(command.get_program(), OsStr::new("/mock/Markra.exe"));
+        assert_eq!(
+            command.get_args().collect::<Vec<_>>(),
+            vec![OsStr::new("--user-data-dir"), OsStr::new("/mock data")]
+        );
+        assert_eq!(
+            portable_restart_command(Path::new("/mock/Markra.exe"), None)
+                .get_args()
+                .count(),
+            0
+        );
     }
 }

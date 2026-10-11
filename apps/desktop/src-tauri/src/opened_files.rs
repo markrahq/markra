@@ -51,14 +51,14 @@ fn opened_markdown_paths_from_args_with_optional_cwd(
     args: impl IntoIterator<Item = String>,
     cwd: Option<&Path>,
 ) -> Vec<String> {
-    args.into_iter()
-        .skip(1)
+    let Ok(launch) = crate::user_data::parse_launch_args(args) else {
+        return Vec::new();
+    };
+    launch
+        .paths
+        .into_iter()
         .filter_map(|arg| {
             let trimmed = arg.trim();
-            if trimmed.is_empty() || trimmed.starts_with('-') {
-                return None;
-            }
-
             opened_markdown_path_from_path(launch_arg_path(trimmed, cwd))
         })
         .collect()
@@ -115,6 +115,30 @@ mod tests {
                 .expect("system clock should be after epoch")
                 .as_nanos()
         ))
+    }
+
+    #[test]
+    fn does_not_open_the_user_data_directory_as_a_document_folder() {
+        let root = tempfile::tempdir().unwrap();
+        let data = root.path().join("mock-data");
+        fs::create_dir(&data).unwrap();
+        let document = root.path().join("mock.md");
+        fs::write(&document, "# Mock document").unwrap();
+
+        let paths = opened_markdown_paths_from_args_with_cwd(
+            [
+                "markra".to_string(),
+                "--user-data-dir".to_string(),
+                "mock-data".to_string(),
+                "mock.md".to_string(),
+            ],
+            root.path(),
+        );
+
+        assert_eq!(
+            paths,
+            vec![document.canonicalize().unwrap().to_string_lossy()]
+        );
     }
 
     #[test]
