@@ -36,7 +36,7 @@ describe("provider thinking formats", () => {
     (model) => {
       const config = provider({ id: "requesty", type: "openai-compatible", baseUrl: "https://router.requesty.ai/v1" });
       expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: true })).toEqual({ reasoning_effort: "high" });
-      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: false })).toEqual({});
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: false })).toEqual({ reasoning_effort: "min" });
       expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, {})).toEqual({});
     }
   );

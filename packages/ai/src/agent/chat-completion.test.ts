@@ -91,6 +91,36 @@ describe("chatCompletion", () => {
     }), expect.any(Function));
   });
 
+  it.each([
+    { expected: "min", thinkingEnabled: false },
+    { expected: undefined, thinkingEnabled: undefined }
+  ])("sends Requesty reasoning_effort $expected through the Vercel AI SDK when thinking is $thinkingEnabled", async ({
+    expected,
+    thinkingEnabled
+  }) => {
+    const config = createDefaultAiSettings().providers.find((item) => item.id === "requesty");
+    if (!config) throw new Error("Missing Requesty provider");
+    const fallbackTransport = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      onChunk('data: {"id":"chatcmpl_test","object":"chat.completion.chunk","created":0,"model":"gpt-5.6-sol","choices":[{"index":0,"delta":{"content":"Mock answer"},"finish_reason":"stop"}]}\n\n');
+      onChunk("data: [DONE]\n\n");
+
+      return { status: 200 };
+    });
+
+    await expect(chatCompletionStream(
+      { ...config, apiKey: "mock-key" },
+      "gpt-5.6-sol",
+      [{ content: "Hi", role: "user" }],
+      { fallbackTransport, streamTransport, thinkingEnabled, useVercelAiSdk: true }
+    )).resolves.toEqual({ content: "Mock answer", finishReason: "stop" });
+
+    const request = streamTransport.mock.calls[0]?.[0];
+    expect(request?.url).toBe("https://router.requesty.ai/v1/chat/completions");
+    expect(JSON.parse(String(request?.body)).reasoning_effort).toBe(expected);
+    expect(fallbackTransport).not.toHaveBeenCalled();
+  });
+
   it("sends a native POST request and parses the provider response", async () => {
     const transport = vi.fn().mockResolvedValue({
       body: {
