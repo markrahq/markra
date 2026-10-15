@@ -106,6 +106,9 @@ describe("AI chat adapters", () => {
     });
     expect(agent.body).not.toHaveProperty("reasoning");
     expect(agent.body).not.toHaveProperty("thinking");
+    const disabled = adapter.buildRequest(configured, "gpt-5.6-sol", messages, { stream: true, thinkingEnabled: false });
+    expect(disabled.body).toMatchObject({ reasoning_effort: "min" });
+    expect(inline.body).not.toHaveProperty("reasoning_effort");
   });
 
   it("builds OpenAI-compatible chat completion requests with JSON headers", () => {
