@@ -50,13 +50,28 @@ describe("AI provider requests", () => {
         data: [
           { api: "chat", id: "mock-writer", supports_reasoning: true, supports_tool_calling: true, supports_vision: true },
           { api: "chat", id: "mock-basic", supports_reasoning: false, supports_tool_calling: false, supports_vision: false },
+          {
+            api: "chat",
+            id: "mock-gpt-5-text-only",
+            supports_reasoning: false,
+            supports_tool_calling: false,
+            supports_vision: false,
+            supports_web_search: false
+          },
+          { api: "chat", id: "mock-gpt-5-no-vision@eu", supports_reasoning: true, supports_vision: false },
+          { api: "chat", id: "gpt-5.6-sol", supports_reasoning: true, supports_tool_calling: true, supports_vision: false, supports_web_search: false },
           { api: "embedding", id: "mock-embedder" }
         ]
       }
     });
     await expect(fetchAiProviderModels({ ...config, apiKey: "mock-key" }, transport)).resolves.toEqual([
       { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "mock-writer", name: "mock-writer" },
-      { capabilities: ["text"], enabled: true, id: "mock-basic", name: "mock-basic" }
+      { capabilities: ["text"], enabled: true, id: "mock-basic", name: "mock-basic" },
+      { capabilities: ["text"], enabled: true, id: "mock-gpt-5-text-only", name: "mock-gpt-5-text-only" },
+      // Fields the catalog omits still fall back to the id heuristic.
+      { capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "mock-gpt-5-no-vision@eu", name: "mock-gpt-5-no-vision@eu" },
+      // A built-in seed model keeps the catalog's explicit denial instead of the seed's vision capability.
+      { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "gpt-5.6-sol", name: "gpt-5.6-sol" }
     ]);
     expect(transport).toHaveBeenCalledWith({
       method: "GET",

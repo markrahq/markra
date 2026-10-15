@@ -280,17 +280,27 @@ function inferOpenRouterCapabilities(record: Record<string, unknown>, id: string
   return normalizeAiModelCapabilities(capabilities, []);
 }
 
+const requestyCapabilityFields: [string, AiModelCapability][] = [
+  ["supports_vision", "vision"],
+  ["supports_reasoning", "reasoning"],
+  ["supports_tool_calling", "tools"],
+  ["supports_web_search", "web"]
+];
+
 // Infers capabilities from Requesty's supports_* model metadata.
+// An explicit boolean wins over the id heuristic, which only fills fields the catalog omits.
 function inferRequestyCapabilities(record: Record<string, unknown>, id: string): AiModelCapability[] {
   if (typeof record.api === "string" && record.api !== "chat") return [];
 
-  const capabilities = inferCapabilitiesFromId(id);
-  if (capabilities.length === 0) return [];
-  if (record.supports_vision === true) capabilities.push("vision");
-  if (record.supports_reasoning === true) capabilities.push("reasoning");
-  if (record.supports_tool_calling === true) capabilities.push("tools");
+  const inferred = inferCapabilitiesFromId(id);
+  if (inferred.length === 0) return [];
+  const capabilities = new Set(inferred);
+  for (const [field, capability] of requestyCapabilityFields) {
+    if (record[field] === true) capabilities.add(capability);
+    if (record[field] === false) capabilities.delete(capability);
+  }
 
-  return normalizeAiModelCapabilities(capabilities, []);
+  return normalizeAiModelCapabilities([...capabilities], []);
 }
 
 // Infers capabilities from a model id when provider metadata is sparse.
