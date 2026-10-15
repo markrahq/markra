@@ -117,7 +117,11 @@ describe("AI provider settings", () => {
         defaultModelId: "mock/model",
         enabled: true,
         id: "requesty",
-        models: [{ capabilities: ["text"], enabled: true, id: "mock/model", name: "Mock model" }],
+        models: [
+          { capabilities: ["text"], enabled: true, id: "mock/model", name: "Mock model" },
+          // Fetched from the catalog without vision; loading must not restore the seed's vision capability.
+          { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "gpt-5.6-sol", name: "GPT-5.6 Sol" }
+        ],
         name: "My router",
         type: "openai-compatible"
       }]
