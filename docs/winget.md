@@ -14,6 +14,8 @@ The bootstrap manifests in [`packaging/winget/manifests/m/Markra/Markra/2.13.0`]
 
 Without the secret, validation and artifact upload still run. A requested submission emits a warning explaining that the token is missing. No GitHub login prompt is opened.
 
+Manual runs also verify a configured token through a read-only GitHub authentication and scope check, including when `submit` is false. This checks the credential without opening an upstream pull request. Pull request validation does not use the token.
+
 To submit the checked-in bootstrap manifests manually on Windows:
 
 ```powershell

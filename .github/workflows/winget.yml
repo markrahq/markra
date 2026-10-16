@@ -42,6 +42,26 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
+      - name: Verify WinGet submission token
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not $env:WINGET_CREATE_GITHUB_TOKEN) {
+            Write-Output '::warning::WINGET_CREATE_GITHUB_TOKEN is missing; token verification is skipped.'
+            exit 0
+          }
+          $headers = @{ Authorization = "Bearer $env:WINGET_CREATE_GITHUB_TOKEN"; Accept = 'application/vnd.github+json' }
+          $response = Invoke-WebRequest -Uri 'https://api.github.com/user' -Headers $headers
+          $scopes = ($response.Headers['X-OAuth-Scopes'] -join ',').Split(',').Trim()
+          # Classic PATs advertise their scopes; fine-grained tokens cannot be used by WinGetCreate.
+          if ('public_repo' -notin $scopes -and 'repo' -notin $scopes) {
+            throw 'WinGetCreate requires a classic personal access token with public_repo access.'
+          }
+          Write-Output 'WinGet token authentication succeeded and public repository access is available.'
+
       - name: Checkout release tooling
         uses: actions/checkout@v4
 
