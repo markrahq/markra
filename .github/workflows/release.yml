@@ -779,3 +779,15 @@ jobs:
           git -C homebrew-tap add Casks/markra.rb
           git -C homebrew-tap commit -m "Update Markra cask to ${RELEASE_TAG}"
           git -C homebrew-tap push -u "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/markrahq/homebrew-tap.git" "HEAD:${tap_branch}"
+
+  publish_winget:
+    name: Publish WinGet package
+    needs: publish_release
+    permissions:
+      contents: read
+    if: ${{ !contains(github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name, '-') && (github.event_name != 'workflow_dispatch' || !inputs.draft) }}
+    uses: ./.github/workflows/winget.yml
+    with:
+      tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+    secrets:
+      WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.WINGET_CREATE_GITHUB_TOKEN }}

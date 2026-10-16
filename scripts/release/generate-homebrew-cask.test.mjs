@@ -45,11 +45,13 @@ function extractWorkflowRunScript(stepName) {
   assert.notEqual(runStart, -1, `${stepName} step should have a shell script`);
 
   const scriptStart = workflow.indexOf("\n", runStart) + 1;
-  const nextStep = workflow.indexOf("\n      - name:", scriptStart);
-  const block = workflow.slice(scriptStart, nextStep === -1 ? workflow.length : nextStep);
+  const lines = [];
+  for (const line of workflow.slice(scriptStart).split("\n")) {
+    if (line.trim() && !line.startsWith("          ")) break;
+    lines.push(line);
+  }
 
-  return `${block
-    .split("\n")
+  return `${lines
     .map((line) => (line.startsWith("          ") ? line.slice(10) : line))
     .join("\n")
     .trimEnd()}\n`;
