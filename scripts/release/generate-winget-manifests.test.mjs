@@ -78,7 +78,8 @@ test("generates three WinGet manifests using only the exact x64 NSIS installer",
     const content = fs.readFileSync(path.join(manifestDir, name), "utf8");
     assert.match(content, /PackageIdentifier: Markra.Markra/);
     assert.match(content, /PackageVersion: "1.2.3"/);
-    assert.match(content, /ManifestVersion: 1.12.0/);
+    assert.match(content, /ManifestVersion: 1.10.0/);
+    assert.match(content, /winget-manifest\.[a-zA-Z]+\.1\.10\.0\.schema\.json/);
   }
 });
 
