@@ -3907,8 +3907,10 @@ function WorkspaceApp() {
       surface: "notice"
     });
   }, [translate]);
-  const notifyExportFailed = useCallback(() => {
+  const notifyExportFailed = useCallback((requestId: number) => {
     showAppToast({
+      // A retry must not reuse a notice that is still playing its dismissal animation.
+      id: `document-export-error:${requestId}`,
       message: translate("app.exportFailed"),
       status: "error",
       surface: "notice"
@@ -3936,7 +3938,7 @@ function WorkspaceApp() {
     const saveFile = exported.kind === "html" ? saveNativeHtmlFile : saveNativePdfFile;
     saveFile({ contents, suggestedName })
       .then(notifyExportSaved)
-      .catch(notifyExportFailed)
+      .catch(() => notifyExportFailed(exported.id))
       .finally(() => {
         clearExportSnapshot(exported.id);
       });

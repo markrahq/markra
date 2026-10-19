@@ -9489,6 +9489,24 @@ describe("Markra workspace", () => {
     expect(mockedSaveNativeHtmlFile).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a new PDF failure while the previous failure notice is closing", async () => {
+    mockedSaveNativePdfFile.mockRejectedValue("Synthetic PDF renderer failure");
+    const handlers = await prepareExportFeedback();
+    await act(async () => { await handlers.exportPdf?.(); });
+    const firstNotice = await screen.findByText("Could not export the document.");
+    const firstToast = firstNotice.closest("[data-sonner-toast]") as HTMLElement;
+    fireEvent.click(within(firstToast).getByRole("button", { name: "Close notification" }));
+    expect(firstToast).toHaveAttribute("data-removed", "true");
+
+    await act(async () => { await handlers.exportPdf?.(); });
+
+    await waitFor(() => {
+      const activeError = document.querySelector('.app-toast-notice[data-type="error"][data-removed="false"]');
+      expect(activeError).toHaveTextContent("Could not export the document.");
+    });
+    expect(mockedSaveNativePdfFile).toHaveBeenCalledTimes(2);
+  });
+
   it("reports a folder-opening failure without reporting the export as failed", async () => {
     mockedSaveNativeHtmlFile.mockResolvedValue({ name: "example.html", path: "/mock-exports/example.html" });
     mockedOpenNativeContainingFolder.mockRejectedValue(new Error("Synthetic folder failure"));

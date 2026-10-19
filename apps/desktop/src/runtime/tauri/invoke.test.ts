@@ -106,4 +106,23 @@ describe("invokeNative", () => {
     expect(serializedDetails).not.toContain("/Users/example");
     expect(serializedDetails).not.toContain("pasted-image.png");
   });
+
+  it("keeps PDF renderer diagnostics in the runtime log without exposing document inputs", async () => {
+    const error = "PDF renderer exited unsuccessfully (exit status: 23); elapsed_ms=85; output_bytes=0; stderr: synthetic failure at /Users/example/mock-note.html";
+    mockedInvoke.mockRejectedValue(error);
+
+    await expect(invokeNative("export_pdf_file", {
+      path: "/Users/example/mock-export.pdf",
+      html: "<h1>Synthetic private document</h1>"
+    })).rejects.toBe(error);
+
+    const details = mockedAppLogger.error.mock.calls[0]?.[2];
+    expect(details).toMatchObject({
+      command: "export_pdf_file",
+      error: expect.stringContaining("exit status: 23")
+    });
+    expect(details?.error).toContain("elapsed_ms=85; output_bytes=0; stderr: synthetic failure");
+    expect(JSON.stringify(details)).not.toContain("/Users/example");
+    expect(JSON.stringify(details)).not.toContain("Synthetic private document");
+  });
 });

@@ -1,6 +1,7 @@
 use std::fs;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -77,16 +78,65 @@ fn path_executable(name: &str) -> Option<PathBuf> {
     None
 }
 
+#[cfg(target_os = "macos")]
+fn pdf_renderer_executable_from_bundle(url: &objc2_foundation::NSURL) -> Option<PathBuf> {
+    use objc2_foundation::NSBundle;
+
+    let bundle = NSBundle::bundleWithURL(url)?;
+    let executable = bundle.executableURL()?;
+    if !executable.isFileURL() {
+        return None;
+    }
+
+    Some(PathBuf::from(executable.path()?.to_string()))
+}
+
+#[cfg(target_os = "macos")]
+fn registered_pdf_renderers() -> Vec<PathBuf> {
+    use objc2_app_kit::NSWorkspace;
+    use objc2_foundation::NSString;
+
+    objc2::rc::autoreleasepool(|_| {
+        let workspace = NSWorkspace::sharedWorkspace();
+        let mut candidates = Vec::new();
+        // Bundle IDs survive application renames and moves into user-selected folders.
+        for identifier in [
+            "com.google.Chrome",
+            "org.chromium.Chromium",
+            "com.microsoft.edgemac",
+        ] {
+            // The plural lookup requires macOS 12; this API also supports older Tauri installations.
+            if let Some(application) =
+                workspace.URLForApplicationWithBundleIdentifier(&NSString::from_str(identifier))
+            {
+                candidates.extend(pdf_renderer_executable_from_bundle(&application));
+            }
+        }
+        candidates
+    })
+}
+
 fn pdf_renderer_candidates() -> Vec<PathBuf> {
     let mut candidates = Vec::new();
 
     #[cfg(target_os = "macos")]
     {
-        candidates.extend([
-            PathBuf::from("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"),
-            PathBuf::from("/Applications/Chromium.app/Contents/MacOS/Chromium"),
-            PathBuf::from("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge"),
-        ]);
+        candidates.extend(registered_pdf_renderers());
+        for directory in [
+            Some(PathBuf::from("/Applications")),
+            dirs::home_dir().map(|home| home.join("Applications")),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            for executable in [
+                "Google Chrome.app/Contents/MacOS/Google Chrome",
+                "Chromium.app/Contents/MacOS/Chromium",
+                "Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+            ] {
+                candidates.push(directory.join(executable));
+            }
+        }
     }
 
     #[cfg(target_os = "windows")]
@@ -121,9 +171,28 @@ fn pdf_renderer_candidates() -> Vec<PathBuf> {
 }
 
 fn find_pdf_renderer() -> Option<PathBuf> {
-    pdf_renderer_candidates()
-        .into_iter()
-        .find(|candidate| candidate.is_file())
+    find_pdf_renderer_from_candidates(pdf_renderer_candidates())
+}
+
+fn find_pdf_renderer_from_candidates(
+    candidates: impl IntoIterator<Item = PathBuf>,
+) -> Option<PathBuf> {
+    candidates.into_iter().find(|candidate| {
+        let Ok(metadata) = candidate.metadata() else {
+            return false;
+        };
+        if !metadata.is_file() {
+            return false;
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            return metadata.permissions().mode() & 0o111 != 0;
+        }
+        #[cfg(not(unix))]
+        true
+    })
 }
 
 fn pandoc_candidates() -> Vec<PathBuf> {
@@ -266,6 +335,29 @@ fn pdf_output_file_size(path: &Path) -> Option<u64> {
         .filter(|size| *size > 0)
 }
 
+fn pdf_renderer_stderr(path: &Path) -> String {
+    // Leave room for the status and timing in the frontend's bounded diagnostic entry.
+    const STDERR_LIMIT: u64 = 800;
+    let read_tail = || -> std::io::Result<String> {
+        let mut file = fs::File::open(path)?;
+        let length = file.metadata()?.len();
+        file.seek(SeekFrom::Start(length.saturating_sub(STDERR_LIMIT)))?;
+        let mut bytes = Vec::new();
+        file.take(STDERR_LIMIT).read_to_end(&mut bytes)?;
+        let text = String::from_utf8_lossy(&bytes);
+        Ok(format!(
+            "{}{}",
+            if length > STDERR_LIMIT {
+                "[truncated] "
+            } else {
+                ""
+            },
+            text.trim()
+        ))
+    };
+    read_tail().unwrap_or_else(|error| format!("[unavailable: {error}]"))
+}
+
 fn run_pdf_renderer_process_with_timeout(
     binary: &Path,
     args: &[String],
@@ -273,18 +365,33 @@ fn run_pdf_renderer_process_with_timeout(
     timeout: Duration,
     poll_interval: Duration,
     stable_output_duration: Duration,
-) -> Result<bool, String> {
+) -> Result<(), String> {
+    let stderr_path = target_path.with_extension("stderr.log");
+    let stderr_file = fs::File::create(&stderr_path)
+        .map_err(|error| format!("Could not capture PDF renderer stderr: {error}"))?;
+    let started_at = Instant::now();
     let mut child = Command::new(binary)
         .args(args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        // A file avoids pipe backpressure and waiting for inherited handles in browser subprocesses.
+        .stderr(Stdio::from(stderr_file))
         .spawn()
         .map_err(|error| format!("Failed to launch PDF renderer: {error}"))?;
-    let started_at = Instant::now();
     let mut last_output_size = 0;
     let mut stable_output_since: Option<Instant> = None;
 
-    loop {
+    let result = (|| loop {
         if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
-            return Ok(status.success());
+            if !status.success() {
+                return Err(format!("PDF renderer exited unsuccessfully ({status})"));
+            }
+            if pdf_output_file_size(target_path).is_none() {
+                return Err(format!(
+                    "PDF renderer did not create a non-empty output file ({status})"
+                ));
+            }
+            return Ok(());
         }
 
         let now = Instant::now();
@@ -292,9 +399,7 @@ fn run_pdf_renderer_process_with_timeout(
             if output_size == last_output_size {
                 let stable_since = stable_output_since.get_or_insert(now);
                 if now.duration_since(*stable_since) >= stable_output_duration {
-                    let _kill_result = child.kill();
-                    let _wait_result = child.wait();
-                    return Ok(true);
+                    return Ok(());
                 }
             } else {
                 last_output_size = output_size;
@@ -303,20 +408,33 @@ fn run_pdf_renderer_process_with_timeout(
         }
 
         if now.duration_since(started_at) >= timeout {
-            let _kill_result = child.kill();
-            let _wait_result = child.wait();
-            return Ok(false);
+            return Err(format!(
+                "PDF renderer timed out (timeout_ms={})",
+                timeout.as_millis()
+            ));
         }
 
         thread::sleep(poll_interval);
-    }
+    })();
+    let _kill_result = child.kill();
+    let _wait_result = child.wait();
+    let result = result.map_err(|reason| {
+        format!(
+            "{reason}; elapsed_ms={}; output_bytes={}; stderr: {}",
+            started_at.elapsed().as_millis(),
+            pdf_output_file_size(target_path).unwrap_or(0),
+            pdf_renderer_stderr(&stderr_path),
+        )
+    });
+    let _cleanup_result = fs::remove_file(stderr_path);
+    result
 }
 
 fn run_pdf_renderer_process(
     binary: &Path,
     args: &[String],
     target_path: &Path,
-) -> Result<bool, String> {
+) -> Result<(), String> {
     run_pdf_renderer_process_with_timeout(
         binary,
         args,
@@ -331,7 +449,7 @@ fn export_pdf_file_with_renderer(
     path: String,
     html: String,
     renderer_path: &Path,
-    mut render: impl FnMut(&Path, &Path, &Path, &[String]) -> Result<bool, String>,
+    mut render: impl FnMut(&Path, &Path, &Path, &[String]) -> Result<(), String>,
 ) -> Result<(), String> {
     if html.trim().is_empty() {
         return Err("PDF export HTML is empty".to_string());
@@ -348,9 +466,7 @@ fn export_pdf_file_with_renderer(
 
     let result = (|| {
         let args = browser_pdf_arguments(&source_path, &output_path, &profile_path);
-        if !render(renderer_path, &source_path, &output_path, &args)? {
-            return Err("PDF renderer failed".to_string());
-        }
+        render(renderer_path, &source_path, &output_path, &args)?;
 
         let metadata = fs::metadata(&output_path)
             .map_err(|_| "PDF renderer did not create output file".to_string())?;
@@ -464,12 +580,7 @@ fn export_pdf_file_blocking(path: String, html: String) -> Result<(), String> {
         html,
         &renderer_path,
         |binary, _source_path, output_path, args| {
-            let renderer_succeeded = run_pdf_renderer_process(binary, args, output_path)?;
-            if !renderer_succeeded {
-                return Ok(false);
-            }
-
-            Ok(pdf_output_file_size(output_path).is_some())
+            run_pdf_renderer_process(binary, args, output_path)
         },
     )
 }
@@ -546,6 +657,63 @@ fn detect_pandoc_path_blocking() -> Option<String> {
 mod tests {
     use super::*;
 
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn resolves_executable_in_a_relocated_and_renamed_application_bundle() {
+        use objc2_foundation::{NSString, NSURL};
+
+        let root = tempfile::tempdir().unwrap();
+        let application = root.path().join("Mock Apps/重命名.app");
+        let contents = application.join("Contents");
+        let executable = contents.join("MacOS/mock-browser");
+        fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        fs::write(&executable, b"synthetic executable").unwrap();
+        fs::write(
+            contents.join("Info.plist"),
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<plist version="1.0"><dict>
+<key>CFBundleIdentifier</key><string>test.example.mock-browser</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleExecutable</key><string>mock-browser</string>
+</dict></plist>"#,
+        )
+        .unwrap();
+        let url = NSURL::fileURLWithPath(&NSString::from_str(application.to_str().unwrap()));
+
+        assert_eq!(
+            pdf_renderer_executable_from_bundle(&url)
+                .unwrap()
+                .canonicalize()
+                .unwrap(),
+            executable.canonicalize().unwrap()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn skips_stale_and_non_executable_browser_candidates() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root = tempfile::tempdir().unwrap();
+        let unavailable = root.path().join("unavailable-browser");
+        let renderer = root.path().join("nested/mock-browser");
+        fs::create_dir_all(renderer.parent().unwrap()).unwrap();
+        fs::write(&unavailable, b"synthetic executable").unwrap();
+        fs::set_permissions(&unavailable, fs::Permissions::from_mode(0o644)).unwrap();
+        fs::write(&renderer, b"synthetic executable").unwrap();
+        fs::set_permissions(&renderer, fs::Permissions::from_mode(0o755)).unwrap();
+
+        assert_eq!(
+            find_pdf_renderer_from_candidates([
+                root.path().join("stale-browser"),
+                root.path().to_path_buf(),
+                unavailable,
+                renderer.clone(),
+            ]),
+            Some(renderer)
+        );
+    }
+
     #[test]
     fn renders_pdf_html_with_browser_renderer() {
         let root = std::env::temp_dir().join(format!(
@@ -577,7 +745,7 @@ mod tests {
                     .expect("source file URL should be passed")
                     .starts_with("file://"));
                 fs::write(output_path, b"%PDF-1.7\n").expect("mock pdf should be written");
-                Ok(true)
+                Ok(())
             },
         )
         .expect("pdf should be exported");
@@ -610,7 +778,7 @@ mod tests {
             &renderer,
             |_binary, _source_path, _output_path, _args| {
                 renderer_called = true;
-                Ok(true)
+                Ok(())
             },
         );
 
@@ -728,6 +896,115 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn reports_pdf_renderer_exit_status_and_stderr() {
+        let root = tempfile::tempdir().unwrap();
+        let pdf = root.path().join("draft.pdf");
+        let result = run_pdf_renderer_process_with_timeout(
+            Path::new("/bin/sh"),
+            &[
+                "-c".into(),
+                "printf 'synthetic renderer failure' >&2; exit 23".into(),
+            ],
+            &pdf,
+            Duration::from_secs(1),
+            Duration::from_millis(10),
+            Duration::from_millis(50),
+        );
+
+        let error = result.expect_err("an unsuccessful renderer must report its diagnostics");
+        assert!(error.contains("23"), "{error}");
+        assert!(error.contains("synthetic renderer failure"), "{error}");
+        assert!(error.contains("elapsed_ms="), "{error}");
+        assert!(error.contains("output_bytes=0"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounds_pdf_renderer_diagnostics_and_keeps_the_final_stderr_message() {
+        let root = tempfile::tempdir().unwrap();
+        let result = run_pdf_renderer_process_with_timeout(
+            Path::new("/bin/sh"),
+            &[
+                "-c".into(),
+                "printf '%080000d' 0 >&2; printf 'synthetic final error' >&2; exit 7".into(),
+            ],
+            &root.path().join("draft.pdf"),
+            Duration::from_secs(2),
+            Duration::from_millis(10),
+            Duration::from_millis(50),
+        );
+
+        let error = result.unwrap_err();
+        assert!(
+            error.len() < 1200,
+            "diagnostics must fit in a runtime log entry"
+        );
+        assert!(error.contains("[truncated]"), "{error}");
+        assert!(error.ends_with("synthetic final error"), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reports_pdf_renderer_timeout_and_stderr() {
+        let root = tempfile::tempdir().unwrap();
+        let result = run_pdf_renderer_process_with_timeout(
+            Path::new("/bin/sh"),
+            &[
+                "-c".into(),
+                "printf 'synthetic renderer stalled' >&2; exec sleep 10".into(),
+            ],
+            &root.path().join("draft.pdf"),
+            Duration::from_millis(80),
+            Duration::from_millis(10),
+            Duration::from_millis(50),
+        );
+
+        let error = result.expect_err("timeouts must be distinguishable from unsuccessful exits");
+        assert!(error.contains("timed out"), "{error}");
+        assert!(error.contains("synthetic renderer stalled"), "{error}");
+        assert!(error.contains("elapsed_ms="), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_successful_pdf_renderer_without_output() {
+        let root = tempfile::tempdir().unwrap();
+        let result = run_pdf_renderer_process_with_timeout(
+            Path::new("/bin/sh"),
+            &["-c".into(), "exit 0".into()],
+            &root.path().join("draft.pdf"),
+            Duration::from_secs(1),
+            Duration::from_millis(10),
+            Duration::from_millis(50),
+        );
+
+        let error = result.expect_err("a successful exit alone does not confirm a PDF was created");
+        assert!(error.contains("output"), "{error}");
+        assert!(error.contains("output_bytes=0"), "{error}");
+    }
+
+    #[test]
+    fn preserves_pdf_renderer_diagnostics_and_existing_target_on_failure() {
+        let root = tempfile::tempdir().unwrap();
+        let pdf = root.path().join("existing.pdf");
+        fs::write(&pdf, b"synthetic original export").unwrap();
+        let diagnostics = "synthetic renderer failure; elapsed_ms=10; stderr: mock failure";
+        let result = export_pdf_file_with_renderer(
+            pdf.to_string_lossy().into_owned(),
+            "<h1>Synthetic document</h1>".into(),
+            Path::new("/mock/browser"),
+            |_, source, _, _| {
+                assert!(source.is_file());
+                Err(diagnostics.into())
+            },
+        );
+
+        assert_eq!(result, Err(diagnostics.into()));
+        assert_eq!(fs::read(pdf).unwrap(), b"synthetic original export");
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn accepts_stable_pdf_output_when_renderer_keeps_running() {
         let root = std::env::temp_dir().join(format!(
             "markra-pdf-renderer-hang-test-{}",
@@ -756,7 +1033,7 @@ mod tests {
                 Duration::from_millis(20),
                 Duration::from_millis(80),
             ),
-            Ok(true)
+            Ok(())
         );
         assert_eq!(
             fs::read(&pdf).expect("pdf file should be readable"),

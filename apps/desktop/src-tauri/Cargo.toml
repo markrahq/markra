@@ -47,8 +47,8 @@ tempfile = "3.27.0"
 core-foundation = "0.10.1"
 dispatch2 = "0.3.0"
 objc2 = "0.6.0"
-objc2-app-kit = { version = "0.3.0", default-features = false, features = ["std", "NSButton", "NSControl", "NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSView", "NSWindow"] }
-objc2-foundation = { version = "0.3.0", default-features = false, features = ["std", "NSArray", "NSString", "NSURL"] }
+objc2-app-kit = { version = "0.3.0", default-features = false, features = ["std", "NSButton", "NSControl", "NSOpenPanel", "NSPanel", "NSResponder", "NSSavePanel", "NSView", "NSWindow", "NSWorkspace"] }
+objc2-foundation = { version = "0.3.0", default-features = false, features = ["std", "NSArray", "NSBundle", "NSString", "NSURL"] }
 
 [target.'cfg(unix)'.dependencies]
 rustix = { version = "1.1.4", features = ["fs"] }
