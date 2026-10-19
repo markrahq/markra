@@ -689,6 +689,95 @@ describe("web file runtime", () => {
     );
   });
 
+  describe.each(["image", "attachment"] as const)("clipboard %s folders", (kind) => {
+    it.each([
+      ["daily.md", "."],
+      ["notes/daily.md", "."],
+      ["notes/daily.md", " . "]
+    ])("saves beside %s when the configured folder is %s", async (documentRelativePath, folder) => {
+      const contents = "mock clipboard contents";
+      const fileName = kind === "image" ? "mock image.png" : "mock attachment.pdf";
+      const documentDirectory = new FakeDirectoryHandle("notes", {
+        "daily.md": new FakeFileHandle("daily.md", "# Mock note"),
+        [fileName]: new FakeFileHandle(fileName, "existing mock contents")
+      });
+      const directory = documentRelativePath.includes("/")
+        ? new FakeDirectoryHandle("mock-vault", { notes: documentDirectory })
+        : documentDirectory;
+      const runtime = createWebRuntime({
+        indexedDB: new FakeIndexedDbFactory().indexedDB,
+        showDirectoryPicker: async () => directory
+      });
+      const root = await runtime.files.openMarkdownFolder();
+      const entries = await runtime.files.listMarkdownFilesForPath(root!.path);
+      const note = entries.find((entry) => entry.relativePath === documentRelativePath)!;
+      const file = new File([contents], fileName, {
+        type: kind === "image" ? "image/png" : "application/pdf"
+      });
+
+      const saved = kind === "image"
+        ? await runtime.files.saveClipboardImage({
+          documentPath: note.path,
+          fileName,
+          folder,
+          image: file
+        })
+        : await runtime.files.saveClipboardAttachment({
+          documentPath: note.path,
+          folder,
+          attachment: file
+        });
+
+      const savedFileName = kind === "image" ? "mock image-2.png" : "mock attachment-2.pdf";
+      expect(saved.src).toBe(encodeURIComponent(savedFileName));
+      const savedHandle = await documentDirectory.getFileHandle(savedFileName);
+      expect(await (await savedHandle.getFile()).text()).toBe(contents);
+      const existingHandle = await documentDirectory.getFileHandle(fileName);
+      expect(await (await existingHandle.getFile()).text()).toBe("existing mock contents");
+      const updatedEntries = await runtime.files.listMarkdownFilesForPath(root!.path, {
+        managedAttachmentFolder: "."
+      });
+      expect(updatedEntries).toContainEqual(expect.objectContaining({
+        kind: kind === "image" ? "asset" : "attachment",
+        relativePath: documentRelativePath.replace("daily.md", savedFileName)
+      }));
+    });
+
+    it.each(["..", "../outside", "assets/../outside", "assets\\..\\outside", "./../outside"])(
+      "rejects parent directory segments in %s before writing files",
+      async (folder) => {
+        const documentDirectory = new FakeDirectoryHandle("notes", {
+          "daily.md": new FakeFileHandle("daily.md", "# Mock note")
+        });
+        const directory = new FakeDirectoryHandle("mock-vault", { notes: documentDirectory });
+        const runtime = createWebRuntime({
+          indexedDB: new FakeIndexedDbFactory().indexedDB,
+          showDirectoryPicker: async () => directory
+        });
+        const root = await runtime.files.openMarkdownFolder();
+        const entries = await runtime.files.listMarkdownFilesForPath(root!.path);
+        const note = entries.find((entry) => entry.relativePath === "notes/daily.md")!;
+        const file = new File(["mock clipboard contents"], "mock-file.png", { type: "image/png" });
+
+        const save = kind === "image"
+          ? runtime.files.saveClipboardImage({
+            documentPath: note.path,
+            fileName: file.name,
+            folder,
+            image: file
+          })
+          : runtime.files.saveClipboardAttachment({
+            documentPath: note.path,
+            folder,
+            attachment: file
+          });
+
+        await expect(save).rejects.toThrow("Clipboard image folder is invalid.");
+        await expect(runtime.files.listMarkdownFilesForPath(root!.path)).resolves.toEqual(entries);
+      }
+    );
+  });
+
   it.each(["测试 note.v2", "100%2F note", "mock #1"])("expands document folder templates for %s", async (name) => {
     const directory = new FakeDirectoryHandle("mock-vault", {
       notes: new FakeDirectoryHandle("notes", {

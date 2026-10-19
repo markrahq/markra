@@ -228,6 +228,9 @@ function encodeMarkdownRelativePath(path: string) {
 }
 
 function normalizeClipboardImageFolder(folder: string) {
+  // An empty path reuses the document directory without requesting a "." child handle.
+  if (folder.trim() === ".") return "";
+
   const segments = folder.split(/[\\/]+/u).map((segment) => segment.trim()).filter(Boolean);
   if (segments.some((segment) => segment === "." || segment === "..")) {
     throw new Error("Clipboard image folder is invalid.");
