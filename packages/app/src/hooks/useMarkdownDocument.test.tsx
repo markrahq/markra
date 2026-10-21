@@ -3255,6 +3255,49 @@ describe("useMarkdownDocument", () => {
     expect(mockedConsumeWelcomeDocumentState).not.toHaveBeenCalled();
   });
 
+  it("finishes restoring drafts when callbacks change during a file read", async () => {
+    const path = "/mock-vault/note.md";
+    const read = createDeferredNativeMarkdownFile();
+    const onTreeRootFromFolderPath = vi.fn();
+    const onTreeRootFromFilePath = vi.fn();
+    mockedGetStoredWorkspaceState.mockResolvedValue({
+      aiAgentSessionId: "mock-session",
+      activeDraftId: `file:${path}`,
+      draftTabs: [{ content: "# Unsaved draft", id: `file:${path}`, name: "note.md", path }],
+      filePath: path,
+      fileTreeOpen: true,
+      folderName: "mock-vault",
+      folderPath: "/mock-vault",
+      openFilePaths: [path]
+    });
+    mockedReadNativeMarkdownFile.mockReturnValue(read.promise);
+
+    const { result, rerender } = renderHook(({ onTreeRootFromFilePath }) =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallback) => fallback,
+        onTreeRootFromFilePath,
+        onTreeRootFromFolderPath,
+        preferencesReady: true,
+        restoreWorkspaceOnStartup: true
+      }),
+      { initialProps: { onTreeRootFromFilePath } }
+    );
+
+    await waitFor(() => expect(mockedReadNativeMarkdownFile).toHaveBeenCalledWith(path));
+    rerender({ onTreeRootFromFilePath: vi.fn() });
+    await act(async () => {
+      read.resolve({ content: "# Saved on disk", name: "note.md", path });
+    });
+
+    await waitFor(() => expect(result.current.document).toMatchObject({
+      content: "# Unsaved draft",
+      dirty: true,
+      path
+    }));
+    expect(onTreeRootFromFilePath).not.toHaveBeenCalled();
+  });
+
   it("persists dirty untitled drafts as markdown changes", async () => {
     const { result } = renderHook(() =>
       useMarkdownDocument({

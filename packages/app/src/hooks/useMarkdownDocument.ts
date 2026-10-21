@@ -283,6 +283,7 @@ export function useMarkdownDocument({
   const workspaceSessionIdRef = useRef<string | null>(null);
   const openedFromNativeRef = useRef(false);
   const startupWorkspaceRestoreAttemptedRef = useRef(false);
+  const startupWorkspaceRestoreActiveRef = useRef(false);
   const nativeWindowCloseAllowedRef = useRef(false);
   const nativeWindowCloseScheduledRef = useRef(false);
   const dirtyFileSavePromiseRef = useRef<Promise<unknown> | null>(null);
@@ -1167,9 +1168,8 @@ export function useMarkdownDocument({
       openFilePaths: openFilePathsFromTabs(nextTabs)
     });
 
-    if (nextActiveFilePath) onTreeRootFromFilePath(nextActiveFilePath);
     return true;
-  }, [onTreeRootFromFilePath, registerWindowRestoreState, resolveWorkspaceSessionId, setActiveTabState]);
+  }, [registerWindowRestoreState, resolveWorkspaceSessionId, setActiveTabState]);
 
   const openMarkdownFile = useCallback(async (options: OpenMarkdownFileOptions = {}) => {
     const target = await openNativeMarkdownPath(
@@ -2075,6 +2075,14 @@ export function useMarkdownDocument({
   }, [handleNativeOpenedMarkdownPaths]);
 
   useEffect(() => {
+    // Callback changes must not cancel recovery after disk reads have cleared the stored drafts.
+    startupWorkspaceRestoreActiveRef.current = true;
+    return () => {
+      startupWorkspaceRestoreActiveRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
     if (isBlankEditorWindow() || initialMarkdownFilePath() || initialMarkdownFolderPath()) return;
     if (!nativeOpenedPathsReady) return;
     if (openedFromNativeRef.current) return;
@@ -2082,8 +2090,6 @@ export function useMarkdownDocument({
     if (startupWorkspaceRestoreAttemptedRef.current) return;
 
     startupWorkspaceRestoreAttemptedRef.current = true;
-
-    let active = true;
 
     (async () => {
       let restoredWorkspace = false;
@@ -2149,14 +2155,14 @@ export function useMarkdownDocument({
               Promise.resolve()
                 .then(restoreFolderRoot)
                 .then((folderResult) => {
-                  if (active) handleRestoredFolderResult(folderResult);
+                  if (startupWorkspaceRestoreActiveRef.current) handleRestoredFolderResult(folderResult);
                 })
                 .catch(() => {
-                  if (active) handleRestoredFolderResult(null);
+                  if (startupWorkspaceRestoreActiveRef.current) handleRestoredFolderResult(null);
                 });
             } else {
               const folderResult = await Promise.resolve().then(restoreFolderRoot);
-              if (!active) return;
+              if (!startupWorkspaceRestoreActiveRef.current) return;
               handleRestoredFolderResult(folderResult);
             }
           }
@@ -2168,7 +2174,7 @@ export function useMarkdownDocument({
               !workspace.folderPath && !restoredWorkspace,
               sessionId
             );
-            if (!active) return;
+            if (!startupWorkspaceRestoreActiveRef.current) return;
             if (restoredFiles) restoredWorkspace = true;
           }
 
@@ -2178,13 +2184,17 @@ export function useMarkdownDocument({
               workspace.activeDraftId,
               sessionId
             );
-            if (!active) return;
+            if (!startupWorkspaceRestoreActiveRef.current) return;
+            if (restoredDrafts && !restoredWorkspace) {
+              const draftPath = activeFilePathFromTabs(tabsRef.current, activeTabIdRef.current);
+              if (draftPath) onTreeRootFromFilePath(draftPath);
+            }
             if (restoredDrafts) restoredWorkspace = true;
           }
 
           for (const path of additionalRestoreWindowFilePaths) {
             await openNativeMarkdownFileInNewWindow(path);
-            if (!active) return;
+            if (!startupWorkspaceRestoreActiveRef.current) return;
             restoredWorkspace = true;
           }
 
@@ -2200,13 +2210,13 @@ export function useMarkdownDocument({
         }
       }
 
-      if (!active || restoredWorkspace) return;
+      if (!startupWorkspaceRestoreActiveRef.current || restoredWorkspace) return;
 
       const sessionId = resolveWorkspaceSessionId();
       persistWorkspaceState({ aiAgentSessionId: sessionId });
 
       const shouldShowWelcomeDocument = await consumeWelcomeDocumentState();
-      if (!active || !shouldShowWelcomeDocument) return;
+      if (!startupWorkspaceRestoreActiveRef.current || !shouldShowWelcomeDocument) return;
 
       if (!isPristineUntitledDocument(documentRef.current)) return;
 
@@ -2216,16 +2226,13 @@ export function useMarkdownDocument({
         revision: documentRef.current.revision + 1
       });
     })().catch(() => {});
-
-    return () => {
-      active = false;
-    };
   }, [
     assignWorkspaceSessionId,
     clearOpenDocument,
     documentTabsEnabled,
     nativeOpenedPathsReady,
     onTreeRootFromFolderPath,
+    onTreeRootFromFilePath,
     preferencesReady,
     restoreNativeMarkdownFiles,
     restoreWorkspaceDraftTabs,

@@ -140,6 +140,7 @@ Windows/Linux WebView data is stored in the selected directory. On macOS, custom
 | Capability | Desktop app | Web editor |
 | --- | --- | --- |
 | WYSIWYG and source editing | Full editor experience | Full editor experience |
+| Installation and offline use | Installed desktop app; local editing works offline | Installable editor PWA; desktop Chrome/Edge can reopen offline after the first complete online load |
 | Open local files and folders | Native dialogs, file paths, and watchers | Browser file picker, folder picker, and file handles |
 | File tree operations | Create, rename, move, delete, sort, reveal, and multi-select | Create, rename, move, and delete where browser permissions allow |
 | Auto-save and restore | Existing files, tabs, drafts, workspace windows | Browser file handles and IndexedDB state where available |
@@ -149,6 +150,8 @@ Windows/Linux WebView data is stored in the selected directory. On macOS, custom
 | Backup and sync | Local backups, WebDAV note sync, and settings backup to local files, WebDAV, or S3-compatible storage | Settings backup to local files or WebDAV where CORS permits; note backup and sync are unavailable |
 | Custom themes | Theme folder, separate light/dark CSS files, manual refresh, and basic Typora compatibility | Custom CSS editing, import/export, and basic Typora compatibility |
 | Export | HTML, PDF, and Pandoc formats when configured | HTML download and browser print/PDF |
+
+For offline web use, open [the editor](https://editor.markra.app/) online first and allow its resources to finish downloading, then close and reopen it. Installation through the browser is optional. Files stay in the folders you select; browser permissions still apply. Updates take effect after all editor tabs and installed windows are closed. AI, WebDAV, remote images, and other network services still need a connection; mobile folder editing is not covered by this release.
 
 ## Comparison
 

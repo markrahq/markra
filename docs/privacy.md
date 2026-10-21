@@ -9,6 +9,7 @@ This document explains what stays local and what can leave the device when optio
 - Markdown files are ordinary files on disk or browser-selected file handles.
 - Desktop settings are stored locally by the Tauri app.
 - Web settings are stored in the browser through IndexedDB.
+- The web editor caches its built application resources for offline use. Its Service Worker does not cache document contents, provider requests, WebDAV responses, or remote images.
 - AI providers, web search, remote image upload, backup, and sync only run when configured or triggered.
 - Markra does not provide an account system or hosted document storage.
 
@@ -22,6 +23,8 @@ Markra may store these items locally:
 - AI provider configuration and selected models
 - AI agent session summaries and session history
 - backup and sync settings
+
+Clearing browser site data removes the web app's offline resources, saved file handles, settings, and unsaved drafts. It does not delete documents already saved to disk; select their original files or folders again to resume access.
 
 Provider API keys and tokens are saved in local Markra settings. Treat the local user profile and device storage as sensitive. Markra does not claim that these settings are separately encrypted by the app.
 
