@@ -63,6 +63,16 @@ function createView(
   return { compartment, scrollContainer, view };
 }
 
+function pointerDown(view: EditorView) {
+  view.contentDOM.dispatchEvent(
+    new PointerEvent("pointerdown", { bubbles: true, button: 0 }),
+  );
+}
+
+function pointerUp() {
+  window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -119,6 +129,119 @@ describe("CodeMirror typewriter mode", () => {
     vi.runAllTimers();
 
     expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("does not center a range selection", () => {
+    const scrollIntoView = vi.spyOn(EditorView, "scrollIntoView");
+    const { view } = createView();
+    vi.runOnlyPendingTimers();
+    view.focus();
+
+    view.dispatch({
+      selection: EditorSelection.range(0, 8),
+    });
+    vi.runAllTimers();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("cancels a pending center when a range selection starts", () => {
+    const scrollIntoView = vi.spyOn(EditorView, "scrollIntoView");
+    const { view } = createView();
+    vi.runOnlyPendingTimers();
+    view.focus();
+
+    view.dispatch({
+      selection: EditorSelection.cursor(8),
+    });
+    view.dispatch({
+      selection: EditorSelection.range(0, 8),
+    });
+    vi.runAllTimers();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("defers centering while the pointer is down and centers after a click", () => {
+    const scrollIntoView = vi.spyOn(EditorView, "scrollIntoView");
+    const { view } = createView();
+    vi.runOnlyPendingTimers();
+    view.focus();
+
+    pointerDown(view);
+    view.dispatch({
+      selection: EditorSelection.cursor(8),
+    });
+    vi.runAllTimers();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    pointerUp();
+    vi.runAllTimers();
+
+    expect(scrollIntoView).toHaveBeenLastCalledWith(8, { y: "center" });
+  });
+
+  it("keeps a dragged range selection in place after release", () => {
+    const scrollIntoView = vi.spyOn(EditorView, "scrollIntoView");
+    const { view } = createView();
+    vi.runOnlyPendingTimers();
+    view.focus();
+
+    pointerDown(view);
+    view.dispatch({
+      selection: EditorSelection.range(0, 8),
+    });
+    view.dispatch({
+      selection: EditorSelection.range(0, 12),
+    });
+    pointerUp();
+    vi.runAllTimers();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+  });
+
+  it("resumes centering when a range selection collapses to a cursor", () => {
+    const scrollIntoView = vi.spyOn(EditorView, "scrollIntoView");
+    const { view } = createView();
+    vi.runOnlyPendingTimers();
+    view.focus();
+
+    view.dispatch({
+      selection: EditorSelection.range(0, 8),
+    });
+    vi.runAllTimers();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    view.dispatch({
+      selection: EditorSelection.cursor(12),
+    });
+    vi.runAllTimers();
+
+    expect(scrollIntoView).toHaveBeenLastCalledWith(12, { y: "center" });
+  });
+
+  it("clears a stale pointer gesture when the primary button is released outside", () => {
+    const scrollIntoView = vi.spyOn(EditorView, "scrollIntoView");
+    const { view } = createView();
+    vi.runOnlyPendingTimers();
+    view.focus();
+
+    pointerDown(view);
+    view.dispatch({
+      selection: EditorSelection.cursor(8),
+    });
+    vi.runAllTimers();
+
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    window.dispatchEvent(
+      new PointerEvent("pointermove", { bubbles: true, buttons: 0 }),
+    );
+    vi.runAllTimers();
+
+    expect(scrollIntoView).toHaveBeenLastCalledWith(8, { y: "center" });
   });
 
   it("keeps top padding stable after the outer container scrolls", () => {
