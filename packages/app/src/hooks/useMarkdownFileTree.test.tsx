@@ -739,11 +739,12 @@ describe("useMarkdownFileTree", () => {
     ));
 
     const callsBeforeTreeChange = mockedListNativeMarkdownFilesForPath.mock.calls.length;
-    await emitTreeChange("/vault/docs/added.md");
-
-    await waitFor(() => {
-      expect(mockedListNativeMarkdownFilesForPath.mock.calls.length).toBeGreaterThan(callsBeforeTreeChange);
+    // The watcher promise can resolve before React commits the refresh transition.
+    await act(async () => {
+      await emitTreeChange("/vault/docs/added.md");
     });
+
+    expect(mockedListNativeMarkdownFilesForPath.mock.calls.length).toBeGreaterThan(callsBeforeTreeChange);
     expect(screen.getByText("docs/added.md")).toBeInTheDocument();
   });
 
