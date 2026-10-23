@@ -596,6 +596,20 @@ function buildDecorations(
       state,
       node.node as MarkraSyntaxNode,
     );
+    const link = node.name === "Link"
+      ? node.node
+      : LINK_SYNTAX.has(node.name) && parentName === "Link"
+        ? node.node.parent
+        : null;
+    // Lezer also emits Link nodes for ordinary brackets; only resolved references hide their markers.
+    if (
+      link &&
+      link.getChildren("LinkMark").length === 2 &&
+      readMarkdownLinkDestination(state, link, referenceTargets) === null
+    ) {
+      // Keep visiting children so formatting inside literal brackets still renders.
+      return;
+    }
     const standaloneUrl =
       node.name === "URL" &&
       parentName !== "Autolink" &&

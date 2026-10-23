@@ -454,6 +454,72 @@ describe("liveMarkdown", () => {
     expect(renderedLines(view)[0]).toBe("Project notes");
   });
 
+  it.each([
+    ["[rows, columns]", "[rows, columns]"],
+    ["[3, 8, 12]", "[3, 8, 12]"],
+    ["[label]", "[label]"],
+    ["[label][missing]", "[label][missing]"],
+    ["[label][]", "[label][]"],
+    ["[[label]]", "[[label]]"],
+    [String.raw`\[label\]`, "[label]"],
+  ])("keeps ordinary brackets literal: %s", (markdown, rendered) => {
+    const doc = `Before ${markdown} after\n\nEdit`;
+    const view = createView({ doc });
+    const expectLiteral = (current: EditorView) => {
+      expect(renderedLines(current)[0]).toBe(`Before ${rendered} after`);
+      expect(current.dom.querySelector(".cm-markra-link")).toBeNull();
+      expect(current.dom.querySelector(".cm-markra-link-icon")).toBeNull();
+      expect(current.state.doc.toString()).toBe(doc);
+    };
+
+    expectLiteral(view);
+    view.dispatch({ selection: { anchor: doc.indexOf("[") + 2 } });
+    expectLiteral(view);
+    view.contentDOM.blur();
+    view.dispatch({ selection: { anchor: doc.length } });
+    expectLiteral(view);
+    expectLiteral(createView({ doc: view.state.doc.toString(), focus: false }));
+  });
+
+  it.each([
+    ["[**synthetic**]", "[synthetic]", ".cm-markra-strong"],
+    ["`[label]`", "[label]", ".cm-markra-inline-code"],
+  ])("preserves inline formatting around literal brackets: %s", (markdown, rendered, selector) => {
+    const doc = `Before ${markdown} after\n\nEdit`;
+    const view = createView({ doc });
+
+    expect(renderedLines(view)[0]).toBe(`Before ${rendered} after`);
+    expect(view.dom.querySelector(selector)).not.toBeNull();
+    expect(view.dom.querySelector(".cm-markra-link")).toBeNull();
+    expect(view.dom.querySelector(".cm-markra-link-icon")).toBeNull();
+
+    view.dispatch({ selection: { anchor: doc.indexOf("[") + 3 } });
+
+    expect(renderedLines(view)[0]).toBe(`Before ${markdown} after`);
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("updates bracket previews when a reference definition is added or removed", () => {
+    const doc = "Read [guide] and [guide][missing].\n\nEdit";
+    const definition = "\n\n[guide]: https://example.test/reference";
+    const view = createView({ doc });
+
+    expect(renderedLines(view)[0]).toBe("Read [guide] and [guide][missing].");
+
+    view.dispatch({ changes: { from: doc.length, insert: definition } });
+
+    expect(renderedLines(view)[0]).toBe("Read guide and [guide][missing].");
+    expect(view.dom.querySelector(".cm-markra-link")?.getAttribute("href"))
+      .toBe("https://example.test/reference");
+
+    view.dispatch({ changes: { from: doc.length, to: view.state.doc.length } });
+
+    expect(renderedLines(view)[0]).toBe("Read [guide] and [guide][missing].");
+    expect(view.dom.querySelector(".cm-markra-link")).toBeNull();
+    expect(view.dom.querySelector(".cm-markra-link-icon")).toBeNull();
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
   it("reveals a link only when the selection enters that link", () => {
     const doc = "Before [label](https://example.test) after";
     const view = createView({ doc, anchor: 2 });
@@ -541,25 +607,46 @@ describe("liveMarkdown", () => {
     expect(view.dom.querySelector(".cm-markra-link")).toBeNull();
   });
 
-  it("renders reference-style links and reveals their complete source when edited", () => {
+  it.each([
+    ["full", "[guide][docs]", "docs"],
+    ["shortcut", "[guide]", "guide"],
+    ["collapsed", "[guide][]", "guide"],
+    ["normalized", "[guide][ SYNTHETIC   GUIDE ]", "synthetic guide"],
+  ])("renders %s reference links and reveals their complete source when edited", (_name, markdown, label) => {
     const doc = [
-      "Read [guide][docs].",
+      `Read ${markdown}.`,
       "",
-      "[docs]: https://example.test",
+      `[${label}]: https://example.test`,
       "",
       "Edit",
     ].join("\n");
     const view = createView({ doc });
 
     expect(renderedLines(view)[0]).toBe("Read guide.");
-    expect(renderedLines(view)[2]).toBe("[docs]: https://example.test");
+    expect(renderedLines(view)[2]).toBe(`[${label}]: https://example.test`);
     expect(
       view.dom.querySelector(".cm-markra-link")?.getAttribute("href"),
     ).toBe("https://example.test");
 
     view.dispatch({ selection: { anchor: doc.indexOf("guide") + 2 } });
 
-    expect(renderedLines(view)[0]).toBe("Read [guide][docs].");
+    expect(renderedLines(view)[0]).toBe(`Read ${markdown}.`);
+    expect(view.state.doc.toString()).toBe(doc);
+
+    const reopened = createView({ doc: view.state.doc.toString(), focus: false });
+    expect(renderedLines(reopened)[0]).toBe("Read guide.");
+    expect(reopened.dom.querySelector(".cm-markra-link")?.getAttribute("href"))
+      .toBe("https://example.test");
+  });
+
+  it("keeps an empty inline destination separate from a matching reference definition", () => {
+    const doc = "Read [guide]().\n\n[guide]: https://example.test\n\nEdit";
+    const view = createView({ doc });
+
+    expect(renderedLines(view)[0]).toBe("Read guide.");
+    expect(view.dom.querySelector(".cm-markra-link")?.hasAttribute("href"))
+      .toBe(false);
+    expect(view.state.doc.toString()).toBe(doc);
   });
 
   it("styles rendered links and blockquotes", () => {

@@ -175,11 +175,16 @@ describe("linksPlugin", () => {
     expect(view.dom.dataset.markraLinkModifier).toBeUndefined();
   });
 
-  it("opens a reference-style link through its resolved definition", () => {
+  it.each([
+    ["full", "[Synthetic guide][docs]", "docs"],
+    ["shortcut", "[Synthetic guide]", "Synthetic guide"],
+    ["collapsed", "[Synthetic guide][]", "Synthetic guide"],
+    ["normalized", "[Synthetic guide][ SYNTHETIC   GUIDE ]", "synthetic guide"],
+  ])("opens a %s reference link through its resolved definition", (_name, markdown, label) => {
     const doc = [
-      "Read [Synthetic guide][docs] now",
+      `Read ${markdown} now`,
       "",
-      "[docs]: https://example.test/reference",
+      `[${label}]: https://example.test/reference`,
       "",
       "Edit here",
     ].join("\n");
@@ -201,6 +206,20 @@ describe("linksPlugin", () => {
     }));
     expect(view.state.doc.toString()).toBe(doc);
   });
+
+  it.each(["[label]", "[label][]", "[label][missing]"])(
+    "does not offer navigation for unresolved brackets: %s",
+    (markdown) => {
+      const doc = `Read ${markdown} now`;
+      const open = vi.fn();
+      const view = createView(doc, { open }, doc.indexOf("label") + 1);
+
+      expect(view.dom.querySelector(".cm-markra-link")).toBeNull();
+      expect(runMarkraCommand(view, "link.open")).toBe(false);
+      expect(open).not.toHaveBeenCalled();
+      expect(view.state.doc.toString()).toBe(doc);
+    },
+  );
 
   it.each([
     ["angle autolink", "<https://example.test/angle>", "https://example.test/angle"],

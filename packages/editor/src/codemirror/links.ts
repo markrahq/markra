@@ -94,12 +94,17 @@ export function readMarkdownLinkDestination(
     const source = unescapeMarkdown(state.sliceDoc(url.from, url.to).trim());
     return source || null;
   }
-  if (node.name !== "Link") return null;
+  if (node.name !== "Link" || node.getChildren("LinkMark").length !== 2) {
+    return null;
+  }
 
   const label = node.getChild("LinkLabel");
-  if (!label) return null;
+  // Shortcut and collapsed references use the visible label; empty inline URLs must not fall back to a reference.
+  const source = label && label.to > label.from + 2
+    ? state.sliceDoc(label.from, label.to)
+    : state.sliceDoc(node.from, label?.from ?? node.to);
   return references.get(
-    normalizeMarkdownLinkLabel(state.sliceDoc(label.from, label.to)),
+    normalizeMarkdownLinkLabel(source),
   ) ?? null;
 }
 
