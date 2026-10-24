@@ -1,7 +1,7 @@
 import { createDefaultAiSettings, normalizeAiSettings } from "./settings";
 
 describe("AI provider settings", () => {
-  it("adds disabled OrcaRouter to existing settings without changing saved providers or selections", () => {
+  it("adds disabled OrcaRouter and Atlas Cloud to existing settings without changing saved providers or selections", () => {
     const saved = {
       defaultProviderId: "custom-provider-1",
       defaultModelId: "mock-writer",
@@ -30,7 +30,7 @@ describe("AI provider settings", () => {
     const { providers: savedProviders, ...selections } = saved;
     expect(settings).toMatchObject(selections);
     expect(settings.providers[0]).toEqual(savedProviders[0]);
-    expect(settings.providers).toHaveLength(2);
+    expect(settings.providers).toHaveLength(3);
     expect(settings.providers[1]).toMatchObject({
       apiKey: "",
       apiStyle: "openai-compatible",
@@ -39,6 +39,16 @@ describe("AI provider settings", () => {
       enabled: false,
       id: "orcarouter",
       name: "OrcaRouter",
+      type: "openai-compatible"
+    });
+    expect(settings.providers[2]).toMatchObject({
+      apiKey: "",
+      apiStyle: "openai-compatible",
+      baseUrl: "https://api.atlascloud.ai/v1",
+      defaultModelId: "deepseek-ai/deepseek-v4-flash",
+      enabled: false,
+      id: "atlascloud",
+      name: "Atlas Cloud",
       type: "openai-compatible"
     });
     expect(saved.providers).toHaveLength(1);
@@ -61,9 +71,19 @@ describe("AI provider settings", () => {
       }]
     };
     const settings = normalizeAiSettings(saved);
-    expect(settings.providers).toHaveLength(1);
+    expect(settings.providers.filter((provider) => provider.id === "orcarouter")).toHaveLength(1);
     expect(settings.providers[0]).toMatchObject(saved.providers[0]);
     expect(settings.defaultModelId).toBe("mock/model");
+  });
+
+  it("includes an independent Atlas Cloud configuration in each fresh settings object", () => {
+    const first = createDefaultAiSettings().providers.find((provider) => provider.id === "atlascloud");
+    const second = createDefaultAiSettings().providers.find((provider) => provider.id === "atlascloud");
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(first?.models).not.toBe(second?.models);
+    expect(first).toMatchObject({ enabled: false, apiKey: "", defaultModelId: "deepseek-ai/deepseek-v4-flash" });
+    expect(first?.models.some((model) => model.enabled && model.id === first.defaultModelId)).toBe(true);
   });
 
   it("includes an independent OrcaRouter configuration in each fresh settings object", () => {
