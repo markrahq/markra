@@ -1,5 +1,7 @@
-import type { Extension } from "@codemirror/state";
+import { StateEffect, StateField, type Extension } from "@codemirror/state";
 import {
+  Decoration,
+  type DecorationSet,
   EditorView,
   ViewPlugin,
   highlightActiveLine,
@@ -21,6 +23,69 @@ const typewriterActiveLineTheme = EditorView.baseTheme({
   },
 });
 
+const activeLineCenterProperty = "--markra-typewriter-active-line-center";
+
+type ActiveLineBand = {
+  center: number;
+  from: number;
+};
+
+const setActiveLineBands = StateEffect.define<readonly ActiveLineBand[]>();
+
+const activeLineBandField = StateField.define<DecorationSet>({
+  create: () => Decoration.none,
+  update(bands, transaction) {
+    const mapped = bands.map(transaction.changes);
+
+    for (const effect of transaction.effects) {
+      if (!effect.is(setActiveLineBands)) continue;
+
+      return Decoration.set(
+        effect.value.map(({ center, from }) => {
+          const value = `${Math.round(center * 10) / 10}px`;
+          return Decoration.line({
+            attributes: {
+              style: `${activeLineCenterProperty}: ${value}`,
+            },
+          }).range(from);
+        }),
+        true,
+      );
+    }
+
+    return mapped;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+
+function resolveLineHeight(view: EditorView, element: HTMLElement) {
+  const style = window.getComputedStyle(element);
+  const lineHeight = style.lineHeight.trim();
+  const parsed = Number.parseFloat(lineHeight);
+  if (Number.isFinite(parsed) && parsed > 0) {
+    if (/^[\d.]+$/u.test(lineHeight)) {
+      const fontSize = Number.parseFloat(style.fontSize);
+      if (Number.isFinite(fontSize) && fontSize > 0) return parsed * fontSize;
+    } else {
+      return parsed;
+    }
+  }
+
+  const measured = view.defaultLineHeight;
+  if (Number.isFinite(measured) && measured > 0) return measured;
+
+  return 16;
+}
+
+function activeLineElementAt(view: EditorView, position: number) {
+  const { node } = view.domAtPos(position, 1);
+  const element = node.nodeType === Node.ELEMENT_NODE
+    ? node as Element
+    : node.parentElement;
+
+  return element?.closest<HTMLElement>(".cm-line") ?? null;
+}
+
 class CodeMirrorTypewriterView {
   private animationFrame: number | null = null;
   private paddingFrame: number | null = null;
@@ -31,6 +96,9 @@ class CodeMirrorTypewriterView {
   private removePointerListeners: (() => void) | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private scrollContainer: HTMLElement | null = null;
+  private activeLineMeasureScheduled = false;
+  private destroyed = false;
+  private lastBandSignature = "";
 
   constructor(
     private readonly view: EditorView,
@@ -49,12 +117,17 @@ class CodeMirrorTypewriterView {
       : new ResizeObserver(() => {
           this.updatePadding();
           this.scheduleCenter();
+          this.scheduleActiveLineBandMeasure();
         });
     if (this.scrollContainer) this.resizeObserver?.observe(this.scrollContainer);
+    this.scheduleActiveLineBandMeasure();
   }
 
   update(update: ViewUpdate) {
     if (update.geometryChanged) this.updatePadding();
+    if (update.docChanged || update.selectionSet || update.geometryChanged) {
+      this.scheduleActiveLineBandMeasure();
+    }
     if (!update.docChanged && !update.selectionSet) return;
 
     if (this.pointerDown) {
@@ -119,10 +192,14 @@ class CodeMirrorTypewriterView {
   }
 
   centerAfterComposition() {
-    queueMicrotask(() => this.scheduleCenter());
+    queueMicrotask(() => {
+      this.scheduleCenter();
+      this.scheduleActiveLineBandMeasure();
+    });
   }
 
   destroy() {
+    this.destroyed = true;
     this.cancelScheduledCenter();
     this.removePointerListeners?.();
     this.removePointerListeners = null;
@@ -161,6 +238,68 @@ class CodeMirrorTypewriterView {
         ),
       });
     });
+  }
+
+  private scheduleActiveLineBandMeasure() {
+    if (this.destroyed || this.activeLineMeasureScheduled) return;
+
+    this.activeLineMeasureScheduled = true;
+    this.view.requestMeasure({
+      key: this,
+      read: () => {
+        if (this.destroyed) return [];
+        return this.measureActiveLineBands();
+      },
+      write: (bands) => {
+        this.activeLineMeasureScheduled = false;
+        if (this.destroyed) return;
+
+        const signature = bands
+          .map(({ center, from }) => `${from}:${Math.round(center * 10) / 10}`)
+          .join("|");
+        if (signature === this.lastBandSignature) return;
+        this.lastBandSignature = signature;
+
+        // CodeMirror owns line attributes; dispatch the measured positions as
+        // line decorations instead of mutating line DOM styles directly.
+        queueMicrotask(() => {
+          if (this.destroyed) return;
+          this.view.dispatch({ effects: setActiveLineBands.of(bands) });
+        });
+      },
+    });
+  }
+
+  private measureActiveLineBands(): ActiveLineBand[] {
+    const view = this.view;
+    const bands: ActiveLineBand[] = [];
+    const seenLines = new Set<number>();
+
+    for (const range of view.state.selection.ranges) {
+      const line = view.state.doc.lineAt(range.head);
+      if (seenLines.has(line.from)) continue;
+      seenLines.add(line.from);
+
+      const element = activeLineElementAt(view, range.head);
+      const caret = view.coordsAtPos(range.head);
+      if (!element || !caret) continue;
+
+      const rect = element.getBoundingClientRect();
+      const lineHeight = resolveLineHeight(view, element);
+      const caretHeight = caret.bottom - caret.top;
+      // A caret inside a block widget (image, table, rendered HTML) can report
+      // the whole widget rectangle. Fall back to the logical line center so the
+      // band does not jump to an arbitrary height.
+      const contentHeight = element.clientHeight > 0 ? element.clientHeight : rect.height;
+      const center = caretHeight > lineHeight * 2
+        ? contentHeight / 2
+        : (caret.top + caret.bottom) / 2 - rect.top - element.clientTop;
+
+      if (!Number.isFinite(center)) continue;
+      bands.push({ center, from: line.from });
+    }
+
+    return bands;
   }
 
   private updatePadding() {
@@ -242,6 +381,7 @@ export function codeMirrorTypewriterMode(
     }),
     highlightActiveLine(),
     typewriterActiveLineTheme,
+    activeLineBandField,
     typewriterView,
   ];
 }

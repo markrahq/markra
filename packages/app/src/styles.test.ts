@@ -251,7 +251,10 @@ describe("editor stylesheet", () => {
     );
 
     expect(activeLineStart).toBeGreaterThanOrEqual(0);
-    expect(activeLineRule).toContain("--typewriter-active-line-offset: 0px");
+    expect(activeLineRule).toContain(
+      "var(--markra-typewriter-active-line-center",
+    );
+    expect(activeLineRule).not.toContain("--typewriter-active-line-offset");
     expect(activeLineRule).toContain("currentColor 8%");
     expect(activeLineRule).toContain("/ 100% 1lh no-repeat");
     expect(codeHighlightStart).toBeGreaterThanOrEqual(0);
@@ -266,28 +269,15 @@ describe("editor stylesheet", () => {
     expect(calloutHighlightRule).toContain("var(--callout-bg)");
   });
 
-  it("aligns the typewriter highlight with text inside padded visual lines", () => {
+  it("positions the typewriter highlight with the measured caret row", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
 
     expect(styles).toContain(
-      ".cm-line.cm-markra-h1.cm-activeLine {\n" +
-      "    --typewriter-active-line-offset: -8px;",
+      "var(--markra-typewriter-active-line-center, 0.5lh)",
     );
-    expect(styles).toContain(
-      ".cm-line.cm-markra-h2.cm-activeLine {\n" +
-      "    --typewriter-active-line-offset: 8px;",
-    );
-    expect(styles).toContain(
-      ".cm-line.cm-markra-list-item.cm-activeLine {\n" +
-      "    --typewriter-active-line-offset: 4px;",
-    );
-    expect(styles).toContain(
-      ".cm-line.cm-activeLine.markra-callout-last {\n" +
-      "    --typewriter-active-line-offset: -7px;",
-    );
-    expect(styles).toContain(
-      ".cm-line.cm-activeLine.markra-callout-first.markra-callout-last {\n" +
-      "    --typewriter-active-line-offset: 0px;",
+    expect(styles).not.toContain("--typewriter-active-line-offset");
+    expect(styles).not.toContain(
+      "center calc(50% + var(--typewriter-active-line-offset))",
     );
     expect(styles).not.toContain(
       ".cm-line.cm-markra-code-header-line +\n" +

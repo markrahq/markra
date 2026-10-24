@@ -2786,84 +2786,18 @@
   }
 
   /* Draw a one-line-high typewriter band instead of filling the entire
-     CodeMirror line box. Several visual blocks use asymmetric padding for
-     document rhythm, so the offset below tracks half of that padding delta. */
+     CodeMirror line box. The editor measures the caret's visual row (a
+     logical line can wrap into several rows) and stores its center in
+     --markra-typewriter-active-line-center. */
   .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
     .cm-line.cm-activeLine {
-    --typewriter-active-line-offset: 0px;
     --typewriter-active-line-color: color-mix(in srgb, currentColor 8%, transparent);
     background:
       linear-gradient(
         var(--typewriter-active-line-color),
         var(--typewriter-active-line-color)
       )
-      center calc(50% + var(--typewriter-active-line-offset)) / 100% 1lh no-repeat !important;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-h1.cm-activeLine {
-    --typewriter-active-line-offset: -8px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-h2.cm-activeLine {
-    --typewriter-active-line-offset: 8px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-h3.cm-activeLine {
-    --typewriter-active-line-offset: 9px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-h4.cm-activeLine {
-    --typewriter-active-line-offset: 8px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-h5.cm-activeLine,
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-h6.cm-activeLine {
-    --typewriter-active-line-offset: 7px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-list-item +
-    .cm-line.cm-markra-list-item.cm-activeLine {
-    --typewriter-active-line-offset: 4px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-list-item[data-list-depth="0"] +
-    .cm-line.cm-markra-list-item[data-list-depth="1"].cm-activeLine {
-    --typewriter-active-line-offset: 6px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-list-item[data-list-depth="1"] +
-    .cm-line.cm-markra-list-item[data-list-depth="0"].cm-activeLine,
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-list-item[data-list-kind="bullet"] +
-    .cm-line.cm-markra-list-item[data-list-kind="ordered"].cm-activeLine,
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-markra-list-item[data-list-kind="ordered"] +
-    .cm-line.cm-markra-list-item[data-list-kind="task"].cm-activeLine {
-    --typewriter-active-line-offset: 12px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-activeLine.markra-callout-first {
-    --typewriter-active-line-offset: 7px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-activeLine.markra-callout-last {
-    --typewriter-active-line-offset: -7px;
-  }
-
-  .markdown-paper .cm-editor[data-typewriter-mode="true"].cm-focused
-    .cm-line.cm-activeLine.markra-callout-first.markra-callout-last {
-    --typewriter-active-line-offset: 0px;
+      0 calc(var(--markra-typewriter-active-line-center, 0.5lh) - 0.5lh) / 100% 1lh no-repeat !important;
   }
 
   /* The code backdrop is a negative-z pseudo-element, so its active band must
@@ -2880,7 +2814,7 @@
         var(--typewriter-active-line-color),
         var(--typewriter-active-line-color)
       )
-      center calc(50% + var(--typewriter-active-line-offset)) / 100% 1lh no-repeat,
+      0 calc(var(--markra-typewriter-active-line-center, 0.5lh) - 0.5lh) / 100% 1lh no-repeat,
       linear-gradient(
         90deg,
         var(--editor-code-line-bg) 0 43px,
@@ -2896,7 +2830,7 @@
         var(--typewriter-active-line-color),
         var(--typewriter-active-line-color)
       )
-      center calc(50% + var(--typewriter-active-line-offset)) / 100% 1lh no-repeat,
+      0 calc(var(--markra-typewriter-active-line-center, 0.5lh) - 0.5lh) / 100% 1lh no-repeat,
       var(--callout-bg) !important;
   }
 

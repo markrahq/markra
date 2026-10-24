@@ -5,6 +5,7 @@ import { codeMirrorTypewriterMode } from "./typewriter.ts";
 import "./dom.test-support.ts";
 
 const views: EditorView[] = [];
+const activeLineCenterProperty = "--markra-typewriter-active-line-center";
 
 function syntheticRect(top: number): DOMRect {
   return {
@@ -20,9 +21,24 @@ function syntheticRect(top: number): DOMRect {
   } as DOMRect;
 }
 
+function syntheticLineRect(top: number, height: number): DOMRect {
+  return {
+    bottom: top + height,
+    height,
+    left: 0,
+    right: 0,
+    top,
+    width: 0,
+    x: 0,
+    y: top,
+    toJSON: () => ({}),
+  } as DOMRect;
+}
+
 function createView(
   enabled = true,
   geometry: { contentTop?: number; scrollTop?: number } = {},
+  doc = "first\nsecond\nthird",
 ) {
   const scrollContainer = document.createElement("section");
   const parent = document.createElement("div");
@@ -39,8 +55,9 @@ function createView(
   const view = new EditorView({
     parent,
     state: EditorState.create({
-      doc: "first\nsecond\nthird",
+      doc,
       extensions: [
+        EditorState.allowMultipleSelections.of(true),
         EditorView.exceptionSink.of((error) => {
           throw error;
         }),
@@ -73,6 +90,11 @@ function pointerUp() {
   window.dispatchEvent(new PointerEvent("pointerup", { bubbles: true }));
 }
 
+function flushMeasure() {
+  vi.runAllTimers();
+  vi.runAllTicks();
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -98,6 +120,124 @@ describe("CodeMirror typewriter mode", () => {
 
     expect(lines()[0]?.classList.contains("cm-activeLine")).toBe(false);
     expect(lines()[1]?.classList.contains("cm-activeLine")).toBe(true);
+  });
+
+  it("places the active-line band on the caret's visual row", async () => {
+    const { view } = createView(true, {}, "a".repeat(80));
+    const line = view.contentDOM.querySelector<HTMLElement>(".cm-line");
+    expect(line).not.toBeNull();
+    line!.getBoundingClientRect = () => syntheticLineRect(100, 78);
+    const caretTops = new Map<number, number>([
+      [0, 100],
+      [10, 126],
+      [80, 152],
+    ]);
+    vi.spyOn(view, "coordsAtPos").mockImplementation((position) => {
+      const top = caretTops.get(position) ?? 100;
+      return { left: 0, right: 0, top, bottom: top + 20 };
+    });
+
+    flushMeasure();
+    await Promise.resolve();
+    expect(line!.style.getPropertyValue(activeLineCenterProperty)).toBe("10px");
+
+    view.dispatch({ selection: EditorSelection.cursor(10) });
+    flushMeasure();
+    await Promise.resolve();
+    expect(line!.style.getPropertyValue(activeLineCenterProperty)).toBe("36px");
+
+    view.dispatch({ selection: EditorSelection.cursor(80) });
+    flushMeasure();
+    await Promise.resolve();
+    expect(line!.style.getPropertyValue(activeLineCenterProperty)).toBe("62px");
+  });
+
+  it("moves the band between logical lines and clears the previous line", async () => {
+    const { view } = createView();
+    const lines = [...view.contentDOM.querySelectorAll<HTMLElement>(".cm-line")];
+    lines[0]!.getBoundingClientRect = () => syntheticLineRect(100, 26);
+    lines[1]!.getBoundingClientRect = () => syntheticLineRect(126, 26);
+    vi.spyOn(view, "coordsAtPos").mockImplementation((position) => {
+      const top = position < 6 ? 100 : 126;
+      return { left: 0, right: 0, top, bottom: top + 20 };
+    });
+
+    flushMeasure();
+    await Promise.resolve();
+    expect(lines[0]!.style.getPropertyValue(activeLineCenterProperty)).toBe("10px");
+
+    view.dispatch({ selection: EditorSelection.cursor(8) });
+    flushMeasure();
+    await Promise.resolve();
+
+    expect(lines[0]!.style.getPropertyValue(activeLineCenterProperty)).toBe("");
+    expect(lines[1]!.style.getPropertyValue(activeLineCenterProperty)).toBe("10px");
+  });
+
+  it("draws one band per active line for multiple cursors", async () => {
+    const { view } = createView();
+    const lines = [...view.contentDOM.querySelectorAll<HTMLElement>(".cm-line")];
+    lines[0]!.getBoundingClientRect = () => syntheticLineRect(100, 26);
+    lines[1]!.getBoundingClientRect = () => syntheticLineRect(126, 26);
+    vi.spyOn(view, "coordsAtPos").mockImplementation((position) => {
+      const top = position < 6 ? 100 : 126;
+      return { left: 0, right: 0, top, bottom: top + 20 };
+    });
+
+    view.dispatch({
+      selection: EditorSelection.create([
+        EditorSelection.cursor(0),
+        EditorSelection.cursor(8),
+      ]),
+    });
+    flushMeasure();
+    await Promise.resolve();
+
+    expect(lines[0]!.style.getPropertyValue(activeLineCenterProperty)).toBe("10px");
+    expect(lines[1]!.style.getPropertyValue(activeLineCenterProperty)).toBe("10px");
+  });
+
+  it("falls back to the logical line center for oversized caret rectangles", async () => {
+    const { view } = createView(true, {}, "a".repeat(80));
+    const line = view.contentDOM.querySelector<HTMLElement>(".cm-line");
+    expect(line).not.toBeNull();
+    line!.getBoundingClientRect = () => syntheticLineRect(100, 80);
+    vi.spyOn(view, "coordsAtPos").mockReturnValue({
+      left: 0,
+      right: 0,
+      top: 120,
+      bottom: 320,
+    });
+
+    flushMeasure();
+    await Promise.resolve();
+
+    expect(line!.style.getPropertyValue(activeLineCenterProperty)).toBe("40px");
+  });
+
+  it("removes measured band offsets when typewriter mode is disabled", async () => {
+    const { compartment, view } = createView();
+    const line = view.contentDOM.querySelector<HTMLElement>(".cm-line");
+    expect(line).not.toBeNull();
+    line!.getBoundingClientRect = () => syntheticLineRect(100, 26);
+    vi.spyOn(view, "coordsAtPos").mockReturnValue({
+      left: 0,
+      right: 0,
+      top: 100,
+      bottom: 120,
+    });
+
+    flushMeasure();
+    await Promise.resolve();
+    expect(line!.style.getPropertyValue(activeLineCenterProperty)).toBe("10px");
+
+    view.dispatch({
+      effects: compartment.reconfigure(
+        codeMirrorTypewriterMode({ enabled: false }),
+      ),
+    });
+
+    expect(line!.style.getPropertyValue(activeLineCenterProperty)).toBe("");
   });
 
   it("adds scroll space and centers focused cursor movement", () => {
