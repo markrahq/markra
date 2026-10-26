@@ -172,6 +172,23 @@ export const defaultProviderTemplates: AiProviderConfigSeed[] = [
   },
   {
     apiKey: "",
+    baseUrl: "https://api.atlascloud.ai/v1",
+    defaultModelId: "deepseek-ai/deepseek-v4-flash",
+    enabled: false,
+    id: "atlascloud",
+    models: [
+      { capabilities: ["text", "tools"], enabled: true, id: "deepseek-ai/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+      { capabilities: ["text", "tools"], enabled: true, id: "deepseek-ai/deepseek-v4-pro", name: "DeepSeek V4 Pro" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "moonshotai/kimi-k3", name: "Kimi K3" },
+      { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "zai-org/glm-5.2", name: "GLM 5.2" },
+      { capabilities: ["text", "vision", "tools"], enabled: true, id: "qwen/qwen3.8-max", name: "Qwen3.8 Max" }
+    ],
+    name: "Atlas Cloud",
+    apiStyle: "openai-compatible",
+    type: "openai-compatible"
+  },
+  {
+    apiKey: "",
     baseUrl: "https://api.together.xyz/v1",
     defaultModelId: "moonshotai/Kimi-K2.6",
     enabled: false,
