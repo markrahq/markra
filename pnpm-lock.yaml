@@ -517,6 +517,12 @@ importers:
 
   packages/markdown:
     dependencies:
+      '@lezer/common':
+        specifier: 1.5.2
+        version: 1.5.2
+      '@lezer/markdown':
+        specifier: 1.6.4
+        version: 1.6.4
       '@markra/shared':
         specifier: workspace:*
         version: link:../shared

@@ -1,13 +1,19 @@
+import type { Tree } from "@lezer/common";
+import { GFM, parser } from "@lezer/markdown";
 import { toString } from "mdast-util-to-string";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
+import { readMarkdownFrontmatter } from "./frontmatter.ts";
+import { markraSetextHeading } from "./setext-heading.ts";
 
 const countableWordUnits =
   /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]|(?:(?![\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}])[\p{L}\p{N}_'-])+/gu;
 const markraHighlightPattern = /(?<!=)==[^=\n][^\n]*?==(?!=)/gu;
 const inlineMarkdownParser = unified().use(remarkParse).use(remarkGfm).use(remarkMath).use(markraHighlightRemarkPlugin);
+const headingParser = parser.configure([GFM, markraSetextHeading]);
+const headingNodePattern = /^(?:ATX|Setext)Heading([1-6])$/u;
 
 type MarkdownNode = {
   children?: MarkdownNode[];
@@ -25,6 +31,11 @@ export type MarkdownOutlineItem = {
   level: number;
   title: string;
   titleMarkdown?: string;
+};
+
+export type MarkdownHeading = MarkdownOutlineItem & {
+  from: number;
+  to: number;
 };
 
 function splitMarkraHighlightText(value: string): MarkdownNode[] {
@@ -86,30 +97,51 @@ function readableMarkdownHeadingTitle(title: string) {
   return toString(inlineMarkdownParser.runSync(inlineMarkdownParser.parse(`# ${title}`))).trim();
 }
 
-export function getMarkdownOutline(text: string): MarkdownOutlineItem[] {
-  const outline: MarkdownOutlineItem[] = [];
-  let fenced = false;
+export function getMarkdownHeadings(text: string, tree: Tree = headingParser.parse(text)): MarkdownHeading[] {
+  const headings: MarkdownHeading[] = [];
+  const frontmatter = readMarkdownFrontmatter(text);
 
-  text.split(/\r?\n/).forEach((line) => {
-    if (/^\s*(```|~~~)/.test(line)) {
-      fenced = !fenced;
-      return;
+  tree.iterate({
+    enter(node) {
+      const match = headingNodePattern.exec(node.name);
+      if (!match) return;
+      // Frontmatter delimiters can otherwise turn metadata into Setext headings.
+      if (frontmatter && node.from < frontmatter.to) return;
+
+      const marks = node.node.getChildren("HeaderMark");
+      const firstMark = marks[0];
+      if (!firstMark) return;
+
+      const setext = node.name.startsWith("Setext");
+      let from = setext ? node.from : firstMark.to;
+      const to = setext ? text.lastIndexOf("\n", firstMark.from) : marks[1]?.from ?? node.to;
+      const parts: string[] = [];
+
+      // Continuation quote markers belong to the container, not the heading's inline text.
+      node.node.cursor().iterate((quote) => {
+        if (quote.name !== "QuoteMark" || quote.from >= to) return;
+        parts.push(text.slice(from, quote.from));
+        from = quote.to;
+      });
+      parts.push(text.slice(from, to));
+      const titleMarkdown = parts.join("").split(/\r?\n/u).map((line) => line.trim()).join(" ");
+      const title = readableMarkdownHeadingTitle(titleMarkdown);
+      // Empty headings have no outline entry; keep every consumer's indices aligned.
+      if (!title) return;
+
+      headings.push({
+        from: node.from,
+        level: Number(match[1]),
+        title,
+        ...(titleMarkdown === title ? {} : { titleMarkdown }),
+        to: node.to
+      });
     }
-
-    if (fenced) return;
-
-    const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
-    if (!match) return;
-
-    const titleMarkdown = match[2].trim();
-    const title = readableMarkdownHeadingTitle(titleMarkdown);
-
-    outline.push({
-      level: match[1].length,
-      title,
-      ...(titleMarkdown === title ? {} : { titleMarkdown })
-    });
   });
 
-  return outline;
+  return headings;
+}
+
+export function getMarkdownOutline(text: string): MarkdownOutlineItem[] {
+  return getMarkdownHeadings(text).map(({ from, to, ...item }) => item);
 }

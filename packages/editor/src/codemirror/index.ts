@@ -2,6 +2,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { codeFolding } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 import { GFM } from "@lezer/markdown";
+import { markraSetextHeading } from "@markra/markdown";
 import {
   jsonSyntaxHighlighting,
   markdownSourceSyntaxHighlighting,
@@ -14,7 +15,6 @@ import {
 } from "./plugin.ts";
 import { livePreview, type LivePreviewConfig } from "./preview.ts";
 import { markraSlashMenu } from "./slash-menu.ts";
-import { markraSetextHeading } from "./setext-heading.ts";
 import { markraTheme } from "./theme.ts";
 
 export type {

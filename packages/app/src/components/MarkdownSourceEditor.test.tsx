@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { redo, undo } from "@codemirror/commands";
 import { EditorView } from "@codemirror/view";
 import { defaultMarkdownShortcuts } from "@markra/editor";
+import { readCodeMirrorHeadingAnchors } from "@markra/editor/codemirror";
+import { getMarkdownOutline } from "@markra/markdown";
 import { MarkdownSourceEditor } from "./MarkdownSourceEditor";
 
 function getMarkdownSourceView(container: HTMLElement) {
@@ -44,6 +46,21 @@ function readVimMode(view: EditorView) {
 }
 
 describe("MarkdownSourceEditor", () => {
+  it("keeps source-mode heading anchors aligned with the outline", () => {
+    const content = [
+      "# Start", "", "Unfinished", "-", "",
+      "[42]", "---", "", "> ### Quoted", "", "# End"
+    ].join("\n");
+    const { container } = render(<MarkdownSourceEditor content={content} onChange={() => {}} />);
+    const view = getMarkdownSourceView(container);
+    const anchors = readCodeMirrorHeadingAnchors(view.state);
+
+    expect(anchors.map(({ title }) => title)).toEqual(["Start", "[42]", "Quoted", "End"]);
+    expect(anchors.map(({ level, title }) => ({ level, title }))).toEqual(getMarkdownOutline(content));
+    expect(view.state.doc.toString()).toBe(content);
+    expect(container.querySelector(".cm-content")?.textContent).toContain("Unfinished-");
+  });
+
   it("uses the configured shortcut to paste clipboard text", async () => {
     const onChange = vi.fn();
     const readClipboardText = vi.fn().mockResolvedValue("**raw markdown**");

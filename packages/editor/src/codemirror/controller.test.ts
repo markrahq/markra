@@ -2,6 +2,7 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { history, redo, undo } from "@codemirror/commands";
 import { afterEach, describe, expect, it } from "vitest";
+import { getMarkdownOutline } from "@markra/markdown";
 import {
   findCodeMirrorSearchMatches,
   insertCodeMirrorMarkdownImage,
@@ -228,6 +229,96 @@ describe("CodeMirror editor controller", () => {
 
     expect(updated).toEqual(anchors);
     expect(updated[0]).toBe(anchors[0]);
+  });
+
+  it("uses the same heading titles and order as the outline", () => {
+    const doc = [
+      "# Start", "", "[42]", "---", "",
+      "> ### **Quoted**", "",
+      "> Alpha", "> **Beta**", "> ---", "",
+      "#", "", "# End"
+    ].join("\n");
+    const anchors = readCodeMirrorHeadingAnchors(createView(doc).state);
+
+    expect(anchors.map(({ level, title }) => ({ level, title }))).toEqual([
+      { level: 1, title: "Start" },
+      { level: 2, title: "[42]" },
+      { level: 3, title: "Quoted" },
+      { level: 2, title: "Alpha Beta" },
+      { level: 1, title: "End" },
+    ]);
+    expect(getMarkdownOutline(doc).map(({ level, title }) => ({ level, title })))
+      .toEqual(anchors.map(({ level, title }) => ({ level, title })));
+    expect(anchors.map(({ from }) => from)).toEqual([
+      0, doc.indexOf("[42]"), doc.indexOf("###"), doc.indexOf("Alpha"), doc.indexOf("# End"),
+    ]);
+    expect(readCodeMirrorHeadingAnchors(createView(doc).state)).toEqual(anchors);
+  });
+
+  it("includes headings beyond the editor's initial parse range", () => {
+    const doc = `# Start\n\n${"Synthetic paragraph\n\n".repeat(1000)}> ### End`;
+    const state = EditorState.create({ doc, extensions: [markraLanguage] });
+
+    expect(readCodeMirrorHeadingAnchors(state)).toEqual([
+      { from: 0, level: 1, title: "Start", to: "# Start".length },
+      { from: doc.indexOf("### End"), level: 3, title: "End", to: doc.length },
+    ]);
+  });
+
+  it("keeps frontmatter out of heading anchors without shifting source offsets", () => {
+    const doc = "---\ntitle: Synthetic\n---\n\n# End";
+
+    expect(readCodeMirrorHeadingAnchors(createView(doc).state)).toEqual([
+      { from: doc.indexOf("# End"), level: 1, title: "End", to: doc.length },
+    ]);
+  });
+
+  it.each(["**", "`", "=="])("omits quote markers inside multiline %s heading formatting", (marker) => {
+    const doc = `> ${marker}Alpha\n> Beta${marker}\n> ---`;
+    const anchors = readCodeMirrorHeadingAnchors(createView(doc).state);
+
+    expect(anchors).toEqual([
+      { from: 2, level: 2, title: "Alpha Beta", to: doc.length },
+    ]);
+    expect(getMarkdownOutline(doc)).toEqual([
+      { level: 2, title: "Alpha Beta", titleMarkdown: `${marker}Alpha Beta${marker}` },
+    ]);
+  });
+
+  it.each([
+    ["quoted ATX", "> ### Before"],
+    ["quoted Setext", "> Before\n> Middle\n> Last\n> ---"],
+    ["multiline Setext", "Before\nMiddle\nLast\n---"],
+  ])("refreshes %s heading anchors when their title changes", (_label, heading) => {
+    const doc = `# Start\n\nBody\n\n${heading}\n\nBody\n\n# End`;
+    const view = createView(doc);
+    const anchors = readCodeMirrorHeadingAnchors(view.state);
+    const from = doc.indexOf("Before");
+    const transaction = view.state.update({
+      changes: { from, to: from + "Before".length, insert: "After" },
+    });
+    const updated = updateCodeMirrorHeadingAnchors(
+      anchors, transaction.startState, transaction.state, transaction.changes,
+    );
+
+    expect(updated[1]?.title).toBe(heading.includes("Middle") ? "After Middle Last" : "After");
+    expect(updated).toEqual(readCodeMirrorHeadingAnchors(transaction.state));
+  });
+
+  it.each(["> ### New", "- ### New", "> New\n> ---"])("refreshes anchors when a nested heading is created: %s", (heading) => {
+    const doc = "# Start\n\nBody\n\n> Plain\n\nBody\n\n# End";
+    const view = createView(doc);
+    const anchors = readCodeMirrorHeadingAnchors(view.state);
+    const from = doc.indexOf("> Plain");
+    const transaction = view.state.update({
+      changes: { from, to: from + "> Plain".length, insert: heading },
+    });
+    const updated = updateCodeMirrorHeadingAnchors(
+      anchors, transaction.startState, transaction.state, transaction.changes,
+    );
+
+    expect(updated.map(({ title }) => title)).toEqual(["Start", "New", "End"]);
+    expect(updated).toEqual(readCodeMirrorHeadingAnchors(transaction.state));
   });
 
   it("refreshes heading anchors when heading source changes", () => {

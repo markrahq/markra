@@ -58,4 +58,83 @@ describe("markdown helpers", () => {
       { level: 3, title: "> Quoted heading" }
     ]);
   });
+
+  it("includes Setext and quoted headings in document order", () => {
+    const doc = [
+      "# Start",
+      "",
+      "[42]",
+      "---",
+      "",
+      "> ### **Quoted**",
+      "",
+      "# End"
+    ].join("\n");
+
+    expect(getMarkdownOutline(doc)).toEqual([
+      { level: 1, title: "Start" },
+      { level: 2, title: "[42]" },
+      { level: 3, title: "Quoted", titleMarkdown: "**Quoted**" },
+      { level: 1, title: "End" }
+    ]);
+  });
+
+  it("keeps the full title of multiline and nested Setext headings", () => {
+    const doc = [
+      "Alpha",
+      "**Beta**",
+      "===",
+      "",
+      "> Gamma",
+      "> **Delta**",
+      "> ---",
+      "",
+      "- Epsilon",
+      "  Zeta",
+      "  ---"
+    ].join("\n");
+
+    expect(getMarkdownOutline(doc)).toEqual([
+      { level: 1, title: "Alpha Beta", titleMarkdown: "Alpha **Beta**" },
+      { level: 2, title: "Gamma Delta", titleMarkdown: "Gamma **Delta**" },
+      { level: 2, title: "Epsilon Zeta" }
+    ]);
+  });
+
+  it("follows Markdown heading boundaries and preserves literal trailing hashes", () => {
+    expect(getMarkdownOutline(" # Indented\n\n# C#\n\n## Closed ##\n\n#\n\n# End")).toEqual([
+      { level: 1, title: "Indented" },
+      { level: 1, title: "C#" },
+      { level: 2, title: "Closed" },
+      { level: 1, title: "End" }
+    ]);
+  });
+
+  it("ignores unfinished top-level underlines, rules, and headings inside code or HTML", () => {
+    const doc = [
+      "Unfinished dash", "-", "",
+      "Unfinished equals", "=", "",
+      "Plain text", "", "---", "",
+      "````", "```", "# Fenced", "````", "",
+      "    # Indented code", "",
+      "<div>", "# HTML content", "</div>", "",
+      "> Nested title", "> -", "",
+      "# End"
+    ].join("\n");
+
+    expect(getMarkdownOutline(doc)).toEqual([
+      { level: 2, title: "Nested title" },
+      { level: 1, title: "End" }
+    ]);
+  });
+
+  it.each([
+    "---\ntitle: Synthetic\n---",
+    '+++\ntitle = "Synthetic"\n# Hidden comment\n+++',
+    '{\n  "title": "Synthetic"\n}'
+  ])("omits frontmatter from the heading outline: %s", (frontmatter) => {
+    expect(getMarkdownOutline(`${frontmatter}\n---\n\n# End`)).toEqual([
+      { level: 1, title: "End" }
+    ]);
+  });
 });
