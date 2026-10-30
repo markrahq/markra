@@ -1,3 +1,9 @@
+## [2.14.2](https://github.com/markrahq/markra/compare/v2.14.1...v2.14.2) (2026-10-30)
+
+### Bug Fixes
+
+* **editor:** align outline navigation with Markdown headings ([#774](https://github.com/markrahq/markra/issues/774)) ([51a207c](https://github.com/markrahq/markra/commit/51a207c697e2f095be46b8729e3fd481ccaad998))
+
 ## [2.14.1](https://github.com/markrahq/markra/compare/v2.14.0...v2.14.1) (2026-10-25)
 
 ### Bug Fixes
