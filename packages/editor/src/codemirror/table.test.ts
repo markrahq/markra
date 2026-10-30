@@ -90,6 +90,107 @@ describe("tablePreviewPlugin", () => {
     expect(view.state.doc.toString()).toContain("|  |  |\n\nAfter");
   });
 
+  describe.each([
+    {
+      edit: "inserting text before the table",
+      prefix: "Before\n\n",
+      nextPrefix: "Expanded synthetic prefix. Before\n\n",
+      suffix: "",
+    },
+    {
+      edit: "deleting text before a table at the document end",
+      prefix: "Expanded synthetic prefix. Before\n\n",
+      nextPrefix: "Before\n\n",
+      suffix: "",
+    },
+    {
+      edit: "deleting text before a table with following text",
+      prefix: "Expanded synthetic prefix. Before\n\n",
+      nextPrefix: "Before\n\n",
+      suffix: "\n\nSynthetic following paragraph that must remain unchanged.",
+    },
+  ])("after $edit", ({ prefix, nextPrefix, suffix }) => {
+    it.each(["cell", "table"])("uses the current range for Shift+Enter targeting the %s", async (target) => {
+      const source = "| Name | Value |\n| --- | --- |\n| Alpha | 1 |";
+      const view = createView(prefix + source + suffix);
+      const cell = view.dom.querySelector<HTMLTableCellElement>(
+        ".cm-markra-table tbody td",
+      )!;
+
+      view.dispatch({
+        changes: { from: 0, to: prefix.length, insert: nextPrefix },
+        selection: { anchor: 0 },
+      });
+      expect(view.dom.querySelector(".cm-markra-table tbody td")).toBe(cell);
+
+      cell.focus();
+      const range = document.createRange();
+      range.setStart(cell.firstChild!, 2);
+      range.collapse(true);
+      document.getSelection()?.removeAllRanges();
+      document.getSelection()?.addRange(range);
+      const event = new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "Enter",
+        shiftKey: true,
+      });
+      (target === "cell" ? cell : cell.closest("table"))?.dispatchEvent(event);
+      await Promise.resolve();
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(view.state.doc.toString()).toBe(
+        nextPrefix + source.replace("Alpha", "Al<br>pha") + suffix,
+      );
+      const updatedCell = view.dom.querySelector<HTMLTableCellElement>(
+        ".cm-markra-table tbody td",
+      )!;
+      expect(document.activeElement).toBe(updatedCell);
+      const caretText = document.getSelection()?.anchorNode;
+      expect(updatedCell.contains(caretText ?? null)).toBe(true);
+      caretText!.textContent = "\u200bNext";
+      updatedCell.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(
+        nextPrefix + source.replace("Alpha", "Al<br>Nextpha") + suffix,
+      );
+    });
+
+    it("restores the original cell with Escape at the current range", async () => {
+      const source = "| Name | Value |\n| --- | --- |\n| Alpha | 1 |";
+      const view = createView(prefix + source + suffix);
+      const originalCell = view.dom.querySelector<HTMLTableCellElement>(
+        ".cm-markra-table tbody td",
+      )!;
+      originalCell.focus();
+      originalCell.textContent = "Updated";
+      originalCell.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      await Promise.resolve();
+      expect(view.state.doc.toString()).toBe(
+        prefix + source.replace("Alpha", "Updated") + suffix,
+      );
+      const cell = view.dom.querySelector<HTMLTableCellElement>(
+        ".cm-markra-table tbody td",
+      )!;
+
+      view.dispatch({
+        changes: { from: 0, to: prefix.length, insert: nextPrefix },
+        selection: { anchor: 0 },
+      });
+      expect(view.dom.querySelector(".cm-markra-table tbody td")).toBe(cell);
+      cell.dispatchEvent(new KeyboardEvent("keydown", {
+        bubbles: true,
+        cancelable: true,
+        key: "Escape",
+      }));
+      await Promise.resolve();
+
+      expect(view.state.doc.toString()).toBe(nextPrefix + source + suffix);
+      expect(view.dom.querySelector(".cm-markra-table tbody td")?.textContent)
+        .toBe("Alpha");
+    });
+  });
+
   it("renders a GFM table without changing its Markdown source", () => {
     const doc = [
       "| Name | Value |",
