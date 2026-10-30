@@ -17,6 +17,8 @@
     "typecheck:test": "tsc -p tsconfig.test.json --noEmit"
   },
   "dependencies": {
+    "@lezer/common": "1.5.2",
+    "@lezer/markdown": "1.6.4",
     "@markra/shared": "workspace:*",
     "@tauri-apps/api": "2.11.0",
     "mdast-util-to-string": "4.0.0",

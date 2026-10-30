@@ -1,4 +1,4 @@
-import { syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
 import {
   type ChangeSet,
   EditorSelection,
@@ -12,7 +12,7 @@ import type {
   AiHeadingAnchor,
   AiSelectionContext,
 } from "@markra/ai";
-import { getMarkdownOutline } from "@markra/markdown";
+import { getMarkdownHeadings } from "@markra/markdown";
 import {
   normalizedExternalAutolinkUrl,
   type SearchRange,
@@ -180,43 +180,16 @@ export function codeMirrorSelectionIsInsideFencedCode(state: EditorState) {
   return false;
 }
 
-function headingTitle(source: string, level: number, setext: boolean) {
-  const titleMarkdown = setext
-    ? (source.split(/\r?\n/u)[0] ?? "").trim()
-    : source
-        .replace(/^[ \t]{0,3}#{1,6}(?:[ \t]+|$)/u, "")
-        .replace(/[ \t]+#+[ \t]*$/u, "")
-        .trim();
-  const outline = getMarkdownOutline(
-    `${"#".repeat(level)} ${titleMarkdown}`,
-  );
-  return outline[0]?.title ?? titleMarkdown;
-}
-
 export function readCodeMirrorHeadingAnchors(
   state: EditorState,
 ): AiHeadingAnchor[] {
-  const headings: AiHeadingAnchor[] = [];
-
-  syntaxTree(state).iterate({
-    enter(node) {
-      const match = headingNodePattern.exec(node.name);
-      if (!match) return;
-
-      const level = Number(match[1]);
-      const source = state.sliceDoc(node.from, node.to);
-      headings.push({
-        from: node.from,
-        level,
-        title: headingTitle(source, level, node.name.startsWith("Setext")),
-        to: node.to,
-      });
-    },
-  });
-
-  return headings;
+  // A partial editor tree would omit later headings and shift outline navigation.
+  const tree = ensureSyntaxTree(state, state.doc.length) ?? undefined;
+  return getMarkdownHeadings(state.doc.toString(), tree)
+    .map(({ from, level, title, to }) => ({ from, level, title, to }));
 }
 
+const headingContainerPrefixPattern = /^(?:[\t ]|>[\t ]?|(?:[-+*]|\d+[.)])[\t ]+)*/u;
 const atxHeadingLinePattern = /^[\t ]{0,3}#{1,6}(?:[\t ]+|$)/u;
 const setextHeadingLinePattern = /^[\t ]{0,3}(?:=+|-+)[\t ]*$/u;
 
@@ -236,7 +209,7 @@ function lineNeighborhoodMayContainHeading(
   );
 
   for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
-    const source = state.doc.line(lineNumber).text;
+    const source = state.doc.line(lineNumber).text.replace(headingContainerPrefixPattern, "");
     if (
       atxHeadingLinePattern.test(source) ||
       setextHeadingLinePattern.test(source)
@@ -256,6 +229,7 @@ export function updateCodeMirrorHeadingAnchors(
   let refresh = false;
   changes.iterChangedRanges((fromA, toA, fromB, toB) => {
     if (
+      headings.some((heading) => heading.from <= toA && heading.to >= fromA) ||
       lineNeighborhoodMayContainHeading(startState, fromA, toA) ||
       lineNeighborhoodMayContainHeading(state, fromB, toB)
     ) {

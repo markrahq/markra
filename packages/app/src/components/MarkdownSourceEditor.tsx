@@ -4,6 +4,7 @@ import { Annotation, Compartment, EditorSelection, EditorState, Prec, Transactio
 import { Decoration, EditorView, keymap, lineNumbers } from "@codemirror/view";
 import { minimalSetup } from "codemirror";
 import { t, type AppLanguage, type SearchRange } from "@markra/shared";
+import { markraSetextHeading } from "@markra/markdown";
 import {
   codeMirrorLocationCue,
   codeMirrorTypewriterMode,
@@ -345,10 +346,11 @@ export function MarkdownSourceEditor({
       vimModeCompartmentRef.current.of([]),
       minimalSetup,
       markdownSourceSharedHistoryExtension(onUndoRef, onRedoRef),
+      // Source and preview must classify headings identically for outline navigation.
       markdown({
         base: markdownLanguage,
         codeLanguages: [],
-        extensions: [markraHighlight]
+        extensions: [markraHighlight, markraSetextHeading]
       }),
       markdownSyntaxHighlighting,
       markdownSourceSyntaxHighlighting,

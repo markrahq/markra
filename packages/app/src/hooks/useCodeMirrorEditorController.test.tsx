@@ -1,6 +1,7 @@
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView, keymap } from "@codemirror/view";
 import { history } from "@codemirror/commands";
+import { getMarkdownOutline } from "@markra/markdown";
 import {
   blocksPlugin,
   codeMirrorAiPreviewPlugin,
@@ -46,6 +47,37 @@ afterEach(() => {
 });
 
 describe("useCodeMirrorEditorController", () => {
+  it.each([
+    ["Setext", "[42]\n---"],
+    ["quoted", "> ### **Quoted**"],
+    ["combined", "[42]\n---\n\n> ### **Quoted**"],
+    ["multiline quoted Setext", "> Alpha\n> **Beta**\n> ---"],
+  ])("navigates every outline entry around %s headings without changing Markdown", (_label, heading) => {
+    const doc = `# Start\n\n${heading}\n\n# End\n\n# End`;
+    const view = createView(doc);
+    const { result } = renderHook(() => useCodeMirrorEditorController());
+    act(() => result.current.handleEditorReady(view));
+    const outline = getMarkdownOutline(doc);
+    const anchors = result.current.getHeadingAnchors();
+
+    act(() => result.current.selectOutlineItem(outline[outline.length - 1]!, outline.length - 1));
+    expect(view.state.selection.main.head).toBe(doc.lastIndexOf("# End"));
+    expect(outline).toHaveLength(heading.includes("[42]") && heading.includes("Quoted") ? 5 : 4);
+    outline.forEach((item, index) => {
+      act(() => result.current.selectOutlineItem(item, index));
+      expect(view.state.selection.main.head).toBe(anchors[index]?.from);
+    });
+    expect(view.state.selection.main.head).toBe(doc.lastIndexOf("# End"));
+    expect(view.state.doc.toString()).toBe(doc);
+    expect(view.dom.querySelectorAll('[role="heading"]')).toHaveLength(outline.length);
+    if (heading.includes("[42]")) {
+      expect(view.dom.querySelector(".cm-markra-h2")?.textContent).toContain("[42]");
+    }
+    if (heading.includes("###")) {
+      expect(view.dom.querySelector(".cm-markra-h3")?.textContent).toContain("Quoted");
+    }
+  });
+
   it("owns ready lifecycle, Markdown replacement and anchors", () => {
     const view = createView();
     const { result } = renderHook(() => useCodeMirrorEditorController());
