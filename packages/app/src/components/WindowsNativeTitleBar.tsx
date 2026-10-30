@@ -26,6 +26,7 @@ type WindowsNativeTitleBarProps = {
   aiAgentOpen: boolean;
   aiAgentResizing: boolean;
   aiAgentWidth: number;
+  compactLayout: boolean;
   dirty: boolean;
   documentKind: "file" | "folder" | "image";
   documentName: string;
@@ -97,6 +98,7 @@ export function WindowsNativeTitleBar({
   aiAgentOpen,
   aiAgentResizing,
   aiAgentWidth,
+  compactLayout,
   dirty,
   documentKind,
   documentName,
@@ -137,7 +139,7 @@ export function WindowsNativeTitleBar({
   const windowsAppChromeSurfaceClassName = "bg-(--bg-chrome)";
   const windowsTitlebarSurfaceClassName = "bg-(--bg-primary)";
   const windowsTitlebarTopClassName = showWindowsAppChrome ? "top-10" : "top-0";
-  const windowsTitlebarLeft = markdownFilesWidth + (showWindowsAppChrome ? -1 : 1);
+  const windowsTitlebarLeft = compactLayout ? 0 : markdownFilesWidth + (showWindowsAppChrome ? -1 : 1);
   const windowsTitlebarEdgeClassName = showWindowsAppChrome
     ? markdownFilesOpen
       ? "rounded-tl-md"

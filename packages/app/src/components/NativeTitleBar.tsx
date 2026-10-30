@@ -697,6 +697,7 @@ export function NativeTitleBar({
         aiAgentOpen={aiAgentOpen}
         aiAgentResizing={aiAgentResizing}
         aiAgentWidth={aiAgentWidth}
+        compactLayout={compactLayout}
         dirty={dirty}
         documentKind={documentKind}
         documentName={documentName}

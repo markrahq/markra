@@ -914,7 +914,8 @@ function WorkspaceApp() {
     viewModeChrome.outline ||
     documentLinksVisible;
   const visibleFileTreeOpen = viewModeChrome.fileTree && fileTreeContentVisible && fileTreeOpen;
-  const compactViewport = !nativeRuntimeAvailable && viewportWidth <= 900;
+  // Browser runtimes also provide events; native chrome determines the desktop layout.
+  const compactViewport = !nativeWindowChromeEnabled && viewportWidth <= 900;
   const visibleWorkspaceLayoutStyle = {
     ...workspaceLayoutStyle,
     gridTemplateColumns: visibleFileTreeOpen && !compactViewport
@@ -1819,11 +1820,6 @@ function WorkspaceApp() {
       editor.clearAiSelection();
     }
 
-    if (!aiFeatureEnabled) {
-      setAiSelectionToolbarAnchor(null);
-      return;
-    }
-
     if (readOnlyMode) {
       setAiSelectionToolbarAnchor(null);
       return;
@@ -1846,8 +1842,10 @@ function WorkspaceApp() {
       }
     }
 
-    const showQuickInput = editorPreferences.preferences.showAiQuickInputOnSelection;
-    const showSelectionToolbar = editorPreferences.preferences.showAiSelectionToolbarOnSelection;
+    const showQuickInput = aiFeatureEnabled && editorPreferences.preferences.showAiQuickInputOnSelection;
+    // Keep a useful selection helper when this runtime cannot provide the AI quick input.
+    const showSelectionToolbar = editorPreferences.preferences.showAiSelectionToolbarOnSelection ||
+      (!aiFeatureEnabled && editorPreferences.preferences.showAiQuickInputOnSelection);
 
     if (
       (!showQuickInput && !showSelectionToolbar)
@@ -2008,7 +2006,6 @@ function WorkspaceApp() {
     interruptAiCommandPrompt();
   }, [interruptAiCommandPrompt]);
   const aiSelectionToolbarVisible =
-    aiFeatureEnabled &&
     !sourceSurfaceActive &&
     !readOnlyMode &&
     Boolean(aiSelectionToolbarAnchor) &&
@@ -2050,7 +2047,7 @@ function WorkspaceApp() {
     visibleFileTreeOpen
   ]);
   const refreshAiSelectionToolbarAnchor = useCallback(() => {
-    if (!aiFeatureEnabled || sourceSurfaceActive || readOnlyMode) return;
+    if (sourceSurfaceActive || readOnlyMode) return;
     if (activeAiSelection?.source !== "selection" || !activeAiSelection.text.trim()) return;
     if (aiCommand.submitting || aiContextMenuActionPending || aiResult) return;
 
@@ -2063,7 +2060,6 @@ function WorkspaceApp() {
     activeAiSelection,
     aiCommand.submitting,
     aiContextMenuActionPending,
-    aiFeatureEnabled,
     aiResult,
     getEditorSelectionAnchor,
     readOnlyMode,
@@ -5217,25 +5213,25 @@ function WorkspaceApp() {
               ) : null}
         </WorkspaceLayout>
 
-        {aiFeatureEnabled ? (
-          <AiSelectionToolbar
-            activeFormattingActions={aiSelectionToolbarActiveActions}
-            activeHeadingLevel={aiSelectionToolbarHeadingLevel}
-            anchor={aiSelectionToolbarAnchor}
-            busy={aiCommand.submitting || aiContextMenuActionPending}
-            copySucceeded={aiSelectionToolbarCopySucceeded}
-            language={appLanguage.language}
-            open={aiSelectionToolbarVisible}
-            quickActionPrompts={editorPreferences.preferences.aiQuickActionPrompts}
-            onCopySelection={handleAiSelectionToolbarCopySelection}
-            onDismiss={handleAiSelectionToolbarDismiss}
-            onInsertLink={handleAiSelectionToolbarInsertLink}
-            onOpenCommand={handleAiSelectionToolbarOpenCommand}
-            onRunFormattingAction={handleAiSelectionToolbarFormattingAction}
-            onRunAction={handleAiSelectionToolbarAction}
-            onSetHeadingLevel={handleAiSelectionToolbarHeadingLevelAction}
-          />
-        ) : null}
+        <AiSelectionToolbar
+          aiEnabled={aiFeatureEnabled}
+          activeFormattingActions={aiSelectionToolbarActiveActions}
+          activeHeadingLevel={aiSelectionToolbarHeadingLevel}
+          anchor={aiSelectionToolbarAnchor}
+          busy={aiCommand.submitting || aiContextMenuActionPending}
+          compactLayout={compactViewport}
+          copySucceeded={aiSelectionToolbarCopySucceeded}
+          language={appLanguage.language}
+          open={aiSelectionToolbarVisible}
+          quickActionPrompts={editorPreferences.preferences.aiQuickActionPrompts}
+          onCopySelection={handleAiSelectionToolbarCopySelection}
+          onDismiss={handleAiSelectionToolbarDismiss}
+          onInsertLink={handleAiSelectionToolbarInsertLink}
+          onOpenCommand={handleAiSelectionToolbarOpenCommand}
+          onRunFormattingAction={handleAiSelectionToolbarFormattingAction}
+          onRunAction={handleAiSelectionToolbarAction}
+          onSetHeadingLevel={handleAiSelectionToolbarHeadingLevelAction}
+        />
 
         {aiFeatureEnabled ? (
           <AiCommandBar

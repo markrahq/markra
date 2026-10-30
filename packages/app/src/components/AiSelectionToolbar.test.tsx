@@ -38,6 +38,25 @@ describe("AiSelectionToolbar", () => {
     expect(screen.getByRole("button", { name: "Translate" })).toBeInTheDocument();
   });
 
+  it("centers the toolbar in compact layouts so its first actions stay reachable", () => {
+    render(
+      <AiSelectionToolbar
+        aiEnabled={false}
+        anchor={{ bottom: 116, left: 24, right: 72, top: 92 }}
+        compactLayout
+        open
+        onCopySelection={vi.fn()}
+        onInsertLink={vi.fn()}
+        onOpenCommand={vi.fn()}
+        onRunFormattingAction={vi.fn()}
+        onRunAction={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("toolbar", { name: "Format" })).toHaveStyle({ left: "50%" });
+    expect(screen.getByRole("button", { name: "Bold" })).toBeInTheDocument();
+  });
+
   it("places itself below the selection near the viewport top", () => {
     render(
       <AiSelectionToolbar
