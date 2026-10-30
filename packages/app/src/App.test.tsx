@@ -1484,11 +1484,13 @@ describe("Markra workspace", () => {
     expect(container.querySelector(".native-title-slot")?.getAttribute("style") ?? "").not.toContain("margin-left");
   });
 
-  it("uses an overlay file tree instead of squeezing the editor on narrow web screens", async () => {
+  it.each(["linux", "windows"] as const)("uses an overlay file tree on narrow %s web screens with an event bridge", async (platform) => {
     const restoreViewportWidth = mockWindowInnerWidth(390);
-    mockedResolveDesktopPlatform.mockReturnValue("linux");
+    mockedResolveDesktopPlatform.mockReturnValue(platform);
+    const runtime = createDefaultAppRuntime();
     configureAppRuntime({
-      ...createDefaultAppRuntime(),
+      ...runtime,
+      events: { ...runtime.events, isAvailable: () => true },
       features: {
         ai: true,
         export: true,
@@ -1501,7 +1503,7 @@ describe("Markra workspace", () => {
       },
       platform: {
         resolveDesktopOsVersion: () => null,
-        resolveDesktopPlatform: () => "linux"
+        resolveDesktopPlatform: () => platform
       }
     });
     mockedGetStoredWorkspaceState.mockResolvedValue({
@@ -7456,6 +7458,40 @@ describe("Markra workspace", () => {
         "Welcome to Markra"
       );
     });
+  });
+
+  it.each([false, true])("keeps selection formatting available without AI (toolbar preference %s)", async (showAiSelectionToolbarOnSelection) => {
+    const runtime = createDefaultAppRuntime();
+    configureAppRuntime({
+      ...runtime,
+      features: { ...runtime.features, ai: false, nativeWindowChrome: false }
+    });
+    mockedGetStoredEditorPreferences.mockResolvedValue(createStoredEditorPreferences({
+      showAiQuickInputOnSelection: true,
+      showAiSelectionToolbarOnSelection
+    }));
+    const { container } = renderApp();
+    await expectVisibleCodeMirrorText(container, "Welcome to Markra");
+    await settleEditorUpdates();
+    const view = getVisibleCodeMirrorView(container);
+    act(() => {
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: "# Mock note\n\nSample text." } });
+    });
+    await settleEditorUpdates();
+    const from = findEditorTextPosition(view, "Sample");
+    act(() => {
+      view.focus();
+      view.dispatch({ selection: EditorSelection.range(from, from + "Sample".length) });
+    });
+
+    const toolbar = await screen.findByRole("toolbar", { name: "Format" });
+    expect(within(toolbar).queryByRole("button", { name: "AI command" })).not.toBeInTheDocument();
+    expect(within(toolbar).queryByRole("button", { name: "Polish" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "AI command" })).not.toBeInTheDocument();
+    const bold = within(toolbar).getByRole("button", { name: "Bold" });
+    fireEvent.mouseDown(bold);
+    fireEvent.click(bold);
+    await waitFor(() => expect(view.state.doc.toString()).toContain("**Sample** text."));
   });
 
   it("applies inline formatting from the selection toolbar to the live CodeMirror selection", async () => {

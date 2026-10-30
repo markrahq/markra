@@ -82,8 +82,10 @@ type ParagraphLevelOption = {
 type HeadingMenuOption = HeadingLevelOption | ParagraphLevelOption;
 
 type AiSelectionToolbarProps = {
+  aiEnabled?: boolean;
   anchor: SelectionAnchor | null;
   busy?: boolean;
+  compactLayout?: boolean;
   copySucceeded?: boolean;
   language?: AppLanguage;
   open: boolean;
@@ -220,8 +222,10 @@ const headingMenuOptions: HeadingMenuOption[] = [
 ];
 
 export function AiSelectionToolbar({
+  aiEnabled = true,
   anchor,
   busy = false,
+  compactLayout = false,
   copySucceeded = false,
   language = "en",
   open,
@@ -341,7 +345,7 @@ export function AiSelectionToolbar({
   const translationTargetLanguage = aiTranslationLanguageName(language);
   const toolbarPlacement = selectionToolbarPlacement(anchor);
   const style: CSSProperties = {
-    left: `${Math.round((anchor.left + anchor.right) / 2)}px`,
+    left: compactLayout ? "50%" : `${Math.round((anchor.left + anchor.right) / 2)}px`,
     top: `${selectionToolbarTop(anchor, toolbarPlacement)}px`
   };
   const toolbarPlacementClass = toolbarPlacement === "top" ? "-translate-y-full" : "translate-y-0";
@@ -400,45 +404,49 @@ export function AiSelectionToolbar({
       ref={toolbarRef}
       style={style}
       role="toolbar"
-      aria-label={label("app.aiQuickActions")}
+      aria-label={label(aiEnabled ? "app.aiQuickActions" : "menu.format")}
     >
       <div className="pointer-events-auto inline-flex max-w-[calc(100vw-24px)] items-center gap-1 overflow-x-auto rounded-lg border border-(--border-default) bg-(--bg-primary) p-1 shadow-(--ai-command-popover-shadow)">
-        <Tooltip content={label("app.aiCommandInput")}>
-          <button
-            className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-(--accent-soft) text-(--accent) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55"
-            type="button"
-            disabled={busy}
-            onClick={onOpenCommand}
-            aria-label={label("app.aiCommandInput")}
-          >
-            <WandSparkles aria-hidden="true" size={15} />
-          </button>
-        </Tooltip>
-        <span className="mx-0.5 h-5 w-px bg-(--border-default)" aria-hidden="true" />
-        {aiSelectionActions.map((action) => {
-          const Icon = action.icon;
-          const actionLabel = label(aiQuickActionLabelKeys[action.intent]);
-          const actionPrompt = resolveAiQuickActionPrompt(
-            quickActionPrompts,
-            action.intent,
-            defaultAiQuickActionPrompt(action.intent, translationTargetLanguage)
-          );
-
-          return (
-            <Tooltip key={action.intent} content={actionLabel}>
-            <button
-              className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-(--text-primary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55"
-              type="button"
-              disabled={busy}
-              onClick={() => onRunAction(action.intent, actionPrompt)}
-              aria-label={actionLabel}
-            >
-              <Icon aria-hidden="true" size={14} />
-            </button>
+        {aiEnabled ? (
+          <>
+            <Tooltip content={label("app.aiCommandInput")}>
+              <button
+                className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-(--accent-soft) text-(--accent) transition-colors duration-150 ease-out hover:bg-(--bg-hover) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55"
+                type="button"
+                disabled={busy}
+                onClick={onOpenCommand}
+                aria-label={label("app.aiCommandInput")}
+              >
+                <WandSparkles aria-hidden="true" size={15} />
+              </button>
             </Tooltip>
-          );
-        })}
-        <span className="mx-0.5 h-5 w-px bg-(--border-default)" aria-hidden="true" />
+            <span className="mx-0.5 h-5 w-px bg-(--border-default)" aria-hidden="true" />
+            {aiSelectionActions.map((action) => {
+              const Icon = action.icon;
+              const actionLabel = label(aiQuickActionLabelKeys[action.intent]);
+              const actionPrompt = resolveAiQuickActionPrompt(
+                quickActionPrompts,
+                action.intent,
+                defaultAiQuickActionPrompt(action.intent, translationTargetLanguage)
+              );
+
+              return (
+                <Tooltip key={action.intent} content={actionLabel}>
+                <button
+                  className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent text-(--text-primary) transition-colors duration-150 ease-out hover:bg-(--bg-hover) hover:text-(--text-heading) focus-visible:bg-(--bg-hover) focus-visible:text-(--text-heading) focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--accent) disabled:cursor-default disabled:opacity-55"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onRunAction(action.intent, actionPrompt)}
+                  aria-label={actionLabel}
+                >
+                  <Icon aria-hidden="true" size={14} />
+                </button>
+                </Tooltip>
+              );
+            })}
+            <span className="mx-0.5 h-5 w-px bg-(--border-default)" aria-hidden="true" />
+          </>
+        ) : null}
         {basicSelectionActions.map((action) => {
           const Icon = action.icon;
           const actionLabel = label(action.labelKey);
