@@ -1,3 +1,10 @@
+## [2.14.3](https://github.com/markrahq/markra/compare/v2.14.2...v2.14.3) (2026-10-30)
+
+### Bug Fixes
+
+* **editor:** refresh reused table cell positions ([#775](https://github.com/markrahq/markra/issues/775)) ([d37b2be](https://github.com/markrahq/markra/commit/d37b2be0d1be1e62a78ec8ff06188f0a460ba448))
+* **web:** restore Android toolbar and file tree scrolling ([#776](https://github.com/markrahq/markra/issues/776)) ([e8d63f8](https://github.com/markrahq/markra/commit/e8d63f85ad2a14a310fb80cf0b7e823178f5d920))
+
 ## [2.14.2](https://github.com/markrahq/markra/compare/v2.14.1...v2.14.2) (2026-10-30)
 
 ### Bug Fixes

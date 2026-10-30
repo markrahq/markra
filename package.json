@@ -1,6 +1,6 @@
 {
   "name": "markra-workspace",
-  "version": "2.14.2",
+  "version": "2.14.3",
   "license": "AGPL-3.0-only",
   "private": true,
   "packageManager": "pnpm@10.30.3",
