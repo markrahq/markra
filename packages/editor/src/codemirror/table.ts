@@ -938,12 +938,13 @@ function appendCell(
   cellPreview: TableCellPreview,
   alignment: CodeMirrorTableAlignment,
   header: boolean,
-  preview: TablePreview,
+  getPreview: () => TablePreview,
   rowIndex: number,
   columnIndex: number,
   images: ImagePreviewPluginOptions | undefined,
   links: LinksPluginOptions | undefined,
 ) {
+  // Cell DOM survives position-only updates, so events must read the shared preview.
   const cell = row.ownerDocument.createElement(header ? "th" : "td");
   const editMathSource: EditVisualTableMathSource = (element, markdown) => {
     const mathFrom = Number(element.dataset.markraMathFrom);
@@ -959,7 +960,7 @@ function appendCell(
         : {}),
       originalSource,
       row: rowIndex,
-      tableFrom: preview.from,
+      tableFrom: getPreview().from,
     });
     let handled = false;
     if (Number.isInteger(mathFrom) && Number.isInteger(mathTo)) {
@@ -997,7 +998,7 @@ function appendCell(
   visualTableMathSourceEditors.set(cell, editMathSource);
   const currentSession = tableEditingSessions.get(view);
   const keepInlineSourceVisible =
-    currentSession?.tableFrom === preview.from &&
+    currentSession?.tableFrom === getPreview().from &&
     currentSession.row === rowIndex &&
     currentSession.column === columnIndex &&
     currentSession.header === header &&
@@ -1047,7 +1048,7 @@ function appendCell(
           inlineSourceVisible: true,
           originalSource: cellPreview.source,
           row: rowIndex,
-          tableFrom: preview.from,
+          tableFrom: getPreview().from,
         });
       }
       if (handled) {
@@ -1072,7 +1073,7 @@ function appendCell(
           inlineSourceVisible: true,
           originalSource: cellPreview.source,
           row: rowIndex,
-          tableFrom: preview.from,
+          tableFrom: getPreview().from,
         });
         event.preventDefault();
         event.stopPropagation();
@@ -1085,7 +1086,7 @@ function appendCell(
   cell.addEventListener("focus", () => {
     const current = tableEditingSessions.get(view);
     if (
-      current?.tableFrom === preview.from &&
+      current?.tableFrom === getPreview().from &&
       current.row === rowIndex &&
       current.column === columnIndex &&
       current.header === header
@@ -1098,7 +1099,7 @@ function appendCell(
       inlineSourceVisible: false,
       originalSource: cellPreview.source,
       row: rowIndex,
-      tableFrom: preview.from,
+      tableFrom: getPreview().from,
     });
   });
   cell.addEventListener("blur", () => {
@@ -1130,7 +1131,7 @@ function appendCell(
         return;
       }
       if (
-        session?.tableFrom === preview.from &&
+        session?.tableFrom === getPreview().from &&
         session.row === rowIndex &&
         session.column === columnIndex &&
         session.header === header
@@ -1143,7 +1144,7 @@ function appendCell(
     if (event.key === "Enter") {
       handleVisualTableCellEnter(
         view,
-        preview,
+        getPreview(),
         cell,
         event,
         rowIndex,
@@ -1157,7 +1158,7 @@ function appendCell(
     if (event.key !== "Escape") return;
     handleVisualTableCellEscape(
       view,
-      preview,
+      getPreview(),
       cell,
       event,
       rowIndex,
@@ -1505,7 +1506,7 @@ class TableWidget extends WidgetType {
         cell,
         this.preview.alignments[index] ?? null,
         true,
-        this.preview,
+        () => this.preview,
         -1,
         index,
         this.images,
@@ -1523,7 +1524,7 @@ class TableWidget extends WidgetType {
           cell,
           this.preview.alignments[columnIndex] ?? null,
           false,
-          this.preview,
+          () => this.preview,
           rowIndex,
           columnIndex,
           this.images,
