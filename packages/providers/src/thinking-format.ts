@@ -47,6 +47,10 @@ export function getOpenAiCompatibleThinkingFormat(
   // Omit effort when off: the gateway does not document a portable "none" value across upstreams.
   if (config.id === "orcarouter") return thinkingState === "enabled" ? "reasoning-effort" : null;
 
+  // Runcrate maps reasoning_effort onto each open-weight model, and "none" turns reasoning off;
+  // the model-name fallbacks send native fields (thinking.type) that it ignores.
+  if (config.id === "runcrate") return "reasoning-effort";
+
   const normalizedModel = model.toLowerCase();
   if (config.type === "ollama") return "ollama-think";
 

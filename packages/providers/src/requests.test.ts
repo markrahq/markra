@@ -39,6 +39,24 @@ describe("AI provider requests", () => {
     });
   });
 
+  it("discovers Runcrate models through the compatible authenticated models endpoint", async () => {
+    const config = createDefaultAiSettings().providers.find((item) => item.id === "runcrate");
+    expect(config).toBeDefined();
+    if (!config) throw new Error("Missing Runcrate provider");
+    const transport = vi.fn().mockResolvedValue({
+      status: 200,
+      body: { object: "list", data: [{ id: "mock/writer", name: "Mock Writer", object: "model" }] }
+    });
+    await expect(fetchAiProviderModels({ ...config, apiKey: "mock-key" }, transport)).resolves.toEqual([
+      { capabilities: ["text"], enabled: true, id: "mock/writer", name: "Mock Writer" }
+    ]);
+    expect(transport).toHaveBeenCalledWith({
+      method: "GET",
+      url: "https://api.runcrate.ai/v1/models",
+      headers: { Authorization: "Bearer mock-key" }
+    });
+  });
+
   it("ships mainstream providers by default", () => {
     const settings = createDefaultAiSettings();
     const providerIds = settings.providers.map((item) => item.id);
