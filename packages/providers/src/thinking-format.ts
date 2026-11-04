@@ -46,6 +46,8 @@ export function getOpenAiCompatibleThinkingFormat(
   // OrcaRouter translates effort itself; upstream model-name fallbacks send incompatible native fields.
   // Omit effort when off: the gateway does not document a portable "none" value across upstreams.
   if (config.id === "orcarouter") return thinkingState === "enabled" ? "reasoning-effort" : null;
+  // Requesty maps reasoning_effort per upstream and documents "min" for the lowest effort, so send it when off.
+  if (config.id === "requesty") return "reasoning-effort";
 
   const normalizedModel = model.toLowerCase();
   if (config.type === "ollama") return "ollama-think";
@@ -106,7 +108,7 @@ export function buildOpenAiCompatibleThinkingRequestOptions(
     case "groq-reasoning":
       return getGroqThinkingRequestOptions(normalizedModel, options.thinkingEnabled);
     case "reasoning-effort":
-      return { reasoning_effort: thinkingEnabled ? "high" : "none" };
+      return { reasoning_effort: thinkingEnabled ? "high" : config.id === "requesty" ? "min" : "none" };
     case "openrouter-reasoning":
       return { reasoning: { effort: "high" } };
     case "gemini-extra-body":

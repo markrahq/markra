@@ -3,7 +3,12 @@ import type { AiModelCapability, AiProviderModel, AiProviderModelSeed } from "./
 
 const aiModelCapabilityOrder: AiModelCapability[] = ["text", "vision", "image", "reasoning", "tools", "web"];
 
+// These providers report per-model capabilities, so seed capabilities must not override what they deny.
+const providersWithModelMetadata = new Set(["requesty"]);
+
 export function enrichAiProviderModelCapabilities(providerId: string, model: AiProviderModel): AiProviderModel {
+  if (providersWithModelMetadata.has(providerId)) return model;
+
   const defaultProvider = defaultProviderTemplateForProviderId(providerId);
   const defaultModel = defaultProvider?.models.find((item) => item.id === model.id);
   if (!defaultModel) return model;

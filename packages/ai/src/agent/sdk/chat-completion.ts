@@ -518,6 +518,8 @@ function buildAiSdkThinkingProviderOptions(
   model: string,
   thinkingEnabled: boolean | undefined
 ): AiSdkProviderOptions | undefined {
+  // Keep the explicit off state for Requesty, matching the native compatible adapter.
+  if (thinkingEnabled === false && provider.id === "requesty") return { requesty: { reasoningEffort: "min" } };
   if (thinkingEnabled !== true) return undefined;
 
   const providerKind = resolveAiSdkProviderKind(provider);
