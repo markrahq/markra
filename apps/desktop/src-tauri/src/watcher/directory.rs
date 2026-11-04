@@ -2,9 +2,9 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 #[cfg(any(target_os = "linux", test))]
-use std::collections::HashSet;
+use crate::markdown_files::scan::{read_directory, ScanPolicy};
 #[cfg(any(target_os = "linux", test))]
-use std::fs;
+use std::collections::HashSet;
 #[cfg(any(target_os = "linux", test))]
 use std::path::PathBuf;
 
@@ -47,28 +47,25 @@ fn visible_watch_directories(
     ignore_rules: &MarkdownIgnoreRules,
 ) -> Result<HashSet<PathBuf>, String> {
     fn collect(
+        root: &Path,
         directory: &Path,
         ignore_rules: &MarkdownIgnoreRules,
         directories: &mut HashSet<PathBuf>,
     ) -> Result<(), String> {
+        let Some(entries) = read_directory(root, directory, ScanPolicy::SkipUnreadable)? else {
+            return Ok(());
+        };
         directories.insert(directory.to_path_buf());
-        for entry in fs::read_dir(directory).map_err(|error| error.to_string())? {
-            let entry = entry.map_err(|error| error.to_string())?;
-            let path = entry.path();
-            if entry
-                .file_type()
-                .map_err(|error| error.to_string())?
-                .is_dir()
-                && !ignore_rules.ignores(&path, true)
-            {
-                collect(&path, ignore_rules, directories)?;
+        for entry in entries {
+            if entry.file_type.is_dir() && !ignore_rules.ignores(&entry.path, true) {
+                collect(root, &entry.path, ignore_rules, directories)?;
             }
         }
         Ok(())
     }
 
     let mut directories = HashSet::new();
-    collect(root, ignore_rules, &mut directories)?;
+    collect(root, root, ignore_rules, &mut directories)?;
     Ok(directories)
 }
 
@@ -93,6 +90,10 @@ fn event_requires_reconciliation(event: &Event, ignore_rules: &MarkdownIgnoreRul
                 | EventKind::Modify(ModifyKind::Name(_))
                 | EventKind::Remove(RemoveKind::Any | RemoveKind::Folder)
         )
+        // Restoring access emits ATTRIB on the parent watch, even when the child
+        // was skipped and has no watch of its own yet.
+        || (matches!(event.kind, EventKind::Modify(ModifyKind::Metadata(_)))
+            && event.paths.iter().any(|path| path.is_dir() && !ignore_rules.ignores(path, true)))
         || event
             .paths
             .iter()
@@ -181,19 +182,8 @@ impl LinuxDirectoryWatcher {
             let _ = event_sender.send(CoordinatorMessage::BackendEvent(result));
         })
         .map_err(|error| error.to_string())?;
-        let mut watched_directories = {
-            let rules = ignore_rules
-                .lock()
-                .map_err(|_| "markdown ignore rules lock is poisoned".to_string())?;
-            visible_watch_directories(root, &rules)?
-        };
-        let mut initial_directories = watched_directories.iter().collect::<Vec<_>>();
-        initial_directories.sort();
-        for directory in initial_directories {
-            watcher
-                .watch(directory, RecursiveMode::NonRecursive)
-                .map_err(|error| error.to_string())?;
-        }
+        let mut watched_directories = HashSet::new();
+        reconcile_linux_directories(&mut watcher, &mut watched_directories, root, &ignore_rules)?;
 
         let coordinator_root = root.to_path_buf();
         let coordinator_rules = Arc::clone(&ignore_rules);
@@ -260,12 +250,16 @@ fn run_linux_coordinator<F>(
                 });
                 handler(result);
                 if should_reconcile {
-                    let _ = reconcile_linux_directories(
+                    if let Err(error) = reconcile_linux_directories(
                         &mut watcher,
                         watched_directories,
                         root,
                         ignore_rules,
-                    );
+                    ) {
+                        tauri_plugin_log::log::warn!(
+                            "Could not reconcile workspace watches: {error}"
+                        );
+                    }
                 }
             }
             CoordinatorMessage::Reconcile(result_sender) => {
@@ -282,9 +276,9 @@ fn run_linux_coordinator<F>(
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 fn reconcile_linux_directories(
-    watcher: &mut RecommendedWatcher,
+    watcher: &mut impl Watcher,
     watched_directories: &mut HashSet<PathBuf>,
     root: &Path,
     ignore_rules: &Arc<Mutex<MarkdownIgnoreRules>>,
@@ -300,18 +294,28 @@ fn reconcile_linux_directories(
     additions.sort();
     let mut added: Vec<PathBuf> = Vec::new();
 
-    // Add the full desired set before pruning stale watches. A failed addition
-    // rolls back only this attempt, preserving the last known-good coverage.
+    // Only successful registrations enter the tracked set, so permission-denied
+    // children can be retried. Other failures roll back this attempt's additions.
     // notify invokes callbacks on its backend thread. All watch mutations stay on
     // this coordinator thread to avoid re-entering inotify and deadlocking it.
     for directory in additions {
         if let Err(error) = watcher.watch(&directory, RecursiveMode::NonRecursive) {
+            if directory != root
+                && matches!(&error.kind, notify::ErrorKind::Io(io_error)
+                if io_error.kind() == std::io::ErrorKind::PermissionDenied)
+            {
+                tauri_plugin_log::log::warn!(
+                    "Skipping unreadable watch directory {}: {error}",
+                    directory.display()
+                );
+                continue;
+            }
             for added_directory in added.into_iter().rev() {
                 if watcher.unwatch(&added_directory).is_err() {
                     watched_directories.insert(added_directory);
                 }
             }
-            return Err(error.to_string());
+            return Err(format!("{}: {error}", directory.display()));
         }
         added.push(directory);
     }
@@ -364,6 +368,262 @@ mod tests {
                 .expect("system clock should be after epoch")
                 .as_nanos()
         ))
+    }
+
+    #[derive(Default)]
+    struct TestWatcher {
+        watched: HashSet<PathBuf>,
+        watch_failures: std::collections::HashMap<PathBuf, notify::Error>,
+    }
+
+    impl Watcher for TestWatcher {
+        fn new<F: notify::EventHandler>(_: F, _: notify::Config) -> notify::Result<Self> {
+            Ok(Self::default())
+        }
+        fn watch(&mut self, path: &Path, mode: RecursiveMode) -> notify::Result<()> {
+            assert!(matches!(mode, RecursiveMode::NonRecursive));
+            if let Some(error) = self.watch_failures.remove(path) {
+                return Err(error);
+            }
+            self.watched.insert(path.to_path_buf());
+            Ok(())
+        }
+        fn unwatch(&mut self, path: &Path) -> notify::Result<()> {
+            self.watched.remove(path);
+            Ok(())
+        }
+        fn kind() -> notify::WatcherKind {
+            notify::WatcherKind::PollWatcher
+        }
+    }
+
+    #[test]
+    fn initializes_watches_around_permission_denials_and_retries_them() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let denied = root.join("a-denied");
+        let readable = root.join("z-readable");
+        fs::create_dir(&denied).unwrap();
+        fs::create_dir(&readable).unwrap();
+        let rules = Arc::new(Mutex::new(MarkdownIgnoreRules::for_root(root, None)));
+        let mut watcher = TestWatcher::default();
+        watcher.watch_failures.insert(
+            denied.clone(),
+            notify::Error::io(std::io::ErrorKind::PermissionDenied.into()),
+        );
+        let mut watched = HashSet::new();
+        reconcile_linux_directories(&mut watcher, &mut watched, root, &rules)
+            .expect("one denied registration must not prevent readable watches");
+        assert_eq!(
+            watched,
+            HashSet::from([root.to_path_buf(), readable.clone()])
+        );
+        assert_eq!(watched, watcher.watched);
+        reconcile_linux_directories(&mut watcher, &mut watched, root, &rules).unwrap();
+        assert_eq!(
+            watched,
+            HashSet::from([root.to_path_buf(), denied, readable])
+        );
+        assert_eq!(watched, watcher.watched);
+    }
+
+    #[test]
+    fn reconciles_readable_watches_and_removes_stale_watches_after_a_permission_denial() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let stale = root.join("stale");
+        let denied = root.join("a-denied");
+        let readable = root.join("z-readable");
+        fs::create_dir(&denied).unwrap();
+        fs::create_dir(&readable).unwrap();
+        let rules = Arc::new(Mutex::new(MarkdownIgnoreRules::for_root(root, None)));
+        let mut watched = HashSet::from([root.to_path_buf(), stale]);
+        let mut watcher = TestWatcher {
+            watched: watched.clone(),
+            ..TestWatcher::default()
+        };
+        watcher.watch_failures.insert(
+            denied,
+            notify::Error::io(std::io::ErrorKind::PermissionDenied.into()),
+        );
+        reconcile_linux_directories(&mut watcher, &mut watched, root, &rules).unwrap();
+        assert_eq!(watched, HashSet::from([root.to_path_buf(), readable]));
+        assert_eq!(watched, watcher.watched);
+    }
+
+    #[test]
+    fn preserves_existing_watches_and_reports_non_permission_errors() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir(root.join("a-new")).unwrap();
+        let failing = root.join("z-limit");
+        fs::create_dir(&failing).unwrap();
+        let rules = Arc::new(Mutex::new(MarkdownIgnoreRules::for_root(root, None)));
+        let initial = HashSet::from([root.to_path_buf()]);
+        let mut watched = initial.clone();
+        let mut watcher = TestWatcher {
+            watched: initial.clone(),
+            ..TestWatcher::default()
+        };
+        watcher.watch_failures.insert(
+            failing.clone(),
+            notify::Error::new(notify::ErrorKind::MaxFilesWatch),
+        );
+        let error =
+            reconcile_linux_directories(&mut watcher, &mut watched, root, &rules).unwrap_err();
+        assert!(error.contains(failing.to_str().unwrap()), "{error}");
+        assert_eq!(watched, initial);
+        assert_eq!(watcher.watched, watched);
+    }
+
+    #[test]
+    fn rejects_a_root_watch_permission_denial() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let rules = Arc::new(Mutex::new(MarkdownIgnoreRules::for_root(root, None)));
+        let mut watcher = TestWatcher::default();
+        watcher.watch_failures.insert(
+            root.to_path_buf(),
+            notify::Error::io(std::io::ErrorKind::PermissionDenied.into()),
+        );
+        let error = reconcile_linux_directories(&mut watcher, &mut HashSet::new(), root, &rules)
+            .unwrap_err();
+        assert!(error.contains(root.to_str().unwrap()), "{error}");
+        assert!(watcher.watched.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn collects_readable_watch_directories_when_a_subdirectory_is_unreadable() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir(root.join("a-denied")).unwrap();
+        fs::create_dir_all(root.join("z-readable/nested")).unwrap();
+        let Some(_denied) =
+            crate::markdown_files::scan::test_support::DeniedDirectory::new(&root.join("a-denied"))
+        else {
+            return;
+        };
+        let directories =
+            visible_watch_directories(root, &MarkdownIgnoreRules::for_root(root, None))
+                .expect("an unreadable child must not abort watch discovery");
+        assert_eq!(
+            directories,
+            HashSet::from([
+                root.to_path_buf(),
+                root.join("z-readable"),
+                root.join("z-readable/nested"),
+            ])
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_an_unreadable_watch_root_with_its_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let Some(_denied) = crate::markdown_files::scan::test_support::DeniedDirectory::new(root)
+        else {
+            return;
+        };
+        let error = visible_watch_directories(root, &MarkdownIgnoreRules::for_root(root, None))
+            .unwrap_err();
+        assert!(error.contains(root.to_str().unwrap()), "{error}");
+    }
+
+    #[test]
+    fn reconciles_directory_permission_changes_but_not_file_metadata() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir(root.join("restricted")).unwrap();
+        fs::create_dir(root.join("node_modules")).unwrap();
+        fs::write(root.join("document.md"), "synthetic").unwrap();
+        let rules = MarkdownIgnoreRules::for_root(root, None);
+        for kind in [
+            notify::event::MetadataKind::Any,
+            notify::event::MetadataKind::Permissions,
+            notify::event::MetadataKind::Ownership,
+        ] {
+            let event = Event::new(EventKind::Modify(ModifyKind::Metadata(kind)))
+                .add_path(root.join("restricted"));
+            assert!(
+                event_requires_reconciliation(&event, &rules),
+                "directory permission changes should retry skipped watches"
+            );
+        }
+        for path in [root.join("document.md"), root.join("node_modules")] {
+            let event = Event::new(EventKind::Modify(ModifyKind::Metadata(
+                notify::event::MetadataKind::Any,
+            )))
+            .add_path(path);
+            assert!(!event_requires_reconciliation(&event, &rules));
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_watcher_keeps_readable_subtrees_live_and_recovers_restored_permissions() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().canonicalize().unwrap();
+        let denied = root.join("restricted");
+        let readable = root.join("readable");
+        fs::create_dir_all(denied.join("nested")).unwrap();
+        fs::create_dir(&readable).unwrap();
+        let Some(guard) = crate::markdown_files::scan::test_support::DeniedDirectory::new(&denied)
+        else {
+            return;
+        };
+        let rules = Arc::new(Mutex::new(MarkdownIgnoreRules::for_root(&root, None)));
+        let (sender, receiver) = std::sync::mpsc::channel();
+        let watcher = LinuxDirectoryWatcher::new(&root, rules, move |event| {
+            let _ = sender.send(event);
+        })
+        .expect("an unreadable child must not stop the Linux watcher");
+        let before = readable.join("before.md");
+        fs::write(&before, "synthetic before").unwrap();
+        wait_for_path_event(&receiver, &before);
+        drop(guard);
+        wait_for_path_event(&receiver, &denied);
+        // The callback runs before reconciliation. A queued event is a barrier
+        // proving the permission event finished without explicitly reconciling.
+        let barrier = root.join("synthetic-reconciliation-barrier");
+        watcher
+            .sender
+            .send(CoordinatorMessage::BackendEvent(Ok(Event::new(
+                EventKind::Other,
+            )
+            .add_path(barrier.clone()))))
+            .unwrap();
+        wait_for_path_event(&receiver, &barrier);
+        let restored = denied.join("nested/restored.md");
+        fs::write(&restored, "synthetic restored").unwrap();
+        wait_for_path_event(&receiver, &restored);
+        let Some(_denied_again) =
+            crate::markdown_files::scan::test_support::DeniedDirectory::new(&denied)
+        else {
+            return;
+        };
+        watcher.reconcile().unwrap();
+        let after = readable.join("after.md");
+        fs::write(&after, "synthetic after").unwrap();
+        wait_for_path_event(&receiver, &after);
+    }
+
+    #[cfg(target_os = "linux")]
+    fn wait_for_path_event(
+        receiver: &std::sync::mpsc::Receiver<notify::Result<Event>>,
+        path: &Path,
+    ) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            let event = receiver
+                .recv_timeout(deadline.saturating_duration_since(std::time::Instant::now()))
+                .expect("a readable directory should keep receiving native events")
+                .unwrap();
+            if event.paths.iter().any(|event_path| event_path == path) {
+                return;
+            }
+        }
     }
 
     #[test]

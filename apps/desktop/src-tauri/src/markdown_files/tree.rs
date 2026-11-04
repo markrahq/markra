@@ -14,6 +14,7 @@ use super::path::{
     markdown_folder_file, markdown_tree_file_kind, markdown_tree_root_for_path,
     normalize_markdown_tree_single_file_name,
 };
+use super::scan::{read_directory, scan_markdown_folder_file, ScanPolicy};
 use super::types::{MarkdownFolderEntryKind, MarkdownFolderFile};
 use tauri::Emitter;
 
@@ -87,62 +88,33 @@ fn collect_markdown_tree_files(
     directory: &Path,
     ignore_rules: &MarkdownIgnoreRules,
     files: &mut Vec<MarkdownFolderFile>,
+    policy: ScanPolicy,
 ) -> Result<(), String> {
-    let mut entries = fs::read_dir(directory)
-        .map_err(|error| error.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| error.to_string())?;
-
-    entries.sort_by(|a, b| {
-        a.file_name()
-            .to_string_lossy()
-            .to_lowercase()
-            .cmp(&b.file_name().to_string_lossy().to_lowercase())
-    });
-
+    let Some(entries) = read_directory(root, directory, policy)? else {
+        return Ok(());
+    };
+    if directory != root {
+        let Some(folder) =
+            scan_markdown_folder_file(root, directory, MarkdownFolderEntryKind::Folder, policy)?
+        else {
+            return Ok(());
+        };
+        files.push(folder);
+    }
     for entry in entries {
-        let path = entry.path();
-        let file_type = entry.file_type().map_err(|error| error.to_string())?;
-
-        if file_type.is_dir() {
-            if !ignore_rules.ignores(&path, true) {
-                files.push(markdown_folder_file(
-                    root,
-                    &path,
-                    MarkdownFolderEntryKind::Folder,
-                )?);
-                collect_markdown_tree_files(root, &path, ignore_rules, files)?;
-            }
+        let path = entry.path;
+        if ignore_rules.ignores(&path, entry.file_type.is_dir()) {
             continue;
         }
-
-        if file_type.is_file() {
-            if ignore_rules.ignores(&path, false) {
-                continue;
-            }
-
-            if is_markdown_tree_file(&path) {
-                files.push(markdown_folder_file(
-                    root,
-                    &path,
-                    MarkdownFolderEntryKind::File,
-                )?);
-            } else if is_markdown_tree_asset_file(&path) {
-                files.push(markdown_folder_file(
-                    root,
-                    &path,
-                    MarkdownFolderEntryKind::Asset,
-                )?);
-            } else if is_markdown_tree_attachment_file(&path) {
-                files.push(markdown_folder_file(
-                    root,
-                    &path,
-                    MarkdownFolderEntryKind::Attachment,
-                )?);
+        if entry.file_type.is_dir() {
+            collect_markdown_tree_files(root, &path, ignore_rules, files, policy)?;
+        } else if entry.file_type.is_file() {
+            let kind = markdown_tree_file_kind(&path)?;
+            if let Some(file) = scan_markdown_folder_file(root, &path, kind, policy)? {
+                files.push(file);
             }
         }
     }
-
     Ok(())
 }
 
@@ -166,8 +138,7 @@ fn emit_markdown_tree_load_event(
 }
 
 fn flush_markdown_tree_load_batch(
-    app: &tauri::AppHandle,
-    request_id: &str,
+    emit_batch: &mut impl FnMut(Vec<MarkdownFolderFile>, bool) -> Result<(), String>,
     batch: &mut Vec<MarkdownFolderFile>,
     done: bool,
 ) -> Result<(), String> {
@@ -175,19 +146,18 @@ fn flush_markdown_tree_load_batch(
         return Ok(());
     }
 
-    emit_markdown_tree_load_event(app, request_id, std::mem::take(batch), done, None)
+    emit_batch(std::mem::take(batch), done)
 }
 
 fn push_markdown_tree_load_file(
-    app: &tauri::AppHandle,
-    request_id: &str,
+    emit_batch: &mut impl FnMut(Vec<MarkdownFolderFile>, bool) -> Result<(), String>,
     batch: &mut Vec<MarkdownFolderFile>,
     first_batch_sent: &mut bool,
     file: MarkdownFolderFile,
 ) -> Result<(), String> {
     batch.push(file);
     if batch.len() >= markdown_tree_load_batch_size(*first_batch_sent) {
-        flush_markdown_tree_load_batch(app, request_id, batch, false)?;
+        flush_markdown_tree_load_batch(emit_batch, batch, false)?;
         *first_batch_sent = true;
     }
 
@@ -195,8 +165,7 @@ fn push_markdown_tree_load_file(
 }
 
 fn collect_markdown_tree_files_incrementally(
-    app: &tauri::AppHandle,
-    request_id: &str,
+    emit_batch: &mut impl FnMut(Vec<MarkdownFolderFile>, bool) -> Result<(), String>,
     cancel: &AtomicBool,
     root: &Path,
     directory: &Path,
@@ -209,59 +178,44 @@ fn collect_markdown_tree_files_incrementally(
         return Ok(());
     }
 
-    let mut entries = fs::read_dir(directory)
-        .map_err(|error| error.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| error.to_string())?;
-
-    entries.sort_by(|a, b| {
-        a.file_name()
-            .to_string_lossy()
-            .to_lowercase()
-            .cmp(&b.file_name().to_string_lossy().to_lowercase())
-    });
-
+    let policy = ScanPolicy::SkipUnreadable;
+    let Some(entries) = read_directory(root, directory, policy)? else {
+        return Ok(());
+    };
+    if directory != root {
+        let Some(folder) =
+            scan_markdown_folder_file(root, directory, MarkdownFolderEntryKind::Folder, policy)?
+        else {
+            return Ok(());
+        };
+        push_markdown_tree_load_file(emit_batch, batch, first_batch_sent, folder)?;
+    }
     for entry in entries {
         if cancel.load(Ordering::Relaxed) {
             return Ok(());
         }
-
-        let path = entry.path();
-        let file_type = entry.file_type().map_err(|error| error.to_string())?;
-
-        if file_type.is_dir() {
-            if !ignore_rules.ignores(&path, true) {
-                push_markdown_tree_load_file(
-                    app,
-                    request_id,
-                    batch,
-                    first_batch_sent,
-                    markdown_folder_file(root, &path, MarkdownFolderEntryKind::Folder)?,
-                )?;
-                collect_markdown_tree_files_incrementally(
-                    app,
-                    request_id,
-                    cancel,
-                    root,
-                    &path,
-                    ignore_rules,
-                    managed_attachment_folder,
-                    batch,
-                    first_batch_sent,
-                )?;
-            }
+        let path = entry.path;
+        if ignore_rules.ignores(&path, entry.file_type.is_dir()) {
             continue;
         }
-
-        if file_type.is_file() {
-            if ignore_rules.ignores(&path, false) {
-                continue;
-            }
-
+        if entry.file_type.is_dir() {
+            collect_markdown_tree_files_incrementally(
+                emit_batch,
+                cancel,
+                root,
+                &path,
+                ignore_rules,
+                managed_attachment_folder,
+                batch,
+                first_batch_sent,
+            )?;
+        } else if entry.file_type.is_file() {
             let kind = markdown_tree_file_kind(&path)?;
-            let file = markdown_folder_file(root, &path, kind)?;
+            let Some(file) = scan_markdown_folder_file(root, &path, kind, policy)? else {
+                continue;
+            };
             if should_include_markdown_tree_file(&file, managed_attachment_folder) {
-                push_markdown_tree_load_file(app, request_id, batch, first_batch_sent, file)?;
+                push_markdown_tree_load_file(emit_batch, batch, first_batch_sent, file)?;
             }
         }
     }
@@ -521,7 +475,13 @@ fn list_markdown_files_for_path_with_asset_scope(
     let ignore_rules = MarkdownIgnoreRules::for_root(&root, global_ignore_rules);
 
     allow_root_assets(&root)?;
-    collect_markdown_tree_files(&root, &root, &ignore_rules, &mut files)?;
+    collect_markdown_tree_files(
+        &root,
+        &root,
+        &ignore_rules,
+        &mut files,
+        ScanPolicy::SkipUnreadable,
+    )?;
     files.retain(|file| {
         should_include_markdown_tree_file(file, normalized_managed_attachment_folder.as_deref())
     });
@@ -544,7 +504,14 @@ fn list_markdown_reference_files_for_path_with_scope(
     let mut files = Vec::new();
 
     allow_root_assets(&root)?;
-    collect_markdown_tree_files(&root, &root, &ignore_rules, &mut files)?;
+    // Cleanup must see every reference before it can declare an image unused.
+    collect_markdown_tree_files(
+        &root,
+        &root,
+        &ignore_rules,
+        &mut files,
+        ScanPolicy::RequireComplete,
+    )?;
     files.retain(|file| matches!(file.kind, MarkdownFolderEntryKind::File));
     files.sort_by(|a, b| {
         a.relative_path
@@ -639,9 +606,10 @@ fn load_markdown_files_for_path_in_background(
     let mut first_batch_sent = false;
 
     allow_asset_directory(app, &root)?;
+    let mut emit_batch =
+        |files, done| emit_markdown_tree_load_event(app, &request_id, files, done, None);
     collect_markdown_tree_files_incrementally(
-        app,
-        &request_id,
+        &mut emit_batch,
         &cancel,
         &root,
         &root,
@@ -655,7 +623,7 @@ fn load_markdown_files_for_path_in_background(
         return Ok(());
     }
 
-    flush_markdown_tree_load_batch(app, &request_id, &mut batch, true)
+    flush_markdown_tree_load_batch(&mut emit_batch, &mut batch, true)
 }
 
 #[tauri::command]
@@ -801,6 +769,159 @@ mod tests {
         assert_eq!(file.relative_path, relative_path);
         assert!(file.created_at.is_some());
         assert!(file.modified_at.is_some());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn incremental_load_keeps_batches_when_a_subdirectory_is_unreadable() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir(root.join("m-denied")).unwrap();
+        for index in 0..130 {
+            fs::write(root.join(format!("a-{index:03}.md")), "synthetic before").unwrap();
+        }
+        fs::write(root.join("z-after.md"), "synthetic after").unwrap();
+        let Some(_denied) =
+            super::super::scan::test_support::DeniedDirectory::new(&root.join("m-denied"))
+        else {
+            return;
+        };
+        let mut events = Vec::new();
+        let mut emit = |files: Vec<MarkdownFolderFile>, done| {
+            events.push((files, done));
+            Ok(())
+        };
+        let mut batch = Vec::new();
+        let mut first_batch_sent = false;
+        collect_markdown_tree_files_incrementally(
+            &mut emit,
+            &AtomicBool::new(false),
+            root,
+            root,
+            &MarkdownIgnoreRules::for_root(root, None),
+            None,
+            &mut batch,
+            &mut first_batch_sent,
+        )
+        .expect("an unreadable child must not fail an incremental load");
+        flush_markdown_tree_load_batch(&mut emit, &mut batch, true).unwrap();
+        assert_eq!(
+            events
+                .iter()
+                .map(|(files, done)| (files.len(), *done))
+                .collect::<Vec<_>>(),
+            vec![(128, false), (3, true)]
+        );
+        let files = events
+            .into_iter()
+            .flat_map(|(files, _)| files)
+            .collect::<Vec<_>>();
+        assert_eq!(files.len(), 131);
+        assert_eq!(files.last().unwrap().relative_path, "z-after.md");
+        assert!(!files
+            .iter()
+            .any(|file| file.relative_path.starts_with("m-denied")));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn incremental_load_rejects_an_unreadable_root_without_emitting_batches() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let Some(_denied) = super::super::scan::test_support::DeniedDirectory::new(root) else {
+            return;
+        };
+        let mut events = Vec::new();
+        let mut emit = |files: Vec<MarkdownFolderFile>, done| {
+            events.push((files, done));
+            Ok(())
+        };
+        let error = collect_markdown_tree_files_incrementally(
+            &mut emit,
+            &AtomicBool::new(false),
+            root,
+            root,
+            &MarkdownIgnoreRules::for_root(root, None),
+            None,
+            &mut Vec::new(),
+            &mut false,
+        )
+        .unwrap_err();
+        assert!(error.contains(root.to_str().unwrap()), "{error}");
+        assert!(events.is_empty());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn lists_readable_files_when_a_subdirectory_is_unreadable() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir(root.join("a-denied")).unwrap();
+        fs::create_dir(root.join("z-readable")).unwrap();
+        fs::write(root.join("before.md"), "synthetic before").unwrap();
+        fs::write(root.join("z-readable/after.md"), "synthetic after").unwrap();
+        let Some(_denied) =
+            super::super::scan::test_support::DeniedDirectory::new(&root.join("a-denied"))
+        else {
+            return;
+        };
+
+        let files = list_markdown_files_for_path_with_asset_scope(
+            root.to_string_lossy().into_owned(),
+            None,
+            None,
+            |_| Ok(()),
+        )
+        .expect("an unreadable child must not discard readable files");
+        assert_eq!(
+            files
+                .iter()
+                .map(|file| file.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["before.md", "z-readable", "z-readable/after.md"]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn rejects_an_unreadable_tree_root_with_its_path() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let Some(_denied) = super::super::scan::test_support::DeniedDirectory::new(root) else {
+            return;
+        };
+        let error = list_markdown_files_for_path_with_asset_scope(
+            root.to_string_lossy().into_owned(),
+            None,
+            None,
+            |_| Ok(()),
+        )
+        .unwrap_err();
+        assert!(error.contains(root.to_str().unwrap()), "{error}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn reference_scan_rejects_unreadable_subdirectories_to_protect_image_cleanup() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        let denied_path = root.join("restricted");
+        fs::create_dir(&denied_path).unwrap();
+        fs::write(
+            denied_path.join("reference.md"),
+            "![synthetic](../assets/keep.png)",
+        )
+        .unwrap();
+        let Some(_denied) = super::super::scan::test_support::DeniedDirectory::new(&denied_path)
+        else {
+            return;
+        };
+        let error = list_markdown_reference_files_for_path_with_scope(
+            root.to_string_lossy().into_owned(),
+            |_| Ok(()),
+        )
+        .unwrap_err();
+        assert!(error.contains(denied_path.to_str().unwrap()), "{error}");
     }
 
     #[test]

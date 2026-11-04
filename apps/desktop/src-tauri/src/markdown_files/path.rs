@@ -120,8 +120,17 @@ pub(super) fn markdown_folder_file(
     kind: MarkdownFolderEntryKind,
 ) -> Result<MarkdownFolderFile, String> {
     let metadata = fs::metadata(path).map_err(|error| error.to_string())?;
-    let modified_at = file_metadata_time_millis(&metadata, fs::Metadata::modified);
-    let created_at = file_metadata_time_millis(&metadata, fs::Metadata::created).or(modified_at);
+    markdown_folder_file_from_metadata(root, path, kind, &metadata)
+}
+
+pub(super) fn markdown_folder_file_from_metadata(
+    root: &Path,
+    path: &Path,
+    kind: MarkdownFolderEntryKind,
+    metadata: &fs::Metadata,
+) -> Result<MarkdownFolderFile, String> {
+    let modified_at = file_metadata_time_millis(metadata, fs::Metadata::modified);
+    let created_at = file_metadata_time_millis(metadata, fs::Metadata::created).or(modified_at);
 
     Ok(MarkdownFolderFile {
         created_at,

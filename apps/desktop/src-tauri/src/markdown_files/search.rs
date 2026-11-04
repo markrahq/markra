@@ -6,7 +6,8 @@ use std::thread;
 use std::time::UNIX_EPOCH;
 
 use super::ignore_rules::MarkdownIgnoreRules;
-use super::path::{is_markdown_open_file, markdown_folder_file, markdown_tree_root_for_path};
+use super::path::{is_markdown_open_file, markdown_tree_root_for_path};
+use super::scan::{read_directory, scan_markdown_folder_file, ScanPolicy};
 use super::types::{MarkdownFolderEntryKind, MarkdownFolderFile};
 
 const WORKSPACE_SEARCH_MAX_WORKERS: usize = 8;
@@ -107,38 +108,25 @@ fn collect_markdown_workspace_files_in(
     ignore_rules: &MarkdownIgnoreRules,
     files: &mut Vec<MarkdownFolderFile>,
 ) -> Result<(), String> {
-    let mut entries = fs::read_dir(directory)
-        .map_err(|error| error.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| error.to_string())?;
-
-    entries.sort_by(|a, b| {
-        a.file_name()
-            .to_string_lossy()
-            .to_lowercase()
-            .cmp(&b.file_name().to_string_lossy().to_lowercase())
-    });
-
+    let Some(entries) = read_directory(root, directory, ScanPolicy::SkipUnreadable)? else {
+        return Ok(());
+    };
     for entry in entries {
-        let path = entry.path();
-        let file_type = entry.file_type().map_err(|error| error.to_string())?;
-
-        if file_type.is_dir() {
-            if !ignore_rules.ignores(&path, true) {
-                collect_markdown_workspace_files_in(root, &path, ignore_rules, files)?;
-            }
+        let path = entry.path;
+        if ignore_rules.ignores(&path, entry.file_type.is_dir()) {
             continue;
         }
-
-        if file_type.is_file()
-            && !ignore_rules.ignores(&path, false)
-            && is_markdown_open_file(&path)
-        {
-            files.push(markdown_folder_file(
+        if entry.file_type.is_dir() {
+            collect_markdown_workspace_files_in(root, &path, ignore_rules, files)?;
+        } else if entry.file_type.is_file() && is_markdown_open_file(&path) {
+            if let Some(file) = scan_markdown_folder_file(
                 root,
                 &path,
                 MarkdownFolderEntryKind::File,
-            )?);
+                ScanPolicy::SkipUnreadable,
+            )? {
+                files.push(file);
+            }
         }
     }
 
@@ -690,6 +678,43 @@ pub(crate) async fn search_markdown_files_for_path(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn searches_readable_files_when_a_subdirectory_is_unreadable() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path();
+        fs::create_dir(root.join("a-denied")).unwrap();
+        fs::create_dir(root.join("z-readable")).unwrap();
+        fs::write(root.join("before.md"), "synthetic needle before").unwrap();
+        fs::write(root.join("z-readable/after.md"), "synthetic needle after").unwrap();
+        let Some(_denied) =
+            super::super::scan::test_support::DeniedDirectory::new(&root.join("a-denied"))
+        else {
+            return;
+        };
+
+        let search = search_markdown_files_for_path_blocking(
+            root.to_string_lossy().into_owned(),
+            "needle".into(),
+            false,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .expect("an unreadable child must not abort workspace search");
+        assert_eq!(search.searched_file_count, 2);
+        assert_eq!(
+            search
+                .results
+                .iter()
+                .map(|result| result.file.relative_path.as_str())
+                .collect::<Vec<_>>(),
+            vec!["before.md", "z-readable/after.md"]
+        );
+    }
 
     #[test]
     fn searches_markdown_workspace_files_by_content() {

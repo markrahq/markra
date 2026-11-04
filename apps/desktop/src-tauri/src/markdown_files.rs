@@ -10,6 +10,7 @@ mod image;
 mod markdown_export;
 mod open;
 mod path;
+pub(crate) mod scan;
 mod search;
 mod template;
 mod tree;
