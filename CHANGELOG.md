@@ -1,3 +1,9 @@
+## [2.14.4](https://github.com/markrahq/markra/compare/v2.14.3...v2.14.4) (2026-11-04)
+
+### Bug Fixes
+
+* **files:** skip unreadable workspace subdirectories ([#780](https://github.com/markrahq/markra/issues/780)) ([2aeaae0](https://github.com/markrahq/markra/commit/2aeaae0c1c682124d4f046ebe18d007a70186d71)), closes [#779](https://github.com/markrahq/markra/issues/779)
+
 ## [2.14.3](https://github.com/markrahq/markra/compare/v2.14.2...v2.14.3) (2026-10-30)
 
 ### Bug Fixes
