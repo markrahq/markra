@@ -47,6 +47,10 @@ export function getOpenAiCompatibleThinkingFormat(
   // Omit effort when off: the gateway does not document a portable "none" value across upstreams.
   if (config.id === "orcarouter") return thinkingState === "enabled" ? "reasoning-effort" : null;
 
+  // Atlas Cloud routes many upstreams behind one endpoint; only high/xhigh effort is accepted by all of them.
+  // Omit effort when off rather than guessing a per-model disable field.
+  if (config.id === "atlascloud") return thinkingState === "enabled" ? "reasoning-effort" : null;
+
   const normalizedModel = model.toLowerCase();
   if (config.type === "ollama") return "ollama-think";
 
