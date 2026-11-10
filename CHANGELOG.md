@@ -1,3 +1,10 @@
+## [2.14.5](https://github.com/markrahq/markra/compare/v2.14.4...v2.14.5) (2026-11-10)
+
+### Bug Fixes
+
+* **editor:** restore visual search navigation and highlights ([#782](https://github.com/markrahq/markra/issues/782)) ([7944f69](https://github.com/markrahq/markra/commit/7944f6985d9e58b3bb669f96502001b424ba415b)), closes [#781](https://github.com/markrahq/markra/issues/781)
+* **web:** handle denied Markdown saves ([#783](https://github.com/markrahq/markra/issues/783)) ([8c30537](https://github.com/markrahq/markra/commit/8c305376dcf8fbb9666bf99f2e6a9679074db878))
+
 ## [2.14.4](https://github.com/markrahq/markra/compare/v2.14.3...v2.14.4) (2026-11-04)
 
 ### Bug Fixes
