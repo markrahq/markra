@@ -1,9 +1,15 @@
-import { EditorSelection, EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState, type Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { dispatchPlainTextPaste } from "../plain-text-paste.ts";
+import { findCodeMirrorSearchMatches } from "./controller.ts";
 import { liveMarkdown, mathPreviewPlugin } from "./index.ts";
 import type { MarkraPlugin } from "./plugin.ts";
+import {
+  codeMirrorSearchPlugin,
+  scrollCodeMirrorSearchMatchIntoView,
+  updateCodeMirrorSearchDecorations,
+} from "./search.ts";
 import {
   focusVisualTableCell,
   tablePreviewPlugin,
@@ -15,6 +21,7 @@ const views: EditorView[] = [];
 function createView(
   doc: string,
   plugin: MarkraPlugin | readonly MarkraPlugin[] = tablePreviewPlugin(),
+  extensions: Extension = [],
 ) {
   const parent = document.createElement("div");
   document.body.append(parent);
@@ -26,6 +33,7 @@ function createView(
         liveMarkdown({
           plugins: Array.isArray(plugin) ? plugin : [plugin],
         }),
+        extensions,
       ],
       selection: EditorSelection.cursor(doc.length),
     }),
@@ -43,6 +51,42 @@ afterEach(() => {
 });
 
 describe("tablePreviewPlugin", () => {
+  it("highlights the visible source ranges of table search matches", () => {
+    const doc = [
+      "| Header |",
+      "| --- |",
+      "| [label](needle) **needle** and `needle` |",
+      "| needle |",
+      "",
+      "After",
+    ].join("\n");
+    const view = createView(doc, tablePreviewPlugin(), codeMirrorSearchPlugin());
+    const matches = findCodeMirrorSearchMatches(view.state, "needle");
+    const current = () =>
+      view.dom.querySelector(".cm-markra-table .cm-markra-search-match-current");
+
+    expect(matches).toHaveLength(4);
+    updateCodeMirrorSearchDecorations(view, matches, 0);
+    expect(current()).toBeNull();
+    expect(view.dom.querySelectorAll(".cm-markra-table .cm-markra-search-match"))
+      .toHaveLength(3);
+
+    updateCodeMirrorSearchDecorations(view, matches, 1);
+    scrollCodeMirrorSearchMatchIntoView(view, matches[1]);
+    expect(current()?.closest("strong")?.textContent).toBe("needle");
+    expect(view.dom.querySelector("code .cm-markra-search-match")?.textContent)
+      .toBe("needle");
+
+    updateCodeMirrorSearchDecorations(view, matches, 3);
+    scrollCodeMirrorSearchMatchIntoView(view, matches[3]);
+    expect(current()?.closest("td")?.dataset.tableRow).toBe("1");
+
+    updateCodeMirrorSearchDecorations(view, [], -1);
+    expect(view.dom.querySelector(".cm-markra-table .cm-markra-search-match"))
+      .toBeNull();
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
   it("clears text across cells while retaining the table grid", () => {
     const view = createView("| Name | Value |\n| --- | --- |\n| A | B |\n| C | D |\n\nAfter");
     const table = view.dom.querySelector<HTMLTableElement>(".cm-markra-table")!;
