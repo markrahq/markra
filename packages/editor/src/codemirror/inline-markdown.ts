@@ -37,7 +37,12 @@ export interface InlineMarkdownImageDetails {
   readonly title: string;
 }
 
+interface InlineMarkdownHighlight extends MarkraSourceRange {
+  readonly className: string;
+}
+
 export interface InlineMarkdownRenderOptions {
+  readonly highlights?: readonly InlineMarkdownHighlight[];
   readonly revealedMathRange?: MarkraSourceRange;
   readonly resolveImageSource?: (
     details: InlineMarkdownImageDetails,
@@ -78,18 +83,57 @@ function resolveLinkHref(
   return normalizedTarget ? normalizedTarget : null;
 }
 
+function unescapeInlineText(text: string) {
+  return text.replace(markdownEscape, "$1");
+}
+
 function appendText(
   parent: Node,
   source: string,
   from: number,
   to: number,
+  context: InlineMarkdownRenderContext,
+  unescape: ((text: string) => string) | null = unescapeInlineText,
 ) {
   if (to <= from) return;
-  parent.appendChild(
-    (parent.ownerDocument ?? (parent as Document)).createTextNode(
-      source.slice(from, to).replace(markdownEscape, "$1"),
-    ),
-  );
+  const raw = source.slice(from, to);
+  const text = unescape?.(raw) ?? raw;
+  const highlights = context.options.highlights;
+  if (!highlights?.length) {
+    parent.appendChild(parent.ownerDocument!.createTextNode(text));
+    return;
+  }
+
+  // Translate source offsets through any escapes before slicing visible text.
+  const escapes = text === raw || !unescape
+    ? []
+    : Array.from(raw.matchAll(/\\./gu)).filter(
+        (escape) => unescape(escape[0]).length === 1,
+      );
+  const textOffset = (position: number) => {
+    const offset = position - from;
+    return offset - escapes.filter((escape) => escape.index < offset).length;
+  };
+  const document = parent.ownerDocument!;
+  let cursor = 0;
+  for (const highlight of highlights) {
+    if (highlight.to <= from) continue;
+    if (highlight.from >= to) break;
+    const start = Math.max(cursor, textOffset(Math.max(from, highlight.from)));
+    const end = textOffset(Math.min(to, highlight.to));
+    if (end <= start) continue;
+    if (start > cursor) {
+      parent.appendChild(document.createTextNode(text.slice(cursor, start)));
+    }
+    const mark = document.createElement("span");
+    mark.className = highlight.className;
+    mark.textContent = text.slice(start, end);
+    parent.appendChild(mark);
+    cursor = end;
+  }
+  if (cursor < text.length) {
+    parent.appendChild(document.createTextNode(text.slice(cursor)));
+  }
 }
 
 function childNodes(node: InlineNode) {
@@ -165,11 +209,11 @@ function appendTextWithMath(
     ) {
       continue;
     }
-    appendText(parent, source, cursor, range.from);
+    appendText(parent, source, cursor, range.from, context);
     appendMath(parent, ownerDocument, range, context);
     cursor = range.to;
   }
-  appendText(parent, source, cursor, to);
+  appendText(parent, source, cursor, to, context);
 }
 
 function mathRangeCrossingChild(
@@ -284,7 +328,7 @@ function renderLink(
   const labelFrom = marks[0]?.to;
   const labelTo = marks[1]?.from;
   if (labelFrom === undefined || labelTo === undefined || !url) {
-    appendText(parent, source, node.from, node.to);
+    appendText(parent, source, node.from, node.to, context);
     return;
   }
 
@@ -331,7 +375,7 @@ function renderAutolink(
     ? node
     : childNodes(node).find((child) => child.name === "URL");
   if (!url) {
-    appendText(parent, source, node.from, node.to);
+    appendText(parent, source, node.from, node.to, context);
     return;
   }
 
@@ -345,7 +389,7 @@ function renderAutolink(
     element.draggable = false;
     element.addEventListener("click", (event) => event.preventDefault());
   }
-  element.textContent = source.slice(url.from, url.to);
+  appendText(element, source, url.from, url.to, context, null);
   parent.appendChild(element);
   if (href) {
     const icon = ownerDocument.createElement("span");
@@ -369,7 +413,7 @@ function renderImage(
   const labelFrom = marks[0]?.to;
   const labelTo = marks[1]?.from;
   if (labelFrom === undefined || labelTo === undefined || !url) {
-    appendText(parent, source, node.from, node.to);
+    appendText(parent, source, node.from, node.to, context);
     return;
   }
 
@@ -394,7 +438,7 @@ function renderImage(
   if (!resolvedSource) {
     const fallback = ownerDocument.createElement("span");
     fallback.dataset.markraImageMarkdown = details.markdown;
-    fallback.textContent = details.alt;
+    appendText(fallback, source, labelFrom, labelTo, context, unescapeMarkdown);
     parent.appendChild(fallback);
     return;
   }
@@ -439,7 +483,7 @@ function renderNode(
       const marks = childNodes(node).filter((child) => child.name === "CodeMark");
       const contentFrom = marks[0]?.to ?? node.from;
       const contentTo = marks.at(-1)?.from ?? node.to;
-      element.textContent = source.slice(contentFrom, contentTo);
+      appendText(element, source, contentFrom, contentTo, context, null);
       element.dataset.markraCodeMarkdown = source.slice(node.from, node.to);
       element.dataset.markraCodeText = element.textContent;
       parent.appendChild(element);
@@ -466,7 +510,7 @@ function renderNode(
         lineBreak.dataset.markraSourceBreak = "true";
         parent.appendChild(lineBreak);
       } else {
-        appendText(parent, source, from, to);
+        appendText(parent, source, from, to, context);
       }
       return;
     case "Escape":
@@ -476,7 +520,7 @@ function renderNode(
         element.dataset.markraEscapeText = unescapeMarkdown(
           source.slice(node.from, node.to),
         );
-        element.textContent = element.dataset.markraEscapeText;
+        appendText(element, source, node.from, node.to, context, unescapeMarkdown);
         parent.appendChild(element);
       }
       return;

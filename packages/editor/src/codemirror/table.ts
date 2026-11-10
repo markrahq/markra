@@ -20,6 +20,7 @@ import {
   renderInlineMarkdown,
   serializeInlineMarkdown,
   type InlineMarkdownImageDetails,
+  type InlineMarkdownRenderOptions,
 } from "./inline-markdown.ts";
 import type { ImagePreviewPluginOptions } from "./image.ts";
 import {
@@ -28,6 +29,7 @@ import {
 } from "./links.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
 import { getMarkraRenderers, markraRenderer } from "./renderers.ts";
+import { codeMirrorSearchHighlights } from "./search.ts";
 
 export type CodeMirrorTableAlignment = "center" | "left" | "right" | null;
 export type CodeMirrorTableWidthMode = "auto" | "even";
@@ -893,10 +895,12 @@ function renderVisualTableCell(
   images: ImagePreviewPluginOptions | undefined,
   links: LinksPluginOptions | undefined,
   revealedMathRange?: MarkraSourceRange,
+  highlights?: InlineMarkdownRenderOptions["highlights"],
 ) {
   const imageResolver = images?.resolveSource;
   const linkResolver = links?.resolveTarget;
   renderInlineMarkdown(cell, source, {
+    highlights,
     ...(revealedMathRange ? { revealedMathRange } : {}),
     ...(imageResolver
       ? {
@@ -946,6 +950,15 @@ function appendCell(
 ) {
   // Cell DOM survives position-only updates, so events must read the shared preview.
   const cell = row.ownerDocument.createElement(header ? "th" : "td");
+  const highlights = codeMirrorSearchHighlights(
+    view.state,
+    cellPreview.from,
+    cellPreview.to,
+  );
+  if (highlights.some((highlight) => highlight.active)) {
+    // Source-only hits (such as a link URL) still have a visible cell to reveal.
+    cell.dataset.markraSearchTarget = "";
+  }
   const editMathSource: EditVisualTableMathSource = (element, markdown) => {
     const mathFrom = Number(element.dataset.markraMathFrom);
     const mathTo = Number(element.dataset.markraMathTo);
@@ -1018,6 +1031,7 @@ function appendCell(
       images,
       links,
       revealedMathRange,
+      highlights,
     );
   }
   cell.tabIndex = view.state.readOnly ? -1 : 0;
@@ -1198,6 +1212,7 @@ class TableWidget extends WidgetType {
     readonly getDocumentKey: () => string | null | undefined,
     readonly images: ImagePreviewPluginOptions | undefined,
     readonly links: LinksPluginOptions | undefined,
+    readonly searchKey: string,
   ) {
     super();
     this.contentKey = tablePreviewContentKey(preview);
@@ -1221,7 +1236,8 @@ class TableWidget extends WidgetType {
       this.getDocumentKey === other.getDocumentKey &&
       this.images === other.images &&
       this.links === other.links &&
-      this.labelsKey === other.labelsKey
+      this.labelsKey === other.labelsKey &&
+      this.searchKey === other.searchKey
     );
   }
 
@@ -1738,6 +1754,9 @@ export function tablePreviewPlugin(
                 getDocumentKey,
                 options.images,
                 options.links,
+                JSON.stringify(codeMirrorSearchHighlights(
+                  context.state, preview.from, preview.to,
+                )),
               ),
             }).range(firstLine.from, firstLine.to),
           );

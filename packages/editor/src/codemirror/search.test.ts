@@ -1,6 +1,6 @@
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   codeMirrorSearchPlugin,
   getCodeMirrorSearchState,
@@ -75,6 +75,31 @@ describe("CodeMirror search decorations", () => {
     view.dispatch({ changes: { from: 0, insert: "!" } });
     expect(getCodeMirrorSearchState(view.state).matches).toEqual([]);
     expect(view.dom.querySelector(".cm-markra-search-match")).toBeNull();
+  });
+
+  it("reveals an offscreen match in the outer paper when editor coordinates are unavailable", () => {
+    const doc = Array.from({ length: 100 }, () => "Line").join("\n") + "\nNeedle";
+    const view = createView(doc);
+    const paper = document.createElement("div");
+    paper.className = "paper-scroll";
+    document.body.append(paper);
+    paper.append(view.dom.parentElement!);
+    Object.defineProperty(paper, "clientHeight", { value: 100 });
+    Object.defineProperty(view, "documentTop", { value: 20 });
+    vi.spyOn(view, "lineBlockAt").mockReturnValue({
+      top: 500,
+      height: 20,
+    } as ReturnType<EditorView["lineBlockAt"]>);
+    const frame = vi.spyOn(window, "requestAnimationFrame");
+    try {
+      const match = { from: doc.indexOf("Needle"), to: doc.length };
+      updateCodeMirrorSearchDecorations(view, [match], 0);
+      expect(scrollCodeMirrorSearchMatchIntoView(view, match)).toBe(true);
+      for (const [callback] of frame.mock.calls.slice()) callback(0);
+      expect(paper.scrollTop).toBe(480);
+    } finally {
+      frame.mockRestore();
+    }
   });
 
   it("requests scrolling only for a valid match", () => {

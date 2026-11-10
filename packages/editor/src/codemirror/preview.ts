@@ -29,6 +29,7 @@ import {
   resolveSafeLinkTarget,
   type MarkraLinkSourceContext,
 } from "./links.ts";
+import { getCodeMirrorSearchState } from "./search.ts";
 import { unescapeMarkdown } from "./syntax.ts";
 import { createTaskDecoration } from "./tasks.ts";
 import { isInsidePreformattedBlock } from "./blank-lines.ts";
@@ -936,7 +937,10 @@ function previewPlugin(config: LivePreviewConfig): Extension {
           return;
         }
 
-        if (plainTextInputCanMapDecorations(update)) {
+        const searchChanged =
+          getCodeMirrorSearchState(update.startState) !==
+          getCodeMirrorSearchState(update.state);
+        if (!searchChanged && plainTextInputCanMapDecorations(update)) {
           // Plain letters and numbers cannot create Markdown structure in a
           // top-level paragraph. Mapping retains every unchanged preview DOM
           // instead of walking the full visible syntax tree per keystroke.
@@ -954,6 +958,7 @@ function previewPlugin(config: LivePreviewConfig): Extension {
 
         if (
           compositionEnded ||
+          searchChanged ||
           update.docChanged ||
           selectionChangeAffectsReveal(update) ||
           update.focusChanged ||
