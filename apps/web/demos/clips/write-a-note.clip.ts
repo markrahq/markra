@@ -13,7 +13,7 @@ export default clip(
 
     // Replace the welcome document with a new note.
     await s.click(s.byText("Reveal AI actions only around selected text"));
-    await s.press("Meta+a");
+    await s.press("ControlOrMeta+a");
     await s.type("# Packing list\n");
     await s.type("- Passport\nCharger\nRain jacket\n\n");
     await s.settle({ label: "note typed" });
