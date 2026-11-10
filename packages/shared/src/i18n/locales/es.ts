@@ -397,6 +397,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "Abrir carpeta contenedora",
   "app.markdownTemplateSaved": "Plantilla guardada.",
   "app.markdownTemplateSaveFailed": "No se pudo guardar la plantilla.",
+  "app.markdownFileSaveFailed": "No se pudo guardar el documento.",
+  "app.markdownFileWriteDenied": "Se denegó el permiso de escritura. Usa «Guardar como» para elegir una ubicación con permiso de escritura.",
   "app.markdownFileCreateFailed": "No se pudo crear el archivo.",
   "app.markdownFolderCreateFailed": "No se pudo crear la carpeta.",
   "app.markdownFileRenameFailed": "No se pudo cambiar el nombre del archivo.",

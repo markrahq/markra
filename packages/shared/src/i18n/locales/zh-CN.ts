@@ -752,6 +752,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "打开所在文件夹",
   "app.markdownTemplateSaved": "已保存为模板。",
   "app.markdownTemplateSaveFailed": "无法保存模板。",
+  "app.markdownFileSaveFailed": "无法保存文档。",
+  "app.markdownFileWriteDenied": "写入权限被拒绝。请使用「另存为」选择可写入的位置。",
   "app.markdownFileCreateFailed": "无法创建文件。",
   "app.markdownFolderCreateFailed": "无法创建文件夹。",
   "app.markdownFileRenameFailed": "无法重命名文件。",

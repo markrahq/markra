@@ -397,6 +397,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "Ouvrir le dossier contenant",
   "app.markdownTemplateSaved": "Modèle enregistré.",
   "app.markdownTemplateSaveFailed": "Impossible d’enregistrer le modèle.",
+  "app.markdownFileSaveFailed": "Impossible d’enregistrer le document.",
+  "app.markdownFileWriteDenied": "L’accès en écriture a été refusé. Utilisez « Enregistrer sous » pour choisir un emplacement accessible en écriture.",
   "app.markdownFileCreateFailed": "Impossible de créer le fichier.",
   "app.markdownFolderCreateFailed": "Impossible de créer le dossier.",
   "app.markdownFileRenameFailed": "Impossible de renommer le fichier.",

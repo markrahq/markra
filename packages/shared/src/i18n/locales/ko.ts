@@ -397,6 +397,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "포함된 폴더 열기",
   "app.markdownTemplateSaved": "템플릿으로 저장했습니다.",
   "app.markdownTemplateSaveFailed": "템플릿을 저장할 수 없습니다.",
+  "app.markdownFileSaveFailed": "문서를 저장할 수 없습니다.",
+  "app.markdownFileWriteDenied": "쓰기 권한이 거부되었습니다. ‘다른 이름으로 저장’을 사용해 쓸 수 있는 위치를 선택하세요.",
   "app.markdownFileCreateFailed": "파일을 만들 수 없습니다.",
   "app.markdownFolderCreateFailed": "폴더를 만들 수 없습니다.",
   "app.markdownFileRenameFailed": "파일 이름을 변경할 수 없습니다.",

@@ -99,6 +99,40 @@ describe("web file runtime", () => {
     });
   });
 
+  it("returns no saved Markdown file when the browser save picker is canceled", async () => {
+    const downloadFile = vi.fn();
+    const runtime = createWebRuntime({
+      downloadFile,
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showSaveFilePicker: async () => {
+        throw new DOMException("Synthetic picker cancellation", "AbortError");
+      }
+    });
+
+    await expect(runtime.files.saveMarkdownFile({
+      contents: "# Draft",
+      path: null,
+      suggestedName: "draft.md"
+    })).resolves.toBeNull();
+    expect(downloadFile).not.toHaveBeenCalled();
+  });
+
+  it("reports an aborted write after the browser save picker returns a file", async () => {
+    const file = new FakeFileHandle("draft.md", "");
+    const writeError = new DOMException("Synthetic write abort", "AbortError");
+    vi.spyOn(file, "createWritable").mockRejectedValue(writeError);
+    const runtime = createWebRuntime({
+      indexedDB: new FakeIndexedDbFactory().indexedDB,
+      showSaveFilePicker: async () => file
+    });
+
+    await expect(runtime.files.saveMarkdownFile({
+      contents: "# Draft",
+      path: null,
+      suggestedName: "draft.md"
+    })).rejects.toBe(writeError);
+  });
+
   it("opens and saves Markra settings JSON files through the browser file system API", async () => {
     const settingsHandle = new FakeFileHandle(
       "markra-settings.json",

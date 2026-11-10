@@ -6926,6 +6926,40 @@ describe("Markra workspace", () => {
     );
   });
 
+  it("keeps edits unsaved when browser write access is denied and lets Save As recover", async () => {
+    const path = "web-file://mock-handle/draft.md";
+    mockOpenMarkdownFile({ content: "# Original", name: "draft.md", path });
+    mockedSaveNativeMarkdownFile
+      .mockRejectedValueOnce(new DOMException("Synthetic write denial", "NotAllowedError"))
+      .mockResolvedValueOnce({ name: "copy.md", path: "web-file://mock-copy/copy.md" });
+
+    renderApp();
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await expectVisibleMarkdownText("Original");
+    await selectEditorViewMode("Source code");
+
+    const editor = await screen.findByRole("textbox", { name: "Markdown source" });
+    replaceMarkdownSource(editor, "# Unsaved edit");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Markdown" }));
+
+    expect(await screen.findByText("Could not save the document.")).toBeInTheDocument();
+    expect(screen.getByText("Write access was denied. Use Save As to choose a writable location.")).toBeInTheDocument();
+    expect(screen.queryByText("Markra caught an error.")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Unsaved changes")).toBeInTheDocument();
+    expect(readMarkdownSource(editor)).toBe("# Unsaved edit");
+    expect(mockedSaveNativeMarkdownFile).toHaveBeenNthCalledWith(1, expect.objectContaining({ path }));
+
+    fireEvent.keyDown(window, { key: "s", metaKey: true, shiftKey: true });
+
+    await screen.findByRole("tab", { name: /copy\.md/ });
+    expect(mockedSaveNativeMarkdownFile).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      contents: "# Unsaved edit",
+      path: null
+    }));
+    expect(screen.queryByLabelText("Unsaved changes")).not.toBeInTheDocument();
+  });
+
   it("switches between the visual editor and markdown source mode", async () => {
     const { container } = renderApp();
 

@@ -397,6 +397,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "Abrir pasta que contém",
   "app.markdownTemplateSaved": "Modelo salvo.",
   "app.markdownTemplateSaveFailed": "Não foi possível salvar o modelo.",
+  "app.markdownFileSaveFailed": "Não foi possível salvar o documento.",
+  "app.markdownFileWriteDenied": "A permissão de gravação foi negada. Use “Salvar como” para escolher um local com permissão de gravação.",
   "app.markdownFileCreateFailed": "Não foi possível criar o arquivo.",
   "app.markdownFolderCreateFailed": "Não foi possível criar a pasta.",
   "app.markdownFileRenameFailed": "Não foi possível renomear o arquivo.",

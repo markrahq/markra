@@ -752,6 +752,8 @@ const messages: BaseLocaleMessages = {
   "app.openContainingFolder": "Open containing folder",
   "app.markdownTemplateSaved": "Template saved.",
   "app.markdownTemplateSaveFailed": "Could not save template.",
+  "app.markdownFileSaveFailed": "Could not save the document.",
+  "app.markdownFileWriteDenied": "Write access was denied. Use Save As to choose a writable location.",
   "app.markdownFileCreateFailed": "Could not create file.",
   "app.markdownFolderCreateFailed": "Could not create folder.",
   "app.markdownFileRenameFailed": "Could not rename file.",
