@@ -112,7 +112,7 @@ import {
   type AppLanguage,
   type I18nKey
 } from "@markra/shared";
-import { showAppToast } from "./lib/app-toast";
+import { dismissAppToast, showAppToast } from "./lib/app-toast";
 import { appVersion } from "./lib/app-version";
 import {
   createMarkdownImageSrcResolver,
@@ -266,6 +266,7 @@ const sideDocumentPaneKeyboardStepPercent = 5;
 const sideDocumentMainPanePercentMin = 35;
 const sideDocumentMainPanePercentMax = 70;
 const defaultSideDocumentMainPanePercent = 50;
+const documentSaveErrorToastId = "document-save-error";
 
 function persistSideDocumentGroup(group: StoredWorkspaceSideBySideGroup | null) {
   saveStoredWorkspaceState({ sideBySideGroup: group }).catch(() => {});
@@ -3025,19 +3026,30 @@ function WorkspaceApp() {
         ? translate("app.files")
         : rawFileTreeRootName;
   const saveDocument = useCallback(async (saveAs = false) => {
-    if (focusedSideDocumentTabId) {
-      const savedFile = await saveMarkdownTab(focusedSideDocumentTabId, saveAs);
-      if (savedFile) persistSideDocumentGroupSavedTabPath(focusedSideDocumentTabId, savedFile.path);
-      if (savedFile && syncSettings.settings.autoSyncOnSave) {
-        runWorkspaceSync({ silent: true, sourcePath: savedFile.path }).catch(() => {});
-      }
-      return savedFile;
+    let savedFile;
+    try {
+      savedFile = focusedSideDocumentTabId
+        ? await saveMarkdownTab(focusedSideDocumentTabId, saveAs)
+        : await saveCurrentDocument(saveAs);
+    } catch (error) {
+      showAppToast({
+        description: error instanceof DOMException && error.name === "NotAllowedError"
+          ? translate("app.markdownFileWriteDenied")
+          : nativeFileOperationFailureDescription(error),
+        id: documentSaveErrorToastId,
+        message: translate("app.markdownFileSaveFailed"),
+        status: "error",
+        surface: "notice"
+      });
+      return null;
     }
+    if (!savedFile) return null;
 
-    const savedFile = await saveCurrentDocument(saveAs);
-    if (savedFile && activeTabId) persistSideDocumentGroupSavedTabPath(activeTabId, savedFile.path);
-    if (savedFile) refreshOpenDocumentHistory(savedFile.path);
-    if (savedFile && syncSettings.settings.autoSyncOnSave) {
+    dismissAppToast(documentSaveErrorToastId);
+    const savedTabId = focusedSideDocumentTabId ?? activeTabId;
+    if (savedTabId) persistSideDocumentGroupSavedTabPath(savedTabId, savedFile.path);
+    if (!focusedSideDocumentTabId) refreshOpenDocumentHistory(savedFile.path);
+    if (syncSettings.settings.autoSyncOnSave) {
       runWorkspaceSync({ silent: true, sourcePath: savedFile.path }).catch(() => {});
     }
     return savedFile;
@@ -3049,7 +3061,8 @@ function WorkspaceApp() {
     runWorkspaceSync,
     saveCurrentDocument,
     saveMarkdownTab,
-    syncSettings.settings.autoSyncOnSave
+    syncSettings.settings.autoSyncOnSave,
+    translate
   ]);
   const handleSaveDocument = useCallback(() => saveDocument(false), [saveDocument]);
   const saveDocumentAs = useCallback(() => saveDocument(true), [saveDocument]);

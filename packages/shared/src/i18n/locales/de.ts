@@ -397,6 +397,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "Enthaltenden Ordner öffnen",
   "app.markdownTemplateSaved": "Vorlage gespeichert.",
   "app.markdownTemplateSaveFailed": "Vorlage konnte nicht gespeichert werden.",
+  "app.markdownFileSaveFailed": "Das Dokument konnte nicht gespeichert werden.",
+  "app.markdownFileWriteDenied": "Der Schreibzugriff wurde verweigert. Wählen Sie mit „Speichern unter“ einen beschreibbaren Speicherort.",
   "app.markdownFileCreateFailed": "Datei konnte nicht erstellt werden.",
   "app.markdownFolderCreateFailed": "Ordner konnte nicht erstellt werden.",
   "app.markdownFileRenameFailed": "Datei konnte nicht umbenannt werden.",

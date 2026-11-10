@@ -1339,7 +1339,7 @@ export function createWebFileRuntime(
     async saveHtmlFile(input: SaveNativeHtmlFileInput): Promise<SavedNativeHtmlFile> {
       return saveDownload(input, htmlFileType);
     },
-    async saveMarkdownFile(input: SaveNativeMarkdownFileInput): Promise<SavedNativeMarkdownFile> {
+    async saveMarkdownFile(input: SaveNativeMarkdownFileInput): Promise<SavedNativeMarkdownFile | null> {
       if (input.path) {
         const parsedPath = parseWebHandlePath(input.path);
         const handle = parsedPath?.kind === "file"
@@ -1358,15 +1358,22 @@ export function createWebFileRuntime(
       }
 
       if (showSaveFilePicker) {
-        const handle = await showSaveFilePicker({
-          suggestedName: input.suggestedName,
-          types: [{
-            accept: {
-              "text/markdown": [".md", ".markdown"]
-            },
-            description: "Markdown"
-          }]
-        });
+        let handle: WebFileHandle;
+        try {
+          handle = await showSaveFilePicker({
+            suggestedName: input.suggestedName,
+            types: [{
+              accept: {
+                "text/markdown": [".md", ".markdown"]
+              },
+              description: "Markdown"
+            }]
+          });
+        } catch (error) {
+          // Only the picker can be canceled. An aborted write is a save failure.
+          if (error instanceof DOMException && error.name === "AbortError") return null;
+          throw error;
+        }
         await writeFileHandle(handle, input.contents);
 
         return {

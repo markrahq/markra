@@ -406,6 +406,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "開啟所在資料夾",
   "app.markdownTemplateSaved": "已儲存為範本。",
   "app.markdownTemplateSaveFailed": "無法儲存範本。",
+  "app.markdownFileSaveFailed": "無法儲存文件。",
+  "app.markdownFileWriteDenied": "寫入權限遭拒。請使用「另存新檔」選擇可寫入的位置。",
   "app.markdownFileCreateFailed": "無法建立檔案。",
   "app.markdownFolderCreateFailed": "無法建立資料夾。",
   "app.markdownFileRenameFailed": "無法重新命名檔案。",

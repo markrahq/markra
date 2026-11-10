@@ -397,6 +397,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "Apri cartella contenitore",
   "app.markdownTemplateSaved": "Modello salvato.",
   "app.markdownTemplateSaveFailed": "Impossibile salvare il modello.",
+  "app.markdownFileSaveFailed": "Impossibile salvare il documento.",
+  "app.markdownFileWriteDenied": "L’accesso in scrittura è stato negato. Usa «Salva con nome» per scegliere una posizione in cui puoi scrivere.",
   "app.markdownFileCreateFailed": "Impossibile creare il file.",
   "app.markdownFolderCreateFailed": "Impossibile creare la cartella.",
   "app.markdownFileRenameFailed": "Impossibile rinominare il file.",

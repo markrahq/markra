@@ -397,6 +397,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "Открыть содержащую папку",
   "app.markdownTemplateSaved": "Шаблон сохранён.",
   "app.markdownTemplateSaveFailed": "Не удалось сохранить шаблон.",
+  "app.markdownFileSaveFailed": "Не удалось сохранить документ.",
+  "app.markdownFileWriteDenied": "Доступ на запись запрещён. Выберите доступное для записи расположение с помощью команды «Сохранить как».",
   "app.markdownFileCreateFailed": "Не удалось создать файл.",
   "app.markdownFolderCreateFailed": "Не удалось создать папку.",
   "app.markdownFileRenameFailed": "Не удалось переименовать файл.",

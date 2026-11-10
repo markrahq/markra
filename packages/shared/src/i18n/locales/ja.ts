@@ -406,6 +406,8 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "所在フォルダーを開く",
   "app.markdownTemplateSaved": "テンプレートとして保存しました。",
   "app.markdownTemplateSaveFailed": "テンプレートを保存できませんでした。",
+  "app.markdownFileSaveFailed": "ドキュメントを保存できませんでした。",
+  "app.markdownFileWriteDenied": "書き込み権限が拒否されました。「別名で保存」で書き込み可能な場所を選択してください。",
   "app.markdownFileCreateFailed": "ファイルを作成できませんでした。",
   "app.markdownFolderCreateFailed": "フォルダーを作成できませんでした。",
   "app.markdownFileRenameFailed": "ファイル名を変更できませんでした。",
