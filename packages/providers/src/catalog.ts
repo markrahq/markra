@@ -172,6 +172,22 @@ export const defaultProviderTemplates: AiProviderConfigSeed[] = [
   },
   {
     apiKey: "",
+    baseUrl: "https://api.runcrate.ai/v1",
+    defaultModelId: "deepseek-ai/DeepSeek-V4.1-Flash",
+    enabled: false,
+    id: "runcrate",
+    models: [
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "deepseek-ai/DeepSeek-V4.1-Flash", name: "DeepSeek V4.1 Flash" },
+      { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "zai-org/GLM-5.3", name: "GLM 5.3" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "moonshotai/Kimi-K3", name: "Kimi K3" },
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "Qwen/Qwen3.5-397B-A17B", name: "Qwen3.5 397B A17B" }
+    ],
+    name: "Runcrate",
+    apiStyle: "openai-compatible",
+    type: "openai-compatible"
+  },
+  {
+    apiKey: "",
     baseUrl: "https://api.together.xyz/v1",
     defaultModelId: "moonshotai/Kimi-K2.6",
     enabled: false,

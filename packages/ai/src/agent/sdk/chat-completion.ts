@@ -518,6 +518,10 @@ function buildAiSdkThinkingProviderOptions(
   model: string,
   thinkingEnabled: boolean | undefined
 ): AiSdkProviderOptions | undefined {
+  // Keep the explicit off state for Runcrate, matching the native compatible adapter.
+  if (provider.id === "runcrate" && thinkingEnabled !== undefined) {
+    return { runcrate: { reasoningEffort: thinkingEnabled ? "high" : "none" } };
+  }
   if (thinkingEnabled !== true) return undefined;
 
   const providerKind = resolveAiSdkProviderKind(provider);
