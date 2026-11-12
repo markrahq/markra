@@ -39,6 +39,47 @@ describe("AI provider requests", () => {
     });
   });
 
+  it("discovers Requesty managed models with capabilities from their metadata", async () => {
+    const config = createDefaultAiSettings().providers.find((item) => item.id === "requesty");
+    expect(config).toBeDefined();
+    if (!config) throw new Error("Missing Requesty provider");
+    const transport = vi.fn().mockResolvedValue({
+      status: 200,
+      body: {
+        object: "list",
+        data: [
+          { api: "chat", id: "mock-writer", supports_reasoning: true, supports_tool_calling: true, supports_vision: true },
+          { api: "chat", id: "mock-basic", supports_reasoning: false, supports_tool_calling: false, supports_vision: false },
+          {
+            api: "chat",
+            id: "mock-gpt-5-text-only",
+            supports_reasoning: false,
+            supports_tool_calling: false,
+            supports_vision: false,
+            supports_web_search: false
+          },
+          { api: "chat", id: "mock-gpt-5-no-vision@eu", supports_reasoning: true, supports_vision: false },
+          { api: "chat", id: "gpt-5.6-sol", supports_reasoning: true, supports_tool_calling: true, supports_vision: false, supports_web_search: false },
+          { api: "embedding", id: "mock-embedder" }
+        ]
+      }
+    });
+    await expect(fetchAiProviderModels({ ...config, apiKey: "mock-key" }, transport)).resolves.toEqual([
+      { capabilities: ["text", "vision", "reasoning", "tools"], enabled: true, id: "mock-writer", name: "mock-writer" },
+      { capabilities: ["text"], enabled: true, id: "mock-basic", name: "mock-basic" },
+      { capabilities: ["text"], enabled: true, id: "mock-gpt-5-text-only", name: "mock-gpt-5-text-only" },
+      // Fields the catalog omits still fall back to the id heuristic.
+      { capabilities: ["text", "reasoning", "tools", "web"], enabled: true, id: "mock-gpt-5-no-vision@eu", name: "mock-gpt-5-no-vision@eu" },
+      // A built-in seed model keeps the catalog's explicit denial instead of the seed's vision capability.
+      { capabilities: ["text", "reasoning", "tools"], enabled: true, id: "gpt-5.6-sol", name: "gpt-5.6-sol" }
+    ]);
+    expect(transport).toHaveBeenCalledWith({
+      method: "GET",
+      url: "https://router.requesty.ai/v1/models/managed",
+      headers: { Authorization: "Bearer mock-key" }
+    });
+  });
+
   it("ships mainstream providers by default", () => {
     const settings = createDefaultAiSettings();
     const providerIds = settings.providers.map((item) => item.id);
