@@ -1,4 +1,4 @@
-import { EditorState } from "@codemirror/state";
+import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { liveMarkdown } from "./index.ts";
@@ -40,7 +40,7 @@ function createView(doc: string, paragraphSpacing = 0) {
     parent,
     state: EditorState.create({
       doc,
-      extensions: [liveMarkdown({ paragraphSpacing })],
+      extensions: [EditorState.allowMultipleSelections.of(true), liveMarkdown({ paragraphSpacing })],
     }),
   });
   views.push(view);
@@ -78,21 +78,48 @@ describe("block spacing", () => {
     );
 
     expect(spacers).toEqual([
-      { edge: "after", height: "16px", level: "1" },
-      { edge: "before", height: "28px", level: "2" },
-      { edge: "after", height: "12px", level: "2" },
-      { edge: "before", height: "22px", level: "3" },
-      { edge: "after", height: "4px", level: "3" },
-      { edge: "before", height: "18px", level: "4" },
-      { edge: "after", height: "2px", level: "4" },
-      { edge: "before", height: "14px", level: "5" },
-      { edge: "before", height: "14px", level: "6" },
+      { edge: "after", height: "8px", level: "1" },
+      { edge: "before", height: "12px", level: "2" },
+      { edge: "after", height: "4px", level: "2" },
+      { edge: "before", height: "8px", level: "3" },
+      { edge: "after", height: "2px", level: "3" },
+      { edge: "before", height: "6px", level: "4" },
+      { edge: "before", height: "4px", level: "5" },
+      { edge: "before", height: "4px", level: "6" },
     ]);
     expect(
       view.dom.querySelectorAll(
         ".cm-markra-heading-spacer[aria-hidden='true']",
       ),
     ).toHaveLength(spacers.length);
+  });
+
+  it("keeps compact heading gaps and authored blank rows stable across selection and recreation", () => {
+    const doc = "## Synthetic section\n\n\nSynthetic paragraph\n\n### Synthetic detail";
+    const view = createView(doc, 2);
+    const snapshot = (editor: EditorView) => ({
+      doc: editor.state.doc.toString(),
+      lines: Array.from(editor.contentDOM.querySelectorAll(".cm-line"), (line) => line.textContent),
+      gaps: Array.from(editor.contentDOM.querySelectorAll<HTMLElement>(".cm-markra-heading-spacer"), (gap) => gap.style.height),
+    });
+    const initial = snapshot(view);
+    expect(initial.gaps).toEqual(["12px", "4px", "8px", "2px"]);
+    expect(initial.lines.filter((line) => line === "")).toHaveLength(3);
+
+    view.dispatch({ selection: EditorSelection.range(0, doc.length) });
+    expect(snapshot(view)).toEqual(initial);
+    view.dispatch({ selection: EditorSelection.cursor(doc.length) });
+    expect(snapshot(view)).toEqual(initial);
+    view.dispatch({
+      selection: EditorSelection.create([
+        EditorSelection.cursor(view.state.doc.line(2).from),
+        EditorSelection.cursor(view.state.doc.line(4).to),
+      ]),
+    });
+    expect(view.state.selection.ranges).toHaveLength(2);
+    expect(snapshot(view)).toEqual(initial);
+    expect(snapshot(createView(doc, 2))).toEqual(initial);
+    expect(initial.doc).toBe(doc);
   });
 
   it("uses a measured block spacer for configurable paragraph rhythm", () => {

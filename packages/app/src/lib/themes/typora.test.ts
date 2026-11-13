@@ -131,7 +131,7 @@ describe("basic Typora theme compatibility", () => {
   it("ignores invalid declarations before applying the cascade and skips unsupported heading sizes", () => {
     const result = adaptTyporaTheme('#write h1 { color: #123456; color: definitely-not-a-color; font-size: calc(2rem + 4px); }');
     expect(variables(result.css)["--editor-h1-color"]).toBe("#123456");
-    expect(variables(result.css)["--editor-h1-font-size"]).toBe("44px");
+    expect(variables(result.css)["--editor-h1-font-size"]).toBe("calc(var(--editor-body-font-size, 16px) * 2)");
     expect(result.warnings).toContain("unsupported");
   });
 

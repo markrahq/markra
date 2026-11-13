@@ -31,15 +31,17 @@ const headingLevels: Readonly<Record<string, HeadingLevel>> = {
   SetextHeading2: 2,
 };
 
+// Authored blank lines already occupy editable rows; these gaps add only
+// the remaining heading rhythm and must stay in CodeMirror's height model.
 const headingSpacing: Readonly<
   Record<HeadingLevel, Readonly<Record<HeadingEdge, number>>>
 > = {
-  1: { after: 16, before: 0 },
-  2: { after: 12, before: 28 },
-  3: { after: 4, before: 22 },
-  4: { after: 2, before: 18 },
-  5: { after: 0, before: 14 },
-  6: { after: 0, before: 14 },
+  1: { after: 8, before: 0 },
+  2: { after: 4, before: 12 },
+  3: { after: 2, before: 8 },
+  4: { after: 0, before: 6 },
+  5: { after: 0, before: 4 },
+  6: { after: 0, before: 4 },
 };
 
 abstract class MeasuredSpacerWidget extends WidgetType {
