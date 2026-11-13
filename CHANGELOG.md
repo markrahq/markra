@@ -1,3 +1,9 @@
+## [2.14.6](https://github.com/markrahq/markra/compare/v2.14.5...v2.14.6) (2026-11-13)
+
+### Bug Fixes
+
+* **editor:** scale headings and tighten default spacing ([#786](https://github.com/markrahq/markra/issues/786)) ([25cd8c5](https://github.com/markrahq/markra/commit/25cd8c5dfb2983be30b1af010d90885f0fa9e41b)), closes [#711](https://github.com/markrahq/markra/issues/711)
+
 ## [2.14.5](https://github.com/markrahq/markra/compare/v2.14.4...v2.14.5) (2026-11-10)
 
 ### Bug Fixes
