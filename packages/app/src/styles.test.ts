@@ -48,11 +48,11 @@ describe("editor stylesheet", () => {
     expect(styles).toContain(".markdown-paper .cm-widgetBuffer");
     expect(styles).toContain("margin: 0 !important");
     expect(styles).toContain(".markdown-paper .cm-line.cm-markra-h1");
-    expect(styles).toContain("font-size: 44px");
+    expect(styles).toContain("font-size: calc(var(--editor-body-font-size, 16px) * 2)");
     expect(styles).toContain(".markdown-paper .cm-line.cm-markra-h2");
-    expect(styles).toContain("font-size: 31px");
+    expect(styles).toContain("font-size: calc(var(--editor-body-font-size, 16px) * 1.5)");
     expect(styles).toContain(".markdown-paper .cm-line.cm-markra-h3");
-    expect(styles).toContain("font-size: 24px");
+    expect(styles).toContain("font-size: calc(var(--editor-body-font-size, 16px) * 1.25)");
     expect(styles).toContain(".markdown-paper .cm-line.cm-markra-list-item");
     expect(styles).toContain('[data-markra-list-source="hidden"]::before');
     expect(styles).toContain('content: "" !important');
@@ -62,18 +62,18 @@ describe("editor stylesheet", () => {
   it("exposes shared per-level heading theme tokens for CodeMirror and rendered headings", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const headingDefaults = [
-      { fontSize: "44px", level: 1, lineHeight: "1.15" },
-      { fontSize: "31px", level: 2, lineHeight: "1.22" },
-      { fontSize: "24px", level: 3, lineHeight: "1.28" },
-      { fontSize: "19px", level: 4, lineHeight: "1.35" },
-      { fontSize: "16px", level: 5, lineHeight: "1.45" },
-      { fontSize: "16px", level: 6, lineHeight: "1.45" }
+      { fontSize: "calc(var(--editor-body-font-size, 16px) * 2)", level: 1, lineHeight: "1.15" },
+      { fontSize: "calc(var(--editor-body-font-size, 16px) * 1.5)", level: 2, lineHeight: "1.22" },
+      { fontSize: "calc(var(--editor-body-font-size, 16px) * 1.25)", level: 3, lineHeight: "1.28" },
+      { fontSize: "calc(var(--editor-body-font-size, 16px) * 1.125)", level: 4, lineHeight: "1.35" },
+      { fontSize: "var(--editor-body-font-size, 16px)", level: 5, lineHeight: "1.45" },
+      { fontSize: "var(--editor-body-font-size, 16px)", level: 6, lineHeight: "1.45" }
     ];
 
     expect(styles).toContain("--editor-heading-font-weight: 760;");
     expect(styles).toContain("--editor-heading-letter-spacing: 0;");
-    expect(styles).toContain("--editor-h1-font-size-compact: 34px;");
-    expect(styles).toContain("--editor-h2-font-size-compact: 26px;");
+    expect(styles).toContain("--editor-h1-font-size-compact: var(--editor-h1-font-size);");
+    expect(styles).toContain("--editor-h2-font-size-compact: var(--editor-h2-font-size);");
 
     for (const { fontSize, level, lineHeight } of headingDefaults) {
       const colorVariable = `--editor-h${level}-color`;

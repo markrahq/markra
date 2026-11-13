@@ -67,8 +67,8 @@ describe("app settings", () => {
   it("documents the supported heading tokens in the default custom theme CSS", () => {
     expect(defaultCustomThemeCss).toContain("--editor-heading-font-weight: 760;");
     expect(defaultCustomThemeCss).toContain("--editor-heading-letter-spacing: 0;");
-    expect(defaultCustomThemeCss).toContain("--editor-h1-font-size-compact: 34px;");
-    expect(defaultCustomThemeCss).toContain("--editor-h2-font-size-compact: 26px;");
+    expect(defaultCustomThemeCss).toContain("--editor-h1-font-size-compact: var(--editor-h1-font-size);");
+    expect(defaultCustomThemeCss).toContain("--editor-h2-font-size-compact: var(--editor-h2-font-size);");
 
     for (const level of [1, 2, 3, 4, 5, 6]) {
       expect(defaultCustomThemeCss).toContain(`--editor-h${level}-color: var(--editor-text-heading);`);
