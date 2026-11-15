@@ -344,6 +344,19 @@ const paperTheme = EditorView.theme({
     whiteSpace: "pre-wrap",
     wordBreak: "break-word",
   },
+  '.markdown-paper[data-code-block-wrap="false"] & .cm-scroller': {
+    containerType: "inline-size",
+    overflow: "auto",
+  },
+  '.markdown-paper[data-code-block-wrap="false"] & .cm-content > :not(.cm-markra-code-content-line)': {
+    // The content can grow to fit unwrapped code. Keep prose and widgets at the viewport width.
+    maxWidth: "100cqi",
+  },
+  '.markdown-paper[data-code-block-wrap="false"] & .cm-markra-code-content-line': {
+    whiteSpace: "pre",
+    wordBreak: "normal",
+    overflowWrap: "normal",
+  },
   ".cm-gutters": {
     display: "none",
   },
