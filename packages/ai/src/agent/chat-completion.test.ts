@@ -92,10 +92,12 @@ describe("chatCompletion", () => {
   });
 
   it.each([
-    { expected: "min", thinkingEnabled: false },
-    { expected: undefined, thinkingEnabled: undefined }
-  ])("sends Requesty reasoning_effort $expected through the Vercel AI SDK when thinking is $thinkingEnabled", async ({
+    { expected: "min", model: "gpt-5.6-sol", thinkingEnabled: false },
+    { expected: undefined, model: "gpt-5.6-sol", thinkingEnabled: undefined },
+    { expected: undefined, model: "anthropic/claude-haiku-4-5", thinkingEnabled: false }
+  ])("sends Requesty reasoning_effort $expected through the Vercel AI SDK for $model when thinking is $thinkingEnabled", async ({
     expected,
+    model,
     thinkingEnabled
   }) => {
     const config = createDefaultAiSettings().providers.find((item) => item.id === "requesty");
@@ -110,7 +112,7 @@ describe("chatCompletion", () => {
 
     await expect(chatCompletionStream(
       { ...config, apiKey: "mock-key" },
-      "gpt-5.6-sol",
+      model,
       [{ content: "Hi", role: "user" }],
       { fallbackTransport, streamTransport, thinkingEnabled, useVercelAiSdk: true }
     )).resolves.toEqual({ content: "Mock answer", finishReason: "stop" });

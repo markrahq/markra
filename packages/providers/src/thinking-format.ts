@@ -35,6 +35,12 @@ export type ResponsesStyleThinkingFormat =
   | "thinking-type"
   | "xai-reasoning";
 
+// Requesty maps "min" and "none" to a 1024 token thinking budget for Claude models that think on request,
+// so sending either would turn thinking on. Omitting the field is the only way to keep it off there.
+export function getRequestyThinkingOffEffort(model: string): "min" | undefined {
+  return model.toLowerCase().includes("claude") ? undefined : "min";
+}
+
 export function getOpenAiCompatibleThinkingFormat(
   config: AiProviderConfig,
   model: string,
@@ -47,7 +53,10 @@ export function getOpenAiCompatibleThinkingFormat(
   // Omit effort when off: the gateway does not document a portable "none" value across upstreams.
   if (config.id === "orcarouter") return thinkingState === "enabled" ? "reasoning-effort" : null;
   // Requesty maps reasoning_effort per upstream and documents "min" for the lowest effort, so send it when off.
-  if (config.id === "requesty") return "reasoning-effort";
+  // Claude ids are the exception: the gateway turns "min" into a thinking budget there, so omit it instead.
+  if (config.id === "requesty") {
+    return thinkingState === "enabled" || getRequestyThinkingOffEffort(model) ? "reasoning-effort" : null;
+  }
 
   const normalizedModel = model.toLowerCase();
   if (config.type === "ollama") return "ollama-think";
