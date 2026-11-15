@@ -14,6 +14,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CodeMirrorPaperSurface } from "./CodeMirrorPaperSurface";
+import { MarkdownPaper } from "./MarkdownPaper";
 
 describe("CodeMirrorPaperSurface", () => {
   afterEach(() => {
@@ -88,6 +89,45 @@ describe("CodeMirrorPaperSurface", () => {
           ?.style.height,
       ).toBe("6px");
     });
+  });
+
+  it("toggles wrapping and horizontal scrolling for long visual code lines", async () => {
+    const longLine = "// " + "synthetic code ".repeat(40).trimEnd();
+    const markdown = `\`\`\`javascript\n${longLine}\n\`\`\``;
+    const onEditorReady = vi.fn<(view: EditorView | null) => unknown>();
+    const onMarkdownChange = vi.fn();
+    const paper = (wrapCodeBlocks: boolean) => (
+      <MarkdownPaper
+        initialContent={markdown}
+        onEditorReady={onEditorReady}
+        onMarkdownChange={onMarkdownChange}
+        revision={0}
+        wrapCodeBlocks={wrapCodeBlocks}
+      />
+    );
+    const { rerender } = render(paper(true));
+    await waitFor(() => expect(onEditorReady).toHaveBeenCalled());
+    const view = onEditorReady.mock.lastCall?.[0] as EditorView;
+    const line = view.contentDOM.querySelector(".cm-markra-code-content-line")!;
+    const lineWhiteSpace = () =>
+      getComputedStyle(line).whiteSpace || getComputedStyle(view.contentDOM).whiteSpace;
+
+    expect(line.textContent).toBe(longLine);
+    expect(lineWhiteSpace()).toBe("pre-wrap");
+    expect(getComputedStyle(view.scrollDOM).overflow).toBe("visible");
+
+    rerender(paper(false));
+
+    expect(lineWhiteSpace()).toBe("pre");
+    expect(getComputedStyle(view.scrollDOM).overflow).toBe("auto");
+
+    rerender(paper(true));
+
+    expect(lineWhiteSpace()).toBe("pre-wrap");
+    expect(getComputedStyle(view.scrollDOM).overflow).toBe("visible");
+    expect(view.state.doc.toString()).toBe(markdown);
+    expect(onEditorReady).toHaveBeenCalledTimes(1);
+    expect(onMarkdownChange).not.toHaveBeenCalled();
   });
 
   it("uses the configured shortcut to paste clipboard text without formatting", async () => {
