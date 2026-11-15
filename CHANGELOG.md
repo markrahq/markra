@@ -1,3 +1,9 @@
+## [2.14.7](https://github.com/markrahq/markra/compare/v2.14.6...v2.14.7) (2026-11-15)
+
+### Bug Fixes
+
+* **editor:** honor code block wrapping preference ([#788](https://github.com/markrahq/markra/issues/788)) ([cea4080](https://github.com/markrahq/markra/commit/cea40808f7cfd08007924fdeb80604d0fb3a0ed7))
+
 ## [2.14.6](https://github.com/markrahq/markra/compare/v2.14.5...v2.14.6) (2026-11-13)
 
 ### Bug Fixes
