@@ -27,29 +27,25 @@
 <table align="center">
   <tr>
     <td align="center" valign="top" width="50%">
-      <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor">
-        <img src="https://goaihop.com/goaihop-logo.svg" height="56" alt="GoAIHop 标志" />
+      <a href="https://apivs.si/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor">
+        <img src="https://apivs.si/logo.svg" height="56" alt="APIvs 标志" />
+        <br />
+        <strong>APIvs</strong>
       </a>
-      <br />
-      <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor"><strong>GoAIHop</strong></a>
       <br />
       AI 中转站导航、比价与实测。
     </td>
     <td align="center" valign="top" width="50%">
-      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA">
-        <img src="assets/sponsors/sidrune-ai.webp" height="56" alt="Sidrune AI 标志" />
+      <a href="https://ebbapp.top/">
+        <img src="https://ebbapp.top/apple-touch-icon.png" height="56" alt="Ebb 应用图标" />
+        <br />
+        <strong>Ebb</strong>
       </a>
       <br />
-      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Sidrune AI</strong></a>
-      <br />
-      主流 AI，一站接入；智能调度，费用透明。
+      支持回看历史的 macOS 系统监控工具。
     </td>
   </tr>
 </table>
-
-<p align="center">
-  <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Sidrune AI</strong></a> · Fable 5.1 较 Claude 官方 API 最高省约 90%。
-</p>
 
 <p align="center">
   <a href="https://www.buymeacoffee.com/murong" target="_blank" rel="noopener noreferrer">

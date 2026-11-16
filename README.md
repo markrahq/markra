@@ -27,29 +27,25 @@
 <table align="center">
   <tr>
     <td align="center" valign="top" width="50%">
-      <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor">
-        <img src="https://goaihop.com/goaihop-logo.svg" height="56" alt="GoAIHop logo" />
+      <a href="https://apivs.si/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor">
+        <img src="https://apivs.si/logo.svg" height="56" alt="APIvs logo" />
+        <br />
+        <strong>APIvs</strong>
       </a>
-      <br />
-      <a href="https://goaihop.com/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor"><strong>GoAIHop</strong></a>
       <br />
       AI relay directory, pricing &amp; real-world tests.
     </td>
     <td align="center" valign="top" width="50%">
-      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA">
-        <img src="assets/sponsors/sidrune-ai.webp" height="56" alt="Sidrune AI logo" />
+      <a href="https://ebbapp.top/">
+        <img src="https://ebbapp.top/apple-touch-icon.png" height="56" alt="Ebb app icon" />
+        <br />
+        <strong>Ebb</strong>
       </a>
       <br />
-      <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Sidrune AI</strong></a>
-      <br />
-      One AI API. Smart routing, clear pricing.
+      A macOS activity monitor with a rewindable timeline.
     </td>
   </tr>
 </table>
-
-<p align="center">
-  <a href="https://fluxionai.space/register?source=github&amp;campaign=markra&amp;promo=MARKRA"><strong>Sidrune AI</strong></a> · Fable 5.1: up to ~90% less than Claude’s official API.
-</p>
 
 <p align="center">
   <a href="https://www.buymeacoffee.com/murong" target="_blank" rel="noopener noreferrer">
