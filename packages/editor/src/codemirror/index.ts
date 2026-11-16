@@ -235,6 +235,8 @@ export {
 } from "./spellcheck.ts";
 export { markraTheme } from "./theme.ts";
 export { convertCodeMirrorClipboardHtml } from "./html-paste.ts";
+export type { CodeMirrorExternalScrollOptions } from "./external-scroll.ts";
+export { codeMirrorExternalScroll } from "./external-scroll.ts";
 export type { TableFragmentMergePluginOptions } from "./table-fragment-merge.ts";
 export { tableFragmentMergePlugin } from "./table-fragment-merge.ts";
 export type {
