@@ -44,7 +44,18 @@ pub(crate) async fn search_parallel(
 }
 
 fn parallel_http_client(network: Option<&NetworkSettings>) -> Result<Client, String> {
+    // Use the same bundled roots and TLS provider as Markra's other web requests.
+    let provider = rustls::crypto::ring::default_provider();
+    let mut tls = rustls::ClientConfig::builder_with_provider(provider.into())
+        .with_safe_default_protocol_versions()
+        .map_err(|err| err.to_string())?
+        .with_root_certificates(rustls::RootCertStore {
+            roots: webpki_roots::TLS_SERVER_ROOTS.to_vec(),
+        })
+        .with_no_client_auth();
+    tls.alpn_protocols = vec![b"http/1.1".to_vec()];
     let mut builder = Client::builder()
+        .tls_backend_preconfigured(tls)
         .redirect(Policy::none())
         .pool_max_idle_per_host(0)
         .timeout(REQUEST_TIMEOUT)
