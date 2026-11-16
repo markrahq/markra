@@ -25,6 +25,8 @@ hmac = "0.12.1"
 ignore = "0.4.28"
 quick-xml = "0.39.2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls", "socks"] }
+reqwest13 = { package = "reqwest", version = "0.13", default-features = false, features = ["rustls", "socks"] }
+rmcp = { version = "3.10", default-features = false, features = ["client", "transport-streamable-http-client-reqwest"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10.9"
@@ -37,6 +39,7 @@ tauri-plugin-process = "2.3.1"
 tauri-plugin-store = "2.4.3"
 tauri-plugin-updater = "2.10.1"
 time = "0.3.44"
+tokio = { version = "1", features = ["time"] }
 trash = "5.2.6"
 zip = { version = "4.6.1", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 

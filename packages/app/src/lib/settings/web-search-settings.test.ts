@@ -75,4 +75,19 @@ describe("web search settings", () => {
     });
     expect(store.save).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps the saved Parallel selection and disabled state", async () => {
+    const stored = {
+      contentMaxChars: 8000,
+      enabled: false,
+      maxResults: 5,
+      providerId: "parallel" as const,
+      searxngApiHost: ""
+    };
+    store.get.mockResolvedValue(stored);
+
+    await expect(getStoredWebSearchSettings()).resolves.toEqual(stored);
+    await saveStoredWebSearchSettings(stored);
+    expect(store.set).toHaveBeenCalledWith("webSearch", stored);
+  });
 });

@@ -237,4 +237,25 @@ describe("webSearch", () => {
       searxngApiHost: ""
     })).toBe(false);
   });
+
+  it("does not call Parallel when disabled or switch providers after an error", async () => {
+    const settings = {
+      contentMaxChars: 2000,
+      enabled: true,
+      maxResults: 5,
+      providerId: "parallel" as const,
+      searxngApiHost: "https://other.example.com"
+    };
+    const transport = vi.fn();
+    const searchParallel = vi.fn().mockRejectedValue(new Error("Parallel search failed"));
+
+    await expect(runCherryStyleWebSearch("notes", { ...settings, enabled: false }, transport, searchParallel))
+      .rejects.toThrow("Web search is not configured.");
+    expect(searchParallel).not.toHaveBeenCalled();
+
+    await expect(runCherryStyleWebSearch("notes", settings, transport, searchParallel))
+      .rejects.toThrow("Parallel search failed");
+    expect(searchParallel).toHaveBeenCalledExactlyOnceWith("notes");
+    expect(transport).not.toHaveBeenCalled();
+  });
 });

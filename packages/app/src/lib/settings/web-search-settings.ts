@@ -33,7 +33,9 @@ export function normalizeWebSearchSettings(value: unknown): WebSearchSettings {
       max: 20,
       min: 1
     }),
-    providerId: settings.providerId === "searxng" ? "searxng" : defaultWebSearchSettings.providerId,
+    providerId: settings.providerId === "searxng" || settings.providerId === "parallel"
+      ? settings.providerId
+      : defaultWebSearchSettings.providerId,
     searxngApiHost: normalizeWebSearchApiHost(settings.searxngApiHost)
   };
 }

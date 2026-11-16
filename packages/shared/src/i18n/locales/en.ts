@@ -560,6 +560,8 @@ const messages: BaseLocaleMessages = {
   "settings.webSearch.providerDescription": "Local Bing works without an API key. SearXNG requires a JSON-enabled instance URL.",
   "settings.webSearch.provider.localBing": "Local Bing",
   "settings.webSearch.provider.searxng": "SearXNG",
+  "settings.webSearch.provider.parallel": "Parallel",
+  "settings.webSearch.provider.parallelDescription": "When Parallel search runs, Markra sends queries to mcp.parallel.ai without a Parallel API key. Models with built-in web search use their own provider.",
   "settings.webSearch.searxngApiHost": "SearXNG URL",
   "settings.webSearch.searxngApiHostDescription": "Example: http://localhost:8888. JSON output must be enabled.",
   "settings.webSearch.maxResults": "Max results",

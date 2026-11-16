@@ -41,6 +41,7 @@ import {
   saveStoredAiAgentSessionTitle
 } from "../lib/settings/app-settings";
 import { runAcpDocumentAgent, type AcpAgentModelOption } from "../lib/acp-agent";
+import { getAppRuntime } from "../runtime";
 import {
   workspaceChangePlanFromToolResult,
   workspacePlanEventsFromToolResult
@@ -854,6 +855,7 @@ export function useAiAgentSession(ctx: AiAgentSessionContext) {
             provider: ctx.provider!,
             readDocumentImage: ctx.readDocumentImage,
             readWorkspaceFile: ctx.readWorkspaceFile,
+            searchParallel: getAppRuntime().webResource.searchParallel,
             headingAnchors: ctx.getHeadingAnchors?.() ?? [],
             sectionAnchors: ctx.getSectionAnchors?.(),
             selection: ctx.getSelection?.() ?? null,

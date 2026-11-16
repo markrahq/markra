@@ -230,7 +230,7 @@ Supports cloud models, local models, and any OpenAI-compatible endpoint. Separat
 
 **Built-in providers:** OpenAI · Anthropic · Google Gemini · DeepSeek · Mistral · Groq · OpenRouter · OrcaRouter · Together.ai · Qwen · Xiaomi MiMo · Volcengine Ark · xAI · Azure OpenAI · Ollama
 
-**Web search:** Provider-native search, Bing, and SearXNG — with configurable result and content limits.
+**Web search (desktop):** Provider-native search, Bing, SearXNG, and Parallel, with configurable result and content limits. Choose Parallel in Web Search settings to use hosted search without a Parallel API key.
 
 ## Use Cases
 

@@ -4,7 +4,7 @@ import type { ChatImageAttachment } from "../chat/types";
 import type { AiDiffResult, AiDiffTarget, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../inline";
 import type { InlineAiAgentComplete } from "../runtime";
 import type { AgentWorkspaceFile } from "../read-only-tools";
-import type { WebSearchSettings, WebSearchTransport } from "../tools/web-search";
+import type { ParallelSearchTransport, WebSearchSettings, WebSearchTransport } from "../tools/web-search";
 
 export type DocumentAiHistoryMessage = {
   images?: DocumentAiChatImage[];
@@ -44,6 +44,7 @@ export type RunDocumentAiAgentInput = {
   provider: AiProviderConfig;
   readDocumentImage?: (src: string) => Promise<DocumentAiImage | null>;
   readWorkspaceFile?: (path: string) => Promise<string>;
+  searchParallel?: ParallelSearchTransport;
   sectionAnchors?: AiDocumentAnchor[];
   selection?: AiSelectionContext | null;
   tableAnchors?: AiDocumentAnchor[];

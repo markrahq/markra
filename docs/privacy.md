@@ -44,13 +44,13 @@ Different providers have different retention and training policies. Review the p
 
 ## Web Search
 
-Web search is optional. When enabled, requests can go to:
+Web search is optional in the desktop editor. When the composer search toggle is on, a model with built-in search uses its own AI provider. Other supported models use the search provider selected in Web Search settings.
 
-- provider-native search features
-- Bing
-- SearXNG
+- Local Bing sends queries to Bing.
+- SearXNG sends queries to the configured instance, which may forward them to its search engines.
+- Parallel sends queries to Parallel at `https://mcp.parallel.ai/mcp` and uses the passages it returns.
 
-Search queries and fetched result content are sent to the configured search provider or instance.
+For Bing and SearXNG, Markra may fetch pages directly from result websites. The AI provider can receive the resulting passages and URLs as tool output.
 
 ## Spellcheck Dictionaries
 
