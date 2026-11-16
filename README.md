@@ -22,6 +22,31 @@
   <img alt="License" src="https://img.shields.io/badge/License-AGPL--3.0-important" />
 </p>
 
+<h2 align="center">Chief Sponsors</h2>
+
+<table align="center">
+  <tr>
+    <td align="center" valign="top" width="50%">
+      <a href="https://apivs.si/?utm_source=github&amp;utm_medium=referral&amp;utm_campaign=markra&amp;utm_content=chief_sponsor">
+        <img src="https://apivs.si/logo.svg" height="56" alt="APIvs logo" />
+        <br />
+        <strong>APIvs</strong>
+      </a>
+      <br />
+      AI relay directory, pricing &amp; real-world tests.
+    </td>
+    <td align="center" valign="top" width="50%">
+      <a href="https://ebbapp.top/">
+        <img src="https://ebbapp.top/apple-touch-icon.png" height="56" alt="Ebb app icon" />
+        <br />
+        <strong>Ebb</strong>
+      </a>
+      <br />
+      A macOS activity monitor with a rewindable timeline.
+    </td>
+  </tr>
+</table>
+
 <p align="center">
   <a href="https://www.buymeacoffee.com/murong" target="_blank" rel="noopener noreferrer">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" width="195" height="54" />
