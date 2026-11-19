@@ -31,6 +31,16 @@ describe("provider thinking formats", () => {
     }
   );
 
+  it.each(["deepseek-ai/deepseek-v4-flash", "moonshotai/kimi-k3", "zai-org/glm-5.2", "qwen/qwen3.8-max"])(
+    "uses Atlas Cloud reasoning effort for %s without upstream-specific thinking fields",
+    (model) => {
+      const config = provider({ id: "atlascloud", type: "openai-compatible", baseUrl: "https://api.atlascloud.ai/v1" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: true })).toEqual({ reasoning_effort: "high" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: false })).toEqual({});
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, {})).toEqual({});
+    }
+  );
+
   it("resolves OpenAI-compatible thinking formats before request shaping", () => {
     expect(getOpenAiCompatibleThinkingFormat(provider({ type: "ollama" }), "llama3.3", true)).toBe("ollama-think");
     expect(getOpenAiCompatibleThinkingFormat(provider({
