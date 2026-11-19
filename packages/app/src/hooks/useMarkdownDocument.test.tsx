@@ -1,5 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { useMarkdownDocument } from "./useMarkdownDocument";
+import { appLogger } from "../lib/app-logger";
 import {
   destroyNativeWindow,
   listNativeEditorWindowRestoreStates,
@@ -1763,6 +1764,198 @@ describe("useMarkdownDocument", () => {
 
     expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({ name: "guide.md" }));
     expect(result.current.tabs.some((tab) => tab.id === guideTab!.id)).toBe(true);
+  });
+
+  describe.each([
+    {
+      action: "window-close",
+      request: () => mockedListenNativeWindowCloseRequested.mock.lastCall![0]({ preventDefault: vi.fn() }),
+      finish: mockedDestroyNativeWindow
+    },
+    {
+      action: "app-exit",
+      request: () => mockedListenNativeAppExitRequested.mock.lastCall![0](),
+      finish: mockedExitNativeApp
+    }
+  ])("$action", ({ action, request, finish }) => {
+    function renderDocument(confirmDiscardUnsavedChanges = vi.fn(() => false)) {
+      return renderHook(() =>
+        useMarkdownDocument({
+          confirmDiscardUnsavedChanges,
+          getCurrentMarkdown: (fallbackContent) => fallbackContent,
+          onTreeRootFromFilePath: vi.fn(),
+          onTreeRootFromFolderPath: vi.fn(),
+          preferencesReady: false,
+          restoreWorkspaceOnStartup: false
+        })
+      );
+    }
+
+    it("finishes a clean shutdown when workspace persistence times out", async () => {
+      const warning = vi.spyOn(appLogger, "warn");
+      const confirmDiscardUnsavedChanges = vi.fn(() => false);
+      renderDocument(confirmDiscardUnsavedChanges);
+      let resolveSave!: (value: undefined) => unknown;
+      const pendingSave = new Promise<undefined>((resolve) => { resolveSave = resolve; });
+      mockedSaveStoredWorkspaceState.mockReturnValueOnce(pendingSave);
+
+      vi.useFakeTimers();
+      try {
+        await act(async () => {
+          request();
+          request();
+          await vi.advanceTimersByTimeAsync(2999);
+        });
+        expect(finish).not.toHaveBeenCalled();
+        expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2);
+        });
+        expect(finish).toHaveBeenCalledTimes(1);
+        expect(confirmDiscardUnsavedChanges).not.toHaveBeenCalled();
+        expect(warning).toHaveBeenCalledWith("system", "Native shutdown persistence timed out", {
+          action,
+          stage: "draft",
+          timeoutMs: 3000
+        });
+      } finally {
+        await act(async () => {
+          resolveSave(undefined);
+          await vi.runOnlyPendingTimersAsync();
+        });
+        vi.useRealTimers();
+        warning.mockRestore();
+      }
+    });
+
+    it("confirms edits made while clean shutdown persistence is pending", async () => {
+      const confirmDiscardUnsavedChanges = vi.fn(() => false);
+      const { result } = renderDocument(confirmDiscardUnsavedChanges);
+      let resolveSave!: (value: undefined) => unknown;
+      const pendingSave = new Promise<undefined>((resolve) => { resolveSave = resolve; });
+      mockedSaveStoredWorkspaceState.mockReturnValueOnce(pendingSave);
+
+      vi.useFakeTimers();
+      try {
+        act(() => {
+          request();
+          result.current.handleMarkdownChange("Synthetic edit during shutdown");
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(3001);
+        });
+
+        expect(confirmDiscardUnsavedChanges).toHaveBeenCalledWith(expect.objectContaining({
+          content: "Synthetic edit during shutdown"
+        }));
+        expect(finish).not.toHaveBeenCalled();
+      } finally {
+        await act(async () => {
+          resolveSave(undefined);
+          await vi.runOnlyPendingTimersAsync();
+        });
+        vi.useRealTimers();
+      }
+    });
+
+    it("logs a rejected workspace write and finishes a clean shutdown", async () => {
+      const logError = vi.spyOn(appLogger, "error");
+      renderDocument();
+      const error = new Error("Synthetic workspace write failure");
+      mockedSaveStoredWorkspaceState.mockRejectedValueOnce(error);
+
+      try {
+        await act(async () => {
+          await request();
+        });
+
+        await waitFor(() => expect(finish).toHaveBeenCalledTimes(1));
+        expect(logError).toHaveBeenCalledWith("system", "Native shutdown persistence failed", {
+          action,
+          stage: "draft",
+          error: error.message
+        });
+      } finally {
+        logError.mockRestore();
+      }
+    });
+
+    it("logs call failures and allows a native shutdown retry", async () => {
+      const logError = vi.spyOn(appLogger, "error");
+      renderDocument();
+      const error = new Error("Synthetic native shutdown failure");
+      finish.mockRejectedValueOnce(error);
+
+      try {
+        await act(async () => {
+          await request();
+        });
+        await waitFor(() => expect(logError).toHaveBeenCalledWith("system", "Native shutdown failed", {
+          action,
+          error: error.message
+        }));
+
+        await act(async () => {
+          await request();
+        });
+        await waitFor(() => expect(finish).toHaveBeenCalledTimes(2));
+      } finally {
+        logError.mockRestore();
+      }
+    });
+  });
+
+  it("quits a clean window when the restore snapshot is still pending at the shutdown deadline", async () => {
+    const warning = vi.spyOn(appLogger, "warn");
+    let resolveDraft!: (value: undefined) => unknown;
+    mockedSaveStoredWorkspaceState.mockReturnValueOnce(new Promise((resolve) => { resolveDraft = resolve; }));
+    let resolveWindows!: (states: []) => unknown;
+    mockedListNativeEditorWindowRestoreStates.mockReturnValueOnce(new Promise((resolve) => { resolveWindows = resolve; }));
+    renderHook(() =>
+      useMarkdownDocument({
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+    const requestQuit = mockedListenNativeAppExitRequested.mock.lastCall![0];
+
+    vi.useFakeTimers();
+    try {
+      await act(async () => {
+        requestQuit();
+        await vi.advanceTimersByTimeAsync(2500);
+        resolveDraft(undefined);
+        await vi.advanceTimersByTimeAsync(499);
+      });
+      expect(mockedListNativeEditorWindowRestoreStates).toHaveBeenCalledTimes(1);
+      expect(mockedExitNativeApp).not.toHaveBeenCalled();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+      expect(mockedExitNativeApp).toHaveBeenCalledTimes(1);
+      expect(warning).toHaveBeenCalledWith("system", "Native shutdown persistence timed out", {
+        action: "app-exit",
+        stage: "window-restore",
+        timeoutMs: 3000
+      });
+
+      await act(async () => {
+        resolveWindows([]);
+      });
+      expect(mockedSaveStoredWorkspaceState).toHaveBeenCalledTimes(1);
+    } finally {
+      await act(async () => {
+        resolveDraft(undefined);
+        resolveWindows([]);
+      });
+      vi.useRealTimers();
+      warning.mockRestore();
+    }
   });
 
   it("prevents native window close when dirty document discard is cancelled", async () => {
