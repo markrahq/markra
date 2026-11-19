@@ -14,6 +14,7 @@ mod menu;
 mod menu_labels;
 mod network;
 mod opened_files;
+mod parallel_search;
 mod portable_update;
 mod remote_sync;
 mod s3;
@@ -393,6 +394,7 @@ pub fn run() {
             read_ai_chat_attachment,
             delete_ai_chat_attachment_session,
             request_web_resource,
+            parallel_search::search_parallel,
             backup_markdown_folder,
             sync_webdav_markdown_folder,
             read_s3_text_file,

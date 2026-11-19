@@ -37,6 +37,7 @@ export async function runDocumentAiAgent({
   provider,
   readDocumentImage,
   readWorkspaceFile,
+  searchParallel,
   sectionAnchors,
   selection = null,
   tableAnchors,
@@ -72,6 +73,7 @@ export async function runDocumentAiAgent({
       provider,
       readDocumentImage: modelSupportsVision(provider, model) ? readDocumentImage : undefined,
       readWorkspaceFile,
+      searchParallel,
       sectionAnchors,
       selection,
       tableAnchors,
@@ -215,6 +217,7 @@ async function runDocumentToolCallingAgent({
   provider,
   readDocumentImage,
   readWorkspaceFile,
+  searchParallel,
   sectionAnchors,
   selection = null,
   tableAnchors,
@@ -252,7 +255,11 @@ async function runDocumentToolCallingAgent({
         sectionAnchors,
         selection,
         tableAnchors,
-        webSearch: activeWebSearchSettings ? { settings: activeWebSearchSettings, transport: webSearchTransport } : undefined,
+        webSearch: activeWebSearchSettings ? {
+          searchParallel,
+          settings: activeWebSearchSettings,
+          transport: webSearchTransport
+        } : undefined,
         workspaceFiles,
         workspaceSkills: customization?.skills
       })

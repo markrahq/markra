@@ -6,8 +6,8 @@ import { formatWebSearchToolResult, runCherryStyleWebSearch } from "./web-search
 
 export class WebSearchToolFactory extends DocumentAgentToolFactory<ReturnType<typeof typedWebSearchArgs>> {
   protected readonly description = [
-    "Search the web with the configured Cherry-style search provider.",
-    "This tool searches first, fetches readable page content for the best results, and returns source URLs with citation numbers.",
+    "Search the web with the configured search provider.",
+    "This tool returns readable passages and source URLs with citation numbers.",
     "Use it only when the user's request needs current or external web information."
   ].join(" ");
   protected readonly label = "Web search";
@@ -25,9 +25,10 @@ export class WebSearchToolFactory extends DocumentAgentToolFactory<ReturnType<ty
       return toolErrorResult("Web search is unavailable in this session.");
     }
 
-    const search = this.context.webSearch.runWebSearch ?? ((query, settings) =>
-      runCherryStyleWebSearch(query, settings, this.context.webSearch?.transport));
-    const response = await search(params.query, this.context.webSearch.settings);
+    const { runWebSearch, searchParallel, settings, transport } = this.context.webSearch;
+    const response = await (runWebSearch
+      ? runWebSearch(params.query, settings)
+      : runCherryStyleWebSearch(params.query, settings, transport, searchParallel));
 
     return {
       content: [
@@ -38,7 +39,7 @@ export class WebSearchToolFactory extends DocumentAgentToolFactory<ReturnType<ty
       ],
       details: {
         count: response.results.length,
-        providerId: this.context.webSearch.settings.providerId,
+        providerId: settings.providerId,
         query: response.query,
         urls: response.results.map((result) => result.url)
       },

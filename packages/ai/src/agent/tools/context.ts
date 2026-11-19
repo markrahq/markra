@@ -1,7 +1,7 @@
 import type { AiDiffResult, AiDocumentAnchor, AiHeadingAnchor, AiSelectionContext } from "../inline";
 import type { AgentWorkspaceFile } from "../read-only-tools";
 import type { WorkspaceSkill } from "../skills";
-import type { WebSearchResponse, WebSearchSettings, WebSearchTransport } from "./web-search";
+import type { ParallelSearchTransport, WebSearchResponse, WebSearchSettings, WebSearchTransport } from "./web-search";
 
 export type DocumentAgentToolContext = {
   documentContent: string;
@@ -21,6 +21,7 @@ export type DocumentAgentToolContext = {
 
 export type DocumentAgentWebSearch = {
   runWebSearch?: (query: string, settings: WebSearchSettings) => Promise<WebSearchResponse>;
+  searchParallel?: ParallelSearchTransport;
   settings: WebSearchSettings;
   transport?: WebSearchTransport;
 };

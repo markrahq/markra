@@ -11,7 +11,13 @@ import {
 } from "./SettingsControls";
 import type { SettingsTranslate } from "./translate";
 
-const webSearchProviderOptions: WebSearchProviderId[] = ["local-bing", "searxng"];
+const webSearchProviderLabels = {
+  "local-bing": "settings.webSearch.provider.localBing",
+  searxng: "settings.webSearch.provider.searxng",
+  parallel: "settings.webSearch.provider.parallel"
+} as const satisfies Record<WebSearchProviderId, Parameters<SettingsTranslate>[0]>;
+
+const webSearchProviderOptions = Object.keys(webSearchProviderLabels) as WebSearchProviderId[];
 
 export function WebSearchSettings({
   onUpdateSettings,
@@ -43,21 +49,21 @@ export function WebSearchSettings({
         />
         <SettingsRow
           title={translate("settings.webSearch.provider")}
-          description={translate("settings.webSearch.providerDescription")}
+          description={translate(settings.providerId === "parallel"
+            ? "settings.webSearch.provider.parallelDescription"
+            : "settings.webSearch.providerDescription")}
           action={
             <SettingsSelect
               label={translate("settings.webSearch.provider")}
               value={settings.providerId}
               options={webSearchProviderOptions.map((providerId) => ({
-                label: translate(providerId === "local-bing" ? "settings.webSearch.provider.localBing" : "settings.webSearch.provider.searxng"),
+                label: translate(webSearchProviderLabels[providerId]),
                 value: providerId
               }))}
-              onChange={(value) =>
-                onUpdateSettings({
-                  ...settings,
-                  providerId: value === "searxng" ? "searxng" : "local-bing"
-                })
-              }
+              onChange={(value) => {
+                const providerId = webSearchProviderOptions.find((option) => option === value);
+                if (providerId) onUpdateSettings({ ...settings, providerId });
+              }}
             />
           }
         />
