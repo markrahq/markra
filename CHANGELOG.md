@@ -1,3 +1,9 @@
+## [2.14.8](https://github.com/markrahq/markra/compare/v2.14.7...v2.14.8) (2026-11-19)
+
+### Bug Fixes
+
+* **desktop:** time out clean window shutdown persistence ([#792](https://github.com/markrahq/markra/issues/792)) ([1c4197f](https://github.com/markrahq/markra/commit/1c4197f2f58268da45f79d6c656c01956112537f)), closes [#791](https://github.com/markrahq/markra/issues/791)
+
 ## [2.14.7](https://github.com/markrahq/markra/compare/v2.14.6...v2.14.7) (2026-11-15)
 
 ### Bug Fixes
