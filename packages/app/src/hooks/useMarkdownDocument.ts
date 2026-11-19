@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { initialMarkdown } from "../constants/initial-markdown";
+import { appLogger } from "../lib/app-logger";
 import {
   clearStoredRecentMarkdownFiles,
   consumeWelcomeDocumentState,
@@ -186,12 +187,19 @@ type OpenMarkdownFileOptions = {
   pickerTitle?: string;
 };
 
+type NativeShutdownAction = "window-close" | "app-exit";
+type NativeShutdownStage = "draft" | "window-restore";
+
 let pendingWorkspaceStateSave: Promise<unknown> | null = null;
 const DRAFT_WORKSPACE_PERSIST_DELAY_MS = 250;
+const NATIVE_SHUTDOWN_PERSIST_TIMEOUT_MS = 3000;
 
-function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState>[0]) {
+function persistWorkspaceState(
+  patch: Parameters<typeof saveStoredWorkspaceState>[0],
+  onError: (error: unknown) => unknown = () => {}
+) {
   // Workspace writes are read-modify-write operations; keep draft snapshots ordered.
-  const save = () => saveStoredWorkspaceState(patch).catch(() => {});
+  const save = () => saveStoredWorkspaceState(patch).catch(onError);
   const savePromise = pendingWorkspaceStateSave
     ? pendingWorkspaceStateSave.then(save, save)
     : save();
@@ -200,6 +208,61 @@ function persistWorkspaceState(patch: Parameters<typeof saveStoredWorkspaceState
   });
   pendingWorkspaceStateSave = queuedPromise;
   return queuedPromise;
+}
+
+function logShutdownPersistenceFailure(action: NativeShutdownAction, stage: NativeShutdownStage, error: unknown) {
+  appLogger.error("system", "Native shutdown persistence failed", {
+    action,
+    stage,
+    error: error instanceof Error ? error.message : String(error)
+  });
+}
+
+async function waitForShutdownPersistence(
+  draftPersistence: Promise<unknown>,
+  action: NativeShutdownAction,
+  hasUnsavedChanges: boolean
+) {
+  let stage: NativeShutdownStage = "draft";
+  let timedOut = false;
+  const persist = async () => {
+    await draftPersistence;
+    if (action !== "app-exit" || timedOut) return;
+
+    stage = "window-restore";
+    try {
+      // This window list lives in the native process and is needed to reopen secondary editors.
+      const openWindows = await listNativeEditorWindowRestoreStates();
+      if (timedOut) return;
+      await persistWorkspaceState({ openWindows }, (error) => logShutdownPersistenceFailure(action, stage, error));
+    } catch (error) {
+      logShutdownPersistenceFailure(action, stage, error);
+    }
+  };
+
+  if (hasUnsavedChanges) {
+    await persist();
+    return;
+  }
+
+  let timer: number | undefined;
+  const timeout = new Promise<undefined>((resolve) => {
+    timer = window.setTimeout(() => {
+      timedOut = true;
+      appLogger.warn("system", "Native shutdown persistence timed out", {
+        action,
+        stage,
+        timeoutMs: NATIVE_SHUTDOWN_PERSIST_TIMEOUT_MS
+      });
+      resolve(undefined);
+    }, NATIVE_SHUTDOWN_PERSIST_TIMEOUT_MS);
+  });
+  try {
+    // An IPC write can still finish after the deadline, so keep its place in the workspace queue.
+    await Promise.race([persist(), timeout]);
+  } finally {
+    window.clearTimeout(timer);
+  }
 }
 
 function resolveEditorReady(editorReady: boolean | (() => boolean)) {
@@ -285,7 +348,7 @@ export function useMarkdownDocument({
   const startupWorkspaceRestoreAttemptedRef = useRef(false);
   const startupWorkspaceRestoreActiveRef = useRef(false);
   const nativeWindowCloseAllowedRef = useRef(false);
-  const nativeWindowCloseScheduledRef = useRef(false);
+  const nativeShutdownInProgressRef = useRef(false);
   const dirtyFileSavePromiseRef = useRef<Promise<unknown> | null>(null);
   const draftWorkspacePersistTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editorSyncStateRef = useRef<EditorSyncState | null>(null);
@@ -567,28 +630,12 @@ export function useMarkdownDocument({
     };
   }, [syncActiveDocumentFromEditor]);
 
-  const persistActiveDocumentDraftSnapshot = useCallback(() => {
-    const snapshot = syncActiveDocumentDraftSnapshot();
-    return persistWorkspaceState(draftWorkspacePatchFromTabs(snapshot.tabs, snapshot.activeTabId));
-  }, [syncActiveDocumentDraftSnapshot]);
-
   const getDirtyMarkdownFileContent = useCallback((path: string) => {
     const snapshot = syncActiveDocumentDraftSnapshot();
     const tab = snapshot.tabs.find((candidate) => sameNativePath(candidate.path, path));
 
     return tab?.dirty ? tab.content : null;
   }, [syncActiveDocumentDraftSnapshot]);
-
-  const persistNativeEditorWindowRestoreSnapshot = useCallback(async () => {
-    try {
-      // The native window list only lives in the current process. Copy it into settings
-      // before an app-driven exit so secondary editor windows survive restart.
-      const openWindows = await listNativeEditorWindowRestoreStates();
-      await persistWorkspaceState({ openWindows });
-    } catch {
-      // Snapshot persistence is best-effort; the current window state is still saved independently.
-    }
-  }, []);
 
   const hasDiscardableUnsavedChanges = useCallback(() => {
     const current = documentRef.current;
@@ -642,6 +689,68 @@ export function useMarkdownDocument({
   }, [
     confirmDiscardUnsavedChanges,
     hasDiscardableTabChanges
+  ]);
+
+  const runNativeShutdown = useCallback(async (
+    action: NativeShutdownAction,
+    beforeExit?: UseMarkdownDocumentOptions["beforeNativeAppExit"]
+  ) => {
+    if (nativeShutdownInProgressRef.current) return;
+    nativeShutdownInProgressRef.current = true;
+    appLogger.info("system", "Native shutdown requested", { action });
+
+    const handleFailure = (error: unknown) => {
+      nativeWindowCloseAllowedRef.current = false;
+      nativeShutdownInProgressRef.current = false;
+      appLogger.error("system", "Native shutdown failed", {
+        action,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    };
+
+    try {
+      const snapshot = syncActiveDocumentDraftSnapshot();
+      const hasUnsavedChanges = snapshot.tabs.some(hasDiscardableTabChanges);
+      const draftPersistence = persistWorkspaceState(
+        draftWorkspacePatchFromTabs(snapshot.tabs, snapshot.activeTabId),
+        (error) => logShutdownPersistenceFailure(action, "draft", error)
+      );
+
+      if (hasUnsavedChanges && !(await confirmCanDiscardCurrentDocument())) {
+        nativeShutdownInProgressRef.current = false;
+        return;
+      }
+
+      await waitForShutdownPersistence(draftPersistence, action, hasUnsavedChanges);
+      if (beforeExit) await beforeExit();
+
+      if (!hasUnsavedChanges) {
+        // The user can edit while persistence is pending. Recheck before completing a clean shutdown.
+        syncActiveDocumentFromEditor();
+        if (!(await confirmCanDiscardCurrentDocument())) {
+          nativeShutdownInProgressRef.current = false;
+          return;
+        }
+      }
+
+      if (action === "app-exit") {
+        await exitNativeApp();
+        return;
+      }
+
+      window.setTimeout(() => {
+        // Let the intercepted native close handler return before destroying its WebView.
+        nativeWindowCloseAllowedRef.current = true;
+        destroyNativeWindow().catch(handleFailure);
+      }, 0);
+    } catch (error) {
+      handleFailure(error);
+    }
+  }, [
+    confirmCanDiscardCurrentDocument,
+    hasDiscardableTabChanges,
+    syncActiveDocumentDraftSnapshot,
+    syncActiveDocumentFromEditor
   ]);
 
   const handleMarkdownChange = useCallback((content: string, options: MarkdownChangeOptions = {}) => {
@@ -1936,31 +2045,15 @@ export function useMarkdownDocument({
     let active = true;
     let cleanup: (() => unknown) | null = null;
 
-    listenNativeWindowCloseRequested(async (event) => {
+    listenNativeWindowCloseRequested((event) => {
       if (nativeWindowCloseAllowedRef.current) {
         nativeWindowCloseAllowedRef.current = false;
-        nativeWindowCloseScheduledRef.current = false;
+        nativeShutdownInProgressRef.current = false;
         return;
       }
 
       event.preventDefault();
-      if (nativeWindowCloseScheduledRef.current) return;
-
-      const draftPersistence = persistActiveDocumentDraftSnapshot();
-      const canDiscard = await confirmCanDiscardCurrentDocument();
-      if (!canDiscard) return;
-
-      await draftPersistence;
-      nativeWindowCloseScheduledRef.current = true;
-      window.setTimeout(() => {
-        // The close request was already intercepted for persistence. Destroy the window after
-        // saving so Tauri does not re-enter the same close confirmation path.
-        nativeWindowCloseAllowedRef.current = true;
-        destroyNativeWindow().catch(() => {
-          nativeWindowCloseAllowedRef.current = false;
-          nativeWindowCloseScheduledRef.current = false;
-        });
-      }, 0);
+      return runNativeShutdown("window-close");
     }).then((nextCleanup) => {
       if (active) {
         cleanup = nextCleanup;
@@ -1974,22 +2067,13 @@ export function useMarkdownDocument({
       active = false;
       cleanup?.();
     };
-  }, [confirmCanDiscardCurrentDocument, persistActiveDocumentDraftSnapshot]);
+  }, [runNativeShutdown]);
 
   useEffect(() => {
     let active = true;
     let cleanup: (() => unknown) | null = null;
 
-    listenNativeAppExitRequested(async () => {
-      const draftPersistence = persistActiveDocumentDraftSnapshot();
-      const canDiscard = await confirmCanDiscardCurrentDocument();
-      if (canDiscard) {
-        await draftPersistence;
-        await persistNativeEditorWindowRestoreSnapshot();
-        await beforeNativeAppExit?.();
-        await exitNativeApp();
-      }
-    }).then((nextCleanup) => {
+    listenNativeAppExitRequested(() => runNativeShutdown("app-exit", beforeNativeAppExit)).then((nextCleanup) => {
       if (active) {
         cleanup = nextCleanup;
         return;
@@ -2002,7 +2086,7 @@ export function useMarkdownDocument({
       active = false;
       cleanup?.();
     };
-  }, [beforeNativeAppExit, confirmCanDiscardCurrentDocument, persistActiveDocumentDraftSnapshot, persistNativeEditorWindowRestoreSnapshot]);
+  }, [beforeNativeAppExit, runNativeShutdown]);
 
   useEffect(() => {
     const path = initialMarkdownFilePath();
