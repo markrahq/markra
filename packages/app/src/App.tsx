@@ -615,6 +615,16 @@ function WorkspaceApp() {
   }, [webKitScrollWorkaround]);
 
   useEffect(() => {
+    const root = globalThis.document?.documentElement;
+    if (!root) return;
+
+    root.dataset.desktopPlatform = desktopPlatform;
+    return () => {
+      delete root.dataset.desktopPlatform;
+    };
+  }, [desktopPlatform]);
+
+  useEffect(() => {
     const rememberFocusedEditor = (event: FocusEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       const content = target?.closest<HTMLElement>(".cm-content") ?? null;

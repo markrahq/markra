@@ -125,6 +125,23 @@ describe("editor stylesheet", () => {
     );
   });
 
+  it("paints the preview selection natively on Linux", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const layerStart = styles.indexOf(
+      'html[data-desktop-platform="linux"] .markdown-paper .cm-selectionLayer {',
+    );
+    const layerRule = styles.slice(layerStart, styles.indexOf("\n  }", layerStart));
+    const nativeStart = styles.indexOf(
+      'html[data-desktop-platform="linux"] .markdown-paper .cm-line ::selection {',
+    );
+    const nativeRule = styles.slice(nativeStart, styles.indexOf("\n  }", nativeStart));
+
+    expect(layerRule).toContain("display: none !important");
+    expect(nativeRule).toContain(
+      "background: color-mix(in srgb, var(--editor-caret-color, var(--accent)) 20%, transparent) !important;",
+    );
+  });
+
   it("keeps code block selections between the background and foreground", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const codeLineStart = styles.indexOf(
@@ -143,7 +160,7 @@ describe("editor stylesheet", () => {
     const lineNumberEnd = styles.indexOf("\n  }", lineNumberStart);
     const lineNumberRule = styles.slice(lineNumberStart, lineNumberEnd);
 
-    expect(styles).not.toContain(".markdown-paper .cm-selectionLayer {");
+    expect(styles).not.toContain("\n  .markdown-paper .cm-selectionLayer {");
     expect(styles).not.toContain(".markdown-paper .cm-cursorLayer {");
     expect(codeLineRule).toContain("position: relative");
     expect(codeLineRule).toContain("background: transparent !important");
