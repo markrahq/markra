@@ -233,7 +233,7 @@ function normalizeShortcutKey(key: string) {
   return null;
 }
 
-function shortcutKeyFromKeyboardEvent(
+export function shortcutKeyFromKeyboardEvent(
   event: Pick<KeyboardEvent, "key"> & Partial<Pick<KeyboardEvent, "code">>
 ) {
   const physicalKey = event.code ? shortcutKeyByPhysicalCode[event.code] : null;
