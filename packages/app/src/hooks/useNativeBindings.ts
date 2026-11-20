@@ -18,6 +18,7 @@ import {
   aiTranslationLanguageName,
   isKeyboardShortcutModKey,
   matchesKeyboardShortcutEvent,
+  shortcutKeyFromKeyboardEvent,
   type AppLanguage
 } from "@markra/shared";
 import { defaultAiQuickActionPrompt } from "../lib/ai-actions";
@@ -522,7 +523,7 @@ export function useApplicationShortcuts({
       if (!isModKey) return;
       if (handleSettingsWindowShortcut(event, openSettings)) return;
 
-      const key = event.key.toLowerCase();
+      const key = shortcutKeyFromKeyboardEvent(event)?.toLowerCase() ?? "";
       const isPhysicalFKey = key === "f" || event.code === "KeyF";
       const isCtrlDocumentReplaceShortcut =
         platform !== "macos" && key === "h" && event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey;

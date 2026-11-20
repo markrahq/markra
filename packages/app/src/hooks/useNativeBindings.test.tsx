@@ -415,6 +415,25 @@ describe("useApplicationShortcuts", () => {
     expect(openBlankEditorWindow).toHaveBeenCalledTimes(1);
   });
 
+  it("matches static shortcuts by physical key on non-Latin keyboard layouts", () => {
+    const openDocument = vi.fn();
+    const saveDocument = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        openDocument,
+        platform: "linux",
+        saveDocument
+      })
+    );
+
+    fireEvent.keyDown(window, { code: "KeyO", ctrlKey: true, key: "щ" });
+    fireEvent.keyDown(window, { code: "KeyS", ctrlKey: true, key: "ы" });
+
+    expect(openDocument).toHaveBeenCalledTimes(1);
+    expect(saveDocument).toHaveBeenCalledTimes(1);
+  });
+
   it("does not treat Control+Meta as the platform modifier for static shortcuts", () => {
     const openSettings = vi.fn();
     renderHook(() =>
