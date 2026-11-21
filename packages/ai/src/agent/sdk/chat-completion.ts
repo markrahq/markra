@@ -14,6 +14,7 @@ import {
   buildAnthropicThinkingRequestOptions,
   buildDeepSeekThinkingRequestOptions,
   getNativeWebSearchKind,
+  getRequestyThinkingOffEffort,
   providerRequiresApiKey,
   readAiProviderCustomHeaders,
   requestStyleForProviderType
@@ -518,6 +519,11 @@ function buildAiSdkThinkingProviderOptions(
   model: string,
   thinkingEnabled: boolean | undefined
 ): AiSdkProviderOptions | undefined {
+  // Keep the explicit off state for Requesty, matching the native compatible adapter.
+  if (thinkingEnabled === false && provider.id === "requesty") {
+    const reasoningEffort = getRequestyThinkingOffEffort(model);
+    return reasoningEffort ? { requesty: { reasoningEffort } } : undefined;
+  }
   if (thinkingEnabled !== true) return undefined;
 
   const providerKind = resolveAiSdkProviderKind(provider);

@@ -31,6 +31,27 @@ describe("provider thinking formats", () => {
     }
   );
 
+  it.each(["gpt-5.6-sol", "gemini-3.6-flash", "openai/gpt-4o-mini"])(
+    "uses Requesty reasoning effort for %s without upstream-specific thinking fields",
+    (model) => {
+      const config = provider({ id: "requesty", type: "openai-compatible", baseUrl: "https://router.requesty.ai/v1" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: true })).toEqual({ reasoning_effort: "high" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: false })).toEqual({ reasoning_effort: "min" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, {})).toEqual({});
+    }
+  );
+
+  it.each(["claude-sonnet-5", "anthropic/claude-haiku-4-5", "bedrock/claude-sonnet-5@eu-central-1"])(
+    "omits Requesty reasoning effort for %s when thinking is off",
+    (model) => {
+      const config = provider({ id: "requesty", type: "openai-compatible", baseUrl: "https://router.requesty.ai/v1" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: true })).toEqual({ reasoning_effort: "high" });
+      // "min" would become a thinking budget on Claude, so the off state must leave the field out.
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: false })).toEqual({});
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, {})).toEqual({});
+    }
+  );
+
   it("resolves OpenAI-compatible thinking formats before request shaping", () => {
     expect(getOpenAiCompatibleThinkingFormat(provider({ type: "ollama" }), "llama3.3", true)).toBe("ollama-think");
     expect(getOpenAiCompatibleThinkingFormat(provider({

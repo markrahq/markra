@@ -100,6 +100,11 @@ const endpointByRequestStyle: Record<AiProviderRequestStyle, ProviderEndpoint | 
   "openai-responses": endpointByApiStyle.openai
 };
 
+// Requesty lists its curated managed models here; any id from the full /models catalog still works in chat.
+const modelsPathByProviderId: Partial<Record<string, string>> = {
+  requesty: "/models/managed"
+};
+
 export function buildAiProviderModelsRequest(provider: AiProviderConfig): AiProviderHttpRequest {
   const endpoint = provider.apiStyle ? endpointByRequestStyle[provider.apiStyle] : endpointByApiStyle[provider.type];
   if (!endpoint) throw new Error("Model list is not available for this API style.");
@@ -112,7 +117,7 @@ export function buildAiProviderModelsRequest(provider: AiProviderConfig): AiProv
       ...readAiProviderCustomHeaders(provider)
     },
     method: "GET",
-    url: joinApiUrl(baseUrl, endpoint.path)
+    url: joinApiUrl(baseUrl, modelsPathByProviderId[provider.id] ?? endpoint.path)
   };
 }
 
@@ -156,7 +161,8 @@ export function parseAiProviderModels(provider: AiProviderConfig, body: unknown)
     const id = readModelId(apiStyle, record);
     if (!id || seenIds.has(id)) continue;
 
-    const capabilities = inferModelCapabilities(apiStyle, record, id);
+    const capabilities =
+      provider.id === "requesty" ? inferRequestyCapabilities(record, id) : inferModelCapabilities(apiStyle, record, id);
     if (capabilities.length === 0) continue;
 
     seenIds.add(id);
@@ -272,6 +278,29 @@ function inferOpenRouterCapabilities(record: Record<string, unknown>, id: string
   if (supportedParameters.some((parameter) => parameter.toLowerCase().includes("web"))) capabilities.push("web");
 
   return normalizeAiModelCapabilities(capabilities, []);
+}
+
+const requestyCapabilityFields: [string, AiModelCapability][] = [
+  ["supports_vision", "vision"],
+  ["supports_reasoning", "reasoning"],
+  ["supports_tool_calling", "tools"],
+  ["supports_web_search", "web"]
+];
+
+// Infers capabilities from Requesty's supports_* model metadata.
+// An explicit boolean wins over the id heuristic, which only fills fields the catalog omits.
+function inferRequestyCapabilities(record: Record<string, unknown>, id: string): AiModelCapability[] {
+  if (typeof record.api === "string" && record.api !== "chat") return [];
+
+  const inferred = inferCapabilitiesFromId(id);
+  if (inferred.length === 0) return [];
+  const capabilities = new Set(inferred);
+  for (const [field, capability] of requestyCapabilityFields) {
+    if (record[field] === true) capabilities.add(capability);
+    if (record[field] === false) capabilities.delete(capability);
+  }
+
+  return normalizeAiModelCapabilities([...capabilities], []);
 }
 
 // Infers capabilities from a model id when provider metadata is sparse.
