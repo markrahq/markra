@@ -1,7 +1,7 @@
 import { createDefaultAiSettings, normalizeAiSettings } from "./settings";
 
 describe("AI provider settings", () => {
-  it("adds disabled OrcaRouter to existing settings without changing saved providers or selections", () => {
+  it("adds disabled OrcaRouter and Runcrate to existing settings without changing saved providers or selections", () => {
     const saved = {
       defaultProviderId: "custom-provider-1",
       defaultModelId: "mock-writer",
@@ -30,7 +30,7 @@ describe("AI provider settings", () => {
     const { providers: savedProviders, ...selections } = saved;
     expect(settings).toMatchObject(selections);
     expect(settings.providers[0]).toEqual(savedProviders[0]);
-    expect(settings.providers).toHaveLength(2);
+    expect(settings.providers).toHaveLength(3);
     expect(settings.providers[1]).toMatchObject({
       apiKey: "",
       apiStyle: "openai-compatible",
@@ -39,6 +39,16 @@ describe("AI provider settings", () => {
       enabled: false,
       id: "orcarouter",
       name: "OrcaRouter",
+      type: "openai-compatible"
+    });
+    expect(settings.providers[2]).toMatchObject({
+      apiKey: "",
+      apiStyle: "openai-compatible",
+      baseUrl: "https://api.runcrate.ai/v1",
+      defaultModelId: "deepseek-ai/DeepSeek-V4.1-Flash",
+      enabled: false,
+      id: "runcrate",
+      name: "Runcrate",
       type: "openai-compatible"
     });
     expect(saved.providers).toHaveLength(1);
@@ -61,7 +71,29 @@ describe("AI provider settings", () => {
       }]
     };
     const settings = normalizeAiSettings(saved);
-    expect(settings.providers).toHaveLength(1);
+    expect(settings.providers.filter((provider) => provider.id === "orcarouter")).toHaveLength(1);
+    expect(settings.providers.map((provider) => provider.id)).toEqual(["orcarouter", "runcrate"]);
+    expect(settings.providers[0]).toMatchObject(saved.providers[0]);
+    expect(settings.defaultModelId).toBe("mock/model");
+  });
+
+  it("preserves saved Runcrate configuration without duplicating or resetting it", () => {
+    const saved = {
+      defaultProviderId: "runcrate",
+      defaultModelId: "mock/model",
+      providers: [{
+        apiKey: "mock-runcrate-key",
+        baseUrl: "https://runcrate.example.test/v1",
+        defaultModelId: "mock/model",
+        enabled: true,
+        id: "runcrate",
+        models: [{ capabilities: ["text"], enabled: true, id: "mock/model", name: "Mock model" }],
+        name: "My Runcrate",
+        type: "openai-compatible"
+      }]
+    };
+    const settings = normalizeAiSettings(saved);
+    expect(settings.providers.filter((provider) => provider.id === "runcrate")).toHaveLength(1);
     expect(settings.providers[0]).toMatchObject(saved.providers[0]);
     expect(settings.defaultModelId).toBe("mock/model");
   });
@@ -73,6 +105,16 @@ describe("AI provider settings", () => {
     expect(second).toBeDefined();
     expect(first?.models).not.toBe(second?.models);
     expect(first).toMatchObject({ enabled: false, apiKey: "", defaultModelId: "orcarouter/auto" });
+    expect(first?.models.some((model) => model.enabled && model.id === first.defaultModelId)).toBe(true);
+  });
+
+  it("includes an independent Runcrate configuration in each fresh settings object", () => {
+    const first = createDefaultAiSettings().providers.find((provider) => provider.id === "runcrate");
+    const second = createDefaultAiSettings().providers.find((provider) => provider.id === "runcrate");
+    expect(first).toBeDefined();
+    expect(second).toBeDefined();
+    expect(first?.models).not.toBe(second?.models);
+    expect(first).toMatchObject({ enabled: false, apiKey: "", defaultModelId: "deepseek-ai/DeepSeek-V4.1-Flash" });
     expect(first?.models.some((model) => model.enabled && model.id === first.defaultModelId)).toBe(true);
   });
 

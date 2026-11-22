@@ -31,6 +31,16 @@ describe("provider thinking formats", () => {
     }
   );
 
+  it.each(["deepseek-ai/DeepSeek-V4.1-Flash", "moonshotai/Kimi-K3", "zai-org/GLM-5.3", "Qwen/Qwen3.5-397B-A17B"])(
+    "uses Runcrate reasoning effort for %s in both explicit states without native thinking fields",
+    (model) => {
+      const config = provider({ id: "runcrate", type: "openai-compatible", baseUrl: "https://api.runcrate.ai/v1" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: true })).toEqual({ reasoning_effort: "high" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, { thinkingEnabled: false })).toEqual({ reasoning_effort: "none" });
+      expect(buildOpenAiCompatibleThinkingRequestOptions(config, model, {})).toEqual({});
+    }
+  );
+
   it("resolves OpenAI-compatible thinking formats before request shaping", () => {
     expect(getOpenAiCompatibleThinkingFormat(provider({ type: "ollama" }), "llama3.3", true)).toBe("ollama-think");
     expect(getOpenAiCompatibleThinkingFormat(provider({

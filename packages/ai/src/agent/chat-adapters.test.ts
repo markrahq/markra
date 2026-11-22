@@ -80,6 +80,39 @@ describe("AI chat adapters", () => {
     expect(agent.body).not.toHaveProperty("thinking");
   });
 
+  it("uses the compatible adapter for built-in Runcrate requests and keeps the off state explicit", () => {
+    const config = createDefaultAiSettings().providers.find((item) => item.id === "runcrate");
+    expect(config).toBeDefined();
+    if (!config) throw new Error("Missing Runcrate provider");
+    const configured = { ...config, apiKey: "mock-key" };
+    const adapter = getChatAdapterForProvider(configured);
+    expect(adapter).toBe(getChatAdapter("openai-compatible"));
+    const inline = adapter.buildRequest(configured, "deepseek-ai/DeepSeek-V4.1-Flash", messages, { stream: true });
+    expect(inline).toEqual({
+      url: "https://api.runcrate.ai/v1/chat/completions",
+      headers: { Authorization: "Bearer mock-key", "content-type": "application/json" },
+      body: { messages, model: "deepseek-ai/DeepSeek-V4.1-Flash", temperature: 0.7, stream: true }
+    });
+    const agent = adapter.buildRequest(configured, "deepseek-ai/DeepSeek-V4.1-Flash", messages, {
+      stream: true,
+      thinkingEnabled: true,
+      tools: [readDocumentTool]
+    });
+    expect(agent.body).toMatchObject({
+      model: "deepseek-ai/DeepSeek-V4.1-Flash",
+      stream: true,
+      reasoning_effort: "high",
+      tools: [{ type: "function", function: { name: "read_document" } }]
+    });
+    expect(agent.body).not.toHaveProperty("thinking");
+    const thinkingOff = adapter.buildRequest(configured, "deepseek-ai/DeepSeek-V4.1-Flash", messages, {
+      stream: true,
+      thinkingEnabled: false
+    });
+    expect(thinkingOff.body).toMatchObject({ reasoning_effort: "none" });
+    expect(thinkingOff.body).not.toHaveProperty("thinking");
+  });
+
   it("builds OpenAI-compatible chat completion requests with JSON headers", () => {
     const request = getChatAdapter("openai-compatible").buildRequest(
       provider({ baseUrl: "https://proxy.example.test/v1", type: "openai-compatible" }),

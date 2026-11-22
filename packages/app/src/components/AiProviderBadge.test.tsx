@@ -19,6 +19,11 @@ describe("AiProviderBadge", () => {
     expect(screen.getByRole("img", { name: "OrcaRouter settings.ai.providerLogo" })).toHaveAttribute("src", expect.stringContaining("orcarouter"));
   });
 
+  it("shows the Runcrate logo for its compatible provider entry", () => {
+    render(<AiProviderBadge provider={provider({ id: "runcrate", name: "Runcrate" })} translate={(key) => key} />);
+    expect(screen.getByRole("img", { name: "Runcrate settings.ai.providerLogo" })).toHaveAttribute("src", expect.stringContaining("runcrate"));
+  });
+
   it("uses safe line height for fallback provider initials", () => {
     render(<AiProviderBadge provider={provider()} translate={(key) => key} />);
 

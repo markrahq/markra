@@ -55,6 +55,34 @@ describe("chatCompletion", () => {
     }), expect.any(Function));
   });
 
+  it("sends Runcrate's explicit reasoning off state through the Vercel AI SDK compatible route", async () => {
+    const config = createDefaultAiSettings().providers.find((item) => item.id === "runcrate");
+    expect(config).toBeDefined();
+    if (!config) throw new Error("Missing Runcrate provider");
+    const onDelta = vi.fn();
+    const streamTransport = vi.fn(async (_request, onChunk) => {
+      const events = [
+        { id: "chatcmpl-mock", created: 0, model: "deepseek-ai/DeepSeek-V4.1-Flash", choices: [{ index: 0, delta: { role: "assistant", content: "Mock answer" } }] },
+        { id: "chatcmpl-mock", created: 0, model: "deepseek-ai/DeepSeek-V4.1-Flash", choices: [{ index: 0, delta: {}, finish_reason: "stop" }] }
+      ];
+      onChunk(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") + "data: [DONE]\n\n");
+      return { status: 200 };
+    });
+    const fallbackTransport = vi.fn();
+
+    await expect(chatCompletionStream(
+      { ...config, apiKey: "mock-key" },
+      "deepseek-ai/DeepSeek-V4.1-Flash",
+      [{ role: "user", content: "Hi" }],
+      { fallbackTransport, onDelta, streamTransport, thinkingEnabled: false, useVercelAiSdk: true }
+    )).resolves.toMatchObject({ content: "Mock answer", finishReason: "stop" });
+    expect(streamTransport).toHaveBeenCalledWith(expect.objectContaining({
+      url: "https://api.runcrate.ai/v1/chat/completions",
+      body: expect.stringContaining('"reasoning_effort":"none"')
+    }), expect.any(Function));
+    expect(fallbackTransport).not.toHaveBeenCalled();
+  });
+
   it("sends a native POST request and parses the provider response", async () => {
     const transport = vi.fn().mockResolvedValue({
       body: {
