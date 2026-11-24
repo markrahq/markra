@@ -366,6 +366,7 @@ export type StoredAppSettingsFile = {
 export type ExtendedSyntaxPreferences = {
   githubAlerts: boolean;
   highlight: boolean;
+  joinSoftLineBreaks: boolean;
 };
 export type EditorPreferences = {
   aiQuickActionPrompts: AiQuickActionPrompts;
@@ -492,7 +493,8 @@ export const defaultImageUploadSettings: ImageUploadSettings = {
 
 export const defaultExtendedSyntaxPreferences: ExtendedSyntaxPreferences = {
   githubAlerts: true,
-  highlight: true
+  highlight: true,
+  joinSoftLineBreaks: false
 };
 
 export const defaultEditorPreferences: EditorPreferences = {
@@ -1737,7 +1739,11 @@ function normalizeExtendedSyntaxPreferences(value: unknown): ExtendedSyntaxPrefe
     highlight:
       typeof preferences.highlight === "boolean"
         ? preferences.highlight
-        : defaultExtendedSyntaxPreferences.highlight
+        : defaultExtendedSyntaxPreferences.highlight,
+    joinSoftLineBreaks:
+      typeof preferences.joinSoftLineBreaks === "boolean"
+        ? preferences.joinSoftLineBreaks
+        : defaultExtendedSyntaxPreferences.joinSoftLineBreaks
   };
 }
 

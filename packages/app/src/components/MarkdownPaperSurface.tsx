@@ -258,6 +258,7 @@ function MilkdownEditorSurface({
   const markdownDocumentLabel = t(language, "app.markdownDocument");
   const githubAlertsEnabled = extendedSyntax?.githubAlerts ?? true;
   const highlightSyntaxEnabled = extendedSyntax?.highlight ?? true;
+  const joinSoftLineBreaks = extendedSyntax?.joinSoftLineBreaks ?? false;
   const shortcutsSignature = markdownShortcutSignature(markdownShortcuts);
   const normalizedMarkdownShortcuts = useMemo(
     () => normalizeMarkdownShortcuts(markdownShortcuts),
@@ -517,7 +518,7 @@ function MilkdownEditorSurface({
         .use(history)
         .use(markraFrontmatterRemarkPlugin)
         .use(markraMathRemarkPlugin)
-        .use(markraCommonmark)
+        .use(markraCommonmark({ joinSoftLineBreaks }))
         .use(markraFrontmatterSchema)
         .use(markraGfm)
         .use(markraFootnoteReferenceInputRule)
@@ -624,6 +625,7 @@ function MilkdownEditorSurface({
       externalLinkOpeningEnabled,
       githubAlertsEnabled,
       highlightSyntaxEnabled,
+      joinSoftLineBreaks,
       language,
       markdownDocumentLabel,
       normalizedMarkdownShortcuts,

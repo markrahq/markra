@@ -733,6 +733,8 @@ const messages: LocaleMessages = {
   "settings.editor.highlightSyntaxDescription": "Mostra ==text== come testo evidenziato nell’editor visuale.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
   "settings.editor.githubAlertsDescription": "Mostra > [!WARNING] e i relativi blocchi di alert GitHub come avvisi.",
+  "settings.editor.joinSoftLineBreaks": "Unisci gli a capo singoli",
+  "settings.editor.joinSoftLineBreaksDescription": "Mostra le righe separate da un solo a capo come un unico paragrafo, come fa GitHub. Disattiva per mostrare ogni a capo.",
   "settings.templates.custom": "Modelli Markdown",
   "settings.templates.description": "Crea avvii Markdown leggeri per il menu modelli dell’albero file.",
   "settings.templates.add": "Aggiungi modello",

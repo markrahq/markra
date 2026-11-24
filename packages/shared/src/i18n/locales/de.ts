@@ -733,6 +733,8 @@ const messages: LocaleMessages = {
   "settings.editor.highlightSyntaxDescription": "Stellt ==text== im visuellen Editor als hervorgehobenen Text dar.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
   "settings.editor.githubAlertsDescription": "Stellt > [!WARNING] und verwandte GitHub-Alert-Blöcke als Hinweise dar.",
+  "settings.editor.joinSoftLineBreaks": "Einfache Zeilenumbrüche zusammenführen",
+  "settings.editor.joinSoftLineBreaksDescription": "Zeigt Zeilen, die nur durch einen einfachen Zeilenumbruch getrennt sind, wie auf GitHub als einen Absatz. Ausgeschaltet wird jeder Zeilenumbruch angezeigt.",
   "settings.templates.custom": "Markdown-Vorlagen",
   "settings.templates.description": "Erstellt leichte Markdown-Starter für das Vorlagenmenü im Dateibaum.",
   "settings.templates.add": "Vorlage hinzufügen",

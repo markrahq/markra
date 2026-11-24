@@ -3133,6 +3133,36 @@ describe("MarkdownPaper editing", () => {
     });
   });
 
+  it("joins soft line breaks in list items when the setting is on", async () => {
+    const source = ["- first line", "  second line", "- next item"].join("\n");
+    const joined = await renderEditor(source, { extendedSyntax: { githubAlerts: true, highlight: true, joinSoftLineBreaks: true } });
+    const joinedItem = joined.container.querySelector(".ProseMirror li");
+
+    expect(joinedItem?.querySelectorAll("br")).toHaveLength(0);
+    expect(joinedItem).toHaveTextContent("first line second line");
+
+    const shown = await renderEditor(source);
+    const serializeJoined = joined.editor.action((ctx) => ctx.get(serializerCtx));
+    const serializeShown = shown.editor.action((ctx) => ctx.get(serializerCtx));
+
+    expect(shown.container.querySelector(".ProseMirror li")?.querySelectorAll("br")).toHaveLength(1);
+    expect(serializeJoined(joined.view.state.doc)).toBe(serializeShown(shown.view.state.doc));
+  });
+
+  it("keeps hard line breaks and callout lines when joining soft line breaks", async () => {
+    const source = ["first line\\", "second line", "", "> [!NOTE]", "> one", "> two"].join("\n");
+    const shown = await renderEditor(source);
+    const { container } = await renderEditor(source, {
+      extendedSyntax: { githubAlerts: true, highlight: true, joinSoftLineBreaks: true }
+    });
+    const calloutBreaks = (root: HTMLElement) =>
+      root.querySelector(".ProseMirror blockquote.markra-callout")?.querySelectorAll("br").length;
+
+    expect(container.querySelector(".ProseMirror > p")?.querySelectorAll("br")).toHaveLength(1);
+    expect(calloutBreaks(container)).toBeGreaterThan(0);
+    expect(calloutBreaks(container)).toBe(calloutBreaks(shown.container));
+  });
+
   it("keeps the native caret anchor when leaving display math source at the closing delimiter", async () => {
     const source = String.raw`$$ E = mc^2 $$`;
     const { container, view } = await renderEditor(source);
@@ -8886,7 +8916,8 @@ describe("MarkdownPaper editing", () => {
     const enabled = await renderEditor("", {
       extendedSyntax: {
         githubAlerts: true,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       }
     });
     typeText(enabled.view, "==marked==");
@@ -8898,7 +8929,8 @@ describe("MarkdownPaper editing", () => {
     const disabled = await renderEditor("", {
       extendedSyntax: {
         githubAlerts: true,
-        highlight: false
+        highlight: false,
+        joinSoftLineBreaks: false
       }
     });
     typeText(disabled.view, "==marked==");
@@ -8913,7 +8945,8 @@ describe("MarkdownPaper editing", () => {
     const { container } = await renderEditor("Check `left == value`, `right == value`", {
       extendedSyntax: {
         githubAlerts: true,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       }
     });
 
@@ -9980,7 +10013,8 @@ describe("MarkdownPaper editing", () => {
     const { container } = await renderEditor("> [!NOTE]\n> Keep this in mind.", {
       extendedSyntax: {
         githubAlerts: false,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       }
     });
 

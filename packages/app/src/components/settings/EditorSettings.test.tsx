@@ -410,7 +410,8 @@ describe("EditorSettings", () => {
       ...defaultEditorPreferences,
       extendedSyntax: {
         githubAlerts: true,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       }
     };
 
@@ -435,7 +436,8 @@ describe("EditorSettings", () => {
       ...preferences,
       extendedSyntax: {
         githubAlerts: true,
-        highlight: false
+        highlight: false,
+        joinSoftLineBreaks: false
       }
     });
 
@@ -445,7 +447,8 @@ describe("EditorSettings", () => {
       ...preferences,
       extendedSyntax: {
         githubAlerts: false,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       }
     });
   });

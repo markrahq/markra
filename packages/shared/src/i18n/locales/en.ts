@@ -336,6 +336,8 @@ const messages: BaseLocaleMessages = {
   "settings.editor.highlightSyntaxDescription": "Render ==text== as highlighted text in the visual editor.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
   "settings.editor.githubAlertsDescription": "Render > [!WARNING] and related GitHub alert blocks as callouts.",
+  "settings.editor.joinSoftLineBreaks": "Join single line breaks",
+  "settings.editor.joinSoftLineBreaksDescription": "Show lines separated by a single line break as one paragraph, as GitHub does. Turn off to show each line break.",
   "settings.templates.custom": "Markdown templates",
   "settings.templates.description": "Create lightweight Markdown starters for the file-tree template menu.",
   "settings.templates.add": "Add template",

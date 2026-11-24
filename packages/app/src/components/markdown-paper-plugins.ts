@@ -107,56 +107,65 @@ function serializerHasOpenNode(state: unknown, type: string) {
   return Array.isArray(elements) && elements.some((element) => element.type === type);
 }
 
-const markraHardbreakSchema = hardbreakSchema.extendSchema((previous) => (ctx) => {
-  const baseSchema = previous(ctx);
+export type MarkraCommonmarkOptions = {
+  joinSoftLineBreaks?: boolean;
+};
 
-  return {
-    ...baseSchema,
-    attrs: {
-      ...baseSchema.attrs,
-      renderLineBreak: {
-        default: false,
-        validate: "boolean"
-      }
-    },
-    parseDOM: [
-      {
-        tag: 'span.markra-hardbreak[data-type="hardbreak"]',
-        getAttrs: () => ({ isInline: true, renderLineBreak: true })
+const markraHardbreakSchema = ({ joinSoftLineBreaks = false }: MarkraCommonmarkOptions) =>
+  hardbreakSchema.extendSchema((previous) => (ctx) => {
+    const baseSchema = previous(ctx);
+
+    return {
+      ...baseSchema,
+      attrs: {
+        ...baseSchema.attrs,
+        renderLineBreak: {
+          default: false,
+          validate: "boolean"
+        }
       },
-      ...(baseSchema.parseDOM ?? [])
-    ],
-    parseMarkdown: {
-      match: ({ type }) => type === "break",
-      runner: (state, node, type) => {
-        const data = node.data as undefined | { isInline?: boolean; renderLineBreak?: boolean };
-        state.addNode(type, {
-          isInline: Boolean(data?.isInline),
-          renderLineBreak: Boolean(data?.renderLineBreak)
-        });
-      }
-    },
-    toDOM: (node) => {
-      if (!node.attrs.isInline) {
-        return baseSchema.toDOM?.(node) ?? ["br", ctx.get(hardbreakAttr.key)(node)];
-      }
-
-      const attrs = hardbreakDomAttrs(ctx.get(hardbreakAttr.key)(node));
-      return ["span", attrs, ["br"]];
-    },
-    toMarkdown: {
-      ...baseSchema.toMarkdown,
-      runner: (state, node) => {
-        if (node.attrs.renderLineBreak === true && !serializerHasOpenNode(state, "blockquote")) {
-          state.addNode("html", undefined, "<br>");
-          return;
+      parseDOM: [
+        {
+          tag: 'span.markra-hardbreak[data-type="hardbreak"]',
+          getAttrs: () => ({ isInline: true, renderLineBreak: true })
+        },
+        ...(baseSchema.parseDOM ?? [])
+      ],
+      parseMarkdown: {
+        match: ({ type }) => type === "break",
+        runner: (state, node, type) => {
+          const data = node.data as undefined | { isInline?: boolean; renderLineBreak?: boolean };
+          state.addNode(type, {
+            isInline: Boolean(data?.isInline),
+            renderLineBreak: Boolean(data?.renderLineBreak)
+          });
+        }
+      },
+      toDOM: (node) => {
+        if (!node.attrs.isInline) {
+          return baseSchema.toDOM?.(node) ?? ["br", ctx.get(hardbreakAttr.key)(node)];
         }
 
-        baseSchema.toMarkdown.runner(state, node);
+        if (joinSoftLineBreaks && !node.attrs.renderLineBreak) {
+          return ["span", ctx.get(hardbreakAttr.key)(node), " "];
+        }
+
+        const attrs = hardbreakDomAttrs(ctx.get(hardbreakAttr.key)(node));
+        return ["span", attrs, ["br"]];
+      },
+      toMarkdown: {
+        ...baseSchema.toMarkdown,
+        runner: (state, node) => {
+          if (node.attrs.renderLineBreak === true && !serializerHasOpenNode(state, "blockquote")) {
+            state.addNode("html", undefined, "<br>");
+            return;
+          }
+
+          baseSchema.toMarkdown.runner(state, node);
+        }
       }
-    }
-  };
-});
+    };
+  });
 
 const inlineHtmlTextDataKey = "markraInlineHtml";
 
@@ -418,7 +427,7 @@ const markraCommonmarkPlugins = commonmarkPlugins.filter((plugin) =>
   (!browserUsesSafariEngine || plugin !== inlineNodesCursorPlugin)
 );
 
-export const markraCommonmark = [
+export const markraCommonmark = (options: MarkraCommonmarkOptions = {}) => [
   markraMarkdownStyleRemarkPlugin,
   markraBlankParagraphRemarkPlugin,
   markraBlockImageRemarkPlugin,
@@ -426,7 +435,7 @@ export const markraCommonmark = [
   markraEmphasisSchema,
   markraStrongSchema,
   markraBlockImageSchema,
-  markraHardbreakSchema,
+  markraHardbreakSchema(options),
   markraHtmlSchema,
   markraCommonmarkInputRules,
   commonmarkCommands,

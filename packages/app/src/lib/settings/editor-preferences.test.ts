@@ -42,7 +42,8 @@ describe("editor preferences", () => {
       editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       },
       imageUpload: {
         fileNamePattern: "pasted-image-{timestamp}",
@@ -208,7 +209,8 @@ describe("editor preferences", () => {
       },
       extendedSyntax: {
         githubAlerts: true,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       },
       lineHeight: 1.65,
       markdownShortcuts: {
@@ -429,31 +431,37 @@ describe("editor preferences", () => {
   it("normalizes extended syntax preferences", () => {
     expect(normalizeEditorPreferences({}).extendedSyntax).toEqual({
       githubAlerts: true,
-      highlight: true
+      highlight: true,
+      joinSoftLineBreaks: false
     });
     expect(normalizeEditorPreferences({
       extendedSyntax: {
         githubAlerts: false,
-        highlight: false
+        highlight: false,
+        joinSoftLineBreaks: true
       }
     }).extendedSyntax).toEqual({
       githubAlerts: false,
-      highlight: false
+      highlight: false,
+      joinSoftLineBreaks: true
     });
     expect(normalizeEditorPreferences({
       extendedSyntax: {
         githubAlerts: "maybe",
-        highlight: "nope"
+        highlight: "nope",
+        joinSoftLineBreaks: "yes"
       }
     }).extendedSyntax).toEqual({
       githubAlerts: true,
-      highlight: true
+      highlight: true,
+      joinSoftLineBreaks: false
     });
     expect(normalizeEditorPreferences({
       extendedSyntax: null
     }).extendedSyntax).toEqual({
       githubAlerts: true,
-      highlight: true
+      highlight: true,
+      joinSoftLineBreaks: false
     });
   });
 
@@ -713,7 +721,8 @@ describe("editor preferences", () => {
       editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       },
       imageUpload: {
         fileNamePattern: "pasted-image-{timestamp}",
@@ -805,7 +814,8 @@ describe("editor preferences", () => {
       editorFontFamily: { family: "Example Serif", source: "system" },
       extendedSyntax: {
         githubAlerts: false,
-        highlight: false
+        highlight: false,
+        joinSoftLineBreaks: false
       },
       imageUpload: {
         fileNamePattern: "{name}-{timestamp}",
@@ -905,7 +915,8 @@ describe("editor preferences", () => {
       editorFontFamily: { family: "Example Serif", source: "system" },
       extendedSyntax: {
         githubAlerts: false,
-        highlight: false
+        highlight: false,
+        joinSoftLineBreaks: false
       },
       imageUpload: {
         fileNamePattern: "{name}-{timestamp}",

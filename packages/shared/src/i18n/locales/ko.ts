@@ -733,6 +733,8 @@ const messages: LocaleMessages = {
   "settings.editor.highlightSyntaxDescription": "비주얼 편집기에서 ==text== 를 하이라이트 텍스트로 표시합니다.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
   "settings.editor.githubAlertsDescription": "> [!WARNING] 같은 GitHub alert 블록을 콜아웃으로 표시합니다.",
+  "settings.editor.joinSoftLineBreaks": "단일 줄바꿈 합치기",
+  "settings.editor.joinSoftLineBreaksDescription": "GitHub처럼 단일 줄바꿈으로 나뉜 줄을 하나의 문단으로 표시합니다. 끄면 줄바꿈을 모두 표시합니다.",
   "settings.templates.custom": "Markdown 템플릿",
   "settings.templates.description": "파일 트리 템플릿 메뉴에 표시할 가벼운 Markdown 시작 내용을 만듭니다.",
   "settings.templates.add": "템플릿 추가",

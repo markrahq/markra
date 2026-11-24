@@ -200,7 +200,8 @@ describe("Markra AI workspace", () => {
       editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       },
       imageUpload: {
         fileNamePattern: "pasted-image-{timestamp}",
@@ -313,7 +314,8 @@ describe("Markra AI workspace", () => {
       editorFontFamily: { family: null, source: "theme" },
       extendedSyntax: {
         githubAlerts: true,
-        highlight: true
+        highlight: true,
+        joinSoftLineBreaks: false
       },
       imageUpload: {
         fileNamePattern: "pasted-image-{timestamp}",

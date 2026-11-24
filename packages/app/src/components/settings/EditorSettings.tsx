@@ -952,6 +952,25 @@ export function EditorSettings({
             />
           }
         />
+        <SettingsRow
+          title={translate("settings.editor.joinSoftLineBreaks")}
+          description={translate("settings.editor.joinSoftLineBreaksDescription")}
+          action={
+            <SettingsSwitch
+              checked={preferences.extendedSyntax.joinSoftLineBreaks}
+              label={translate("settings.editor.joinSoftLineBreaks")}
+              onChange={() =>
+                onUpdatePreferences({
+                  ...preferences,
+                  extendedSyntax: {
+                    ...preferences.extendedSyntax,
+                    joinSoftLineBreaks: !preferences.extendedSyntax.joinSoftLineBreaks
+                  }
+                })
+              }
+            />
+          }
+        />
       </SettingsSection>
     </>
   );

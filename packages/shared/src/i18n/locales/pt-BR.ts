@@ -733,6 +733,8 @@ const messages: LocaleMessages = {
   "settings.editor.highlightSyntaxDescription": "Renderiza ==text== como texto destacado no editor visual.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
   "settings.editor.githubAlertsDescription": "Renderiza > [!WARNING] e blocos de alerta GitHub relacionados como avisos.",
+  "settings.editor.joinSoftLineBreaks": "Juntar quebras de linha simples",
+  "settings.editor.joinSoftLineBreaksDescription": "Mostra linhas separadas por uma única quebra de linha como um só parágrafo, como o GitHub. Desative para mostrar cada quebra de linha.",
   "settings.templates.custom": "Modelos Markdown",
   "settings.templates.description": "Crie inícios Markdown leves para o menu de modelos da árvore de arquivos.",
   "settings.templates.add": "Adicionar modelo",

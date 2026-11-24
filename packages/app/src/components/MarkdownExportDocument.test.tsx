@@ -35,6 +35,29 @@ describe("MarkdownExportDocument", () => {
     expect(bodyHtml).not.toContain("&lt;br");
   });
 
+  it("joins single line breaks when the setting is on", async () => {
+    const onRendered = vi.fn();
+
+    render(
+      <MarkdownExportDocument
+        extendedSyntax={{ githubAlerts: true, highlight: true, joinSoftLineBreaks: true }}
+        onRendered={onRendered}
+        snapshot={{
+          id: 1,
+          kind: "html",
+          markdown: "First line\nSecond line",
+          title: "line-breaks.md"
+        }}
+      />
+    );
+
+    await waitFor(() => expect(onRendered).toHaveBeenCalledTimes(1));
+
+    const bodyHtml = onRendered.mock.calls[0]?.[0].bodyHtml as string;
+    expect(bodyHtml).toContain("First line\nSecond line");
+    expect(bodyHtml).not.toContain("<br");
+  });
+
   it("renders raw br markers in GFM table cells as line breaks before exporting HTML", async () => {
     const onRendered = vi.fn();
 
@@ -205,7 +228,8 @@ describe("MarkdownExportDocument", () => {
       <MarkdownExportDocument
         extendedSyntax={{
           githubAlerts: false,
-          highlight: true
+          highlight: true,
+          joinSoftLineBreaks: false
         }}
         onRendered={onRendered}
         snapshot={{

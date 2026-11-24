@@ -733,6 +733,8 @@ const messages: LocaleMessages = {
   "settings.editor.highlightSyntaxDescription": "Affiche ==text== comme texte surligné dans l’éditeur visuel.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
   "settings.editor.githubAlertsDescription": "Affiche > [!WARNING] et les blocs d’alerte GitHub associés comme des encadrés.",
+  "settings.editor.joinSoftLineBreaks": "Fusionner les retours à la ligne simples",
+  "settings.editor.joinSoftLineBreaksDescription": "Affiche les lignes séparées par un seul retour à la ligne comme un seul paragraphe, comme GitHub. Désactivez pour afficher chaque retour à la ligne.",
   "settings.templates.custom": "Modèles Markdown",
   "settings.templates.description": "Crée des débuts Markdown légers pour le menu de modèles de l’arborescence.",
   "settings.templates.add": "Ajouter un modèle",

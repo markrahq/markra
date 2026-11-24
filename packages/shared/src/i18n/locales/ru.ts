@@ -733,6 +733,8 @@ const messages: LocaleMessages = {
   "settings.editor.highlightSyntaxDescription": "Показывает ==text== как выделенный текст в визуальном редакторе.",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
   "settings.editor.githubAlertsDescription": "Показывает > [!WARNING] и связанные GitHub alert-блоки как выноски.",
+  "settings.editor.joinSoftLineBreaks": "Склеивать одиночные переносы строк",
+  "settings.editor.joinSoftLineBreaksDescription": "Показывает строки, разделённые одним переносом, как один абзац, как на GitHub. Выключите, чтобы показывать каждый перенос.",
   "settings.templates.custom": "Markdown-шаблоны",
   "settings.templates.description": "Создавайте легкие Markdown-заготовки для меню шаблонов в дереве файлов.",
   "settings.templates.add": "Добавить шаблон",

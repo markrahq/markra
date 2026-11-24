@@ -733,6 +733,8 @@ const messages: LocaleMessages = {
   "settings.editor.highlightSyntaxDescription": "在視覺編輯器中把 ==text== 顯示為高亮文字。",
   "settings.editor.githubAlerts": "GitHub 風格警告框",
   "settings.editor.githubAlertsDescription": "將 > [!WARNING] 等 GitHub Alert 區塊顯示為提示區塊。",
+  "settings.editor.joinSoftLineBreaks": "合併單一換行",
+  "settings.editor.joinSoftLineBreaksDescription": "像 GitHub 一樣，將僅以單一換行分隔的行顯示為同一段落。關閉後會顯示每個換行。",
   "settings.templates.custom": "Markdown 範本",
   "settings.templates.description": "建立輕量 Markdown 起始內容，會顯示在檔案樹範本選單中。",
   "settings.templates.add": "新增範本",

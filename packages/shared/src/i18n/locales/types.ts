@@ -365,6 +365,8 @@ export type I18nKey =
   | "settings.editor.highlightSyntaxDescription"
   | "settings.editor.githubAlerts"
   | "settings.editor.githubAlertsDescription"
+  | "settings.editor.joinSoftLineBreaks"
+  | "settings.editor.joinSoftLineBreaksDescription"
   | "settings.templates.custom"
   | "settings.templates.description"
   | "settings.templates.add"

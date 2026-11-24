@@ -221,6 +221,7 @@ export function MarkdownExportDocument({
 }: MarkdownExportDocumentProps) {
   const articleRef = useRef<HTMLElement | null>(null);
   const githubAlertsEnabled = extendedSyntax?.githubAlerts ?? true;
+  const lineBreakPlugins = extendedSyntax?.joinSoftLineBreaks ? [] : [remarkBreaks];
 
   useEffect(() => {
     if (!snapshot || !articleRef.current) return;
@@ -267,7 +268,7 @@ export function MarkdownExportDocument({
     >
       <article className="markdown-paper markdown-export-paper" ref={articleRef}>
         <ReactMarkdown
-          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath, remarkHugoMath, remarkMarkraHtmlBreaks]}
+          remarkPlugins={[remarkGfm, ...lineBreakPlugins, remarkMath, remarkHugoMath, remarkMarkraHtmlBreaks]}
           components={{
             a: ({ node: _node, ...props }) => <a {...props} rel="noreferrer" target="_blank" />,
             blockquote: ({ node: _node, ...props }) =>

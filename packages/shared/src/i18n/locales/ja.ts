@@ -733,6 +733,8 @@ const messages: LocaleMessages = {
   "settings.editor.highlightSyntaxDescription": "ビジュアルエディターで ==text== をハイライト表示します。",
   "settings.editor.githubAlerts": "GitHub-style warning boxes",
   "settings.editor.githubAlertsDescription": "> [!WARNING] などの GitHub alert ブロックをコールアウトとして表示します。",
+  "settings.editor.joinSoftLineBreaks": "単一の改行を結合",
+  "settings.editor.joinSoftLineBreaksDescription": "GitHub と同じように、単一の改行で区切られた行を 1 つの段落として表示します。オフにすると改行ごとに表示します。",
   "settings.templates.custom": "Markdown テンプレート",
   "settings.templates.description": "ファイルツリーのテンプレートメニュー用に軽量な Markdown の開始内容を作成します。",
   "settings.templates.add": "テンプレートを追加",
