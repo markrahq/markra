@@ -402,42 +402,57 @@ function buildDecorations(
   const decorateListContinuationLines = (
     item: MarkraSyntaxNode,
     firstLineNumber: number,
+    task: boolean,
   ) => {
     const depth = String(markraListDepth(item));
-    for (const paragraph of item.getChildren("Paragraph")) {
-      const startLine = Math.max(
-        state.doc.lineAt(paragraph.from).number,
-        firstLineNumber + 1,
-      );
-      const endLine = state.doc.lineAt(paragraph.to).number;
-      for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
-        const line = state.doc.line(lineNumber);
-        if (decoratedListLines.has(line.from)) continue;
+    // A task item's first paragraph is parsed as a Task node, not a Paragraph.
+    const paragraphs = [...item.getChildren("Task"), ...item.getChildren("Paragraph")];
+    // The ListItem is decorated once, but a long item can reach far beyond the
+    // viewport, so only its visible lines are walked.
+    for (const paragraph of paragraphs) {
+      for (const visibleRange of view.visibleRanges) {
+        const from = Math.max(paragraph.from, visibleRange.from);
+        const to = Math.min(paragraph.to, visibleRange.to);
+        if (from > to) continue;
 
-        decoratedListLines.add(line.from);
-        const indentEnd =
-          line.from + (/^[\t ]*/u.exec(line.text)?.[0].length ?? 0);
-        const sourceVisible = isRevealed({
-          view,
-          state,
-          from: line.from,
-          to: indentEnd,
-          nodeName: "ListMark",
-          scope: "line",
-        });
-        ranges.push(
-          Decoration.line({
-            attributes: {
-              "data-list-depth": depth,
-              "data-markra-list-source": sourceVisible ? "visible" : "hidden",
-            },
-            class: "cm-markra-list-continuation",
-          }).range(line.from),
-        );
-        if (!sourceVisible) {
-          pushHiddenRange(ranges, state.doc, line.from, indentEnd);
+        const startLine = Math.max(state.doc.lineAt(from).number, firstLineNumber + 1);
+        const endLine = state.doc.lineAt(to).number;
+        for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
+          decorateListContinuationLine(state.doc.line(lineNumber), depth, task);
         }
       }
+    }
+  };
+  const decorateListContinuationLine = (
+    line: { from: number; text: string },
+    depth: string,
+    task: boolean,
+  ) => {
+    if (decoratedListLines.has(line.from)) return;
+
+    decoratedListLines.add(line.from);
+    const indentEnd =
+      line.from + (/^[\t ]*/u.exec(line.text)?.[0].length ?? 0);
+    const sourceVisible = isRevealed({
+      view,
+      state,
+      from: line.from,
+      to: indentEnd,
+      nodeName: "ListMark",
+      scope: "line",
+    });
+    ranges.push(
+      Decoration.line({
+        attributes: {
+          "data-list-depth": depth,
+          ...(task ? { "data-list-kind": "task" } : {}),
+          "data-markra-list-source": sourceVisible ? "visible" : "hidden",
+        },
+        class: "cm-markra-list-continuation",
+      }).range(line.from),
+    );
+    if (!sourceVisible) {
+      pushHiddenRange(ranges, state.doc, line.from, indentEnd);
     }
   };
   type SyntaxNode = Parameters<
@@ -584,7 +599,11 @@ function buildDecorations(
       }
 
       if (listAttributes) {
-        decorateListContinuationLines(node.node as MarkraSyntaxNode, line.number);
+        decorateListContinuationLines(
+          node.node as MarkraSyntaxNode,
+          line.number,
+          taskCheckboxes && listAttributes.kind === "task",
+        );
       }
 
       const emptyTask = emptyTaskMarkerRange(line.text);

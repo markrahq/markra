@@ -1391,6 +1391,53 @@ describe("liveMarkdown", () => {
     expect(view.dom.querySelectorAll(".cm-markra-list-continuation")).toHaveLength(0);
   });
 
+  it("decorates only the visible continuation lines of a long list item", () => {
+    const doc = [
+      "- First line",
+      ...Array.from({ length: 40 }, (_, index) => `  wrapped ${index}`),
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView({ doc, anchor: 0 });
+    const line = (number: number) => view.state.doc.line(number);
+    vi.spyOn(view, "visibleRanges", "get").mockReturnValue([
+      { from: line(1).from, to: line(3).to },
+      { from: line(30).from, to: line(31).to },
+    ]);
+
+    view.dispatch({ selection: { anchor: doc.length } });
+
+    expect(
+      [...view.dom.querySelectorAll(".cm-markra-list-continuation")].map(
+        (element) => element.textContent,
+      ),
+    ).toEqual(["wrapped 0", "wrapped 1", "wrapped 28", "wrapped 29"]);
+  });
+
+  it("aligns task item continuation lines after the checkbox", () => {
+    const doc = [
+      "- [ ] Task first",
+      "  task next",
+      "",
+      "  Later paragraph",
+      "- Plain first",
+      "  plain next",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView({ doc });
+
+    expect(
+      [...view.dom.querySelectorAll(".cm-markra-list-continuation")].map(
+        (element) => [element.textContent, element.getAttribute("data-list-kind")],
+      ),
+    ).toEqual([
+      ["task next", "task"],
+      ["Later paragraph", "task"],
+      ["plain next", null],
+    ]);
+  });
+
   it("shows continuation indentation while the caret is on that line", () => {
     const doc = ["- First line", "  wrapped line", "", "Edit"].join("\n");
     const view = createView({ doc, anchor: doc.indexOf("wrapped") });

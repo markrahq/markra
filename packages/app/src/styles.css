@@ -1192,6 +1192,11 @@
     padding-inline-start: calc(1.4em + var(--markra-list-depth-offset)) !important;
   }
 
+  /* Continuation text starts after the checkbox: its width plus its end margin. */
+  .markdown-paper .cm-line.cm-markra-list-continuation[data-list-kind="task"][data-markra-list-source="hidden"] {
+    padding-inline-start: calc(1.4em + var(--markra-list-depth-offset) + 1rem + 0.5em) !important;
+  }
+
   /* The opening fence is folded into this zero-height line. Keep controls
      over the first code row: vertical height or margins on the hidden line
      accumulate across blocks and shift WebKit's pointer mapping away from
