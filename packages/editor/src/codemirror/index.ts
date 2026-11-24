@@ -1,6 +1,7 @@
 import { markdown } from "@codemirror/lang-markdown";
 import { codeFolding } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
 import { GFM } from "@lezer/markdown";
 import { markraSetextHeading } from "@markra/markdown";
 import {
@@ -275,6 +276,9 @@ export function liveMarkdown(config: LiveMarkdownConfig = {}): Extension {
     codeFolding(),
     livePreview(previewConfig),
     markraTheme,
+    EditorView.editorAttributes.compute(["selection"], (state) => ({
+      "data-markra-selection-ranges": state.selection.ranges.length > 1 ? "multiple" : "single",
+    })),
     markraPlugins(plugins),
     slashMenu ? markraSlashMenu() : [],
   ];

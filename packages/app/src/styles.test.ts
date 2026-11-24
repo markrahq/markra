@@ -125,21 +125,43 @@ describe("editor stylesheet", () => {
     );
   });
 
-  it("paints the preview selection natively on Linux", () => {
+  it("paints the preview selection natively on Linux only in the focused single-range editor", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
-    const layerStart = styles.indexOf(
-      'html[data-desktop-platform="linux"] .markdown-paper .cm-selectionLayer {',
-    );
+    const nativeScope =
+      'html[data-desktop-platform="linux"] .markdown-paper .cm-editor.cm-focused[data-markra-selection-ranges="single"]';
+    const layerSelector = `${nativeScope} .cm-selectionLayer`;
+    const layerStart = styles.indexOf(`${layerSelector} {`);
     const layerRule = styles.slice(layerStart, styles.indexOf("\n  }", layerStart));
-    const nativeStart = styles.indexOf(
-      'html[data-desktop-platform="linux"] .markdown-paper .cm-line ::selection {',
-    );
+    const nativeStart = styles.indexOf(`${nativeScope} .cm-line ::selection {`);
     const nativeRule = styles.slice(nativeStart, styles.indexOf("\n  }", nativeStart));
 
     expect(layerRule).toContain("display: none !important");
     expect(nativeRule).toContain(
       "background: color-mix(in srgb, var(--editor-caret-color, var(--accent)) 20%, transparent) !important;",
     );
+
+    document.documentElement.dataset.desktopPlatform = "linux";
+    document.body.innerHTML = ["focused single", "inactive single", "focused multiple"]
+      .map((pane) => {
+        const [focus, ranges] = pane.split(" ");
+        return `<div class="markdown-paper" data-pane="${pane}">
+          <div class="cm-editor${focus === "focused" ? " cm-focused" : ""}" data-markra-selection-ranges="${ranges}">
+            <div class="cm-selectionLayer"></div>
+          </div>
+        </div>`;
+      })
+      .join("");
+
+    try {
+      expect(
+        [...document.querySelectorAll(layerSelector)].map(
+          (layer) => layer.closest<HTMLElement>(".markdown-paper")?.dataset.pane,
+        ),
+      ).toEqual(["focused single"]);
+    } finally {
+      delete document.documentElement.dataset.desktopPlatform;
+      document.body.innerHTML = "";
+    }
   });
 
   it("keeps code block selections between the background and foreground", () => {

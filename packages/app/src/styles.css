@@ -4643,13 +4643,15 @@
 
   /* WebKitGTK repaints CodeMirror's absolutely positioned selection layer on
      every pointer move, which makes drag selection and scrolling lag. The
-     native selection paints in place with the same theme color. */
-  html[data-desktop-platform="linux"] .markdown-paper .cm-selectionLayer {
+     native selection paints in place with the same theme color. The browser
+     holds one selection range for one editor, so an unfocused pane or a
+     multi-range selection keeps the drawn layer. */
+  html[data-desktop-platform="linux"] .markdown-paper .cm-editor.cm-focused[data-markra-selection-ranges="single"] .cm-selectionLayer {
     display: none !important;
   }
 
-  html[data-desktop-platform="linux"] .markdown-paper .cm-line::selection,
-  html[data-desktop-platform="linux"] .markdown-paper .cm-line ::selection {
+  html[data-desktop-platform="linux"] .markdown-paper .cm-editor.cm-focused[data-markra-selection-ranges="single"] .cm-line::selection,
+  html[data-desktop-platform="linux"] .markdown-paper .cm-editor.cm-focused[data-markra-selection-ranges="single"] .cm-line ::selection {
     background: color-mix(in srgb, var(--editor-caret-color, var(--accent)) 20%, transparent) !important;
   }
 
