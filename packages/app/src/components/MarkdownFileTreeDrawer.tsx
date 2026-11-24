@@ -1602,6 +1602,7 @@ export function MarkdownFileTreeDrawer({
             name: template.name
           }))
           : undefined,
+        copyPath: (path) => navigator.clipboard?.writeText(path).catch(() => {}),
         createFolder: folderCreationAvailable ? () => startCreatingFolder(createTargetFolderPath) : undefined,
         deleteFile: deleteFileTreeTarget,
         openContainingFolder: onOpenContainingFolder

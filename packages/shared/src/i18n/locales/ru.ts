@@ -395,6 +395,8 @@ const messages: LocaleMessages = {
   "app.newMarkdownFileFromTemplate": "Создать из шаблона",
   "app.saveMarkdownFileAsTemplate": "Сохранить как шаблон",
   "app.openContainingFolder": "Открыть содержащую папку",
+  "app.copyPath": "Копировать путь",
+  "app.copyRelativePath": "Копировать относительный путь",
   "app.markdownTemplateSaved": "Шаблон сохранён.",
   "app.markdownTemplateSaveFailed": "Не удалось сохранить шаблон.",
   "app.markdownFileSaveFailed": "Не удалось сохранить документ.",

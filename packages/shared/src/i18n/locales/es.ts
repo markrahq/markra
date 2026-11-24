@@ -395,6 +395,8 @@ const messages: LocaleMessages = {
   "app.newMarkdownFileFromTemplate": "Crear desde plantilla",
   "app.saveMarkdownFileAsTemplate": "Guardar como plantilla",
   "app.openContainingFolder": "Abrir carpeta contenedora",
+  "app.copyPath": "Copiar ruta",
+  "app.copyRelativePath": "Copiar ruta relativa",
   "app.markdownTemplateSaved": "Plantilla guardada.",
   "app.markdownTemplateSaveFailed": "No se pudo guardar la plantilla.",
   "app.markdownFileSaveFailed": "No se pudo guardar el documento.",

@@ -761,6 +761,8 @@ export type I18nKey =
   | "app.newMarkdownFileFromTemplate"
   | "app.saveMarkdownFileAsTemplate"
   | "app.openContainingFolder"
+  | "app.copyPath"
+  | "app.copyRelativePath"
   | "app.markdownTemplateSaved"
   | "app.markdownTemplateSaveFailed"
   | "app.markdownFileSaveFailed"

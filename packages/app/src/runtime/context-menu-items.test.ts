@@ -463,4 +463,36 @@ describe("markdown file tree context menu entries", () => {
     expect(menuItemById(entries, "markra:file-tree:open-containing-folder").disabled).toBe(true);
     expect(menuItemById(entries, "markra:file-tree:rename").disabled).toBe(true);
   });
+
+  it("copies the absolute and relative path of a file or folder", () => {
+    const copyPath = vi.fn();
+    const file = { name: "guide.md", path: "/mock-project/docs/guide.md", relativePath: "docs/guide.md" };
+    const folder = { kind: "folder" as const, name: "docs", path: "C:\\mock-project\\docs", relativePath: "docs" };
+
+    menuItemById(createMarkdownFileTreeContextMenuEntries({ copyPath }, "en", file), "markra:file-tree:copy-path").onSelect?.();
+    menuItemById(
+      createMarkdownFileTreeContextMenuEntries({ copyPath }, "en", file),
+      "markra:file-tree:copy-relative-path"
+    ).onSelect?.();
+    menuItemById(createMarkdownFileTreeContextMenuEntries({ copyPath }, "en", folder), "markra:file-tree:copy-path").onSelect?.();
+
+    expect(copyPath.mock.calls).toEqual([["/mock-project/docs/guide.md"], ["docs/guide.md"], ["C:\\mock-project\\docs"]]);
+  });
+
+  it("offers only the relative path when the file has no file system path", () => {
+    const file = { name: "guide.md", path: "web-folder://mock-handle/docs/guide.md", relativePath: "docs/guide.md" };
+    const ids = createMarkdownFileTreeContextMenuEntries({ copyPath: vi.fn() }, "en", file)
+      .flatMap((entry) => ("id" in entry ? [entry.id] : []));
+
+    expect(ids).toContain("markra:file-tree:copy-relative-path");
+    expect(ids).not.toContain("markra:file-tree:copy-path");
+  });
+
+  it("disables copying paths for a multi-selection", () => {
+    const file = { name: "guide.md", path: "/mock-project/docs/guide.md", relativePath: "docs/guide.md" };
+    const entries = createMarkdownFileTreeContextMenuEntries({ copyPath: vi.fn(), multiSelect: true }, "en", file);
+
+    expect(menuItemById(entries, "markra:file-tree:copy-path").disabled).toBe(true);
+    expect(menuItemById(entries, "markra:file-tree:copy-relative-path").disabled).toBe(true);
+  });
 });

@@ -395,6 +395,8 @@ const messages: LocaleMessages = {
   "app.newMarkdownFileFromTemplate": "Criar a partir de modelo",
   "app.saveMarkdownFileAsTemplate": "Salvar como modelo",
   "app.openContainingFolder": "Abrir pasta que contém",
+  "app.copyPath": "Copiar caminho",
+  "app.copyRelativePath": "Copiar caminho relativo",
   "app.markdownTemplateSaved": "Modelo salvo.",
   "app.markdownTemplateSaveFailed": "Não foi possível salvar o modelo.",
   "app.markdownFileSaveFailed": "Não foi possível salvar o documento.",
