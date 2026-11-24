@@ -415,6 +415,48 @@ describe("useApplicationShortcuts", () => {
     expect(openBlankEditorWindow).toHaveBeenCalledTimes(1);
   });
 
+  it("matches static shortcuts by physical key on non-Latin keyboard layouts", () => {
+    const openDocument = vi.fn();
+    const saveDocument = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        openDocument,
+        platform: "linux",
+        saveDocument
+      })
+    );
+
+    fireEvent.keyDown(window, { code: "KeyO", ctrlKey: true, key: "щ" });
+    fireEvent.keyDown(window, { code: "KeyS", ctrlKey: true, key: "ы" });
+
+    expect(openDocument).toHaveBeenCalledTimes(1);
+    expect(saveDocument).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps character matching for static shortcuts on Dvorak", () => {
+    const exportHtml = vi.fn();
+    const saveDocument = vi.fn();
+    const saveDocumentAs = vi.fn();
+    renderHook(() =>
+      useApplicationShortcuts({
+        ...baseOptions,
+        exportHtml,
+        platform: "linux",
+        saveDocument,
+        saveDocumentAs
+      })
+    );
+
+    fireEvent.keyDown(window, { code: "Semicolon", ctrlKey: true, key: "s" });
+    fireEvent.keyDown(window, { code: "Semicolon", ctrlKey: true, key: "S", shiftKey: true });
+    fireEvent.keyDown(window, { code: "KeyE", ctrlKey: true, key: ">", shiftKey: true });
+
+    expect(saveDocument).toHaveBeenCalledTimes(1);
+    expect(saveDocumentAs).toHaveBeenCalledTimes(1);
+    expect(exportHtml).not.toHaveBeenCalled();
+  });
+
   it("does not treat Control+Meta as the platform modifier for static shortcuts", () => {
     const openSettings = vi.fn();
     renderHook(() =>
