@@ -1264,11 +1264,11 @@ describe("useMarkdownDocument", () => {
   });
 
   it.each([
-    { outlineRightAfterEdit: "Alpha edited", path: "immediate", sizeBytes: undefined },
-    { outlineRightAfterEdit: "Alpha", path: "deferred", sizeBytes: 300_000 }
-  ])("shows a cached outline right after switching back to a tab ($path summary)", async ({
-    outlineRightAfterEdit,
-    sizeBytes
+    { path: "immediate", sizeBytes: undefined, staleWhileRefreshing: false },
+    { path: "deferred", sizeBytes: 300_000, staleWhileRefreshing: true }
+  ])("never renders an empty outline when switching back to a tab ($path summary)", async ({
+    sizeBytes,
+    staleWhileRefreshing
   }) => {
     const contents: Record<string, string> = {
       "alpha.md": "# Alpha\n\nOutline cache",
@@ -1280,16 +1280,19 @@ describe("useMarkdownDocument", () => {
       const name = path.split("/").pop()!;
       return { content: contents[name], name, path, sizeBytes } as Awaited<ReturnType<typeof readNativeMarkdownFile>>;
     });
-    const { result } = renderHook(() =>
-      useMarkdownDocument({
+    const renderedTitles: string[] = [];
+    const { result } = renderHook(() => {
+      const value = useMarkdownDocument({
         documentTabsEnabled: true,
         getCurrentMarkdown: (fallbackContent) => fallbackContent,
         onTreeRootFromFilePath: vi.fn(),
         onTreeRootFromFolderPath: vi.fn(),
         preferencesReady: false,
         restoreWorkspaceOnStartup: false
-      })
-    );
+      });
+      renderedTitles.push(value.outlineItems.map((item) => item.title).join());
+      return value;
+    });
     for (const name of ["alpha.md", "beta.md"]) {
       await act(async () => {
         await result.current.openTreeMarkdownFile({ name, path: `/mock-files/${name}`, relativePath: name });
@@ -1297,25 +1300,28 @@ describe("useMarkdownDocument", () => {
       await waitFor(() => expect(result.current.outlineItems).toEqual(outlineFor(contents[name]!)));
     }
     const tabId = (name: string) => result.current.tabs.find((tab) => tab.name === name)!.id;
+    const titlesRenderedBy = (update: () => unknown) => {
+      const firstRender = renderedTitles.length;
+      act(update);
+      return [...new Set(renderedTitles.slice(firstRender))];
+    };
     markdownHelperMocks.getMarkdownOutline.mockClear();
 
-    act(() => {
-      result.current.selectMarkdownTab(tabId("alpha.md"));
-    });
-    expect(result.current.outlineItems).toEqual([{ level: 1, title: "Alpha" }]);
-
-    const editedAlpha = "# Alpha edited\n\nOutline cache";
-    act(() => {
-      result.current.handleMarkdownChange(editedAlpha);
-    });
-    expect(result.current.outlineItems).toEqual([{ level: 1, title: outlineRightAfterEdit }]);
+    expect(titlesRenderedBy(() => result.current.selectMarkdownTab(tabId("alpha.md")))).toEqual(["Alpha"]);
+    expect(titlesRenderedBy(() => result.current.handleMarkdownChange("# Alpha edited\n\nOutline cache")))
+      .toEqual([staleWhileRefreshing ? "Alpha" : "Alpha edited"]);
     await waitFor(() => expect(result.current.outlineItems).toEqual([{ level: 1, title: "Alpha edited" }]));
+    expect(titlesRenderedBy(() => result.current.selectMarkdownTab(tabId("beta.md")))).toEqual(["Beta"]);
+    expect(titlesRenderedBy(() => result.current.selectMarkdownTab(tabId("alpha.md")))).toEqual(["Alpha edited"]);
 
-    act(() => {
-      result.current.selectMarkdownTab(tabId("beta.md"));
-    });
-    expect(result.current.outlineItems).toEqual([{ level: 1, title: "Beta" }]);
-    expect(markdownHelperMocks.getMarkdownOutline.mock.calls).toEqual([[editedAlpha]]);
+    titlesRenderedBy(() => result.current.handleMarkdownChange("# Alpha again\n\nOutline cache"));
+    titlesRenderedBy(() => result.current.selectMarkdownTab(tabId("beta.md")));
+    expect(titlesRenderedBy(() => result.current.selectMarkdownTab(tabId("alpha.md"))))
+      .toEqual([staleWhileRefreshing ? "Alpha edited" : "Alpha again"]);
+
+    const parsedContents = markdownHelperMocks.getMarkdownOutline.mock.calls.map(([content]) => content);
+    expect(parsedContents).not.toContain(contents["alpha.md"]);
+    expect(parsedContents).not.toContain(contents["beta.md"]);
   });
 
   it("does not overwrite the active tab when restored history save resolves after switching tabs", async () => {
