@@ -434,7 +434,11 @@ export function useMarkdownDocument({
   useEffect(() => {
     if (!markdownSummaryDeferred) return;
 
-    if (cachedTabMarkdownSummary(activeTabId, document.content)) return;
+    const cached = cachedTabMarkdownSummary(activeTabId, document.content);
+    if (cached) {
+      setDeferredMarkdownSummary({ documentKey: markdownSummaryDocumentKey, ...cached });
+      return;
+    }
 
     let active = true;
     const summaryContent = document.content;

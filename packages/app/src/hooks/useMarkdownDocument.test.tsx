@@ -1264,9 +1264,12 @@ describe("useMarkdownDocument", () => {
   });
 
   it.each([
-    { path: "immediate", sizeBytes: undefined },
-    { path: "deferred", sizeBytes: 300_000 }
-  ])("shows a cached outline right after switching back to a tab ($path summary)", async ({ sizeBytes }) => {
+    { outlineRightAfterEdit: "Alpha edited", path: "immediate", sizeBytes: undefined },
+    { outlineRightAfterEdit: "Alpha", path: "deferred", sizeBytes: 300_000 }
+  ])("shows a cached outline right after switching back to a tab ($path summary)", async ({
+    outlineRightAfterEdit,
+    sizeBytes
+  }) => {
     const contents: Record<string, string> = {
       "alpha.md": "# Alpha\n\nOutline cache",
       "beta.md": "# Beta\n\nOutline cache"
@@ -1305,6 +1308,7 @@ describe("useMarkdownDocument", () => {
     act(() => {
       result.current.handleMarkdownChange(editedAlpha);
     });
+    expect(result.current.outlineItems).toEqual([{ level: 1, title: outlineRightAfterEdit }]);
     await waitFor(() => expect(result.current.outlineItems).toEqual([{ level: 1, title: "Alpha edited" }]));
 
     act(() => {
