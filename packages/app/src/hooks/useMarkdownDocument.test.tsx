@@ -26,7 +26,7 @@ import {
 } from "../lib/settings/app-settings";
 
 const markdownHelperMocks = vi.hoisted(() => ({
-  getMarkdownOutline: vi.fn((): Array<{ level: number; title: string }> => []),
+  getMarkdownOutline: vi.fn((_content?: string): Array<{ level: number; title: string }> => []),
   getWordCount: vi.fn((): number => 0)
 }));
 
@@ -1263,12 +1263,20 @@ describe("useMarkdownDocument", () => {
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledTimes(3);
   });
 
-  it("builds each document outline once when switching between tabs", async () => {
-    mockedReadNativeMarkdownFile.mockImplementation(async (path) => ({
-      content: path.endsWith("alpha.md") ? "# Alpha\n\nOutline cache" : "# Beta\n\nOutline cache",
-      name: path.split("/").pop()!,
-      path
-    }));
+  it.each([
+    { path: "immediate", sizeBytes: undefined },
+    { path: "deferred", sizeBytes: 300_000 }
+  ])("shows a cached outline right after switching back to a tab ($path summary)", async ({ sizeBytes }) => {
+    const contents: Record<string, string> = {
+      "alpha.md": "# Alpha\n\nOutline cache",
+      "beta.md": "# Beta\n\nOutline cache"
+    };
+    const outlineFor = (content = "") => [{ level: 1, title: content.slice(2, content.indexOf("\n")) }];
+    markdownHelperMocks.getMarkdownOutline.mockImplementation(outlineFor);
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
+      const name = path.split("/").pop()!;
+      return { content: contents[name], name, path, sizeBytes } as Awaited<ReturnType<typeof readNativeMarkdownFile>>;
+    });
     const { result } = renderHook(() =>
       useMarkdownDocument({
         documentTabsEnabled: true,
@@ -1283,19 +1291,27 @@ describe("useMarkdownDocument", () => {
       await act(async () => {
         await result.current.openTreeMarkdownFile({ name, path: `/mock-files/${name}`, relativePath: name });
       });
+      await waitFor(() => expect(result.current.outlineItems).toEqual(outlineFor(contents[name]!)));
     }
-    const [alphaTab, betaTab] = ["alpha.md", "beta.md"].map((name) =>
-      result.current.tabs.find((tab) => tab.name === name)!
-    );
+    const tabId = (name: string) => result.current.tabs.find((tab) => tab.name === name)!.id;
     markdownHelperMocks.getMarkdownOutline.mockClear();
 
-    for (const tab of [alphaTab, betaTab, alphaTab, betaTab]) {
-      act(() => {
-        result.current.selectMarkdownTab(tab.id);
-      });
-    }
+    act(() => {
+      result.current.selectMarkdownTab(tabId("alpha.md"));
+    });
+    expect(result.current.outlineItems).toEqual([{ level: 1, title: "Alpha" }]);
 
-    expect(markdownHelperMocks.getMarkdownOutline).not.toHaveBeenCalled();
+    const editedAlpha = "# Alpha edited\n\nOutline cache";
+    act(() => {
+      result.current.handleMarkdownChange(editedAlpha);
+    });
+    await waitFor(() => expect(result.current.outlineItems).toEqual([{ level: 1, title: "Alpha edited" }]));
+
+    act(() => {
+      result.current.selectMarkdownTab(tabId("beta.md"));
+    });
+    expect(result.current.outlineItems).toEqual([{ level: 1, title: "Beta" }]);
+    expect(markdownHelperMocks.getMarkdownOutline.mock.calls).toEqual([[editedAlpha]]);
   });
 
   it("does not overwrite the active tab when restored history save resolves after switching tabs", async () => {

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MarkdownFileTreeDrawer } from "./MarkdownFileTreeDrawer";
 import { fileTreeRowHeight } from "./file-tree/file-tree-model";
@@ -10,6 +11,11 @@ vi.mock("../lib/tauri", () => ({
   readNativeClipboardText: vi.fn(),
   showNativeMarkdownFileTreeContextMenu: vi.fn()
 }));
+
+vi.mock("react-markdown", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-markdown")>();
+  return { ...actual, default: vi.fn(actual.default) };
+});
 
 const mockedShowNativeMarkdownFileTreeContextMenu = vi.mocked(showNativeMarkdownFileTreeContextMenu);
 const mockedReadNativeClipboardText = vi.mocked(readNativeClipboardText);
@@ -4179,6 +4185,30 @@ describe("MarkdownFileTreeDrawer", () => {
     expect(italicTitle.getAttribute("style")).toContain("font-style: italic");
     expect(italicTitle.getAttribute("style")).toContain("font-synthesis: style");
     expect(deletedTitle.tagName).toBe("DEL");
+  });
+
+  it("re-renders an outline title only when its heading changes", () => {
+    const drawer = (titleMarkdown: string, activeOutlineIndex: number | null) => (
+      <MarkdownFileTreeDrawer
+        activeOutlineIndex={activeOutlineIndex}
+        currentPath="/vault/Untitled.md"
+        files={markdownFiles}
+        open
+        outlineItems={[{ level: 1, title: titleMarkdown.replaceAll("**", ""), titleMarkdown }]}
+        rootName="Obsidian Vault"
+        onOpenFile={() => {}}
+        onSelectOutlineItem={() => {}}
+      />
+    );
+    const { rerender } = render(drawer("**Bold** title", 0));
+    vi.mocked(ReactMarkdown).mockClear();
+
+    rerender(drawer("**Bold** title", null));
+    expect(ReactMarkdown).not.toHaveBeenCalled();
+
+    rerender(drawer("**Bolder** title", null));
+    expect(ReactMarkdown).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Bolder title" })).toBeInTheDocument();
   });
 
   it("renders Markra highlight and inline math in outline titles", () => {
