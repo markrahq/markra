@@ -4150,7 +4150,7 @@ function WorkspaceApp() {
     sectionCount: outlineItems.length,
     selectionChars: activeAiSelection?.text.trim().length ?? 0,
     sessionId: activeAiAgentSessionId,
-    tableCount: editor.getTableAnchors().length
+    tableCount: visibleAiAgentOpen ? editor.getTableAnchors().length : 0
   }), [
     activeAiAgentSessionId,
     activeAiSelection,
@@ -4159,7 +4159,8 @@ function WorkspaceApp() {
     titleDocumentName,
     document.revision,
     editor,
-    outlineItems.length
+    outlineItems.length,
+    visibleAiAgentOpen
   ]);
   const appUpdater = useAutoUpdater(appLanguage.language, updaterFeatureEnabled && appLanguage.ready && !editorPreferences.loading, {
     autoCheck: updaterFeatureEnabled && editorPreferences.preferences.autoUpdateEnabled,
