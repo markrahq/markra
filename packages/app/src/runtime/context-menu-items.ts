@@ -455,6 +455,10 @@ export function createEditorContextMenuEntriesFromOptions(
 
 const absoluteFilePathPattern = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/u;
 
+export function isFileSystemPath(path: string) {
+  return absoluteFilePathPattern.test(path);
+}
+
 function copyPathEntries(
   handlers: NativeMarkdownFileTreeContextMenuHandlers,
   file: NativeMarkdownFolderFile,
@@ -465,7 +469,7 @@ function copyPathEntries(
   if (!copyPath) return [];
 
   return [
-    ...(absoluteFilePathPattern.test(file.path)
+    ...(isFileSystemPath(file.path)
       ? [contextMenuItem(fileTreeId("copy-path"), label("app.copyPath"), undefined, () => copyPath(file.path), multiSelect)]
       : []),
     contextMenuItem(

@@ -615,6 +615,52 @@ describe("MarkdownTabsBar", () => {
     expect(onCloseTab).toHaveBeenNthCalledWith(2, "tab-d");
   });
 
+  it("copies the tab file path and its path relative to the open folder", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+
+    try {
+      render(
+        <MarkdownTabsBar
+          activeTabId="tab-a"
+          items={[{ dirty: false, id: "tab-a", name: "Alpha.md", path: "/synthetic/docs/alpha.md" }]}
+          onCloseTab={() => {}}
+          onNewTab={() => {}}
+          onSelectTab={() => {}}
+          rootPath="/synthetic"
+        />
+      );
+
+      fireEvent.contextMenu(screen.getByRole("tab", { name: /Alpha\.md/ }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Copy path" }));
+      fireEvent.contextMenu(screen.getByRole("tab", { name: /Alpha\.md/ }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Copy relative path" }));
+
+      await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
+      expect(writeText.mock.calls).toEqual([["/synthetic/docs/alpha.md"], ["docs/alpha.md"]]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("offers no relative path for a tab outside the open folder", () => {
+    render(
+      <MarkdownTabsBar
+        activeTabId="tab-a"
+        items={[{ dirty: false, id: "tab-a", name: "Alpha.md", path: "/elsewhere/alpha.md" }]}
+        onCloseTab={() => {}}
+        onNewTab={() => {}}
+        onSelectTab={() => {}}
+        rootPath="/synthetic"
+      />
+    );
+
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /Alpha\.md/ }));
+
+    expect(screen.getByRole("menuitem", { name: "Copy path" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Copy relative path" })).not.toBeInTheDocument();
+  });
+
   it("opens tab actions from right click and closes related tabs", async () => {
     const onCloseTab = vi.fn();
 

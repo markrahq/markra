@@ -7,11 +7,12 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent
 } from "react";
-import { Columns2, FileText, ImageIcon, LocateFixed, Pencil, Plus, X } from "lucide-react";
+import { Columns2, Copy, FileText, ImageIcon, LocateFixed, Pencil, Plus, X } from "lucide-react";
 import { IconButton, Tooltip } from "@markra/ui";
 import { t, type AppLanguage } from "@markra/shared";
 import type { MarkdownDocumentTab } from "../hooks/useMarkdownDocument";
 import { ContextMenu, type ContextMenuEntry } from "./ContextMenu";
+import { isFileSystemPath } from "../runtime/context-menu-items";
 
 export type MarkdownTabsBarDocumentItem = Pick<MarkdownDocumentTab, "deleted" | "dirty" | "id" | "name"> & {
   displayKind?: "image" | "markdown";
@@ -33,6 +34,7 @@ type MarkdownTabsBarProps = {
   onNewTab: () => unknown;
   onOpenTabToSide?: (tabId: string, primaryTabId?: string) => unknown;
   onRevealTabInFileTree?: (path: string) => unknown;
+  rootPath?: string | null;
   onRenameTab?: (tab: MarkdownTabsBarDocumentItem, name: string) => unknown;
   onSelectTab: (tabId: string) => unknown;
 };
@@ -67,6 +69,47 @@ export const markdownTabDragDataType = "application/x-markra-document-tab";
 const pointerTabDragThresholdPx = 6;
 const pointerTabDragPreviewOffsetPx = 12;
 
+function pathRelativeToRoot(path: string, rootPath: string | null | undefined) {
+  const root = rootPath?.replace(/[\\/]+$/u, "");
+  if (!root || !path.startsWith(root)) return null;
+
+  const separator = path.charAt(root.length);
+  return separator === "/" || separator === "\\" ? path.slice(root.length + 1) : null;
+}
+
+function copyPathEntries(
+  path: string,
+  rootPath: string | null | undefined,
+  label: (key: "app.copyPath" | "app.copyRelativePath") => string,
+  run: (action: () => unknown) => unknown
+): ContextMenuEntry[] {
+  if (!isFileSystemPath(path)) return [];
+
+  const copy = (text: string) => run(() => navigator.clipboard?.writeText(text).catch(() => {}));
+  const relativePath = pathRelativeToRoot(path, rootPath);
+
+  return [
+    {
+      icon: <Copy aria-hidden="true" size={14} />,
+      id: "markra:tab:copy-path",
+      kind: "item",
+      label: label("app.copyPath"),
+      onSelect: () => copy(path)
+    },
+    ...(relativePath
+      ? [
+          {
+            icon: <Copy aria-hidden="true" size={14} />,
+            id: "markra:tab:copy-relative-path",
+            kind: "item" as const,
+            label: label("app.copyRelativePath"),
+            onSelect: () => copy(relativePath)
+          }
+        ]
+      : [])
+  ];
+}
+
 export function MarkdownTabsBar({
   activeTabId,
   focusedTabId,
@@ -81,7 +124,8 @@ export function MarkdownTabsBar({
   onOpenTabToSide,
   onRevealTabInFileTree,
   onRenameTab,
-  onSelectTab
+  onSelectTab,
+  rootPath
 }: MarkdownTabsBarProps) {
   const label = (key: Parameters<typeof t>[1]) => t(language, key);
   const [renamingTabId, setRenamingTabId] = useState<string | null>(null);
@@ -408,6 +452,7 @@ export function MarkdownTabsBar({
           }
         ]
       : []),
+    ...(contextMenuTab.path ? copyPathEntries(contextMenuTab.path, rootPath, label, runTabContextMenuAction) : []),
     ...(onCancelSideBySide && contextMenuTabIsSideBySide
       ? [
           {

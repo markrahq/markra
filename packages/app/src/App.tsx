@@ -4552,6 +4552,7 @@ function WorkspaceApp() {
       onRevealTabInFileTree={handleRevealPathInFileTree}
       onRenameTab={handleRenameTitlebarTab}
       onSelectTab={handleSelectTitlebarTab}
+      rootPath={fileTree.sourcePath}
     />
   ) : null;
   const appTitlebarActions = useMemo(
