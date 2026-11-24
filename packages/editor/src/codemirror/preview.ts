@@ -397,6 +397,49 @@ function buildDecorations(
         (selection) => selection.empty && selection.head === typedBoundary,
       )
     );
+  // Lines after an item's first line belong to its paragraphs. Without a
+  // decoration they render at the paper edge with their source indentation.
+  const decorateListContinuationLines = (
+    item: MarkraSyntaxNode,
+    firstLineNumber: number,
+  ) => {
+    const depth = String(markraListDepth(item));
+    for (const paragraph of item.getChildren("Paragraph")) {
+      const startLine = Math.max(
+        state.doc.lineAt(paragraph.from).number,
+        firstLineNumber + 1,
+      );
+      const endLine = state.doc.lineAt(paragraph.to).number;
+      for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
+        const line = state.doc.line(lineNumber);
+        if (decoratedListLines.has(line.from)) continue;
+
+        decoratedListLines.add(line.from);
+        const indentEnd =
+          line.from + (/^[\t ]*/u.exec(line.text)?.[0].length ?? 0);
+        const sourceVisible = isRevealed({
+          view,
+          state,
+          from: line.from,
+          to: indentEnd,
+          nodeName: "ListMark",
+          scope: "line",
+        });
+        ranges.push(
+          Decoration.line({
+            attributes: {
+              "data-list-depth": depth,
+              "data-markra-list-source": sourceVisible ? "visible" : "hidden",
+            },
+            class: "cm-markra-list-continuation",
+          }).range(line.from),
+        );
+        if (!sourceVisible) {
+          pushHiddenRange(ranges, state.doc, line.from, indentEnd);
+        }
+      }
+    }
+  };
   type SyntaxNode = Parameters<
     NonNullable<Parameters<typeof tree.iterate>[0]["enter"]>
   >[0];
@@ -538,6 +581,10 @@ function buildDecorations(
             class: "cm-markra-list-item",
           }).range(line.from),
         );
+      }
+
+      if (listAttributes) {
+        decorateListContinuationLines(node.node as MarkraSyntaxNode, line.number);
       }
 
       const emptyTask = emptyTaskMarkerRange(line.text);

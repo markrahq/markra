@@ -1153,20 +1153,24 @@
     padding-block-start: 12px !important;
   }
 
-  .markdown-paper .cm-line.cm-markra-list-item[data-markra-list-source="hidden"] {
+  .markdown-paper .cm-line.cm-markra-list-item[data-markra-list-source="hidden"],
+  .markdown-paper .cm-line.cm-markra-list-continuation[data-markra-list-source="hidden"] {
     --markra-list-depth-offset: 0em;
     padding-inline-start: calc(1.4em + var(--markra-list-depth-offset)) !important;
   }
 
-  .markdown-paper .cm-line.cm-markra-list-item[data-list-depth="1"] {
+  .markdown-paper .cm-line.cm-markra-list-item[data-list-depth="1"],
+  .markdown-paper .cm-line.cm-markra-list-continuation[data-list-depth="1"] {
     --markra-list-depth-offset: 1.35em;
   }
 
-  .markdown-paper .cm-line.cm-markra-list-item[data-list-depth="2"] {
+  .markdown-paper .cm-line.cm-markra-list-item[data-list-depth="2"],
+  .markdown-paper .cm-line.cm-markra-list-continuation[data-list-depth="2"] {
     --markra-list-depth-offset: 2.7em;
   }
 
-  .markdown-paper .cm-line.cm-markra-list-item[data-list-depth="3"] {
+  .markdown-paper .cm-line.cm-markra-list-item[data-list-depth="3"],
+  .markdown-paper .cm-line.cm-markra-list-continuation[data-list-depth="3"] {
     --markra-list-depth-offset: 4.05em;
   }
 
