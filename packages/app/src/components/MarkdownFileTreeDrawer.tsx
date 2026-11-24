@@ -66,6 +66,7 @@ import { markraHighlightRemarkPlugin, type MarkdownOutlineItem } from "@markra/m
 import { DocumentLinksPanel } from "./DocumentLinksPanel";
 import type { NativeMarkdownFolderFile } from "../lib/tauri";
 import { normalizeMovedPath, sameNativePath } from "../lib/path-move";
+import { copyPathToClipboard } from "../lib/copy-path";
 import { readNativeClipboardText, showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 import { resolveDesktopPlatform, type DesktopPlatform } from "../lib/platform";
 import { anchoredPopoverStyle } from "../lib/anchored-popover";
@@ -1602,7 +1603,7 @@ export function MarkdownFileTreeDrawer({
             name: template.name
           }))
           : undefined,
-        copyPath: (path) => navigator.clipboard?.writeText(path).catch(() => {}),
+        copyPath: (path) => copyPathToClipboard(path, language),
         createFolder: folderCreationAvailable ? () => startCreatingFolder(createTargetFolderPath) : undefined,
         deleteFile: deleteFileTreeTarget,
         openContainingFolder: onOpenContainingFolder

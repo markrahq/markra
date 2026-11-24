@@ -397,6 +397,7 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "포함된 폴더 열기",
   "app.copyPath": "경로 복사",
   "app.copyRelativePath": "상대 경로 복사",
+  "app.copyPathFailed": "경로를 복사할 수 없습니다.",
   "app.markdownTemplateSaved": "템플릿으로 저장했습니다.",
   "app.markdownTemplateSaveFailed": "템플릿을 저장할 수 없습니다.",
   "app.markdownFileSaveFailed": "문서를 저장할 수 없습니다.",

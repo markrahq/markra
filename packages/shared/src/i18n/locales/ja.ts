@@ -406,6 +406,7 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "所在フォルダーを開く",
   "app.copyPath": "パスをコピー",
   "app.copyRelativePath": "相対パスをコピー",
+  "app.copyPathFailed": "パスをコピーできませんでした。",
   "app.markdownTemplateSaved": "テンプレートとして保存しました。",
   "app.markdownTemplateSaveFailed": "テンプレートを保存できませんでした。",
   "app.markdownFileSaveFailed": "ドキュメントを保存できませんでした。",

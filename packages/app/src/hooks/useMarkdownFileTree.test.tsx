@@ -122,6 +122,7 @@ function FileTreeProbe({
   return (
     <section>
       <p data-testid="root-name">{tree.rootNameForDocument(currentPath)}</p>
+      <p data-testid="workspace-path">{tree.workspacePath}</p>
       <p data-testid="open-state">{tree.open ? "open" : "closed"}</p>
       <p data-testid="tree-width">{tree.width}</p>
       <p data-testid="tree-resizing">{tree.resizing ? "resizing" : "idle"}</p>
@@ -488,6 +489,15 @@ describe("useMarkdownFileTree", () => {
     fireEvent.click(screen.getByRole("button", { name: "Open second docs folder" }));
 
     expect(firstSignalRef.current?.aborted).toBe(true);
+  });
+
+  it("resolves a standalone file root to the folder the tree shows", () => {
+    mockedLoadNativeMarkdownFilesForPath.mockResolvedValue([]);
+    render(<FileTreeProbe />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Use file root" }));
+
+    expect(screen.getByTestId("workspace-path")).toHaveTextContent(/^\/mock-workspaces\/notes$/u);
   });
 
   it("keeps the first selected folder load alive when switching from a file root", async () => {

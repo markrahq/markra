@@ -406,6 +406,7 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "開啟所在資料夾",
   "app.copyPath": "複製路徑",
   "app.copyRelativePath": "複製相對路徑",
+  "app.copyPathFailed": "無法複製路徑。",
   "app.markdownTemplateSaved": "已儲存為範本。",
   "app.markdownTemplateSaveFailed": "無法儲存範本。",
   "app.markdownFileSaveFailed": "無法儲存文件。",

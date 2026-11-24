@@ -752,6 +752,7 @@ const messages: BaseLocaleMessages = {
   "app.openContainingFolder": "Open containing folder",
   "app.copyPath": "Copy path",
   "app.copyRelativePath": "Copy relative path",
+  "app.copyPathFailed": "Could not copy the path.",
   "app.markdownTemplateSaved": "Template saved.",
   "app.markdownTemplateSaveFailed": "Could not save template.",
   "app.markdownFileSaveFailed": "Could not save the document.",

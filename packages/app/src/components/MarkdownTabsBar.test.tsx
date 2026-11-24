@@ -1,6 +1,9 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import { MarkdownTabsBar } from "./MarkdownTabsBar";
+import { showAppToast } from "../lib/app-toast";
+
+vi.mock("../lib/app-toast", () => ({ showAppToast: vi.fn() }));
 
 describe("MarkdownTabsBar", () => {
   afterEach(() => {
@@ -638,6 +641,34 @@ describe("MarkdownTabsBar", () => {
 
       await waitFor(() => expect(writeText).toHaveBeenCalledTimes(2));
       expect(writeText.mock.calls).toEqual([["/synthetic/docs/alpha.md"], ["docs/alpha.md"]]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("reports a denied clipboard write from the tab menu", async () => {
+    const writeText = vi.fn().mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+
+    try {
+      render(
+        <MarkdownTabsBar
+          activeTabId="tab-a"
+          items={[{ dirty: false, id: "tab-a", name: "Alpha.md", path: "/synthetic/docs/alpha.md" }]}
+          onCloseTab={() => {}}
+          onNewTab={() => {}}
+          onSelectTab={() => {}}
+          rootPath="/synthetic/docs"
+        />
+      );
+
+      fireEvent.contextMenu(screen.getByRole("tab", { name: /Alpha\.md/ }));
+      fireEvent.click(screen.getByRole("menuitem", { name: "Copy relative path" }));
+
+      await waitFor(() =>
+        expect(showAppToast).toHaveBeenCalledWith({ message: "Could not copy the path.", status: "error" })
+      );
+      expect(writeText).toHaveBeenCalledWith("alpha.md");
     } finally {
       vi.unstubAllGlobals();
     }

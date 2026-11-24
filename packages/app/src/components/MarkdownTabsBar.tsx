@@ -12,6 +12,7 @@ import { IconButton, Tooltip } from "@markra/ui";
 import { t, type AppLanguage } from "@markra/shared";
 import type { MarkdownDocumentTab } from "../hooks/useMarkdownDocument";
 import { ContextMenu, type ContextMenuEntry } from "./ContextMenu";
+import { copyPathToClipboard } from "../lib/copy-path";
 import { isFileSystemPath } from "../runtime/context-menu-items";
 
 export type MarkdownTabsBarDocumentItem = Pick<MarkdownDocumentTab, "deleted" | "dirty" | "id" | "name"> & {
@@ -80,12 +81,12 @@ function pathRelativeToRoot(path: string, rootPath: string | null | undefined) {
 function copyPathEntries(
   path: string,
   rootPath: string | null | undefined,
-  label: (key: "app.copyPath" | "app.copyRelativePath") => string,
+  language: AppLanguage,
   run: (action: () => unknown) => unknown
 ): ContextMenuEntry[] {
   if (!isFileSystemPath(path)) return [];
 
-  const copy = (text: string) => run(() => navigator.clipboard?.writeText(text).catch(() => {}));
+  const copy = (text: string) => run(() => copyPathToClipboard(text, language));
   const relativePath = pathRelativeToRoot(path, rootPath);
 
   return [
@@ -93,7 +94,7 @@ function copyPathEntries(
       icon: <Copy aria-hidden="true" size={14} />,
       id: "markra:tab:copy-path",
       kind: "item",
-      label: label("app.copyPath"),
+      label: t(language, "app.copyPath"),
       onSelect: () => copy(path)
     },
     ...(relativePath
@@ -102,7 +103,7 @@ function copyPathEntries(
             icon: <Copy aria-hidden="true" size={14} />,
             id: "markra:tab:copy-relative-path",
             kind: "item" as const,
-            label: label("app.copyRelativePath"),
+            label: t(language, "app.copyRelativePath"),
             onSelect: () => copy(relativePath)
           }
         ]
@@ -452,7 +453,7 @@ export function MarkdownTabsBar({
           }
         ]
       : []),
-    ...(contextMenuTab.path ? copyPathEntries(contextMenuTab.path, rootPath, label, runTabContextMenuAction) : []),
+    ...(contextMenuTab.path ? copyPathEntries(contextMenuTab.path, rootPath, language, runTabContextMenuAction) : []),
     ...(onCancelSideBySide && contextMenuTabIsSideBySide
       ? [
           {

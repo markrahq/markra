@@ -397,6 +397,7 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "Открыть содержащую папку",
   "app.copyPath": "Копировать путь",
   "app.copyRelativePath": "Копировать относительный путь",
+  "app.copyPathFailed": "Не удалось скопировать путь.",
   "app.markdownTemplateSaved": "Шаблон сохранён.",
   "app.markdownTemplateSaveFailed": "Не удалось сохранить шаблон.",
   "app.markdownFileSaveFailed": "Не удалось сохранить документ.",

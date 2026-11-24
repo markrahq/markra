@@ -397,6 +397,7 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "Abrir pasta que contém",
   "app.copyPath": "Copiar caminho",
   "app.copyRelativePath": "Copiar caminho relativo",
+  "app.copyPathFailed": "Não foi possível copiar o caminho.",
   "app.markdownTemplateSaved": "Modelo salvo.",
   "app.markdownTemplateSaveFailed": "Não foi possível salvar o modelo.",
   "app.markdownFileSaveFailed": "Não foi possível salvar o documento.",

@@ -763,6 +763,7 @@ export type I18nKey =
   | "app.openContainingFolder"
   | "app.copyPath"
   | "app.copyRelativePath"
+  | "app.copyPathFailed"
   | "app.markdownTemplateSaved"
   | "app.markdownTemplateSaveFailed"
   | "app.markdownFileSaveFailed"

@@ -752,6 +752,7 @@ const messages: LocaleMessages = {
   "app.openContainingFolder": "打开所在文件夹",
   "app.copyPath": "复制路径",
   "app.copyRelativePath": "复制相对路径",
+  "app.copyPathFailed": "无法复制路径。",
   "app.markdownTemplateSaved": "已保存为模板。",
   "app.markdownTemplateSaveFailed": "无法保存模板。",
   "app.markdownFileSaveFailed": "无法保存文档。",
