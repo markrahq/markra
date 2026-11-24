@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useDeferredValue,
   useEffect,
@@ -315,7 +316,7 @@ function compactRecentFolderPath(path: string, maxLength = recentFolderPathDispl
   return `${path.slice(0, leadingLength)}...${path.slice(-trailingLength)}`;
 }
 
-function OutlineTitle({ item }: { item: MarkdownOutlineItem }) {
+const OutlineTitle = memo(function OutlineTitle({ item }: { item: MarkdownOutlineItem }) {
   if (!item.titleMarkdown || item.titleMarkdown === item.title) return item.title;
 
   return (
@@ -328,7 +329,9 @@ function OutlineTitle({ item }: { item: MarkdownOutlineItem }) {
       {item.titleMarkdown}
     </ReactMarkdown>
   );
-}
+}, (previous, next) =>
+  previous.item.title === next.item.title && previous.item.titleMarkdown === next.item.titleMarkdown
+);
 
 type EditableTextInput = HTMLInputElement | HTMLTextAreaElement;
 type TextInputValueSetter = Dispatch<SetStateAction<string>>;

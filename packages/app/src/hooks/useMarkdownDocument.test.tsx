@@ -1263,6 +1263,41 @@ describe("useMarkdownDocument", () => {
     expect(mockedReadNativeMarkdownFile).toHaveBeenCalledTimes(3);
   });
 
+  it("builds each document outline once when switching between tabs", async () => {
+    mockedReadNativeMarkdownFile.mockImplementation(async (path) => ({
+      content: path.endsWith("alpha.md") ? "# Alpha\n\nOutline cache" : "# Beta\n\nOutline cache",
+      name: path.split("/").pop()!,
+      path
+    }));
+    const { result } = renderHook(() =>
+      useMarkdownDocument({
+        documentTabsEnabled: true,
+        getCurrentMarkdown: (fallbackContent) => fallbackContent,
+        onTreeRootFromFilePath: vi.fn(),
+        onTreeRootFromFolderPath: vi.fn(),
+        preferencesReady: false,
+        restoreWorkspaceOnStartup: false
+      })
+    );
+    for (const name of ["alpha.md", "beta.md"]) {
+      await act(async () => {
+        await result.current.openTreeMarkdownFile({ name, path: `/mock-files/${name}`, relativePath: name });
+      });
+    }
+    const [alphaTab, betaTab] = ["alpha.md", "beta.md"].map((name) =>
+      result.current.tabs.find((tab) => tab.name === name)!
+    );
+    markdownHelperMocks.getMarkdownOutline.mockClear();
+
+    for (const tab of [alphaTab, betaTab, alphaTab, betaTab]) {
+      act(() => {
+        result.current.selectMarkdownTab(tab.id);
+      });
+    }
+
+    expect(markdownHelperMocks.getMarkdownOutline).not.toHaveBeenCalled();
+  });
+
   it("does not overwrite the active tab when restored history save resolves after switching tabs", async () => {
     mockedReadNativeMarkdownFile.mockImplementation(async (path) => {
       if (path === "/mock-files/guide.md") {

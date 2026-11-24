@@ -135,14 +135,29 @@ function isMissingMarkdownFileReadError(error: unknown) {
   return /(?:cannot find|no longer exists|no such file|not found)/iu.test(message);
 }
 
+type MarkdownDocumentSummaryValue = Omit<MarkdownDocumentSummary, "documentKey">;
+
+const markdownSummaryCacheLimit = 16;
+// Switching tabs changes the document key but rarely the content; reparsing every heading on each
+// switch made long documents slow to show.
+const markdownSummaryCache = new Map<string, MarkdownDocumentSummaryValue>();
+
 function calculateMarkdownDocumentSummary(
   content: string,
   detail: Record<string, unknown>
-): Omit<MarkdownDocumentSummary, "documentKey"> {
-  return measureAppPerformance("markdown-summary", () => ({
+): MarkdownDocumentSummaryValue {
+  const cached = markdownSummaryCache.get(content);
+  if (cached) return cached;
+
+  const summary = measureAppPerformance("markdown-summary", () => ({
     outlineItems: getMarkdownOutline(content),
     wordCount: getWordCount(content)
   }), detail);
+  if (markdownSummaryCache.size >= markdownSummaryCacheLimit) {
+    markdownSummaryCache.delete(markdownSummaryCache.keys().next().value!);
+  }
+  markdownSummaryCache.set(content, summary);
+  return summary;
 }
 
 type UseMarkdownDocumentOptions = {
