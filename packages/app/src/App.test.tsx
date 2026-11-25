@@ -6249,6 +6249,26 @@ describe("Markra workspace", () => {
     );
   });
 
+  it("copies a standalone file tab path relative to the folder the file tree shows", async () => {
+    mockedOpenNativeMarkdownPath.mockResolvedValue({
+      kind: "file",
+      file: {
+        content: "# Alpha\n\nStandalone.",
+        name: "alpha.md",
+        path: "/synthetic/docs/alpha.md"
+      }
+    });
+
+    renderApp();
+
+    fireEvent.keyDown(window, { key: "o", metaKey: true });
+    await expectVisibleMarkdownText("Alpha");
+
+    fireEvent.contextMenu(screen.getByRole("tab", { name: /alpha\.md/ }));
+
+    expect(screen.getByRole("menuitem", { name: "Copy relative path" })).toBeInTheDocument();
+  });
+
   it("opens another file from an untouched blank document without asking to discard changes", async () => {
     mockedOpenNativeMarkdownPath
       .mockResolvedValueOnce({

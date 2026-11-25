@@ -888,6 +888,7 @@ export function useMarkdownFileTree({
     refresh,
     setRootFromMarkdownFilePath,
     sourcePath,
+    workspacePath: fileTreeWorkspacePath,
     openMarkdownFolder,
     renameFile,
     resize,

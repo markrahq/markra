@@ -17,6 +17,7 @@ export type NativeMarkdownFileTreeContextMenuHandlers = {
     id: string;
     name: string;
   }>;
+  copyPath?: (path: string) => unknown | Promise<unknown>;
   createFolder?: () => unknown | Promise<unknown>;
   deleteFile?: (file: NativeMarkdownFolderFile) => unknown | Promise<unknown>;
   openContainingFolder?: (file?: NativeMarkdownFolderFile) => unknown | Promise<unknown>;

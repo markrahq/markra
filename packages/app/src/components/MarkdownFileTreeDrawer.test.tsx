@@ -5,6 +5,9 @@ import { fileTreeRowHeight } from "./file-tree/file-tree-model";
 import { getMarkdownOutline } from "@markra/markdown";
 import { readNativeClipboardText, showNativeMarkdownFileTreeContextMenu } from "../lib/tauri";
 import type { WorkspaceLinkIndex } from "../lib/workspace-links";
+import { showAppToast } from "../lib/app-toast";
+
+vi.mock("../lib/app-toast", () => ({ showAppToast: vi.fn() }));
 
 vi.mock("../lib/tauri", () => ({
   readNativeClipboardText: vi.fn(),
@@ -2716,6 +2719,66 @@ describe("MarkdownFileTreeDrawer", () => {
     });
 
     expect(openContainingFolder).toHaveBeenCalledWith("/vault");
+  });
+
+  it("reports a denied clipboard write from file tree context menus", async () => {
+    const writeText = vi.fn().mockRejectedValue(new DOMException("Denied", "NotAllowedError"));
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+
+    try {
+      render(
+        <MarkdownFileTreeDrawer
+          currentPath="/vault/Untitled.md"
+          files={markdownFiles}
+          open
+          outlineItems={[]}
+          rootPath="/vault"
+          rootName="Obsidian Vault"
+          onOpenFile={() => {}}
+          onSelectOutlineItem={() => {}}
+        />
+      );
+
+      fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
+      const fileContextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+      await act(async () => {
+        await fileContextHandlers?.copyPath?.("Untitled.md");
+      });
+
+      expect(showAppToast).toHaveBeenCalledWith({ message: "Could not copy the path.", status: "error" });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("copies a file path from file tree context menus", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { ...navigator, clipboard: { writeText } });
+
+    try {
+      render(
+        <MarkdownFileTreeDrawer
+          currentPath="/vault/Untitled.md"
+          files={markdownFiles}
+          open
+          outlineItems={[]}
+          rootPath="/vault"
+          rootName="Obsidian Vault"
+          onOpenFile={() => {}}
+          onSelectOutlineItem={() => {}}
+        />
+      );
+
+      fireEvent.contextMenu(screen.getByRole("button", { name: "Untitled.md" }));
+      const fileContextHandlers = mockedShowNativeMarkdownFileTreeContextMenu.mock.calls[0]?.[0];
+      await act(async () => {
+        await fileContextHandlers?.copyPath?.("/vault/Untitled.md");
+      });
+
+      expect(writeText).toHaveBeenCalledWith("/vault/Untitled.md");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("shows text editing actions when right-clicking a file name input", async () => {

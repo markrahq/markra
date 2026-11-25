@@ -453,6 +453,35 @@ export function createEditorContextMenuEntriesFromOptions(
   );
 }
 
+const absoluteFilePathPattern = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/u;
+
+export function isFileSystemPath(path: string) {
+  return absoluteFilePathPattern.test(path);
+}
+
+function copyPathEntries(
+  handlers: NativeMarkdownFileTreeContextMenuHandlers,
+  file: NativeMarkdownFolderFile,
+  fileTreeId: (suffix: string) => string,
+  label: (key: I18nKey) => string
+): ContextMenuEntry[] {
+  const { copyPath, multiSelect } = handlers;
+  if (!copyPath) return [];
+
+  return [
+    ...(isFileSystemPath(file.path)
+      ? [contextMenuItem(fileTreeId("copy-path"), label("app.copyPath"), undefined, () => copyPath(file.path), multiSelect)]
+      : []),
+    contextMenuItem(
+      fileTreeId("copy-relative-path"),
+      label("app.copyRelativePath"),
+      undefined,
+      () => copyPath(file.relativePath),
+      multiSelect
+    )
+  ];
+}
+
 export function createMarkdownFileTreeContextMenuEntries(
   handlers: NativeMarkdownFileTreeContextMenuHandlers,
   language: AppLanguage = "en",
@@ -495,6 +524,7 @@ export function createMarkdownFileTreeContextMenuEntries(
     entries.push(
       contextMenuSeparator(),
       contextMenuItem(fileTreeId("open-containing-folder"), label("app.openContainingFolder"), undefined, () => handlers.openContainingFolder?.(file), !handlers.openContainingFolder),
+      ...copyPathEntries(handlers, file, fileTreeId, label),
       contextMenuItem(fileTreeId("rename"), label("app.renameMarkdownFolder"), undefined, () => handlers.renameFile?.(file), !handlers.renameFile),
       contextMenuItem(fileTreeId("delete"), label("app.deleteMarkdownFolder"), undefined, () => handlers.deleteFile?.(file), !handlers.deleteFile)
     );
@@ -529,6 +559,7 @@ export function createMarkdownFileTreeContextMenuEntries(
   }
   entries.push(
     contextMenuItem(fileTreeId("open-containing-folder"), label("app.openContainingFolder"), undefined, () => handlers.openContainingFolder?.(file), multiSelect || !handlers.openContainingFolder),
+    ...copyPathEntries(handlers, file, fileTreeId, label),
     contextMenuItem(fileTreeId("rename"), label("app.renameMarkdownFile"), undefined, () => handlers.renameFile?.(file), multiSelect || !handlers.renameFile),
     contextMenuItem(fileTreeId("delete"), label("app.deleteMarkdownFile"), undefined, () => handlers.deleteFile?.(file), !handlers.deleteFile)
   );
