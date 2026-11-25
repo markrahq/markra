@@ -1039,6 +1039,16 @@ describe("editor stylesheet", () => {
     expect(rawHtmlPreStyles).toContain("white-space: pre-wrap");
   });
 
+  it("uses the task checkbox dimensions to indent task continuation lines", () => {
+    const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
+    const taskContinuation = styles.match(
+      /\.cm-markra-list-continuation\[data-list-kind="task"\]\[data-markra-list-source="hidden"\] \{([^}]+)\}/u,
+    )?.[1];
+
+    expect(taskContinuation).toContain("var(--markra-task-checkbox-size)");
+    expect(taskContinuation).toContain("var(--markra-task-checkbox-gap)");
+  });
+
   it("gives horizontal rules a forgiving hit target without heavy selected-node feedback", () => {
     const styles = readFileSync(`${process.cwd()}/src/styles.css`, "utf8");
     const renderedRuleStart = styles.indexOf(".markdown-paper .cm-markra-horizontal-rule {");

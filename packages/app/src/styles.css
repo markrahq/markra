@@ -1194,7 +1194,7 @@
 
   /* Continuation text starts after the checkbox: its width plus its end margin. */
   .markdown-paper .cm-line.cm-markra-list-continuation[data-list-kind="task"][data-markra-list-source="hidden"] {
-    padding-inline-start: calc(1.4em + var(--markra-list-depth-offset) + 1rem + 0.5em) !important;
+    padding-inline-start: calc(1.4em + var(--markra-list-depth-offset) + var(--markra-task-checkbox-size) + var(--markra-task-checkbox-gap)) !important;
   }
 
   /* The opening fence is folded into this zero-height line. Keep controls
@@ -1514,9 +1514,6 @@
   }
 
   .markdown-paper .cm-markra-task-checkbox {
-    width: 1rem;
-    height: 1rem;
-    margin: 0 0.5em 0 0;
     accent-color: var(--accent) !important;
     vertical-align: -0.08em;
   }
