@@ -907,6 +907,22 @@ describe("liveMarkdown", () => {
     );
   });
 
+  it("tells app styles whether the selection has more than one range", () => {
+    const doc = "First line\n\nSecond line";
+    const view = createView({ doc, anchor: 0 });
+
+    expect(view.dom.getAttribute("data-markra-selection-ranges")).toBe("single");
+
+    view.dispatch({
+      selection: EditorSelection.create([
+        EditorSelection.range(0, 5),
+        EditorSelection.range(doc.indexOf("Second"), doc.length),
+      ]),
+    });
+
+    expect(view.dom.getAttribute("data-markra-selection-ranges")).toBe("multiple");
+  });
+
   it("limits syntax-tree traversal to CodeMirror's visible ranges", () => {
     syntaxTreeIterations.splice(0);
     const doc = Array.from(
