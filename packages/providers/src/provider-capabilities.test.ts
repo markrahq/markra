@@ -10,6 +10,15 @@ describe("provider capabilities", () => {
     });
   });
 
+  it("enables model discovery for the built-in Atlas Cloud gateway", () => {
+    expect(getProviderCapabilities("atlascloud", "openai-compatible")).toEqual({
+      chat: true,
+      modelList: true,
+      streaming: true,
+      toolCalling: true
+    });
+  });
+
   it("uses api-style defaults and provider-level overrides", () => {
     expect(getProviderCapabilities("custom-provider-1", "openai-compatible")).toEqual({
       chat: true,
