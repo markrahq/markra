@@ -397,6 +397,64 @@ function buildDecorations(
         (selection) => selection.empty && selection.head === typedBoundary,
       )
     );
+  // Lines after an item's first line belong to its paragraphs. Without a
+  // decoration they render at the paper edge with their source indentation.
+  const decorateListContinuationLines = (
+    item: MarkraSyntaxNode,
+    firstLineNumber: number,
+    task: boolean,
+  ) => {
+    const depth = String(markraListDepth(item));
+    // A task item's first paragraph is parsed as a Task node, not a Paragraph.
+    const paragraphs = [...item.getChildren("Task"), ...item.getChildren("Paragraph")];
+    // The ListItem is decorated once, but a long item can reach far beyond the
+    // viewport, so only its visible lines are walked.
+    for (const paragraph of paragraphs) {
+      for (const visibleRange of view.visibleRanges) {
+        const from = Math.max(paragraph.from, visibleRange.from);
+        const to = Math.min(paragraph.to, visibleRange.to);
+        if (from > to) continue;
+
+        const startLine = Math.max(state.doc.lineAt(from).number, firstLineNumber + 1);
+        const endLine = state.doc.lineAt(to).number;
+        for (let lineNumber = startLine; lineNumber <= endLine; lineNumber += 1) {
+          decorateListContinuationLine(state.doc.line(lineNumber), depth, task);
+        }
+      }
+    }
+  };
+  const decorateListContinuationLine = (
+    line: { from: number; text: string },
+    depth: string,
+    task: boolean,
+  ) => {
+    if (decoratedListLines.has(line.from)) return;
+
+    decoratedListLines.add(line.from);
+    const indentEnd =
+      line.from + (/^[\t ]*/u.exec(line.text)?.[0].length ?? 0);
+    const sourceVisible = isRevealed({
+      view,
+      state,
+      from: line.from,
+      to: indentEnd,
+      nodeName: "ListMark",
+      scope: "line",
+    });
+    ranges.push(
+      Decoration.line({
+        attributes: {
+          "data-list-depth": depth,
+          ...(task ? { "data-list-kind": "task" } : {}),
+          "data-markra-list-source": sourceVisible ? "visible" : "hidden",
+        },
+        class: "cm-markra-list-continuation",
+      }).range(line.from),
+    );
+    if (!sourceVisible) {
+      pushHiddenRange(ranges, state.doc, line.from, indentEnd);
+    }
+  };
   type SyntaxNode = Parameters<
     NonNullable<Parameters<typeof tree.iterate>[0]["enter"]>
   >[0];
@@ -537,6 +595,14 @@ function buildDecorations(
             },
             class: "cm-markra-list-item",
           }).range(line.from),
+        );
+      }
+
+      if (listAttributes) {
+        decorateListContinuationLines(
+          node.node as MarkraSyntaxNode,
+          line.number,
+          taskCheckboxes && listAttributes.kind === "task",
         );
       }
 

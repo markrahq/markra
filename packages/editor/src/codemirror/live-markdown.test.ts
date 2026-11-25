@@ -1345,6 +1345,124 @@ describe("liveMarkdown", () => {
     expect(view.state.doc.toString()).toBe(doc);
   });
 
+  it("aligns list item continuation lines with the item text", () => {
+    const doc = [
+      "- First line",
+      "  wrapped line",
+      "lazy line",
+      "  - Nested first",
+      "    nested wrapped",
+      "1. Ordered first",
+      "   ordered wrapped",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView({ doc, anchor: doc.length });
+    const lines = [
+      ...view.dom.querySelectorAll<HTMLElement>(".cm-markra-list-continuation"),
+    ];
+
+    expect(lines.map((line) => line.textContent)).toEqual([
+      "wrapped line",
+      "lazy line",
+      "nested wrapped",
+      "ordered wrapped",
+    ]);
+    expect(lines.map((line) => line.getAttribute("data-list-depth"))).toEqual([
+      "0",
+      "0",
+      "1",
+      "0",
+    ]);
+    expect(
+      lines.every(
+        (line) => line.getAttribute("data-markra-list-source") === "hidden",
+      ),
+    ).toBe(true);
+    expect(view.state.doc.toString()).toBe(doc);
+  });
+
+  it("decorates list continuation lines the same way after recreation", () => {
+    const doc = ["- First line", "  wrapped line", "", "Edit"].join("\n");
+    const snapshot = () =>
+      [...createView({ doc, anchor: doc.length }).dom.querySelectorAll(".cm-line")]
+        .map((line) => `${line.className}|${line.textContent}`);
+
+    expect(snapshot()).toEqual(snapshot());
+  });
+
+  it("leaves nested lists and code blocks inside list items to their own renderers", () => {
+    const doc = [
+      "- First line",
+      "  - Nested item",
+      "",
+      "  ```",
+      "  code",
+      "  ```",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView({ doc, anchor: doc.length });
+
+    expect(view.dom.querySelectorAll(".cm-markra-list-continuation")).toHaveLength(0);
+  });
+
+  it("decorates only the visible continuation lines of a long list item", () => {
+    const doc = [
+      "- First line",
+      ...Array.from({ length: 40 }, (_, index) => `  wrapped ${index}`),
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView({ doc, anchor: 0 });
+    const line = (number: number) => view.state.doc.line(number);
+    vi.spyOn(view, "visibleRanges", "get").mockReturnValue([
+      { from: line(1).from, to: line(3).to },
+      { from: line(30).from, to: line(31).to },
+    ]);
+
+    view.dispatch({ selection: { anchor: doc.length } });
+
+    expect(
+      [...view.dom.querySelectorAll(".cm-markra-list-continuation")].map(
+        (element) => element.textContent,
+      ),
+    ).toEqual(["wrapped 0", "wrapped 1", "wrapped 28", "wrapped 29"]);
+  });
+
+  it("aligns task item continuation lines after the checkbox", () => {
+    const doc = [
+      "- [ ] Task first",
+      "  task next",
+      "",
+      "  Later paragraph",
+      "- Plain first",
+      "  plain next",
+      "",
+      "Edit",
+    ].join("\n");
+    const view = createView({ doc });
+
+    expect(
+      [...view.dom.querySelectorAll(".cm-markra-list-continuation")].map(
+        (element) => [element.textContent, element.getAttribute("data-list-kind")],
+      ),
+    ).toEqual([
+      ["task next", "task"],
+      ["Later paragraph", "task"],
+      ["plain next", null],
+    ]);
+  });
+
+  it("shows continuation indentation while the caret is on that line", () => {
+    const doc = ["- First line", "  wrapped line", "", "Edit"].join("\n");
+    const view = createView({ doc, anchor: doc.indexOf("wrapped") });
+    const line = view.dom.querySelector<HTMLElement>(".cm-markra-list-continuation");
+
+    expect(line?.getAttribute("data-markra-list-source")).toBe("visible");
+    expect(line?.textContent).toBe("  wrapped line");
+  });
+
   it("keeps blank source lines inside fenced code blocks at full line height", () => {
     const doc = [
       "~~~ts",

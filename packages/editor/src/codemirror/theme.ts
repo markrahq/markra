@@ -1,6 +1,10 @@
 import { EditorView } from "@codemirror/view";
 
 export const markraTheme = EditorView.baseTheme({
+  "&": {
+    "--markra-task-checkbox-size": "1em",
+    "--markra-task-checkbox-gap": "0.45em",
+  },
   '&[data-markra-composing="true"] .cm-selectionBackground': {
     // IME pre-edit updates temporarily expose their range as a CodeMirror
     // selection. Hiding only that drawn layer prevents it from flashing.
@@ -60,9 +64,9 @@ export const markraTheme = EditorView.baseTheme({
   ".cm-markra-task-checkbox": {
     accentColor: "#2563eb",
     cursor: "pointer",
-    height: "1em",
-    margin: "0 0.45em 0 0",
+    height: "var(--markra-task-checkbox-size)",
+    margin: "0 var(--markra-task-checkbox-gap) 0 0",
     verticalAlign: "-0.08em",
-    width: "1em",
+    width: "var(--markra-task-checkbox-size)",
   },
 });
