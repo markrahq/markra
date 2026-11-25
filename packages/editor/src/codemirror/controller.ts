@@ -302,13 +302,14 @@ function tableHeaderTitle(tableMarkdown: string) {
 export function readCodeMirrorTableAnchors(
   state: EditorState,
 ): AiDocumentAnchor[] {
-  const headings = readCodeMirrorHeadingAnchors(state);
+  let headings: AiHeadingAnchor[] | null = null;
   const anchors: AiDocumentAnchor[] = [];
 
   syntaxTree(state).iterate({
     enter(node) {
       if (node.name !== "Table") return;
 
+      headings ??= readCodeMirrorHeadingAnchors(state);
       const tableMarkdown = state.sliceDoc(node.from, node.to);
       const headerTitle = tableHeaderTitle(tableMarkdown);
       const currentHeading = [...headings]

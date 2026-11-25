@@ -135,10 +135,13 @@ function isMissingMarkdownFileReadError(error: unknown) {
   return /(?:cannot find|no longer exists|no such file|not found)/iu.test(message);
 }
 
+type MarkdownDocumentSummaryValue = Omit<MarkdownDocumentSummary, "documentKey">;
+type TabMarkdownSummary = { content: string; revision: number; summary: MarkdownDocumentSummaryValue };
+
 function calculateMarkdownDocumentSummary(
   content: string,
   detail: Record<string, unknown>
-): Omit<MarkdownDocumentSummary, "documentKey"> {
+): MarkdownDocumentSummaryValue {
   return measureAppPerformance("markdown-summary", () => ({
     outlineItems: getMarkdownOutline(content),
     wordCount: getWordCount(content)
@@ -365,11 +368,32 @@ export function useMarkdownDocument({
     [document.content, document.sizeBytes, largeDocumentSummariesBlocked]
   );
   const markdownSummaryDocumentKey = `${activeTabId ?? "no-active-tab"}:${document.revision}`;
+  // Switching back to a tab must not reparse every heading of an unchanged document.
+  const tabMarkdownSummariesRef = useRef<Map<string, TabMarkdownSummary> | null>(null);
+  if (tabMarkdownSummariesRef.current === null) tabMarkdownSummariesRef.current = new Map();
+  const tabMarkdownSummaries = tabMarkdownSummariesRef.current;
+  const cachedTabMarkdownSummary = useCallback((tabId: string | null, content: string) => {
+    const cached = tabId ? tabMarkdownSummaries.get(tabId) : undefined;
+    return cached?.content === content ? cached : null;
+  }, [tabMarkdownSummaries]);
+  const summarizeTabMarkdown = useCallback((
+    tabId: string | null,
+    content: string,
+    revision: number,
+    detail: Record<string, unknown>
+  ) => {
+    const cached = cachedTabMarkdownSummary(tabId, content);
+    if (cached) return cached.summary;
+
+    const summary = calculateMarkdownDocumentSummary(content, detail);
+    if (tabId) tabMarkdownSummaries.set(tabId, { content, revision, summary });
+    return summary;
+  }, [cachedTabMarkdownSummary, tabMarkdownSummaries]);
   const immediateMarkdownSummary = useMemo(
     () =>
       largeDocumentSummariesBlocked || markdownSummaryDeferred
         ? emptyMarkdownDocumentSummary
-        : calculateMarkdownDocumentSummary(document.content, {
+        : summarizeTabMarkdown(activeTabId, document.content, document.revision, {
           chars: document.content.length,
           deferred: false,
           name: document.name,
@@ -377,38 +401,64 @@ export function useMarkdownDocument({
           sizeBytes: document.sizeBytes ?? null
         }),
     [
+      activeTabId,
       document.content,
       document.name,
       document.path,
+      document.revision,
       document.sizeBytes,
       largeDocumentSummariesBlocked,
-      markdownSummaryDeferred
+      markdownSummaryDeferred,
+      summarizeTabMarkdown
     ]
   );
   // Keep the last completed summary visible while the same document refreshes
   // in the background; clearing it here makes the outline collapse on every edit.
+  const activeTabMarkdownSummary = activeTabId ? tabMarkdownSummaries.get(activeTabId) : undefined;
+  // Restoring identical Markdown advances the revision without invalidating its summary.
   const currentDeferredMarkdownSummary =
-    deferredMarkdownSummary?.documentKey === markdownSummaryDocumentKey
-      ? deferredMarkdownSummary
-      : null;
+    activeTabMarkdownSummary && (
+      activeTabMarkdownSummary.revision === document.revision ||
+      activeTabMarkdownSummary.content === document.content
+    )
+      ? activeTabMarkdownSummary.summary
+      : deferredMarkdownSummary?.documentKey === markdownSummaryDocumentKey
+        ? deferredMarkdownSummary
+        : null;
   const outlineItems = markdownSummaryDeferred
     ? currentDeferredMarkdownSummary?.outlineItems ?? emptyMarkdownDocumentSummary.outlineItems
     : immediateMarkdownSummary.outlineItems;
   const wordCount = markdownSummaryDeferred
     ? currentDeferredMarkdownSummary?.wordCount ?? emptyMarkdownDocumentSummary.wordCount
     : immediateMarkdownSummary.wordCount;
+
+  useEffect(() => {
+    const openTabIds = new Set(tabs.map((tab) => tab.id));
+    for (const tabId of tabMarkdownSummaries.keys()) {
+      if (!openTabIds.has(tabId)) tabMarkdownSummaries.delete(tabId);
+    }
+  }, [tabMarkdownSummaries, tabs]);
   const watchedMarkdownFilePathsKey = useMemo(() => openFilePathsFromTabs(tabs).join("\n"), [tabs]);
 
   useEffect(() => {
     if (!markdownSummaryDeferred) return;
 
+    const cached = cachedTabMarkdownSummary(activeTabId, document.content);
+    if (cached) {
+      // Keep the reused summary visible during the next edit's idle refresh.
+      cached.revision = document.revision;
+      return;
+    }
+
     let active = true;
     const summaryContent = document.content;
     const summaryDocumentKey = markdownSummaryDocumentKey;
+    const summaryTabId = activeTabId;
+    const summaryRevision = document.revision;
     const cancel = scheduleMarkdownSummaryIdle(() => {
       if (!active) return;
 
-      const summary = calculateMarkdownDocumentSummary(summaryContent, {
+      const summary = summarizeTabMarkdown(summaryTabId, summaryContent, summaryRevision, {
         chars: summaryContent.length,
         deferred: true,
         name: document.name,
@@ -428,12 +478,16 @@ export function useMarkdownDocument({
       cancel();
     };
   }, [
+    activeTabId,
+    cachedTabMarkdownSummary,
     document.content,
     document.name,
     document.path,
+    document.revision,
     document.sizeBytes,
     markdownSummaryDeferred,
-    markdownSummaryDocumentKey
+    markdownSummaryDocumentKey,
+    summarizeTabMarkdown
   ]);
 
   useEffect(() => {
