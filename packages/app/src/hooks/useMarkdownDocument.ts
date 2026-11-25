@@ -374,7 +374,7 @@ export function useMarkdownDocument({
   const tabMarkdownSummaries = tabMarkdownSummariesRef.current;
   const cachedTabMarkdownSummary = useCallback((tabId: string | null, content: string) => {
     const cached = tabId ? tabMarkdownSummaries.get(tabId) : undefined;
-    return cached?.content === content ? cached.summary : null;
+    return cached?.content === content ? cached : null;
   }, [tabMarkdownSummaries]);
   const summarizeTabMarkdown = useCallback((
     tabId: string | null,
@@ -383,7 +383,7 @@ export function useMarkdownDocument({
     detail: Record<string, unknown>
   ) => {
     const cached = cachedTabMarkdownSummary(tabId, content);
-    if (cached) return cached;
+    if (cached) return cached.summary;
 
     const summary = calculateMarkdownDocumentSummary(content, detail);
     if (tabId) tabMarkdownSummaries.set(tabId, { content, revision, summary });
@@ -415,8 +415,12 @@ export function useMarkdownDocument({
   // Keep the last completed summary visible while the same document refreshes
   // in the background; clearing it here makes the outline collapse on every edit.
   const activeTabMarkdownSummary = activeTabId ? tabMarkdownSummaries.get(activeTabId) : undefined;
+  // Restoring identical Markdown advances the revision without invalidating its summary.
   const currentDeferredMarkdownSummary =
-    activeTabMarkdownSummary?.revision === document.revision
+    activeTabMarkdownSummary && (
+      activeTabMarkdownSummary.revision === document.revision ||
+      activeTabMarkdownSummary.content === document.content
+    )
       ? activeTabMarkdownSummary.summary
       : deferredMarkdownSummary?.documentKey === markdownSummaryDocumentKey
         ? deferredMarkdownSummary
@@ -439,7 +443,12 @@ export function useMarkdownDocument({
   useEffect(() => {
     if (!markdownSummaryDeferred) return;
 
-    if (cachedTabMarkdownSummary(activeTabId, document.content)) return;
+    const cached = cachedTabMarkdownSummary(activeTabId, document.content);
+    if (cached) {
+      // Keep the reused summary visible during the next edit's idle refresh.
+      cached.revision = document.revision;
+      return;
+    }
 
     let active = true;
     const summaryContent = document.content;

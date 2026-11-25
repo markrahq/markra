@@ -990,6 +990,57 @@ describe("useMarkdownDocument", () => {
     expect(result.current.wordCount).toBe(6);
   });
 
+  it("reuses the deferred summary after restoring identical Markdown", async () => {
+    const content = "# Synthetic guide\n\n" + "sample words.\n".repeat(6000);
+    const outlineItems = [{ level: 1, title: "Synthetic guide" }];
+    const path = "/mock-files/synthetic-guide.md";
+    mockedReadNativeMarkdownFile.mockResolvedValueOnce({
+      content,
+      name: "synthetic-guide.md",
+      path,
+      sizeBytes: content.length
+    } as Awaited<ReturnType<typeof readNativeMarkdownFile>>);
+    markdownHelperMocks.getMarkdownOutline.mockReturnValue(outlineItems);
+    markdownHelperMocks.getWordCount.mockReturnValue(12_002);
+    const { result } = renderHook(() => useMarkdownDocument({
+      documentTabsEnabled: true,
+      getCurrentMarkdown: (fallbackContent) => fallbackContent,
+      onTreeRootFromFilePath: vi.fn(),
+      onTreeRootFromFolderPath: vi.fn(),
+      preferencesReady: false,
+      restoreWorkspaceOnStartup: false
+    }));
+
+    await act(async () => {
+      await result.current.openTreeMarkdownFile({
+        name: "synthetic-guide.md",
+        path,
+        relativePath: "synthetic-guide.md"
+      });
+    });
+    await waitFor(() => expect(result.current.outlineItems).toEqual(outlineItems));
+    const previousRevision = result.current.document.revision;
+    markdownHelperMocks.getMarkdownOutline.mockClear();
+
+    act(() => {
+      result.current.restoreDocumentContent(content);
+    });
+
+    expect(result.current.document.revision).toBe(previousRevision + 1);
+    expect(result.current.outlineItems).toEqual(outlineItems);
+    expect(result.current.wordCount).toBe(12_002);
+    expect(markdownHelperMocks.getMarkdownOutline).not.toHaveBeenCalled();
+
+    const editedOutlineItems = [{ level: 1, title: "Edited guide" }];
+    markdownHelperMocks.getMarkdownOutline.mockReturnValue(editedOutlineItems);
+    act(() => {
+      result.current.handleMarkdownChange(content.replace("Synthetic guide", "Edited guide"));
+    });
+
+    expect(result.current.outlineItems).toEqual(outlineItems);
+    await waitFor(() => expect(result.current.outlineItems).toEqual(editedOutlineItems));
+  });
+
   it("does not reuse a deferred summary after switching documents", async () => {
     const firstContent = "# First synthetic guide";
     const secondContent = "# Second synthetic guide";
