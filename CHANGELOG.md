@@ -1,3 +1,19 @@
+## [2.14.9](https://github.com/markrahq/markra/compare/v2.14.8...v2.14.9) (2026-11-25)
+
+### Features
+
+* **app:** copy file paths from the file tree context menu ([#799](https://github.com/markrahq/markra/issues/799)) ([4feeccb](https://github.com/markrahq/markra/commit/4feeccb9069e9679551a2a39fe7403502340235c))
+
+### Bug Fixes
+
+* **app:** match fixed shortcuts by physical key on non-Latin layouts ([#797](https://github.com/markrahq/markra/issues/797)) ([9030eb1](https://github.com/markrahq/markra/commit/9030eb106540b5f61504ae870c7a4faa8121ecae))
+* **editor:** align list item continuation lines with the item text ([#800](https://github.com/markrahq/markra/issues/800)) ([f71ca31](https://github.com/markrahq/markra/commit/f71ca3131bb727f59ebcf6af19334615c1ccbc16))
+* **editor:** paint preview selection natively on Linux ([#795](https://github.com/markrahq/markra/issues/795)) ([5f56d43](https://github.com/markrahq/markra/commit/5f56d43f8e45644d74cbca58a38b3bf7f7c38514))
+
+### Performance Improvements
+
+* **app:** faster tab switching for documents with many headings ([#801](https://github.com/markrahq/markra/issues/801)) ([7b5f15c](https://github.com/markrahq/markra/commit/7b5f15c30372875de14683eaf596b0d5e9e07b7c))
+
 ## [2.14.8](https://github.com/markrahq/markra/compare/v2.14.7...v2.14.8) (2026-11-19)
 
 ### Bug Fixes
