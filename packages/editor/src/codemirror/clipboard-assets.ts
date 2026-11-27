@@ -38,6 +38,7 @@ import {
 import { detectCodePaste, type DetectedCodePaste } from "./code-paste.ts";
 import { convertCodeMirrorClipboardHtml } from "./html-paste.ts";
 import { defineMarkraPlugin } from "./plugin.ts";
+import { isSelectionInFencedCodeBody } from "./syntax.ts";
 
 export interface CodeMirrorClipboardAssetsPluginOptions {
   documentPath?: () => string | null | undefined;
@@ -435,6 +436,8 @@ function insertHtmlPaste(
   const html = event.clipboardData?.getData("text/html") ?? "";
   if (!html) return false;
   const plainText = event.clipboardData?.getData("text/plain") ?? "";
+  // Let CodeMirror insert the original text where Markdown escapes would be visible as code.
+  if (plainText && isSelectionInFencedCodeBody(view.state)) return false;
   const converted = convertCodeMirrorClipboardHtml(html, plainText);
   if (!converted) return false;
   // Rendered rich text can contain an incidental Markdown-looking fragment.

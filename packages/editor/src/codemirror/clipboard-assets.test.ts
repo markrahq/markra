@@ -2,7 +2,7 @@ import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { markdownImageDragMime } from "@markra/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { markNextPlainTextPaste } from "../plain-text-paste.ts";
+import { dispatchPlainTextPaste, markNextPlainTextPaste } from "../plain-text-paste.ts";
 import { codeMirrorClipboardAssetsPlugin } from "./clipboard-assets.ts";
 import { liveMarkdown } from "./index.ts";
 import "./dom.test-support.ts";
@@ -530,6 +530,48 @@ describe("codeMirrorClipboardAssetsPlugin", () => {
       original.replace("const before", "const one = 1;\nconst two = 2;\nconst before"),
     );
     expect(view.state.doc.toString().match(/```/gu)).toHaveLength(2);
+  });
+
+  it("uses clipboard text verbatim when rich content is pasted into a fenced code block", () => {
+    const text = 'tool -X GET "http://example.test/mock"';
+    const view = createView("```sh\n\n```");
+    view.dispatch({ selection: EditorSelection.cursor(view.state.doc.line(2).from) });
+
+    paste(view, {
+      html: '<p><span>tool </span><span>-X</span> GET "http://example.test/mock"</p>',
+      text,
+    });
+
+    expect(view.state.doc.toString()).toBe(`\`\`\`sh\n${text}\n\`\`\``);
+  });
+
+  it.each(["synthetic", "native fallback"] as const)(
+    "uses %s plain-text paste verbatim when replacing fenced code",
+    (method) => {
+      const text = 'tool "http://example.test/mock"\n  echo "$MOCK" \\ path ==';
+      const view = createView("~~~sh\n  mock\n~~~");
+      const line = view.state.doc.line(2);
+      view.dispatch({ selection: EditorSelection.range(line.to, line.from) });
+
+      if (method === "synthetic") {
+        markNextPlainTextPaste(view.contentDOM);
+        expect(dispatchPlainTextPaste(view.contentDOM, text)).toBe(true);
+        expect(paste(view, { text }).defaultPrevented).toBe(true);
+      } else {
+        markNextPlainTextPaste(view.contentDOM, "use-native-text");
+        expect(paste(view, { text }).defaultPrevented).toBe(true);
+      }
+
+      expect(view.state.doc.toString()).toBe(`~~~sh\n${text}\n~~~`);
+    },
+  );
+
+  it("still escapes plain-text paste on the closing fence line", () => {
+    const view = createView("```sh\nmock\n```");
+
+    expect(dispatchPlainTextPaste(view.contentDOM, "http://example.test/mock")).toBe(true);
+
+    expect(view.state.doc.toString()).toBe("```sh\nmock\n```http\\://example.test/mock");
   });
 
   it("inserts existing file-tree image drags without saving again", () => {
