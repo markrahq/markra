@@ -1,4 +1,6 @@
+import { EditorView } from "@codemirror/view";
 import { GFM, parser as markdownParser } from "@lezer/markdown";
+import { isSelectionInFencedCodeBody } from "./codemirror/syntax.ts";
 
 export const plainTextPasteMime = "application/x-markra-plain-text-paste";
 const pendingPlainTextPasteProperty = "__markraPendingPlainTextPasteAt";
@@ -30,15 +32,13 @@ type PlainTextInputTarget = HTMLInputElement | HTMLTextAreaElement;
 type PlainTextPasteIntent = "suppress-native" | "use-native-text";
 
 function plainTextClipboardData(text: string) {
-  const escapedText = escapePlainTextMarkdown(text);
-
   return {
     files: Object.assign([], {
       item: () => null,
     }),
     getData: (type: string) => {
       if (type === plainTextPasteMime) return "true";
-      if (type === "text/plain") return escapedText;
+      if (type === "text/plain") return text;
 
       return "";
     },
@@ -286,13 +286,19 @@ export function createPlainTextPasteInserter(target: HTMLElement) {
   return (text: string) => {
     if (!target.isConnected) return false;
 
+    const content = target.closest<HTMLElement>(".cm-content");
+    const view = content ? EditorView.findFromDOM(content) : null;
+    // Match the destination CodeMirror will use after the clipboard read resolves.
+    const clipboardText = view && isSelectionInFencedCodeBody(view.state)
+      ? text
+      : escapePlainTextMarkdown(text);
     const EventConstructor = target.ownerDocument.defaultView?.Event ?? Event;
     const event = new EventConstructor("paste", {
       bubbles: true,
       cancelable: true,
     });
     Object.defineProperty(event, "clipboardData", {
-      value: plainTextClipboardData(text),
+      value: plainTextClipboardData(clipboardText),
     });
     target.dispatchEvent(event);
 
