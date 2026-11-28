@@ -1,3 +1,9 @@
+## [2.14.10](https://github.com/markrahq/markra/compare/v2.14.9...v2.14.10) (2026-11-28)
+
+### Bug Fixes
+
+* **editor:** preserve literal text pasted into code fences ([#803](https://github.com/markrahq/markra/issues/803)) ([eeb68a2](https://github.com/markrahq/markra/commit/eeb68a256e2574cb4d219eb5f2d67d277bcfd8ee))
+
 ## [2.14.9](https://github.com/markrahq/markra/compare/v2.14.8...v2.14.9) (2026-11-25)
 
 ### Features
