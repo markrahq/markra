@@ -571,6 +571,8 @@ export type I18nKey =
   | "settings.webSearch.providerDescription"
   | "settings.webSearch.provider.localBing"
   | "settings.webSearch.provider.searxng"
+  | "settings.webSearch.provider.parallel"
+  | "settings.webSearch.provider.parallelDescription"
   | "settings.webSearch.searxngApiHost"
   | "settings.webSearch.searxngApiHostDescription"
   | "settings.webSearch.maxResults"

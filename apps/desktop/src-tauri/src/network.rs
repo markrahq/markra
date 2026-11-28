@@ -16,22 +16,24 @@ pub(crate) fn apply_network_settings(
     builder: ClientBuilder,
     network: Option<&NetworkSettings>,
 ) -> Result<ClientBuilder, String> {
-    let Some(network) = network else {
+    let Some(proxy_url) = enabled_proxy_url(network)? else {
         return Ok(builder);
     };
 
-    if !network.proxy_enabled || network.proxy_url.trim().is_empty() {
-        return Ok(builder);
-    }
-
-    let proxy_url = validated_proxy_url(&network.proxy_url)?;
     let mut proxy = Proxy::all(proxy_url.as_str()).map_err(|error| error.to_string())?;
 
-    if network.bypass_local_addresses {
+    if network.is_some_and(|settings| settings.bypass_local_addresses) {
         proxy = proxy.no_proxy(NoProxy::from_string(LOCAL_ADDRESS_NO_PROXY));
     }
 
     Ok(builder.proxy(proxy))
+}
+
+pub(crate) fn enabled_proxy_url(network: Option<&NetworkSettings>) -> Result<Option<Url>, String> {
+    network
+        .filter(|settings| settings.proxy_enabled && !settings.proxy_url.trim().is_empty())
+        .map(|settings| validated_proxy_url(&settings.proxy_url))
+        .transpose()
 }
 
 fn validated_proxy_url(value: &str) -> Result<Url, String> {

@@ -14,7 +14,7 @@ export type WebResourceResponse = {
   status: number;
 };
 
-export type WebSearchProviderId = "local-bing" | "searxng";
+export type WebSearchProviderId = "local-bing" | "searxng" | "parallel";
 
 export type WebSearchSettings = {
   contentMaxChars: number;
@@ -38,6 +38,12 @@ export type WebSearchResponse = {
 
 export type WebSearchTransport = (request: WebResourceRequest) => Promise<WebResourceResponse>;
 
+export type ParallelSearchTransport = (query: string) => Promise<Array<{
+  excerpts: string[] | null;
+  title: string | null;
+  url: string;
+}>>;
+
 type SearchHit = {
   snippet?: string;
   title: string;
@@ -57,7 +63,7 @@ const turndownService = new TurndownService({
 
 export function webSearchSettingsAreUsable(settings: WebSearchSettings | null | undefined) {
   if (!settings?.enabled) return false;
-  if (settings.providerId === "local-bing") return true;
+  if (settings.providerId === "local-bing" || settings.providerId === "parallel") return true;
   if (settings.providerId === "searxng") return settings.searxngApiHost.trim().length > 0;
 
   return false;
@@ -66,7 +72,8 @@ export function webSearchSettingsAreUsable(settings: WebSearchSettings | null | 
 export async function runCherryStyleWebSearch(
   query: string,
   settings: WebSearchSettings,
-  transport: WebSearchTransport = missingWebSearchTransport
+  transport: WebSearchTransport = missingWebSearchTransport,
+  searchParallel?: ParallelSearchTransport
 ): Promise<WebSearchResponse> {
   const normalizedQuery = query.trim();
   if (!normalizedQuery) {
@@ -74,6 +81,24 @@ export async function runCherryStyleWebSearch(
   }
   if (!webSearchSettingsAreUsable(settings)) {
     throw new Error("Web search is not configured.");
+  }
+  if (settings.providerId === "parallel") {
+    if (!searchParallel) throw new Error("Parallel web search requires the desktop app.");
+
+    const hits = await searchParallel(normalizedQuery);
+    const results = hits.flatMap((hit) => {
+      const url = hit.url.trim();
+      const passage = hit.excerpts?.map((excerpt) => excerpt.trim()).filter(Boolean).join("\n\n") ?? "";
+      if (!passage || !isHttpUrl(url)) return [];
+
+      return [{
+        content: truncateText(passage, settings.contentMaxChars),
+        title: sanitizeWhitespace(hit.title ?? "") || url,
+        url
+      }];
+    });
+
+    return { query: normalizedQuery, results: dedupeSearchHits(results).slice(0, settings.maxResults) };
   }
 
   const hits =
@@ -265,7 +290,7 @@ function missingWebSearchTransport(): never {
   throw new Error("Web search transport is not configured.");
 }
 
-function dedupeSearchHits(hits: SearchHit[]) {
+function dedupeSearchHits<Hit extends SearchHit>(hits: Hit[]) {
   const seenUrls = new Set<string>();
 
   return hits.filter((hit) => {

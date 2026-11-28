@@ -86,7 +86,7 @@ import type {
 } from "../lib/tauri/spellcheck";
 import type { NativeWebResourceRequest, NativeWebResourceResponse } from "../lib/tauri/web-resource";
 import type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../lib/workspace-search";
-import type { AcpJsonRpcMessage, AiAgentSessionAttachment } from "@markra/ai";
+import type { AcpJsonRpcMessage, AiAgentSessionAttachment, ParallelSearchTransport } from "@markra/ai";
 import { setAppLogBackendWriter, type AppLogEvent, type AppLogWriter } from "../lib/app-logger";
 
 export type { WorkspaceSearchRequest, WorkspaceSearchResponse } from "../lib/workspace-search";
@@ -356,6 +356,7 @@ export type AppSystemFontsRuntime = {
 
 export type AppWebResourceRuntime = {
   requestWebResource: (request: NativeWebResourceRequest) => Promise<NativeWebResourceResponse>;
+  searchParallel?: ParallelSearchTransport;
 };
 
 export type AppSpellcheckRuntime = {

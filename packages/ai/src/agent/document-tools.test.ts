@@ -288,6 +288,47 @@ describe("documentAgentTools", () => {
     });
   });
 
+  it("returns numbered sources from the configured Parallel search transport", async () => {
+    const searchParallel = vi.fn(async () => [
+      { title: "Release notes", url: "https://example.com/release", excerpts: ["First passage.", "Second passage."] },
+      { title: "Duplicate", url: "https://example.com/release", excerpts: ["Duplicate passage."] },
+      { title: "Invalid URL", url: "file:///tmp/result", excerpts: ["Invalid passage."] },
+      { title: "Empty", url: "https://example.com/empty", excerpts: [" "] },
+      { title: "Extra result", url: "https://example.com/extra", excerpts: ["Extra passage."] }
+    ]);
+    const transport = vi.fn();
+    const tool = createDocumentAgentTools({
+      documentContent: "# Notes",
+      documentEndPosition: 7,
+      documentPath: null,
+      selection: null,
+      webSearch: {
+        searchParallel,
+        settings: {
+          contentMaxChars: 12000,
+          enabled: true,
+          maxResults: 1,
+          providerId: "parallel",
+          searxngApiHost: "https://other.example.com"
+        },
+        transport
+      },
+      workspaceFiles: []
+    }).find((item) => item.name === "web_search");
+
+    const result = await tool?.execute("tool_parallel_search", { query: "  current release  " });
+
+    expect(searchParallel).toHaveBeenCalledExactlyOnceWith("current release");
+    expect(transport).not.toHaveBeenCalled();
+    expect(toolText(result)).toContain("[1] Release notes\nURL: https://example.com/release\n\nFirst passage.\n\nSecond passage.");
+    expect(result?.details).toEqual({
+      count: 1,
+      providerId: "parallel",
+      query: "current release",
+      urls: ["https://example.com/release"]
+    });
+  });
+
   it("rejects workspace file reads outside the known Markdown tree", async () => {
     const readWorkspaceFile = vi.fn(async () => "secret");
     const context = {

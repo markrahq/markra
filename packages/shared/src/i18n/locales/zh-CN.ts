@@ -560,6 +560,7 @@ const messages: LocaleMessages = {
   "settings.webSearch.providerDescription": "本地 Bing 不需要 API Key；SearXNG 需要填写启用 JSON 的实例地址。",
   "settings.webSearch.provider.localBing": "本地 Bing",
   "settings.webSearch.provider.searxng": "SearXNG",
+  "settings.webSearch.provider.parallelDescription": "搜索查询会发送给 Parallel（mcp.parallel.ai），无需 Parallel API Key。支持原生联网搜索的模型仍使用自身的服务商。",
   "settings.webSearch.searxngApiHost": "SearXNG 地址",
   "settings.webSearch.searxngApiHostDescription": "例如 http://localhost:8888，需要启用 JSON 输出。",
   "settings.webSearch.maxResults": "最大结果数",

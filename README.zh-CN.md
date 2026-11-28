@@ -230,7 +230,7 @@ Typora 兼容以基础外观为范围：复杂布局、条件规则、主题附�
 
 **内置服务商：** OpenAI · Anthropic · Google Gemini · DeepSeek · Mistral · Groq · OpenRouter · OrcaRouter · Together.ai · Qwen · Xiaomi MiMo · Volcengine Ark · xAI · Azure OpenAI · Ollama
 
-**联网搜索：** 服务商原生搜索、Bing 和 SearXNG——结果数量和正文长度均可配置。
+**联网搜索（桌面版）：** 支持服务商原生搜索、Bing、SearXNG 和 Parallel，结果数量和正文长度均可配置。在联网设置中选择 Parallel 即可使用托管搜索，无需 Parallel API Key。
 
 ## 适用场景
 

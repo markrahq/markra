@@ -1,3 +1,4 @@
+import type { AppWebResourceRuntime } from "@markra/app/runtime";
 import { invokeNative } from "./invoke";
 import { networkSettingsForNativeRequest, type NativeNetworkSettings } from "./network";
 
@@ -22,3 +23,9 @@ export async function requestNativeWebResource(request: NativeWebResourceRequest
     request: network ? { ...request, network } : request
   });
 }
+
+export const searchNativeParallel: NonNullable<AppWebResourceRuntime["searchParallel"]> = async (query) => {
+  const network = await networkSettingsForNativeRequest();
+
+  return invokeNative("search_parallel", { query, network });
+};

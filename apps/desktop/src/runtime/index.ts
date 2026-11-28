@@ -190,7 +190,8 @@ export const desktopRuntime = {
     checkAppUpdate: updater.checkNativeAppUpdate
   },
   webResource: {
-    requestWebResource: webResource.requestNativeWebResource
+    requestWebResource: webResource.requestNativeWebResource,
+    searchParallel: webResource.searchNativeParallel
   },
   window: {
     closeWindow: windowRuntime.closeNativeWindow,
